@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: 'DM Sans';
+  --font-mono: 'DM Mono';
+  --font-display: 'DM Serif Display';
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: #0a0a0f;
+  color: #e8e8f0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2d2d3d; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #44445a; }
+
+/* Markdown rendering */
+.prose-dark h1 { font-family: 'DM Serif Display', serif; font-size: 1.6rem; color: #e8e8f0; margin-bottom: 1rem; }
+.prose-dark h2 { font-size: 1.1rem; font-weight: 600; color: #9490c8; margin: 1.5rem 0 0.5rem; border-bottom: 1px solid #22222e; padding-bottom: 0.25rem; }
+.prose-dark h3 { font-size: 0.95rem; font-weight: 600; color: #7c6af7; margin: 1rem 0 0.4rem; }
+.prose-dark p { font-size: 0.9rem; color: #b0b0c8; line-height: 1.7; margin-bottom: 0.75rem; }
+.prose-dark ul, .prose-dark ol { padding-left: 1.25rem; margin-bottom: 0.75rem; }
+.prose-dark li { font-size: 0.875rem; color: #b0b0c8; line-height: 1.7; margin-bottom: 0.2rem; }
+.prose-dark code { font-family: 'DM Mono', monospace; font-size: 0.8rem; background: #16161f; border: 1px solid #22222e; padding: 1px 5px; border-radius: 4px; color: #4fd8b4; }
+.prose-dark pre { background: #0d0d14; border: 1px solid #22222e; border-radius: 8px; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; }
+.prose-dark pre code { background: none; border: none; padding: 0; color: #c8c8e8; font-size: 0.8rem; }
+.prose-dark table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.8rem; }
+.prose-dark th { text-align: left; padding: 6px 10px; border-bottom: 1px solid #2d2d3d; color: #6b6b80; font-weight: 500; font-family: 'DM Mono', monospace; text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; }
+.prose-dark td { padding: 6px 10px; border-bottom: 1px solid #16161f; color: #b0b0c8; }
+.prose-dark blockquote { border-left: 2px solid #7c6af7; padding-left: 1rem; margin: 1rem 0; color: #6b6b80; font-style: italic; }
+.prose-dark a { color: #7c6af7; text-decoration: none; }
+.prose-dark a:hover { text-decoration: underline; }
+.prose-dark strong { color: #e8e8f0; font-weight: 600; }
+.prose-dark hr { border: none; border-top: 1px solid #22222e; margin: 1.5rem 0; }
