@@ -213,7 +213,7 @@ async function handleTool(name: string, args: Record<string, unknown>) {
     }
 
     case 'vibedoc_log_decision': {
-      const result = await logDecision(args as Parameters<typeof logDecision>[0], root, 'ai')
+      const result = await logDecision(args as unknown as Parameters<typeof logDecision>[0], root, 'ai')
       emitUpdate('decision_logged', result)
       return `📝 **${result.adrNumber}** logged\nFile: ${result.path}`
     }
@@ -226,7 +226,7 @@ async function handleTool(name: string, args: Record<string, unknown>) {
     }
 
     case 'vibedoc_update_memory': {
-      await updateMemory(args as Parameters<typeof updateMemory>[0], root, 'ai')
+      await updateMemory(args as unknown as Parameters<typeof updateMemory>[0], root, 'ai')
       emitUpdate('memory_updated', { root })
       return `🧠 MEMORY.md updated`
     }

@@ -193,7 +193,7 @@ export async function readDoc(query: string, root: string): Promise<{ path: stri
       cwd: root,
       ignore: ['node_modules/**', '.git/**', '.next/**'],
       nodir: true,
-      caseSensitiveMatch: false,
+      nocase: true,
     })
     if (matches.length > 0) {
       const content = await fs.readFile(path.join(root, matches[0]), 'utf8')
