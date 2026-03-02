@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useApp } from "@/context/AppContext"
 import { DocsTab } from "@/components/docs/DocsTab"
 import type { DocFile } from "@/types"
@@ -9,6 +9,7 @@ export default function DocsPage() {
   const { selectedDoc, setSelectedDoc, rootParam, activeProject } = useApp()
   const [docs, setDocs] = useState<DocFile[]>([])
   const [docSearch, setDocSearch] = useState("")
+  const isDirtyRef = useRef(false)
 
   useEffect(() => {
     if (!activeProject) return
@@ -38,9 +39,15 @@ export default function DocsPage() {
   }, [rootParam])
 
   async function handleDocSelect(path: string) {
+    if (isDirtyRef.current && !window.confirm("You have unsaved changes. Discard?")) return
+    isDirtyRef.current = false
     const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(path)}`)
     const data = await res.json()
     setSelectedDoc(data)
+  }
+
+  function handleDirtyChange(dirty: boolean) {
+    isDirtyRef.current = dirty
   }
 
   function handleSearchChange(value: string) {
@@ -55,6 +62,7 @@ export default function DocsPage() {
       docSearch={docSearch}
       onSearchChange={handleSearchChange}
       onDocSelect={handleDocSelect}
+      onDirtyChange={handleDirtyChange}
     />
   )
 }

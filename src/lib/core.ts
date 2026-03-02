@@ -204,6 +204,15 @@ export async function readDoc(query: string, root: string): Promise<{ path: stri
   throw new Error(`Doc not found: "${query}"`)
 }
 
+export async function writeDoc(docPath: string, content: string, root: string): Promise<void> {
+  const resolvedRoot = path.resolve(root)
+  const fullPath = path.resolve(root, docPath)
+  if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
+    throw new Error('Path outside root')
+  }
+  await fs.writeFile(fullPath, content, 'utf8')
+}
+
 export async function searchDocs(query: string, root: string): Promise<SearchResult[]> {
   const files = await glob('**/*.md', {
     cwd: root,
