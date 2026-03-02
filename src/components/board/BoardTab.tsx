@@ -1,13 +1,13 @@
 "use client"
 
-import type { TaskBoard, Summary } from "@/types"
+import type { TaskBoard, Task, Summary } from "@/types"
 import { BoardColumn } from "./BoardColumn"
 
 interface BoardTabProps {
   board: TaskBoard
   summary: Summary | null
   onMoveTask: (id: string, status: string) => void
-  onOpenTask: (file: string) => void
+  onOpenTask: (task: Task) => void
 }
 
 export function BoardTab({ board, summary, onMoveTask, onOpenTask }: BoardTabProps) {

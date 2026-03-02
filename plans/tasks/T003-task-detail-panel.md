@@ -1,5 +1,5 @@
 # T003: Task Detail Panel
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 1 — Polish
 **Size:** S (2-3 hrs)
 **Depends on:** —

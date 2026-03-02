@@ -43,3 +43,7 @@ body {
 .prose-dark a:hover { text-decoration: underline; }
 .prose-dark strong { color: #e8e8f0; font-weight: 600; }
 .prose-dark hr { border: none; border-top: 1px solid #22222e; margin: 1.5rem 0; }
+
+/* Mermaid diagrams */
+.mermaid { margin: 1rem 0; text-align: center; }
+.mermaid svg { max-width: 100%; height: auto; border-radius: 8px; }

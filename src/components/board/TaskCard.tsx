@@ -35,13 +35,22 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, onMove, onOpen }: TaskCardProps) {
+  const [isDragging, setIsDragging] = useState(false)
   const nextStatuses = NEXT_STATUS[task.status] || []
 
   return (
     <div
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("taskId", task.id)
+        e.dataTransfer.effectAllowed = "move"
+        setIsDragging(true)
+      }}
+      onDragEnd={() => setIsDragging(false)}
       className={cn(
         "group relative bg-surface border rounded-lg p-3 text-sm transition-all hover:border-border2",
         STATUS_COLORS[task.status] || "border-border",
+        isDragging && "opacity-50 cursor-grabbing",
       )}
     >
       {/* ID badge */}

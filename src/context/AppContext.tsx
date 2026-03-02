@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import type { TaskBoard, ActivityEvent, Project } from "@/lib/core"
+import type { Task, TaskBoard, ActivityEvent, Project } from "@/lib/core"
 import type { Summary, SelectedDoc } from "@/types"
 
 interface AppContextValue {
@@ -100,12 +100,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [activeProject, refresh])
 
   const moveTask = useCallback(async (taskId: string, status: string) => {
-    await fetch(`/api/tasks${rootParam}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ taskId, status, actor: "human" }),
+    // Optimistic update: move card in UI immediately
+    setBoard(prev => {
+      if (!prev) return prev
+      let movedTask: Task | undefined
+      const next = structuredClone(prev) as TaskBoard
+      for (const col of Object.keys(next) as (keyof TaskBoard)[]) {
+        const idx = next[col].findIndex(t => t.id === taskId)
+        if (idx !== -1) {
+          movedTask = { ...next[col][idx], status: status as Task["status"] }
+          next[col] = next[col].filter(t => t.id !== taskId)
+        }
+      }
+      const target = status as keyof TaskBoard
+      if (movedTask && next[target]) next[target] = [movedTask, ...next[target]]
+      return next
     })
-    refresh()
+
+    try {
+      await fetch(`/api/tasks${rootParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId, status, actor: "human" }),
+      })
+      refresh()
+    } catch {
+      refresh() // revert by fetching real state on error
+    }
   }, [rootParam, refresh])
 
   const openDoc = useCallback(async (docPath: string) => {

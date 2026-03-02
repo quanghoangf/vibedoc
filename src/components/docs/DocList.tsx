@@ -25,6 +25,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
     <div className="w-56 border-r border-border flex-shrink-0 flex flex-col">
       <div className="p-3 border-b border-border">
         <input
+          id="doc-search"
           className="w-full bg-surface2 border border-border rounded-md px-2.5 py-1.5 text-xs font-mono text-txt placeholder:text-muted outline-none focus:border-accent transition-colors"
           placeholder="Search docs..."
           value={searchValue}
