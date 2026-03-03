@@ -35,7 +35,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange 
   const [collabExtensions, setCollabExtensions] = useState<Extension[]>([])
   const [isSynced, setIsSynced] = useState(false)
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const previewRef = useRef(initialContent)
 
   useEffect(() => {
