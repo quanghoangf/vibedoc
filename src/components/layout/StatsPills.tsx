@@ -1,19 +1,21 @@
+import { Badge } from "@/components/ui/badge"
+
 interface StatsPillsProps {
   board: Record<string, number>
 }
 
 export function StatsPills({ board }: StatsPillsProps) {
   return (
-    <div className="flex items-center gap-2 text-xs font-mono">
-      <span className="px-2 py-0.5 rounded-full bg-surface2 border border-border text-amber">
+    <div className="flex items-center gap-1.5">
+      <Badge variant="secondary" className="gap-1 text-xs font-mono text-amber">
         🔨 {board["in-progress"] || 0}
-      </span>
-      <span className="px-2 py-0.5 rounded-full bg-surface2 border border-border text-muted">
+      </Badge>
+      <Badge variant="secondary" className="gap-1 text-xs font-mono text-muted">
         📋 {board.todo || 0}
-      </span>
-      <span className="px-2 py-0.5 rounded-full bg-surface2 border border-border text-teal">
+      </Badge>
+      <Badge variant="secondary" className="gap-1 text-xs font-mono text-teal">
         ✅ {board.done || 0}
-      </span>
+      </Badge>
     </div>
   )
 }

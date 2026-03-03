@@ -1,5 +1,5 @@
 # T001: Drag-and-Drop Kanban Board
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** 1 — Polish
 **Size:** M (3-5 hrs)
 **Depends on:** —

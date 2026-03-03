@@ -1,5 +1,5 @@
 # T005: Proper Markdown Rendering
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 1 — Polish
 **Size:** S (1-2 hrs)
 **Depends on:** —

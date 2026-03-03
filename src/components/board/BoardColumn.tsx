@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
 import type { Task } from "@/types"
 import { TaskCard, STATUS_ICONS } from "./TaskCard"
 
@@ -23,7 +24,7 @@ export function BoardColumn({ status, tasks, onMoveTask, onOpenTask }: BoardColu
         <span className="text-xs font-mono font-semibold text-muted uppercase tracking-wider">
           {status}
         </span>
-        <span className="ml-auto text-xs font-mono text-muted">{tasks.length}</span>
+        <Badge variant="secondary" className="ml-auto font-mono text-xs h-5 px-1.5">{tasks.length}</Badge>
       </div>
 
       {/* Task cards */}

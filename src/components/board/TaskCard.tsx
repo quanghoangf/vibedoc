@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import type { Task } from "@/types"
 
 const STATUS_COLORS: Record<string, string> = {
@@ -10,6 +12,14 @@ const STATUS_COLORS: Record<string, string> = {
   blocked: "text-danger border-danger/30 bg-danger/5",
   done: "text-teal border-teal/30 bg-teal/5",
   cancelled: "text-muted border-border line-through",
+}
+
+const STATUS_BADGE_COLORS: Record<string, string> = {
+  todo: "border-border2 text-muted",
+  "in-progress": "border-amber/40 text-amber",
+  blocked: "border-danger/40 text-danger",
+  done: "border-teal/40 text-teal",
+  cancelled: "border-border text-muted",
 }
 
 export const STATUS_ICONS: Record<string, string> = {
@@ -53,10 +63,15 @@ export function TaskCard({ task, onMove, onOpen }: TaskCardProps) {
         isDragging && "opacity-50 cursor-grabbing",
       )}
     >
-      {/* ID badge */}
+      {/* ID + status badge */}
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-mono text-muted">{task.id}</span>
-        {task.size && <span className="text-xs text-muted">{task.size}</span>}
+        <Badge
+          variant="outline"
+          className={cn("text-[10px] h-4 px-1.5 font-normal", STATUS_BADGE_COLORS[task.status])}
+        >
+          {task.status === "in-progress" ? "active" : task.status}
+        </Badge>
       </div>
 
       {/* Title */}
@@ -67,20 +82,24 @@ export function TaskCard({ task, onMove, onOpen }: TaskCardProps) {
 
       {/* Actions */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 text-xs px-2"
           onClick={onOpen}
-          className="text-xs px-2 py-0.5 rounded bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
         >
           open
-        </button>
+        </Button>
         {nextStatuses.map((s) => (
-          <button
+          <Button
             key={s}
+            variant="ghost"
+            size="sm"
+            className="h-6 text-xs px-2"
             onClick={() => onMove(task.id, s)}
-            className="text-xs px-2 py-0.5 rounded bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
           >
             {STATUS_ICONS[s]} {s === "in-progress" ? "start" : s}
-          </button>
+          </Button>
         ))}
       </div>
     </div>

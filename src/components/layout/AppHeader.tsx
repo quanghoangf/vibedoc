@@ -2,6 +2,8 @@ import type { Project, Summary } from "@/types"
 import { ProjectSwitcher } from "./ProjectSwitcher"
 import { StatsPills } from "./StatsPills"
 import { LiveIndicator } from "./LiveIndicator"
+import { SidebarTrigger } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 
 interface AppHeaderProps {
   summary: Summary | null
@@ -14,6 +16,8 @@ interface AppHeaderProps {
 export function AppHeader({ summary, projects, activeProject, liveIndicator, onProjectChange }: AppHeaderProps) {
   return (
     <header className="h-12 border-b border-border flex items-center px-4 gap-4 flex-shrink-0 bg-surface/80 backdrop-blur-sm sticky top-0 z-50">
+      <SidebarTrigger className="-ml-1" />
+      <Separator orientation="vertical" className="mr-2 h-4" />
       {/* Logo */}
       <div className="flex items-center gap-2 flex-shrink-0">
         <div className="w-6 h-6 rounded-md bg-gradient-to-br from-accent to-teal flex items-center justify-center text-xs">

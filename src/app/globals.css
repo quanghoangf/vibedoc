@@ -44,6 +44,41 @@ body {
 .prose-dark strong { color: #e8e8f0; font-weight: 600; }
 .prose-dark hr { border: none; border-top: 1px solid #22222e; margin: 1.5rem 0; }
 
+/* Collapsible animations */
+@keyframes collapsible-down {
+  from { height: 0; opacity: 0; }
+  to   { height: var(--radix-collapsible-content-height); opacity: 1; }
+}
+@keyframes collapsible-up {
+  from { height: var(--radix-collapsible-content-height); opacity: 1; }
+  to   { height: 0; opacity: 0; }
+}
+.animate-collapsible-down { animation: collapsible-down 0.18s ease-out; }
+.animate-collapsible-up   { animation: collapsible-up   0.15s ease-in;  }
+
 /* Mermaid diagrams */
 .mermaid { margin: 1rem 0; text-align: center; }
 .mermaid svg { max-width: 100%; height: auto; border-radius: 8px; }
+
+@layer base {
+  :root {
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}

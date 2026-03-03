@@ -210,6 +210,7 @@ export async function writeDoc(docPath: string, content: string, root: string): 
   if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
     throw new Error('Path outside root')
   }
+  await fs.mkdir(path.dirname(fullPath), { recursive: true })
   await fs.writeFile(fullPath, content, 'utf8')
 }
 

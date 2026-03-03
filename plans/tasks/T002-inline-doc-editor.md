@@ -1,5 +1,5 @@
 # T002: Inline Doc Editor
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 1 — Polish
 **Size:** M (3-5 hrs)
 **Depends on:** —

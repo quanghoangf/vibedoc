@@ -43,19 +43,30 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!containerRef.current) return
-    const nodes = Array.from(
-      containerRef.current.querySelectorAll(".mermaid:not([data-processed])")
-    )
-    if (nodes.length === 0) return
-    import("mermaid").then((m) => {
-      m.default.initialize({
-        startOnLoad: false,
-        theme: "dark",
-        darkMode: true,
+    const container = containerRef.current
+    if (!container) return
+
+    let cancelled = false
+
+    // Debounce so rapid keystrokes (live preview) don't thrash mermaid
+    const timer = setTimeout(() => {
+      if (cancelled) return
+      import("mermaid").then((m) => {
+        if (cancelled || !container.isConnected) return
+        // Query AFTER the async import resolves — gets current DOM, not stale snapshot
+        const nodes = Array.from(
+          container.querySelectorAll<HTMLElement>(".mermaid:not([data-processed])")
+        )
+        if (nodes.length === 0) return
+        m.default.initialize({ startOnLoad: false, theme: "dark", darkMode: true })
+        m.default.run({ nodes }).catch(() => {/* mermaid parse errors are non-fatal */})
       })
-      m.default.run({ nodes: nodes as HTMLElement[] })
-    })
+    }, 120)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
   }, [html])
 
   return (

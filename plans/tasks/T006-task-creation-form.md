@@ -1,5 +1,5 @@
 # T006: Task Creation Form
-**Status:** 📋 Ready
+**Status:** ❌ Cancelled
 **Phase:** 2 — Create from UI
 **Size:** M (3-4 hrs)
 **Depends on:** T003

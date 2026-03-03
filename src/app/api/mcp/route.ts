@@ -16,7 +16,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  getConfiguredRoot, listDocs, readDoc, searchDocs,
+  getConfiguredRoot, listDocs, readDoc, searchDocs, writeDoc,
   getProjectSummary, listTasks, getTask, updateTaskStatus,
   logDecision, readMemory, updateMemory, logSessionStart,
   TaskStatus,
@@ -62,6 +62,18 @@ const TOOLS = [
     name: 'vibedoc_search_docs',
     description: 'Full-text search across all docs. Returns files and line snippets.',
     inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Search term' } }, required: ['query'] },
+  },
+  {
+    name: 'vibedoc_write_doc',
+    description: 'Write or create a documentation file. Use to add new docs or update existing ones. Path is relative to project root (e.g., "docs/api/endpoints.md"). Creates parent directories as needed. Triggers real-time browser update so the user can review.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative path from project root, e.g. "docs/api/my-guide.md"' },
+        content: { type: 'string', description: 'Full markdown content to write' },
+      },
+      required: ['path', 'content'],
+    },
   },
   {
     name: 'vibedoc_list_tasks',
@@ -184,6 +196,14 @@ async function handleTool(name: string, args: Record<string, unknown>) {
         lines.push('')
       }
       return lines.join('\n')
+    }
+
+    case 'vibedoc_write_doc': {
+      const docPath = String(args.path)
+      const content = String(args.content)
+      await writeDoc(docPath, content, root)
+      emitUpdate('doc_updated', { path: docPath })
+      return `✅ Written: ${docPath}`
     }
 
     case 'vibedoc_list_tasks': {

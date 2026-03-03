@@ -1,23 +1,34 @@
 "use client"
 
+import { LayoutDashboard, BookOpen, Zap, Brain, CircleDot, Ban, ClipboardList, CheckCircle2 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarSeparator,
+} from "@/components/ui/sidebar"
 import type { TaskBoard } from "@/types"
-import { STATUS_ICONS } from "@/components/board/TaskCard"
 
 const NAV_ITEMS = [
-  { href: "/board", icon: "⬡", label: "Board" },
-  { href: "/docs", icon: "📚", label: "Docs" },
-  { href: "/activity", icon: "⚡", label: "Activity" },
-  { href: "/memory", icon: "🧠", label: "Memory" },
+  { href: "/board", icon: LayoutDashboard, label: "Board" },
+  { href: "/docs", icon: BookOpen, label: "Docs" },
+  { href: "/activity", icon: Zap, label: "Activity" },
+  { href: "/memory", icon: Brain, label: "Memory" },
 ]
 
 const BOARD_STATS = [
-  { status: "in-progress", label: "Active" },
-  { status: "blocked", label: "Blocked" },
-  { status: "todo", label: "Todo" },
-  { status: "done", label: "Done" },
+  { status: "in-progress", icon: CircleDot, label: "Active" },
+  { status: "blocked", icon: Ban, label: "Blocked" },
+  { status: "todo", icon: ClipboardList, label: "Todo" },
+  { status: "done", icon: CheckCircle2, label: "Done" },
 ]
 
 interface AppSidebarProps {
@@ -28,41 +39,59 @@ export function AppSidebar({ board }: AppSidebarProps) {
   const pathname = usePathname()
 
   return (
-    <nav className="w-48 border-r border-border flex-shrink-0 flex flex-col py-3 gap-0.5 px-2">
-      {NAV_ITEMS.map((item) => {
-        const isActive = pathname.startsWith(item.href)
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all",
-              isActive
-                ? "bg-accent/10 text-accent border border-accent/20"
-                : "text-muted hover:text-txt hover:bg-surface2",
-            )}
-          >
-            <span className="text-base leading-none">{item.icon}</span>
-            <span className="font-medium">{item.label}</span>
-          </Link>
-        )
-      })}
-
-      {board && (
-        <div className="mt-auto pt-3 border-t border-border px-1">
-          {BOARD_STATS.map(({ status, label }) => {
-            const count = board[status as keyof TaskBoard]?.length || 0
-            return (
-              <div key={status} className="flex justify-between items-center py-1 px-1 text-xs">
-                <span className="text-muted">
-                  {STATUS_ICONS[status]} {label}
-                </span>
-                <span className="font-mono text-txt">{count}</span>
-              </div>
-            )
-          })}
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <div className="flex items-center gap-2 px-2 py-1">
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-accent to-teal flex items-center justify-center text-xs flex-shrink-0">
+            ⬡
+          </div>
+          <span className="font-mono text-xs text-muted tracking-widest uppercase group-data-[collapsible=icon]:hidden">
+            VibeDoc
+          </span>
         </div>
-      )}
-    </nav>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {NAV_ITEMS.map(({ href, icon: Icon, label }) => (
+                <SidebarMenuItem key={href}>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith(href)} tooltip={label}>
+                    <Link href={href}>
+                      <Icon />
+                      <span>{label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        {board && (
+          <>
+            <SidebarSeparator />
+            <SidebarGroup>
+              <SidebarGroupLabel>Board</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {BOARD_STATS.map(({ status, icon: Icon, label }) => {
+                    const count = board[status as keyof TaskBoard]?.length || 0
+                    return (
+                      <SidebarMenuItem key={status}>
+                        <SidebarMenuButton tooltip={`${label}: ${count}`}>
+                          <Icon />
+                          <span>{label}</span>
+                          <span className="ml-auto font-mono text-xs">{count}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </>
+        )}
+      </SidebarContent>
+    </Sidebar>
   )
 }
