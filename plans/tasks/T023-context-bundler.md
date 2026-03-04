@@ -1,5 +1,5 @@
 # T023 — Context Bundler
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 3 — Doc Management
 **Size:** M (1–2 hrs)
 **Depends on:** T021 (DocList already modified; "Select" mode added alongside "New Doc" button)

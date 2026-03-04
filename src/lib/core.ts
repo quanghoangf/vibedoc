@@ -46,7 +46,7 @@ export interface SearchResult {
 export interface ActivityEvent {
   id: string
   timestamp: string
-  type: 'task_updated' | 'decision_logged' | 'memory_updated' | 'doc_read' | 'session_start'
+  type: 'task_updated' | 'decision_logged' | 'memory_updated' | 'doc_read' | 'session_start' | 'doc_created'
   actor: 'ai' | 'human'
   title: string
   detail?: string
@@ -212,6 +212,39 @@ export async function writeDoc(docPath: string, content: string, root: string): 
   }
   await fs.mkdir(path.dirname(fullPath), { recursive: true })
   await fs.writeFile(fullPath, content, 'utf8')
+}
+
+export async function getContext(paths: string[], root: string): Promise<string> {
+  const parts: string[] = []
+  for (const p of paths) {
+    try {
+      const { content } = await readDoc(p, root)
+      parts.push(`--- FILE: ${p} ---\n\n${content.trim()}`)
+    } catch {
+      // skip missing or unreadable files
+    }
+  }
+  return parts.join('\n\n---\n\n')
+}
+
+export async function createDoc(docPath: string, content: string, root: string): Promise<void> {
+  const resolvedRoot = path.resolve(root)
+  const fullPath = path.resolve(root, docPath)
+  if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
+    throw new Error('Path outside root')
+  }
+  try {
+    await fs.access(fullPath)
+    const err = new Error(`File already exists: ${docPath}`) as NodeJS.ErrnoException
+    err.code = 'EEXIST'
+    throw err
+  } catch (e) {
+    const nodeErr = e as NodeJS.ErrnoException
+    if (nodeErr.code !== 'ENOENT') throw e
+  }
+  await fs.mkdir(path.dirname(fullPath), { recursive: true })
+  await fs.writeFile(fullPath, content, 'utf8')
+  await appendActivity(root, { type: 'doc_created', actor: 'human', title: `Created: ${docPath}`, detail: docPath })
 }
 
 export async function searchDocs(query: string, root: string): Promise<SearchResult[]> {
@@ -472,3 +505,4 @@ export async function getProjectSummary(root: string) {
     activity,
   }
 }
+

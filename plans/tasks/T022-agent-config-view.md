@@ -1,5 +1,5 @@
 # T022 — Agent Config View
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 3 — Doc Management
 **Size:** XS (30 min)
 **Depends on:** —

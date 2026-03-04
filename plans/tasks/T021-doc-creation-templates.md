@@ -1,5 +1,5 @@
 # T021 — Doc Creation + Template Gallery
-**Status:** 📋 Ready
+**Status:** 📋 Todo
 **Phase:** 3 — Doc Management
 **Size:** M (2–3 hrs)
 **Depends on:** —

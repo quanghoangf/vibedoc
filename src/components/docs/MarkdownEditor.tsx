@@ -20,9 +20,10 @@ interface Props {
   initialContent: string
   onSave: (content: string) => Promise<void>
   onDirtyChange?: (dirty: boolean) => void
+  onContentChange?: (content: string) => void
 }
 
-export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange }: Props) {
+export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
   const [viewMode, setViewMode] = useState<ViewMode>("split")
   const [previewContent, setPreviewContent] = useState(initialContent)
@@ -36,6 +37,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange 
   const [isSynced, setIsSynced] = useState(false)
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const contentChangeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const previewRef = useRef(initialContent)
 
   useEffect(() => {
@@ -52,6 +54,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange 
     setIsSynced(false)
     setUserCount(1)
     clearTimeout(saveTimerRef.current)
+    clearTimeout(contentChangeTimerRef.current)
     onDirtyChange?.(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docPath])
@@ -156,11 +159,16 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange 
 
   const handleChange = useCallback(
     (value: string) => {
+      // Skip if content hasn't actually changed (e.g. yCollab initial sync fires onChange
+      // with the same content, which would incorrectly mark the doc as dirty)
+      if (value === previewRef.current) return
       setPreviewContent(value)
       setSaveStatus("unsaved")
       onDirtyChange?.(true)
+      clearTimeout(contentChangeTimerRef.current)
+      contentChangeTimerRef.current = setTimeout(() => { onContentChange?.(value) }, 500)
     },
-    [onDirtyChange]
+    [onDirtyChange, onContentChange]
   )
 
   function handleDownload() {

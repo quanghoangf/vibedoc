@@ -7,9 +7,10 @@ import { MarkdownEditor } from "./MarkdownEditor"
 interface DocViewerProps {
   doc: SelectedDoc | null
   onDirtyChange?: (dirty: boolean) => void
+  onContentChange?: (content: string) => void
 }
 
-export function DocViewer({ doc, onDirtyChange }: DocViewerProps) {
+export function DocViewer({ doc, onDirtyChange, onContentChange }: DocViewerProps) {
   const { rootParam, setSelectedDoc } = useApp()
 
   if (!doc) {
@@ -40,6 +41,7 @@ export function DocViewer({ doc, onDirtyChange }: DocViewerProps) {
         initialContent={doc.content}
         onSave={handleSave}
         onDirtyChange={onDirtyChange}
+        onContentChange={onContentChange}
       />
     </div>
   )

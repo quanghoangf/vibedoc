@@ -16,11 +16,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  getConfiguredRoot, listDocs, readDoc, searchDocs, writeDoc,
+  getConfiguredRoot, listDocs, readDoc, searchDocs, writeDoc, createDoc, getContext,
   getProjectSummary, listTasks, getTask, updateTaskStatus,
   logDecision, readMemory, updateMemory, logSessionStart,
   TaskStatus,
 } from '@/lib/core'
+import { TEMPLATES } from '@/lib/templates'
 import { emitUpdate } from '@/lib/events'
 import { z } from 'zod'
 
@@ -136,6 +137,34 @@ const TOOLS = [
       required: ['currentState', 'handoff'],
     },
   },
+  {
+    name: 'vibedoc_create_doc',
+    description: 'Create a new doc from a template. Use vibedoc_list_templates to see available IDs. Fails if file exists.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        templateId: { type: 'string', description: 'Defaults to "blank"' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'vibedoc_list_templates',
+    description: 'List all doc templates with IDs, names, and default paths.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'vibedoc_get_context',
+    description: 'Bundle multiple docs into a single context block. Useful for loading several docs at once before starting a task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paths: { type: 'array', items: { type: 'string' }, description: 'Array of relative doc paths to bundle' },
+      },
+      required: ['paths'],
+    },
+  },
 ]
 
 async function handleTool(name: string, args: Record<string, unknown>) {
@@ -249,6 +278,26 @@ async function handleTool(name: string, args: Record<string, unknown>) {
       await updateMemory(args as unknown as Parameters<typeof updateMemory>[0], root, 'ai')
       emitUpdate('memory_updated', { root })
       return `🧠 MEMORY.md updated`
+    }
+
+    case 'vibedoc_create_doc': {
+      const docPath = String(args.path)
+      const templateId = args.templateId ? String(args.templateId) : 'blank'
+      const template = TEMPLATES.find(t => t.id === templateId) ?? TEMPLATES.find(t => t.id === 'blank')!
+      await createDoc(docPath, template.content, root)
+      emitUpdate('doc_created', { path: docPath })
+      return `✅ Created: ${docPath} (template: ${template.name})`
+    }
+
+    case 'vibedoc_list_templates': {
+      return TEMPLATES.map(t => `**${t.id}** — ${t.name}\n  ${t.description}\n  Default: \`${t.defaultPath}\``).join('\n\n')
+    }
+
+    case 'vibedoc_get_context': {
+      const paths = args.paths as string[]
+      const context = await getContext(paths, root)
+      if (!context) return '(no content — check paths are correct)'
+      return context
     }
 
     default:
