@@ -63,6 +63,20 @@ export default function DocsPage() {
     searchDocsFn(value)
   }
 
+  function handleDocDeleted(path: string) {
+    fetchDocs()
+    if (selectedDoc?.path === path) {
+      setSelectedDoc(null)
+    }
+  }
+
+  async function handleDocRenamed(oldPath: string, newPath: string) {
+    fetchDocs()
+    if (selectedDoc?.path === oldPath) {
+      await handleDocSelect(newPath)
+    }
+  }
+
   return (
     <>
       <DocsTab
@@ -73,6 +87,8 @@ export default function DocsPage() {
         onDocSelect={handleDocSelect}
         onDirtyChange={handleDirtyChange}
         onNewDocClick={() => setNewDocOpen(true)}
+        onDocDeleted={handleDocDeleted}
+        onDocRenamed={handleDocRenamed}
         rootParam={rootParam}
       />
       <NewDocModal

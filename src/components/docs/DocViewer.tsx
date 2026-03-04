@@ -3,6 +3,7 @@
 import { useApp } from "@/context/AppContext"
 import type { SelectedDoc } from "@/types"
 import { MarkdownEditor } from "./MarkdownEditor"
+import { BacklinksPanel } from "./BacklinksPanel"
 
 interface DocViewerProps {
   doc: SelectedDoc | null
@@ -11,7 +12,7 @@ interface DocViewerProps {
 }
 
 export function DocViewer({ doc, onDirtyChange, onContentChange }: DocViewerProps) {
-  const { rootParam, setSelectedDoc } = useApp()
+  const { rootParam, setSelectedDoc, openDoc } = useApp()
 
   if (!doc) {
     return (
@@ -42,6 +43,11 @@ export function DocViewer({ doc, onDirtyChange, onContentChange }: DocViewerProp
         onSave={handleSave}
         onDirtyChange={onDirtyChange}
         onContentChange={onContentChange}
+      />
+      <BacklinksPanel
+        docPath={doc.path}
+        rootParam={rootParam}
+        onOpenDoc={openDoc}
       />
     </div>
   )

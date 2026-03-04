@@ -1,5 +1,5 @@
 # T029 — CLI Setup Wizard: Full Mode (Claude API)
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 4 — CLI & Distribution
 **Size:** M (2 hrs)
 **Depends on:** T028 (wizard skeleton must exist)

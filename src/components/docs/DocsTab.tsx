@@ -15,16 +15,18 @@ interface DocsTabProps {
   onDocSelect: (path: string) => void
   onDirtyChange?: (dirty: boolean) => void
   onNewDocClick?: () => void
+  onDocDeleted?: (path: string) => void
+  onDocRenamed?: (oldPath: string, newPath: string) => void
   rootParam?: string
 }
 
-export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSelect, onDirtyChange, onNewDocClick, rootParam }: DocsTabProps) {
+export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSelect, onDirtyChange, onNewDocClick, onDocDeleted, onDocRenamed, rootParam }: DocsTabProps) {
   const [liveContent, setLiveContent] = useState(selectedDoc?.content ?? "")
   useEffect(() => { setLiveContent(selectedDoc?.content ?? "") }, [selectedDoc?.path])
   const headings = useMemo(() => extractHeadings(liveContent), [liveContent])
 
   return (
-    <div className="flex h-full" style={{ minHeight: "calc(100vh - 3rem)" }}>
+    <div className="flex h-full relative" style={{ minHeight: "calc(100vh - 3rem)" }}>
       <DocList
         docs={docs}
         selectedDocPath={selectedDoc?.path}
@@ -32,16 +34,14 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
         onSearchChange={onSearchChange}
         onDocClick={onDocSelect}
         onNewDocClick={onNewDocClick}
+        onDocDeleted={onDocDeleted}
+        onDocRenamed={onDocRenamed}
         rootParam={rootParam}
       />
       <div className="flex-1 overflow-y-auto">
         <DocViewer doc={selectedDoc} onDirtyChange={onDirtyChange} onContentChange={setLiveContent} />
       </div>
-      {selectedDoc && (
-        <div className="w-48 shrink-0 border-l border-border flex flex-col overflow-hidden">
-          <DocOutline headings={headings} />
-        </div>
-      )}
+      {selectedDoc && <DocOutline headings={headings} />}
     </div>
   )
 }

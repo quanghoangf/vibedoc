@@ -2,7 +2,16 @@
   "name": "vibedoc",
   "version": "1.0.0",
   "description": "Local-first project intelligence for AI-assisted development. Web UI + MCP server in one.",
-  "private": true,
+  "bin": {
+    "vibedoc": "./bin/vibedoc.mjs"
+  },
+  "files": [
+    "bin/",
+    ".next/",
+    "public/",
+    "src/",
+    "package.json"
+  ],
   "scripts": {
     "dev": "concurrently \"next dev\" \"node ws-server.js\" --names \"next,ws\" --prefix-colors \"cyan,yellow\"",
     "dev:next": "next dev",
@@ -34,6 +43,7 @@
     "marked": "^12.0.0",
     "mermaid": "^11.12.3",
     "next": "latest",
+    "open": "^11.0.0",
     "react": "^19",
     "react-dom": "^19",
     "tailwind-merge": "^3.5.0",

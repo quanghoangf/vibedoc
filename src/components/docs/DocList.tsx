@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState, createContext, useContext } from "react"
-import { FileText, Folder, FolderOpen, ChevronRight, Search, Bot, Plus, CheckSquare, Copy, Check, X } from "lucide-react"
+import { FileText, Folder, FolderOpen, ChevronRight, Search, Bot, Plus, CheckSquare, Copy, Check, X, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -10,6 +10,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import type { DocFile } from "@/types"
 
 // ─── Selection context (scoped to DocList, not exported) ──────────────────────
@@ -18,7 +24,11 @@ const SelectionCtx = createContext<{
   active: boolean
   selected: Set<string>
   toggle: (path: string) => void
-}>({ active: false, selected: new Set(), toggle: () => {} })
+  onRename: (path: string) => void
+  onDelete: (path: string) => void
+  renamingPath: string | null
+  setRenamingPath: (path: string | null) => void
+}>({ active: false, selected: new Set(), toggle: () => {}, onRename: () => {}, onDelete: () => {}, renamingPath: null, setRenamingPath: () => {} })
 
 // ─── Tree helpers ─────────────────────────────────────────────────────────────
 
@@ -69,19 +79,51 @@ interface TreeNodeRowProps {
 }
 
 function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: TreeNodeRowProps) {
-  const { active: selectMode, selected, toggle } = useContext(SelectionCtx)
+  const { active: selectMode, selected, toggle, onRename, onDelete, renamingPath, setRenamingPath } = useContext(SelectionCtx)
+  const [renameValue, setRenameValue] = useState(node.name)
   const isFile = !!node.docPath
   const isActive = node.docPath === selectedPath
   const isChecked = node.docPath ? selected.has(node.docPath) : false
+  const isRenaming = node.docPath === renamingPath
   const indent = depth * 12
 
   if (isFile) {
+    if (isRenaming) {
+      return (
+        <div
+          style={{ paddingLeft: `${8 + indent}px` }}
+          className="flex items-center gap-2 h-7 pr-2"
+        >
+          <FileText className="h-3.5 w-3.5 shrink-0 opacity-50" />
+          <Input
+            autoFocus
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const newName = renameValue.trim()
+                if (newName && newName !== node.name) {
+                  const dir = node.docPath!.split("/").slice(0, -1).join("/")
+                  const newPath = dir ? `${dir}/${newName}.md` : `${newName}.md`
+                  onRename(newPath)
+                }
+                setRenamingPath(null)
+              } else if (e.key === "Escape") {
+                setRenameValue(node.name)
+                setRenamingPath(null)
+              }
+            }}
+            onBlur={() => { setRenameValue(node.name); setRenamingPath(null) }}
+            className="h-5 text-xs px-1 py-0"
+          />
+        </div>
+      )
+    }
+
     return (
-      <button
-        onClick={() => selectMode ? toggle(node.docPath!) : onDocClick(node.docPath!)}
-        style={{ paddingLeft: `${8 + indent}px` }}
+      <div
         className={cn(
-          "group w-full flex items-center gap-2 h-7 pr-2 rounded-md text-xs transition-colors",
+          "group w-full flex items-center gap-2 h-7 pr-1 rounded-md text-xs transition-colors",
           isActive && !selectMode
             ? "bg-accent/10 text-accent font-medium"
             : isChecked
@@ -89,18 +131,44 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
             : "text-muted hover:text-txt hover:bg-surface2",
         )}
       >
-        {selectMode ? (
-          <span className={cn(
-            "h-3.5 w-3.5 shrink-0 rounded border flex items-center justify-center transition-colors",
-            isChecked ? "border-accent bg-accent/20" : "border-border",
-          )}>
-            {isChecked && <Check className="h-2.5 w-2.5 text-accent" />}
-          </span>
-        ) : (
-          <FileText className="h-3.5 w-3.5 shrink-0 opacity-50" />
+        <button
+          onClick={() => selectMode ? toggle(node.docPath!) : onDocClick(node.docPath!)}
+          style={{ paddingLeft: `${8 + indent}px` }}
+          className="flex-1 flex items-center gap-2 h-full truncate"
+        >
+          {selectMode ? (
+            <span className={cn(
+              "h-3.5 w-3.5 shrink-0 rounded border flex items-center justify-center transition-colors",
+              isChecked ? "border-accent bg-accent/20" : "border-border",
+            )}>
+              {isChecked && <Check className="h-2.5 w-2.5 text-accent" />}
+            </span>
+          ) : (
+            <FileText className="h-3.5 w-3.5 shrink-0 opacity-50" />
+          )}
+          <span className="truncate">{formatName(node.name)}</span>
+        </button>
+        {!selectMode && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="h-5 w-5 shrink-0 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-surface2 transition-opacity"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-32">
+              <DropdownMenuItem onClick={() => { setRenameValue(node.name.replace(/\.md$/, "")); setRenamingPath(node.docPath!) }}>
+                <Pencil className="h-3.5 w-3.5 mr-2" /> Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDelete(node.docPath!)} className="text-red-400 focus:text-red-400">
+                <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
-        <span className="truncate">{formatName(node.name)}</span>
-      </button>
+      </div>
     )
   }
 
@@ -142,13 +210,17 @@ interface DocListProps {
   onSearchChange: (value: string) => void
   onDocClick: (path: string) => void
   onNewDocClick?: () => void
+  onDocDeleted?: (path: string) => void
+  onDocRenamed?: (oldPath: string, newPath: string) => void
   rootParam?: string
 }
 
-export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, rootParam = "" }: DocListProps) {
+export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, onDocDeleted, onDocRenamed, rootParam = "" }: DocListProps) {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "copied">("idle")
+  const [renamingPath, setRenamingPath] = useState<string | null>(null)
+  const [pendingNewPath, setPendingNewPath] = useState<string | null>(null)
 
   const agentConfigs = useMemo(() => docs.filter(d => {
     const p = normalizePath(d.path)
@@ -180,6 +252,36 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
     setCopyStatus("idle")
   }
 
+  async function handleRename(newPath: string) {
+    if (!renamingPath || !onDocRenamed) return
+    try {
+      const res = await fetch(`/api/docs${rootParam}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldPath: renamingPath, newPath }),
+      })
+      if (res.ok) {
+        onDocRenamed(renamingPath, newPath)
+      }
+    } catch {}
+    setRenamingPath(null)
+  }
+
+  async function handleDelete(docPath: string) {
+    if (!onDocDeleted) return
+    if (!window.confirm(`Delete ${docPath}?`)) return
+    try {
+      const res = await fetch(`/api/docs${rootParam}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: docPath }),
+      })
+      if (res.ok) {
+        onDocDeleted(docPath)
+      }
+    } catch {}
+  }
+
   async function handleCopyContext() {
     if (selected.size === 0) return
     setCopyStatus("copying")
@@ -199,7 +301,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
   }
 
   return (
-    <SelectionCtx.Provider value={{ active: selectMode, selected, toggle }}>
+    <SelectionCtx.Provider value={{ active: selectMode, selected, toggle, onRename: handleRename, onDelete: handleDelete, renamingPath, setRenamingPath }}>
       <aside className="w-56 flex flex-col border-r border-border flex-shrink-0 bg-sidebar">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">

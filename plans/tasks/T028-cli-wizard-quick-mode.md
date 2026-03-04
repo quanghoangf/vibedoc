@@ -1,5 +1,5 @@
 # T028 — CLI Setup Wizard: Quick Mode (`npx vibedoc`)
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 4 — CLI & Distribution
 **Size:** M (2–3 hrs)
 **Depends on:** —

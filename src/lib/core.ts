@@ -46,7 +46,7 @@ export interface SearchResult {
 export interface ActivityEvent {
   id: string
   timestamp: string
-  type: 'task_updated' | 'decision_logged' | 'memory_updated' | 'doc_read' | 'session_start' | 'doc_created'
+  type: 'task_updated' | 'decision_logged' | 'memory_updated' | 'doc_read' | 'session_start' | 'doc_created' | 'doc_deleted' | 'doc_renamed'
   actor: 'ai' | 'human'
   title: string
   detail?: string
@@ -479,6 +479,88 @@ export async function readActivity(root: string, limit = 50): Promise<ActivityEv
 
 export async function logSessionStart(root: string, actor: 'ai' | 'human' = 'ai'): Promise<void> {
   await appendActivity(root, { type: 'session_start', actor, title: 'Session started', detail: 'Agent connected' })
+}
+
+// ─── Status summary ───────────────────────────────────────────────────────────
+
+// ─── Doc operations (append, rename, delete) ──────────────────────────────────
+
+export async function appendDoc(docPath: string, content: string, root: string): Promise<void> {
+  const resolvedRoot = path.resolve(root)
+  const fullPath = path.resolve(root, docPath)
+  if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
+    throw new Error('Path outside root')
+  }
+  let existing: string
+  try {
+    existing = await fs.readFile(fullPath, 'utf8')
+  } catch {
+    throw new Error(`Doc not found: ${docPath}`)
+  }
+  await fs.writeFile(fullPath, existing.trimEnd() + '\n\n' + content, 'utf8')
+}
+
+export async function renameDoc(oldPath: string, newPath: string, root: string): Promise<void> {
+  const resolvedRoot = path.resolve(root)
+  const fullOld = path.resolve(root, oldPath)
+  const fullNew = path.resolve(root, newPath)
+  if (!fullOld.startsWith(resolvedRoot + path.sep) && fullOld !== resolvedRoot) {
+    throw new Error('Path outside root')
+  }
+  if (!fullNew.startsWith(resolvedRoot + path.sep) && fullNew !== resolvedRoot) {
+    throw new Error('Path outside root')
+  }
+  await fs.mkdir(path.dirname(fullNew), { recursive: true })
+  try {
+    await fs.rename(fullOld, fullNew)
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'EXDEV') {
+      await fs.copyFile(fullOld, fullNew)
+      await fs.unlink(fullOld)
+    } else throw e
+  }
+  await appendActivity(root, { type: 'doc_renamed', actor: 'human', title: `Renamed ${oldPath} → ${newPath}` })
+}
+
+export async function deleteDoc(docPath: string, root: string): Promise<void> {
+  const resolvedRoot = path.resolve(root)
+  const fullPath = path.resolve(root, docPath)
+  if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
+    throw new Error('Path outside root')
+  }
+  await fs.unlink(fullPath)
+  await appendActivity(root, { type: 'doc_deleted', actor: 'human', title: `Deleted ${docPath}` })
+}
+
+// ─── Backlinks ─────────────────────────────────────────────────────────────────
+
+export async function findBacklinks(
+  targetPath: string,
+  root: string
+): Promise<{ file: string; line: number; text: string }[]> {
+  const files = await glob('**/*.md', {
+    cwd: root,
+    ignore: ['node_modules/**', '.git/**', '.next/**'],
+    nodir: true,
+  })
+  const normalTarget = targetPath.replace(/\\/g, '/')
+  const basename = path.basename(normalTarget)
+  const results: { file: string; line: number; text: string }[] = []
+
+  for (const f of files) {
+    if (f.replace(/\\/g, '/') === normalTarget) continue
+    try {
+      const content = await fs.readFile(path.join(root, f), 'utf8')
+      const lines = content.split('\n')
+      lines.forEach((line, i) => {
+        if (/\[.*\]\(.*\)/.test(line) &&
+            (line.includes(basename) || line.includes(normalTarget))) {
+          results.push({ file: f, line: i + 1, text: line.trim().slice(0, 120) })
+        }
+      })
+    } catch { /* skip unreadable */ }
+  }
+  return results
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────

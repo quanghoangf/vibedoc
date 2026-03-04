@@ -1,5 +1,5 @@
 # T027 — Extended MCP Tools: Append, Rename, Delete
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 3 — Doc Management
 **Size:** S (1 hr)
 **Depends on:** T021 (pattern for POST /api/docs is established)

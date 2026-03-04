@@ -1,5 +1,5 @@
 # T026 — Backlinks Panel
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 3 — Doc Management
 **Size:** S (1 hr)
 **Depends on:** —

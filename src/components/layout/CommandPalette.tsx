@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Search, FilePlus, LayoutDashboard, Activity, Brain } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -97,6 +97,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, rootParam }
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
       <DialogContent className="max-w-lg p-0 overflow-hidden bg-surface border-border gap-0">
+        <DialogTitle className="sr-only">Command Palette</DialogTitle>
         <div className="flex items-center px-4 h-12">
           <Search className="h-4 w-4 text-muted shrink-0 mr-3" />
           <Input

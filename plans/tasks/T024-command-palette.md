@@ -1,5 +1,5 @@
 # T024 — Command Palette (Cmd+K)
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 3 — Doc Management
 **Size:** M (1–2 hrs)
 **Depends on:** —

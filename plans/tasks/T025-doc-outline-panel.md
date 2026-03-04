@@ -1,5 +1,5 @@
 # T025 — Doc Outline Panel
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** 3 — Doc Management
 **Size:** M (1.5–2 hrs)
 **Depends on:** —
