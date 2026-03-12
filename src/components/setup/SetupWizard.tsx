@@ -133,7 +133,7 @@ export function SetupWizard() {
                 </div>
                 <h2 className="text-2xl font-bold text-txt">Welcome to VibeDoc</h2>
                 <p className="text-muted max-w-md mx-auto">
-                  Let's set up your project documentation. You can generate AI-optimized 
+                  Let&apos;s set up your project documentation. You can generate AI-optimized
                   docs like CLAUDE.md, architecture overviews, and more.
                 </p>
               </div>
