@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Local-first project intelligence for AI-assisted development. Web UI + MCP server in one.",
   "bin": {
-    "vibedoc": "./bin/vibedoc.js"
+    "vibedoc": "bin/vibedoc.js"
   },
   "files": [
     "bin/",
