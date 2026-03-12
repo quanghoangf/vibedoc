@@ -36,5 +36,19 @@ function shutdown() {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
+next.on('error', err => {
+  console.error('[vibedoc] Failed to start Next.js server:', err.message);
+  process.exit(1);
+});
+
 next.on('exit', code => process.exit(code ?? 0));
-ws.on('exit', () => {});
+
+ws.on('error', err => {
+  console.error('[vibedoc] Failed to start WebSocket server:', err.message);
+});
+
+ws.on('exit', code => {
+  if (code !== 0 && code !== null) {
+    console.error(`[vibedoc] WebSocket server exited with code ${code}`);
+  }
+});
