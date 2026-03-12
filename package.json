@@ -30,7 +30,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "next build"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",

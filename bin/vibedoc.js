@@ -18,7 +18,7 @@ const env = { ...process.env, VIBEDOC_ROOT };
 
 const next = spawn(
   process.execPath,
-  [path.join(PKG_DIR, 'node_modules/next/dist/bin/next'), 'start', '--port', PORT],
+  [require.resolve('next/dist/bin/next', { paths: [PKG_DIR] }), 'start', '--port', PORT],
   { cwd: PKG_DIR, stdio: 'inherit', env }
 );
 
