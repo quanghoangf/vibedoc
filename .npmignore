@@ -1,0 +1,14 @@
+# Source — not needed at runtime
+src/
+docs/
+plans/
+memory/
+*.md
+!README.md
+*.ts
+tsconfig.json
+.env*
+pnpm-lock.yaml
+
+# Next.js build cache — not needed at runtime
+.next/cache/**
