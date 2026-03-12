@@ -19,7 +19,8 @@
     "dev:ws": "node ws-server.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",
