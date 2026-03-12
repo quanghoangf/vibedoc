@@ -6,6 +6,8 @@ import { AppProvider, useApp } from "@/context/AppContext"
 import { LoadingScreen } from "@/components/shared/LoadingScreen"
 import { AppHeader } from "@/components/layout/AppHeader"
 import { AppSidebar } from "@/components/layout/AppSidebar"
+import { CommandPalette } from "@/components/layout/CommandPalette"
+import { NewDocModal } from "@/components/docs/NewDocModal"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -17,6 +19,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 const SHORTCUTS = [
+  { key: "Cmd+K", description: "Open command palette" },
   { key: "b", description: "Go to Board" },
   { key: "d", description: "Go to Docs" },
   { key: "a", description: "Go to Activity" },
@@ -27,13 +30,20 @@ const SHORTCUTS = [
 ]
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
-  const { loading, summary, projects, activeProject, liveIndicator, onProjectChange, board } = useApp()
+  const { loading, summary, projects, activeProject, liveIndicator, onProjectChange, board, openDoc, rootParam } = useApp()
   const router = useRouter()
   const pathname = usePathname()
   const [showHelp, setShowHelp] = useState(false)
+  const [cmdOpen, setCmdOpen] = useState(false)
+  const [newDocOpen, setNewDocOpen] = useState(false)
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault()
+        setCmdOpen(v => !v)
+        return
+      }
       const tag = (e.target as Element)?.tagName
       if (tag === "INPUT" || tag === "TEXTAREA") return
       switch (e.key) {
@@ -71,6 +81,20 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           onProjectChange={onProjectChange}
         />
         <main className="flex-1 overflow-y-auto">{children}</main>
+
+        <CommandPalette
+          open={cmdOpen}
+          onClose={() => setCmdOpen(false)}
+          onOpenDoc={openDoc}
+          onNewDoc={() => { setCmdOpen(false); setNewDocOpen(true) }}
+          rootParam={rootParam}
+        />
+        <NewDocModal
+          open={newDocOpen}
+          onOpenChange={setNewDocOpen}
+          rootParam={rootParam}
+          onDocCreated={async (path) => { await openDoc(path) }}
+        />
 
         {/* Keyboard shortcuts help modal */}
         {showHelp && (

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listDocs, readDoc, searchDocs, writeDoc, getConfiguredRoot } from '@/lib/core'
+import { listDocs, readDoc, searchDocs, writeDoc, createDoc, renameDoc, deleteDoc, getConfiguredRoot } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 
 export async function GET(req: NextRequest) {
@@ -25,6 +25,44 @@ export async function PUT(req: NextRequest) {
     const { path: docPath, content } = await req.json()
     await writeDoc(docPath, content, root)
     emitUpdate('doc_updated', { path: docPath })
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+    const { path: docPath, content } = await req.json()
+    await createDoc(docPath, content, root)
+    emitUpdate('doc_created', { path: docPath })
+    return NextResponse.json({ ok: true, path: docPath }, { status: 201 })
+  } catch (e) {
+    const nodeErr = e as NodeJS.ErrnoException
+    if (nodeErr.code === 'EEXIST') return NextResponse.json({ error: 'File already exists' }, { status: 409 })
+    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+    const { oldPath, newPath } = await req.json()
+    await renameDoc(oldPath, newPath, root)
+    emitUpdate('doc_renamed', { oldPath, newPath })
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+    const { path: docPath } = await req.json()
+    await deleteDoc(docPath, root)
+    emitUpdate('doc_deleted', { path: docPath })
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 })
