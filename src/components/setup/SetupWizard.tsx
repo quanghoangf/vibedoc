@@ -5,17 +5,27 @@ import { useApp } from "@/context/AppContext"
 import { ChevronLeft, ChevronRight, Sparkles, FileText, Check, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TemplateSelector, type TemplateSelection } from "./TemplateSelector"
-import { ProjectQuestionnaire, type ProjectAnswers } from "./ProjectQuestionnaire"
+import { type ProjectAnswers } from "./ProjectQuestionnaire"
+import { BasicInfo } from "./BasicInfo"
+import { TechStackInput } from "./TechStackInput"
+import { TeamConventions } from "./TeamConventions"
 import { GenerationPreview, type GeneratedFile } from "./GenerationPreview"
 
 const STEPS = [
-  { id: "welcome", title: "Welcome" },
+  { id: "welcome",   title: "Welcome" },
   { id: "templates", title: "Templates" },
-  { id: "questions", title: "Project Info" },
-  { id: "mode", title: "Generation" },
-  { id: "preview", title: "Preview" },
-  { id: "complete", title: "Complete" },
+  { id: "basic-info", title: "Basic Info" },
+  { id: "tech-stack", title: "Tech Stack" },
+  { id: "team",      title: "Team" },
+  { id: "mode",      title: "Generation" },
+  { id: "preview",   title: "Preview" },
+  { id: "complete",  title: "Complete" },
 ]
+
+const LAST_STEP = STEPS.length - 1
+const GENERATE_STEP = 5 // "mode" step — clicking Next triggers generation
+const PREVIEW_STEP = 6
+const WRITE_STEP = 7
 
 export function SetupWizard() {
   const { activeProject, rootParam, projects } = useApp()
@@ -25,9 +35,16 @@ export function SetupWizard() {
   const [answers, setAnswers] = useState<ProjectAnswers>({
     projectName: "",
     projectType: "web-app",
-    techStack: "",
     description: "",
+    repoUrl: "",
+    techStackTags: [],
     keyFeatures: "",
+    teamSize: "",
+    linting: [],
+    testFramework: "",
+    ciCd: [],
+    branchStrategy: "",
+    deploymentTarget: [],
     conventions: "",
   })
   const [mode, setMode] = useState<"quick" | "ai">("quick")
@@ -35,13 +52,12 @@ export function SetupWizard() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [existingFiles, setExistingFiles] = useState<string[]>([])
 
-  // Check for existing CLAUDE.md on mount
   useEffect(() => {
     async function checkExisting() {
       try {
         const res = await fetch(`/api/docs${rootParam}`)
         const docs = await res.json()
-        const existing = docs.filter((d: { path: string }) => 
+        const existing = docs.filter((d: { path: string }) =>
           d.path === "CLAUDE.md" || d.path === "AGENTS.md"
         ).map((d: { path: string }) => d.path)
         setExistingFiles(existing)
@@ -55,15 +71,12 @@ export function SetupWizard() {
       case 0: return true
       case 1: return selectedTemplates.length > 0
       case 2: return answers.projectName.trim() !== ""
-      case 3: return true
-      case 4: return generatedFiles.length > 0
       default: return true
     }
   }
 
   const handleNext = async () => {
-    if (step === 3) {
-      // Generate files
+    if (step === GENERATE_STEP) {
       setIsGenerating(true)
       try {
         const res = await fetch(`/api/setup/generate${rootParam}`, {
@@ -78,7 +91,7 @@ export function SetupWizard() {
       }
       setIsGenerating(false)
     }
-    setStep(s => Math.min(s + 1, STEPS.length - 1))
+    setStep(s => Math.min(s + 1, LAST_STEP))
   }
 
   const handleBack = () => {
@@ -93,7 +106,7 @@ export function SetupWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ files: generatedFiles }),
       })
-      setStep(5) // Complete
+      setStep(WRITE_STEP)
     } catch {}
     setIsGenerating(false)
   }
@@ -118,12 +131,22 @@ export function SetupWizard() {
               />
             ))}
           </div>
+          <div className="flex gap-1 mt-1">
+            {STEPS.map((s, i) => (
+              <div key={s.id} className="flex-1 text-center">
+                {i === step && (
+                  <span className="text-xs text-accent">{s.title}</span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-6 py-8">
+
           {/* Step 0: Welcome */}
           {step === 0 && (
             <div className="space-y-6">
@@ -165,16 +188,41 @@ export function SetupWizard() {
             />
           )}
 
-          {/* Step 2: Project Questions */}
+          {/* Step 2: Basic Info */}
           {step === 2 && (
-            <ProjectQuestionnaire
+            <BasicInfo
               answers={answers}
               onChange={setAnswers}
             />
           )}
 
-          {/* Step 3: Generation Mode */}
+          {/* Step 3: Tech Stack */}
           {step === 3 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold text-txt mb-2">Tech Stack</h2>
+                <p className="text-muted">Add the technologies your project uses. Search or type custom ones.</p>
+              </div>
+              <TechStackInput
+                value={answers.techStackTags}
+                onChange={(tags) => setAnswers(a => ({ ...a, techStackTags: tags }))}
+              />
+              {answers.techStackTags.length > 0 && (
+                <p className="text-sm text-muted">{answers.techStackTags.length} technology{answers.techStackTags.length !== 1 ? "ies" : "y"} added</p>
+              )}
+            </div>
+          )}
+
+          {/* Step 4: Team & Conventions */}
+          {step === 4 && (
+            <TeamConventions
+              answers={answers}
+              onChange={setAnswers}
+            />
+          )}
+
+          {/* Step 5: Generation Mode */}
+          {step === 5 && (
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold text-txt mb-2">Choose Generation Mode</h2>
@@ -234,8 +282,8 @@ export function SetupWizard() {
             </div>
           )}
 
-          {/* Step 4: Preview */}
-          {step === 4 && (
+          {/* Step 6: Preview */}
+          {step === 6 && (
             <GenerationPreview
               files={generatedFiles}
               onWrite={handleWrite}
@@ -243,8 +291,8 @@ export function SetupWizard() {
             />
           )}
 
-          {/* Step 5: Complete */}
-          {step === 5 && (
+          {/* Step 7: Complete */}
+          {step === 7 && (
             <div className="text-center space-y-6">
               <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
                 <Check className="w-8 h-8 text-green-500" />
@@ -276,7 +324,7 @@ export function SetupWizard() {
       </div>
 
       {/* Footer navigation */}
-      {step < 5 && (
+      {step < LAST_STEP && (
         <div className="border-t border-border bg-surface">
           <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
             <button
@@ -293,7 +341,7 @@ export function SetupWizard() {
               Back
             </button>
 
-            {step === 4 ? (
+            {step === PREVIEW_STEP ? (
               <button
                 onClick={handleWrite}
                 disabled={isGenerating || generatedFiles.length === 0}
@@ -324,7 +372,7 @@ export function SetupWizard() {
                   </>
                 ) : (
                   <>
-                    {step === 3 ? "Generate" : "Next"}
+                    {step === GENERATE_STEP ? "Generate" : "Next"}
                     <ChevronRight className="w-4 h-4" />
                   </>
                 )}

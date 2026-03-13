@@ -11,46 +11,71 @@ interface TemplateSelection {
 interface ProjectAnswers {
   projectName: string
   projectType: string
-  techStack: string
   description: string
+  repoUrl: string
+  techStackTags: string[]
   keyFeatures: string
+  teamSize: string
+  linting: string[]
+  testFramework: string
+  ciCd: string[]
+  branchStrategy: string
+  deploymentTarget: string[]
   conventions: string
 }
 
 function applyPlaceholders(content: string, answers: ProjectAnswers): string {
   const today = new Date().toISOString().split('T')[0]
+  const techStack = answers.techStackTags.length > 0 ? answers.techStackTags.join(', ') : 'Not specified'
   const features = answers.keyFeatures
     ? answers.keyFeatures.split(',').map(f => `- ${f.trim()}`).join('\n')
     : ''
-  
+  const conventions = buildConventions(answers)
+
   return content
     .replace(/\{\{PROJECT_NAME\}\}/g, answers.projectName || 'My Project')
     .replace(/\{\{PROJECT_TYPE\}\}/g, answers.projectType || 'web-app')
-    .replace(/\{\{TECH_STACK\}\}/g, answers.techStack || 'Not specified')
+    .replace(/\{\{TECH_STACK\}\}/g, techStack)
     .replace(/\{\{DESCRIPTION\}\}/g, answers.description || '')
     .replace(/\{\{KEY_FEATURES\}\}/g, features)
-    .replace(/\{\{CONVENTIONS\}\}/g, answers.conventions || '')
+    .replace(/\{\{CONVENTIONS\}\}/g, conventions)
     .replace(/\{\{DATE\}\}/g, today)
+    .replace(/\{\{REPO_URL\}\}/g, answers.repoUrl || '')
+    .replace(/\{\{TEAM_SIZE\}\}/g, answers.teamSize || '')
+    .replace(/\{\{TEST_FRAMEWORK\}\}/g, answers.testFramework || 'Jest')
+    .replace(/\{\{CI_CD\}\}/g, answers.ciCd.join(', ') || '')
+    .replace(/\{\{BRANCH_STRATEGY\}\}/g, answers.branchStrategy || '')
+}
+
+function buildConventions(answers: ProjectAnswers): string {
+  const parts: string[] = []
+  if (answers.linting.length > 0) parts.push(`- Linting: ${answers.linting.join(', ')}`)
+  if (answers.testFramework) parts.push(`- Testing: ${answers.testFramework}`)
+  if (answers.ciCd.length > 0) parts.push(`- CI/CD: ${answers.ciCd.join(', ')}`)
+  if (answers.branchStrategy) parts.push(`- Branch strategy: ${answers.branchStrategy}`)
+  if (answers.deploymentTarget.length > 0) parts.push(`- Deployment: ${answers.deploymentTarget.join(', ')}`)
+  if (answers.conventions) parts.push(`- ${answers.conventions}`)
+  return parts.length > 0 ? parts.join('\n') : '- Follow existing code patterns\n- Write tests for new features'
 }
 
 function generateQuickMode(templates: TemplateSelection[], answers: ProjectAnswers, existingPaths: Set<string>) {
   const files: { path: string; content: string; skipped?: boolean; reason?: string }[] = []
+  const techStack = answers.techStackTags.length > 0 ? answers.techStackTags.join(', ') : 'Not specified'
+  const conventions = buildConventions(answers)
 
   for (const selection of templates) {
     const template = TEMPLATES.find(t => t.id === selection.id)
     if (!template) continue
 
     const path = selection.path
-    
+
     if (existingPaths.has(path)) {
       files.push({ path, content: '', skipped: true, reason: 'already exists' })
       continue
     }
 
-    // Use enhanced template content with project info
     let content = template.content
 
-    // For CLAUDE.md, create a more detailed template
     if (selection.id === 'claude-md') {
       content = `# ${answers.projectName} — Agent Instructions
 
@@ -58,7 +83,7 @@ function generateQuickMode(templates: TemplateSelection[], answers: ProjectAnswe
 ${answers.description || 'A software project.'}
 
 ## Stack
-${answers.techStack || 'Not specified'}
+${techStack}
 
 ## Project type
 ${answers.projectType.replace(/-/g, ' ')}
@@ -79,7 +104,7 @@ npm test
 \`\`\`
 
 ## Key conventions
-${answers.conventions || '- Follow existing code patterns\n- Write tests for new features'}
+${conventions}
 
 ## Key features
 ${answers.keyFeatures ? answers.keyFeatures.split(',').map(f => `- ${f.trim()}`).join('\n') : '- Core functionality'}
@@ -93,7 +118,40 @@ ${answers.keyFeatures ? answers.keyFeatures.split(',').map(f => `- ${f.trim()}`)
       content = `# ${answers.projectName} — Agent Config
 
 See CLAUDE.md for detailed instructions.
+
+## Stack
+${techStack}
+
+## Key conventions
+${conventions}
 `
+    } else if (selection.id === 'gemini-md') {
+      content = `# ${answers.projectName} — Gemini Agent Instructions
+
+## What this is
+${answers.description || 'A software project.'}
+
+## Stack
+${techStack}
+
+## Commands
+\`\`\`bash
+npm install
+npm run dev
+npm run build
+npm test
+\`\`\`
+
+## Key conventions
+${conventions}
+
+## Non-negotiables
+- Follow existing code patterns
+- Write tests for new features
+- Never commit secrets or credentials
+`
+    } else if (selection.id === 'cursorrules' || selection.id === 'windsurfrules') {
+      content = applyPlaceholders(content, answers)
     } else {
       content = applyPlaceholders(content, answers)
     }
@@ -121,9 +179,8 @@ export async function POST(req: NextRequest) {
 
     if (mode === 'ai') {
       // AI mode would use MCP connection
-      // For now, fall back to quick mode with a note
+      // For now, fall back to quick mode
       files = generateQuickMode(templates, answers, existingPaths)
-      // TODO: Implement MCP-based AI generation
     } else {
       files = generateQuickMode(templates, answers, existingPaths)
     }
