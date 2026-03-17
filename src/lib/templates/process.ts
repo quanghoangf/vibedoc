@@ -113,6 +113,18 @@ After every deploy, verify:
 
 **Last updated:** {{DATE}}
 
+## Test pyramid
+
+\`\`\`
+        /\\
+       /E2E\\         10% — Critical user flows only
+      /------\\
+     /Integr. \\      20% — API, DB, service boundaries
+    /----------\\
+   /    Unit    \\    70% — Functions, logic, utilities
+  /______________\\
+\`\`\`
+
 ## Test strategy
 
 | Layer | Type | Tool | Coverage target |
@@ -120,6 +132,15 @@ After every deploy, verify:
 | Unit | Functions/logic | {{TEST_FRAMEWORK}} | 80%+ |
 | Integration | API/DB | {{TEST_FRAMEWORK}} | 70%+ |
 | E2E | User flows | Playwright | Key paths |
+
+## Coverage targets by directory
+
+| Directory | Target | Rationale |
+|-----------|--------|-----------|
+| \`src/lib/\` | 90%+ | Core business logic |
+| \`src/api/\` | 80%+ | API handlers |
+| \`src/components/\` | 60%+ | UI — focus on logic, not rendering |
+| \`src/utils/\` | 90%+ | Pure utility functions |
 
 ## Running tests
 
@@ -158,6 +179,48 @@ describe('MyFunction', () => {
 - Cover critical user journeys
 - Use stable selectors (\`data-testid\`)
 - Run against staging environment
+
+### Playwright config example
+
+\`\`\`typescript
+// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  reporter: 'html',
+  use: {
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
+    trace: 'on-first-retry',
+  },
+  projects: [
+    {name: 'chromium', use: {...devices['Desktop Chrome']}},
+    {name: 'Mobile Safari', use: {...devices['iPhone 13']}},
+  ],
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+  },
+})
+\`\`\`
+
+## Flaky test policy
+
+1. **Quarantine immediately** — tag with \`@flaky\` and skip in CI (\`test.skip\`)
+2. **Create a ticket** — track as a P2 bug with a 2-week SLA to fix
+3. **Root cause** — common causes: timing issues, shared state, network calls
+4. **Fix or delete** — flaky tests are worse than no tests (false confidence)
+
+Quarantine example:
+\`\`\`typescript
+test.skip('flaky: timing issue with animation', async ({ page }) => {
+  // TODO: fix by waiting for animation end event instead of sleep
+})
+\`\`\`
 
 ## Test organization
 

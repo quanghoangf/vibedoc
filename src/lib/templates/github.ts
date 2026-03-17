@@ -27,17 +27,42 @@ Thank you for your interest in contributing!
 | Fix | \`fix/<description>\` | \`fix/login-crash\` |
 | Chore | \`chore/<description>\` | \`chore/update-deps\` |
 | Docs | \`docs/<description>\` | \`docs/api-guide\` |
+| Refactor | \`refactor/<description>\` | \`refactor/auth-module\` |
+| Release | \`release/<version>\` | \`release/v1.2.0\` |
 
 ## Commit conventions
 
 We use [Conventional Commits](https://conventionalcommits.org):
 
+| Type | When to use |
+|------|------------|
+| \`feat\` | New feature |
+| \`fix\` | Bug fix |
+| \`docs\` | Documentation only |
+| \`refactor\` | Code change that's neither fix nor feature |
+| \`test\` | Adding or updating tests |
+| \`chore\` | Build process, dependencies, tooling |
+| \`perf\` | Performance improvement |
+| \`ci\` | CI/CD changes |
+
+Examples:
 \`\`\`
 feat: add user authentication
 fix: resolve login redirect issue
 docs: update API reference
 chore: upgrade dependencies
+feat!: redesign auth API (breaking change — note the !)
 \`\`\`
+
+## PR size guidance
+
+| Size | Lines changed | Guidance |
+|------|--------------|---------|
+| Small | < 400 lines | Ideal — fast to review |
+| Medium | 400–800 lines | Acceptable — add extra context in description |
+| Large | > 800 lines | Needs discussion before opening — split if possible |
+
+Large PRs slow down the team and increase the chance of missed issues. When in doubt, split.
 
 ## Pull request process
 
@@ -47,13 +72,21 @@ chore: upgrade dependencies
 4. Address all review comments
 5. Squash commits before merge
 
-## PR review checklist
+## Code review checklist
 
-- [ ] Code follows project conventions
-- [ ] Tests added/updated
-- [ ] Documentation updated if needed
+**Author:**
+- [ ] Self-reviewed the diff before requesting review
+- [ ] PR description explains the "why", not just the "what"
+- [ ] Tests added/updated and passing
 - [ ] No secrets or credentials in code
-- [ ] Breaking changes documented
+- [ ] Breaking changes noted in PR description
+
+**Reviewer:**
+- [ ] Code is correct and handles edge cases
+- [ ] No obvious performance issues
+- [ ] Tests are meaningful (not just coverage padding)
+- [ ] Naming is clear and consistent with the codebase
+- [ ] Documentation updated if public API changed
 
 ## Code style
 {{CONVENTIONS}}
@@ -86,7 +119,9 @@ Open an issue with:
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-To report a security issue, email: security@example.com
+To report a security issue, email: **security@example.com**
+
+You may optionally encrypt your report using our PGP key (key ID: \`0x00000000\`, available on keys.openpgp.org).
 
 Include:
 - Description of the vulnerability
@@ -94,11 +129,44 @@ Include:
 - Potential impact
 - Any suggested mitigations
 
-You will receive a response within 48 hours. We will:
+You will receive a response within **48 hours**. We will:
 1. Confirm receipt of your report
 2. Investigate and assess the issue
 3. Release a fix or mitigation
 4. Credit you in the release notes (unless you prefer anonymity)
+
+## Vulnerability SLAs
+
+| Severity | Fix SLA |
+|----------|---------|
+| Critical | 48 hours |
+| High | 7 days |
+| Medium | 30 days |
+| Low | 90 days |
+
+Dependabot alerts for **critical** vulnerabilities must be resolved within 48 hours. Run \`npm audit\` in CI on every PR.
+
+## Secrets rotation schedule
+
+| Secret | Rotation | Owner |
+|--------|----------|-------|
+| JWT signing key | Every 90 days | Platform team |
+| Database passwords | Every 180 days | Platform team |
+| API keys (third-party) | On staff change | Security team |
+| Deploy tokens | Every 90 days | DevOps |
+
+## OWASP Top 10 checklist
+
+- [ ] **A01 Broken Access Control** — Enforce authorization on every endpoint; deny by default
+- [ ] **A02 Cryptographic Failures** — Use TLS everywhere; never store plaintext secrets; use bcrypt/argon2 for passwords
+- [ ] **A03 Injection** — Use parameterized queries; validate and sanitize all input
+- [ ] **A04 Insecure Design** — Threat model new features; use principle of least privilege
+- [ ] **A05 Security Misconfiguration** — Harden defaults; disable unused features; set security headers
+- [ ] **A06 Vulnerable Components** — Run \`npm audit\` in CI; automate with Dependabot
+- [ ] **A07 Auth Failures** — Implement MFA; lock accounts after failed attempts; use secure session management
+- [ ] **A08 Software Integrity Failures** — Verify checksums; use lockfiles; pin CI action versions
+- [ ] **A09 Logging Failures** — Log auth events, access failures; never log secrets or PII
+- [ ] **A10 SSRF** — Validate and allowlist URLs for any server-side requests
 
 ## Security best practices
 

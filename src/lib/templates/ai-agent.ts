@@ -21,7 +21,7 @@ export const AI_AGENT_TEMPLATES: Template[] = [
 ## Commands
 \`\`\`bash
 # Install dependencies
-npm install
+{{PACKAGE_MANAGER}} install
 
 # Start development
 npm run dev
@@ -33,10 +33,15 @@ npm run build
 npm test
 \`\`\`
 
-## Key architecture rules
-- Follow existing patterns before introducing new abstractions
-- Keep modules small and focused
-- Write tests for business logic
+## Architecture
+- Primary language: {{PRIMARY_LANGUAGE}}
+- Deployment: {{DEPLOYMENT_PLATFORM}}
+- Key directories: \`src/\`, \`docs/\`, \`tests/\`
+- See \`docs/architecture/overview.md\` for full details
+
+## Read before coding
+- @docs/architecture/overview.md
+- @CONTRIBUTING.md
 
 ## Key conventions
 {{CONVENTIONS}}
@@ -45,10 +50,17 @@ npm test
 {{KEY_FEATURES}}
 
 ## Non-negotiables
-- Keep code clean and well-documented
+- Always run \`npm run build\` before marking a task done — build must pass
+- Never use localStorage — causes SSR/client mismatch
+- Never commit secrets or credentials
 - Maintain test coverage
 - Follow security best practices
-- Never commit secrets or credentials
+
+## Code style
+- Follow existing patterns before introducing new abstractions
+- Keep modules small and focused
+- Write tests for business logic
+- Prefer explicit over implicit
 `,
   },
   {
