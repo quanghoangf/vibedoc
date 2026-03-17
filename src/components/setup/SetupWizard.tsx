@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useApp } from "@/context/AppContext"
-import { ChevronLeft, ChevronRight, Sparkles, FileText, Check, Loader2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Sparkles, Check, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TemplateSelector, type TemplateSelection } from "./TemplateSelector"
 import { type ProjectAnswers } from "./ProjectQuestionnaire"
@@ -10,22 +10,23 @@ import { BasicInfo } from "./BasicInfo"
 import { TechStackInput } from "./TechStackInput"
 import { TeamConventions } from "./TeamConventions"
 import { GenerationPreview, type GeneratedFile } from "./GenerationPreview"
+import { PRESETS, type TemplatePreset } from "@/lib/presets"
+import { TEMPLATES, type Template } from "@/lib/templates"
 
 const STEPS = [
-  { id: "welcome",   title: "Welcome" },
-  { id: "templates", title: "Templates" },
+  { id: "welcome",    title: "Welcome" },
   { id: "basic-info", title: "Basic Info" },
+  { id: "templates",  title: "Templates" },
   { id: "tech-stack", title: "Tech Stack" },
-  { id: "team",      title: "Team" },
-  { id: "mode",      title: "Generation" },
-  { id: "preview",   title: "Preview" },
-  { id: "complete",  title: "Complete" },
+  { id: "team",       title: "Team" },
+  { id: "preview",    title: "Preview" },
+  { id: "complete",   title: "Complete" },
 ]
 
 const LAST_STEP = STEPS.length - 1
-const GENERATE_STEP = 5 // "mode" step — clicking Next triggers generation
-const PREVIEW_STEP = 6
-const WRITE_STEP = 7
+const GENERATE_STEP = 4 // "team" step — clicking Next on team triggers generation
+const PREVIEW_STEP = 5
+const WRITE_STEP = 6
 
 export function SetupWizard() {
   const { activeProject, rootParam, projects } = useApp()
@@ -69,10 +70,19 @@ export function SetupWizard() {
   const canProceed = () => {
     switch (step) {
       case 0: return true
-      case 1: return selectedTemplates.length > 0
-      case 2: return answers.projectName.trim() !== ""
+      case 1: return answers.projectName.trim() !== ""
+      case 2: return selectedTemplates.length > 0
       default: return true
     }
+  }
+
+  const applyPreset = (preset: TemplatePreset) => {
+    const selections = preset.templateIds
+      .map(id => TEMPLATES.find(t => t.id === id))
+      .filter((t): t is Template => t !== undefined)
+      .map(t => ({ id: t.id, name: t.name, path: t.defaultPath }))
+    setSelectedTemplates(selections)
+    setStep(1) // Always go to BasicInfo after preset selection
   }
 
   const handleNext = async () => {
@@ -177,22 +187,43 @@ export function SetupWizard() {
                   </div>
                 </div>
               )}
+
+              <div>
+                <div className="text-sm font-medium text-txt mb-3">Quick Start with a Preset</div>
+                <div className="grid grid-cols-2 gap-3">
+                  {['nextjs-production', 'api-backend', 'minimal', 'ai-first'].map(presetId => {
+                    const preset = PRESETS.find(p => p.id === presetId)
+                    if (!preset) return null
+                    return (
+                      <button
+                        key={presetId}
+                        onClick={() => applyPreset(preset)}
+                        className="p-3 rounded-lg border border-border hover:border-accent/50 text-left transition-all"
+                      >
+                        <div className="font-medium text-sm text-txt">{preset.name}</div>
+                        <div className="text-xs text-muted mt-1">{preset.description}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Step 1: Template Selection */}
+          {/* Step 1: Basic Info */}
           {step === 1 && (
-            <TemplateSelector
-              selected={selectedTemplates}
-              onChange={setSelectedTemplates}
-            />
-          )}
-
-          {/* Step 2: Basic Info */}
-          {step === 2 && (
             <BasicInfo
               answers={answers}
               onChange={setAnswers}
+            />
+          )}
+
+          {/* Step 2: Template Selection */}
+          {step === 2 && (
+            <TemplateSelector
+              selected={selectedTemplates}
+              onChange={setSelectedTemplates}
+              projectType={answers.projectType}
             />
           )}
 
@@ -221,78 +252,19 @@ export function SetupWizard() {
             />
           )}
 
-          {/* Step 5: Generation Mode */}
+          {/* Step 5: Preview */}
           {step === 5 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-semibold text-txt mb-2">Choose Generation Mode</h2>
-                <p className="text-muted">How would you like to generate your documentation?</p>
-              </div>
-
-              <div className="grid gap-4">
-                <button
-                  onClick={() => setMode("quick")}
-                  className={cn(
-                    "p-4 rounded-lg border text-left transition-all",
-                    mode === "quick"
-                      ? "border-accent bg-accent/10"
-                      : "border-border hover:border-accent/50"
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <FileText className="w-5 h-5 text-accent mt-0.5" />
-                    <div>
-                      <div className="font-medium text-txt">Quick Mode</div>
-                      <div className="text-sm text-muted mt-1">
-                        Use templates with your project info filled in. Fast and reliable.
-                      </div>
-                    </div>
-                    {mode === "quick" && (
-                      <Check className="w-5 h-5 text-accent ml-auto" />
-                    )}
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => setMode("ai")}
-                  className={cn(
-                    "p-4 rounded-lg border text-left transition-all",
-                    mode === "ai"
-                      ? "border-accent bg-accent/10"
-                      : "border-border hover:border-accent/50"
-                  )}
-                >
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="w-5 h-5 text-accent mt-0.5" />
-                    <div>
-                      <div className="font-medium text-txt">AI Mode</div>
-                      <div className="text-sm text-muted mt-1">
-                        Generate custom content using your connected coding agent (Claude Code, Cursor, etc.).
-                      </div>
-                      <div className="text-xs text-accent mt-2">
-                        Requires MCP connection
-                      </div>
-                    </div>
-                    {mode === "ai" && (
-                      <Check className="w-5 h-5 text-accent ml-auto" />
-                    )}
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 6: Preview */}
-          {step === 6 && (
             <GenerationPreview
               files={generatedFiles}
               onWrite={handleWrite}
               isWriting={isGenerating}
+              mode={mode}
+              onModeChange={setMode}
             />
           )}
 
-          {/* Step 7: Complete */}
-          {step === 7 && (
+          {/* Step 6: Complete */}
+          {step === 6 && (
             <div className="text-center space-y-6">
               <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
                 <Check className="w-8 h-8 text-green-500" />

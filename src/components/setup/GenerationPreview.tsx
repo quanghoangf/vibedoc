@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { FileText, ChevronDown, ChevronRight, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 
 export interface GeneratedFile {
   path: string
@@ -15,9 +16,11 @@ interface GenerationPreviewProps {
   files: GeneratedFile[]
   onWrite: () => void
   isWriting: boolean
+  mode: 'quick' | 'ai'
+  onModeChange: (mode: 'quick' | 'ai') => void
 }
 
-export function GenerationPreview({ files, onWrite, isWriting }: GenerationPreviewProps) {
+export function GenerationPreview({ files, onWrite, isWriting, mode, onModeChange }: GenerationPreviewProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   const toggleExpand = (path: string) => {
@@ -44,11 +47,31 @@ export function GenerationPreview({ files, onWrite, isWriting }: GenerationPrevi
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-txt mb-2">Preview</h2>
-        <p className="text-muted">
-          Review the files that will be created. Click to expand and see the content.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-txt mb-2">Preview</h2>
+          <p className="text-muted">Review the files that will be created.</p>
+        </div>
+        <div className="flex items-center gap-1 bg-surface2 rounded-lg p-1">
+          <button
+            onClick={() => onModeChange('quick')}
+            className={cn(
+              "px-3 py-1 text-sm rounded-md transition-colors",
+              mode === 'quick' ? "bg-surface text-txt shadow-sm" : "text-muted hover:text-txt"
+            )}
+          >
+            Quick
+          </button>
+          <button
+            onClick={() => onModeChange('ai')}
+            className={cn(
+              "px-3 py-1 text-sm rounded-md transition-colors",
+              mode === 'ai' ? "bg-surface text-txt shadow-sm" : "text-muted hover:text-txt"
+            )}
+          >
+            AI
+          </button>
+        </div>
       </div>
 
       {/* Files to write */}
@@ -59,6 +82,7 @@ export function GenerationPreview({ files, onWrite, isWriting }: GenerationPrevi
         <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
           {toWrite.map(file => {
             const isExpanded = expanded.has(file.path)
+            const isMd = file.path.endsWith('.md')
             return (
               <div key={file.path}>
                 <button
@@ -75,10 +99,16 @@ export function GenerationPreview({ files, onWrite, isWriting }: GenerationPrevi
                 </button>
                 {isExpanded && (
                   <div className="px-3 pb-3">
-                    <pre className="p-3 bg-surface2 rounded-lg text-xs text-muted overflow-x-auto max-h-64 overflow-y-auto">
-                      {file.content.slice(0, 2000)}
-                      {file.content.length > 2000 && "\n\n...(truncated)"}
-                    </pre>
+                    {isMd ? (
+                      <div className="prose prose-invert max-w-none p-3 bg-surface2 rounded-lg max-h-64 overflow-y-auto text-sm">
+                        <MarkdownRenderer content={file.content.slice(0, 3000)} />
+                      </div>
+                    ) : (
+                      <pre className="p-3 bg-surface2 rounded-lg text-xs text-muted overflow-x-auto max-h-64 overflow-y-auto">
+                        {file.content.slice(0, 2000)}
+                        {file.content.length > 2000 && "\n\n...(truncated)"}
+                      </pre>
+                    )}
                   </div>
                 )}
               </div>
