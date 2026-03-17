@@ -239,7 +239,7 @@ export function SetupWizard() {
                 onChange={(tags) => setAnswers(a => ({ ...a, techStackTags: tags }))}
               />
               {answers.techStackTags.length > 0 && (
-                <p className="text-sm text-muted">{answers.techStackTags.length} technology{answers.techStackTags.length !== 1 ? "ies" : "y"} added</p>
+                <p className="text-sm text-muted">{answers.techStackTags.length} technolog{answers.techStackTags.length !== 1 ? "ies" : "y"} added</p>
               )}
             </div>
           )}
