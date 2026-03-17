@@ -8,6 +8,7 @@ interface TemplateSelection {
   path: string
 }
 
+// Keep in sync with src/components/setup/ProjectQuestionnaire.tsx
 interface ProjectAnswers {
   projectName: string
   projectType: string
@@ -32,6 +33,24 @@ function applyPlaceholders(content: string, answers: ProjectAnswers): string {
     : ''
   const conventions = buildConventions(answers)
 
+  const pkgManager = answers.techStackTags.some(t => t.toLowerCase().includes('pnpm')) ? 'pnpm'
+    : answers.techStackTags.some(t => t.toLowerCase().includes('yarn')) ? 'yarn'
+    : 'npm'
+
+  const languageKeywords = ['typescript', 'javascript', 'python', 'go', 'rust', 'java', 'ruby', 'php', 'swift', 'kotlin', 'c#', 'elixir']
+  const primaryLanguage = languageKeywords.find(lang =>
+    answers.techStackTags.some(t => t.toLowerCase().includes(lang))
+  ) ?? (answers.techStackTags[0] ?? 'TypeScript')
+
+  const dbTags = answers.techStackTags.map(t => t.toLowerCase())
+  const dbUrl = dbTags.some(t => t.includes('postgres') || t.includes('postgresql')) ? 'postgresql://user:password@localhost:5432/mydb'
+    : dbTags.some(t => t.includes('mysql')) ? 'mysql://user:password@localhost:3306/mydb'
+    : dbTags.some(t => t.includes('mongodb') || t.includes('mongo')) ? 'mongodb://localhost:27017/mydb'
+    : dbTags.some(t => t.includes('sqlite')) ? 'sqlite:./data.db'
+    : 'postgresql://user:password@localhost:5432/mydb'
+
+  const deploymentPlatform = answers.deploymentTarget[0] ?? 'your-platform'
+
   return content
     .replace(/\{\{PROJECT_NAME\}\}/g, answers.projectName || 'My Project')
     .replace(/\{\{PROJECT_TYPE\}\}/g, answers.projectType || 'web-app')
@@ -45,6 +64,10 @@ function applyPlaceholders(content: string, answers: ProjectAnswers): string {
     .replace(/\{\{TEST_FRAMEWORK\}\}/g, answers.testFramework || 'Jest')
     .replace(/\{\{CI_CD\}\}/g, answers.ciCd.join(', ') || '')
     .replace(/\{\{BRANCH_STRATEGY\}\}/g, answers.branchStrategy || '')
+    .replace(/\{\{PACKAGE_MANAGER\}\}/g, pkgManager)
+    .replace(/\{\{PRIMARY_LANGUAGE\}\}/g, primaryLanguage)
+    .replace(/\{\{DB_URL_EXAMPLE\}\}/g, dbUrl)
+    .replace(/\{\{DEPLOYMENT_PLATFORM\}\}/g, deploymentPlatform)
 }
 
 function buildConventions(answers: ProjectAnswers): string {
@@ -56,6 +79,26 @@ function buildConventions(answers: ProjectAnswers): string {
   if (answers.deploymentTarget.length > 0) parts.push(`- Deployment: ${answers.deploymentTarget.join(', ')}`)
   if (answers.conventions) parts.push(`- ${answers.conventions}`)
   return parts.length > 0 ? parts.join('\n') : '- Follow existing code patterns\n- Write tests for new features'
+}
+
+function applyConditionalSections(content: string, answers: ProjectAnswers): string {
+  const tags = answers.techStackTags.map(t => t.toLowerCase())
+
+  const conditions: Record<string, boolean> = {
+    DOCKER: tags.some(t => t.includes('docker')),
+    POSTGRES: tags.some(t => t.includes('postgres') || t.includes('postgresql')),
+    REDIS: tags.some(t => t.includes('redis')),
+    CI: answers.ciCd.length > 0,
+    TYPESCRIPT: tags.some(t => t.includes('typescript')),
+    NEXTJS: tags.some(t => t.includes('next')),
+  }
+
+  let result = content
+  for (const [key, enabled] of Object.entries(conditions)) {
+    const regex = new RegExp(`\\{\\{#IF_${key}\\}\\}([\\s\\S]*?)\\{\\{\\/IF_${key}\\}\\}`, 'g')
+    result = result.replace(regex, enabled ? '$1' : '')
+  }
+  return result
 }
 
 function generateQuickMode(templates: TemplateSelection[], answers: ProjectAnswers, existingPaths: Set<string>) {
@@ -150,11 +193,11 @@ ${conventions}
 - Write tests for new features
 - Never commit secrets or credentials
 `
-    } else if (selection.id === 'cursorrules' || selection.id === 'windsurfrules') {
-      content = applyPlaceholders(content, answers)
     } else {
       content = applyPlaceholders(content, answers)
     }
+
+    content = applyConditionalSections(content, answers)
 
     files.push({ path, content })
   }
