@@ -16,11 +16,13 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  getConfiguredRoot, listDocs, readDoc, searchDocs, writeDoc,
+  getConfiguredRoot, listDocs, readDoc, searchDocs, writeDoc, createDoc, getContext,
   getProjectSummary, listTasks, getTask, updateTaskStatus,
   logDecision, readMemory, updateMemory, logSessionStart,
+  findBacklinks, appendDoc, renameDoc, deleteDoc,
   TaskStatus,
 } from '@/lib/core'
+import { TEMPLATES } from '@/lib/templates'
 import { emitUpdate } from '@/lib/events'
 import { z } from 'zod'
 
@@ -136,6 +138,69 @@ const TOOLS = [
       required: ['currentState', 'handoff'],
     },
   },
+  {
+    name: 'vibedoc_create_doc',
+    description: 'Create a new doc from a template. Use vibedoc_list_templates to see available IDs. Fails if file exists.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        templateId: { type: 'string', description: 'Defaults to "blank"' },
+      },
+      required: ['path'],
+    },
+  },
+  {
+    name: 'vibedoc_list_templates',
+    description: 'List all doc templates with IDs, names, and default paths.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'vibedoc_get_context',
+    description: 'Bundle multiple docs into a single context block. Useful for loading several docs at once before starting a task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        paths: { type: 'array', items: { type: 'string' }, description: 'Array of relative doc paths to bundle' },
+      },
+      required: ['paths'],
+    },
+  },
+  {
+    name: 'vibedoc_append_doc',
+    description: 'Append content to an existing doc file. Adds two newlines before the appended content.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative path to the doc file' },
+        content: { type: 'string', description: 'Content to append' },
+      },
+      required: ['path', 'content'],
+    },
+  },
+  {
+    name: 'vibedoc_rename_doc',
+    description: 'Rename or move a doc file to a new path.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        oldPath: { type: 'string', description: 'Current path of the doc' },
+        newPath: { type: 'string', description: 'New path for the doc' },
+      },
+      required: ['oldPath', 'newPath'],
+    },
+  },
+  {
+    name: 'vibedoc_delete_doc',
+    description: 'Delete a doc file. This action cannot be undone.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Path of the doc to delete' },
+      },
+      required: ['path'],
+    },
+  },
 ]
 
 async function handleTool(name: string, args: Record<string, unknown>) {
@@ -167,7 +232,15 @@ async function handleTool(name: string, args: Record<string, unknown>) {
     case 'vibedoc_read_doc': {
       const { path: docPath, content } = await readDoc(String(args.query), root)
       emitUpdate('doc_read', { path: docPath })
-      return `## ${docPath}\n\n${content}`
+      const backlinks = await findBacklinks(docPath, root)
+      let result = `## ${docPath}\n\n${content}`
+      if (backlinks.length > 0) {
+        result += '\n\n---\n\n## Referenced by\n'
+        backlinks.forEach(b => {
+          result += `- ${b.file} (line ${b.line}): ${b.text}\n`
+        })
+      }
+      return result
     }
 
     case 'vibedoc_list_docs': {
@@ -249,6 +322,49 @@ async function handleTool(name: string, args: Record<string, unknown>) {
       await updateMemory(args as unknown as Parameters<typeof updateMemory>[0], root, 'ai')
       emitUpdate('memory_updated', { root })
       return `🧠 MEMORY.md updated`
+    }
+
+    case 'vibedoc_create_doc': {
+      const docPath = String(args.path)
+      const templateId = args.templateId ? String(args.templateId) : 'blank'
+      const template = TEMPLATES.find(t => t.id === templateId) ?? TEMPLATES.find(t => t.id === 'blank')!
+      await createDoc(docPath, template.content, root)
+      emitUpdate('doc_created', { path: docPath })
+      return `✅ Created: ${docPath} (template: ${template.name})`
+    }
+
+    case 'vibedoc_list_templates': {
+      return TEMPLATES.map(t => `**${t.id}** — ${t.name}\n  ${t.description}\n  Default: \`${t.defaultPath}\``).join('\n\n')
+    }
+
+    case 'vibedoc_get_context': {
+      const paths = args.paths as string[]
+      const context = await getContext(paths, root)
+      if (!context) return '(no content — check paths are correct)'
+      return context
+    }
+
+    case 'vibedoc_append_doc': {
+      const docPath = String(args.path)
+      const content = String(args.content)
+      await appendDoc(docPath, content, root)
+      emitUpdate('doc_updated', { path: docPath })
+      return `✅ Appended to: ${docPath}`
+    }
+
+    case 'vibedoc_rename_doc': {
+      const oldPath = String(args.oldPath)
+      const newPath = String(args.newPath)
+      await renameDoc(oldPath, newPath, root)
+      emitUpdate('doc_renamed', { oldPath, newPath })
+      return `✅ Renamed: ${oldPath} → ${newPath}`
+    }
+
+    case 'vibedoc_delete_doc': {
+      const docPath = String(args.path)
+      await deleteDoc(docPath, root)
+      emitUpdate('doc_deleted', { path: docPath })
+      return `✅ Deleted: ${docPath}`
     }
 
     default:

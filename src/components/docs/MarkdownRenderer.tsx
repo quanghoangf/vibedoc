@@ -26,6 +26,16 @@ marked.use({
   },
 })
 
+// Inject id attributes on h1-h3 headings for outline scroll-to
+marked.use({
+  renderer: {
+    heading(text: string, level: number) {
+      const anchor = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
+      return `<h${level} id="${anchor}">${text}</h${level}>\n`
+    }
+  }
+})
+
 function sanitize(html: string): string {
   return html
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
@@ -58,8 +68,8 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           container.querySelectorAll<HTMLElement>(".mermaid:not([data-processed])")
         )
         if (nodes.length === 0) return
-        m.default.initialize({ startOnLoad: false, theme: "dark", darkMode: true })
-        m.default.run({ nodes }).catch(() => {/* mermaid parse errors are non-fatal */})
+        m.default.initialize({ startOnLoad: false, theme: "dark", darkMode: true, securityLevel: 'antiscript' })
+        m.default.run({ nodes, suppressErrors: true }).catch((e) => { console.error('[mermaid]', e) })
       })
     }, 120)
 

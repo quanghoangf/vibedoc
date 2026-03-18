@@ -1,15 +1,36 @@
 {
   "name": "vibedoc",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Local-first project intelligence for AI-assisted development. Web UI + MCP server in one.",
-  "private": true,
+  "bin": {
+    "vibedoc": "bin/vibedoc.js"
+  },
+  "files": [
+    "bin/",
+    ".next/BUILD_ID",
+    ".next/build-manifest.json",
+    ".next/app-build-manifest.json",
+    ".next/app-path-routes-manifest.json",
+    ".next/prerender-manifest.json",
+    ".next/prerender-manifest.js",
+    ".next/react-loadable-manifest.json",
+    ".next/routes-manifest.json",
+    ".next/required-server-files.json",
+    ".next/server/",
+    ".next/static/",
+    "public/",
+    "next.config.js",
+    "ws-server.js",
+    "package.json"
+  ],
   "scripts": {
     "dev": "concurrently \"next dev\" \"node ws-server.js\" --names \"next,ws\" --prefix-colors \"cyan,yellow\"",
     "dev:next": "next dev",
     "dev:ws": "node ws-server.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "prepublishOnly": "next build"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",
@@ -33,10 +54,12 @@
     "lucide-react": "^0.575.0",
     "marked": "^12.0.0",
     "mermaid": "^11.12.3",
-    "next": "14.2.5",
-    "react": "^18",
-    "react-dom": "^18",
+    "next": "latest",
+    "open": "^11.0.0",
+    "react": "^19",
+    "react-dom": "^19",
     "tailwind-merge": "^3.5.0",
+    "ws": "^8.18.0",
     "y-codemirror.next": "^0.3.5",
     "y-websocket": "^2.1.0",
     "yjs": "^13.6.29",
@@ -44,12 +67,12 @@
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "autoprefixer": "^10.0.1",
     "concurrently": "^9.2.1",
     "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.5",
+    "eslint-config-next": "latest",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
