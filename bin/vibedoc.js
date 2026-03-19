@@ -4,6 +4,7 @@
 const { spawn, spawnSync } = require('child_process');
 const path = require('path');
 const net = require('net');
+const fs = require('fs');
 
 const PKG_DIR = path.resolve(__dirname, '..');
 const VIBEDOC_ROOT = process.env.VIBEDOC_ROOT || process.cwd();
@@ -34,6 +35,12 @@ async function main() {
   console.log(`[vibedoc] Project root: ${VIBEDOC_ROOT}`);
   console.log(`[vibedoc] App: http://localhost:${port}`);
   console.log(`[vibedoc] WS:  ws://localhost:${wsPort}`);
+
+  // Write .env.local so Next.js production server reliably picks up VIBEDOC_ROOT
+  // (spawn env alone can be dropped by Next.js's internal env loading in some setups)
+  const envLocalPath = path.join(PKG_DIR, '.env.local');
+  fs.writeFileSync(envLocalPath, `VIBEDOC_ROOT=${VIBEDOC_ROOT}\nPORT=${port}\nWS_PORT=${wsPort}\n`);
+  process.on('exit', () => { try { fs.unlinkSync(envLocalPath); } catch {} });
 
   const env = { ...process.env, VIBEDOC_ROOT, PORT: String(port), WS_PORT: String(wsPort) };
 
