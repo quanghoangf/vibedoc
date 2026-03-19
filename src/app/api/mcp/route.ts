@@ -20,6 +20,7 @@ import {
   getProjectSummary, listTasks, getTask, updateTaskStatus,
   logDecision, readMemory, updateMemory, logSessionStart,
   findBacklinks, appendDoc, renameDoc, deleteDoc,
+  readRegistry, rebuildRegistry, updateRegistryAnnotation,
   TaskStatus,
 } from '@/lib/core'
 import { TEMPLATES } from '@/lib/templates'
@@ -201,6 +202,29 @@ const TOOLS = [
       required: ['path'],
     },
   },
+  {
+    name: 'vibedoc_read_registry',
+    description: 'Read docs/REGISTRY.md — file tree + annotations so you know which doc to open for any task. Call at session start after vibedoc_read_memory. If absent, call vibedoc_rebuild_registry first.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'vibedoc_rebuild_registry',
+    description: 'Regenerate docs/REGISTRY.md — refreshes the file tree, adds stub rows for new files, and preserves existing descriptions/keywords. Run after adding or removing docs.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+  },
+  {
+    name: 'vibedoc_annotate_doc',
+    description: 'Add or update the description and keywords for one doc in the registry without a full rebuild.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Relative path of the doc, e.g. "docs/api-reference.md"' },
+        description: { type: 'string', description: 'Short description of what this doc contains' },
+        keywords: { type: 'string', description: 'Comma-separated keywords for this doc' },
+      },
+      required: ['path', 'description', 'keywords'],
+    },
+  },
 ]
 
 async function handleTool(name: string, args: Record<string, unknown>) {
@@ -365,6 +389,27 @@ async function handleTool(name: string, args: Record<string, unknown>) {
       await deleteDoc(docPath, root)
       emitUpdate('doc_deleted', { path: docPath })
       return `✅ Deleted: ${docPath}`
+    }
+
+    case 'vibedoc_read_registry': {
+      const { content, exists } = await readRegistry(root)
+      if (!exists) return `*(No REGISTRY.md found — call vibedoc_rebuild_registry to generate it)*`
+      return content
+    }
+
+    case 'vibedoc_rebuild_registry': {
+      const result = await rebuildRegistry(root, 'ai')
+      emitUpdate('registry_rebuilt', { path: result.path, totalFiles: result.totalFiles })
+      return `✅ Registry rebuilt: ${result.path}\n${result.totalFiles} files indexed`
+    }
+
+    case 'vibedoc_annotate_doc': {
+      const docPath = String(args.path)
+      const description = String(args.description)
+      const keywords = String(args.keywords)
+      await updateRegistryAnnotation(docPath, description, keywords, root)
+      emitUpdate('registry_rebuilt', { path: 'docs/REGISTRY.md' })
+      return `✅ Annotation updated for: ${docPath}`
     }
 
     default:

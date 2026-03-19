@@ -46,7 +46,7 @@ export interface SearchResult {
 export interface ActivityEvent {
   id: string
   timestamp: string
-  type: 'task_updated' | 'decision_logged' | 'memory_updated' | 'doc_read' | 'session_start' | 'doc_created' | 'doc_deleted' | 'doc_renamed'
+  type: 'task_updated' | 'decision_logged' | 'memory_updated' | 'doc_read' | 'session_start' | 'doc_created' | 'doc_deleted' | 'doc_renamed' | 'registry_rebuilt'
   actor: 'ai' | 'human'
   title: string
   detail?: string
@@ -245,6 +245,7 @@ export async function createDoc(docPath: string, content: string, root: string):
   await fs.mkdir(path.dirname(fullPath), { recursive: true })
   await fs.writeFile(fullPath, content, 'utf8')
   await appendActivity(root, { type: 'doc_created', actor: 'human', title: `Created: ${docPath}`, detail: docPath })
+  try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root) } catch {}
 }
 
 export async function searchDocs(query: string, root: string): Promise<SearchResult[]> {
@@ -520,6 +521,7 @@ export async function renameDoc(oldPath: string, newPath: string, root: string):
     } else throw e
   }
   await appendActivity(root, { type: 'doc_renamed', actor: 'human', title: `Renamed ${oldPath} → ${newPath}` })
+  try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root) } catch {}
 }
 
 export async function deleteDoc(docPath: string, root: string): Promise<void> {
@@ -530,6 +532,164 @@ export async function deleteDoc(docPath: string, root: string): Promise<void> {
   }
   await fs.unlink(fullPath)
   await appendActivity(root, { type: 'doc_deleted', actor: 'human', title: `Deleted ${docPath}` })
+  try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root) } catch {}
+}
+
+// ─── Document Registry ────────────────────────────────────────────────────────
+
+const REGISTRY_PATH = 'docs/REGISTRY.md'
+const ANNOTATIONS_START = '<!-- REGISTRY_ANNOTATIONS_START -->'
+const ANNOTATIONS_END = '<!-- REGISTRY_ANNOTATIONS_END -->'
+
+function buildDocTree(files: string[]): string {
+  // Build a map of directories and files
+  const tree: Map<string, string[]> = new Map()
+  for (const f of files) {
+    const dir = path.dirname(f)
+    if (!tree.has(dir)) tree.set(dir, [])
+    tree.get(dir)!.push(path.basename(f))
+  }
+
+  const lines: string[] = []
+  const dirs = Array.from(tree.keys()).sort()
+
+  // Build indented tree
+  const rendered = new Set<string>()
+  function renderDir(dir: string, indent: number) {
+    if (rendered.has(dir)) return
+    rendered.add(dir)
+    const prefix = '  '.repeat(indent)
+    if (dir !== '.') {
+      const parts = dir.split('/')
+      lines.push(`${prefix}${parts[parts.length - 1]}/`)
+    }
+    const childIndent = dir === '.' ? 0 : indent + 1
+    const childPrefix = '  '.repeat(childIndent)
+    // Files directly in this dir
+    const dirFiles = tree.get(dir) || []
+    for (const f of dirFiles.sort()) {
+      lines.push(`${childPrefix}${f}`)
+    }
+    // Subdirs
+    for (const d of dirs) {
+      if (d !== dir && path.dirname(d) === dir) {
+        renderDir(d, childIndent)
+      }
+    }
+  }
+
+  renderDir('.', 0)
+  return lines.join('\n')
+}
+
+function parseAnnotations(content: string): Map<string, { description: string; keywords: string }> {
+  const map = new Map<string, { description: string; keywords: string }>()
+  const start = content.indexOf(ANNOTATIONS_START)
+  const end = content.indexOf(ANNOTATIONS_END)
+  if (start === -1 || end === -1) return map
+
+  const section = content.slice(start + ANNOTATIONS_START.length, end)
+  const rows = section.split('\n').filter(l => l.startsWith('|') && !l.includes('---') && !l.includes('Path'))
+  for (const row of rows) {
+    const cols = row.split('|').map(c => c.trim()).filter(Boolean)
+    if (cols.length >= 3) {
+      map.set(cols[0], { description: cols[1], keywords: cols[2] })
+    }
+  }
+  return map
+}
+
+export async function readRegistry(root: string): Promise<{ content: string; exists: boolean }> {
+  try {
+    const content = await fs.readFile(path.join(root, REGISTRY_PATH), 'utf8')
+    return { content, exists: true }
+  } catch {
+    return { content: '*(No REGISTRY.md found — call vibedoc_rebuild_registry to generate it)*', exists: false }
+  }
+}
+
+export async function rebuildRegistry(root: string, actor: 'ai' | 'human' = 'human'): Promise<{ path: string; totalFiles: number }> {
+  const docs = await listDocs(root)
+  const files = docs.map(d => d.path)
+
+  // Parse existing annotations
+  let existing = ''
+  try {
+    existing = await fs.readFile(path.join(root, REGISTRY_PATH), 'utf8')
+  } catch {}
+  const savedAnnotations = parseAnnotations(existing)
+
+  // Build tree
+  const tree = buildDocTree(files)
+
+  // Build annotations table — preserve existing, stub new files
+  const rows: string[] = []
+  for (const f of files) {
+    const saved = savedAnnotations.get(f)
+    rows.push(`| ${f} | ${saved?.description ?? ''} | ${saved?.keywords ?? ''} |`)
+  }
+
+  const now = new Date().toISOString()
+  const content = [
+    `# Document Registry`,
+    `**Generated:** ${now}  **Total:** ${files.length} files`,
+    ``,
+    `> Edit the Annotations table — it survives rebuilds.`,
+    `> Run \`vibedoc_rebuild_registry\` after adding/removing docs.`,
+    ``,
+    `## File Tree`,
+    `\`\`\``,
+    tree,
+    `\`\`\``,
+    ``,
+    `## Annotations`,
+    ``,
+    ANNOTATIONS_START,
+    `| Path | Description | Keywords |`,
+    `|------|-------------|----------|`,
+    ...rows,
+    ANNOTATIONS_END,
+    ``,
+  ].join('\n')
+
+  await writeDoc(REGISTRY_PATH, content, root)
+  await appendActivity(root, {
+    type: 'registry_rebuilt',
+    actor,
+    title: 'Document registry rebuilt',
+    detail: `${files.length} files indexed`,
+  })
+
+  return { path: REGISTRY_PATH, totalFiles: files.length }
+}
+
+export async function updateRegistryAnnotation(
+  docPath: string, description: string, keywords: string, root: string
+): Promise<void> {
+  const { content, exists } = await readRegistry(root)
+  if (!exists) throw new Error('Registry not found — call vibedoc_rebuild_registry first')
+
+  const annotations = parseAnnotations(content)
+  annotations.set(docPath, { description, keywords })
+
+  // Rebuild the annotations block with updated data
+  const start = content.indexOf(ANNOTATIONS_START)
+  const end = content.indexOf(ANNOTATIONS_END)
+  if (start === -1 || end === -1) throw new Error('Registry format invalid — rebuild first')
+
+  const rows = Array.from(annotations.entries())
+    .map(([p, a]) => `| ${p} | ${a.description} | ${a.keywords} |`)
+
+  const newAnnotationsBlock = [
+    ANNOTATIONS_START,
+    `| Path | Description | Keywords |`,
+    `|------|-------------|----------|`,
+    ...rows,
+    ANNOTATIONS_END,
+  ].join('\n')
+
+  const newContent = content.slice(0, start) + newAnnotationsBlock + content.slice(end + ANNOTATIONS_END.length)
+  await writeDoc(REGISTRY_PATH, newContent, root)
 }
 
 // ─── Backlinks ─────────────────────────────────────────────────────────────────
