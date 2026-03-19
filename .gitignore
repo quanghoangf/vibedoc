@@ -35,3 +35,4 @@ next-env.d.ts
 
 # vibedoc target project data (don't commit test data)
 .vibedoc-activity.json
+docs/REGISTRY.md
