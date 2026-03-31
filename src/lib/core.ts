@@ -498,6 +498,59 @@ export function extractDescription(content: string): string {
   return ''
 }
 
+export async function enrichDescription(filePath: string, root: string): Promise<string> {
+  const { default: Anthropic } = await import('@anthropic-ai/sdk')
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+  const fullPath = path.join(root, filePath)
+  const content = await fs.readFile(fullPath, 'utf8')
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 100,
+    messages: [{
+      role: 'user',
+      content: `Write a single sentence (max 120 characters) describing what this file is about. Output ONLY the sentence, nothing else.\n\n${content.slice(0, 2000)}`,
+    }],
+  })
+
+  const block = message.content[0] as { type: string; text: string }
+  const description = block.text.trim().slice(0, 120)
+
+  const cache = await readDescriptions(root)
+  cache[filePath] = { description, source: 'ai', updatedAt: new Date().toISOString() }
+  await writeDescriptions(root, cache)
+
+  return description
+}
+
+export async function listExplorerFiles(root: string): Promise<ExplorerFile[]> {
+  const docs = await listDocs(root)
+  const cache = await readDescriptions(root)
+
+  return Promise.all(docs.map(async (doc) => {
+    const cached = cache[doc.path]
+    let description = cached?.description ?? ''
+    const source: 'extracted' | 'ai' = cached?.source ?? 'extracted'
+    const updatedAt = cached?.updatedAt ?? new Date().toISOString()
+
+    if (!cached) {
+      try {
+        const content = await fs.readFile(path.join(root, doc.path), 'utf8')
+        description = extractDescription(content)
+      } catch { /* ignore */ }
+    }
+
+    let mtime = new Date().toISOString()
+    try {
+      const stat = await fs.stat(path.join(root, doc.path))
+      mtime = stat.mtime.toISOString()
+    } catch { /* ignore */ }
+
+    return { path: doc.path, name: doc.name, section: doc.section, description, source, updatedAt, mtime }
+  }))
+}
+
 async function appendActivity(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp'>): Promise<void> {
   const full: ActivityEvent = {
     id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
