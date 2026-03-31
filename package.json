@@ -38,6 +38,7 @@
     "prepublishOnly": "next build"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.80.0",
     "@codemirror/lang-markdown": "^6.5.0",
     "@codemirror/state": "^6.5.4",
     "@codemirror/theme-one-dark": "^6.1.3",
