@@ -3,7 +3,11 @@
   "version": "1.0.1",
   "description": "Local-first project intelligence for AI-assisted development. Web UI + MCP server in one.",
   "bin": {
-    "vibedoc": "bin/vibedoc.js"
+    "vibedoc": "./bin/vibedoc.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/quanghoangf/vibedoc.git"
   },
   "files": [
     "bin/",
@@ -30,6 +34,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "release": "semantic-release",
     "prepublishOnly": "next build"
   },
   "dependencies": {
@@ -66,6 +71,10 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.6",
+    "@semantic-release/npm": "^13.1.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -74,6 +83,7 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "latest",
     "postcss": "^8",
+    "semantic-release": "^25.0.3",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }
