@@ -5,6 +5,10 @@
   "bin": {
     "vibedoc": "./bin/vibedoc.mjs"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/quanghoangf/vibedoc.git"
+  },
   "files": [
     "bin/",
     ".next/",
@@ -18,7 +22,8 @@
     "dev:ws": "node ws-server.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "release": "semantic-release"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",
@@ -53,6 +58,10 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.6",
+    "@semantic-release/npm": "^13.1.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -61,6 +70,7 @@
     "eslint": "^8.57.1",
     "eslint-config-next": "latest",
     "postcss": "^8",
+    "semantic-release": "^25.0.3",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
   }

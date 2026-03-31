@@ -3,14 +3,33 @@ import { spawn } from 'node:child_process'
 import { setTimeout } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import net from 'node:net'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
 
+function isPortFree(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer()
+    server.once('error', () => resolve(false))
+    server.once('listening', () => server.close(() => resolve(true)))
+    server.listen(port)
+  })
+}
+
+async function findFreeRandomPort() {
+  for (let i = 0; i < 20; i++) {
+    // Random port in ephemeral range 49152–65535 (avoids all common service ports)
+    const candidate = Math.floor(Math.random() * (65535 - 49152 + 1)) + 49152
+    if (await isPortFree(candidate)) return candidate
+  }
+  throw new Error('Could not find a free port after 20 attempts')
+}
+
 // Parse args
 const args = process.argv.slice(2)
 const portIndex = args.indexOf('--port')
-const port = portIndex !== -1 && args[portIndex + 1] ? args[portIndex + 1] : '3000'
+const port = portIndex !== -1 && args[portIndex + 1] ? args[portIndex + 1] : await findFreeRandomPort()
 
 console.log('\n🚀 Starting VibeDoc...\n')
 
