@@ -1,3 +1,10 @@
+## [1.0.5](https://github.com/quanghoangf/vibedoc/compare/v1.0.4...v1.0.5) (2026-03-31)
+
+
+### Bug Fixes
+
+* configure semantic-release CI ([5ee9173](https://github.com/quanghoangf/vibedoc/commit/5ee917376a5db869d8d67780139df5a7cf78b565))
+
 # 1.0.0 (2026-03-31)
 
 
