@@ -37,6 +37,24 @@ export interface DocFile {
   name: string
 }
 
+export interface DescriptionCache {
+  [path: string]: {
+    description: string
+    source: 'extracted' | 'ai'
+    updatedAt: string
+  }
+}
+
+export interface ExplorerFile {
+  path: string
+  name: string
+  section: string
+  description: string
+  source: 'extracted' | 'ai'
+  updatedAt: string
+  mtime: string
+}
+
 export interface SearchResult {
   file: string
   hits: { line: number; text: string }[]
