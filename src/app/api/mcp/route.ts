@@ -19,7 +19,7 @@ import {
   getConfiguredRoot, listDocs, readDoc, searchDocs, writeDoc, createDoc, getContext,
   getProjectSummary, listTasks, getTask, updateTaskStatus,
   logDecision, readMemory, updateMemory, logSessionStart,
-  findBacklinks, appendDoc, renameDoc, deleteDoc,
+  findBacklinks, appendDoc, renameDoc, deleteDoc, listExplorerFiles,
   TaskStatus,
 } from '@/lib/core'
 import { TEMPLATES } from '@/lib/templates'
@@ -201,6 +201,11 @@ const TOOLS = [
       required: ['path'],
     },
   },
+  {
+    name: 'vibedoc_get_file_map',
+    description: 'Get a structured map of all documentation files with descriptions and last-modified dates. Use at session start to orient yourself without reading each file individually.',
+    inputSchema: { type: 'object', properties: {}, required: [] },
+  },
 ]
 
 async function handleTool(name: string, args: Record<string, unknown>) {
@@ -365,6 +370,11 @@ async function handleTool(name: string, args: Record<string, unknown>) {
       await deleteDoc(docPath, root)
       emitUpdate('doc_deleted', { path: docPath })
       return `✅ Deleted: ${docPath}`
+    }
+
+    case 'vibedoc_get_file_map': {
+      const files = await listExplorerFiles(root)
+      return JSON.stringify(files, null, 2)
     }
 
     default:
