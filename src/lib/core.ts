@@ -466,6 +466,38 @@ export async function updateMemory(params: MemoryParams, root: string, actor: 'a
 
 const ACTIVITY_FILE = '.vibedoc-activity.json'
 
+// ─── Description cache ────────────────────────────────────────────────────────
+
+const DESCRIPTIONS_FILE = '.vibedoc-descriptions.json'
+
+export async function readDescriptions(root: string): Promise<DescriptionCache> {
+  try {
+    const raw = await fs.readFile(path.join(root, DESCRIPTIONS_FILE), 'utf8')
+    return JSON.parse(raw) as DescriptionCache
+  } catch {
+    return {}
+  }
+}
+
+export async function writeDescriptions(root: string, cache: DescriptionCache): Promise<void> {
+  await fs.writeFile(path.join(root, DESCRIPTIONS_FILE), JSON.stringify(cache, null, 2), 'utf8')
+}
+
+export function extractDescription(content: string): string {
+  const lines = content.split('\n')
+  for (const line of lines) {
+    const m = line.match(/^#{1,3}\s+(.+)/)
+    if (m) return m[1].trim().slice(0, 120)
+  }
+  for (const line of lines) {
+    const t = line.trim()
+    if (t && !t.startsWith('#') && !t.startsWith('```') && !t.startsWith('|') && !t.startsWith('-')) {
+      return t.slice(0, 120)
+    }
+  }
+  return ''
+}
+
 async function appendActivity(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp'>): Promise<void> {
   const full: ActivityEvent = {
     id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
