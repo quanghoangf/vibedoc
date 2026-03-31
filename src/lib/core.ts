@@ -480,29 +480,66 @@ export async function readDescriptions(root: string): Promise<DescriptionCache> 
 }
 
 export async function writeDescriptions(root: string, cache: DescriptionCache): Promise<void> {
-  await fs.writeFile(path.join(root, DESCRIPTIONS_FILE), JSON.stringify(cache, null, 2), 'utf8')
+  const filePath = path.join(root, DESCRIPTIONS_FILE)
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
+  await fs.writeFile(filePath, JSON.stringify(cache, null, 2), 'utf8')
+}
+
+export async function writeDescriptionEntry(
+  root: string,
+  filePath: string,
+  entry: DescriptionCache[string]
+): Promise<void> {
+  const cache = await readDescriptions(root)
+  cache[filePath] = entry
+  await writeDescriptions(root, cache)
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _anthropic: any = null
+
+async function getAnthropicClient(): Promise<any> {
+  if (!_anthropic) {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk')
+    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  }
+  return _anthropic
 }
 
 export function extractDescription(content: string): string {
   const lines = content.split('\n')
+  let heading = ''
+
   for (const line of lines) {
     const m = line.match(/^#{1,3}\s+(.+)/)
-    if (m) return m[1].trim().slice(0, 120)
-  }
-  for (const line of lines) {
+    if (m && !heading) {
+      heading = m[1].trim().slice(0, 120)
+      continue
+    }
     const t = line.trim()
-    if (t && !t.startsWith('#') && !t.startsWith('```') && !t.startsWith('|') && !t.startsWith('-')) {
+    if (
+      t &&
+      !t.startsWith('#') &&
+      !t.startsWith('```') &&
+      !t.startsWith('|') &&
+      !t.startsWith('-') &&
+      !t.startsWith('*') &&
+      t.length > 20
+    ) {
       return t.slice(0, 120)
     }
   }
-  return ''
+  return heading
 }
 
 export async function enrichDescription(filePath: string, root: string): Promise<string> {
-  const { default: Anthropic } = await import('@anthropic-ai/sdk')
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const resolvedRoot = path.resolve(root)
+  const fullPath = path.resolve(root, filePath)
+  if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
+    throw new Error('Path outside root')
+  }
 
-  const fullPath = path.join(root, filePath)
+  const client = await getAnthropicClient()
   const content = await fs.readFile(fullPath, 'utf8')
 
   const message = await client.messages.create({
@@ -514,12 +551,11 @@ export async function enrichDescription(filePath: string, root: string): Promise
     }],
   })
 
-  const block = message.content[0] as { type: string; text: string }
-  const description = block.text.trim().slice(0, 120)
+  const textBlock = message.content.find((b: { type: string }) => b.type === 'text') as { type: 'text'; text: string } | undefined
+  if (!textBlock) throw new Error('No text block in Anthropic response')
+  const description = textBlock.text.trim().slice(0, 120)
 
-  const cache = await readDescriptions(root)
-  cache[filePath] = { description, source: 'ai', updatedAt: new Date().toISOString() }
-  await writeDescriptions(root, cache)
+  await writeDescriptionEntry(root, filePath, { description, source: 'ai', updatedAt: new Date().toISOString() })
 
   return description
 }
@@ -532,7 +568,15 @@ export async function listExplorerFiles(root: string): Promise<ExplorerFile[]> {
     const cached = cache[doc.path]
     let description = cached?.description ?? ''
     const source: 'extracted' | 'ai' = cached?.source ?? 'extracted'
-    const updatedAt = cached?.updatedAt ?? new Date().toISOString()
+
+    // Get mtime first so we can use it as updatedAt fallback
+    let mtime = new Date().toISOString()
+    try {
+      const stat = await fs.stat(path.join(root, doc.path))
+      mtime = stat.mtime.toISOString()
+    } catch { /* ignore */ }
+
+    const updatedAt = cached?.updatedAt ?? mtime
 
     if (!cached) {
       try {
@@ -540,12 +584,6 @@ export async function listExplorerFiles(root: string): Promise<ExplorerFile[]> {
         description = extractDescription(content)
       } catch { /* ignore */ }
     }
-
-    let mtime = new Date().toISOString()
-    try {
-      const stat = await fs.stat(path.join(root, doc.path))
-      mtime = stat.mtime.toISOString()
-    } catch { /* ignore */ }
 
     return { path: doc.path, name: doc.name, section: doc.section, description, source, updatedAt, mtime }
   }))
