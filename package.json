@@ -1,6 +1,6 @@
 {
   "name": "vibedoc",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Local-first project intelligence for AI-assisted development. Web UI + MCP server in one.",
   "bin": {
     "vibedoc": "./bin/vibedoc.mjs"
