@@ -1,6 +1,6 @@
 {
   "name": "vibedoc",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Local-first project intelligence for AI-assisted development. Web UI + MCP server in one.",
   "bin": {
     "vibedoc": "./bin/vibedoc.mjs"
@@ -11,9 +11,20 @@
   },
   "files": [
     "bin/",
-    ".next/",
+    ".next/BUILD_ID",
+    ".next/build-manifest.json",
+    ".next/app-build-manifest.json",
+    ".next/app-path-routes-manifest.json",
+    ".next/prerender-manifest.json",
+    ".next/prerender-manifest.js",
+    ".next/react-loadable-manifest.json",
+    ".next/routes-manifest.json",
+    ".next/required-server-files.json",
+    ".next/server/",
+    ".next/static/",
     "public/",
-    "src/",
+    "next.config.js",
+    "ws-server.js",
     "package.json"
   ],
   "scripts": {
@@ -23,7 +34,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "release": "semantic-release"
+    "release": "semantic-release",
+    "prepublishOnly": "next build"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",
@@ -52,6 +64,7 @@
     "react": "^19",
     "react-dom": "^19",
     "tailwind-merge": "^3.5.0",
+    "ws": "^8.18.0",
     "y-codemirror.next": "^0.3.5",
     "y-websocket": "^2.1.0",
     "yjs": "^13.6.29",

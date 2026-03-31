@@ -2,11 +2,11 @@
 
 **Local-first project intelligence for AI-assisted development.**
 
-A Next.js app that is both your kanban board and your AI agent's MCP server.
+A kanban board + docs viewer + MCP server — all in one process.
 When your AI moves a task, you see it in the browser — live.
 
 ```
-http://localhost:3000        ← your browser (kanban, docs, activity, memory)
+http://localhost:3000         ← your browser (kanban, docs, activity, memory)
 http://localhost:3000/api/mcp ← AI agent connects here via MCP
 ```
 
@@ -15,17 +15,23 @@ http://localhost:3000/api/mcp ← AI agent connects here via MCP
 ## Quick start
 
 ```bash
-# 1. Clone / copy this folder next to your project
-cd vibedoc-app
-npm install
+# Run from inside your project directory
+cd your-project
+npx vibedoc
+```
 
-# 2. Point at your project
-cp .env.example .env.local
-# Edit VIBEDOC_ROOT to your project path
+That's it. VibeDoc uses the current directory as the project root and opens at `http://localhost:3000`.
 
-# 3. Start
-npm run dev
-# → http://localhost:3000
+VibeDoc automatically finds a free port starting from 3000, so it won't conflict with other running services.
+
+### Options
+
+```bash
+# Point at a different project
+VIBEDOC_ROOT=/path/to/project npx vibedoc
+
+# Pin to a specific port
+PORT=4000 npx vibedoc
 ```
 
 ---
@@ -86,6 +92,8 @@ npm run dev
 
 ## Recommended CLAUDE.md snippet
 
+Add this to your project's `CLAUDE.md` to guide your AI agent:
+
 ```markdown
 ## Session protocol
 
@@ -107,19 +115,9 @@ npm run dev
 
 ---
 
-## Multi-project
+## Project structure
 
-VibeDoc auto-discovers projects by scanning sibling directories for `CLAUDE.md` or `docs/architecture/`.
-Switch projects using the dropdown in the top bar.
-
-To override the scan base:
-```env
-VIBEDOC_ROOT=/my/main/project
-```
-
----
-
-## Project structure expected
+VibeDoc reads from your project. Create these files to get the most out of it:
 
 ```
 your-project/
@@ -127,7 +125,7 @@ your-project/
 ├── docs/architecture/
 │   ├── 01-overview/
 │   ├── 02-high-level-design/
-│   │   └── EVENT_CATALOG.md
+│   │   └── HLD.md
 │   ├── 03-services/
 │   │   └── user-service/
 │   │       ├── OVERVIEW.md
@@ -142,12 +140,21 @@ your-project/
     └── MEMORY.md
 ```
 
+None of these are required — VibeDoc will show what it finds.
+
+---
+
+## Multi-project
+
+VibeDoc auto-discovers sibling directories that contain `CLAUDE.md` or `docs/architecture/`.
+Switch between projects using the dropdown in the top bar.
+
 ---
 
 ## Activity log
 
-All AI and human actions are written to `.vibedoc-activity.json` in your project root.
-The Activity tab shows the last 30 events in real time (SSE).
+All AI and human actions are appended to `.vibedoc-activity.json` in your project root.
+The Activity tab shows the last 30 events in real time via SSE.
 
 ---
 
