@@ -110,6 +110,7 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
           data: treeData,
           roam: false,
           nodeClick: "zoomToNode",
+          leafDepth: 1,
           width: "100%",
           height: "100%",
           top: 0,
