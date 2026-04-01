@@ -9,7 +9,7 @@ import type { ExplorerFile } from "@/types"
 function ExplorerContent() {
   const { rootParam, activeProject, openDoc } = useApp()
   const searchParams = useSearchParams()
-  const view = (searchParams.get("view") as "tree" | "cards" | "heatmap") || "tree"
+  const view = (searchParams.get("view") as "tree" | "treemap" | "heatmap") || "tree"
   const [files, setFiles] = useState<ExplorerFile[]>([])
   const [loading, setLoading] = useState(true)
 
