@@ -11,22 +11,25 @@ interface TreeNode {
   name: string
   children: TreeNode[]
   file?: ExplorerFile
+  folderPath: string // full path for stable keys
 }
 
 function buildTree(files: ExplorerFile[]): TreeNode[] {
-  const root: TreeNode = { name: "", children: [] }
+  const root: TreeNode = { name: "", children: [], folderPath: "" }
   for (const file of files) {
     const parts = file.path.replace(/\\/g, "/").split("/")
     let node = root
+    let currentPath = ""
     for (let i = 0; i < parts.length - 1; i++) {
+      currentPath = currentPath ? `${currentPath}/${parts[i]}` : parts[i]
       let child = node.children.find((c) => c.name === parts[i] && !c.file)
       if (!child) {
-        child = { name: parts[i], children: [] }
+        child = { name: parts[i], children: [], folderPath: currentPath }
         node.children.push(child)
       }
       node = child
     }
-    node.children.push({ name: parts[parts.length - 1], children: [], file })
+    node.children.push({ name: parts[parts.length - 1], children: [], file, folderPath: file.path })
   }
   return root.children
 }
@@ -35,7 +38,7 @@ function getHeatmapClass(mtime: string): string {
   const daysDiff = (Date.now() - new Date(mtime).getTime()) / (1000 * 60 * 60 * 24)
   if (daysDiff <= 7) return "text-green-400"
   if (daysDiff <= 28) return "text-yellow-400/70"
-  return "text-muted-foreground"
+  return "text-muted"
 }
 
 interface TreeNodeRowProps {
@@ -53,7 +56,7 @@ function TreeNodeRow({ node, depth, selectedPath, onSelect, heatmap, defaultOpen
 
   if (node.file) {
     const isSelected = node.file.path === selectedPath
-    const colorClass = heatmap ? getHeatmapClass(node.file.mtime) : "text-muted-foreground"
+    const colorClass = heatmap ? getHeatmapClass(node.file.mtime) : "text-muted"
     return (
       <button
         onClick={() => onSelect(node.file!.path)}
@@ -94,9 +97,9 @@ function TreeNodeRow({ node, depth, selectedPath, onSelect, heatmap, defaultOpen
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        {node.children.map((child, i) => (
+        {node.children.map((child) => (
           <TreeNodeRow
-            key={`${child.name}-${i}`}
+            key={child.folderPath}
             node={child}
             depth={depth + 1}
             selectedPath={selectedPath}
@@ -122,9 +125,9 @@ export function FileTree({ files, selectedPath, onSelect, heatmap }: FileTreePro
   return (
     <ScrollArea className="flex-1">
       <div className="p-2">
-        {tree.map((node, i) => (
+        {tree.map((node) => (
           <TreeNodeRow
-            key={`${node.name}-${i}`}
+            key={node.folderPath}
             node={node}
             depth={0}
             selectedPath={selectedPath}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { TreePine, LayoutGrid, Flame, type LucideIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -43,6 +43,13 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
       )
     : files
 
+  // Clear selection when the selected file is filtered out
+  useEffect(() => {
+    if (search && selectedFile === null && selectedPath !== null) {
+      setSelectedPath(null)
+    }
+  }, [search, selectedFile, selectedPath])
+
   function setView(v: ViewMode) {
     router.push(`/explorer?view=${v}`)
   }
@@ -77,24 +84,36 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
 
       {/* Content */}
       {loading ? (
-        <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+        <div className="flex-1 flex items-center justify-center text-muted text-sm">
           Loading…
         </div>
       ) : view === "cards" ? (
-        <FileCards
-          files={filteredFiles}
-          selectedPath={selectedPath}
-          onSelect={setSelectedPath}
-        />
+        filteredFiles.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center text-muted text-sm">
+            No files match your search
+          </div>
+        ) : (
+          <FileCards
+            files={filteredFiles}
+            selectedPath={selectedPath}
+            onSelect={setSelectedPath}
+          />
+        )
       ) : (
         <div className="flex-1 flex overflow-hidden">
           <div className="w-72 border-r border-border flex flex-col overflow-hidden">
-            <FileTree
-              files={filteredFiles}
-              selectedPath={selectedPath}
-              onSelect={setSelectedPath}
-              heatmap={view === "heatmap"}
-            />
+            {filteredFiles.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-muted text-sm">
+                No files match your search
+              </div>
+            ) : (
+              <FileTree
+                files={filteredFiles}
+                selectedPath={selectedPath}
+                onSelect={setSelectedPath}
+                heatmap={view === "heatmap"}
+              />
+            )}
           </div>
           <FileDetail
             file={selectedFile}

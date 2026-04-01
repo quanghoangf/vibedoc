@@ -7,6 +7,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import type { ExplorerFile } from "@/types"
 
+const SOURCE_LABEL: Record<ExplorerFile['source'], string> = { ai: 'AI', extracted: 'Auto' }
+const SOURCE_VARIANT: Record<ExplorerFile['source'], 'default' | 'secondary'> = { ai: 'default', extracted: 'secondary' }
+
 interface FileCardsProps {
   files: ExplorerFile[]
   selectedPath: string | null
@@ -47,11 +50,8 @@ export function FileCards({ files, selectedPath, onSelect }: FileCardsProps) {
                   <div className="flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5 text-accent flex-shrink-0" />
                     <span className="text-xs font-medium text-txt truncate flex-1">{file.name}</span>
-                    <Badge
-                      variant={file.source === "ai" ? "default" : "secondary"}
-                      className="text-[10px] px-1 py-0 h-4 flex-shrink-0"
-                    >
-                      {file.source === "ai" ? "AI" : "Auto"}
+                    <Badge variant={SOURCE_VARIANT[file.source]} className="text-[10px] px-1 py-0 h-4 flex-shrink-0">
+                      {SOURCE_LABEL[file.source]}
                     </Badge>
                   </div>
                   {file.description ? (

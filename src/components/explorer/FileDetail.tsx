@@ -1,10 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { FileText, RefreshCw, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 import type { ExplorerFile } from "@/types"
+
+const SOURCE_LABEL: Record<ExplorerFile['source'], string> = { ai: 'AI', extracted: 'Auto' }
+const SOURCE_VARIANT: Record<ExplorerFile['source'], 'default' | 'secondary'> = { ai: 'default', extracted: 'secondary' }
 
 interface FileDetailProps {
   file: ExplorerFile | null
@@ -16,10 +20,17 @@ interface FileDetailProps {
 export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProps) {
   const [enriching, setEnriching] = useState(false)
   const [flashGreen, setFlashGreen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setEnriching(false)
+    setFlashGreen(false)
+    setError(null)
+  }, [file?.path])
 
   if (!file) {
     return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+      <div className="flex-1 flex items-center justify-center text-muted text-sm">
         Select a file to see details
       </div>
     )
@@ -29,6 +40,7 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
 
   async function handleEnrich() {
     setEnriching(true)
+    setError(null)
     try {
       const res = await fetch("/api/explorer", {
         method: "POST",
@@ -40,6 +52,8 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
         onEnriched(file!.path, data.description)
         setFlashGreen(true)
         setTimeout(() => setFlashGreen(false), 1500)
+      } else {
+        setError(data.error ?? 'Enrichment failed')
       }
     } finally {
       setEnriching(false)
@@ -48,7 +62,7 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
 
   return (
     <div className="flex-1 p-6 flex flex-col gap-4 overflow-auto">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+      <div className="flex items-center gap-1.5 text-xs text-muted flex-wrap">
         <FileText className="w-3.5 h-3.5 flex-shrink-0" />
         {parts.map((part, i) => (
           <span key={i} className="flex items-center gap-1.5">
@@ -60,17 +74,21 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
         ))}
       </div>
 
-      <p className={`text-sm leading-relaxed transition-colors duration-500 ${flashGreen ? "text-green-400" : "text-txt"}`}>
+      <p className={cn("text-sm leading-relaxed transition-colors duration-500", flashGreen ? "text-green-400" : "text-txt")}>
         {file.description || (
-          <span className="text-muted-foreground italic">
+          <span className="text-muted italic">
             No description yet — click Re-enrich to generate one
           </span>
         )}
       </p>
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Badge variant={file.source === "ai" ? "default" : "secondary"} className="text-[10px]">
-          {file.source === "ai" ? "AI" : "Auto"}
+      {error && (
+        <p className="text-xs text-red-400">{error}</p>
+      )}
+
+      <div className="flex items-center gap-2 text-xs text-muted">
+        <Badge variant={SOURCE_VARIANT[file.source]} className="text-[10px]">
+          {SOURCE_LABEL[file.source]}
         </Badge>
         <span>Updated {new Date(file.updatedAt).toLocaleDateString()}</span>
         <span className="ml-auto">Modified {new Date(file.mtime).toLocaleDateString()}</span>
