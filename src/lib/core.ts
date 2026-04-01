@@ -490,8 +490,9 @@ export async function writeDescriptionEntry(
   filePath: string,
   entry: DescriptionCache[string]
 ): Promise<void> {
+  const normalizedKey = path.normalize(filePath).replace(/\\/g, '/')
   const cache = await readDescriptions(root)
-  cache[filePath] = entry
+  cache[normalizedKey] = entry
   await writeDescriptions(root, cache)
 }
 

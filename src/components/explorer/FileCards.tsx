@@ -20,7 +20,7 @@ export function FileCards({ files, selectedPath, onSelect }: FileCardsProps) {
   const grouped = useMemo(() => {
     const map = new Map<string, ExplorerFile[]>()
     for (const f of files) {
-      const section = f.path.includes("/") ? f.path.split("/")[0] : "root"
+      const section = f.section || "root"
       const existing = map.get(section) ?? []
       existing.push(f)
       map.set(section, existing)

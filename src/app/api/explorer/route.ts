@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getConfiguredRoot, listExplorerFiles, enrichDescription } from '@/lib/core'
+import { emitUpdate } from '@/lib/events'
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
     const filePath = body.path as string
     if (!filePath) return NextResponse.json({ error: 'path is required' }, { status: 400 })
     const description = await enrichDescription(filePath, root)
+    emitUpdate('description_enriched', { path: filePath })
     return NextResponse.json({ description, source: 'ai' })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
