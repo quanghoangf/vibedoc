@@ -142,10 +142,14 @@ export async function discoverProjects(searchBase?: string): Promise<Project[]> 
     }
   } catch {}
 
-  // Always include configured root
+  // Always ensure configured root is first
   const root = getConfiguredRoot()
   const name = path.basename(root)
-  if (!projects.find(p => p.root === root)) {
+  const existingIdx = projects.findIndex(p => p.root === root)
+  if (existingIdx > 0) {
+    const [existing] = projects.splice(existingIdx, 1)
+    projects.unshift(existing)
+  } else if (existingIdx === -1) {
     projects.unshift({ id: name, name, root, hasVibedoc: true })
   }
 
