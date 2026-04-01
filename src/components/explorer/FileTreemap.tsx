@@ -56,6 +56,7 @@ function buildTreemapData(files: ExplorerFile[]): TreemapNode[] {
         if (!folderMap.has(folderPath)) {
           const folderNode: TreemapNode = {
             name: parts[depth - 1],
+            // value will be summed up after tree is built
             children: [],
           }
           folderMap.set(folderPath, folderNode)
@@ -76,6 +77,15 @@ function buildTreemapData(files: ExplorerFile[]): TreemapNode[] {
       if (parent) parent.children!.push(leaf)
     }
   }
+
+  // Give each folder a value = number of descendant files so ECharts sizes it correctly
+  function sumValues(node: TreemapNode): number {
+    if (!node.children || node.children.length === 0) return node.value ?? 1
+    const total = node.children.reduce((acc, child) => acc + sumValues(child), 0)
+    node.value = total
+    return total
+  }
+  root.forEach(sumValues)
 
   return root
 }
@@ -172,11 +182,9 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
     [treeData]
   )
 
-  function handleClick(params: { data: TreemapNode }) {
-    const { data } = params
-    if (data.path) {
-      onSelect(data.path)
-    }
+  function handleClick(params: { data?: TreemapNode }) {
+    if (!params?.data?.path) return
+    onSelect(params.data.path)
   }
 
   if (files.length === 0) {
