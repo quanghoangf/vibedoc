@@ -23,17 +23,21 @@ interface FileTreemapProps {
 function freshnessColor(mtime: string): string {
   const age = Date.now() - new Date(mtime).getTime()
   const days = age / (1000 * 60 * 60 * 24)
-  if (days <= 7) return "#4ade80"    // green-400 — recent
-  if (days <= 28) return "#b59310"   // yellow-400 ~70% — mid
-  return "#4b5563"                   // gray-600 — old
+  if (days <= 7) return "#059669"   // emerald-600 — recent (readable on dark)
+  if (days <= 28) return "#b45309"  // amber-700 — mid
+  return "#334155"                  // slate-700 — old
 }
 
 function buildTreemapData(files: ExplorerFile[]): TreemapNode[] {
   const root: TreemapNode[] = []
   const folderMap = new Map<string, TreemapNode>()
 
-  // Sort so parent folders are created before children
-  const sorted = [...files].sort((a, b) => a.path.localeCompare(b.path))
+  // Normalize to forward slashes (paths may have backslashes on Windows/WSL)
+  // and skip root-level files (no folder) — they'd appear as orphan tiles.
+  const sorted = [...files]
+    .map((f) => ({ ...f, path: f.path.replace(/\\/g, "/") }))
+    .filter((f) => f.path.includes("/"))
+    .sort((a, b) => a.path.localeCompare(b.path))
 
   for (const file of sorted) {
     const parts = file.path.split("/")
@@ -97,11 +101,16 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
     () => ({
       backgroundColor: "transparent",
       tooltip: {
+        backgroundColor: "#1e293b",
+        borderColor: "#334155",
+        borderWidth: 1,
+        padding: [6, 10],
+        textStyle: { color: "#f1f5f9", fontSize: 12 },
         formatter: (info: { name: string; data: TreemapNode }) => {
           const { name, data } = info
           return data.path
-            ? `<span style="font-size:12px">${data.path}</span>`
-            : `<span style="font-size:12px;font-weight:600">${name}/</span>`
+            ? `<span style="color:#94a3b8;font-size:11px">${data.path}</span>`
+            : `<span style="font-weight:600">${name}/</span>`
         },
       },
       series: [
@@ -109,69 +118,93 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
           type: "treemap",
           data: treeData,
           roam: false,
-          nodeClick: "zoomToNode",
           leafDepth: 1,
           width: "100%",
           height: "100%",
-          top: 0,
-          bottom: 32,
-          left: 0,
-          right: 0,
+          top: 4,
+          bottom: 36,
+          left: 4,
+          right: 4,
           squareRatio: 0.7,
           breadcrumb: {
             show: true,
-            bottom: 0,
-            height: 28,
+            bottom: 4,
+            height: 26,
+            gap: 6,
             itemStyle: {
-              color: "#1e1e2e",
-              borderColor: "#3b3b5c",
-              textStyle: { color: "#a0a0b8", fontSize: 11 },
+              color: "#1e293b",
+              borderColor: "#334155",
+              borderWidth: 1,
+              shadowBlur: 0,
+              textStyle: { color: "#94a3b8", fontSize: 11, fontFamily: "inherit" },
             },
-            emptyItemWidth: 25,
+            emptyItemWidth: 20,
           },
+          // labels on leaf nodes
           label: {
             show: true,
             formatter: "{b}",
-            fontSize: 11,
-            color: "#e2e2f0",
+            fontSize: 12,
+            fontWeight: 500,
+            color: "#f1f5f9",
+            textShadowBlur: 3,
+            textShadowColor: "rgba(0,0,0,0.8)",
             overflow: "truncate",
+            padding: [4, 6],
           },
+          // labels on folder header bar
           upperLabel: {
             show: true,
-            height: 22,
-            fontSize: 11,
-            fontWeight: 600,
-            color: "#e2e2f0",
-            backgroundColor: "rgba(30,30,46,0.7)",
-            padding: [3, 6],
+            height: 24,
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#f8fafc",
+            backgroundColor: "rgba(15,23,42,0.85)",
+            borderRadius: [4, 4, 0, 0],
+            padding: [4, 8],
+            textShadowBlur: 0,
           },
           itemStyle: {
-            borderColor: "#12121e",
-            borderWidth: 2,
-            gapWidth: 2,
+            borderColor: "#0f172a",
+            borderWidth: 1,
+            gapWidth: 1,
+          },
+          emphasis: {
+            label: { color: "#ffffff", fontWeight: 700 },
+            upperLabel: { color: "#ffffff", backgroundColor: "rgba(99,102,241,0.9)" },
+            itemStyle: { borderColor: "#6366f1", borderWidth: 2 },
           },
           levels: [
             {
-              // top-level folders
+              // top-level folders — large colored blocks
+              color: ["#1e3a5f", "#1a3a2e", "#3b2a1a", "#2d1b4e", "#1a2e3b", "#3b1a1a"],
               itemStyle: {
-                borderColor: "#3b3b5c",
+                borderColor: "#0f172a",
                 borderWidth: 3,
-                gapWidth: 3,
+                gapWidth: 4,
               },
-              upperLabel: { show: true },
+              upperLabel: {
+                show: true,
+                height: 28,
+                fontSize: 13,
+                fontWeight: 700,
+                color: "#f8fafc",
+                backgroundColor: "rgba(15,23,42,0.9)",
+              },
             },
             {
-              // second-level folders
+              // sub-folders
               itemStyle: {
-                borderColor: "#2a2a45",
+                borderColor: "#0f172a",
                 borderWidth: 2,
                 gapWidth: 2,
               },
               upperLabel: { show: true },
             },
             {
-              // files (leaves)
+              // leaf files — color comes from itemStyle.color set per-node (freshness)
               itemStyle: {
+                borderColor: "rgba(15,23,42,0.6)",
                 borderWidth: 1,
                 gapWidth: 1,
               },
