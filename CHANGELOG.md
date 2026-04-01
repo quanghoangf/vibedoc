@@ -1,3 +1,27 @@
+# [1.1.0](https://github.com/quanghoangf/vibedoc/compare/v1.0.5...v1.1.0) (2026-04-01)
+
+
+### Bug Fixes
+
+* address code review issues in description cache functions ([22ef33a](https://github.com/quanghoangf/vibedoc/commit/22ef33a7bd107d0347315ad1cd8d6c383c8e31cd))
+* address code review issues in explorer feature ([0bb9c78](https://github.com/quanghoangf/vibedoc/commit/0bb9c78c670c6e3639cb438c3918aadc1dc6a53a))
+* address UI component review issues in Explorer ([c0fa6b2](https://github.com/quanghoangf/vibedoc/commit/c0fa6b2155b0c8d4012861f34b2eb69e5d47adc6))
+* always place configured root first in discoverProjects ([d81aba3](https://github.com/quanghoangf/vibedoc/commit/d81aba3d4a7378f923b59f7696ef279da8730592))
+
+
+### Features
+
+* add @anthropic-ai/sdk for file description enrichment ([712743e](https://github.com/quanghoangf/vibedoc/commit/712743ebac0dfca0a41ec13fc5822bb9582c9951))
+* add /api/explorer route (GET list + POST enrich) ([68e342a](https://github.com/quanghoangf/vibedoc/commit/68e342adfc7f46e95d0eb6f4a001fa7d9a04a484))
+* add /explorer page ([a59717d](https://github.com/quanghoangf/vibedoc/commit/a59717db66db327c7a6cda52ad5f0f7ac8cca35e))
+* add description cache helpers to core.ts ([700a7f2](https://github.com/quanghoangf/vibedoc/commit/700a7f2427b31433cfb77860e7e64474d4142722))
+* add enrichDescription and listExplorerFiles to core.ts ([7d97e23](https://github.com/quanghoangf/vibedoc/commit/7d97e23596f2773491cb6735fe654cec1b3b1237))
+* add Explorer nav item and keyboard shortcut ([9e724c2](https://github.com/quanghoangf/vibedoc/commit/9e724c27f0f171e0785cecce9f540e5e3d3572ef))
+* add Explorer UI components (FileDetail, FileTree, FileCards, ExplorerTab) ([ea8296d](https://github.com/quanghoangf/vibedoc/commit/ea8296dbf35d74a4af8ff2a6970c81f7f0b11e7d))
+* add ExplorerFile and DescriptionCache types ([5f092b2](https://github.com/quanghoangf/vibedoc/commit/5f092b2f38ec50cf8e1c8fdf7e19440957d21914))
+* add vibedoc_get_file_map MCP tool ([fb5bbc5](https://github.com/quanghoangf/vibedoc/commit/fb5bbc5c2b019d4bd93e960091eac265bcf9ae5a))
+* auto-enrich description when doc is created ([0332073](https://github.com/quanghoangf/vibedoc/commit/0332073ca7ec825412c2b6ea3e4d12ad105e1799))
+
 ## [1.0.5](https://github.com/quanghoangf/vibedoc/compare/v1.0.4...v1.0.5) (2026-03-31)
 
 
