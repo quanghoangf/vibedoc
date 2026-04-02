@@ -31,7 +31,11 @@ const args = process.argv.slice(2)
 const portIndex = args.indexOf('--port')
 const port = portIndex !== -1 && args[portIndex + 1] ? args[portIndex + 1] : await findFreeRandomPort()
 
+// Capture the user's cwd before spawning Next.js (which runs from projectRoot)
+const VIBEDOC_ROOT = process.env.VIBEDOC_ROOT || process.cwd()
+
 console.log('\n🚀 Starting VibeDoc...\n')
+console.log(`   Project root: ${VIBEDOC_ROOT}`)
 
 // Start Next.js server
 const isWindows = process.platform === 'win32'
@@ -40,7 +44,8 @@ const npmCmd = isWindows ? 'npx.cmd' : 'npx'
 const server = spawn(npmCmd, ['next', 'start', '-p', port], {
   stdio: 'inherit',
   cwd: projectRoot,
-  shell: isWindows
+  shell: isWindows,
+  env: { ...process.env, VIBEDOC_ROOT }
 })
 
 server.on('error', (err) => {
