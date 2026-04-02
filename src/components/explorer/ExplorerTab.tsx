@@ -2,16 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { TreePine, LayoutGrid, Flame, type LucideIcon } from "lucide-react"
+import { TreePine, SquareStack, Flame, type LucideIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { FileTree } from "./FileTree"
-import { FileCards } from "./FileCards"
+import { FileTreemap } from "./FileTreemap"
 import { FileDetail } from "./FileDetail"
 import type { ExplorerFile } from "@/types"
 
-type ViewMode = "tree" | "cards" | "heatmap"
+type ViewMode = "tree" | "treemap" | "heatmap"
 
 interface ExplorerTabProps {
   files: ExplorerFile[]
@@ -24,7 +24,7 @@ interface ExplorerTabProps {
 
 const VIEWS: { id: ViewMode; Icon: LucideIcon; label: string }[] = [
   { id: "tree", Icon: TreePine, label: "Tree" },
-  { id: "cards", Icon: LayoutGrid, label: "Cards" },
+  { id: "treemap", Icon: SquareStack, label: "Treemap" },
   { id: "heatmap", Icon: Flame, label: "Heatmap" },
 ]
 
@@ -87,18 +87,22 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
         <div className="flex-1 flex items-center justify-center text-muted text-sm">
           Loading…
         </div>
-      ) : view === "cards" ? (
-        filteredFiles.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center text-muted text-sm">
-            No files match your search
+      ) : view === "treemap" ? (
+        <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 overflow-hidden">
+            <FileTreemap files={filteredFiles} onSelect={setSelectedPath} />
           </div>
-        ) : (
-          <FileCards
-            files={filteredFiles}
-            selectedPath={selectedPath}
-            onSelect={setSelectedPath}
-          />
-        )
+          {selectedPath && selectedFile && (
+            <div className="w-80 border-l border-border shrink-0">
+              <FileDetail
+                file={selectedFile}
+                root={root}
+                onEnriched={onEnriched}
+                onOpenDoc={onOpenDoc}
+              />
+            </div>
+          )}
+        </div>
       ) : (
         <div className="flex-1 flex overflow-hidden">
           <div className="w-72 border-r border-border flex flex-col overflow-hidden">
