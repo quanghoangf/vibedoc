@@ -1,3 +1,17 @@
+# [1.2.0](https://github.com/quanghoangf/vibedoc/compare/v1.1.0...v1.2.0) (2026-04-02)
+
+
+### Bug Fixes
+
+* enable treemap drill-down with leafDepth: 1 ([cabf5df](https://github.com/quanghoangf/vibedoc/commit/cabf5dfda31ad0353e29a2fc39b3ea6df853c1d1))
+* normalize backslash paths + redesign treemap colors and typography ([d239ac4](https://github.com/quanghoangf/vibedoc/commit/d239ac4ce5bd5438bd29badbe34415741a693ff8))
+* treemap null guard and folder value summation ([6a1d7b0](https://github.com/quanghoangf/vibedoc/commit/6a1d7b051477db4a813607fe4bf6730be92d2750))
+
+
+### Features
+
+* replace Cards view with ECharts treemap in Explorer ([434a628](https://github.com/quanghoangf/vibedoc/commit/434a6282373ea1f0fa87a978e004e3ea24dd8955))
+
 # [1.1.0](https://github.com/quanghoangf/vibedoc/compare/v1.0.5...v1.1.0) (2026-04-01)
 
 
