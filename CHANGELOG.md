@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/quanghoangf/vibedoc/compare/v1.2.0...v1.2.1) (2026-04-02)
+
+
+### Bug Fixes
+
+* pass VIBEDOC_ROOT env var to Next.js server in vibedoc.mjs ([0e530a5](https://github.com/quanghoangf/vibedoc/commit/0e530a5f8e2a3d5ac041aa6f8a21fdff54060b0f))
+
 # [1.2.0](https://github.com/quanghoangf/vibedoc/compare/v1.1.0...v1.2.0) (2026-04-02)
 
 
