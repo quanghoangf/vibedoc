@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { AppProvider, useApp } from "@/context/AppContext"
+import { SettingsApplier } from "@/components/shared/SettingsApplier"
 import { LoadingScreen } from "@/components/shared/LoadingScreen"
 import { AppHeader } from "@/components/layout/AppHeader"
 import { AppSidebar } from "@/components/layout/AppSidebar"
@@ -13,6 +14,7 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <AppProvider>
+      <SettingsApplier />
       <AppLayoutInner>{children}</AppLayoutInner>
     </AppProvider>
   )

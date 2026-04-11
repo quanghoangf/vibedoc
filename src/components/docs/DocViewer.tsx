@@ -12,7 +12,7 @@ interface DocViewerProps {
 }
 
 export function DocViewer({ doc, onDirtyChange, onContentChange }: DocViewerProps) {
-  const { rootParam, setSelectedDoc, openDoc } = useApp()
+  const { rootParam, setSelectedDoc, openDoc, editorSettings } = useApp()
 
   if (!doc) {
     return (
@@ -43,6 +43,8 @@ export function DocViewer({ doc, onDirtyChange, onContentChange }: DocViewerProp
         onSave={handleSave}
         onDirtyChange={onDirtyChange}
         onContentChange={onContentChange}
+        wordWrap={editorSettings.wordWrap}
+        lineNumbers={editorSettings.lineNumbers}
       />
       <BacklinksPanel
         docPath={doc.path}

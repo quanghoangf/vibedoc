@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef } f
 import { useRouter } from "next/navigation"
 import type { Task, TaskBoard, ActivityEvent, Project } from "@/lib/core"
 import type { Summary, SelectedDoc } from "@/types"
+import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings"
 
 interface AppContextValue {
   projects: Project[]
@@ -20,6 +21,10 @@ interface AppContextValue {
   refresh: (root?: string) => Promise<void>
   moveTask: (taskId: string, status: string) => Promise<void>
   openDoc: (path: string) => Promise<void>
+  editorSettings: AppSettings["editor"]
+  setEditorSettings: (s: AppSettings["editor"]) => void
+  autoRefreshSeconds: number
+  setAutoRefreshSeconds: (n: number) => void
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -40,6 +45,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [liveIndicator, setLiveIndicator] = useState(false)
   const [selectedDoc, setSelectedDoc] = useState<SelectedDoc | null>(null)
+  const [editorSettings, setEditorSettings] = useState<AppSettings["editor"]>(DEFAULT_SETTINGS.editor)
+  const [autoRefreshSeconds, setAutoRefreshSeconds] = useState(0)
   const sseRef = useRef<EventSource | null>(null)
 
   const rootParam = activeProject ? `?root=${encodeURIComponent(activeProject)}` : ""
@@ -157,6 +164,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       refresh,
       moveTask,
       openDoc,
+      editorSettings,
+      setEditorSettings,
+      autoRefreshSeconds,
+      setAutoRefreshSeconds,
     }}>
       {children}
     </AppContext.Provider>

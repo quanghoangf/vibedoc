@@ -21,9 +21,11 @@ interface Props {
   onSave: (content: string) => Promise<void>
   onDirtyChange?: (dirty: boolean) => void
   onContentChange?: (content: string) => void
+  wordWrap?: boolean
+  lineNumbers?: boolean
 }
 
-export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange }: Props) {
+export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
   const [viewMode, setViewMode] = useState<ViewMode>("split")
   const [previewContent, setPreviewContent] = useState(initialContent)
@@ -85,7 +87,8 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
       if (destroyed) return
 
       // Phase 1: show editor immediately with syntax highlighting — no yCollab yet
-      const base: Extension[] = [markdown(), oneDark, CMEditorView.lineWrapping]
+      const base: Extension[] = [markdown(), oneDark]
+      if (wordWrap) base.push(CMEditorView.lineWrapping)
       setBaseExtensions(base)
 
       // Set up Yjs in the background
@@ -122,6 +125,25 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
       ydocRef?.destroy()
     }
   }, [docPath, initialContent])
+
+  // Rebuild base extensions when editor prefs change (without reconnecting Yjs)
+  useEffect(() => {
+    if (baseExtensions.length === 0) return // not yet loaded
+    async function rebuild() {
+      const [{ markdown }, { oneDark }, { EditorView: CMEditorView }, { lineNumbers: cmLineNumbers }] =
+        await Promise.all([
+          import("@codemirror/lang-markdown"),
+          import("@codemirror/theme-one-dark"),
+          import("@codemirror/view"),
+          import("@codemirror/view"),
+        ])
+      const base: Extension[] = [markdown(), oneDark]
+      if (wordWrap) base.push(CMEditorView.lineWrapping)
+      if (lineNumbers) base.push(cmLineNumbers())
+      setBaseExtensions(base)
+    }
+    rebuild().catch(console.error)
+  }, [wordWrap, lineNumbers]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-save: 2s debounce, only when "unsaved"
   useEffect(() => {

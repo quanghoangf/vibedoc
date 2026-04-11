@@ -376,6 +376,57 @@ export async function updateTaskStatus(
   return { task: { ...task, status: newStatus }, previousStatus }
 }
 
+export interface CreateTaskParams {
+  title: string
+  phase?: string
+  size?: string
+  description?: string
+  dependsOn?: string
+}
+
+export async function createTask(params: CreateTaskParams, root: string): Promise<Task> {
+  const { tasks } = await listTasks(root)
+
+  const ids = tasks
+    .map(t => parseInt(t.id.replace(/^T/i, ''), 10))
+    .filter(n => !isNaN(n))
+  const nextNum = ids.length > 0 ? Math.max(...ids) + 1 : 1
+  const id = `T${String(nextNum).padStart(3, '0')}`
+
+  const slug = params.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 40)
+
+  const filename = `${id}-${slug}.md`
+  const tasksDir = path.join(root, 'plans', 'tasks')
+  await fs.mkdir(tasksDir, { recursive: true })
+  const filePath = path.join(tasksDir, filename)
+
+  const content = `# ${id}: ${params.title}
+**Status:** 📋 Ready
+**Phase:** ${params.phase || '—'}
+**Size:** ${params.size || '—'}
+**Depends on:** ${params.dependsOn || '—'}
+
+## What to build
+${params.description || '—'}
+
+## Scope
+- [ ]
+
+## Acceptance criteria
+- [ ]
+
+## Definition of done
+—
+`
+
+  await fs.writeFile(filePath, content, { flag: 'wx', encoding: 'utf8' })
+  return getTask(id, root)
+}
+
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1) }
 
 // ─── Decisions (ADRs) ─────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 "use client"
 
+import { Plus } from "lucide-react"
 import type { TaskBoard, Task, Summary } from "@/types"
 import { BoardColumn } from "./BoardColumn"
 
@@ -8,14 +9,24 @@ interface BoardTabProps {
   summary: Summary | null
   onMoveTask: (id: string, status: string) => void
   onOpenTask: (task: Task) => void
+  onNewTask: () => void
 }
 
-export function BoardTab({ board, summary, onMoveTask, onOpenTask }: BoardTabProps) {
+export function BoardTab({ board, summary, onMoveTask, onOpenTask, onNewTask }: BoardTabProps) {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-display text-xl">Task Board</h1>
-        <span className="text-xs font-mono text-muted">{summary?.tasks.total || 0} tasks</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-mono text-muted">{summary?.tasks.total || 0} tasks</span>
+          <button
+            onClick={onNewTask}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            New Task
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">

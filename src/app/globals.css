@@ -8,13 +8,44 @@
   --font-sans: 'DM Sans';
   --font-mono: 'DM Mono';
   --font-display: 'DM Serif Display';
+
+  /* Accent color — RGB components (blue default) */
+  --color-accent: 124 106 247;
+
+  /* Light theme core colors */
+  --color-bg: 255 255 255;
+  --color-surface: 248 248 252;
+  --color-surface2: 240 240 248;
+  --color-border: 224 224 238;
+  --color-border2: 208 208 228;
+  --color-txt: 26 26 46;
+  --color-muted: 107 107 128;
 }
+
+.dark {
+  /* Dark theme core colors */
+  --color-bg: 10 10 15;
+  --color-surface: 17 17 24;
+  --color-surface2: 22 22 31;
+  --color-border: 34 34 46;
+  --color-border2: 45 45 61;
+  --color-txt: 232 232 240;
+  --color-muted: 107 107 128;
+}
+
+/* Accent color overrides */
+html[data-accent="purple"] { --color-accent: 168 85 247; }
+html[data-accent="green"]  { --color-accent: 34 197 94; }
+html[data-accent="orange"] { --color-accent: 249 115 22; }
+
+/* Font size */
+html[data-font-size="small"]  { font-size: 13px; }
+html[data-font-size="medium"] { font-size: 14px; }
+html[data-font-size="large"]  { font-size: 16px; }
 
 * { box-sizing: border-box; }
 
 body {
-  background: #0a0a0f;
-  color: #e8e8f0;
   font-family: 'DM Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }

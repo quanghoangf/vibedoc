@@ -12,6 +12,7 @@ import { SkillsSettings } from "@/components/settings/SkillsSettings"
 import { AgentsSettings } from "@/components/settings/AgentsSettings"
 import type { AppSettings, Skill, Agent } from "@/lib/settings"
 import { DEFAULT_SETTINGS, DEFAULT_SKILLS, DEFAULT_AGENTS } from "@/lib/settings"
+import { applyTheme, applyAccent, applyFontSize } from "@/lib/applySettings"
 
 const TABS = [
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -23,7 +24,7 @@ const TABS = [
 ]
 
 export default function SettingsPage() {
-  const { rootParam } = useApp()
+  const { rootParam, setEditorSettings, setAutoRefreshSeconds } = useApp()
   const [activeTab, setActiveTab] = useState("appearance")
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [skills, setSkills] = useState<Skill[]>(DEFAULT_SKILLS)
@@ -55,6 +56,11 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newSettings),
       })
+      applyTheme(newSettings.theme)
+      applyAccent(newSettings.accentColor)
+      applyFontSize(newSettings.fontSize)
+      setEditorSettings(newSettings.editor)
+      setAutoRefreshSeconds(newSettings.project?.autoRefresh ?? 0)
     } catch {}
     setSaving(false)
   }
