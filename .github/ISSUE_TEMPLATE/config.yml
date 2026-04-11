@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions — questions, ideas, show-and-tell
+    url: https://github.com/quanghoangf/vibedoc/discussions
+    about: Use Discussions for anything that isn't a bug or feature request

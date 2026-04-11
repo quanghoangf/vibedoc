@@ -5,14 +5,17 @@
 [![npm](https://img.shields.io/npm/v/vibedoc)](https://www.npmjs.com/package/vibedoc)
 [![node](https://img.shields.io/node/v/vibedoc)](https://nodejs.org)
 [![license](https://img.shields.io/npm/l/vibedoc)](./LICENSE)
+[![CI](https://github.com/quanghoangf/vibedoc/actions/workflows/ci.yml/badge.svg)](https://github.com/quanghoangf/vibedoc/actions/workflows/ci.yml)
 
 A kanban board + docs viewer + MCP server — all in one process, zero config.  
 Point your AI agent at it. Watch tasks move in real time.
 
 ```
-http://localhost:<port>         ← your browser (kanban, docs, activity, memory)
+http://localhost:<port>         ← your browser (kanban, docs, activity, memory, explorer)
 http://localhost:<port>/api/mcp ← AI agent connects here via MCP
 ```
+
+**Why VibeDoc?** Most AI coding sessions lose context between chats. VibeDoc gives your agent a persistent home: it reads tasks from markdown files, writes decisions as ADRs, and updates a memory file at session end — so the next agent picks up exactly where the last one left off. The browser UI lets you watch everything happen live.
 
 ---
 
@@ -23,7 +26,8 @@ cd your-project
 npx vibedoc
 ```
 
-VibeDoc picks a free port automatically and opens the setup page in your browser.
+VibeDoc picks a free port automatically and opens the setup page in your browser.  
+The port is printed in the terminal — use it when configuring your AI agent.
 
 ### Options
 
@@ -42,9 +46,9 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **Kanban board** — tasks live in `plans/tasks/*.md`, rendered as draggable cards
 - **Docs viewer** — browse and edit every markdown file in `docs/`
 - **Live activity feed** — every AI action appears instantly via SSE, no polling
-- **Memory tab** — persistent `MEMORY.md` for session handoffs
+- **Memory tab** — persistent `MEMORY.md` for session handoffs between AI agents
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
-- **MCP server** — 10 tools your AI agent can call to read docs, move tasks, write ADRs
+- **MCP server** — 21 tools your AI agent can call to read docs, move tasks, write ADRs, and more
 
 ---
 
@@ -87,20 +91,55 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 ---
 
-## What the AI can do
+## MCP tools
+
+21 tools your AI agent can call, grouped by category.
+
+### Session & status
 
 | Tool | Effect |
 |------|--------|
-| `vibedoc_read_memory` | Reads MEMORY.md — also triggers "session start" in the activity feed |
+| `vibedoc_read_memory` | Read `MEMORY.md` — triggers "session start" in the activity feed |
+| `vibedoc_update_memory` | Write end-of-session summary and handoff note |
 | `vibedoc_get_status` | Board snapshot — active tasks, blockers, doc count |
-| `vibedoc_list_tasks` | Full kanban board |
+
+### Tasks
+
+| Tool | Effect |
+|------|--------|
+| `vibedoc_list_tasks` | Full kanban board, filterable by status |
 | `vibedoc_get_task` | Read a specific task with scope and acceptance criteria |
 | `vibedoc_update_task` | Move task status → **you see it live in the browser** |
-| `vibedoc_read_doc` | Load any doc: `"CLAUDE"`, `"HLD"`, `"user-service/API"` |
-| `vibedoc_list_docs` | Discover all docs by section |
+
+### Docs
+
+| Tool | Effect |
+|------|--------|
+| `vibedoc_list_docs` | Discover all docs grouped by section |
+| `vibedoc_read_doc` | Load any doc by name + shows backlinks |
 | `vibedoc_search_docs` | Full-text search across all docs |
-| `vibedoc_log_decision` | Write a new ADR → appears in docs immediately |
-| `vibedoc_update_memory` | Write end-of-session summary → updates Memory tab |
+| `vibedoc_write_doc` | Write or overwrite a doc file |
+| `vibedoc_create_doc` | Create a doc from a template |
+| `vibedoc_append_doc` | Append content to an existing doc |
+| `vibedoc_rename_doc` | Move or rename a doc |
+| `vibedoc_delete_doc` | Delete a doc |
+| `vibedoc_list_templates` | List available doc templates with IDs |
+
+### Context & registry
+
+| Tool | Effect |
+|------|--------|
+| `vibedoc_get_context` | Bundle multiple docs into a single context block |
+| `vibedoc_get_file_map` | Structured map of all docs with descriptions and dates |
+| `vibedoc_read_registry` | Read `docs/REGISTRY.md` — file tree + annotations |
+| `vibedoc_rebuild_registry` | Regenerate `REGISTRY.md` after adding or removing docs |
+| `vibedoc_annotate_doc` | Update description and keywords for one doc in the registry |
+
+### Decisions
+
+| Tool | Effect |
+|------|--------|
+| `vibedoc_log_decision` | Write a new Architecture Decision Record (ADR) |
 
 ---
 
@@ -148,6 +187,7 @@ your-project/
 │   │   │       └── EVENTS.md
 │   │   └── decisions/
 │   │       └── ADR-001-*.md
+│   └── REGISTRY.md               ← auto-generated file index
 ├── plans/tasks/
 │   ├── T001-scaffold.md          ← **Status:** 📋 Ready
 │   └── T002-auth.md
@@ -171,6 +211,19 @@ The Activity tab shows the last 30 events in real time via SSE.
 
 ---
 
+## Development
+
+```bash
+git clone https://github.com/quanghoangf/vibedoc.git
+cd vibedoc
+pnpm install
+VIBEDOC_ROOT=/path/to/test-project pnpm dev
+```
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for architecture rules, commit conventions, and how to submit a PR.
+
+---
+
 ## Requirements
 
 - **Node.js 18+**
@@ -185,6 +238,12 @@ The Activity tab shows the last 30 events in real time via SSE.
 - **SSE** (`/api/events`) — real-time browser updates
 - **MCP over HTTP** (`/api/mcp`) — JSON-RPC 2.0
 - **File system** — reads your actual repo, no database
+
+---
+
+## Contributing
+
+Pull requests are welcome. Check [CONTRIBUTING.md](./CONTRIBUTING.md) for the development setup, architecture rules, and commit conventions. For ideas and questions, open a [Discussion](https://github.com/quanghoangf/vibedoc/discussions).
 
 ---
 

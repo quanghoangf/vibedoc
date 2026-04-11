@@ -36,7 +36,8 @@
     "dev:ws": "node ws-server.js",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
     "release": "semantic-release",
     "prepublishOnly": "next build"
   },
