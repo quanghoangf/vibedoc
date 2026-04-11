@@ -1,3 +1,16 @@
+# [1.3.0](https://github.com/quanghoangf/vibedoc/compare/v1.2.1...v1.3.0) (2026-04-11)
+
+
+### Bug Fixes
+
+* rebuild .next for npm publish and ignore auto-generated REGISTRY.md ([ad25f9a](https://github.com/quanghoangf/vibedoc/commit/ad25f9a44af230b75a68376497e84678bec5fc36))
+* write .env.local before next start to guarantee VIBEDOC_ROOT reaches server ([c43f2cf](https://github.com/quanghoangf/vibedoc/commit/c43f2cf4a31411a76034567847ca932991c0eb7e))
+
+
+### Features
+
+* add document registry (docs/REGISTRY.md) with MCP tools ([1911d88](https://github.com/quanghoangf/vibedoc/commit/1911d88e035b10d0b26631cebff0cb79233f4fce))
+
 ## [1.2.1](https://github.com/quanghoangf/vibedoc/compare/v1.2.0...v1.2.1) (2026-04-02)
 
 
