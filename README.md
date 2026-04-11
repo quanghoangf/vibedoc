@@ -9,8 +9,7 @@
 
 A kanban board + docs viewer + MCP server — all in one process, zero config.  
 Point your AI agent at it. Watch tasks move in real time.
-<img width="1728" height="967" alt="image" src="https://github.com/user-attachments/assets/b9989ece-715a-4b05-92e9-50cdf1441d50" />
-
+![alt text](image.png)
 
 ```
 http://localhost:<port>         ← your browser (kanban, docs, activity, memory, explorer)
@@ -57,6 +56,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 ## Connect your AI agent
 
 ### Claude Code (`~/.claude/claude_desktop_config.json`)
+
 ```json
 {
   "mcpServers": {
@@ -68,6 +68,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 ```
 
 ### Cursor (`.cursor/mcp.json` in project root)
+
 ```json
 {
   "mcpServers": {
@@ -79,6 +80,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 ```
 
 ### Windsurf (`~/.codeium/windsurf/mcp_config.json`)
+
 ```json
 {
   "mcpServers": {
@@ -99,48 +101,48 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 ### Session & status
 
-| Tool | Effect |
-|------|--------|
-| `vibedoc_read_memory` | Read `MEMORY.md` — triggers "session start" in the activity feed |
-| `vibedoc_update_memory` | Write end-of-session summary and handoff note |
-| `vibedoc_get_status` | Board snapshot — active tasks, blockers, doc count |
+| Tool                    | Effect                                                           |
+| ----------------------- | ---------------------------------------------------------------- |
+| `vibedoc_read_memory`   | Read `MEMORY.md` — triggers "session start" in the activity feed |
+| `vibedoc_update_memory` | Write end-of-session summary and handoff note                    |
+| `vibedoc_get_status`    | Board snapshot — active tasks, blockers, doc count               |
 
 ### Tasks
 
-| Tool | Effect |
-|------|--------|
-| `vibedoc_list_tasks` | Full kanban board, filterable by status |
-| `vibedoc_get_task` | Read a specific task with scope and acceptance criteria |
-| `vibedoc_update_task` | Move task status → **you see it live in the browser** |
+| Tool                  | Effect                                                  |
+| --------------------- | ------------------------------------------------------- |
+| `vibedoc_list_tasks`  | Full kanban board, filterable by status                 |
+| `vibedoc_get_task`    | Read a specific task with scope and acceptance criteria |
+| `vibedoc_update_task` | Move task status → **you see it live in the browser**   |
 
 ### Docs
 
-| Tool | Effect |
-|------|--------|
-| `vibedoc_list_docs` | Discover all docs grouped by section |
-| `vibedoc_read_doc` | Load any doc by name + shows backlinks |
-| `vibedoc_search_docs` | Full-text search across all docs |
-| `vibedoc_write_doc` | Write or overwrite a doc file |
-| `vibedoc_create_doc` | Create a doc from a template |
-| `vibedoc_append_doc` | Append content to an existing doc |
-| `vibedoc_rename_doc` | Move or rename a doc |
-| `vibedoc_delete_doc` | Delete a doc |
-| `vibedoc_list_templates` | List available doc templates with IDs |
+| Tool                     | Effect                                 |
+| ------------------------ | -------------------------------------- |
+| `vibedoc_list_docs`      | Discover all docs grouped by section   |
+| `vibedoc_read_doc`       | Load any doc by name + shows backlinks |
+| `vibedoc_search_docs`    | Full-text search across all docs       |
+| `vibedoc_write_doc`      | Write or overwrite a doc file          |
+| `vibedoc_create_doc`     | Create a doc from a template           |
+| `vibedoc_append_doc`     | Append content to an existing doc      |
+| `vibedoc_rename_doc`     | Move or rename a doc                   |
+| `vibedoc_delete_doc`     | Delete a doc                           |
+| `vibedoc_list_templates` | List available doc templates with IDs  |
 
 ### Context & registry
 
-| Tool | Effect |
-|------|--------|
-| `vibedoc_get_context` | Bundle multiple docs into a single context block |
-| `vibedoc_get_file_map` | Structured map of all docs with descriptions and dates |
-| `vibedoc_read_registry` | Read `docs/REGISTRY.md` — file tree + annotations |
-| `vibedoc_rebuild_registry` | Regenerate `REGISTRY.md` after adding or removing docs |
-| `vibedoc_annotate_doc` | Update description and keywords for one doc in the registry |
+| Tool                       | Effect                                                      |
+| -------------------------- | ----------------------------------------------------------- |
+| `vibedoc_get_context`      | Bundle multiple docs into a single context block            |
+| `vibedoc_get_file_map`     | Structured map of all docs with descriptions and dates      |
+| `vibedoc_read_registry`    | Read `docs/REGISTRY.md` — file tree + annotations           |
+| `vibedoc_rebuild_registry` | Regenerate `REGISTRY.md` after adding or removing docs      |
+| `vibedoc_annotate_doc`     | Update description and keywords for one doc in the registry |
 
 ### Decisions
 
-| Tool | Effect |
-|------|--------|
+| Tool                   | Effect                                         |
+| ---------------------- | ---------------------------------------------- |
 | `vibedoc_log_decision` | Write a new Architecture Decision Record (ADR) |
 
 ---
@@ -153,17 +155,21 @@ Add this to your project's `CLAUDE.md` to guide your AI agent:
 ## Session protocol
 
 **Start of session:**
+
 1. Call `vibedoc_read_memory` — read handoff from last session
 2. Call `vibedoc_get_status` — check what's active and blocked
 
 **Before working on a task:**
+
 - Call `vibedoc_get_task <id>` — read full spec and acceptance criteria
 - Call `vibedoc_update_task <id> in-progress`
 
 **When making architectural decisions:**
+
 - Call `vibedoc_log_decision` — record it as an ADR
 
 **End of session:**
+
 - Call `vibedoc_update_task` for each task touched
 - Call `vibedoc_update_memory` with full summary and handoff note
 ```

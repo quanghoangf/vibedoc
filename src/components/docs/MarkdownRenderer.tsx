@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { memo, useEffect, useRef } from "react"
 import { marked } from "marked"
 import { cn } from "@/lib/utils"
 
@@ -15,22 +15,29 @@ marked.use({
   renderer: {
     code(code: string, lang: string | undefined) {
       if (lang === "mermaid") {
+        // HTML-escape so the raw source sits safely as text in the div.
+        // The browser decodes entities back when mermaid reads textContent.
         const escaped = code
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
-        return `<div class="mermaid">${escaped}</div>`
+        return `<div class="mermaid not-prose">${escaped}</div>`
       }
       return false // default renderer handles all other code blocks
     },
   },
 })
 
-// Inject id attributes on h1-h3 headings for outline scroll-to
+// Inject id attributes on h1-h6 headings for outline scroll-to
 marked.use({
   renderer: {
     heading(text: string, level: number) {
-      const anchor = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
+      // Strip HTML tags before building the anchor slug
+      const anchor = text
+        .replace(/<[^>]*>/g, "")
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, "-")
       return `<h${level} id="${anchor}">${text}</h${level}>\n`
     }
   }
@@ -48,7 +55,7 @@ interface MarkdownRendererProps {
   className?: string
 }
 
-export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
   const html = sanitize(marked.parse(content) as string)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -68,8 +75,10 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
           container.querySelectorAll<HTMLElement>(".mermaid:not([data-processed])")
         )
         if (nodes.length === 0) return
-        m.default.initialize({ startOnLoad: false, theme: "dark", darkMode: true, securityLevel: 'antiscript' })
-        m.default.run({ nodes, suppressErrors: true }).catch((e) => { console.error('[mermaid]', e) })
+        m.default.initialize({ startOnLoad: false, theme: "dark", darkMode: true, securityLevel: "antiscript" })
+        // Do NOT suppress errors — suppressing causes mermaid to silently revert
+        // the diagram element back to showing raw source text on parse failure.
+        m.default.run({ nodes }).catch((e) => { console.error("[mermaid]", e) })
       })
     }, 120)
 
@@ -86,4 +95,4 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
-}
+})
