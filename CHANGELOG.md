@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/quanghoangf/vibedoc/compare/v1.3.0...v1.4.0) (2026-04-11)
+
+
+### Features
+
+* settings wiring, task creation UI, explorer filters, error boundaries, README polish ([6f48fc2](https://github.com/quanghoangf/vibedoc/commit/6f48fc2b2b2633cb0197735a6e18dfd3cdab417f))
+
 # [1.3.0](https://github.com/quanghoangf/vibedoc/compare/v1.2.1...v1.3.0) (2026-04-11)
 
 
