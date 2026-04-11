@@ -29,6 +29,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# vibedoc generated cache
+.vibedoc-descriptions.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

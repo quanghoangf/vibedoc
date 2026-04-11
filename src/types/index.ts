@@ -1,6 +1,6 @@
 import type { Task, ActivityEvent } from "@/lib/core"
 
-export type { Task, TaskBoard, TaskStatus, DocFile, ActivityEvent, Project } from "@/lib/core"
+export type { Task, TaskBoard, TaskStatus, DocFile, ActivityEvent, Project, ExplorerFile, DescriptionCache } from "@/lib/core"
 
 export interface Summary {
   name: string

@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, BookOpen, Zap, Brain, CircleDot, Ban, ClipboardList, CheckCircle2, Settings } from "lucide-react"
+import { LayoutDashboard, BookOpen, Zap, Brain, CircleDot, Ban, ClipboardList, CheckCircle2, Settings, FolderTree } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -22,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/docs", icon: BookOpen, label: "Docs" },
   { href: "/activity", icon: Zap, label: "Activity" },
   { href: "/memory", icon: Brain, label: "Memory" },
+  { href: "/explorer", icon: FolderTree, label: "Explorer" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ]
 

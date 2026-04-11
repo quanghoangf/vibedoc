@@ -24,6 +24,7 @@ const SHORTCUTS = [
   { key: "d", description: "Go to Docs" },
   { key: "a", description: "Go to Activity" },
   { key: "m", description: "Go to Memory" },
+  { key: "e", description: "Go to Explorer" },
   { key: "/", description: "Focus doc search" },
   { key: "?", description: "Toggle this help" },
   { key: "Esc", description: "Close panel / modal" },
@@ -51,6 +52,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         case "d": router.push("/docs"); break
         case "a": router.push("/activity"); break
         case "m": router.push("/memory"); break
+        case "e": router.push("/explorer"); break
         case "?": setShowHelp((v) => !v); break
         case "Escape": setShowHelp(false); break
         case "/":

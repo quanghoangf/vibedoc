@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listDocs, readDoc, searchDocs, writeDoc, createDoc, renameDoc, deleteDoc, getConfiguredRoot } from '@/lib/core'
+import { listDocs, readDoc, searchDocs, writeDoc, createDoc, renameDoc, deleteDoc, getConfiguredRoot, enrichDescription } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 
 export async function GET(req: NextRequest) {
@@ -37,6 +37,10 @@ export async function POST(req: NextRequest) {
     const { path: docPath, content } = await req.json()
     await createDoc(docPath, content, root)
     emitUpdate('doc_created', { path: docPath })
+    // Fire-and-forget: enrich description asynchronously (doesn't block response)
+    if (process.env.ANTHROPIC_API_KEY) {
+      enrichDescription(docPath, root).catch(() => { /* ignore enrichment failures */ })
+    }
     return NextResponse.json({ ok: true, path: docPath }, { status: 201 })
   } catch (e) {
     const nodeErr = e as NodeJS.ErrnoException

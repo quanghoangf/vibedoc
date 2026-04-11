@@ -37,6 +37,24 @@ export interface DocFile {
   name: string
 }
 
+export interface DescriptionCache {
+  [path: string]: {
+    description: string
+    source: 'extracted' | 'ai'
+    updatedAt: string
+  }
+}
+
+export interface ExplorerFile {
+  path: string
+  name: string
+  section: string
+  description: string
+  source: 'extracted' | 'ai'
+  updatedAt: string
+  mtime: string
+}
+
 export interface SearchResult {
   file: string
   hits: { line: number; text: string }[]
@@ -124,10 +142,14 @@ export async function discoverProjects(searchBase?: string): Promise<Project[]> 
     }
   } catch {}
 
-  // Always include configured root
+  // Always ensure configured root is first
   const root = getConfiguredRoot()
   const name = path.basename(root)
-  if (!projects.find(p => p.root === root)) {
+  const existingIdx = projects.findIndex(p => p.root === root)
+  if (existingIdx > 0) {
+    const [existing] = projects.splice(existingIdx, 1)
+    projects.unshift(existing)
+  } else if (existingIdx === -1) {
     projects.unshift({ id: name, name, root, hasVibedoc: true })
   }
 
@@ -448,6 +470,130 @@ export async function updateMemory(params: MemoryParams, root: string, actor: 'a
 // ─── Activity log ─────────────────────────────────────────────────────────────
 
 const ACTIVITY_FILE = '.vibedoc-activity.json'
+
+// ─── Description cache ────────────────────────────────────────────────────────
+
+const DESCRIPTIONS_FILE = '.vibedoc-descriptions.json'
+
+export async function readDescriptions(root: string): Promise<DescriptionCache> {
+  try {
+    const raw = await fs.readFile(path.join(root, DESCRIPTIONS_FILE), 'utf8')
+    return JSON.parse(raw) as DescriptionCache
+  } catch {
+    return {}
+  }
+}
+
+export async function writeDescriptions(root: string, cache: DescriptionCache): Promise<void> {
+  const filePath = path.join(root, DESCRIPTIONS_FILE)
+  await fs.mkdir(path.dirname(filePath), { recursive: true })
+  await fs.writeFile(filePath, JSON.stringify(cache, null, 2), 'utf8')
+}
+
+export async function writeDescriptionEntry(
+  root: string,
+  filePath: string,
+  entry: DescriptionCache[string]
+): Promise<void> {
+  const normalizedKey = path.normalize(filePath).replace(/\\/g, '/')
+  const cache = await readDescriptions(root)
+  cache[normalizedKey] = entry
+  await writeDescriptions(root, cache)
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _anthropic: any = null
+
+async function getAnthropicClient(): Promise<any> {
+  if (!_anthropic) {
+    const { default: Anthropic } = await import('@anthropic-ai/sdk')
+    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  }
+  return _anthropic
+}
+
+export function extractDescription(content: string): string {
+  const lines = content.split('\n')
+  let heading = ''
+
+  for (const line of lines) {
+    const m = line.match(/^#{1,3}\s+(.+)/)
+    if (m && !heading) {
+      heading = m[1].trim().slice(0, 120)
+      continue
+    }
+    const t = line.trim()
+    if (
+      t &&
+      !t.startsWith('#') &&
+      !t.startsWith('```') &&
+      !t.startsWith('|') &&
+      !t.startsWith('-') &&
+      !t.startsWith('*') &&
+      t.length > 20
+    ) {
+      return t.slice(0, 120)
+    }
+  }
+  return heading
+}
+
+export async function enrichDescription(filePath: string, root: string): Promise<string> {
+  const resolvedRoot = path.resolve(root)
+  const fullPath = path.resolve(root, filePath)
+  if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
+    throw new Error('Path outside root')
+  }
+
+  const client = await getAnthropicClient()
+  const content = await fs.readFile(fullPath, 'utf8')
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 100,
+    messages: [{
+      role: 'user',
+      content: `Write a single sentence (max 120 characters) describing what this file is about. Output ONLY the sentence, nothing else.\n\n${content.slice(0, 2000)}`,
+    }],
+  })
+
+  const textBlock = message.content.find((b: { type: string }) => b.type === 'text') as { type: 'text'; text: string } | undefined
+  if (!textBlock) throw new Error('No text block in Anthropic response')
+  const description = textBlock.text.trim().slice(0, 120)
+
+  await writeDescriptionEntry(root, filePath, { description, source: 'ai', updatedAt: new Date().toISOString() })
+
+  return description
+}
+
+export async function listExplorerFiles(root: string): Promise<ExplorerFile[]> {
+  const docs = await listDocs(root)
+  const cache = await readDescriptions(root)
+
+  return Promise.all(docs.map(async (doc) => {
+    const cached = cache[doc.path]
+    let description = cached?.description ?? ''
+    const source: 'extracted' | 'ai' = cached?.source ?? 'extracted'
+
+    // Get mtime first so we can use it as updatedAt fallback
+    let mtime = new Date().toISOString()
+    try {
+      const stat = await fs.stat(path.join(root, doc.path))
+      mtime = stat.mtime.toISOString()
+    } catch { /* ignore */ }
+
+    const updatedAt = cached?.updatedAt ?? mtime
+
+    if (!cached) {
+      try {
+        const content = await fs.readFile(path.join(root, doc.path), 'utf8')
+        description = extractDescription(content)
+      } catch { /* ignore */ }
+    }
+
+    return { path: doc.path, name: doc.name, section: doc.section, description, source, updatedAt, mtime }
+  }))
+}
 
 async function appendActivity(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp'>): Promise<void> {
   const full: ActivityEvent = {
