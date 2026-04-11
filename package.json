@@ -1,6 +1,6 @@
 {
   "name": "vibedoc",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Local-first project intelligence for AI-assisted development. Web UI + MCP server in one.",
   "license": "MIT",
   "bin": {
