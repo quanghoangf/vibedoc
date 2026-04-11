@@ -1,6 +1,6 @@
 # T019 — DocList Polish
 
-**Status:** done
+**Status:** ✅ Done
 **Size:** XS
 **Phase:** UI Polish
 

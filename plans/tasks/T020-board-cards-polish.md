@@ -1,6 +1,6 @@
 # T020 — Board Cards + Columns Polish
 
-**Status:** done
+**Status:** ✅ Done
 **Size:** S
 **Phase:** UI Polish
 

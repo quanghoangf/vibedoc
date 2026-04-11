@@ -1,6 +1,6 @@
 # T018 — Editor Tabs + Single Header Row
 
-**Status:** done
+**Status:** ✅ Done
 **Size:** S
 **Phase:** UI Polish
 

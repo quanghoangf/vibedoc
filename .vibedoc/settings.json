@@ -1,0 +1,18 @@
+{
+  "theme": "dark",
+  "accentColor": "blue",
+  "fontSize": "large",
+  "editor": {
+    "autoSave": 10,
+    "wordWrap": true,
+    "lineNumbers": true,
+    "previewMode": "split"
+  },
+  "project": {
+    "autoRefresh": 10,
+    "showHidden": false
+  },
+  "mcp": {
+    "endpoint": "http://localhost:3000/api/mcp"
+  }
+}

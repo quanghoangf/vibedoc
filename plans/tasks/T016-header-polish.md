@@ -1,6 +1,6 @@
 # T016 — Header Polish
 
-**Status:** done
+**Status:** ✅ Done
 **Size:** XS
 **Phase:** UI Polish
 

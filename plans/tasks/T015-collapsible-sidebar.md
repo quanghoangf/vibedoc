@@ -1,6 +1,6 @@
 # T015 — Collapsible Sidebar
 
-**Status:** done
+**Status:** ✅ Done
 **Size:** S
 **Phase:** UI Polish
 

@@ -1,6 +1,6 @@
 # T017 — Editor Toolbar Icons
 
-**Status:** done
+**Status:** ✅ Done
 **Size:** S
 **Phase:** UI Polish
 
