@@ -9,6 +9,8 @@
 
 A kanban board + docs viewer + MCP server — all in one process, zero config.  
 Point your AI agent at it. Watch tasks move in real time.
+<img width="1728" height="967" alt="image" src="https://github.com/user-attachments/assets/b9989ece-715a-4b05-92e9-50cdf1441d50" />
+
 
 ```
 http://localhost:<port>         ← your browser (kanban, docs, activity, memory, explorer)
