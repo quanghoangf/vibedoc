@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/quanghoangf/vibedoc/compare/v1.4.0...v1.4.1) (2026-04-25)
+
+
+### Bug Fixes
+
+* guard against undefined board keys crashing empty-project setup ([e582730](https://github.com/quanghoangf/vibedoc/commit/e5827302646a60a1b669cf2ebfff9c0e5b4b124e))
+
 # [1.4.0](https://github.com/quanghoangf/vibedoc/compare/v1.3.0...v1.4.0) (2026-04-11)
 
 
