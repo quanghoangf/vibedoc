@@ -66,6 +66,7 @@ export function SetupWizard() {
       try {
         const res = await fetch(`/api/docs${rootParam}`);
         const docs = await res.json();
+        if (!Array.isArray(docs)) return;
         const existing = docs
           .filter(
             (d: { path: string }) =>

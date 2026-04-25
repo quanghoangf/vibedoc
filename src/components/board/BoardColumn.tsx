@@ -44,7 +44,7 @@ export function BoardColumn({ status, tasks, onMoveTask, onOpenTask }: BoardColu
           if (taskId) onMoveTask(taskId, status)
         }}
       >
-        {tasks.map((task) => (
+        {(tasks ?? []).map((task) => (
           <TaskCard
             key={task.id}
             task={task}

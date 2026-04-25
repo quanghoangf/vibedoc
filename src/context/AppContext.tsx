@@ -62,7 +62,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         fetch(`/api/activity${rp}&limit=30`).then((r) => r.json()),
       ])
       setSummary(sumRes)
-      setBoard(boardRes.board)
+      const rawBoard = boardRes?.board
+      setBoard(rawBoard && typeof rawBoard === 'object' ? {
+        todo: rawBoard.todo ?? [],
+        'in-progress': rawBoard['in-progress'] ?? [],
+        blocked: rawBoard.blocked ?? [],
+        done: rawBoard.done ?? [],
+        cancelled: rawBoard.cancelled ?? [],
+      } : null)
       setActivity(Array.isArray(actRes) ? actRes : [])
     } catch {}
     setLoading(false)
