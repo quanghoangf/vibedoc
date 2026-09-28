@@ -442,7 +442,7 @@ export function RoadmapTab() {
           </ReactFlow>
         </div>
       ) : (
-        <RoadmapTimeline items={items} today={today} onSelect={setSelectedId} />
+        <RoadmapTimeline items={items} today={today} onSelect={setSelectedId} progressById={health.progress} />
       )}
 
       <RoadmapItemSheet
@@ -497,8 +497,8 @@ function AttentionMenu({ drift, onSelect, onApply }: {
 }) {
   return (
     <details className="group relative">
-      <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-amber/40 bg-amber/10 px-2.5 text-xs font-medium text-amber hover:bg-amber/15 [&::-webkit-details-marker]:hidden">
-        <AlertTriangle className="h-3.5 w-3.5" /> {drift.length} need attention
+      <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-amber/40 bg-amber/10 px-2.5 text-xs font-medium text-txt hover:bg-amber/15 [&::-webkit-details-marker]:hidden">
+        <AlertTriangle className="h-3.5 w-3.5 text-amber" /> {drift.length} need attention
       </summary>
       <ul className="absolute right-0 top-full z-30 mt-1.5 max-h-72 w-80 overflow-y-auto rounded-lg border border-border bg-surface text-xs shadow-xl">
         {drift.map((d) => (
