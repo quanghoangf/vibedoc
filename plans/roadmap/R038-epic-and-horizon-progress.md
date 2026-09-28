@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** planned
 **Order:** 60
-**Tasks:** —
+**Tasks:** T035, T036, T037, T038
 
 Show at a glance which epics and horizons are on track, late or at risk, so the roadmap answers "are we going to make it?" without opening every task.
 
