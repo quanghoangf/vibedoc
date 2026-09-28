@@ -50,7 +50,8 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **Memory tab** — persistent `MEMORY.md` for session handoffs between AI agents
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
 - **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
-- **MCP server** — 26 tools your AI agent can call to read docs, move tasks, write ADRs, and more
+- **Plan from the chat** — ask the agent sidebar to plan a roadmap or break an epic into tasks; it asks questions, shows the plan, and writes nothing until you accept
+- **MCP server** — 29 tools your AI agent can call to read docs, move tasks, write ADRs, and more
 
 ---
 
@@ -98,7 +99,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 ## MCP tools
 
-26 tools your AI agent can call, grouped by category.
+29 tools your AI agent can call, grouped by category.
 
 ### Session & status
 
@@ -130,6 +131,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | `vibedoc_rename_doc`     | Move or rename a doc                   |
 | `vibedoc_delete_doc`     | Delete a doc                           |
 | `vibedoc_list_templates` | List available doc templates with IDs  |
+| `vibedoc_propose_edit`   | Propose edits as a diff; the user accepts or rejects in the UI |
 
 ### Context & registry
 
@@ -154,6 +156,16 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | `vibedoc_get_roadmap`         | Horizons with nested features, statuses, and linked tasks  |
 | `vibedoc_create_roadmap_item` | Create a horizon or a feature under a horizon              |
 | `vibedoc_update_roadmap_item` | Change title, parent, status, order, tasks, or body        |
+
+### Planning (chat sidebar)
+
+| Tool                         | Effect                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| `vibedoc_get_planning_guide` | Load the steps for planning a roadmap or breaking down an epic         |
+| `vibedoc_ask_questions`      | Show 1–4 multiple-choice questions as a card; answers come next turn   |
+| `vibedoc_propose_plan`       | Propose tasks or horizons/epics; the user unchecks and accepts in the UI |
+
+None of the planning tools write files. Accept in the UI writes the plan. See [Planning from chat](docs/architecture/mcp-tools.md#planning-from-chat).
 
 ---
 

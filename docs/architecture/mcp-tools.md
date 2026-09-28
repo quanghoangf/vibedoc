@@ -218,3 +218,97 @@ Write a new Architecture Decision Record (ADR) when making a significant technic
 | `consequences` | string | | Trade-offs and follow-ups |
 
 **Returns:** ADR number and file path (written to `docs/architecture/decisions/ADR-NNN-*.md`)
+
+---
+
+## Planning from chat
+
+The chat sidebar can plan a roadmap or break an epic into tasks. The agent never writes files while it plans: it asks questions, proposes a plan, and the user accepts it in the UI.
+
+Start it from the UI: **Plan with agent** on an empty `/roadmap`, or **Break down with agent** in an epic's detail sheet (shown when the epic has no tasks). Both open the chat and send the request. You can also just ask in the chat.
+
+```
+1. vibedoc_get_planning_guide { kind }   ← "roadmap" or "breakdown"; returns the steps to follow
+2. read the project                      ← vibedoc_get_roadmap, vibedoc_list_tasks, vibedoc_read_doc, vibedoc_search_docs, vibedoc_get_file_map
+3. vibedoc_ask_questions { questions }   ← shown as a card; the agent ends its turn
+4. user answers in the card              ← answers arrive as the next user message
+5. vibedoc_propose_plan { plan }         ← validated; on errors the agent fixes the plan and calls again
+6. user reviews the plan card            ← can uncheck items, then Accept or Reject
+7. Accept → POST /api/plan/apply         ← the only step that writes files
+```
+
+Steps 3–4 can repeat. After Accept, the new tasks appear on the board and the new items on `/roadmap` (SSE `task_created` / `roadmap_updated`).
+
+---
+
+### `vibedoc_get_planning_guide`
+Load the instructions for planning from chat. Call it first when the user asks to plan a roadmap or break down an epic, then follow what it returns.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `kind` | `"roadmap"` \| `"breakdown"` | ✅ | `roadmap` = plan horizons and epics; `breakdown` = split one epic into tasks |
+
+**Returns:** a short preamble that maps the terminal skill to the chat tools (use `vibedoc_ask_questions` instead of AskUserQuestion, `vibedoc_propose_plan` instead of writing, no shell or file access), followed by the bundled skill body (`skills/roadmap-planner/SKILL.md` or `skills/epic-breakdown/SKILL.md`).
+
+**Writes:** nothing.
+
+---
+
+### `vibedoc_ask_questions`
+Ask the user 1–4 multiple-choice questions. The chat UI shows them as a card. The tool cannot wait for answers: after the call, the agent ends its turn.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `questions` | array (1–4) | ✅ | Questions to show |
+| `questions[].question` | string | ✅ | The full question |
+| `questions[].header` | string | ✅ | Short label (max ~12 chars), used as the answer key |
+| `questions[].multiSelect` | boolean | ✅ | `true` = checkboxes, `false` = one choice |
+| `questions[].options` | `{label, description?}[]` (2–4) | ✅ | Choices. The card always adds an "Other" free-text option |
+
+**Returns:** a confirmation that tells the agent to end its turn. Invalid input returns an error that lists every problem.
+
+**Answers** arrive as the next user message, one line per question keyed by its header:
+```
+Answers:
+- Scope: Label A, Label B
+- Budget: Other: "free text"
+```
+
+**Writes:** nothing.
+
+---
+
+### `vibedoc_propose_plan`
+Propose a plan for the user to review. The server validates it against the current roadmap and tasks; on errors, the agent fixes the plan and calls again. The chat UI shows the plan as a card with a checkbox per item.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `plan.kind` | `"breakdown"` \| `"roadmap"` | ✅ | Which kind of plan |
+| `plan.epic` | string | breakdown | Epic id, e.g. `R004` (not a horizon) |
+| `plan.tasks` | `{key, title, size?, dependsOn?, due?, body}[]` | breakdown | New tasks |
+| `plan.horizons` | `{key, title, body?}[]` | roadmap | New horizons (no parent) |
+| `plan.epics` | `{key, title, parent, body}[]` | roadmap | New epics |
+
+- `key` is stable within the plan (`t1`, `h1`, `e1`). It becomes a real id (`T042`, `R044`) on apply.
+- Task `size`: `S (~1 hr)` \| `M (2–3 hrs)` \| `L (half day)`. `due`: `YYYY-MM-DD`. `body`: the full markdown below the meta block (`## Goal`, `## Context`, `## Scope`, `## Files`, `## Acceptance criteria`, `## Verify`).
+- Task `dependsOn`: keys of earlier tasks in this plan, or existing task ids (`"T030"`).
+- Epic `parent`: an existing horizon id (`R002`) or a horizon key in this plan (`h1`). Epic `body`: one outcome sentence, a blank line, then `**In scope:**` / `**Out of scope:**` / `**Done when:**`.
+
+**Returns:** a one-line summary ("Proposed 5 tasks for R040…"). Invalid plans return an error that lists every problem.
+
+**Writes:** nothing. Files are written only when the user clicks Accept, which calls `POST /api/plan/apply`.
+
+---
+
+### `POST /api/plan/apply`
+Not an MCP tool: the plan card calls this REST route on Accept. Honors `?root=`.
+
+**Body:** `{ plan, selected }`, where `plan` is the proposed plan and `selected` is the list of checked keys.
+
+**Behavior:**
+- Re-validates the plan against the current files. A checked item that depends on an unchecked one is an error (a task on an unchecked task, an epic under an unchecked horizon).
+- `breakdown`: creates `plans/tasks/T*.md` for the checked tasks (phase = the epic, keys in `dependsOn` mapped to the new ids) and appends the new ids to the epic's `**Tasks:**` line.
+- `roadmap`: creates the checked horizons, then the checked epics under them, as `plans/roadmap/R*.md`.
+- Emits `task_created` per new task (breakdown) and `roadmap_updated`.
+
+**Returns:** `200 { created: [{ key, id, file }] }`, or `400 { error }` on validation errors.
