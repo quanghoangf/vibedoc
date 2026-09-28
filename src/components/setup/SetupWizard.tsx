@@ -232,7 +232,7 @@ export function SetupWizard() {
                       <button
                         key={presetId}
                         onClick={() => applyPreset(preset)}
-                        className="p-3 rounded-lg border border-border hover:border-accent/50 text-left transition-all"
+                        className="p-3 rounded-lg border border-border hover:border-accent/50 text-left transition-colors"
                       >
                         <div className="font-medium text-sm text-txt">
                           {preset.name}

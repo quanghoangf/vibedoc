@@ -26,7 +26,7 @@ export function DocOutline({ headings }: DocOutlineProps) {
         "absolute right-0 top-0 w-56 max-h-[70vh] bg-surface/95 backdrop-blur-xs border border-border rounded-lg shadow-xl",
         "opacity-0 scale-95 origin-top-right pointer-events-none",
         "group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto",
-        "transition-all duration-200 ease-out"
+        "transition-[opacity,scale] duration-(--duration-base) ease-out-soft"
       )}>
         {/* Header */}
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50">

@@ -152,7 +152,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <aside className="w-[380px] flex-shrink-0 border-l border-border bg-surface flex flex-col sticky top-12 h-[calc(100svh-3rem)]">
+    <aside className="w-[380px] h-full border-l border-border bg-surface flex flex-col">
       <div className="h-10 px-3 flex items-center gap-2 border-b border-border">
         <span className="text-xs font-mono uppercase tracking-widest text-muted">Agent</span>
         <div className="flex-1" />

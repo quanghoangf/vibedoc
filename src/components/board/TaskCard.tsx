@@ -57,8 +57,9 @@ export function TaskCard({ task, onMove, onOpen }: TaskCardProps) {
         setIsDragging(true)
       }}
       onDragEnd={() => setIsDragging(false)}
+      style={{ viewTransitionName: `task-${task.file.replace(/[^a-zA-Z0-9_-]/g, "_")}` }}
       className={cn(
-        "group relative bg-surface border rounded-lg p-3 text-sm transition-all hover:border-border2",
+        "group relative bg-surface border rounded-lg p-3 text-sm transition-[border-color,opacity] hover:border-border2",
         STATUS_COLORS[task.status] || "border-border",
         isDragging && "opacity-50 cursor-grabbing",
       )}

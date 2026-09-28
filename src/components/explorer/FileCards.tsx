@@ -43,7 +43,7 @@ export function FileCards({ files, selectedPath, onSelect }: FileCardsProps) {
                   onClick={() => onSelect(file.path)}
                   className={cn(
                     "flex flex-col gap-1.5 p-3 rounded-lg border border-border text-left",
-                    "hover:border-accent/50 hover:bg-surface2 transition-all",
+                    "hover:border-accent/50 hover:bg-surface2 transition-colors",
                     selectedPath === file.path && "border-accent/50 bg-surface2"
                   )}
                 >

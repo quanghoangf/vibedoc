@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
+import { flushSync } from "react-dom"
 import { useRouter } from "next/navigation"
 import type { Task, TaskBoard, ActivityEvent, Project } from "@/lib/core"
 import type { Summary, SelectedDoc } from "@/types"
@@ -115,8 +116,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [activeProject, refresh])
 
   const moveTask = useCallback(async (taskId: string, status: string) => {
-    // Optimistic update: move card in UI immediately
-    setBoard(prev => {
+    // Optimistic update: move card in UI immediately, animated via View Transitions when supported
+    const apply = () => setBoard(prev => {
       if (!prev) return prev
       let movedTask: Task | undefined
       const next = structuredClone(prev) as TaskBoard
@@ -128,9 +129,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
       const target = status as keyof TaskBoard
-      if (movedTask && next[target]) next[target] = [movedTask, ...next[target]]
+      // Insert in server order (core.listTasks sorts by file path) so refresh() doesn't reshuffle
+      if (movedTask && next[target]) {
+        next[target] = [...next[target], movedTask].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0))
+      }
       return next
     })
+    if (typeof document !== "undefined" && "startViewTransition" in document) {
+      document.startViewTransition(() => flushSync(apply))
+    } else {
+      apply()
+    }
 
     try {
       await fetch(`/api/tasks${rootParam}`, {

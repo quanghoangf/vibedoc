@@ -60,7 +60,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
                 type="button"
                 onClick={() => update("teamSize", answers.teamSize === size.value ? "" : size.value)}
                 className={cn(
-                  "px-4 py-2 rounded-lg border text-sm font-medium transition-all",
+                  "px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
                   answers.teamSize === size.value
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border text-txt hover:border-accent/50"
@@ -87,7 +87,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
                   update("linting", next)
                 }}
                 className={cn(
-                  "px-3 py-1.5 rounded-md border text-sm transition-all",
+                  "px-3 py-1.5 rounded-md border text-sm transition-colors",
                   answers.linting.includes(opt)
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border text-txt hover:border-accent/50"
@@ -128,7 +128,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
                   update("ciCd", next)
                 }}
                 className={cn(
-                  "px-3 py-1.5 rounded-md border text-sm transition-all",
+                  "px-3 py-1.5 rounded-md border text-sm transition-colors",
                   answers.ciCd.includes(opt)
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border text-txt hover:border-accent/50"
@@ -150,7 +150,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
                 type="button"
                 onClick={() => update("branchStrategy", answers.branchStrategy === b.value ? "" : b.value)}
                 className={cn(
-                  "px-4 py-2 rounded-lg border text-sm font-medium transition-all",
+                  "px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
                   answers.branchStrategy === b.value
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border text-txt hover:border-accent/50"
@@ -177,7 +177,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
                   update("deploymentTarget", next)
                 }}
                 className={cn(
-                  "px-3 py-1.5 rounded-md border text-sm transition-all",
+                  "px-3 py-1.5 rounded-md border text-sm transition-colors",
                   answers.deploymentTarget.includes(opt)
                     ? "border-accent bg-accent/10 text-accent"
                     : "border-border text-txt hover:border-accent/50"

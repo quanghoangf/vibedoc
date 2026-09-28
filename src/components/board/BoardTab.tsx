@@ -16,7 +16,7 @@ export function BoardTab({ board, summary, onMoveTask, onOpenTask, onNewTask }: 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-display text-xl">Task Board</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight">Task Board</h1>
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-muted">{summary?.tasks.total || 0} tasks</span>
           <button

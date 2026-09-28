@@ -52,7 +52,7 @@ export function BacklinksPanel({ docPath, rootParam, onOpenDoc }: BacklinksPanel
         "absolute right-0 bottom-0 w-72 max-h-[50vh] bg-surface/95 backdrop-blur-xs border border-border rounded-lg shadow-xl",
         "opacity-0 scale-95 origin-bottom-right pointer-events-none",
         "group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto",
-        "transition-all duration-200 ease-out"
+        "transition-[opacity,scale] duration-(--duration-base) ease-out-soft"
       )}>
         {/* Header */}
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50">

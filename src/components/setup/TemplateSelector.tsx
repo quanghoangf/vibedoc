@@ -287,7 +287,7 @@ export function TemplateSelector({
                       key={item.id}
                       onClick={() => toggle(item)}
                       className={cn(
-                        "p-3 rounded-lg border text-left transition-all",
+                        "p-3 rounded-lg border text-left transition-colors",
                         checked
                           ? "border-accent bg-accent/10"
                           : "border-border hover:border-accent/50",
