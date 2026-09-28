@@ -17,12 +17,12 @@ import "@xyflow/react/dist/style.css"
 
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
-import { AlertTriangle, Plus } from "lucide-react"
+import { AlertTriangle, Plus, Sparkles } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
-import type { RoadmapItem, RoadmapLayout, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
+import type { RoadmapItem, RoadmapLayout, RoadmapSource, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 import { dueState, localToday, roadmapHealth, type RoadmapDrift } from "@/lib/roadmap-health"
 import { cn } from "@/lib/utils"
 import { RoadmapTimeline } from "./RoadmapTimeline"
@@ -123,6 +123,8 @@ export function RoadmapTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [generateSource, setGenerateSource] = useState<RoadmapSource | null>(null)
+  const [generating, setGenerating] = useState(false)
   // null = closed; "" = new horizon; "R001" = new feature under R001
   const [createParent, setCreateParent] = useState<string | null>(null)
   const draggingRef = useRef(false)
@@ -156,7 +158,8 @@ export function RoadmapTab() {
 
   const load = useCallback(() => {
     const seq = ++loadSeqRef.current
-    return api<{ items: RoadmapItem[]; layout: RoadmapLayout }>(`/api/roadmap${rootParam}`).then(({ data, error: err }) => {
+    type ListResponse = { items: RoadmapItem[]; layout: RoadmapLayout; generateSource?: RoadmapSource }
+    return api<ListResponse>(`/api/roadmap${rootParam}`).then(({ data, error: err }) => {
       if (seq !== loadSeqRef.current) return
       setLoading(false)
       if (err) {
@@ -167,6 +170,7 @@ export function RoadmapTab() {
         return
       }
       setError(null)
+      setGenerateSource(data?.generateSource ?? null)
       applyData(data?.items ?? [], data?.layout ?? {})
     })
   }, [rootParam, applyData])
@@ -245,6 +249,31 @@ export function RoadmapTab() {
     })
   }
 
+  async function generate() {
+    setGenerating(true)
+    setError(null)
+    const { data, error: err } = await api<{ items: RoadmapItem[] }>(`/api/roadmap/generate${rootParam}`, {})
+    if (err) {
+      setError(err)
+      setGenerating(false)
+      return
+    }
+    // freeze the generated arrangement so later additions don't shift auto-placed horizons
+    const positions: RoadmapLayout = Object.fromEntries(
+      Object.entries(resolvePositions(data?.items ?? [], {})).map(([id, p]) => [id, { x: Math.round(p.x), y: Math.round(p.y) }]),
+    )
+    const { error: layoutErr } = await api(`/api/roadmap/layout${rootParam}`, { positions })
+    await load()
+    if (layoutErr) setError(layoutErr)
+    setGenerating(false)
+  }
+
+  const openTaskCount = Object.values(board ?? {}).flat().filter((t) => t.status !== "cancelled").length
+  const sourceLabel =
+    generateSource === "roadmap-md" ? "from ROADMAP.md"
+      : generateSource === "tasks" ? `from ${openTaskCount} tasks, grouped by phase`
+        : "starter horizons: Shipped · Now · Next · Later"
+
   async function createItem(title: string): Promise<string | null> {
     const { error: err } = await api(`/api/roadmap/create${rootParam}`, {
       title,
@@ -291,10 +320,16 @@ export function RoadmapTab() {
       <div className="flex-1 p-6">
         {error && <p className="mb-4 text-sm text-danger">{error}</p>}
         <EmptyState icon="🗺️" message="No roadmap yet" subMessage="Items live in plans/roadmap/R*.md" bordered />
-        <div className="mt-4 flex justify-center">
-          <Button size="sm" onClick={() => setCreateParent("")} className="bg-accent text-white hover:bg-accent/90">
-            <Plus /> Create first horizon
-          </Button>
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <div className="flex gap-2">
+            <Button size="sm" onClick={generate} disabled={generating} className="bg-accent text-white hover:bg-accent/90">
+              <Sparkles /> {generating ? "Generating…" : "Generate roadmap"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setCreateParent("")} disabled={generating}>
+              <Plus /> Create first horizon
+            </Button>
+          </div>
+          <p className="text-xs text-muted">Generate {sourceLabel}. Existing files are not modified.</p>
         </div>
         {dialog}
       </div>

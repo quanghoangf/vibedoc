@@ -68,6 +68,7 @@ Roadmap page `/roadmap` — roadmap.sh-style map built with `@xyflow/react`. Des
 - Roadmap progress/drift is derived, never stored: `src/lib/roadmap-health.ts` (pure; used by the page via AppContext `board` and by MCP `vibedoc_get_roadmap` / the hint after `vibedoc_update_task`). Self-check: `node src/lib/roadmap-health.check.mts`.
 - Roadmap `**Due:** YYYY-MM-DD` is optional and a local calendar date, not an instant: compare as strings, never `new Date("YYYY-MM-DD")` (UTC shift). `localToday()` / `dueState()` in `roadmap-health.ts`; overdue-and-not-done shows in the "Needs attention" panel.
 - `/roadmap?view=timeline` = month-axis Timeline (`components/roadmap/timeline.ts` pure layout, `RoadmapTimeline.tsx`); Map is the default view.
+- Empty `/roadmap` → "Generate roadmap" (`generateRoadmap()` in core.ts, pure drafting in `src/lib/roadmap-import.ts`): source = ROADMAP.md (`##` + bullets) → tasks grouped by Phase → starter Shipped/Now/Next/Later. Never touches ROADMAP.md/tasks, refuses when R*.md exist, writes layout.json once (client posts `resolvePositions`) so the map stays frozen. Self-check: `node src/lib/roadmap-import.check.mts`.
 - `ROADMAP.md` is now only a pointer to `plans/roadmap/`.
 - Lint: 16 pre-existing `react-hooks` errors (React Compiler rules) outside roadmap files — don't add new ones.
 

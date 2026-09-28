@@ -3,7 +3,7 @@ import type { RoadmapItem, RoadmapLayout } from "@/types"
 export const HORIZON_W = 260
 export const FEATURE_W = 220
 const BRANCH_DX = 340
-const ROW_H = 100
+const ROW_H = 110
 const HORIZON_GAP = 90
 const COL_DX = FEATURE_W + 40
 const MAX_ROWS_PER_SIDE = 6 // beyond this, a side gets a second (outer, half-row staggered) column

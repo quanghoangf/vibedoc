@@ -115,7 +115,7 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
       )}
     >
       <Handles />
-      <p className="text-sm text-txt leading-snug">{item.title}</p>
+      <p className="line-clamp-2 text-sm text-txt leading-snug" title={item.title}>{item.title}</p>
       <DueChip due={item.due} state={data.dueState} />
       {item.tasks.length > 0 && (
         <div className="mt-1 flex flex-wrap justify-center gap-1">

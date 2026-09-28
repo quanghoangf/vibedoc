@@ -7,6 +7,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { glob } from 'glob'
+import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1160,6 +1161,82 @@ export function createRoadmapItem(
   return withRoadmapLock(() => createRoadmapItemUnlocked(params ?? ({} as CreateRoadmapItemParams), root, actor))
 }
 
+const roadmapId = (n: number) => `R${String(n).padStart(3, '0')}`
+
+/** Write a new R*.md (flag 'wx': never overwrites). Callers validate fields and mkdir first. */
+async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file'>): Promise<void> {
+  const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+  const filename = slug ? `${f.id}-${slug}.md` : `${f.id}.md`
+  const lines = [
+    `# ${f.id}: ${f.title}`,
+    ...(f.parent ? [`**Parent:** ${f.parent}`] : []),
+    `**Status:** ${f.status}`,
+    `**Order:** ${f.order}`,
+    `**Tasks:** ${formatTasks(f.tasks)}`,
+    ...(f.due ? [`**Due:** ${f.due}`] : []),
+    '',
+  ]
+  const content = lines.join('\n') + (f.body ? `\n${f.body}\n` : '')
+  await fs.writeFile(path.join(root, ROADMAP_DIR, filename), content, { flag: 'wx', encoding: 'utf8' })
+}
+
+/** Where "Generate roadmap" would take its content from: ROADMAP.md, then tasks, then a starter. */
+export async function detectRoadmapSource(root: string): Promise<RoadmapSource> {
+  return (await roadmapDrafts(root)).source
+}
+
+async function roadmapDrafts(root: string): Promise<{ source: RoadmapSource; drafts: RoadmapDraft[] }> {
+  try {
+    const drafts = roadmapFromMarkdown(await fs.readFile(path.join(root, 'ROADMAP.md'), 'utf8'))
+    if (drafts.length > 0) return { source: 'roadmap-md', drafts }
+  } catch {
+    // no ROADMAP.md — fall through
+  }
+  const { tasks } = await listTasks(root)
+  const fromTasks = roadmapFromTasks(tasks)
+  if (fromTasks.length > 0) return { source: 'tasks', drafts: fromTasks }
+  return { source: 'starter', drafts: starterRoadmap() }
+}
+
+/**
+ * Build plans/roadmap/ for a project that has none. Never touches ROADMAP.md or tasks.
+ * Refuses when any R*.md exists. One activity entry for the whole generation.
+ */
+export function generateRoadmap(
+  root: string, actor: 'ai' | 'human' = 'human'
+): Promise<{ items: RoadmapItem[]; source: RoadmapSource }> {
+  return withRoadmapLock(async () => {
+    if ((await readRoadmapFiles(root)).length > 0) throw new RoadmapError('Roadmap already exists')
+    const { source, drafts } = await roadmapDrafts(root)
+
+    const ids = new Map(drafts.map((d, i) => [d.key, roadmapId(i + 1)]))
+    const siblingCount = new Map<string | null, number>()
+    await fs.mkdir(path.join(root, ROADMAP_DIR), { recursive: true })
+    for (const d of drafts) {
+      const n = (siblingCount.get(d.parent) ?? 0) + 1
+      siblingCount.set(d.parent, n)
+      await writeRoadmapFile(root, {
+        id: ids.get(d.key) as string,
+        title: d.title,
+        parent: d.parent === null ? null : (ids.get(d.parent) ?? null),
+        status: d.status,
+        order: n * 10,
+        tasks: d.tasks,
+        due: null,
+        body: d.body,
+      })
+    }
+
+    await appendActivity(root, {
+      type: 'roadmap_updated', actor,
+      title: `Roadmap generated (${drafts.length} items)`,
+      detail: `from ${source}`,
+    })
+    const { items } = await listRoadmap(root)
+    return { items, source }
+  })
+}
+
 async function createRoadmapItemUnlocked(
   params: CreateRoadmapItemParams, root: string, actor: 'ai' | 'human'
 ): Promise<RoadmapItem> {
@@ -1179,24 +1256,10 @@ async function createRoadmapItemUnlocked(
     : cleanOrder(params.order)
 
   const nums = items.map(i => parseInt(i.id.slice(1), 10)).filter(n => !isNaN(n))
-  const id = `R${String(nums.length > 0 ? Math.max(...nums) + 1 : 1).padStart(3, '0')}`
-  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
-  const filename = slug ? `${id}-${slug}.md` : `${id}.md`
+  const id = roadmapId(nums.length > 0 ? Math.max(...nums) + 1 : 1)
 
-  const lines = [
-    `# ${id}: ${title}`,
-    ...(parent ? [`**Parent:** ${parent}`] : []),
-    `**Status:** ${status}`,
-    `**Order:** ${order}`,
-    `**Tasks:** ${formatTasks(tasks)}`,
-    ...(due ? [`**Due:** ${due}`] : []),
-    '',
-  ]
-  const content = lines.join('\n') + (body ? `\n${body}\n` : '')
-
-  const dir = path.join(root, ROADMAP_DIR)
-  await fs.mkdir(dir, { recursive: true })
-  await fs.writeFile(path.join(dir, filename), content, { flag: 'wx', encoding: 'utf8' })
+  await fs.mkdir(path.join(root, ROADMAP_DIR), { recursive: true })
+  await writeRoadmapFile(root, { id, title, parent, status, order, tasks, due, body })
 
   await appendActivity(root, { type: 'roadmap_updated', actor, title: `${id} created`, detail: title })
   return getRoadmapItem(id, root)
