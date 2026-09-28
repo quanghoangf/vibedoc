@@ -49,6 +49,14 @@ readActivity(root, limit)  // read .vibedoc-activity.json
 appendActivity(root, event) // append to activity log (private — called by other core fns)
 logSessionStart(root)      // convenience: append session_start event
 ```
+`appendActivity` stamps each event with a `sessionId` and keeps the newest 2000 events.
+
+### Sessions (`src/lib/sessions.ts`, pure — no fs)
+```typescript
+groupSessions(events, { gapMs? })  // activity → Session[] newest first (sessionId, else 30-min actor gap / session_start)
+sessionsForTask(sessions, taskId)  // sessions that moved a task
+sessionDuration(session)           // "<1m" | "12m" | "1h 35m"
+```
 
 ### Summary
 ```typescript

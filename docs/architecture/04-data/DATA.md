@@ -1,5 +1,5 @@
 # Data Architecture
-**Last updated:** 2025-02-28
+**Last updated:** 2026-09-28
 
 ## No database — intentional
 
@@ -19,7 +19,7 @@ VibeDoc reads and writes your actual project files. No sync, no import, no datab
 | `memory/MEMORY.md` | `updateMemory()` | Full overwrite |
 | `docs/architecture/decisions/ADR-*.md` | `logDecision()` | Creates new file |
 | `docs/architecture/decisions/_INDEX.md` | `logDecision()` | Appends row |
-| `.vibedoc-activity.json` | `appendActivity()` | JSON array, prepend, max 500 |
+| `.vibedoc-activity.json` | `appendActivity()` | JSON array, prepend, max 2000 |
 
 ## Activity log schema
 ```json
@@ -32,12 +32,20 @@ VibeDoc reads and writes your actual project files. No sync, no import, no datab
     "title": "T003 moved to done",
     "detail": "Implement user authentication",
     "taskId": "T003",
-    "taskStatus": "done"
+    "taskStatus": "done",
+    "sessionId": "ses_1790587370058_tzmkg"
   }
 ]
 ```
-`type` values: `task_updated` | `decision_logged` | `memory_updated` | `doc_read` | `session_start`
+`type` values: `task_updated` | `decision_logged` | `memory_updated` | `doc_read` | `session_start` | `doc_created` | `doc_deleted` | `doc_renamed` | `registry_rebuilt` | `roadmap_updated`
 `actor` values: `ai` | `human`
+
+## Sessions
+Sessions are derived when read, never stored (`src/lib/sessions.ts`, pure).
+- **New events** carry `sessionId`. `appendActivity()` keeps the current session per root + actor in memory and starts a new one on `session_start`, when the actor has none, or after a 30-minute gap. A server restart starts a new session.
+- **Legacy events** (no `sessionId`) are grouped per actor: a `session_start` or a gap of more than 30 minutes starts a new session.
+- Each session summarizes tasks moved (last status per task), docs changed (`doc_created` / `doc_deleted` / `doc_renamed`; `doc_read` is not a change), ADRs (`decision_logged`), roadmap edits, and whether memory was updated, into a `headline`.
+- Served by `GET /api/sessions?taskId=&limit=` and the MCP tool `vibedoc_get_sessions`.
 
 ## Task file parsing rules
 - Title: first `# ` line, strips `T001: ` prefix

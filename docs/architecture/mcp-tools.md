@@ -25,6 +25,7 @@ Add the same `url` entry to your MCP server config.
 
 ```
 1. vibedoc_read_memory             ← what happened last session?
+   vibedoc_get_sessions            ← (optional) what other agents did since
 2. vibedoc_next_task { epic }      ← claim the next ready task (returns its full spec, now in-progress)
 3. vibedoc_search_docs             ← find relevant docs before writing
 4. ... do the work, vibedoc_write_doc as needed ...
@@ -46,7 +47,27 @@ Get project status overview: active tasks, blockers, doc count, memory state. Ca
 
 **Parameters:** none
 
-**Returns:** markdown summary of board state + active/blocked tasks
+**Returns:** markdown summary of board state + active/blocked tasks, ending with a pointer to `vibedoc_get_sessions`
+
+---
+
+### `vibedoc_get_sessions`
+Sessions grouped from the activity log, newest first. A session is one actor's events without a 30-minute break; `session_start` always opens a new one. Use it at session start to catch up on what other agents did.
+
+**Parameters:**
+- `limit` (number, optional) — max sessions, default 10
+- `taskId` (string, optional) — only sessions that moved this task
+- `since` (string, optional) — ISO timestamp; only sessions that ended at or after it
+
+**Returns:** one block per session, or `No sessions touched T001.` / `No sessions since <since>.` when nothing matches:
+```
+### 🤖 Agent · 2026-09-28T09:22:50.058Z (4m)
+2 tasks moved (1 done) · 1 roadmap edit
+- T046 → done
+- T047 → in-progress
+- 📄 docs/api.md
+- 📝 ADR-004: Use SSE
+```
 
 ---
 

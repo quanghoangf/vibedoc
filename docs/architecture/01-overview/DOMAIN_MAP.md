@@ -33,7 +33,7 @@ graph TB
 | Docs | Target project | `docs/**/*.md` | Markdown |
 | Memory | Target project | `memory/MEMORY.md` | Markdown |
 | ADRs | Target project | `docs/architecture/decisions/ADR-*.md` | Markdown |
-| Activity log | Target project | `.vibedoc-activity.json` | JSON array (500 events max) |
+| Activity log | Target project | `.vibedoc-activity.json` | JSON array (2000 events max) |
 | Project config | VibeDoc env | `.env.local` | `VIBEDOC_ROOT=<path>` |
 
 ## Key relationships

@@ -51,7 +51,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
 - **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
 - **Plan from the chat** — ask the agent sidebar to plan a roadmap or break an epic into tasks; it asks questions, shows the plan, and writes nothing until you accept
-- **MCP server** — 29 tools your AI agent can call to read docs, move tasks, write ADRs, and more
+- **MCP server** — 30 tools your AI agent can call to read docs, move tasks, write ADRs, and more
 
 ---
 
@@ -99,7 +99,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 ## MCP tools
 
-29 tools your AI agent can call, grouped by category.
+30 tools your AI agent can call, grouped by category.
 
 ### Session & status
 
@@ -108,6 +108,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | `vibedoc_read_memory`   | Read `MEMORY.md` — triggers "session start" in the activity feed |
 | `vibedoc_update_memory` | Write end-of-session summary and handoff note                    |
 | `vibedoc_get_status`    | Board snapshot — active tasks, blockers, doc count               |
+| `vibedoc_get_sessions`  | Recent sessions: who, when, tasks moved, docs changed, ADRs      |
 
 ### Tasks
 
@@ -237,8 +238,11 @@ Switch between projects using the dropdown in the top bar.
 
 ## Activity log
 
-Every AI and human action is appended to `.vibedoc-activity.json` in your project root.  
-The Activity tab shows the last 30 events in real time via SSE.
+Every AI and human action is appended to `.vibedoc-activity.json` in your project root (last 2000 events are kept).
+
+The Activity tab opens on **Sessions**: one card per agent or human session with who, when, how long, a headline (`3 tasks moved (2 done) · 2 docs changed · 1 ADR`) and clickable task, doc and ADR chips. Expand a card to see its raw events; **All events** shows the flat feed. Both update live via SSE.
+
+A session is the events one actor makes without a 30-minute break, and `vibedoc_read_memory` (session start) always opens a new one. From a task's detail panel, the **Sessions** list shows every session that moved the task and jumps to that card in the Activity tab. Agents read the same timeline with `vibedoc_get_sessions`.
 
 ---
 
