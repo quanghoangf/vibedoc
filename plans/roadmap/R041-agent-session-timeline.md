@@ -1,8 +1,8 @@
 # R041: Agent session timeline
 **Parent:** R002
-**Status:** planned
+**Status:** done
 **Order:** 90
-**Tasks:** —
+**Tasks:** T046, T047, T048, T049, T050
 
 Tell the story of each agent session (tasks moved, docs changed, decisions logged) so a human can catch up on what happened in one read.
 
