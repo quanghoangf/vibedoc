@@ -158,7 +158,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                         key={tool}
                         onClick={() => toggleTool(tool)}
                         className={cn(
-                          "px-2 py-1 rounded text-xs font-mono transition-colors",
+                          "px-2 py-1 rounded-sm text-xs font-mono transition-colors",
                           editForm.tools.includes(tool)
                             ? "bg-accent/20 text-accent"
                             : "bg-surface2 text-muted hover:text-txt"
@@ -195,7 +195,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-txt">{skill.name}</span>
-                    <code className="text-xs bg-surface2 px-1.5 py-0.5 rounded text-accent">
+                    <code className="text-xs bg-surface2 px-1.5 py-0.5 rounded-sm text-accent">
                       {skill.trigger}
                     </code>
                   </div>
@@ -203,7 +203,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                   {skill.tools.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {skill.tools.map(tool => (
-                        <span key={tool} className="text-xs bg-surface2 px-1.5 py-0.5 rounded text-muted">
+                        <span key={tool} className="text-xs bg-surface2 px-1.5 py-0.5 rounded-sm text-muted">
                           {tool.replace("vibedoc_", "")}
                         </span>
                       ))}
@@ -213,13 +213,13 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => startEdit(skill)}
-                    className="p-1.5 rounded hover:bg-surface2 text-muted hover:text-txt transition-colors"
+                    className="p-1.5 rounded-sm hover:bg-surface2 text-muted hover:text-txt transition-colors"
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => deleteSkill(skill.id)}
-                    className="p-1.5 rounded hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors"
+                    className="p-1.5 rounded-sm hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -288,7 +288,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                     key={tool}
                     onClick={() => toggleTool(tool)}
                     className={cn(
-                      "px-2 py-1 rounded text-xs font-mono transition-colors",
+                      "px-2 py-1 rounded-sm text-xs font-mono transition-colors",
                       editForm.tools.includes(tool)
                         ? "bg-accent/20 text-accent"
                         : "bg-surface2 text-muted hover:text-txt"

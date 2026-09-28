@@ -80,7 +80,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <AppSidebar board={board} />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <AppHeader
           summary={summary}
           projects={projects}
@@ -127,7 +127,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                   {SHORTCUTS.map(({ key, description }) => (
                     <tr key={key} className="border-t border-border first:border-0">
                       <td className="py-1.5 pr-4">
-                        <kbd className="font-mono bg-surface2 border border-border rounded px-1.5 py-0.5 text-accent">
+                        <kbd className="font-mono bg-surface2 border border-border rounded-sm px-1.5 py-0.5 text-accent">
                           {key}
                         </kbd>
                       </td>

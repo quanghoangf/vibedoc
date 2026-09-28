@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, BookOpen, Zap, Brain, CircleDot, Ban, ClipboardList, CheckCircle2, Settings, FolderTree } from "lucide-react"
+import { LayoutDashboard, BookOpen, Zap, Brain, CircleDot, Ban, ClipboardList, CheckCircle2, Settings, FolderTree, Map } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -19,6 +19,7 @@ import type { TaskBoard } from "@/types"
 
 const NAV_ITEMS = [
   { href: "/board", icon: LayoutDashboard, label: "Board" },
+  { href: "/roadmap", icon: Map, label: "Roadmap" },
   { href: "/docs", icon: BookOpen, label: "Docs" },
   { href: "/activity", icon: Zap, label: "Activity" },
   { href: "/memory", icon: Brain, label: "Memory" },
@@ -44,7 +45,7 @@ export function AppSidebar({ board }: AppSidebarProps) {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1">
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-accent to-teal flex items-center justify-center text-xs flex-shrink-0">
+          <div className="w-6 h-6 rounded-md bg-linear-to-br from-accent to-teal flex items-center justify-center text-xs shrink-0">
             ⬡
           </div>
           <span className="font-mono text-xs text-muted tracking-widest uppercase group-data-[collapsible=icon]:hidden">

@@ -40,12 +40,17 @@ import {
   rebuildRegistry,
   updateRegistryAnnotation,
   editDoc,
+  listRoadmap,
+  createRoadmapItem,
+  updateRoadmapItem,
   TaskStatus,
+  type CreateRoadmapItemParams,
+  type UpdateRoadmapItemPatch,
 } from "@/lib/core";
 import type { TextEdit } from "@/lib/diff";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
-import { z } from "zod";
+import { dueState, localToday, roadmapHealth } from "@/lib/roadmap-health";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
 // Implements the JSON-RPC 2.0 MCP protocol directly.
@@ -352,7 +357,68 @@ const TOOLS = [
       required: ["path", "description", "keywords"],
     },
   },
+  {
+    name: "vibedoc_get_roadmap",
+    description:
+      "Get the product roadmap: horizons (spine nodes, e.g. v2.0) with their nested feature items, statuses and linked tasks.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "vibedoc_create_roadmap_item",
+    description:
+      "Create a roadmap item (plans/roadmap/R*.md). Omit parent to create a horizon on the spine; set parent to a horizon id (e.g. R001) to create a feature under it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        parent: { type: "string", description: "Horizon id, e.g. R001. Omit for a horizon." },
+        status: { type: "string", enum: ["planned", "in-progress", "done"] },
+        order: { type: "number", description: "Sort key (steps of 10). Defaults to last among siblings." },
+        tasks: { type: "array", items: { type: "string" }, description: 'Linked task ids, e.g. ["T001"]' },
+        due: { type: "string", description: "Due date YYYY-MM-DD (optional)" },
+        body: { type: "string", description: "Markdown description" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "vibedoc_update_roadmap_item",
+    description:
+      "Update fields of a roadmap item. Only the given fields change. parent: null (or \"\") makes it a horizon.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "e.g. R004" },
+        title: { type: "string" },
+        parent: { type: ["string", "null"] },
+        status: { type: "string", enum: ["planned", "in-progress", "done"] },
+        order: { type: "number" },
+        tasks: { type: "array", items: { type: "string" } },
+        due: { type: ["string", "null"], description: "Due date YYYY-MM-DD; null clears it" },
+        body: { type: "string" },
+      },
+      required: ["id"],
+    },
+  },
 ];
+
+async function taskStatusMap(root: string): Promise<Record<string, TaskStatus>> {
+  const { tasks } = await listTasks(root);
+  return Object.fromEntries(tasks.map((t) => [t.id, t.status]));
+}
+
+/** After a task move, point the agent at roadmap items linking it that are now out of sync. */
+async function roadmapHint(root: string, taskId: string): Promise<string> {
+  const { items } = await listRoadmap(root);
+  const linked = new Set(items.filter((i) => i.tasks.includes(taskId)).map((i) => i.id));
+  if (!linked.size) return "";
+  const { drift } = roadmapHealth(items, await taskStatusMap(root), localToday());
+  const hits = drift.filter((d) => d.suggestedStatus && linked.has(d.id));
+  if (!hits.length) return "";
+  return "\n\n🗺️ Roadmap out of sync:\n" + hits
+    .map((d) => `- ${d.message} → vibedoc_update_roadmap_item { "id": "${d.id}", "status": "${d.suggestedStatus}" }`)
+    .join("\n");
+}
 
 async function handleTool(name: string, args: Record<string, unknown>, root: string) {
 
@@ -470,7 +536,8 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         previousStatus: result.previousStatus,
         task: result.task,
       });
-      return `✅ **${result.task.id}** → **${result.task.status}**\n(was: ${result.previousStatus})`;
+      return `✅ **${result.task.id}** → **${result.task.status}**\n(was: ${result.previousStatus})` +
+        (await roadmapHint(root, result.task.id));
     }
 
     case "vibedoc_log_decision": {
@@ -585,6 +652,48 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       await updateRegistryAnnotation(docPath, description, keywords, root);
       emitUpdate("registry_rebuilt", { path: "docs/REGISTRY.md" });
       return `✅ Annotation updated for: ${docPath}`;
+    }
+
+    case "vibedoc_get_roadmap": {
+      const { items } = await listRoadmap(root);
+      if (items.length === 0) return "No roadmap items yet (plans/roadmap/ is empty).";
+      const today = localToday();
+      const { progress, drift } = roadmapHealth(items, await taskStatusMap(root), today);
+      const icon = { done: "✓", "in-progress": "◐", planned: "○" } as const;
+      const fmt = (i: (typeof items)[number]) =>
+        `${icon[i.status]} **${i.id}** ${i.title} — ${i.status}` +
+        (i.tasks.length ? ` (tasks: ${i.tasks.join(", ")})` : "") +
+        (progress[i.id] ? ` [${progress[i.id].done}/${progress[i.id].total} done]` : "") +
+        (i.due ? ` due ${i.due}${dueState(i.due, i.status, today) === "overdue" ? " ⚠ overdue" : ""}` : "");
+      const horizons = items.filter((i) => i.parent === null);
+      const lines = ["## Roadmap"];
+      for (const h of horizons) {
+        lines.push("", `### ${fmt(h)}`);
+        for (const c of items.filter((i) => i.parent === h.id)) lines.push(`- ${fmt(c)}`);
+      }
+      const orphans = items.filter((i) => i.parent !== null && !horizons.some((h) => h.id === i.parent));
+      if (orphans.length) {
+        lines.push("", "### Orphans (parent missing)");
+        for (const o of orphans) lines.push(`- ${fmt(o)} (parent: ${o.parent})`);
+      }
+      if (drift.length) {
+        lines.push("", "### ⚠️ Needs attention");
+        for (const d of drift) lines.push(`- ${d.message}${d.suggestedStatus ? ` → suggest status "${d.suggestedStatus}"` : ""}`);
+      }
+      return lines.join("\n");
+    }
+
+    case "vibedoc_create_roadmap_item": {
+      const item = await createRoadmapItem(args as unknown as CreateRoadmapItemParams, root, "ai");
+      emitUpdate("roadmap_updated", { kind: "create", id: item.id });
+      return `✅ Created **${item.id}** ${item.title}\nFile: ${item.file}`;
+    }
+
+    case "vibedoc_update_roadmap_item": {
+      const { id, ...patch } = args;
+      const item = await updateRoadmapItem(String(id ?? ""), patch as UpdateRoadmapItemPatch, root, "ai");
+      emitUpdate("roadmap_updated", { kind: "update", id: item.id });
+      return `✅ Updated **${item.id}** ${item.title} — ${item.status}${item.parent ? ` (parent: ${item.parent})` : " (horizon)"}`;
     }
 
     default:

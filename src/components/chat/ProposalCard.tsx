@@ -114,11 +114,11 @@ export function ProposalCard({ proposal, onResolve }: { proposal: Proposal; onRe
             <button
               onClick={accept}
               disabled={saving || before === null || !!stale}
-              className="text-xs px-2 py-0.5 rounded bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50"
+              className="text-xs px-2 py-0.5 rounded-sm bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50"
             >
               {saving ? "Applying…" : "Accept"}
             </button>
-            <button onClick={() => onResolve("rejected")} disabled={saving} className="text-xs px-2 py-0.5 rounded text-muted hover:text-txt">
+            <button onClick={() => onResolve("rejected")} disabled={saving} className="text-xs px-2 py-0.5 rounded-sm text-muted hover:text-txt">
               Reject
             </button>
           </>

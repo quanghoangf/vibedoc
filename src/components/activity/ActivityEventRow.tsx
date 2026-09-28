@@ -6,6 +6,7 @@ const ACTIVITY_ICONS: Record<string, string> = {
   memory_updated: "🧠",
   doc_read: "📄",
   session_start: "🤖",
+  roadmap_updated: "🗺️",
 }
 
 function timeAgo(ts: string): string {
@@ -23,14 +24,14 @@ interface ActivityEventRowProps {
 export function ActivityEventRow({ event }: ActivityEventRowProps) {
   return (
     <div className="flex gap-4 pb-4 animate-fade-in">
-      <div className="relative flex-shrink-0 w-8 h-8 rounded-full bg-surface2 border border-border flex items-center justify-center text-sm z-10">
+      <div className="relative shrink-0 w-8 h-8 rounded-full bg-surface2 border border-border flex items-center justify-center text-sm z-10">
         {ACTIVITY_ICONS[event.type] || "•"}
       </div>
       <div className="flex-1 pt-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
           <span className="text-sm font-medium text-txt">{event.title}</span>
           {event.actor === "ai" && (
-            <span className="text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent border border-accent/20 font-mono">
+            <span className="text-xs px-1.5 py-0.5 rounded-sm bg-accent/10 text-accent border border-accent/20 font-mono">
               AI
             </span>
           )}

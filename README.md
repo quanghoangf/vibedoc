@@ -49,7 +49,8 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **Live activity feed** — every AI action appears instantly via SSE, no polling
 - **Memory tab** — persistent `MEMORY.md` for session handoffs between AI agents
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
-- **MCP server** — 21 tools your AI agent can call to read docs, move tasks, write ADRs, and more
+- **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
+- **MCP server** — 24 tools your AI agent can call to read docs, move tasks, write ADRs, and more
 
 ---
 
@@ -97,7 +98,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 ## MCP tools
 
-21 tools your AI agent can call, grouped by category.
+24 tools your AI agent can call, grouped by category.
 
 ### Session & status
 
@@ -144,6 +145,14 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | Tool                   | Effect                                         |
 | ---------------------- | ---------------------------------------------- |
 | `vibedoc_log_decision` | Write a new Architecture Decision Record (ADR) |
+
+### Roadmap
+
+| Tool                          | Effect                                                     |
+| ----------------------------- | ---------------------------------------------------------- |
+| `vibedoc_get_roadmap`         | Horizons with nested features, statuses, and linked tasks  |
+| `vibedoc_create_roadmap_item` | Create a horizon or a feature under a horizon              |
+| `vibedoc_update_roadmap_item` | Change title, parent, status, order, tasks, or body        |
 
 ---
 

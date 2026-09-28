@@ -48,7 +48,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   }
 
   // Handles one line of `claude -p --output-format stream-json`
-  function handleEvent(ev: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  function handleEvent(ev: any) {
     if (ev.session_id) sessionRef.current = ev.session_id
     if (ev.type === "stream_event") {
       const e = ev.event
@@ -173,7 +173,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
                 {m.tools.length > 0 && (
                   <div className="flex flex-wrap gap-1 mb-2">
                     {m.tools.map((t, j) => (
-                      <span key={j} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface2 border border-border text-accent">{t}</span>
+                      <span key={j} className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-surface2 border border-border text-accent">{t}</span>
                     ))}
                   </div>
                 )}
@@ -204,7 +204,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
           }}
           rows={3}
           placeholder={busy ? "Agent is working…" : "Ask the agent… (Enter to send)"}
-          className="w-full resize-none rounded-md bg-surface2 border border-border px-2 py-1.5 text-sm text-txt placeholder:text-muted focus:outline-none focus:border-accent"
+          className="w-full resize-none rounded-md bg-surface2 border border-border px-2 py-1.5 text-sm text-txt placeholder:text-muted focus:outline-hidden focus:border-accent"
         />
       </div>
     </aside>

@@ -102,7 +102,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
 
       {/* Endpoint */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">MCP Endpoint</label>
+        <label className="block text-sm font-medium text-txt">MCP Endpoint</label>
         <div className="flex gap-2">
           <Input
             value={settings.mcp.endpoint}
@@ -144,7 +144,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
 
       {/* Agent Configs */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">Agent Configuration</label>
+        <label className="block text-sm font-medium text-txt">Agent Configuration</label>
         <p className="text-xs text-muted">Copy the configuration for your coding agent:</p>
         <div className="space-y-2">
           {Object.entries(AGENT_CONFIGS).map(([id, agent]) => (
