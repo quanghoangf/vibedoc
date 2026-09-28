@@ -64,7 +64,7 @@ export interface SearchResult {
 export interface ActivityEvent {
   id: string
   timestamp: string
-  type: 'task_updated' | 'decision_logged' | 'memory_updated' | 'doc_read' | 'session_start' | 'doc_created' | 'doc_deleted' | 'doc_renamed' | 'registry_rebuilt'
+  type: 'task_updated' | 'decision_logged' | 'memory_updated' | 'doc_read' | 'session_start' | 'doc_created' | 'doc_deleted' | 'doc_renamed' | 'registry_rebuilt' | 'roadmap_updated'
   actor: 'ai' | 'human'
   title: string
   detail?: string
@@ -945,3 +945,66 @@ export async function getProjectSummary(root: string) {
   }
 }
 
+
+// ─── Roadmap ──────────────────────────────────────────────────────────────────
+// Items: plans/roadmap/R*.md (content + Parent/Status/Order/Tasks).
+// Positions: plans/roadmap/layout.json (presentation only, never in R*.md).
+
+export type RoadmapStatus = 'planned' | 'in-progress' | 'done'
+
+export interface RoadmapItem {
+  id: string            // "R004"
+  title: string
+  parent: string | null // null = horizon on the spine
+  status: RoadmapStatus
+  order: number
+  tasks: string[]       // ["T001", "T012"]
+  body: string          // markdown after the metadata block
+  file: string          // path relative to root
+}
+
+export type RoadmapLayout = Record<string, { x: number; y: number }>
+
+export interface CreateRoadmapItemParams {
+  title: string
+  parent?: string | null
+  status?: RoadmapStatus
+  order?: number
+  tasks?: string[]
+  body?: string
+}
+
+export type UpdateRoadmapItemPatch = Partial<Omit<CreateRoadmapItemParams, 'title'> & { title: string }>
+
+export async function listRoadmap(root: string): Promise<{ items: RoadmapItem[]; layout: RoadmapLayout }> {
+  throw new Error('not implemented')
+}
+
+export async function getRoadmapItem(id: string, root: string): Promise<RoadmapItem> {
+  throw new Error('not implemented')
+}
+
+export async function createRoadmapItem(
+  params: CreateRoadmapItemParams, root: string, actor: 'ai' | 'human' = 'human'
+): Promise<RoadmapItem> {
+  throw new Error('not implemented')
+}
+
+export async function updateRoadmapItem(
+  id: string, patch: UpdateRoadmapItemPatch, root: string, actor: 'ai' | 'human' = 'human'
+): Promise<RoadmapItem> {
+  throw new Error('not implemented')
+}
+
+export async function deleteRoadmapItem(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<void> {
+  throw new Error('not implemented')
+}
+
+export async function readRoadmapLayout(root: string): Promise<RoadmapLayout> {
+  throw new Error('not implemented')
+}
+
+/** Merge `positions` into layout.json and drop ids with no matching R*.md. Returns the saved layout. */
+export async function writeRoadmapLayout(positions: RoadmapLayout, root: string): Promise<RoadmapLayout> {
+  throw new Error('not implemented')
+}
