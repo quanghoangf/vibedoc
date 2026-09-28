@@ -43,7 +43,6 @@ import {
 } from "@/lib/core";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
-import { z } from "zod";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
 // Implements the JSON-RPC 2.0 MCP protocol directly.
