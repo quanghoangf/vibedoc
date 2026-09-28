@@ -1,7 +1,7 @@
 // Self-check for roadmap-health. Run: node src/lib/roadmap-health.check.mts
 import assert from 'node:assert/strict'
 import type { RoadmapItem } from './core'
-import { dueState, roadmapHealth, type TaskInfo } from './roadmap-health.ts'
+import { dueState, roadmapHealth, taskDueSummary, type TaskInfo } from './roadmap-health.ts'
 
 const item = (id: string, parent: string | null, status: RoadmapItem['status'], tasks: string[] = [], due: string | null = null): RoadmapItem =>
   ({ id, title: id, parent, status, order: 10, tasks, due, body: '', file: `${id}.md` })
@@ -71,6 +71,19 @@ assert.equal(dueState('2027-01-01', 'planned', '2026-12-30'), 'soon', 'across a 
   assert.equal(atRisk('E3').length, 1)
   for (const id of ['E4', 'E5', 'E6', 'E7', 'H']) assert.equal(atRisk(id).length, 0, `${id} not at risk`)
   assert.ok(risk.find(d => d.id === 'E7' && d.kind === 'overdue'))
+}
+
+{
+  const tasks = {
+    O1: st('todo', '2026-09-20'), O2: st('blocked', '2026-09-27'), N1: st('todo', '2026-10-03'), N2: st('in-progress', '2026-10-01'),
+    D1: st('done', '2026-09-01'), C1: st('cancelled', '2026-09-01'), X1: st('todo'),
+  }
+  assert.deepEqual(taskDueSummary(['O1', 'O2', 'N1', 'N2'], tasks, TODAY), { overdue: 2, next: '2026-10-01' })
+  assert.deepEqual(taskDueSummary(['N1', 'X1'], tasks, TODAY), { overdue: 0, next: '2026-10-03' })
+  assert.deepEqual(taskDueSummary(['O1'], tasks, TODAY), { overdue: 1, next: null })
+  assert.deepEqual(taskDueSummary(['T001', 'N1'], { ...tasks }, '2026-10-03'), { overdue: 0, next: '2026-10-03' }, 'due today is not overdue; unknown id ignored')
+  assert.equal(taskDueSummary(['D1', 'C1', 'X1'], tasks, TODAY), null)
+  assert.equal(taskDueSummary([], tasks, TODAY), null)
 }
 
 console.log('roadmap-health: ok')

@@ -4,7 +4,7 @@ import { Handle, Position, type Node, type NodeProps } from "@xyflow/react"
 import { AlertTriangle, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { RoadmapItem, RoadmapStatus } from "@/types"
-import type { DueState } from "@/lib/roadmap-health"
+import type { DueState, TaskDueSummary } from "@/lib/roadmap-health"
 import { formatDay } from "./timeline"
 import { FEATURE_W, HORIZON_W } from "./layout"
 
@@ -13,6 +13,8 @@ export type RoadmapNodeData = {
   progress?: { done: number; total: number }  // derived, never persisted
   drift?: string[]
   dueState?: DueState | null
+  taskDue?: TaskDueSummary | null
+  taskDueSoon?: boolean
 }
 export type RoadmapNode = Node<RoadmapNodeData, "horizon" | "feature">
 
@@ -76,6 +78,23 @@ export function DueChip({ due, state }: { due: string | null; state?: DueState |
   )
 }
 
+function TaskDueLine({ summary, soon }: { summary?: TaskDueSummary | null; soon?: boolean }) {
+  if (!summary) return null
+  if (summary.overdue > 0) {
+    return (
+      <p className="mt-0.5 font-mono text-[10px] text-danger">
+        {summary.overdue} {summary.overdue === 1 ? "task" : "tasks"} overdue
+      </p>
+    )
+  }
+  if (!summary.next) return null
+  return (
+    <p className={cn("mt-0.5 font-mono text-[10px]", soon ? "text-amber" : "text-muted")}>
+      Next task due {formatDay(summary.next)}
+    </p>
+  )
+}
+
 function DriftMark({ drift }: { drift?: string[] }) {
   if (!drift?.length) return null
   return (
@@ -117,6 +136,7 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
       <Handles />
       <p className="line-clamp-2 text-sm text-txt leading-snug" title={item.title}>{item.title}</p>
       <DueChip due={item.due} state={data.dueState} />
+      <TaskDueLine summary={data.taskDue} soon={data.taskDueSoon} />
       {item.tasks.length > 0 && (
         <div className="mt-1 flex flex-wrap justify-center gap-1">
           {item.tasks.map((t) => (

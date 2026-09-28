@@ -1,5 +1,5 @@
 # T037: Task due dates on the map
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R038 — Epic & horizon progress
 **Size:** S (~1 hr)
 **Depends on:** T035

@@ -23,7 +23,7 @@ import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
 import type { RoadmapItem, RoadmapLayout, RoadmapSource, Task, UpdateRoadmapItemPatch } from "@/types"
-import { dueState, localToday, roadmapHealth, type RoadmapDrift } from "@/lib/roadmap-health"
+import { dueState, localToday, roadmapHealth, taskDueSummary, type RoadmapDrift, type TaskInfo } from "@/lib/roadmap-health"
 import { cn } from "@/lib/utils"
 import { RoadmapTimeline } from "./RoadmapTimeline"
 import { FEATURE_W, HORIZON_W, resolvePositions } from "./layout"
@@ -47,6 +47,11 @@ async function api<T>(url: string, body?: unknown): Promise<ApiResult<T>> {
   } catch {
     return { error: "Could not reach the server" }
   }
+}
+
+function taskDueFields(taskIds: string[], tasks: Record<string, TaskInfo>, today: string) {
+  const taskDue = taskDueSummary(taskIds, tasks, today)
+  return { taskDue, taskDueSoon: !!taskDue?.next && dueState(taskDue.next, "planned", today) === "soon" }
 }
 
 function buildNodes(items: RoadmapItem[], layout: RoadmapLayout, prev: RoadmapNode[]): RoadmapNode[] {
@@ -225,8 +230,9 @@ export function RoadmapTab() {
       progress: health.progress[n.id],
       drift: health.drift.filter((d) => d.id === n.id).map((d) => d.message),
       dueState: dueState(n.data.item.due, n.data.item.status, today),
+      ...(n.type === "feature" && taskDueFields(n.data.item.tasks, tasksById, today)),
     },
-  })), [nodes, health, today])
+  })), [nodes, health, today, tasksById])
 
   const onNodesChange = useCallback(
     (changes: NodeChange<RoadmapNode>[]) => setNodes((nds) => applyNodeChanges(changes, nds)),

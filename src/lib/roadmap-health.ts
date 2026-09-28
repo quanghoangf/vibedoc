@@ -53,6 +53,19 @@ function expectedStatus(states: Started[]): RoadmapStatus {
   return 'planned'
 }
 
+export interface TaskDueSummary { overdue: number; next: string | null }
+
+/** Open tasks' deadlines for a map node: how many are overdue, and the nearest upcoming due. */
+export function taskDueSummary(taskIds: string[], tasks: Record<string, TaskInfo>, today: string): TaskDueSummary | null {
+  const dues = taskIds
+    .map(id => tasks[id])
+    .filter(t => t && t.due && t.status !== 'done' && t.status !== 'cancelled')
+    .map(t => t.due as string)
+  if (!dues.length) return null
+  const upcoming = dues.filter(d => d >= today).sort()
+  return { overdue: dues.length - upcoming.length, next: upcoming[0] ?? null }
+}
+
 /** Why an unfinished epic may miss its date: overdue or blocked tasks, or due soon with nothing started. */
 function atRiskReasons(item: RoadmapItem, linked: string[], tasks: Record<string, TaskInfo>, today: string): string[] {
   const reasons: string[] = []
