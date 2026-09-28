@@ -73,7 +73,7 @@ export function StatusPill({ status }: { status: RoadmapStatus }) {
   )
 }
 
-const SEGMENT: Record<TaskStatus, string> = {
+export const TASK_STATUS_BG: Record<TaskStatus, string> = {
   done: "bg-teal",
   "in-progress": "bg-amber",
   blocked: "bg-danger",
@@ -88,7 +88,7 @@ export function SegmentedProgress({ statuses, className }: { statuses?: TaskStat
   return (
     <div className={cn("flex h-1.5 min-w-0 flex-1 gap-0.5", className)} title={`${done}/${statuses.length} tasks done`}>
       {statuses.map((s, i) => (
-        <span key={i} className={cn("h-full flex-1 rounded-[1px]", SEGMENT[s])} />
+        <span key={i} className={cn("h-full flex-1 rounded-[1px]", TASK_STATUS_BG[s])} />
       ))}
     </div>
   )

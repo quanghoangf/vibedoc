@@ -1,21 +1,23 @@
 "use client"
 
 import { useState } from "react"
+import { Bot, ChevronRight, FileText, Pencil, Plus } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
 import { pickNextTask } from "@/lib/work-queue"
-import { STATUS_BADGE_COLORS } from "@/components/board/TaskCard"
-import { DueChip, Progress } from "./RoadmapNodes"
-import type { RoadmapItem, RoadmapStatus, Task, UpdateRoadmapItemPatch } from "@/types"
+import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
+import type { RoadmapItem, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 
 const STATUSES: RoadmapStatus[] = ["planned", "in-progress", "done"]
 
 const FIELD = "w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-txt focus:outline-hidden focus:ring-1 focus:ring-accent disabled:opacity-50"
 const LABEL = "text-xs font-medium text-muted"
+const SECTION = "font-mono text-[10px] uppercase tracking-widest text-muted"
 
 interface RoadmapItemSheetProps {
   item: RoadmapItem | null
@@ -26,23 +28,131 @@ interface RoadmapItemSheetProps {
   onDelete: (id: string) => Promise<string | null>
   onAddFeature: (parentId: string) => void
   onEditRaw: (file: string) => void
+  onSelect: (id: string) => void
   /** Every task on the board, by id — the epic's linked tasks are looked up here. */
   tasksById: Record<string, Task>
-  progress?: RoadmapProgress
+  progressById: Record<string, RoadmapProgress>
 }
 
 export function RoadmapItemSheet({ item, onClose, ...rest }: RoadmapItemSheetProps) {
   return (
     <Sheet open={!!item} onOpenChange={(v) => { if (!v) onClose() }}>
-      <SheetContent className="w-[440px] sm:max-w-[440px] bg-surface border-border text-txt flex flex-col overflow-y-auto">
-        {/* keyed so form state re-initialises from props when a different item opens */}
-        {item && <ItemForm key={item.id} item={item} onClose={onClose} {...rest} />}
+      <SheetContent className="w-[480px] sm:max-w-[480px] gap-0 bg-surface border-border text-txt flex flex-col overflow-y-auto p-0">
+        {/* keyed so view/edit and form state re-initialise when a different item opens */}
+        {item && <ItemPanel key={item.id} item={item} onClose={onClose} {...rest} />}
       </SheetContent>
     </Sheet>
   )
 }
 
-function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEditRaw, tasksById, progress }: RoadmapItemSheetProps & { item: RoadmapItem }) {
+function ItemPanel(props: RoadmapItemSheetProps & { item: RoadmapItem }) {
+  const [editing, setEditing] = useState(false)
+  return editing
+    ? <ItemForm {...props} onCancel={() => setEditing(false)} />
+    : <ItemView {...props} onEdit={() => setEditing(true)} />
+}
+
+/** Read-first view: where it sits, how far along, what's next, and the brief. */
+function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tasksById, progressById, onEdit }: RoadmapItemSheetProps & { item: RoadmapItem; onEdit: () => void }) {
+  const isHorizon = item.parent === null
+  const parent = items.find((i) => i.id === item.parent)
+  const epics = items.filter((i) => i.parent === item.id).sort((a, b) => a.order - b.order)
+  const progress = progressById[item.id]
+  const today = localToday()
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <header className={cn("border-b border-border px-6 pb-5 pt-6", item.status === "in-progress" && "bg-[linear-gradient(180deg,rgb(var(--rgb-accent)/0.08),transparent)]")}>
+        <SheetDescription asChild>
+          <div className="flex items-center gap-1 pr-8 font-mono text-[11px] text-muted">
+            {parent && (
+              <>
+                <button type="button" onClick={() => onSelect(parent.id)} className="truncate hover:text-txt">{parent.title}</button>
+                <ChevronRight className="h-3 w-3 shrink-0" />
+              </>
+            )}
+            <span className="shrink-0">{item.id} · {isHorizon ? "horizon" : "epic"}</span>
+          </div>
+        </SheetDescription>
+        <SheetTitle className="mt-2 text-xl font-semibold leading-tight text-txt">{item.title}</SheetTitle>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <StatusPill status={item.status} />
+          <DueChip due={item.due} state={dueState(item.due, item.status, today)} />
+        </div>
+        {progress && (
+          <div className="mt-5 flex items-end gap-4">
+            <p className="font-mono text-3xl font-semibold leading-none tabular-nums text-txt">
+              {Math.round((progress.done / progress.total) * 100)}<span className="text-base text-muted">%</span>
+            </p>
+            <div className="flex-1 pb-1">
+              <p className="mb-1.5 font-mono text-[10px] text-muted">{progress.done} of {progress.total}{isHorizon ? "" : " tasks"} done</p>
+              {isHorizon ? (
+                <div className="h-1.5 overflow-hidden rounded-full bg-border">
+                  <div className="h-full rounded-full bg-teal" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+                </div>
+              ) : (
+                <SegmentedProgress statuses={item.tasks.map((id) => tasksById[id]?.status).filter((s): s is TaskStatus => !!s && s !== "cancelled")} />
+              )}
+            </div>
+          </div>
+        )}
+      </header>
+
+      <div className="flex flex-1 flex-col gap-6 px-6 py-5">
+        {!isHorizon && item.tasks.length > 0 && <LinkedTasks item={item} tasksById={tasksById} onOpen={onEditRaw} />}
+
+        {isHorizon && (
+          <section className="flex flex-col gap-2">
+            <p className={SECTION}>Epics · {epics.length}</p>
+            {epics.length === 0 && <p className="text-sm text-muted">No epics yet.</p>}
+            <ul className="-mx-2 flex flex-col">
+              {epics.map((e) => {
+                const p = progressById[e.id]
+                return (
+                  <li key={e.id}>
+                    <button type="button" onClick={() => onSelect(e.id)} className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-surface2">
+                      <StatusDot status={e.status} />
+                      <span className="shrink-0 font-mono text-[11px] text-muted">{e.id}</span>
+                      <span className={cn("min-w-0 flex-1 truncate text-sm", e.status === "done" ? "text-muted" : "text-txt")}>{e.title}</span>
+                      {p && <span className="shrink-0 font-mono text-[10px] text-muted">{p.done}/{p.total}</span>}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )}
+
+        <section className="flex flex-col gap-2">
+          <p className={SECTION}>Brief</p>
+          {item.body.trim()
+            ? <MarkdownRenderer content={item.body} className="text-sm" />
+            : <p className="text-sm text-muted">No description. Edit to add the outcome, scope and &ldquo;done when&rdquo;.</p>}
+        </section>
+      </div>
+
+      <footer className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-border bg-surface px-6 py-3">
+        {!isHorizon && item.tasks.length === 0 ? (
+          <Button size="sm" onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} className="bg-accent text-white hover:bg-accent/90">
+            <Bot /> Break down with agent
+          </Button>
+        ) : isHorizon ? (
+          <Button size="sm" onClick={() => onAddFeature(item.id)} className="bg-accent text-white hover:bg-accent/90">
+            <Plus /> Add epic
+          </Button>
+        ) : null}
+        <Button size="sm" variant="outline" onClick={onEdit}>
+          <Pencil /> Edit
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => onEditRaw(item.file)} className="ml-auto text-muted hover:text-txt">
+          <FileText /> Open file
+        </Button>
+      </footer>
+    </div>
+  )
+}
+
+function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapItemSheetProps & { item: RoadmapItem; onCancel: () => void }) {
   // snapshot at open: the dirty check diffs against this, not the live (SSE-refreshed) item
   const [base] = useState(item)
   const [title, setTitle] = useState(item.title)
@@ -89,7 +199,7 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEdit
     if ((due || null) !== base.due) patch.due = due || null
     if (body !== base.body) patch.body = body
     if (Object.keys(patch).length === 0) {
-      onClose()
+      onCancel()
       return
     }
     if (await run(() => onSave(item.id, patch))) onClose()
@@ -101,120 +211,105 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEdit
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="pr-6">
-        <SheetTitle className="text-base text-txt">{item.title}</SheetTitle>
-        <SheetDescription className="font-mono text-xs text-muted">
-          {item.id} · {isHorizon ? "horizon" : "feature"}
-        </SheetDescription>
+    <div className="flex min-h-full flex-col">
+      <div className="border-b border-border px-6 pb-4 pt-6 pr-12">
+        <SheetDescription className="font-mono text-[11px] text-muted">Editing {item.id} · {isHorizon ? "horizon" : "epic"}</SheetDescription>
+        <SheetTitle className="mt-1 text-base text-txt">{item.title}</SheetTitle>
       </div>
 
-      {!isHorizon && item.tasks.length > 0 && (
-        <LinkedTasks item={item} tasksById={tasksById} progress={progress} onOpen={onEditRaw} />
-      )}
-
-      <label className="flex flex-col gap-1">
-        <span className={LABEL}>Title</span>
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} className="bg-bg border-border text-txt" />
-      </label>
-
-      <div className="grid grid-cols-3 gap-3">
+      <div className="flex flex-1 flex-col gap-4 px-6 py-5">
         <label className="flex flex-col gap-1">
-          <span className={LABEL}>Status</span>
-          <select value={status} onChange={(e) => setStatus(e.target.value as RoadmapStatus)} className={FIELD}>
-            {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
+          <span className={LABEL}>Title</span>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} className="bg-bg border-border text-txt" />
         </label>
-        <label className="flex flex-col gap-1">
-          <span className={LABEL}>Parent</span>
-          <select
-            value={parent}
-            onChange={(e) => setParent(e.target.value)}
-            disabled={hasChildren}
-            title={hasChildren ? "Items with children must stay on the spine" : undefined}
-            className={FIELD}
-          >
-            <option value="">— (horizon)</option>
-            {orphanParent && <option value={item.parent ?? ""}>{item.parent} · missing</option>}
-            {horizons.map((h) => <option key={h.id} value={h.id}>{h.id} · {h.title}</option>)}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className={LABEL}>Order</span>
-          <Input
-            type="number"
-            step={10}
-            value={order}
-            onChange={(e) => setOrder(e.target.value)}
-            title={isHorizon ? "Position on the spine" : "Position within the branch"}
-            className="bg-bg border-border text-txt"
-          />
-        </label>
-      </div>
 
-      <label className="flex flex-col gap-1">
-        <span className={LABEL}>Due</span>
-        <div className="flex items-center gap-2">
-          <Input
-            type="date"
-            value={due}
-            onChange={(e) => setDue(e.target.value)}
-            className="bg-bg border-border text-txt scheme-light dark:scheme-dark"
-          />
-          {due && (
-            <button type="button" onClick={() => setDue("")} className="text-xs text-muted hover:text-txt">
-              Clear
-            </button>
-          )}
+        <div className="grid grid-cols-3 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className={LABEL}>Status</span>
+            <select value={status} onChange={(e) => setStatus(e.target.value as RoadmapStatus)} className={FIELD}>
+              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className={LABEL}>Parent</span>
+            <select
+              value={parent}
+              onChange={(e) => setParent(e.target.value)}
+              disabled={hasChildren}
+              title={hasChildren ? "Items with children must stay on the spine" : undefined}
+              className={FIELD}
+            >
+              <option value="">— (horizon)</option>
+              {orphanParent && <option value={item.parent ?? ""}>{item.parent} · missing</option>}
+              {horizons.map((h) => <option key={h.id} value={h.id}>{h.id} · {h.title}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className={LABEL}>Order</span>
+            <Input
+              type="number"
+              step={10}
+              value={order}
+              onChange={(e) => setOrder(e.target.value)}
+              title={isHorizon ? "Position on the spine" : "Position within the branch"}
+              className="bg-bg border-border text-txt"
+            />
+          </label>
         </div>
-      </label>
 
-      <label className="flex flex-col gap-1">
-        <span className={LABEL}>Tasks</span>
-        <Input
-          value={tasks}
-          onChange={(e) => setTasks(e.target.value)}
-          placeholder="T001, T012"
-          className="bg-bg border-border text-txt font-mono"
-        />
-      </label>
+        <label className="flex flex-col gap-1">
+          <span className={LABEL}>Due</span>
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={due}
+              onChange={(e) => setDue(e.target.value)}
+              className="bg-bg border-border text-txt scheme-light dark:scheme-dark"
+            />
+            {due && (
+              <button type="button" onClick={() => setDue("")} className="text-xs text-muted hover:text-txt">
+                Clear
+              </button>
+            )}
+          </div>
+        </label>
 
-      <label className="flex flex-col gap-1">
-        <span className={LABEL}>Body (markdown)</span>
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={10} className={`${FIELD} font-mono resize-y`} />
-      </label>
+        <label className="flex flex-col gap-1">
+          <span className={LABEL}>Tasks</span>
+          <Input
+            value={tasks}
+            onChange={(e) => setTasks(e.target.value)}
+            placeholder="T001, T012"
+            className="bg-bg border-border text-txt font-mono"
+          />
+        </label>
 
-      {error && <p className="text-xs text-danger">{error}</p>}
+        <label className="flex flex-col gap-1">
+          <span className={LABEL}>Body (markdown)</span>
+          <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={12} className={`${FIELD} font-mono resize-y`} />
+        </label>
 
-      <div className="flex flex-wrap gap-2">
+        {error && <p className="text-xs text-danger">{error}</p>}
+      </div>
+
+      <footer className="sticky bottom-0 flex items-center gap-2 border-t border-border bg-surface px-6 py-3">
         <Button size="sm" onClick={save} disabled={busy} className="bg-accent text-white hover:bg-accent/90">
           Save
         </Button>
-        {isHorizon && (
-          <Button size="sm" variant="ghost" onClick={() => onAddFeature(item.id)} disabled={busy} className="text-txt">
-            Add feature
-          </Button>
-        )}
-        {!isHorizon && item.tasks.length === 0 && (
-          <Button size="sm" variant="ghost" onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} disabled={busy} className="text-txt">
-            Break down with agent
-          </Button>
-        )}
-        <Button size="sm" variant="ghost" onClick={() => onEditRaw(item.file)} disabled={busy} className="text-txt">
-          Edit raw
+        <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy} className="text-txt">
+          Cancel
         </Button>
         <Button size="sm" variant="ghost" onClick={remove} disabled={busy} className="ml-auto text-danger hover:text-danger">
           Delete
         </Button>
-      </div>
+      </footer>
     </div>
   )
 }
 
-function LinkedTasks({ item, tasksById, progress, onOpen }: {
+function LinkedTasks({ item, tasksById, onOpen }: {
   item: RoadmapItem
   tasksById: Record<string, Task>
-  progress?: RoadmapProgress
   onOpen: (file: string) => void
 }) {
   const today = localToday()
@@ -225,39 +320,33 @@ function LinkedTasks({ item, tasksById, progress, onOpen }: {
     ? [...next.waiting].sort((a, b) => Number(tasksById[b.taskId]?.status === "todo") - Number(tasksById[a.taskId]?.status === "todo")).map((w) => w.reason)
     : []
   return (
-    <section className="flex flex-col gap-2 rounded-md border border-border p-3">
-      <div className="flex items-center justify-between">
-        <span className={LABEL}>Tasks</span>
-        <DueChip due={item.due} state={dueState(item.due, item.status, today)} />
-      </div>
-      <Progress progress={progress} />
-      <ul className="flex flex-col">
+    <section className="flex flex-col gap-2">
+      <p className={SECTION}>Tasks · {item.tasks.length}</p>
+      <ul className="-mx-2 flex flex-col">
         {item.tasks.map((id) => {
           const t = tasksById[id]
           if (!t) {
             return (
-              <li key={id} className="py-1.5 font-mono text-xs text-danger">{id} · missing task file</li>
+              <li key={id} className="px-2 py-2 font-mono text-xs text-danger">{id} · missing task file</li>
             )
           }
+          const isNext = t.id === nextId
           return (
             <li key={id}>
               <button
                 type="button"
                 onClick={() => onOpen(t.file)}
-                className="flex w-full items-center gap-2 rounded-sm px-1 py-1.5 text-left hover:bg-bg"
+                className={cn("flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-surface2", isNext && "bg-accent/10 hover:bg-accent/15")}
               >
-                <span className="shrink-0 font-mono text-xs text-muted">{t.id}</span>
-                <span className={cn("min-w-0 flex-1 truncate text-sm", t.status === "cancelled" ? "text-muted line-through" : "text-txt")}>
+                <span title={t.status} className={cn("h-2 w-2 shrink-0 rounded-full", TASK_STATUS_BG[t.status])} />
+                <span className="shrink-0 font-mono text-[11px] text-muted">{t.id}</span>
+                <span className={cn("min-w-0 flex-1 truncate text-sm", t.status === "cancelled" ? "text-muted line-through" : t.status === "done" ? "text-muted" : "text-txt")}>
                   {t.title}
                 </span>
-                {t.size && t.size !== "—" && <span className="shrink-0 font-mono text-[10px] text-muted">{t.size.split(" ")[0]}</span>}
                 <DueChip due={t.due} state={dueState(t.due, t.status === "done" ? "done" : "planned", today)} />
-                {t.id === nextId && (
-                  <span className="shrink-0 rounded-sm border border-accent/40 px-1.5 text-[10px] text-accent">Next up</span>
-                )}
-                <span className={cn("shrink-0 rounded-sm border px-1.5 text-[10px]", STATUS_BADGE_COLORS[t.status])}>
-                  {t.status}
-                </span>
+                {isNext
+                  ? <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-accent">Next up</span>
+                  : t.size && t.size !== "—" && <span className="shrink-0 font-mono text-[10px] text-muted">{t.size.split(" ")[0]}</span>}
               </button>
             </li>
           )

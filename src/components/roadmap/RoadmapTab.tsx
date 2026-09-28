@@ -454,7 +454,8 @@ export function RoadmapTab() {
         onAddFeature={(parentId) => { setSelectedId(null); setCreateParent(parentId) }}
         onEditRaw={(file) => { openDoc(file) }}
         tasksById={tasksById}
-        progress={selected ? health.progress[selected.id] : undefined}
+        progressById={health.progress}
+        onSelect={setSelectedId}
       />
       {dialog}
     </div>
