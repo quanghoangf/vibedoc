@@ -11,6 +11,7 @@ import { applyEdits, type TextEdit } from './diff'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
+import { SESSION_GAP_MS } from './sessions'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ export interface ActivityEvent {
   detail?: string
   taskId?: string
   taskStatus?: TaskStatus
+  sessionId?: string
 }
 
 export interface Project {
@@ -660,6 +662,7 @@ export async function updateMemory(params: MemoryParams, root: string, actor: 'a
 // ─── Activity log ─────────────────────────────────────────────────────────────
 
 const ACTIVITY_FILE = '.vibedoc-activity.json'
+const ACTIVITY_CAP = 2000
 
 // ─── Description cache ────────────────────────────────────────────────────────
 
@@ -785,11 +788,27 @@ export async function listExplorerFiles(root: string): Promise<ExplorerFile[]> {
   }))
 }
 
+// ponytail: current session per root+actor lives in memory; a server restart starts a new session.
+const currentSessions = new Map<string, { id: string; lastAt: number }>()
+
+function stampSession(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp'>, now: number): string {
+  const key = `${root}\0${event.actor}`
+  let cur = currentSessions.get(key)
+  if (!cur || event.type === 'session_start' || now - cur.lastAt > SESSION_GAP_MS) {
+    cur = { id: `ses_${now}_${Math.random().toString(36).slice(2, 7)}`, lastAt: now }
+    currentSessions.set(key, cur)
+  }
+  cur.lastAt = now
+  return cur.id
+}
+
 async function appendActivity(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp'>): Promise<void> {
+  const now = Date.now()
   const full: ActivityEvent = {
-    id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    timestamp: new Date().toISOString(),
+    id: `evt_${now}_${Math.random().toString(36).slice(2, 7)}`,
+    timestamp: new Date(now).toISOString(),
     ...event,
+    sessionId: stampSession(root, event, now),
   }
 
   const file = path.join(root, ACTIVITY_FILE)
@@ -800,7 +819,7 @@ async function appendActivity(root: string, event: Omit<ActivityEvent, 'id' | 't
   } catch {}
 
   events.unshift(full)
-  if (events.length > 500) events = events.slice(0, 500)
+  if (events.length > ACTIVITY_CAP) events = events.slice(0, ACTIVITY_CAP)
   await fs.writeFile(file, JSON.stringify(events, null, 2), 'utf8')
 }
 
