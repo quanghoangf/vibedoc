@@ -226,7 +226,7 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
     <div
       style={{ width: FEATURE_W }}
       className={cn(
-        "relative flex flex-col gap-1.5 overflow-hidden rounded-lg border px-3 py-2.5 transition-shadow duration-(--duration-base)",
+        "relative flex flex-col gap-1.5 rounded-lg border px-3 py-2.5 transition-shadow duration-(--duration-base)",
         live
           ? "border-accent/50 bg-surface shadow-[0_8px_24px_-10px_rgb(var(--rgb-accent)/0.55)]"
           : "border-dashed border-border2 bg-bg hover:border-muted",
@@ -234,7 +234,7 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
       )}
     >
       <Handles />
-      {live && <span className={cn("absolute inset-y-0 left-0 w-[3px]", drifting ? "bg-amber" : "bg-accent")} />}
+      {live && <span className={cn("absolute -inset-y-px -left-px w-[3px] rounded-l-lg", drifting ? "bg-amber" : "bg-accent")} />}
       <div className="flex items-center justify-between font-mono text-[10px]">
         <span className="text-muted">{item.id}</span>
         {live ? (

@@ -5,7 +5,6 @@ import {
   Background,
   BackgroundVariant,
   Controls,
-  Panel,
   Position,
   ReactFlow,
   applyNodeChanges,
@@ -29,7 +28,7 @@ import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { RoadmapTimeline } from "./RoadmapTimeline"
 import { FEATURE_W, HORIZON_W, resolvePositions } from "./layout"
-import { StatusDot, nodeTypes, type RoadmapNode } from "./RoadmapNodes"
+import { STATUS_LABEL, StatusDot, nodeTypes, type RoadmapNode } from "./RoadmapNodes"
 import { RoadmapItemSheet } from "./RoadmapItemSheet"
 import { NewItemDialog } from "./NewItemDialog"
 import { PlanFromSpecDialog } from "./PlanFromSpecDialog"
@@ -386,7 +385,7 @@ export function RoadmapTab() {
 
   return (
     <div className="relative flex flex-1 min-h-0 flex-col">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-1.5">
+      <div className="flex shrink-0 items-center gap-4 border-b border-border px-3 py-2">
         <div className="flex rounded-md border border-border p-0.5 text-xs">
           {(["map", "timeline"] as const).map((v) => (
             <button
@@ -402,8 +401,16 @@ export function RoadmapTab() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-3">
+        <RoadmapStats items={items} tasksById={tasksById} />
+        <div className="ml-auto flex items-center gap-2">
           {error && <p className="text-xs text-danger">{error}</p>}
+          {health.drift.length > 0 && (
+            <AttentionMenu
+              drift={health.drift}
+              onSelect={setSelectedId}
+              onApply={(d) => d.suggestedStatus && saveItem(d.id, { status: d.suggestedStatus }).then((err) => { if (err) setError(err) })}
+            />
+          )}
           <Button size="sm" variant="outline" onClick={() => setSpecOpen(true)}>
             <FileText /> Plan from spec
           </Button>
@@ -432,26 +439,12 @@ export function RoadmapTab() {
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
             <Controls showInteractive={false} />
-            <Panel position="top-left">
-              <div className="flex flex-col gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted shadow-sm">
-                <span className="flex items-center gap-2"><StatusDot status="done" /> Done</span>
-                <span className="flex items-center gap-2"><StatusDot status="in-progress" /> In progress</span>
-                <span className="flex items-center gap-2"><StatusDot status="planned" /> Planned</span>
-              </div>
-            </Panel>
           </ReactFlow>
         </div>
       ) : (
         <RoadmapTimeline items={items} today={today} onSelect={setSelectedId} />
       )}
 
-      {health.drift.length > 0 && (
-        <DriftPanel
-          drift={health.drift}
-          onSelect={setSelectedId}
-          onApply={(d) => d.suggestedStatus && saveItem(d.id, { status: d.suggestedStatus }).then((err) => { if (err) setError(err) })}
-        />
-      )}
       <RoadmapItemSheet
         item={selected}
         items={items}
@@ -468,27 +461,56 @@ export function RoadmapTab() {
   )
 }
 
-function DriftPanel({ drift, onSelect, onApply }: {
+/** Epic counts by status double as the legend; tasks = every task linked to an epic. */
+function RoadmapStats({ items, tasksById }: { items: RoadmapItem[]; tasksById: Record<string, Task> }) {
+  const epics = items.filter((i) => i.parent !== null)
+  const count = (st: RoadmapItem["status"]) => epics.filter((e) => e.status === st).length
+  const linked = [...new Set(epics.flatMap((e) => e.tasks))].map((id) => tasksById[id]).filter((t) => t && t.status !== "cancelled")
+  const done = linked.filter((t) => t.status === "done").length
+  return (
+    <div className="hidden items-center gap-4 font-mono text-[11px] text-muted md:flex">
+      {(["in-progress", "done", "planned"] as const).map((st) => (
+        <span key={st} className="flex items-center gap-1.5">
+          <StatusDot status={st} />
+          <span className={cn("tabular-nums", st === "in-progress" && count(st) > 0 ? "text-accent" : "text-txt")}>{count(st)}</span>
+          {STATUS_LABEL[st].toLowerCase()}
+        </span>
+      ))}
+      {linked.length > 0 && (
+        <span className="flex items-center gap-2 border-l border-border pl-4">
+          <span className="relative h-1 w-20 overflow-hidden rounded-full bg-border">
+            <span className="absolute inset-y-0 left-0 rounded-full bg-teal" style={{ width: `${(done / linked.length) * 100}%` }} />
+          </span>
+          <span><span className="tabular-nums text-txt">{done}/{linked.length}</span> tasks</span>
+        </span>
+      )}
+    </div>
+  )
+}
+
+/** Amber pill with the drift count; opens the list (closed by default so it never covers the map). */
+function AttentionMenu({ drift, onSelect, onApply }: {
   drift: RoadmapDrift[]
   onSelect: (id: string) => void
   onApply: (d: RoadmapDrift) => void
 }) {
   return (
-    <details open className="absolute right-3 top-14 z-30 w-72 rounded-md border border-amber/50 bg-surface text-xs shadow-sm">
-      <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 font-medium text-amber">
+    <details className="group relative">
+      <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-amber/40 bg-amber/10 px-2.5 text-xs font-medium text-amber hover:bg-amber/15 [&::-webkit-details-marker]:hidden">
         <AlertTriangle className="h-3.5 w-3.5" /> {drift.length} need attention
       </summary>
-      <ul className="max-h-60 overflow-y-auto border-t border-border">
+      <ul className="absolute right-0 top-full z-30 mt-1.5 max-h-72 w-80 overflow-y-auto rounded-lg border border-border bg-surface text-xs shadow-xl">
         {drift.map((d) => (
-          <li key={`${d.id}-${d.kind}`} className="flex items-start gap-2 border-b border-border px-3 py-2 last:border-0">
-            <button type="button" onClick={() => onSelect(d.id)} className="flex-1 text-left text-muted hover:text-txt">
+          <li key={`${d.id}-${d.kind}`} className="flex items-start gap-2 border-b border-border px-3 py-2.5 last:border-0">
+            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber" />
+            <button type="button" onClick={() => onSelect(d.id)} className="flex-1 text-left leading-relaxed text-muted hover:text-txt">
               {d.message}
             </button>
             {d.suggestedStatus && (
               <button
                 type="button"
                 onClick={() => onApply(d)}
-                className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-txt hover:border-accent"
+                className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] text-txt hover:border-accent hover:text-accent"
                 title={`Set status to ${d.suggestedStatus}`}
               >
                 → {d.suggestedStatus}
