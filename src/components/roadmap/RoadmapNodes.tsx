@@ -1,0 +1,87 @@
+"use client"
+
+import { Handle, Position, type Node, type NodeProps } from "@xyflow/react"
+import { Check } from "lucide-react"
+import { cn } from "@/lib/utils"
+import type { RoadmapItem, RoadmapStatus } from "@/types"
+import { FEATURE_W, HORIZON_W } from "./layout"
+
+export type RoadmapNodeData = { item: RoadmapItem }
+export type RoadmapNode = Node<RoadmapNodeData, "horizon" | "feature">
+
+const SIDES = [Position.Top, Position.Right, Position.Bottom, Position.Left]
+
+/** One invisible source + target handle per side; edges pick `side` / `side-t`. */
+function Handles() {
+  return (
+    <>
+      {SIDES.map((p) => (
+        <Handle key={p} id={p} type="source" position={p} isConnectable={false} className="opacity-0" />
+      ))}
+      {SIDES.map((p) => (
+        <Handle key={`${p}-t`} id={`${p}-t`} type="target" position={p} isConnectable={false} className="opacity-0" />
+      ))}
+    </>
+  )
+}
+
+export function StatusBadge({ status, className }: { status: RoadmapStatus; className?: string }) {
+  return (
+    <span
+      title={status}
+      className={cn(
+        "inline-flex h-5 w-5 items-center justify-center rounded-full border-2",
+        status === "done" && "border-teal bg-teal text-bg",
+        status === "in-progress" && "border-accent bg-[linear-gradient(90deg,var(--color-accent)_50%,var(--color-surface)_50%)]",
+        status === "planned" && "border-muted bg-surface",
+        className,
+      )}
+    >
+      {status === "done" && <Check className="h-3 w-3" strokeWidth={3} />}
+    </span>
+  )
+}
+
+export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
+  return (
+    <div
+      style={{ width: HORIZON_W }}
+      className={cn(
+        "relative rounded-lg border-2 border-accent bg-accent/15 px-4 py-3 text-center",
+        selected && "ring-2 ring-accent/50 ring-offset-2 ring-offset-bg",
+      )}
+    >
+      <Handles />
+      <p className="text-base font-semibold text-txt leading-snug">{data.item.title}</p>
+      <StatusBadge status={data.item.status} className="absolute -right-2.5 -top-2.5" />
+    </div>
+  )
+}
+
+export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
+  const { item } = data
+  return (
+    <div
+      style={{ width: FEATURE_W }}
+      className={cn(
+        "relative rounded-md border-2 border-border2 bg-surface px-3 py-2 text-center",
+        selected && "border-accent",
+      )}
+    >
+      <Handles />
+      <p className="text-sm text-txt leading-snug">{item.title}</p>
+      {item.tasks.length > 0 && (
+        <div className="mt-1 flex flex-wrap justify-center gap-1">
+          {item.tasks.map((t) => (
+            <span key={t} className="rounded-sm border border-border px-1 font-mono text-[10px] text-muted">
+              {t}
+            </span>
+          ))}
+        </div>
+      )}
+      <StatusBadge status={item.status} className="absolute -right-2.5 -top-2.5" />
+    </div>
+  )
+}
+
+export const nodeTypes = { horizon: HorizonNode, feature: FeatureNode }

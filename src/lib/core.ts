@@ -976,35 +976,330 @@ export interface CreateRoadmapItemParams {
 
 export type UpdateRoadmapItemPatch = Partial<Omit<CreateRoadmapItemParams, 'title'> & { title: string }>
 
+
+/** Validation / not-found error from the roadmap API. `status` maps straight to an HTTP code. */
+export class RoadmapError extends Error {
+  constructor(message: string, public status: 400 | 404 = 400) {
+    super(message)
+    this.name = 'RoadmapError'
+  }
+}
+
+const ROADMAP_DIR = path.join('plans', 'roadmap')
+const ROADMAP_LAYOUT = path.join(ROADMAP_DIR, 'layout.json')
+const ROADMAP_STATUSES: RoadmapStatus[] = ['planned', 'in-progress', 'done']
+const META_LINE = /^\*\*([^*]+):\*\*/
+
+function normalizeRoadmapId(id: unknown): string {
+  const s = String(id ?? '').trim().toUpperCase()
+  if (!/^R\d+$/.test(s)) throw new RoadmapError(`Invalid roadmap id: ${String(id)}`)
+  return s
+}
+
+function roadmapIdOf(file: string): string | null {
+  const m = path.basename(file).match(/^(R\d+)(?:-|\.md$)/i)
+  return m ? m[1].toUpperCase() : null
+}
+
+function parseRoadmapStatus(raw: unknown): RoadmapStatus {
+  const s = String(raw ?? '').toLowerCase().trim().replace(/\s+/g, '-')
+  if (!ROADMAP_STATUSES.includes(s as RoadmapStatus)) {
+    throw new RoadmapError(`Invalid status "${String(raw)}" (expected ${ROADMAP_STATUSES.join(' | ')})`)
+  }
+  return s as RoadmapStatus
+}
+
+function parseTaskIds(tasks: unknown): string[] {
+  if (!Array.isArray(tasks)) throw new RoadmapError('tasks must be an array of task ids')
+  return tasks.map(t => {
+    const s = String(t).trim().toUpperCase()
+    if (!/^T\d+$/.test(s)) throw new RoadmapError(`Invalid task id: ${String(t)}`)
+    return s
+  })
+}
+
+function cleanTitle(title: unknown): string {
+  const t = String(title ?? '').replace(/\s+/g, ' ').trim()
+  if (!t) throw new RoadmapError('Title is required')
+  return t
+}
+
+function cleanOrder(order: unknown): number {
+  const n = Number(order)
+  if (typeof order !== 'number' || !Number.isFinite(n)) throw new RoadmapError('order must be a finite number')
+  return n
+}
+
+/** Index of the first line after the H1 + contiguous `**Key:** Value` block. */
+function roadmapMetaEnd(lines: string[]): number {
+  let i = lines.findIndex(l => l.startsWith('# '))
+  i = i < 0 ? 0 : i + 1
+  // Tolerate blank lines between the H1 and the meta block (common in hand-written files).
+  let j = i
+  while (j < lines.length && lines[j].trim() === '') j++
+  if (j < lines.length && META_LINE.test(lines[j])) i = j
+  while (i < lines.length && META_LINE.test(lines[i])) i++
+  return i
+}
+
+function parseRoadmapFile(file: string, content: string): RoadmapItem {
+  const lines = content.split('\n')
+  const titleLine = lines.find(l => l.startsWith('# '))
+  const id = roadmapIdOf(file) ?? path.basename(file, '.md').toUpperCase()
+  const title = (titleLine || '').replace(/^#+\s*/, '').replace(/^R\d+:\s*/i, '').trim() || id
+
+  // Only the head block counts, so a `**Status:**` inside the body can't override the item's meta.
+  const metaEnd = roadmapMetaEnd(lines)
+  const meta: Record<string, string> = {}
+  for (const line of lines.slice(0, Math.min(metaEnd, 30))) {
+    const m = line.match(/\*\*([^*]+):\*\*\s*(.+)/)
+    if (m) meta[m[1].toLowerCase().trim()] = m[2].trim()
+  }
+
+  const rawParent = (meta['parent'] || '').toUpperCase()
+  let status: RoadmapStatus = 'planned'
+  try { status = parseRoadmapStatus((meta['status'] || '').replace(/[^a-z\s-]/gi, '')) } catch {}
+  const order = parseFloat(meta['order'] || '')
+
+  return {
+    id,
+    title,
+    parent: /^R\d+$/.test(rawParent) ? rawParent : null,
+    status,
+    order: Number.isFinite(order) ? order : 0,
+    tasks: (meta['tasks'] || '').split(/[,\s]+/).map(t => t.toUpperCase()).filter(t => /^T\d+$/.test(t)),
+    body: lines.slice(metaEnd).join('\n').trim(),
+    file,
+  }
+}
+
+async function readRoadmapFiles(root: string): Promise<{ item: RoadmapItem; raw: string }[]> {
+  const files = await glob('plans/roadmap/R*.md', { cwd: root, nodir: true })
+  const out: { item: RoadmapItem; raw: string }[] = []
+  for (const f of files) {
+    if (!roadmapIdOf(f)) continue
+    try {
+      const raw = await fs.readFile(path.join(root, f), 'utf8')
+      out.push({ item: parseRoadmapFile(f, raw), raw })
+    } catch {}
+  }
+  return out
+}
+
+async function findRoadmapFile(id: string, root: string): Promise<{ item: RoadmapItem; raw: string }> {
+  const rid = normalizeRoadmapId(id)
+  const matches = (await glob(`plans/roadmap/${rid}*.md`, { cwd: root, nodir: true }))
+    .filter(f => roadmapIdOf(f) === rid)
+    .sort()
+  if (matches.length === 0) throw new RoadmapError(`Roadmap item not found: ${rid}`, 404)
+  const raw = await fs.readFile(path.join(root, matches[0]), 'utf8')
+  return { item: parseRoadmapFile(matches[0], raw), raw }
+}
+
+function sortRoadmap(items: RoadmapItem[]): RoadmapItem[] {
+  const num = (id: string) => parseInt(id.slice(1), 10)
+  return items.sort((a, b) => a.order - b.order || num(a.id) - num(b.id))
+}
+
+/** A parent must be an existing horizon (parent null) and not the item itself. */
+function validateParent(parent: string, selfId: string | null, items: RoadmapItem[]): void {
+  if (parent === selfId) throw new RoadmapError('An item cannot be its own parent')
+  const p = items.find(i => i.id === parent)
+  if (!p) throw new RoadmapError(`Parent not found: ${parent}`)
+  if (p.parent !== null) throw new RoadmapError(`Parent ${parent} is not a horizon (max depth is 2)`)
+}
+
+function cleanBody(body: unknown): string {
+  if (typeof body !== 'string') throw new RoadmapError('body must be a string')
+  return body.trim()
+}
+
+// ponytail: in-process mutex serialising all roadmap writes (id allocation, layout merge).
+// Doesn't cover a second VibeDoc process on the same root; add a lockfile if that ever matters.
+let roadmapLock: Promise<unknown> = Promise.resolve()
+function withRoadmapLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = roadmapLock.then(fn, fn)
+  roadmapLock = run.catch(() => {})
+  return run
+}
+
+function formatTasks(tasks: string[]): string {
+  return tasks.length > 0 ? tasks.join(', ') : '—'
+}
+
 export async function listRoadmap(root: string): Promise<{ items: RoadmapItem[]; layout: RoadmapLayout }> {
-  throw new Error('not implemented')
+  const [files, layout] = await Promise.all([readRoadmapFiles(root), readRoadmapLayout(root)])
+  return { items: sortRoadmap(files.map(f => f.item)), layout }
 }
 
 export async function getRoadmapItem(id: string, root: string): Promise<RoadmapItem> {
-  throw new Error('not implemented')
+  return (await findRoadmapFile(id, root)).item
 }
 
-export async function createRoadmapItem(
+export function createRoadmapItem(
   params: CreateRoadmapItemParams, root: string, actor: 'ai' | 'human' = 'human'
 ): Promise<RoadmapItem> {
-  throw new Error('not implemented')
+  return withRoadmapLock(() => createRoadmapItemUnlocked(params ?? ({} as CreateRoadmapItemParams), root, actor))
 }
 
-export async function updateRoadmapItem(
+async function createRoadmapItemUnlocked(
+  params: CreateRoadmapItemParams, root: string, actor: 'ai' | 'human'
+): Promise<RoadmapItem> {
+  const title = cleanTitle(params.title)
+  const status = params.status === undefined ? 'planned' : parseRoadmapStatus(params.status)
+  const tasks = params.tasks === undefined ? [] : parseTaskIds(params.tasks)
+  const body = params.body === undefined ? '' : cleanBody(params.body)
+  const items = (await readRoadmapFiles(root)).map(f => f.item)
+
+  const parent = params.parent == null || params.parent === '' ? null : normalizeRoadmapId(params.parent)
+  if (parent) validateParent(parent, null, items)
+
+  const siblingOrders = items.filter(i => i.parent === parent).map(i => i.order)
+  const order = params.order === undefined
+    ? (siblingOrders.length > 0 ? Math.max(...siblingOrders) : 0) + 10
+    : cleanOrder(params.order)
+
+  const nums = items.map(i => parseInt(i.id.slice(1), 10)).filter(n => !isNaN(n))
+  const id = `R${String(nums.length > 0 ? Math.max(...nums) + 1 : 1).padStart(3, '0')}`
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+  const filename = slug ? `${id}-${slug}.md` : `${id}.md`
+
+  const lines = [
+    `# ${id}: ${title}`,
+    ...(parent ? [`**Parent:** ${parent}`] : []),
+    `**Status:** ${status}`,
+    `**Order:** ${order}`,
+    `**Tasks:** ${formatTasks(tasks)}`,
+    '',
+  ]
+  const content = lines.join('\n') + (body ? `\n${body}\n` : '')
+
+  const dir = path.join(root, ROADMAP_DIR)
+  await fs.mkdir(dir, { recursive: true })
+  await fs.writeFile(path.join(dir, filename), content, { flag: 'wx', encoding: 'utf8' })
+
+  await appendActivity(root, { type: 'roadmap_updated', actor, title: `${id} created`, detail: title })
+  return getRoadmapItem(id, root)
+}
+
+export function updateRoadmapItem(
   id: string, patch: UpdateRoadmapItemPatch, root: string, actor: 'ai' | 'human' = 'human'
 ): Promise<RoadmapItem> {
-  throw new Error('not implemented')
+  return withRoadmapLock(() => updateRoadmapItemUnlocked(id, patch, root, actor))
 }
 
-export async function deleteRoadmapItem(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<void> {
-  throw new Error('not implemented')
+async function updateRoadmapItemUnlocked(
+  id: string, patch: UpdateRoadmapItemPatch, root: string, actor: 'ai' | 'human'
+): Promise<RoadmapItem> {
+  const { item, raw } = await findRoadmapFile(id, root)
+  const p = patch ?? {}
+
+  // Validate everything before touching the file.
+  const title = p.title === undefined ? undefined : cleanTitle(p.title)
+  const status = p.status === undefined ? undefined : parseRoadmapStatus(p.status)
+  const order = p.order === undefined ? undefined : cleanOrder(p.order)
+  const tasks = p.tasks === undefined ? undefined : parseTaskIds(p.tasks)
+  const body = p.body === undefined ? undefined : cleanBody(p.body)
+  let parent: string | null | undefined
+  if (p.parent !== undefined) {
+    parent = p.parent === null || p.parent === '' ? null : normalizeRoadmapId(p.parent)
+    if (parent !== null) {
+      const items = (await readRoadmapFiles(root)).map(f => f.item)
+      validateParent(parent, item.id, items)
+      if (items.some(i => i.parent === item.id)) {
+        throw new RoadmapError(`${item.id} has children and cannot be given a parent`)
+      }
+    }
+  }
+
+  const lines = raw.split('\n')
+  if (title !== undefined) {
+    const h1 = lines.findIndex(l => l.startsWith('# '))
+    if (h1 >= 0) lines[h1] = `# ${item.id}: ${title}`
+    else lines.unshift(`# ${item.id}: ${title}`)
+  }
+
+  const end = roadmapMetaEnd(lines)
+  const head = lines.slice(0, end)
+  let rest = lines.slice(end)
+
+  // Replace-or-insert (or remove, for value null) a meta line inside the head block only.
+  const setMeta = (key: string, value: string | null) => {
+    const idx = head.findIndex(l => l.match(META_LINE)?.[1].trim().toLowerCase() === key.toLowerCase())
+    if (value === null) { if (idx >= 0) head.splice(idx, 1); return }
+    const line = `**${key}:** ${value}`
+    if (idx >= 0) head[idx] = line
+    else head.push(line)
+  }
+
+  if (parent !== undefined) setMeta('Parent', parent)
+  if (status !== undefined) setMeta('Status', status)
+  if (order !== undefined) setMeta('Order', String(order))
+  if (tasks !== undefined) setMeta('Tasks', formatTasks(tasks))
+  if (body !== undefined) {
+    rest = body ? ['', body, ''] : ['']
+  }
+
+  await fs.writeFile(path.join(root, item.file), [...head, ...rest].join('\n'), 'utf8')
+  const updated = await getRoadmapItem(item.id, root)
+  await appendActivity(root, { type: 'roadmap_updated', actor, title: `${item.id} updated`, detail: updated.title })
+  return updated
+}
+
+export function deleteRoadmapItem(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<void> {
+  return withRoadmapLock(() => deleteRoadmapItemUnlocked(id, root, actor))
+}
+
+async function deleteRoadmapItemUnlocked(id: string, root: string, actor: 'ai' | 'human'): Promise<void> {
+  const { item } = await findRoadmapFile(id, root)
+  const items = (await readRoadmapFiles(root)).map(f => f.item)
+  const children = items.filter(i => i.parent === item.id).map(i => i.id)
+  if (children.length > 0) {
+    throw new RoadmapError(`${item.id} still has children (${children.join(', ')}); move or delete them first`)
+  }
+  await fs.unlink(path.join(root, item.file))
+  // Prune now so a later create reusing this id doesn't inherit the old position.
+  await writeRoadmapLayoutUnlocked({}, root)
+  await appendActivity(root, { type: 'roadmap_updated', actor, title: `${item.id} deleted`, detail: item.title })
 }
 
 export async function readRoadmapLayout(root: string): Promise<RoadmapLayout> {
-  throw new Error('not implemented')
+  try {
+    const parsed = JSON.parse(await fs.readFile(path.join(root, ROADMAP_LAYOUT), 'utf8'))
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const out: RoadmapLayout = {}
+    for (const [k, v] of Object.entries(parsed as Record<string, { x?: unknown; y?: unknown }>)) {
+      if (v && Number.isFinite(v.x) && Number.isFinite(v.y)) out[k] = { x: v.x as number, y: v.y as number }
+    }
+    return out
+  } catch {
+    return {}
+  }
 }
 
 /** Merge `positions` into layout.json and drop ids with no matching R*.md. Returns the saved layout. */
-export async function writeRoadmapLayout(positions: RoadmapLayout, root: string): Promise<RoadmapLayout> {
-  throw new Error('not implemented')
+export function writeRoadmapLayout(positions: RoadmapLayout, root: string): Promise<RoadmapLayout> {
+  return withRoadmapLock(() => writeRoadmapLayoutUnlocked(positions, root))
+}
+
+async function writeRoadmapLayoutUnlocked(positions: RoadmapLayout, root: string): Promise<RoadmapLayout> {
+  const clean: RoadmapLayout = {}
+  for (const [k, v] of Object.entries(positions ?? {})) {
+    const key = k.trim().toUpperCase()
+    const ok = /^R\d+$/.test(key) && v && typeof v === 'object'
+      && typeof v.x === 'number' && typeof v.y === 'number' && Number.isFinite(v.x) && Number.isFinite(v.y)
+    if (!ok) throw new RoadmapError(`Invalid position for ${k}`)
+    clean[key] = { x: v.x, y: v.y }
+  }
+  const merged = { ...(await readRoadmapLayout(root)), ...clean }
+
+  const existing = new Set((await readRoadmapFiles(root)).map(f => f.item.id))
+  const layout: RoadmapLayout = {}
+  for (const key of Object.keys(merged).sort()) {
+    if (existing.has(key)) layout[key] = merged[key]
+  }
+
+  await fs.mkdir(path.join(root, ROADMAP_DIR), { recursive: true })
+  await fs.writeFile(path.join(root, ROADMAP_LAYOUT), JSON.stringify(layout, null, 2) + '\n', 'utf8')
+  return layout
 }

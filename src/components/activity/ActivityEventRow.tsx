@@ -6,6 +6,7 @@ const ACTIVITY_ICONS: Record<string, string> = {
   memory_updated: "🧠",
   doc_read: "📄",
   session_start: "🤖",
+  roadmap_updated: "🗺️",
 }
 
 function timeAgo(ts: string): string {

@@ -1,5 +1,5 @@
 # Project Memory
-**Last updated:** 2026-04-11
+**Last updated:** 2026-09-28
 
 ## Current state
 **All 28 tasks are ✅ Done. T006 (task creation form) is ❌ Cancelled.**
@@ -39,10 +39,12 @@ src/
 - Docs page fetches its own doc list
 
 ## Working on now
-Nothing — all planned tasks complete.
+Branch `feat/roadmap` (on top of `chore/upgrade-deps`: Next 16, Tailwind 4, ESLint 9 flat config).
+Roadmap page `/roadmap` — roadmap.sh-style map built with `@xyflow/react`. Design notes: `01-brainstorm/roadmap-page.md`.
 
 ## Up next
-No open tasks. Ready for new feature planning or v2 roadmap.
+- Roadmap round 2: progress bar from linked task statuses + drift warnings (items whose tasks are all done but not shipped)
+- Fix the 16 pre-existing react-hooks lint errors
 
 ## Active issues
 | Issue | Severity | Status |
@@ -61,6 +63,11 @@ No open tasks. Ready for new feature planning or v2 roadmap.
 - `cn()` from `@/lib/utils` for all class merging
 - Types from `@/types` (re-exports core.ts types + UI-specific types)
 - `emitUpdate()` called after all mutations — never from core.ts
+- Roadmap items: `plans/roadmap/R*.md` (`**Parent:**` omitted = horizon, `**Status:**` planned|in-progress|done, `**Order:**`, `**Tasks:**`). Max depth 2.
+- Roadmap positions live ONLY in `plans/roadmap/layout.json` — never x/y in R*.md. Missing entries are auto-placed (`components/roadmap/layout.ts`).
+- Roadmap writes are serialized by an in-process lock (`withRoadmapLock` in core.ts); SSE event name `roadmap_updated`; the roadmap page opens its own EventSource.
+- `ROADMAP.md` is now only a pointer to `plans/roadmap/`.
+- Lint: 16 pre-existing `react-hooks` errors (React Compiler rules) outside roadmap files — don't add new ones.
 
 ## Handoff for next session
 All tasks complete. Start by discussing what's next — new features, a v2 roadmap, or publishing/packaging work.

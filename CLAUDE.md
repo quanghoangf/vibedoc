@@ -18,6 +18,7 @@ src/
     page.tsx              ← Main UI shell (single-page, client component)
     layout.tsx            ← Root layout
     globals.css           ← Tailwind + markdown prose styles
+    (app)/roadmap/page.tsx ← Roadmap page (roadmap.sh-style, React Flow)
     api/
       mcp/route.ts        ← MCP JSON-RPC endpoint (AI connects here)
       events/route.ts     ← SSE stream (real-time browser updates)
@@ -28,11 +29,15 @@ src/
       activity/route.ts   ← Activity log read
       projects/route.ts   ← Multi-project discovery
       summary/route.ts    ← Combined project status
+      roadmap/*           ← Roadmap list + create/update/delete/layout
+  components/
+    roadmap/              ← Roadmap canvas, nodes, editor
   lib/
     core.ts               ← ALL file system logic (shared by API routes + MCP)
     events.ts             ← In-process SSE event bus (singleton)
 docs/                     ← VibeDoc's own documentation (this project)
 plans/tasks/              ← Development tasks
+plans/roadmap/            ← Roadmap items (R*.md) + layout.json
 memory/MEMORY.md          ← Session handoff
 ```
 
@@ -52,7 +57,7 @@ VIBEDOC_ROOT=/path/to/project npm run dev
 - **`src/lib/events.ts` is the only SSE bus.** Call `emitUpdate()` from API routes after mutations — never from `core.ts`.
 - **`page.tsx` is a single client component.** All data fetching is via `fetch()` to our own API routes. No server components in the main UI (real-time state management requires client).
 - **`/api/mcp` is hand-rolled JSON-RPC.** Do NOT introduce the MCP SDK stdio transport — it doesn't work in Next.js API routes. Stay with the HTTP JSON-RPC approach.
-- **No database.** All state lives in the target project's files. `.vibedoc-activity.json` is the only file VibeDoc writes to the project (besides task status and MEMORY.md).
+- **No database.** All state lives in the target project's files. VibeDoc writes only `.vibedoc-activity.json`, task status, MEMORY.md, `plans/roadmap/R*.md` and `plans/roadmap/layout.json` into the project.
 
 ## Non-negotiables
 - Never import `fs` outside of `src/lib/core.ts`

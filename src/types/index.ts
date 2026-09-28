@@ -1,6 +1,6 @@
 import type { Task, ActivityEvent } from "@/lib/core"
 
-export type { Task, TaskBoard, TaskStatus, DocFile, ActivityEvent, Project, ExplorerFile, DescriptionCache, RoadmapItem, RoadmapLayout, RoadmapStatus } from "@/lib/core"
+export type { Task, TaskBoard, TaskStatus, DocFile, ActivityEvent, Project, ExplorerFile, DescriptionCache, RoadmapItem, RoadmapLayout, RoadmapStatus, CreateRoadmapItemParams, UpdateRoadmapItemPatch } from "@/lib/core"
 
 export interface Summary {
   name: string
