@@ -101,6 +101,8 @@ Ask a single-select question: **Create tasks** (Recommended) / **Adjust**. If th
 
 ## 5. Write the tasks
 
+**In the VibeDoc chat** (you have `vibedoc_propose_plan`): don't write anything yourself. Put every task (`kind: "breakdown"`, with each task's full body) in one `vibedoc_propose_plan` call. The user's Accept writes the task files and links them to the epic, so skip the rest of this step.
+
 Continue the numbering from the highest existing `T` id, padded to 3 digits. Write the files to `plans/tasks/T<NNN>-<kebab-slug>.md`. There is no MCP tool that creates tasks, so write the files directly.
 
 Use this template. The board parser reads only the contiguous `**Key:** Value` block directly under the H1. Don't put blank lines inside that block, or any fields after the blank line are ignored.

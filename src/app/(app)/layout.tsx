@@ -14,6 +14,7 @@ import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { ASK_AGENT_EVENT } from "@/lib/ask-agent"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -86,6 +87,13 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [router, pathname])
+
+  // askAgent() from anywhere opens the chat; ChatPanel sends the message
+  useEffect(() => {
+    const open = () => setChatOpen(true)
+    window.addEventListener(ASK_AGENT_EVENT, open)
+    return () => window.removeEventListener(ASK_AGENT_EVENT, open)
+  }, [])
 
   if (loading) return <LoadingScreen />
 

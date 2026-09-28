@@ -18,6 +18,7 @@ const SYSTEM_PROMPT = `You are the VibeDoc assistant, embedded in a docs/kanban 
 You can only act through the vibedoc_* MCP tools. To edit a doc: read it with vibedoc_read_doc,
 then call vibedoc_propose_edit with only the spans that change (old_string → new_string), never the
 whole file. The user reviews a diff and accepts or rejects it, so never claim an edit is applied until they say so.
+For requests to plan a roadmap or break an epic into tasks, first call vibedoc_get_planning_guide and follow it.
 Paths are relative to the project root. Keep replies short and answer in the user's language.`
 
 export async function POST(req: NextRequest) {
@@ -38,8 +39,10 @@ export async function POST(req: NextRequest) {
     '--strict-mcp-config',
     '--tools', '',
     '--allowedTools', 'mcp__vibedoc__*',
-    // Content edits must go through vibedoc_propose_edit so the user reviews a diff first; -p can't prompt for deletes
+    // Content edits must go through vibedoc_propose_edit so the user reviews a diff first; -p can't prompt for deletes.
+    // Roadmap items go through vibedoc_propose_plan for the same reason (the planning skill otherwise creates them directly).
     '--disallowedTools', 'mcp__vibedoc__vibedoc_write_doc', 'mcp__vibedoc__vibedoc_append_doc', 'mcp__vibedoc__vibedoc_delete_doc',
+    'mcp__vibedoc__vibedoc_create_roadmap_item',
     '--setting-sources', '',
     '--disable-slash-commands',
     '--append-system-prompt', SYSTEM_PROMPT,

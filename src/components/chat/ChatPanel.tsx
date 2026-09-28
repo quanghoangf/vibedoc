@@ -6,13 +6,19 @@ import { useApp } from "@/context/AppContext"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
 import { ProposalCard, type Proposal, type ProposalStatus } from "./ProposalCard"
+import { PlanCard, type PlanCreated, type PlanProposal, type PlanStatus } from "./PlanCard"
+import { QuestionCard, formatAnswers, isRenderableQuestions, type Question, type QuestionSet } from "./QuestionCard"
+import { asRenderablePlan } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
+import { ASK_AGENT_EVENT } from "@/lib/ask-agent"
 
 interface ChatMessage {
   role: "user" | "assistant"
   text: string
   tools: string[]
   proposals: Proposal[]
+  plans: PlanProposal[]
+  questions: QuestionSet[]
   error?: string
 }
 
@@ -22,6 +28,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
   const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const sessionRef = useRef<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -42,6 +49,19 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
   }, [messages])
+
+  // askAgent() from the roadmap: send it now, or refuse while a turn runs (no queue).
+  // No deps on purpose: re-subscribes each render so the handler sees the current `busy`/`send`.
+  useEffect(() => {
+    function onAsk(e: Event) {
+      const message = (e as CustomEvent<{ message: string }>).detail?.message
+      if (!message) return
+      if (busy) setNotice("Agent is busy. Try again when this turn finishes.")
+      else send(message)
+    }
+    window.addEventListener(ASK_AGENT_EVENT, onAsk)
+    return () => window.removeEventListener(ASK_AGENT_EVENT, onAsk)
+  })
 
   function patchLast(fn: (m: ChatMessage) => ChatMessage) {
     setMessages((prev) => [...prev.slice(0, -1), fn(prev[prev.length - 1])])
@@ -69,11 +89,28 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
           summary: typeof b.input.summary === "string" ? b.input.summary : undefined,
           status: "pending",
         }))
+      // Cards render before the server validates the input, so drop shapes they can't draw instead of crashing
+      const plans: PlanProposal[] = uses
+        .filter((b) => b.name.endsWith("vibedoc_propose_plan"))
+        .flatMap((b) => {
+          const plan = asRenderablePlan(b.input?.plan)
+          return plan ? [{ id: b.id, plan, status: "pending" as const }] : []
+        })
+      const questions: QuestionSet[] = uses
+        .filter((b) => b.name.endsWith("vibedoc_ask_questions") && isRenderableQuestions(b.input?.questions))
+        .map((b) => ({ id: b.id, questions: b.input.questions as Question[] }))
+      const cards = ["vibedoc_propose_edit", "vibedoc_propose_plan", "vibedoc_ask_questions"]
       const tools = uses
-        .filter((b) => !b.name.endsWith("vibedoc_propose_edit"))
+        .filter((b) => !cards.some((c) => b.name.endsWith(c)))
         .map((b) => b.name.replace(/^mcp__vibedoc__vibedoc_/, ""))
-      if (tools.length || proposals.length) {
-        patchLast((m) => ({ ...m, tools: [...m.tools, ...tools], proposals: [...m.proposals, ...proposals] }))
+      if (tools.length || proposals.length || plans.length || questions.length) {
+        patchLast((m) => ({
+          ...m,
+          tools: [...m.tools, ...tools],
+          proposals: [...m.proposals, ...proposals],
+          plans: [...m.plans, ...plans],
+          questions: [...m.questions, ...questions],
+        }))
       }
     } else if (ev.type === "user") {
       // A proposal the server rejected (bad old_string) is retried by the agent; don't show it
@@ -82,7 +119,14 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
           .filter((b: { type: string; is_error?: boolean }) => b.type === "tool_result" && b.is_error)
           .map((b: { tool_use_id: string }) => b.tool_use_id),
       )
-      if (failed.size) patchLast((m) => ({ ...m, proposals: m.proposals.filter((p) => !failed.has(p.id)) }))
+      if (failed.size) {
+        patchLast((m) => ({
+          ...m,
+          proposals: m.proposals.filter((p) => !failed.has(p.id)),
+          plans: m.plans.filter((p) => !failed.has(p.id)),
+          questions: m.questions.filter((q) => !failed.has(q.id)),
+        }))
+      }
     } else if (ev.type === "result" && ev.is_error) {
       patchLast((m) => ({ ...m, error: ev.result ?? ev.subtype ?? "Agent error" }))
     } else if (ev.type === "error") {
@@ -90,15 +134,17 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     }
   }
 
-  async function send() {
-    const message = input.trim()
+  // `text` is a message built by a card (question answers); otherwise send what's typed
+  async function send(text?: string) {
+    const message = (text ?? input).trim()
     if (!message || busy) return
-    setInput("")
+    if (text === undefined) setInput("")
+    setNotice(null)
     setBusy(true)
     setMessages((prev) => [
       ...prev,
-      { role: "user", text: message, tools: [], proposals: [] },
-      { role: "assistant", text: "", tools: [], proposals: [] },
+      { role: "user", text: message, tools: [], proposals: [], plans: [], questions: [] },
+      { role: "assistant", text: "", tools: [], proposals: [], plans: [], questions: [] },
     ])
     const notes = notesRef.current.splice(0)
     const outgoing = notes.length ? `[${notes.join(" ")}]\n\n${message}` : message
@@ -151,6 +197,29 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     })))
   }
 
+  function resolvePlan(p: PlanProposal, status: PlanStatus, created: PlanCreated[], unchecked: string[]) {
+    const epic = p.plan.kind === "breakdown" ? p.plan.epic.toUpperCase() : "the roadmap"
+    notesRef.current.push(status === "accepted"
+      ? `User accepted plan for ${epic}: created ${created.map((c) => c.id).join(", ")}${unchecked.length ? ` (unchecked: ${unchecked.join(", ")})` : ""}.`
+      : `User rejected the plan for ${epic}.`)
+    setMessages((prev) => prev.map((m) => ({
+      ...m,
+      plans: m.plans.map((x) => (x.id === p.id ? { ...x, status, created } : x)),
+    })))
+  }
+
+  function answerQuestions(set: QuestionSet, answers: string[]) {
+    if (busy) return
+    setMessages((prev) => prev.map((m) => ({
+      ...m,
+      questions: m.questions.map((q) => (q.id === set.id ? { ...q, answers } : q)),
+    })))
+    send(formatAnswers(set.questions, answers))
+  }
+
+  // Only the latest reply counts: once the user types past a card, it no longer blocks the hint
+  const questionsPending = !!messages[messages.length - 1]?.questions.some((q) => !q.answers)
+
   return (
     <aside className="w-[380px] h-full border-l border-border bg-surface flex flex-col">
       <div className="h-10 px-3 flex items-center gap-2 border-b border-border">
@@ -180,6 +249,12 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
                 {m.proposals.map((p) => (
                   <ProposalCard key={p.id} proposal={p} onResolve={(status) => resolveProposal(p.id, p.path, status)} />
                 ))}
+                {m.plans.map((p) => (
+                  <PlanCard key={p.id} proposal={p} onResolve={(status, created, unchecked) => resolvePlan(p, status, created, unchecked)} />
+                ))}
+                {m.questions.map((q) => (
+                  <QuestionCard key={q.id} set={q} disabled={busy} onSubmit={(answers) => answerQuestions(q, answers)} />
+                ))}
                 {m.text && <MarkdownRenderer content={m.text} className="text-sm" />}
                 {!m.text && !m.error && busy && i === messages.length - 1 && (
                   <span className="text-muted text-xs">Thinking…</span>
@@ -192,6 +267,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="border-t border-border p-2">
+        {notice && <div className="text-[11px] text-amber px-1 pb-1">{notice}</div>}
         {docPath && <div className="text-[10px] font-mono text-muted px-1 pb-1 truncate">@ {docPath}</div>}
         <textarea
           value={input}
@@ -203,7 +279,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
             }
           }}
           rows={3}
-          placeholder={busy ? "Agent is working…" : "Ask the agent… (Enter to send)"}
+          placeholder={busy ? "Agent is working…" : questionsPending ? "Answer the questions above…" : "Ask the agent… (Enter to send)"}
           className="w-full resize-none rounded-md bg-surface2 border border-border px-2 py-1.5 text-sm text-txt placeholder:text-muted focus:outline-hidden focus:border-accent"
         />
       </div>

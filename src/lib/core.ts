@@ -10,6 +10,7 @@ import { glob } from 'glob'
 import { applyEdits, type TextEdit } from './diff'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 import { pickNextTask, type QueueResult } from './work-queue'
+import { selectPlan, validatePlan, type Plan } from './plan'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -436,10 +437,20 @@ export interface CreateTaskParams {
   size?: string
   description?: string
   dependsOn?: string
+  due?: string
+  body?: string         // replaces the template sections below the meta block
 }
 
-export async function createTask(params: CreateTaskParams, root: string): Promise<Task> {
+/** Serialized with next_task claims and plan applies, so concurrent creates never pick the same id. */
+export function createTask(params: CreateTaskParams, root: string): Promise<Task> {
+  return withTaskClaimLock(() => createTaskUnlocked(params, root))
+}
+
+/** Caller must hold withTaskClaimLock (applyPlan does). */
+async function createTaskUnlocked(params: CreateTaskParams, root: string): Promise<Task> {
   const { tasks } = await listTasks(root)
+  // One line only: a newline in the title would inject **Key:** lines into the meta block
+  const title = params.title.replace(/\s+/g, ' ').trim()
 
   const ids = tasks
     .map(t => parseInt(t.id.replace(/^T/i, ''), 10))
@@ -447,23 +458,27 @@ export async function createTask(params: CreateTaskParams, root: string): Promis
   const nextNum = ids.length > 0 ? Math.max(...ids) + 1 : 1
   const id = `T${String(nextNum).padStart(3, '0')}`
 
-  const slug = params.title
+  const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
-    .slice(0, 40)
+    .slice(0, 40) || 'task'
 
   const filename = `${id}-${slug}.md`
   const tasksDir = path.join(root, 'plans', 'tasks')
   await fs.mkdir(tasksDir, { recursive: true })
   const filePath = path.join(tasksDir, filename)
 
-  const content = `# ${id}: ${params.title}
+  const due = params.due ? parseDue(params.due) : null
+  if (params.due && !due) throw new RoadmapError(`due must be a date YYYY-MM-DD (got ${JSON.stringify(params.due)})`)
+
+  const meta = `# ${id}: ${title}
 **Status:** 📋 Ready
 **Phase:** ${params.phase || '—'}
 **Size:** ${params.size || '—'}
 **Depends on:** ${params.dependsOn || '—'}
-
+${due ? `**Due:** ${due}\n` : ''}`
+  const content = params.body !== undefined ? `${meta}\n${params.body.trim()}\n` : `${meta}
 ## What to build
 ${params.description || '—'}
 
@@ -479,6 +494,76 @@ ${params.description || '—'}
 
   await fs.writeFile(filePath, content, { flag: 'wx', encoding: 'utf8' })
   return getTask(id, root)
+}
+
+/** Validate against the current files, then keep the selected keys. Throws RoadmapError on any problem. */
+function checkPlan(plan: unknown, selected: unknown, items: RoadmapItem[], taskIds: string[]): Plan {
+  const errors = validatePlan(plan, { roadmap: items, taskIds })
+  if (errors.length > 0) throw new RoadmapError(errors.join('\n'))
+  if (!Array.isArray(selected)) throw new RoadmapError('selected must be an array of plan keys')
+  const { plan: sel, errors: selErrors } = selectPlan(plan as Plan, selected.map(String))
+  if (selErrors.length > 0) throw new RoadmapError(selErrors.join('\n'))
+  return sel
+}
+
+/**
+ * Write the selected items of a plan. Validates again against the current files.
+ * breakdown: plan keys become real T ids in order (so `dependsOn` keys are written as those ids) and are
+ * linked to the epic; runs under the task-claim lock so ids can't collide with next_task or another apply.
+ * roadmap: horizons first (keys → R ids), then epics under their resolved parent; order and status use
+ * createRoadmapItem's defaults (after the last sibling, step 10; planned). Runs under the roadmap lock.
+ * `epic` is the breakdown's epic, null for a roadmap plan.
+ */
+export function applyPlan(
+  plan: unknown, selected: unknown, root: string, actor: 'ai' | 'human' = 'human'
+): Promise<{ created: { key: string; id: string; file: string }[]; epic: RoadmapItem | null }> {
+  if ((plan as { kind?: unknown } | null)?.kind === 'roadmap') {
+    return withRoadmapLock(async () => {
+      const [items, { tasks }] = await Promise.all([readRoadmapFiles(root), listTasks(root)])
+      const sel = checkPlan(plan, selected, items.map(f => f.item), tasks.map(t => t.id))
+      if (sel.kind !== 'roadmap') throw new RoadmapError('expected a roadmap plan')
+      const ids = new Map<string, string>()
+      const created: { key: string; id: string; file: string }[] = []
+      // ponytail: not atomic; a failure mid-way leaves the items written so far (each is a valid item).
+      for (const h of sel.horizons) {
+        const item = await createRoadmapItemUnlocked({ title: h.title.trim(), body: h.body }, root, actor)
+        ids.set(h.key.trim(), item.id)
+        created.push({ key: h.key, id: item.id, file: item.file })
+      }
+      for (const e of sel.epics) {
+        const parent = ids.get(e.parent.trim()) ?? e.parent.trim().toUpperCase()
+        const item = await createRoadmapItemUnlocked({ title: e.title.trim(), parent, status: e.status, body: e.body }, root, actor)
+        created.push({ key: e.key, id: item.id, file: item.file })
+      }
+      return { created, epic: null }
+    })
+  }
+  return withTaskClaimLock(async () => {
+    const [{ items }, { tasks }] = await Promise.all([listRoadmap(root), listTasks(root)])
+    const sel = checkPlan(plan, selected, items, tasks.map(t => t.id))
+    if (sel.kind !== 'breakdown') throw new RoadmapError('expected a breakdown plan')
+
+    const epic = await getRoadmapItem(sel.epic, root)
+    const ids = new Map<string, string>()
+    const created: { key: string; id: string; file: string }[] = []
+    for (const t of sel.tasks) {
+      const deps = (t.dependsOn ?? []).map(d => ids.get(d.trim()) ?? d.trim().toUpperCase())
+      const task = await createTaskUnlocked({
+        title: t.title.trim(),
+        phase: `${epic.id} — ${epic.title}`,
+        size: t.size,
+        dependsOn: deps.join(', ') || undefined,
+        due: t.due,
+        body: t.body,
+      }, root)
+      ids.set(t.key.trim(), task.id)
+      created.push({ key: t.key, id: task.id, file: task.file })
+    }
+
+    const fresh = await getRoadmapItem(epic.id, root)
+    const updated = await updateRoadmapItem(epic.id, { tasks: [...fresh.tasks, ...created.map(c => c.id)] }, root, actor)
+    return { created, epic: updated }
+  })
 }
 
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1) }
@@ -1440,4 +1525,16 @@ async function writeRoadmapLayoutUnlocked(positions: RoadmapLayout, root: string
   await fs.mkdir(path.join(root, ROADMAP_DIR), { recursive: true })
   await fs.writeFile(path.join(root, ROADMAP_LAYOUT), JSON.stringify(layout, null, 2) + '\n', 'utf8')
   return layout
+}
+
+// ─── Planning skills ──────────────────────────────────────────────────────────
+
+const PLANNING_SKILLS = { roadmap: 'roadmap-planner', breakdown: 'epic-breakdown' } as const
+export type PlanningKind = keyof typeof PLANNING_SKILLS
+
+/** Bundled skill body (frontmatter stripped). Read from the VibeDoc package (cwd), not the target project. */
+export async function readPlanningSkill(kind: PlanningKind): Promise<string> {
+  if (!Object.hasOwn(PLANNING_SKILLS, kind)) throw new Error(`Unknown planning kind "${kind}" (expected: ${Object.keys(PLANNING_SKILLS).join(', ')})`)
+  const text = await fs.readFile(path.join(process.cwd(), 'skills', PLANNING_SKILLS[kind], 'SKILL.md'), 'utf-8')
+  return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trimStart()
 }

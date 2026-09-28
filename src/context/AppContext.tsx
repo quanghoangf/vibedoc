@@ -106,7 +106,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         window.dispatchEvent(new CustomEvent("vibedoc:sse", { detail: msg }))
         setLiveIndicator(true)
         setTimeout(() => setLiveIndicator(false), 2000)
-        if (["task_updated", "decision_logged", "memory_updated", "session_start"].includes(msg.type)) {
+        if (["task_updated", "task_created", "decision_logged", "memory_updated", "session_start"].includes(msg.type)) {
           refresh()
         }
       } catch {}

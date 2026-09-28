@@ -17,7 +17,7 @@ import "@xyflow/react/dist/style.css"
 
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
-import { AlertTriangle, Plus, Sparkles } from "lucide-react"
+import { AlertTriangle, Bot, Plus, Sparkles } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button"
 import type { RoadmapItem, RoadmapLayout, RoadmapSource, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 import { dueState, localToday, roadmapHealth, type RoadmapDrift } from "@/lib/roadmap-health"
 import { cn } from "@/lib/utils"
+import { askAgent } from "@/lib/ask-agent"
 import { RoadmapTimeline } from "./RoadmapTimeline"
 import { FEATURE_W, HORIZON_W, resolvePositions } from "./layout"
 import { StatusBadge, nodeTypes, type RoadmapNode } from "./RoadmapNodes"
@@ -328,6 +329,9 @@ export function RoadmapTab() {
           <div className="flex gap-2">
             <Button size="sm" onClick={generate} disabled={generating} className="bg-accent text-white hover:bg-accent/90">
               <Sparkles /> {generating ? "Generating…" : "Generate roadmap"}
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => askAgent("Plan a roadmap for this project.")} disabled={generating}>
+              <Bot /> Plan with agent
             </Button>
             <Button size="sm" variant="outline" onClick={() => setCreateParent("")} disabled={generating}>
               <Plus /> Create first horizon

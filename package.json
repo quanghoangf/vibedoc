@@ -26,6 +26,7 @@
     ".next/server/",
     ".next/static/",
     "public/",
+    "skills/",
     "next.config.js",
     "ws-server.js",
     "package.json"

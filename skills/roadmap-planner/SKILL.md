@@ -97,6 +97,8 @@ For every epic, write a short body. The person who breaks the epic into tasks la
 
 Horizons get a one-line body that describes the phase, e.g. "What we're building right now to reach first paying teams."
 
+**In the VibeDoc chat** (you have `vibedoc_propose_plan`): don't write anything yourself. Put all horizons and epics (`kind: "roadmap"`) in one `vibedoc_propose_plan` call. The user's Accept writes them, so skip the rest of this step.
+
 **Via MCP (preferred)**: when the `vibedoc_*` tools are available, use them. They keep the live VibeDoc UI in sync and serialize writes.
 
 1. Create each horizon with `vibedoc_create_roadmap_item` `{title, status, order, body}` and no `parent`. Horizons go in time order, with order steps of 10: Shipped → Now → Next → Later. Record the returned id.

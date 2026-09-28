@@ -44,11 +44,14 @@ import {
   listRoadmap,
   createRoadmapItem,
   updateRoadmapItem,
+  readPlanningSkill,
   TaskStatus,
+  type PlanningKind,
   type CreateRoadmapItemParams,
   type UpdateRoadmapItemPatch,
 } from "@/lib/core";
 import type { TextEdit } from "@/lib/diff";
+import { validatePlan, type Plan } from "@/lib/plan";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
 import { dueState, localToday, roadmapHealth } from "@/lib/roadmap-health";
@@ -294,6 +297,113 @@ const TOOLS = [
     },
   },
   {
+    name: "vibedoc_propose_plan",
+    description:
+      "Propose a plan for the user to review: kind \"breakdown\" (tasks for an epic: epic + tasks) or kind \"roadmap\" (new horizons and epics: horizons + epics; an epic's parent is an existing horizon id or a horizon key in this plan; epic body = one outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**). Does NOT write anything: the user sees the plan in the UI, can uncheck items, and accepts. Validated against the current files; on errors, fix the plan and call again. Each task body is the full markdown below the meta block (## Goal, ## Context, ## Scope, ## Files, ## Acceptance criteria, ## Verify). dependsOn lists keys of earlier tasks in this plan or existing task ids (\"T030\").",
+    inputSchema: {
+      type: "object",
+      properties: {
+        plan: {
+          type: "object",
+          properties: {
+            kind: { type: "string", enum: ["breakdown", "roadmap"] },
+            epic: { type: "string", description: "breakdown: epic id, e.g. R004 (not a horizon)" },
+            horizons: {
+              type: "array",
+              description: "roadmap: new horizons (no parent)",
+              items: {
+                type: "object",
+                properties: { key: { type: "string", description: "e.g. h1" }, title: { type: "string" }, body: { type: "string" } },
+                required: ["key", "title"],
+              },
+            },
+            epics: {
+              type: "array",
+              description: "roadmap: new epics",
+              items: {
+                type: "object",
+                properties: {
+                  key: { type: "string", description: "e.g. e1" },
+                  title: { type: "string" },
+                  parent: { type: "string", description: "Existing horizon id (R002) or a horizon key in this plan (h1)" },
+                  body: { type: "string" },
+                },
+                required: ["key", "title", "parent", "body"],
+              },
+            },
+            tasks: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  key: { type: "string", description: "Stable key within the plan, e.g. t1" },
+                  title: { type: "string" },
+                  size: { type: "string", description: "S (~1 hr) | M (2–3 hrs) | L (half day)" },
+                  dependsOn: { type: "array", items: { type: "string" } },
+                  due: { type: "string", description: "YYYY-MM-DD" },
+                  body: { type: "string", description: "Markdown below the meta block" },
+                },
+                required: ["key", "title", "body"],
+              },
+            },
+          },
+          required: ["kind"],
+        },
+      },
+      required: ["plan"],
+    },
+  },
+  {
+    name: "vibedoc_ask_questions",
+    description:
+      "Ask the user 1–4 multiple-choice questions, shown as a card in the chat UI (same shape as AskUserQuestion). The tool can't wait for answers: after calling it, end your turn. The answers arrive as the next user message, one line per question keyed by its header, e.g. `- Scope: Label A, Label B` or `- Scope: Other: \"free text\"`.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        questions: {
+          type: "array",
+          minItems: 1,
+          maxItems: 4,
+          items: {
+            type: "object",
+            properties: {
+              question: { type: "string", description: "The full question" },
+              header: { type: "string", description: "Short label (max ~12 chars), used as the answer key" },
+              multiSelect: { type: "boolean", description: "true = checkboxes, false = one choice" },
+              options: {
+                type: "array",
+                minItems: 2,
+                maxItems: 4,
+                items: {
+                  type: "object",
+                  properties: {
+                    label: { type: "string" },
+                    description: { type: "string" },
+                  },
+                  required: ["label"],
+                },
+              },
+            },
+            required: ["question", "header", "multiSelect", "options"],
+          },
+        },
+      },
+      required: ["questions"],
+    },
+  },
+  {
+    name: "vibedoc_get_planning_guide",
+    description:
+      "Load the instructions for planning work from chat. Call this first when the user asks to plan or generate a roadmap (kind \"roadmap\") or to break an epic into tasks (kind \"breakdown\"), then follow it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        kind: { type: "string", enum: ["roadmap", "breakdown"] },
+      },
+      required: ["kind"],
+    },
+  },
+  {
     name: "vibedoc_append_doc",
     description:
       "Append content to an existing doc file. Adds two newlines before the appended content.",
@@ -414,6 +524,17 @@ const TOOLS = [
     },
   },
 ];
+
+/** Maps the terminal skill's tools to the chat tools. The skill text follows it. */
+const PLANNING_PREAMBLE = `You are running this planning skill inside the VibeDoc chat, not a terminal:
+- Where it says AskUserQuestion, call vibedoc_ask_questions with the same shape, then END YOUR TURN; answers arrive as the next message ("Answers: - <header>: <labels>").
+- Where it says to show the draft and ask Create/Adjust, call vibedoc_propose_plan instead (do not ask a Create/Adjust question); the user previews, unchecks and accepts in the UI, and Accept writes everything. Skip the skill's write steps: never call vibedoc_create_roadmap_item, vibedoc_update_roadmap_item or any other write tool, and never write files yourself.
+- Read the project with vibedoc_* tools (vibedoc_get_roadmap, vibedoc_list_tasks, vibedoc_read_doc, vibedoc_search_docs, vibedoc_get_file_map); you have no shell or file access.
+- Skip steps that need a shell or the codebase beyond what those tools return; say so briefly. Tasks written this way know less about the code than a terminal run would; tell the user that once.
+
+---
+
+`;
 
 async function taskStatusMap(root: string): Promise<Record<string, TaskStatus>> {
   const { tasks } = await listTasks(root);
@@ -643,6 +764,49 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       await editDoc(docPath, edits, root, true);
       return `📝 Proposed ${edits.length} edit(s) to ${docPath}. The user will accept or reject them in the UI; not applied yet.`;
     }
+
+    case "vibedoc_propose_plan": {
+      // Validate only, like propose_edit: the UI writes via POST /api/plan/apply after Accept.
+      const [{ items }, { tasks }] = await Promise.all([listRoadmap(root), listTasks(root)]);
+      const errors = validatePlan(args.plan, { roadmap: items, taskIds: tasks.map((t) => t.id) });
+      if (errors.length > 0) throw new Error(`Invalid plan:\n- ${errors.join("\n- ")}`);
+      const plan = args.plan as Plan;
+      if (plan.kind === "roadmap") {
+        return `📋 Proposed ${(plan.horizons ?? []).length} horizons and ${(plan.epics ?? []).length} epics. The user reviews and accepts in the UI; nothing is written yet.`;
+      }
+      return `📋 Proposed ${plan.tasks.length} tasks for ${plan.epic.trim().toUpperCase()}. The user reviews and accepts in the UI; nothing is written yet.`;
+    }
+
+    case "vibedoc_ask_questions": {
+      // Records nothing: the UI renders the tool input as a card and sends the answers as the next message.
+      const qs = args.questions;
+      const errors: string[] = [];
+      if (!Array.isArray(qs) || qs.length < 1 || qs.length > 4) {
+        errors.push(`questions must be an array of 1–4 items (got ${Array.isArray(qs) ? qs.length : typeof qs})`);
+      } else {
+        qs.forEach((q: Record<string, unknown>, i: number) => {
+          const at = `questions[${i}]`;
+          if (!q || typeof q !== "object") return errors.push(`${at} must be an object`);
+          if (typeof q.question !== "string" || !q.question.trim()) errors.push(`${at}.question must be a non-empty string`);
+          if (typeof q.header !== "string" || !q.header.trim()) errors.push(`${at}.header must be a non-empty string`);
+          if (typeof q.multiSelect !== "boolean") errors.push(`${at}.multiSelect must be a boolean`);
+          const opts = q.options;
+          if (!Array.isArray(opts) || opts.length < 2 || opts.length > 4) {
+            errors.push(`${at}.options must have 2–4 items (got ${Array.isArray(opts) ? opts.length : typeof opts})`);
+          } else {
+            opts.forEach((o: Record<string, unknown>, j: number) => {
+              if (!o || typeof o.label !== "string" || !o.label.trim()) errors.push(`${at}.options[${j}].label must be a non-empty string`);
+              if (o && o.description !== undefined && typeof o.description !== "string") errors.push(`${at}.options[${j}].description must be a string`);
+            });
+          }
+        });
+      }
+      if (errors.length > 0) throw new Error(`Invalid questions:\n- ${errors.join("\n- ")}`);
+      return `❓ Shown ${(qs as unknown[]).length} question(s) to the user. End your turn now; their answers arrive in the next message.`;
+    }
+
+    case "vibedoc_get_planning_guide":
+      return PLANNING_PREAMBLE + (await readPlanningSkill(String(args.kind) as PlanningKind));
 
     case "vibedoc_append_doc": {
       const docPath = String(args.path);

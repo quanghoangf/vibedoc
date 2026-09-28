@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { askAgent } from "@/lib/ask-agent"
 import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
 import { pickNextTask } from "@/lib/work-queue"
 import { STATUS_BADGE_COLORS } from "@/components/board/TaskCard"
@@ -192,6 +193,11 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEdit
         {isHorizon && (
           <Button size="sm" variant="ghost" onClick={() => onAddFeature(item.id)} disabled={busy} className="text-txt">
             Add feature
+          </Button>
+        )}
+        {!isHorizon && item.tasks.length === 0 && (
+          <Button size="sm" variant="ghost" onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} disabled={busy} className="text-txt">
+            Break down with agent
           </Button>
         )}
         <Button size="sm" variant="ghost" onClick={() => onEditRaw(item.file)} disabled={busy} className="text-txt">
