@@ -1,15 +1,15 @@
-# T041: Docs — planning tools and chat planning
+# T045: Docs — planning tools and chat planning
 **Status:** ✅ Done
 **Phase:** R040 — Planning from the chat sidebar
 **Size:** S (~1 hr)
-**Depends on:** T040
+**Depends on:** T044
 
 ## Goal
 Users find out that they can plan from the UI, and agents or MCP clients know the three new tools and their contracts.
 
 ## Context
 - Epic: `plans/roadmap/R040-planning-from-the-chat-sidebar.md`
-- New tools: `vibedoc_propose_plan` (T035, T039), `vibedoc_ask_questions` (T037), `vibedoc_get_planning_guide` (T038). New route: `POST /api/plan/apply` (T035).
+- New tools: `vibedoc_propose_plan` (T039, T043), `vibedoc_ask_questions` (T041), `vibedoc_get_planning_guide` (T042). New route: `POST /api/plan/apply` (T039).
 - `docs/architecture/mcp-tools.md` has one `###` section per tool. `README.md` states the tool count in two places and has a tool table. The table was already missing `vibedoc_propose_edit` before this epic, per the R037 review.
 - Copy the contracts from the code (`src/lib/plan.ts`, `src/app/api/mcp/route.ts`), not from these task files.
 

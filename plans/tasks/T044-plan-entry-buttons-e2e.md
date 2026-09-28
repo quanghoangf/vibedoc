@@ -1,8 +1,8 @@
-# T040: "Plan with agent" / "Break down" buttons + live end-to-end run
+# T044: "Plan with agent" / "Break down" buttons + live end-to-end run
 **Status:** ✅ Done
 **Phase:** R040 — Planning from the chat sidebar
 **Size:** S (~1 hr)
-**Depends on:** T038, T039
+**Depends on:** T042, T043
 
 ## Goal
 From the roadmap, one click opens the chat with the right request already sent: "Plan with agent" on an empty roadmap, and "Break down with agent" in the sheet of an epic that has no tasks. Then prove the epic's "Done when" with a real, unstubbed run: from an empty roadmap to broken-down epics, without a terminal.
@@ -10,7 +10,7 @@ From the roadmap, one click opens the chat with the right request already sent: 
 ## Context
 - Epic: `plans/roadmap/R040-planning-from-the-chat-sidebar.md`
 - The chat's open state lives in `src/app/(app)/layout.tsx` (`chatOpen`, ~line 49). `ChatPanel` is rendered there, and the roadmap components are deep below it.
-- Decided: use a window `CustomEvent`, so there's no new context. `layout.tsx` listens and opens the chat; `ChatPanel` listens and sends the message through its `send(message)` (refactored in T037).
+- Decided: use a window `CustomEvent`, so there's no new context. `layout.tsx` listens and opens the chat; `ChatPanel` listens and sends the message through its `send(message)` (refactored in T041).
 - Empty-roadmap state: `RoadmapTab.tsx` ~line 327 (the "Generate roadmap" and "Create first horizon" buttons). Epic sheet: `RoadmapItemSheet.tsx` (`ItemForm` buttons, and `LinkedTasks` for epics with tasks).
 
 ## Scope
@@ -55,5 +55,5 @@ Run on 2026-09-28 against the dev server with Playwright + system Chrome. Only `
 **What went wrong first (runs 1–3):**
 - Runs 1–2: the agent never proposed a roadmap plan. It asked its own "Create it?" question and wrote the items directly with `vibedoc_create_roadmap_item`, which the roadmap-planner skill names in step 102. So there was no preview. Tightening `PLANNING_PREAMBLE` did not change this. (In those runs, the tasks came from a breakdown the agent offered after the driver's fallback "go with your recommendations" message.)
 - Fix 1: `/api/chat` now adds `vibedoc_create_roadmap_item` to `--disallowedTools`, like the doc write tools.
-- Run 3: `vibedoc_propose_plan` still threw "roadmap plans are not supported yet". T036's guard in `/api/mcp` was never removed when T039 added the roadmap kind, and the tool schema listed only `kind: "breakdown"`. The agent fell back to proposing raw `plans/roadmap/*.md` edits and gave up.
+- Run 3: `vibedoc_propose_plan` still threw "roadmap plans are not supported yet". T040's guard in `/api/mcp` was never removed when T043 added the roadmap kind, and the tool schema listed only `kind: "breakdown"`. The agent fell back to proposing raw `plans/roadmap/*.md` edits and gave up.
 - Fix 2: removed the guard, and extended the `vibedoc_propose_plan` description and schema with `kind: "roadmap"` (`horizons`, `epics`).

@@ -1,8 +1,8 @@
-# T038: vibedoc_get_planning_guide — SKILL.md + chat preamble
+# T042: vibedoc_get_planning_guide — SKILL.md + chat preamble
 **Status:** ✅ Done
 **Phase:** R040 — Planning from the chat sidebar
 **Size:** S (~1 hr)
-**Depends on:** T037
+**Depends on:** T041
 
 ## Goal
 When a user types "plan a roadmap" or "break down R040" in chat, the agent loads the same instructions the terminal skills use, adapted to chat, and runs the interview through `vibedoc_ask_questions` and `vibedoc_propose_plan`. The planning logic has one source of truth: `skills/*/SKILL.md`.
@@ -19,7 +19,7 @@ When a user types "plan a roadmap" or "break down R040" in chat, the agent loads
 - [ ] `/api/chat` SYSTEM_PROMPT: add one sentence. "For requests to plan a roadmap or break an epic into tasks, first call vibedoc_get_planning_guide and follow it."
 - [ ] `package.json` `files`: add `"skills/"` so the npm package ships them
 
-**Out of scope:** the roadmap kind of `propose_plan` (T039). Until T039 lands, the roadmap guide still loads, but proposing a roadmap plan fails validation.
+**Out of scope:** the roadmap kind of `propose_plan` (T043). Until T043 lands, the roadmap guide still loads, but proposing a roadmap plan fails validation.
 
 ## Files
 - `src/lib/core.ts`: `readPlanningSkill()`

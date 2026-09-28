@@ -1,11 +1,11 @@
-# T035: Plan model, apply route and vibedoc_propose_plan (breakdown)
+# T039: Plan model, apply route and vibedoc_propose_plan (breakdown)
 **Status:** ✅ Done
 **Phase:** R040 — Planning from the chat sidebar
 **Size:** M (2–3 hrs)
 **Depends on:** —
 
 ## Goal
-An agent can propose a set of tasks for an epic with `vibedoc_propose_plan`, and `POST /api/plan/apply` writes the chosen ones as complete task files linked to the epic. This is the server half of the thin slice: after this task, the whole breakdown flow works through curl. The chat UI comes in T036.
+An agent can propose a set of tasks for an epic with `vibedoc_propose_plan`, and `POST /api/plan/apply` writes the chosen ones as complete task files linked to the epic. This is the server half of the thin slice: after this task, the whole breakdown flow works through curl. The chat UI comes in T040.
 
 ## Context
 - Epic: `plans/roadmap/R040-planning-from-the-chat-sidebar.md`
@@ -16,14 +16,14 @@ An agent can propose a set of tasks for an epic with `vibedoc_propose_plan`, and
 - Found while planning: `AppContext` refreshes on `task_updated` but not on `task_created` (`src/context/AppContext.tsx` ~line 109). Tasks created by another client (the agent, this route) don't show up on the board until reload. Fix it here.
 
 ## Scope
-- [ ] `src/lib/plan.ts` (new, pure): plan types, `validatePlan()` and `selectPlan()`. Shapes are below. Both plan kinds are typed, but only `breakdown` is validated and applied here. T039 adds `roadmap`.
+- [ ] `src/lib/plan.ts` (new, pure): plan types, `validatePlan()` and `selectPlan()`. Shapes are below. Both plan kinds are typed, but only `breakdown` is validated and applied here. T043 adds `roadmap`.
 - [ ] `src/lib/plan.check.mts` (new): assert-based self-check
 - [ ] `core.ts`: `createTask()` accepts an optional `body` (replaces the empty template sections) and `due`. Add `applyPlan(plan, selectedKeys, root)`.
 - [ ] `src/app/api/plan/apply/route.ts` (new): `POST { plan, selected }` returns `{ created: [{ key, id, file }] }`. On validation errors it returns 400 with `{ error }`.
 - [ ] MCP `vibedoc_propose_plan`: validates the plan against the current files and returns a short "📋 Proposed N tasks for R0xx. The user reviews and accepts in the UI; nothing is written yet." On invalid input it throws with the error list, so the agent can fix the plan and retry.
 - [ ] `AppContext`: add `task_created` to the event types that trigger `refresh()`
 
-**Out of scope:** the chat UI card (T036), questions (T037), the `roadmap` kind (T039), editing existing tasks.
+**Out of scope:** the chat UI card (T040), questions (T041), the `roadmap` kind (T043), editing existing tasks.
 
 ## Files
 - `src/lib/plan.ts`, `src/lib/plan.check.mts`: new
@@ -33,7 +33,7 @@ An agent can propose a set of tasks for an epic with `vibedoc_propose_plan`, and
 - `src/context/AppContext.tsx`: the refresh event list (~line 109)
 
 ## Implementation notes
-Pin this shape, because T036, T037 and T039 build on it:
+Pin this shape, because T040, T041 and T043 build on it:
 
 ```ts
 // src/lib/plan.ts

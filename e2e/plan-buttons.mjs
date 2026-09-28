@@ -1,4 +1,4 @@
-// Browser check for the roadmap "Plan with agent" / "Break down with agent" buttons (T040).
+// Browser check for the roadmap "Plan with agent" / "Break down with agent" buttons (T044).
 //
 //   PW_DIR=<dir with node_modules/playwright> node e2e/plan-buttons.mjs
 //

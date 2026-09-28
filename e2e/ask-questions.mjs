@@ -1,4 +1,4 @@
-// Browser check for the chat QuestionCard (T037).
+// Browser check for the chat QuestionCard (T041).
 //
 //   PW_DIR=<dir with node_modules/playwright> node e2e/ask-questions.mjs
 //

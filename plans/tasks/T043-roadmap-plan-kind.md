@@ -1,15 +1,15 @@
-# T039: Plan kind "roadmap" — horizons + epics
+# T043: Plan kind "roadmap" — horizons + epics
 **Status:** ✅ Done
 **Phase:** R040 — Planning from the chat sidebar
 **Size:** M (2–3 hrs)
-**Depends on:** T036
+**Depends on:** T040
 
 ## Goal
 The agent can propose a roadmap (new horizons and epics, or epics added under existing horizons) with `vibedoc_propose_plan`. The user previews it as a tree, unchecks what they don't want, and Accept writes the roadmap items. This covers the "empty roadmap" half of the epic's "Done when".
 
 ## Context
 - Epic: `plans/roadmap/R040-planning-from-the-chat-sidebar.md`
-- Shapes come from T035 (`src/lib/plan.ts`): `{ kind: 'roadmap', horizons: PlanHorizon[], epics: PlanEpic[] }`. An epic's `parent` is either an existing horizon id (`R002`) or the key of a new horizon in the plan.
+- Shapes come from T039 (`src/lib/plan.ts`): `{ kind: 'roadmap', horizons: PlanHorizon[], epics: PlanEpic[] }`. An epic's `parent` is either an existing horizon id (`R002`) or the key of a new horizon in the plan.
 - The roadmap has max depth 2: a horizon has no parent, and an epic's parent must be a horizon (`validateParent` in `core.ts`). Positions live only in `layout.json`; items without an entry are auto-placed. Don't write positions.
 - Roadmap writes go through `createRoadmapItem()`, which already runs under `withRoadmapLock`.
 
@@ -34,7 +34,7 @@ The agent can propose a roadmap (new horizons and epics, or epics added under ex
 
 ## Implementation notes
 - Epic body format is the one `roadmap-planner` writes: one outcome sentence, a blank line, then `**In scope:**`, `**Out of scope:**` and `**Done when:**`. `createRoadmapItem` writes the body after the meta block with a blank line, so these lines stay out of the meta (see `roadmapMetaEnd`).
-- Reuse T036's row and checkbox components rather than building a second list.
+- Reuse T040's row and checkbox components rather than building a second list.
 
 ## Acceptance criteria
 - [ ] On an empty fixture, a plan with 2 new horizons and 3 epics creates R001–R005 with correct parents, and they appear on `/roadmap` live

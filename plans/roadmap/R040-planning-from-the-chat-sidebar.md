@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** done
 **Order:** 80
-**Tasks:** T035, T036, T037, T038, T039, T040, T041
+**Tasks:** T039, T040, T041, T042, T043, T044, T045
 
 Plan a roadmap or break an epic into tasks from the UI chat, so planning happens next to the map instead of in a separate terminal.
 

@@ -1,4 +1,4 @@
-// Browser check for the chat PlanCard (T036), plus the reusable stubChat() helper.
+// Browser check for the chat PlanCard (T040), plus the reusable stubChat() helper.
 //
 //   PW_DIR=<dir with node_modules/playwright> node e2e/stub-chat.mjs
 //

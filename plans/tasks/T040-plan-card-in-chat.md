@@ -1,8 +1,8 @@
-# T036: PlanCard in chat — preview, uncheck, Accept/Reject
+# T040: PlanCard in chat — preview, uncheck, Accept/Reject
 **Status:** ✅ Done
 **Phase:** R040 — Planning from the chat sidebar
 **Size:** M (2–3 hrs)
-**Depends on:** T035
+**Depends on:** T039
 
 ## Goal
 When the agent calls `vibedoc_propose_plan` in the chat sidebar, the user sees every proposed task in a card, can uncheck any of them, and presses Accept to create the checked ones. Nothing is written before Accept. With this task, the thin slice works end to end: chat → preview → files.
@@ -13,18 +13,18 @@ When the agent calls `vibedoc_propose_plan` in the chat sidebar, the user sees e
   - `ChatPanel.handleEvent()` (`src/components/chat/ChatPanel.tsx` ~line 50) collects `vibedoc_propose_edit` tool_use blocks into `message.proposals`, and drops the ones whose `tool_result` has `is_error`.
   - `ProposalCard` renders one of them.
   - `resolveProposal()` queues a note (`notesRef`) that is sent with the user's next message, so the agent learns the outcome.
-- The plan shape and `POST /api/plan/apply { plan, selected }` come from T035 (`src/lib/plan.ts`).
+- The plan shape and `POST /api/plan/apply { plan, selected }` come from T039 (`src/lib/plan.ts`).
 - Decided: the user can uncheck items, then Accept writes the checked ones. Reject sends a note so the agent can revise.
 - Tailwind only, existing tokens (`bg-surface2`, `border-border`, `text-accent`, …). No `localStorage`.
 
 ## Scope
 - [ ] `src/components/chat/PlanCard.tsx` (new). Shows the epic id and title, and one row per task: a checkbox (checked by default), title, size and depends-on. Clicking a row expands the task body, rendered with `MarkdownRenderer`. Buttons: Accept (N) and Reject.
 - [ ] `ChatPanel`: collect `vibedoc_propose_plan` tool_uses into a new `message.plans`, the same way as `proposals`, including dropping failed ones. Render `PlanCard`s.
-- [ ] Accept: `POST /api/plan/apply${rootParam}`. On success, the card shows "Created T041–T044" with each id linking to its task file (`openDoc(file)`). On a 400, the error is shown inside the card and the card stays pending.
-- [ ] Outcome notes for the agent, sent through `notesRef`: `User accepted plan for R0xx: created T041, T042 (unchecked: t3).` or `User rejected the plan for R0xx.`
+- [ ] Accept: `POST /api/plan/apply${rootParam}`. On success, the card shows "Created T045–T044" with each id linking to its task file (`openDoc(file)`). On a 400, the error is shown inside the card and the card stays pending.
+- [ ] Outcome notes for the agent, sent through `notesRef`: `User accepted plan for R0xx: created T045, T042 (unchecked: t3).` or `User rejected the plan for R0xx.`
 - [ ] Extract a `stubChat(page, events)` Playwright helper, so later tasks can reuse it for their browser checks
 
-**Out of scope:** the roadmap kind (T039 adds a tree view to this card), questions (T037), editing a task's text inside the card.
+**Out of scope:** the roadmap kind (T043 adds a tree view to this card), questions (T041), editing a task's text inside the card.
 
 ## Files
 - `src/components/chat/PlanCard.tsx`: new
