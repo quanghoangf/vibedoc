@@ -1,5 +1,5 @@
 # High-Level Design
-**Last updated:** 2025-02-28
+**Last updated:** 2026-09-28
 
 ## Request flows
 
@@ -68,12 +68,12 @@ sequenceDiagram
     Note over AI: what happened last session?
     AI->>MCP: 2. vibedoc_get_status
     Note over AI: what's active/blocked now?
-    AI->>MCP: 3. vibedoc_get_task T003
-    Note over AI: read full spec before starting
-    AI->>MCP: 4. vibedoc_update_task T003 in-progress
+    AI->>MCP: 3. vibedoc_next_task R037
+    Note over AI: claims next ready task (in-progress) + full spec<br/>outside an epic: vibedoc_get_task + update_task in-progress
     Note over AI: ... does work ...
-    AI->>MCP: 5. vibedoc_update_task T003 done
-    AI->>MCP: 6. vibedoc_update_memory
+    AI->>MCP: 4. vibedoc_update_task T003 done
+    Note over AI: repeat 3–4 until "finished" or "nothing ready"
+    AI->>MCP: 5. vibedoc_update_memory
     Note over AI: write handoff for next session
 ```
 

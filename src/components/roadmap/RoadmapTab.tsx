@@ -22,7 +22,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
-import type { RoadmapItem, RoadmapLayout, RoadmapSource, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
+import type { RoadmapItem, RoadmapLayout, RoadmapSource, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 import { dueState, localToday, roadmapHealth, type RoadmapDrift } from "@/lib/roadmap-health"
 import { cn } from "@/lib/utils"
 import { RoadmapTimeline } from "./RoadmapTimeline"
@@ -212,11 +212,15 @@ export function RoadmapTab() {
   }, [items, nodes])
 
   // board is refreshed by AppContext on task_updated, so progress/drift follow task moves live
+  const tasksById = useMemo<Record<string, Task>>(
+    () => Object.fromEntries(Object.values(board ?? {}).flat().map((t) => [t.id, t])),
+    [board],
+  )
   const health = useMemo(() => {
     const taskStatus: Record<string, TaskStatus> = {}
-    for (const t of Object.values(board ?? {}).flat()) taskStatus[t.id] = t.status
+    for (const t of Object.values(tasksById)) taskStatus[t.id] = t.status
     return roadmapHealth(items, taskStatus, today)
-  }, [items, board, today])
+  }, [items, tasksById, today])
 
   const shownNodes = useMemo(() => nodes.map((n) => ({
     ...n,
@@ -409,6 +413,8 @@ export function RoadmapTab() {
         onDelete={deleteItem}
         onAddFeature={(parentId) => { setSelectedId(null); setCreateParent(parentId) }}
         onEditRaw={(file) => { openDoc(file) }}
+        tasksById={tasksById}
+        progress={selected ? health.progress[selected.id] : undefined}
       />
       {dialog}
     </div>

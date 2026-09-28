@@ -27,6 +27,7 @@ import {
   listTasks,
   getTask,
   updateTaskStatus,
+  claimNextTask,
   logDecision,
   readMemory,
   updateMemory,
@@ -169,6 +170,18 @@ const TOOLS = [
         },
       },
       required: ["taskId", "status"],
+    },
+  },
+  {
+    name: "vibedoc_next_task",
+    description:
+      "Claim the next ready task of an epic (deps done, not taken) and move it to in-progress. Call again after marking it done.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        epic: { type: "string", description: 'Epic roadmap id, e.g. "R037"' },
+      },
+      required: ["epic"],
     },
   },
   {
@@ -538,6 +551,36 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       });
       return `✅ **${result.task.id}** → **${result.task.status}**\n(was: ${result.previousStatus})` +
         (await roadmapHint(root, result.task.id));
+    }
+
+    case "vibedoc_next_task": {
+      const epicId = String(args.epic ?? "").trim();
+      if (!epicId) throw new Error("epic is required");
+      const { result, task, previousStatus } = await claimNextTask(epicId, root);
+      if (result.kind === "finished") {
+        const { items } = await listRoadmap(root);
+        const statuses = await taskStatusMap(root);
+        const epic = items.find((i) => i.id === epicId.toUpperCase());
+        const id = epic?.id ?? epicId.toUpperCase();
+        const n = epic ? epic.tasks.filter((t) => t in statuses).length : 0;
+        const nudge = roadmapHealth(items, statuses, localToday()).drift
+          .find((d) => d.id === id && d.suggestedStatus === "done");
+        return `✅ Epic ${id} is finished — all ${n} tasks done or cancelled. Stop here.` +
+          (nudge ? `\n\n🗺️ ${nudge.message} → vibedoc_update_roadmap_item { "id": "${id}", "status": "done" }` : "");
+      }
+      if (result.kind === "waiting") {
+        return `⏳ Nothing ready in ${epicId.toUpperCase()}.\n` + result.waiting.map((w) => `- ${w.reason}`).join("\n") +
+          (result.needsHuman ? "\n\nNeeds a human: unblock one of the tasks above." : "");
+      }
+      if (!task) throw new Error(`claim of ${epicId.toUpperCase()} returned no task`);
+      emitUpdate("task_updated", {
+        taskId: task.id,
+        status: task.status,
+        previousStatus,
+        task,
+      });
+      return `🔨 Claimed **${task.id}** ${task.title} (now in-progress)\n\n## ${task.file}\n\n${task.raw}` +
+        (await roadmapHint(root, task.id));
     }
 
     case "vibedoc_log_decision": {

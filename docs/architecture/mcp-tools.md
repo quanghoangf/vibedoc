@@ -1,5 +1,5 @@
 # MCP Tools Reference
-**Last updated:** 2026-03-02
+**Last updated:** 2026-09-28
 
 VibeDoc exposes an MCP server at `/api/mcp` (HTTP JSON-RPC 2.0). AI coding agents connect here to read project state, manage tasks, and write documentation.
 
@@ -24,15 +24,18 @@ Add the same `url` entry to your MCP server config.
 ## Recommended session workflow
 
 ```
-1. vibedoc_read_memory    ← what happened last session?
-2. vibedoc_get_status     ← what's active/blocked right now?
-3. vibedoc_get_task       ← read the full spec before starting
-4. vibedoc_update_task    ← mark in-progress when you start
-5. vibedoc_search_docs    ← find relevant docs before writing
-6. vibedoc_write_doc      ← create or update documentation
-7. vibedoc_update_task    ← mark done when finished
-8. vibedoc_update_memory  ← write handoff for next session
+1. vibedoc_read_memory             ← what happened last session?
+2. vibedoc_next_task { epic }      ← claim the next ready task (returns its full spec, now in-progress)
+3. vibedoc_search_docs             ← find relevant docs before writing
+4. ... do the work, vibedoc_write_doc as needed ...
+5. vibedoc_update_task <id> done   ← mark done when finished
+6. repeat from 2 until next_task says "finished" or "nothing ready"
+7. vibedoc_update_memory           ← write handoff for next session
 ```
+
+For a task outside an epic, pick it by hand: `vibedoc_get_status` → `vibedoc_get_task <id>` → `vibedoc_update_task <id> in-progress` → work → `vibedoc_update_task <id> done`.
+
+The `/work-epic <epic id>` skill ([`skills/work-epic/SKILL.md`](../../skills/work-epic/SKILL.md)) runs this loop for Claude Code.
 
 ---
 
@@ -103,6 +106,48 @@ Update a task's status. Triggers a real-time kanban board update in the browser.
 | `status` | enum | ✅ | `todo` \| `in-progress` \| `done` \| `blocked` \| `cancelled` |
 
 **Returns:** confirmation with previous and new status
+
+---
+
+### `vibedoc_next_task`
+Claim the next ready task of an epic and move it to `in-progress`. Call it again after you mark that task `done`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `epic` | string | ✅ | Epic roadmap id, e.g. `"R037"` (case-insensitive). A horizon id (no `**Parent:**`) or an unknown id returns an error. |
+
+**Which task is ready:** walk the epic's `**Tasks:**` list in order and take the first task that is `todo` and whose `**Depends on:**` tasks (every `T\d+` in that line) are all `done` or `cancelled`. `blocked` and `in-progress` tasks are skipped.
+
+**Claim semantics:** picking and moving to `in-progress` happen under one in-process lock, so two agents calling at the same time never get the same task. The lock covers one VibeDoc process only; a second VibeDoc process on the same project root is not covered. A stale `in-progress` task (an agent that claimed it and died) is **not** reclaimed automatically: reset it to `todo` with `vibedoc_update_task`.
+
+**Returns:** one of three kinds.
+
+**1. Claimed** — the task is now `in-progress`; the response carries its full file, plus a roadmap hint when the epic status is out of sync:
+```
+🔨 Claimed **T001** Form (now in-progress)
+
+## plans/tasks/T001-form.md
+
+# T001: Form
+**Status:** 🔨 In-progress
+...
+```
+
+**2. Nothing ready** — one reason per unfinished task. When no remaining task can move without someone unblocking it (or creating a missing task file), a "Needs a human" line follows; without it, other agents are still working, so wait and call again:
+```
+⏳ Nothing ready in R010.
+- T001 is blocked
+- T002 waits on T001 (blocked)
+
+Needs a human: unblock one of the tasks above.
+```
+
+**3. Finished** — every linked task is `done` or `cancelled`. Stop the loop. If the epic status is not yet `done`, a nudge to update it follows:
+```
+✅ Epic R010 is finished — all 2 tasks done or cancelled. Stop here.
+
+🗺️ R010 "Login": all tasks done but status is planned → vibedoc_update_roadmap_item { "id": "R010", "status": "done" }
+```
 
 ---
 

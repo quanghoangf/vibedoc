@@ -9,6 +9,7 @@ import path from 'path'
 import { glob } from 'glob'
 import { applyEdits, type TextEdit } from './diff'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
+import { pickNextTask, type QueueResult } from './work-queue'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,8 @@ export interface Task {
   size: string
   phase: string
   dependsOn: string
+  /** Optional `**Due:** YYYY-MM-DD` (local calendar date, compare as string). */
+  due: string | null
   file: string
   raw?: string
 }
@@ -325,10 +328,11 @@ function parseTaskFile(filePath: string, content: string): Task {
   const lines = content.split('\n')
   const filename = path.basename(filePath, '.md')
   const titleLine = lines.find(l => l.startsWith('# '))
-  const title = (titleLine || '').replace(/^#+\s*/, '').replace(/^T\d+:\s*/i, '').trim() || filename
+  const title = (titleLine || '').replace(/^#+\s*/, '').replace(/^T\d+\s*[:—–-]\s*/i, '').trim() || filename
 
+  // Only the head block under the H1 counts, so a `**Depends on:**` quoted in the body can't override it.
   const meta: Record<string, string> = {}
-  for (const line of lines.slice(0, 30)) {
+  for (const line of lines.slice(0, roadmapMetaEnd(lines))) {
     const m = line.match(/\*\*([^*]+):\*\*\s*(.+)/)
     if (m) meta[m[1].toLowerCase().trim()] = m[2].trim()
   }
@@ -338,7 +342,7 @@ function parseTaskFile(filePath: string, content: string): Task {
   const idM = filename.match(/^(T\d+)/i)
   const id = idM ? idM[1].toUpperCase() : filename.toUpperCase()
 
-  return { id, title, status, size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', file: filePath, raw: content }
+  return { id, title, status, size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', due: parseDue(meta['due'] || ''), file: filePath, raw: content }
 }
 
 export async function listTasks(root: string): Promise<{ tasks: Task[]; board: TaskBoard }> {
@@ -399,7 +403,31 @@ export async function updateTaskStatus(
     taskStatus: newStatus,
   })
 
-  return { task: { ...task, status: newStatus }, previousStatus }
+  return { task: { ...task, status: newStatus, raw: content }, previousStatus }
+}
+
+// ponytail: in-process mutex so two agents never claim the same task; separate from the roadmap lock.
+// Doesn't cover a second VibeDoc process on the same root.
+let taskClaimLock: Promise<unknown> = Promise.resolve()
+function withTaskClaimLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = taskClaimLock.then(fn, fn)
+  taskClaimLock = run.catch(() => {})
+  return run
+}
+
+/** Atomically pick the next ready task of an epic and move it to in-progress. */
+export function claimNextTask(
+  epicId: string, root: string
+): Promise<{ result: QueueResult; task?: Task; previousStatus?: TaskStatus }> {
+  return withTaskClaimLock(async () => {
+    const epic = await getRoadmapItem(epicId, root)
+    if (!epic.parent) throw new Error(`${epic.id} is a horizon; pass an epic id`)
+    const { tasks } = await listTasks(root)
+    const result = pickNextTask(epic, tasks)
+    if (result.kind !== 'ready') return { result }
+    const { task, previousStatus } = await updateTaskStatus(result.taskId, 'in-progress', root, 'ai')
+    return { result, task, previousStatus }
+  })
 }
 
 export interface CreateTaskParams {

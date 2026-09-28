@@ -14,7 +14,7 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "text-muted border-border line-through",
 }
 
-const STATUS_BADGE_COLORS: Record<string, string> = {
+export const STATUS_BADGE_COLORS: Record<string, string> = {
   todo: "border-border2 text-muted",
   "in-progress": "border-amber/40 text-amber",
   blocked: "border-danger/40 text-danger",

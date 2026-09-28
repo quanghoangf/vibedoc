@@ -50,7 +50,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **Memory tab** — persistent `MEMORY.md` for session handoffs between AI agents
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
 - **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
-- **MCP server** — 24 tools your AI agent can call to read docs, move tasks, write ADRs, and more
+- **MCP server** — 26 tools your AI agent can call to read docs, move tasks, write ADRs, and more
 
 ---
 
@@ -98,7 +98,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 ## MCP tools
 
-24 tools your AI agent can call, grouped by category.
+26 tools your AI agent can call, grouped by category.
 
 ### Session & status
 
@@ -115,6 +115,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | `vibedoc_list_tasks`  | Full kanban board, filterable by status                 |
 | `vibedoc_get_task`    | Read a specific task with scope and acceptance criteria |
 | `vibedoc_update_task` | Move task status → **you see it live in the browser**   |
+| `vibedoc_next_task`   | Claim the next ready task of an epic (deps done) → in-progress |
 
 ### Docs
 
@@ -172,6 +173,7 @@ Add this to your project's `CLAUDE.md` to guide your AI agent:
 
 - Call `vibedoc_get_task <id>` — read full spec and acceptance criteria
 - Call `vibedoc_update_task <id> in-progress`
+- Working through an epic? Call `vibedoc_next_task { epic: "R037" }` instead — it claims the next ready task; repeat after marking it done
 
 **When making architectural decisions:**
 

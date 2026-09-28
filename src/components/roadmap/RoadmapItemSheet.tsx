@@ -4,7 +4,12 @@ import { useState } from "react"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import type { RoadmapItem, RoadmapStatus, UpdateRoadmapItemPatch } from "@/types"
+import { cn } from "@/lib/utils"
+import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
+import { pickNextTask } from "@/lib/work-queue"
+import { STATUS_BADGE_COLORS } from "@/components/board/TaskCard"
+import { DueChip, Progress } from "./RoadmapNodes"
+import type { RoadmapItem, RoadmapStatus, Task, UpdateRoadmapItemPatch } from "@/types"
 
 const STATUSES: RoadmapStatus[] = ["planned", "in-progress", "done"]
 
@@ -20,6 +25,9 @@ interface RoadmapItemSheetProps {
   onDelete: (id: string) => Promise<string | null>
   onAddFeature: (parentId: string) => void
   onEditRaw: (file: string) => void
+  /** Every task on the board, by id — the epic's linked tasks are looked up here. */
+  tasksById: Record<string, Task>
+  progress?: RoadmapProgress
 }
 
 export function RoadmapItemSheet({ item, onClose, ...rest }: RoadmapItemSheetProps) {
@@ -33,7 +41,7 @@ export function RoadmapItemSheet({ item, onClose, ...rest }: RoadmapItemSheetPro
   )
 }
 
-function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEditRaw }: RoadmapItemSheetProps & { item: RoadmapItem }) {
+function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEditRaw, tasksById, progress }: RoadmapItemSheetProps & { item: RoadmapItem }) {
   // snapshot at open: the dirty check diffs against this, not the live (SSE-refreshed) item
   const [base] = useState(item)
   const [title, setTitle] = useState(item.title)
@@ -99,6 +107,10 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEdit
           {item.id} · {isHorizon ? "horizon" : "feature"}
         </SheetDescription>
       </div>
+
+      {!isHorizon && item.tasks.length > 0 && (
+        <LinkedTasks item={item} tasksById={tasksById} progress={progress} onOpen={onEditRaw} />
+      )}
 
       <label className="flex flex-col gap-1">
         <span className={LABEL}>Title</span>
@@ -190,5 +202,66 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEdit
         </Button>
       </div>
     </div>
+  )
+}
+
+function LinkedTasks({ item, tasksById, progress, onOpen }: {
+  item: RoadmapItem
+  tasksById: Record<string, Task>
+  progress?: RoadmapProgress
+  onOpen: (file: string) => void
+}) {
+  const today = localToday()
+  const next = pickNextTask(item, Object.values(tasksById))
+  const nextId = next.kind === "ready" ? next.taskId : null
+  // Todo tasks' "waits on …" first: in-progress/blocked rows already say so in their badge.
+  const reasons = next.kind === "waiting"
+    ? [...next.waiting].sort((a, b) => Number(tasksById[b.taskId]?.status === "todo") - Number(tasksById[a.taskId]?.status === "todo")).map((w) => w.reason)
+    : []
+  return (
+    <section className="flex flex-col gap-2 rounded-md border border-border p-3">
+      <div className="flex items-center justify-between">
+        <span className={LABEL}>Tasks</span>
+        <DueChip due={item.due} state={dueState(item.due, item.status, today)} />
+      </div>
+      <Progress progress={progress} />
+      <ul className="flex flex-col">
+        {item.tasks.map((id) => {
+          const t = tasksById[id]
+          if (!t) {
+            return (
+              <li key={id} className="py-1.5 font-mono text-xs text-danger">{id} · missing task file</li>
+            )
+          }
+          return (
+            <li key={id}>
+              <button
+                type="button"
+                onClick={() => onOpen(t.file)}
+                className="flex w-full items-center gap-2 rounded-sm px-1 py-1.5 text-left hover:bg-bg"
+              >
+                <span className="shrink-0 font-mono text-xs text-muted">{t.id}</span>
+                <span className={cn("min-w-0 flex-1 truncate text-sm", t.status === "cancelled" ? "text-muted line-through" : "text-txt")}>
+                  {t.title}
+                </span>
+                {t.size && t.size !== "—" && <span className="shrink-0 font-mono text-[10px] text-muted">{t.size.split(" ")[0]}</span>}
+                <DueChip due={t.due} state={dueState(t.due, t.status === "done" ? "done" : "planned", today)} />
+                {t.id === nextId && (
+                  <span className="shrink-0 rounded-sm border border-accent/40 px-1.5 text-[10px] text-accent">Next up</span>
+                )}
+                <span className={cn("shrink-0 rounded-sm border px-1.5 text-[10px]", STATUS_BADGE_COLORS[t.status])}>
+                  {t.status}
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      {reasons.length > 0 && (
+        <p className="truncate text-xs text-muted" title={reasons.join("\n")}>
+          {reasons[0]}{reasons.length > 1 && ` (+${reasons.length - 1} more)`}
+        </p>
+      )}
+    </section>
   )
 }

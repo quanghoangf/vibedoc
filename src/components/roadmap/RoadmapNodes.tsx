@@ -49,7 +49,7 @@ export function StatusBadge({ status, className }: { status: RoadmapStatus; clas
   )
 }
 
-function Progress({ progress }: { progress?: RoadmapNodeData["progress"] }) {
+export function Progress({ progress }: { progress?: RoadmapNodeData["progress"] }) {
   if (!progress) return null
   const pct = Math.round((progress.done / progress.total) * 100)
   return (
@@ -62,7 +62,7 @@ function Progress({ progress }: { progress?: RoadmapNodeData["progress"] }) {
   )
 }
 
-function DueChip({ due, state }: { due: string | null; state?: DueState | null }) {
+export function DueChip({ due, state }: { due: string | null; state?: DueState | null }) {
   if (!due) return null
   return (
     <p
