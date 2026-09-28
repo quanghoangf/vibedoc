@@ -1,42 +1,108 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@custom-variant dark (&:is(.dark *));
+
+/* Raw RGB triplets live in --rgb-* (swapped at runtime by .dark / data-accent);
+   Tailwind tokens wrap them so opacity modifiers like bg-accent/20 still work. */
+@theme inline {
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --font-display: 'DM Serif Display', serif;
+
+  --color-bg: rgb(var(--rgb-bg));
+  --color-surface: rgb(var(--rgb-surface));
+  --color-surface2: rgb(var(--rgb-surface2));
+  --color-border: rgb(var(--rgb-border));
+  --color-border2: rgb(var(--rgb-border2));
+  --color-txt: rgb(var(--rgb-txt));
+  --color-muted: rgb(var(--rgb-muted));
+  --color-accent: rgb(var(--rgb-accent));
+  --color-teal: #4fd8b4;
+  --color-amber: #f7a26a;
+  --color-danger: #f76a6a;
+  --color-background: rgb(var(--rgb-bg));
+  --color-foreground: rgb(var(--rgb-txt));
+  --color-card: rgb(var(--rgb-surface));
+  --color-card-foreground: rgb(var(--rgb-txt));
+  --color-popover: rgb(var(--rgb-surface));
+  --color-popover-foreground: rgb(var(--rgb-txt));
+  --color-primary: rgb(var(--rgb-accent));
+  --color-primary-foreground: rgb(var(--rgb-txt));
+  --color-secondary: rgb(var(--rgb-surface2));
+  --color-secondary-foreground: rgb(var(--rgb-txt));
+  --color-muted-foreground: rgb(var(--rgb-muted));
+  --color-accent-foreground: rgb(var(--rgb-txt));
+  --color-destructive: #f76a6a;
+  --color-destructive-foreground: #e8e8f0;
+  --color-input: rgb(var(--rgb-border));
+  --color-ring: rgb(var(--rgb-accent));
+
+  --color-sidebar: hsl(var(--sidebar-background));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  --animate-fade-in: fadeIn 0.3s ease;
+  --animate-slide-in: slideIn 0.25s ease;
+  --animate-pulse-dot: pulseDot 2s ease-in-out infinite;
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes pulseDot {
+    0%, 100% { opacity: 0.4; transform: scale(0.8); }
+    50%      { opacity: 1; transform: scale(1.1); }
+  }
+}
+
+/* v3 default border color (v4 defaults to currentcolor) */
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
 
 :root {
-  --font-sans: 'DM Sans';
-  --font-mono: 'DM Mono';
-  --font-display: 'DM Serif Display';
 
   /* Accent color — RGB components (blue default) */
-  --color-accent: 124 106 247;
+  --rgb-accent: 124 106 247;
 
   /* Light theme core colors */
-  --color-bg: 255 255 255;
-  --color-surface: 248 248 252;
-  --color-surface2: 240 240 248;
-  --color-border: 224 224 238;
-  --color-border2: 208 208 228;
-  --color-txt: 26 26 46;
-  --color-muted: 107 107 128;
+  --rgb-bg: 255 255 255;
+  --rgb-surface: 248 248 252;
+  --rgb-surface2: 240 240 248;
+  --rgb-border: 224 224 238;
+  --rgb-border2: 208 208 228;
+  --rgb-txt: 26 26 46;
+  --rgb-muted: 107 107 128;
 }
 
 .dark {
   /* Dark theme core colors */
-  --color-bg: 10 10 15;
-  --color-surface: 17 17 24;
-  --color-surface2: 22 22 31;
-  --color-border: 34 34 46;
-  --color-border2: 45 45 61;
-  --color-txt: 232 232 240;
-  --color-muted: 107 107 128;
+  --rgb-bg: 10 10 15;
+  --rgb-surface: 17 17 24;
+  --rgb-surface2: 22 22 31;
+  --rgb-border: 34 34 46;
+  --rgb-border2: 45 45 61;
+  --rgb-txt: 232 232 240;
+  --rgb-muted: 107 107 128;
 }
 
 /* Accent color overrides */
-html[data-accent="purple"] { --color-accent: 168 85 247; }
-html[data-accent="green"]  { --color-accent: 34 197 94; }
-html[data-accent="orange"] { --color-accent: 249 115 22; }
+html[data-accent="purple"] { --rgb-accent: 168 85 247; }
+html[data-accent="green"]  { --rgb-accent: 34 197 94; }
+html[data-accent="orange"] { --rgb-accent: 249 115 22; }
 
 /* Font size */
 html[data-font-size="small"]  { font-size: 13px; }

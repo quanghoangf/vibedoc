@@ -48,9 +48,9 @@ export function FileCards({ files, selectedPath, onSelect }: FileCardsProps) {
                   )}
                 >
                   <div className="flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                    <FileText className="w-3.5 h-3.5 text-accent shrink-0" />
                     <span className="text-xs font-medium text-txt truncate flex-1">{file.name}</span>
-                    <Badge variant={SOURCE_VARIANT[file.source]} className="text-[10px] px-1 py-0 h-4 flex-shrink-0">
+                    <Badge variant={SOURCE_VARIANT[file.source]} className="text-[10px] px-1 py-0 h-4 shrink-0">
                       {SOURCE_LABEL[file.source]}
                     </Badge>
                   </div>

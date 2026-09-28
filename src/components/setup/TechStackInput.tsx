@@ -93,7 +93,7 @@ export function TechStackInput({ value, onChange }: TechStackInputProps) {
           onChange={e => setSearch(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search technologies..."
-          className="w-full pl-9 pr-3 py-2 rounded-md border border-border bg-surface2 text-txt text-sm outline-none placeholder:text-muted focus:border-accent transition-colors"
+          className="w-full pl-9 pr-3 py-2 rounded-md border border-border bg-surface2 text-txt text-sm outline-hidden placeholder:text-muted focus:border-accent transition-colors"
         />
         {isSearching && (
           <button
@@ -115,7 +115,7 @@ export function TechStackInput({ value, onChange }: TechStackInputProps) {
               type="button"
               onClick={() => setActiveCategory(cat.id)}
               className={cn(
-                "px-3 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors flex-shrink-0",
+                "px-3 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors shrink-0",
                 activeCategory === cat.id
                   ? "bg-accent text-white"
                   : "bg-surface2 text-muted hover:text-txt hover:bg-surface"
@@ -172,7 +172,7 @@ export function TechStackInput({ value, onChange }: TechStackInputProps) {
           ))}
           {showCustomHint && (
             <p className="text-xs text-muted">
-              Press <kbd className="px-1 py-0.5 rounded bg-surface border border-border text-xs">Enter</kbd> to add &quot;{search}&quot;
+              Press <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border text-xs">Enter</kbd> to add &quot;{search}&quot;
             </p>
           )}
         </div>

@@ -1,11 +1,11 @@
 # VibeDoc — Agent Instructions
 
 ## What this is
-A Next.js 14 app that serves as both a **kanban/docs viewer** for developers AND an **MCP server** for AI coding agents. One running process, two clients. The UI and the AI agent share the same API layer.
+A Next.js 16 app that serves as both a **kanban/docs viewer** for developers AND an **MCP server** for AI coding agents. One running process, two clients. The UI and the AI agent share the same API layer.
 
 ## Stack
-- **Framework:** Next.js 14 (App Router, TypeScript)
-- **Styling:** Tailwind CSS — dark theme, no component library
+- **Framework:** Next.js 16 (App Router, TypeScript)
+- **Styling:** Tailwind CSS 4 (CSS-first config in `globals.css`) — dark theme, no component library
 - **Runtime:** Node.js 18+ (server-side file system access)
 - **MCP transport:** HTTP JSON-RPC 2.0 at `/api/mcp`
 - **Real-time:** Server-Sent Events at `/api/events`

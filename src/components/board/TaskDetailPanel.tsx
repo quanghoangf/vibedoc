@@ -61,11 +61,11 @@ export function TaskDetailPanel({ task, onClose, onMove }: TaskDetailPanelProps)
       {/* Panel */}
       <div className="fixed right-0 top-0 h-full w-[420px] z-50 bg-surface border-l border-border flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="flex items-start justify-between px-5 py-4 border-b border-border flex-shrink-0">
+        <div className="flex items-start justify-between px-5 py-4 border-b border-border shrink-0">
           <div className="flex flex-col gap-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs text-muted">{task.id}</span>
-              <span className={cn("text-xs px-1.5 py-0.5 rounded border font-mono", STATUS_COLORS[task.status])}>
+              <span className={cn("text-xs px-1.5 py-0.5 rounded-sm border font-mono", STATUS_COLORS[task.status])}>
                 {STATUS_ICONS[task.status]} {task.status}
               </span>
             </div>
@@ -73,7 +73,7 @@ export function TaskDetailPanel({ task, onClose, onMove }: TaskDetailPanelProps)
           </div>
           <button
             onClick={onClose}
-            className="ml-3 flex-shrink-0 text-muted hover:text-txt transition-colors text-lg leading-none"
+            className="ml-3 shrink-0 text-muted hover:text-txt transition-colors text-lg leading-none"
             aria-label="Close panel"
           >
             ×
@@ -82,12 +82,12 @@ export function TaskDetailPanel({ task, onClose, onMove }: TaskDetailPanelProps)
 
         {/* Quick actions */}
         {nextStatuses.length > 0 && (
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
             {nextStatuses.map((s) => (
               <button
                 key={s}
                 onClick={() => { onMove(task.id, s); onClose() }}
-                className="text-xs px-2.5 py-1 rounded bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
+                className="text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
               >
                 {STATUS_ICONS[s]} {STATUS_LABELS[s] || s}
               </button>

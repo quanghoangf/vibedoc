@@ -44,7 +44,7 @@ export function AppSidebar({ board }: AppSidebarProps) {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1">
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-accent to-teal flex items-center justify-center text-xs flex-shrink-0">
+          <div className="w-6 h-6 rounded-md bg-linear-to-br from-accent to-teal flex items-center justify-center text-xs shrink-0">
             ⬡
           </div>
           <span className="font-mono text-xs text-muted tracking-widest uppercase group-data-[collapsible=icon]:hidden">

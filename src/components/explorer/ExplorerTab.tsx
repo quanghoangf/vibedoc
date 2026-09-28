@@ -113,7 +113,7 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
           <select
             value={sort}
             onChange={e => setSort(e.target.value as SortMode)}
-            className="h-7 px-2 text-xs bg-surface2 border border-border rounded text-txt focus:outline-none focus:border-accent ml-1"
+            className="h-7 px-2 text-xs bg-surface2 border border-border rounded-sm text-txt focus:outline-hidden focus:border-accent ml-1"
           >
             <option value="name">Name</option>
             <option value="mtime">Modified</option>
@@ -122,7 +122,7 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
           <button
             onClick={() => setMissingOnly(v => !v)}
             className={cn(
-              "h-7 px-2 rounded text-xs transition-colors border ml-1",
+              "h-7 px-2 rounded-sm text-xs transition-colors border ml-1",
               missingOnly
                 ? "bg-amber/20 text-amber border-amber/40"
                 : "bg-surface2 text-muted border-border hover:text-txt"

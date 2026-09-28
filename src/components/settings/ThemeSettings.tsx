@@ -32,7 +32,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
 
       {/* Theme */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">Theme</label>
+        <label className="block text-sm font-medium text-txt">Theme</label>
         <div className="grid grid-cols-3 gap-3">
           {[
             { id: "dark", label: "Dark", icon: Moon },
@@ -64,7 +64,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
 
       {/* Accent Color */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">Accent Color</label>
+        <label className="block text-sm font-medium text-txt">Accent Color</label>
         <div className="flex gap-3">
           {ACCENT_COLORS.map(color => {
             const isActive = settings.accentColor === color.id
@@ -88,7 +88,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
 
       {/* Font Size */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">Font Size</label>
+        <label className="block text-sm font-medium text-txt">Font Size</label>
         <div className="flex gap-2">
           {FONT_SIZES.map(size => {
             const isActive = settings.fontSize === size.id

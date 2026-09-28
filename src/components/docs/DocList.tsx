@@ -138,7 +138,7 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
         >
           {selectMode ? (
             <span className={cn(
-              "h-3.5 w-3.5 shrink-0 rounded border flex items-center justify-center transition-colors",
+              "h-3.5 w-3.5 shrink-0 rounded-sm border flex items-center justify-center transition-colors",
               isChecked ? "border-accent bg-accent/20" : "border-border",
             )}>
               {isChecked && <Check className="h-2.5 w-2.5 text-accent" />}
@@ -152,7 +152,7 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="h-5 w-5 shrink-0 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-surface2 transition-opacity"
+                className="h-5 w-5 shrink-0 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-surface2 transition-opacity"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
@@ -302,7 +302,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
 
   return (
     <SelectionCtx.Provider value={{ active: selectMode, selected, toggle, onRename: handleRename, onDelete: handleDelete, renamingPath, setRenamingPath }}>
-      <aside className="w-56 flex flex-col border-r border-border flex-shrink-0 bg-sidebar">
+      <aside className="w-56 flex flex-col border-r border-border shrink-0 bg-sidebar">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">
           <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Docs</span>
@@ -310,7 +310,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
             <button
               onClick={() => { if (selectMode) exitSelectMode(); else setSelectMode(true) }}
               className={cn(
-                "h-5 w-5 flex items-center justify-center rounded transition-colors",
+                "h-5 w-5 flex items-center justify-center rounded-sm transition-colors",
                 selectMode
                   ? "bg-accent/20 text-accent"
                   : "hover:bg-surface2 text-muted hover:text-accent",
@@ -322,7 +322,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
             {onNewDocClick && (
               <button
                 onClick={onNewDocClick}
-                className="h-5 w-5 flex items-center justify-center rounded hover:bg-surface2 text-muted hover:text-accent transition-colors"
+                className="h-5 w-5 flex items-center justify-center rounded-sm hover:bg-surface2 text-muted hover:text-accent transition-colors"
                 title="New document"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -364,7 +364,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                     )}
                   >
                     <span className={cn(
-                      "h-3.5 w-3.5 shrink-0 rounded border flex items-center justify-center transition-colors",
+                      "h-3.5 w-3.5 shrink-0 rounded-sm border flex items-center justify-center transition-colors",
                       isChecked ? "border-accent bg-accent/20" : "border-border",
                     )}>
                       {isChecked && <Check className="h-2.5 w-2.5 text-accent" />}

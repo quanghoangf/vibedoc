@@ -105,7 +105,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
           <select
             value={answers.testFramework}
             onChange={(e) => update("testFramework", e.target.value)}
-            className="w-full h-10 px-3 rounded-md border border-border bg-surface2 text-txt text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+            className="w-full h-10 px-3 rounded-md border border-border bg-surface2 text-txt text-sm focus:outline-hidden focus:ring-2 focus:ring-accent/50"
           >
             {TEST_FRAMEWORKS.map(f => (
               <option key={f.value} value={f.value}>{f.label}</option>
