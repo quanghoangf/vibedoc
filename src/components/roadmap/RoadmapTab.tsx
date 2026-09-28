@@ -17,7 +17,7 @@ import "@xyflow/react/dist/style.css"
 
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
-import { AlertTriangle, Bot, Plus, Sparkles } from "lucide-react"
+import { AlertTriangle, Bot, FileText, Plus, Sparkles } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -31,6 +31,7 @@ import { FEATURE_W, HORIZON_W, resolvePositions } from "./layout"
 import { StatusBadge, nodeTypes, type RoadmapNode } from "./RoadmapNodes"
 import { RoadmapItemSheet } from "./RoadmapItemSheet"
 import { NewItemDialog } from "./NewItemDialog"
+import { PlanFromSpecDialog } from "./PlanFromSpecDialog"
 
 type ApiResult<T> = { data?: T; error?: string }
 
@@ -133,6 +134,7 @@ export function RoadmapTab() {
   const [generating, setGenerating] = useState(false)
   // null = closed; "" = new horizon; "R001" = new feature under R001
   const [createParent, setCreateParent] = useState<string | null>(null)
+  const [specOpen, setSpecOpen] = useState(false)
   const draggingRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -310,12 +312,15 @@ export function RoadmapTab() {
   const selected = items.find((i) => i.id === selectedId) ?? null
 
   const dialog = (
-    <NewItemDialog
-      open={createParent !== null}
-      heading={createParent ? `New feature under ${createParent}` : "New horizon"}
-      onOpenChange={(v) => { if (!v) setCreateParent(null) }}
-      onSubmit={createItem}
-    />
+    <>
+      <NewItemDialog
+        open={createParent !== null}
+        heading={createParent ? `New feature under ${createParent}` : "New horizon"}
+        onOpenChange={(v) => { if (!v) setCreateParent(null) }}
+        onSubmit={createItem}
+      />
+      <PlanFromSpecDialog open={specOpen} onOpenChange={setSpecOpen} />
+    </>
   )
 
   if (loading) {
@@ -334,6 +339,9 @@ export function RoadmapTab() {
             </Button>
             <Button size="sm" variant="outline" onClick={() => askAgent("Plan a roadmap for this project.")} disabled={generating}>
               <Bot /> Plan with agent
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setSpecOpen(true)} disabled={generating}>
+              <FileText /> Plan from spec
             </Button>
             <Button size="sm" variant="outline" onClick={() => setCreateParent("")} disabled={generating}>
               <Plus /> Create first horizon
@@ -366,6 +374,9 @@ export function RoadmapTab() {
         </div>
         <div className="flex items-center gap-3">
           {error && <p className="text-xs text-danger">{error}</p>}
+          <Button size="sm" variant="outline" onClick={() => setSpecOpen(true)}>
+            <FileText /> Plan from spec
+          </Button>
           <Button size="sm" onClick={() => setCreateParent("")} className="bg-accent text-white hover:bg-accent/90">
             <Plus /> Horizon
           </Button>

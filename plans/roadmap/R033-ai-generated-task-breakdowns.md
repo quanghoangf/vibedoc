@@ -1,6 +1,6 @@
 # R033: AI-generated task breakdowns
 **Parent:** R004
-**Status:** planned
+**Status:** in-progress
 **Order:** 20
 **Tasks:** T051, T052, T053, T054
 
