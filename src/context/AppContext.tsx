@@ -102,6 +102,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const msg = JSON.parse(e.data)
         if (msg.type === "connected") return
+        window.dispatchEvent(new CustomEvent("vibedoc:sse", { detail: msg }))
         setLiveIndicator(true)
         setTimeout(() => setLiveIndicator(false), 2000)
         if (["task_updated", "decision_logged", "memory_updated", "session_start"].includes(msg.type)) {

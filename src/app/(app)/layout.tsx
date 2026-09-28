@@ -9,6 +9,7 @@ import { AppHeader } from "@/components/layout/AppHeader"
 import { AppSidebar } from "@/components/layout/AppSidebar"
 import { CommandPalette } from "@/components/layout/CommandPalette"
 import { NewDocModal } from "@/components/docs/NewDocModal"
+import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,7 @@ const SHORTCUTS = [
   { key: "a", description: "Go to Activity" },
   { key: "m", description: "Go to Memory" },
   { key: "e", description: "Go to Explorer" },
+  { key: "c", description: "Toggle agent chat" },
   { key: "/", description: "Focus doc search" },
   { key: "?", description: "Toggle this help" },
   { key: "Esc", description: "Close panel / modal" },
@@ -39,6 +41,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [showHelp, setShowHelp] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
   const [newDocOpen, setNewDocOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -55,6 +58,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         case "a": router.push("/activity"); break
         case "m": router.push("/memory"); break
         case "e": router.push("/explorer"); break
+        case "c": setChatOpen((v) => !v); break
         case "?": setShowHelp((v) => !v); break
         case "Escape": setShowHelp(false); break
         case "/":
@@ -83,8 +87,12 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           activeProject={activeProject}
           liveIndicator={liveIndicator}
           onProjectChange={onProjectChange}
+          onToggleChat={() => setChatOpen((v) => !v)}
         />
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <div className="flex flex-1 min-h-0">
+          <main className="flex-1 overflow-y-auto">{children}</main>
+          {chatOpen && <ChatPanel onClose={() => setChatOpen(false)} />}
+        </div>
 
         <CommandPalette
           open={cmdOpen}

@@ -39,8 +39,10 @@ import {
   readRegistry,
   rebuildRegistry,
   updateRegistryAnnotation,
+  editDoc,
   TaskStatus,
 } from "@/lib/core";
+import type { TextEdit } from "@/lib/diff";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
 import { z } from "zod";
@@ -250,6 +252,30 @@ const TOOLS = [
     },
   },
   {
+    name: "vibedoc_propose_edit",
+    description:
+      "Propose targeted edits to a doc for the user to review. Does NOT write the file: the user sees a diff in the UI and accepts or rejects it. Each edit replaces one exact old_string (must match exactly once, include enough surrounding text to be unique) with new_string; edits apply in order. Only send the parts that change. For a brand-new doc, use a single edit with an empty old_string.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Relative path to the doc file" },
+        edits: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              old_string: { type: "string", description: "Exact text currently in the doc" },
+              new_string: { type: "string", description: "Replacement text" },
+            },
+            required: ["old_string", "new_string"],
+          },
+        },
+        summary: { type: "string", description: "One short line describing the change" },
+      },
+      required: ["path", "edits"],
+    },
+  },
+  {
     name: "vibedoc_append_doc",
     description:
       "Append content to an existing doc file. Adds two newlines before the appended content.",
@@ -328,8 +354,7 @@ const TOOLS = [
   },
 ];
 
-async function handleTool(name: string, args: Record<string, unknown>) {
-  const root = getConfiguredRoot();
+async function handleTool(name: string, args: Record<string, unknown>, root: string) {
 
   switch (name) {
     case "vibedoc_get_status": {
@@ -403,7 +428,7 @@ async function handleTool(name: string, args: Record<string, unknown>) {
       const docPath = String(args.path);
       const content = String(args.content);
       await writeDoc(docPath, content, root);
-      emitUpdate("doc_updated", { path: docPath });
+      emitUpdate("doc_updated", { path: docPath, actor: "ai" });
       return `✅ Written: ${docPath}`;
     }
 
@@ -500,11 +525,20 @@ async function handleTool(name: string, args: Record<string, unknown>) {
       return context;
     }
 
+    case "vibedoc_propose_edit": {
+      const docPath = String(args.path);
+      const edits = Array.isArray(args.edits) ? (args.edits as TextEdit[]) : [];
+      if (edits.length === 0) throw new Error("edits must be a non-empty array");
+      // Validate now so the agent can fix a bad old_string before the user ever sees it
+      await editDoc(docPath, edits, root, true);
+      return `📝 Proposed ${edits.length} edit(s) to ${docPath}. The user will accept or reject them in the UI; not applied yet.`;
+    }
+
     case "vibedoc_append_doc": {
       const docPath = String(args.path);
       const content = String(args.content);
       await appendDoc(docPath, content, root);
-      emitUpdate("doc_updated", { path: docPath });
+      emitUpdate("doc_updated", { path: docPath, actor: "ai" });
       return `✅ Appended to: ${docPath}`;
     }
 
@@ -587,7 +621,8 @@ export async function POST(req: NextRequest) {
     const name = (params?.name as string) || "";
     const args = (params?.arguments as Record<string, unknown>) || {};
     try {
-      const text = await handleTool(name, args);
+      const root = req.nextUrl.searchParams.get("root") || getConfiguredRoot();
+      const text = await handleTool(name, args, root);
       return ok(id, { content: [{ type: "text", text }] });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

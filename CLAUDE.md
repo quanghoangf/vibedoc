@@ -28,6 +28,7 @@ src/
       activity/route.ts   ← Activity log read
       projects/route.ts   ← Multi-project discovery
       summary/route.ts    ← Combined project status
+      chat/route.ts       ← Agent chat: spawns `claude -p` (local login), VibeDoc MCP tools only
   lib/
     core.ts               ← ALL file system logic (shared by API routes + MCP)
     events.ts             ← In-process SSE event bus (singleton)

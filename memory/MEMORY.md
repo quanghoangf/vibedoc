@@ -1,5 +1,5 @@
 # Project Memory
-**Last updated:** 2026-04-11
+**Last updated:** 2026-09-28
 
 ## Current state
 **All 28 tasks are ✅ Done. T006 (task creation form) is ❌ Cancelled.**
@@ -39,7 +39,12 @@ src/
 - Docs page fetches its own doc list
 
 ## Working on now
-Nothing — all planned tasks complete.
+**Agent chat sidebar** (branch `spartan-hoangnguyen/agent-chat`, brainstorm in `01-brainstorm/agent-chat-sidebar.md`):
+- `POST /api/chat` spawns `claude -p --output-format stream-json` per turn (OpenClaw pattern), billed to the local Claude Code login. `ANTHROPIC_API_KEY` is stripped from the child env. `--tools ""` + `--strict-mcp-config`, so only `mcp__vibedoc__*` tools; write/append/delete are disallowed.
+- The agent edits via `vibedoc_propose_edit` with `edits: [{old_string, new_string}]` (Claude Code Edit semantics: exact, unique match, applied in order; empty old_string = new doc). Validated server-side (dry run) so the agent retries bad matches. `ChatPanel` shows a diff (`src/lib/diff.ts`); Accept → `PUT /api/docs` with `{edits, actor: "ai"}` → `core.editDoc()` re-applies the spans to the current file.
+- `doc_updated` with `actor: "ai"` is applied span-by-span into the open Yjs buffer (`MarkdownEditor`), so the user's unsaved typing elsewhere survives. Only the tab with the lowest Yjs clientID applies it. Whole-file writes from other agents (`write_doc`) splice in only the differing middle.
+- `/api/mcp` now honors `?root=`.
+- Known ceilings: one process spawn per turn (~1–2s); no Stop button; if the user edits inside the exact span the agent targets, Accept fails with "doc changed" and the agent must re-propose.
 
 ## Up next
 No open tasks. Ready for new feature planning or v2 roadmap.

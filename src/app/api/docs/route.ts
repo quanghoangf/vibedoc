@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listDocs, readDoc, searchDocs, writeDoc, createDoc, renameDoc, deleteDoc, getConfiguredRoot, enrichDescription } from '@/lib/core'
+import { listDocs, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, getConfiguredRoot, enrichDescription } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 
 export async function GET(req: NextRequest) {
@@ -22,9 +22,11 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
-    const { path: docPath, content } = await req.json()
-    await writeDoc(docPath, content, root)
-    emitUpdate('doc_updated', { path: docPath })
+    const { path: docPath, content, edits, actor } = await req.json()
+    // `edits` (old_string→new_string) touches only the matched spans; `content` replaces the file (editor save)
+    if (Array.isArray(edits)) await editDoc(docPath, edits, root)
+    else await writeDoc(docPath, content, root)
+    emitUpdate('doc_updated', { path: docPath, actor, edits })
     return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 })

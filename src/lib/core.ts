@@ -7,6 +7,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { glob } from 'glob'
+import { applyEdits, type TextEdit } from './diff'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -234,6 +235,30 @@ export async function writeDoc(docPath: string, content: string, root: string): 
   }
   await fs.mkdir(path.dirname(fullPath), { recursive: true })
   await fs.writeFile(fullPath, content, 'utf8')
+}
+
+// Reads the doc at an exact path ('' if missing) and applies old_string→new_string edits.
+// dryRun validates without writing (used to check a proposal before the user sees it).
+export async function editDoc(
+  docPath: string,
+  edits: TextEdit[],
+  root: string,
+  dryRun = false,
+): Promise<{ before: string; content: string }> {
+  const resolvedRoot = path.resolve(root)
+  const fullPath = path.resolve(root, docPath)
+  if (!fullPath.startsWith(resolvedRoot + path.sep)) throw new Error('Path outside root')
+  const before = await fs.readFile(fullPath, 'utf8').catch((e: NodeJS.ErrnoException) => {
+    if (e.code === 'ENOENT') return ''
+    throw e
+  })
+  const result = applyEdits(before, edits)
+  if ('error' in result) throw new Error(result.error)
+  if (!dryRun) {
+    await fs.mkdir(path.dirname(fullPath), { recursive: true })
+    await fs.writeFile(fullPath, result.content, 'utf8')
+  }
+  return { before, content: result.content }
 }
 
 export async function getContext(paths: string[], root: string): Promise<string> {

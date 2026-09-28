@@ -11,6 +11,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { EditorToolbar } from "./EditorToolbar"
 import { MarkdownRenderer } from "./MarkdownRenderer"
+import { useApp } from "@/context/AppContext"
+import type { TextEdit } from "@/lib/diff"
 
 type ViewMode = "edit" | "split" | "preview"
 type SaveStatus = "saved" | "saving" | "unsaved"
@@ -27,6 +29,9 @@ interface Props {
 
 export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
+  const { rootParam } = useApp()
+  const ytextRef = useRef<import("yjs").Text | null>(null)
+  const awarenessRef = useRef<{ getStates: () => Map<number, unknown> } | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>("split")
   const [previewContent, setPreviewContent] = useState(initialContent)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved")
@@ -98,6 +103,8 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
       const wsUrl = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:1234"
       const provider = new WebsocketProvider(wsUrl, docPath, ydoc)
       ydocRef = ydoc
+      ytextRef.current = ytext
+      awarenessRef.current = provider.awareness
       providerRef = provider
 
       const hue = (Math.random() * 360) | 0
@@ -121,10 +128,59 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
 
     return () => {
       destroyed = true
+      ytextRef.current = null
+      awarenessRef.current = null
       providerRef?.disconnect()
       ydocRef?.destroy()
     }
   }, [docPath, initialContent])
+
+  // Agent changed this doc (MCP or accepted proposal): apply the change to the shared Yjs room so the
+  // editor shows it and auto-save doesn't overwrite it. Only the touched spans change, so the user's
+  // unsaved typing elsewhere survives. One tab (lowest Yjs clientID) applies it; others get it via sync.
+  useEffect(() => {
+    async function onSse(e: Event) {
+      const msg = (e as CustomEvent).detail
+      if (msg?.type !== "doc_updated" || msg.payload?.actor !== "ai") return
+      if (String(msg.payload.path).replace(/^\.\//, "") !== docPath) return
+      const ytext = ytextRef.current
+      const awareness = awarenessRef.current
+      if (!ytext?.doc || !awareness) return
+      if (Math.min(...Array.from(awareness.getStates().keys())) !== ytext.doc.clientID) return
+
+      const edits: TextEdit[] | undefined = Array.isArray(msg.payload.edits) ? msg.payload.edits : undefined
+      let target: string | null = null
+      if (!edits) {
+        // Whole-file write (e.g. vibedoc_write_doc from another agent): splice in only the differing middle
+        const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(docPath)}`)
+        const content = (await res.json())?.content
+        if (typeof content !== "string") return
+        target = content
+      }
+
+      ytext.doc.transact(() => {
+        if (edits) {
+          for (const { old_string, new_string } of edits) {
+            const text = ytext.toString()
+            const at = old_string === "" ? (text === "" ? 0 : -1) : text.indexOf(old_string)
+            if (at === -1) continue // already applied (synced from another tab) or edited away by the user
+            ytext.delete(at, old_string.length)
+            ytext.insert(at, new_string)
+          }
+        } else if (target !== null) {
+          const text = ytext.toString()
+          let pre = 0
+          while (pre < text.length && pre < target.length && text[pre] === target[pre]) pre++
+          let suf = 0
+          while (suf < text.length - pre && suf < target.length - pre && text[text.length - 1 - suf] === target[target.length - 1 - suf]) suf++
+          ytext.delete(pre, text.length - pre - suf)
+          ytext.insert(pre, target.slice(pre, target.length - suf))
+        }
+      })
+    }
+    window.addEventListener("vibedoc:sse", onSse)
+    return () => window.removeEventListener("vibedoc:sse", onSse)
+  }, [docPath, rootParam])
 
   // Rebuild base extensions when editor prefs change (without reconnecting Yjs)
   useEffect(() => {
