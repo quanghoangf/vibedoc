@@ -8,8 +8,12 @@ import { LoadingScreen } from "@/components/shared/LoadingScreen"
 import { AppHeader } from "@/components/layout/AppHeader"
 import { AppSidebar } from "@/components/layout/AppSidebar"
 import { CommandPalette } from "@/components/layout/CommandPalette"
+import { QuickOpen } from "@/components/layout/QuickOpen"
 import { NewDocModal } from "@/components/docs/NewDocModal"
+import { ChatPanel } from "@/components/chat/ChatPanel"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,11 +26,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 const SHORTCUTS = [
   { key: "Cmd+K", description: "Open command palette" },
+  { key: "Cmd+P", description: "Go to file" },
   { key: "b", description: "Go to Board" },
   { key: "d", description: "Go to Docs" },
   { key: "a", description: "Go to Activity" },
   { key: "m", description: "Go to Memory" },
   { key: "e", description: "Go to Explorer" },
+  { key: "c", description: "Toggle agent chat" },
   { key: "/", description: "Focus doc search" },
   { key: "?", description: "Toggle this help" },
   { key: "Esc", description: "Close panel / modal" },
@@ -38,13 +44,22 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [showHelp, setShowHelp] = useState(false)
   const [cmdOpen, setCmdOpen] = useState(false)
+  const [quickOpen, setQuickOpen] = useState(false)
   const [newDocOpen, setNewDocOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault()
         setCmdOpen(v => !v)
+        return
+      }
+      // Overrides the browser's print shortcut
+      if ((e.metaKey || e.ctrlKey) && e.key === "p") {
+        e.preventDefault()
+        setCmdOpen(false)
+        setQuickOpen(v => !v)
         return
       }
       const tag = (e.target as Element)?.tagName
@@ -55,6 +70,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         case "a": router.push("/activity"); break
         case "m": router.push("/memory"); break
         case "e": router.push("/explorer"); break
+        case "c": setChatOpen((v) => !v); break
         case "?": setShowHelp((v) => !v); break
         case "Escape": setShowHelp(false); break
         case "/":
@@ -76,16 +92,35 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <AppSidebar board={board} />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <AppHeader
           summary={summary}
           projects={projects}
           activeProject={activeProject}
           liveIndicator={liveIndicator}
           onProjectChange={onProjectChange}
+          onToggleChat={() => setChatOpen((v) => !v)}
         />
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <div className="flex flex-1 min-h-0">
+          <main className="flex-1 overflow-y-auto">{children}</main>
+          {/* Stays mounted so it can slide both ways; inert keeps it out of tab order while closed */}
+          <div
+            inert={!chatOpen}
+            className={cn(
+              "shrink-0 overflow-hidden sticky top-12 h-[calc(100svh-3rem)] transition-[width] duration-[var(--duration-slow)] ease-out-soft",
+              chatOpen ? "w-[380px]" : "w-0"
+            )}
+          >
+            <ChatPanel onClose={() => setChatOpen(false)} />
+          </div>
+        </div>
 
+        <QuickOpen
+          open={quickOpen}
+          onClose={() => setQuickOpen(false)}
+          onOpenDoc={openDoc}
+          rootParam={rootParam}
+        />
         <CommandPalette
           open={cmdOpen}
           onClose={() => setCmdOpen(false)}
@@ -101,36 +136,25 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         />
 
         {/* Keyboard shortcuts help modal */}
-        {showHelp && (
-          <>
-            <div className="fixed inset-0 z-50 bg-black/60" onClick={() => setShowHelp(false)} />
-            <div className="fixed z-50 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 bg-surface border border-border rounded-xl shadow-2xl p-5">
-              <div className="flex items-center justify-between mb-4">
-                <span className="font-display text-sm font-semibold text-txt">Keyboard shortcuts</span>
-                <button
-                  onClick={() => setShowHelp(false)}
-                  className="text-muted hover:text-txt transition-colors text-lg leading-none"
-                >
-                  ×
-                </button>
-              </div>
-              <table className="w-full text-xs">
-                <tbody>
-                  {SHORTCUTS.map(({ key, description }) => (
-                    <tr key={key} className="border-t border-border first:border-0">
-                      <td className="py-1.5 pr-4">
-                        <kbd className="font-mono bg-surface2 border border-border rounded px-1.5 py-0.5 text-accent">
-                          {key}
-                        </kbd>
-                      </td>
-                      <td className="py-1.5 text-muted">{description}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+        <Dialog open={showHelp} onOpenChange={setShowHelp}>
+          <DialogContent aria-describedby={undefined} className="block w-80 p-5 rounded-xl sm:rounded-xl shadow-2xl">
+            <DialogTitle className="font-display text-sm font-semibold text-txt mb-4">Keyboard shortcuts</DialogTitle>
+            <table className="w-full text-xs">
+              <tbody>
+                {SHORTCUTS.map(({ key, description }) => (
+                  <tr key={key} className="border-t border-border first:border-0">
+                    <td className="py-1.5 pr-4">
+                      <kbd className="font-mono bg-surface2 border border-border rounded-sm px-1.5 py-0.5 text-accent">
+                        {key}
+                      </kbd>
+                    </td>
+                    <td className="py-1.5 text-muted">{description}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </DialogContent>
+        </Dialog>
       </SidebarInset>
     </SidebarProvider>
   )

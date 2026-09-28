@@ -2,7 +2,7 @@
 
 import { Moon, Sun, Monitor, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { AppSettings } from "@/lib/settings"
+import { SANS_FONTS, MONO_FONTS, type AppSettings } from "@/lib/settings"
 
 interface ThemeSettingsProps {
   settings: AppSettings
@@ -32,7 +32,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
 
       {/* Theme */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">Theme</label>
+        <label className="block text-sm font-medium text-txt">Theme</label>
         <div className="grid grid-cols-3 gap-3">
           {[
             { id: "dark", label: "Dark", icon: Moon },
@@ -46,7 +46,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
                 key={theme.id}
                 onClick={() => onSave({ ...settings, theme: theme.id as AppSettings["theme"] })}
                 className={cn(
-                  "flex flex-col items-center gap-2 p-4 rounded-lg border transition-all",
+                  "flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors",
                   isActive
                     ? "border-accent bg-accent/10"
                     : "border-border hover:border-accent/50"
@@ -64,7 +64,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
 
       {/* Accent Color */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">Accent Color</label>
+        <label className="block text-sm font-medium text-txt">Accent Color</label>
         <div className="flex gap-3">
           {ACCENT_COLORS.map(color => {
             const isActive = settings.accentColor === color.id
@@ -88,7 +88,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
 
       {/* Font Size */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">Font Size</label>
+        <label className="block text-sm font-medium text-txt">Font Size</label>
         <div className="flex gap-2">
           {FONT_SIZES.map(size => {
             const isActive = settings.fontSize === size.id
@@ -109,6 +109,40 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
           })}
         </div>
       </div>
+
+      {/* Font family — each option previews in its own font */}
+      {([
+        { key: "fontSans", label: "Interface Font", fonts: SANS_FONTS, fallback: "system-ui", sample: "Ship the roadmap by Friday" },
+        { key: "fontMono", label: "Code Font", fonts: MONO_FONTS, fallback: "ui-monospace, Menlo, Consolas, monospace", sample: "const id = 0O1lI;" },
+      ] as const).map(group => (
+        <div key={group.key} className="space-y-3">
+          <label className="block text-sm font-medium text-txt">{group.label}</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {group.fonts.map(font => {
+              const isActive = settings[group.key] === font.id
+              return (
+                <button
+                  key={font.id}
+                  onClick={() => onSave({ ...settings, [group.key]: font.id })}
+                  className={cn(
+                    "text-left p-3 rounded-lg border transition-colors",
+                    isActive ? "border-accent bg-accent/10" : "border-border hover:border-accent/50"
+                  )}
+                >
+                  <div
+                    className="text-base text-txt truncate"
+                    style={{ fontFamily: font.id === "system" ? group.fallback : `var(--font-${font.id})` }}
+                  >
+                    {group.sample}
+                  </div>
+                  <div className={cn("mt-1 text-xs", isActive ? "text-accent font-medium" : "text-txt")}>{font.label}</div>
+                  <div className="text-xs text-muted">{font.note}</div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }

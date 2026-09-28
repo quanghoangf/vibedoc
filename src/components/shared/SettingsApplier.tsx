@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { useApp } from "@/context/AppContext"
-import { applyTheme, applyAccent, applyFontSize } from "@/lib/applySettings"
+import { applyTheme, applyAccent, applyFontSize, applyFonts } from "@/lib/applySettings"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings"
 
 export function SettingsApplier() {
@@ -21,6 +21,7 @@ export function SettingsApplier() {
         applyTheme(settings.theme)
         applyAccent(settings.accentColor)
         applyFontSize(settings.fontSize)
+        applyFonts(settings)
         setEditorSettings(settings.editor)
         setAutoRefreshSeconds(settings.project?.autoRefresh ?? 0)
       })

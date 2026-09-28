@@ -91,7 +91,7 @@ export function NewTaskModal({ open, onOpenChange, rootParam, onTaskCreated }: N
 
           <form onSubmit={handleSubmit} className="p-5 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted uppercase tracking-wide">
+              <label className="block text-xs font-medium text-muted uppercase tracking-wide">
                 Title <span className="text-danger">*</span>
               </label>
               <input
@@ -100,27 +100,27 @@ export function NewTaskModal({ open, onOpenChange, rootParam, onTaskCreated }: N
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 placeholder="e.g. Add drag-and-drop to kanban"
-                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-txt placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-txt placeholder:text-muted focus:outline-hidden focus:border-accent transition-colors"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted uppercase tracking-wide">Phase</label>
+                <label className="block text-xs font-medium text-muted uppercase tracking-wide">Phase</label>
                 <input
                   type="text"
                   value={phase}
                   onChange={e => setPhase(e.target.value)}
                   placeholder="e.g. 1 — Core"
-                  className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-txt placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+                  className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-txt placeholder:text-muted focus:outline-hidden focus:border-accent transition-colors"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted uppercase tracking-wide">Size</label>
+                <label className="block text-xs font-medium text-muted uppercase tracking-wide">Size</label>
                 <select
                   value={size}
                   onChange={e => setSize(e.target.value)}
-                  className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-txt focus:outline-none focus:border-accent transition-colors"
+                  className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-txt focus:outline-hidden focus:border-accent transition-colors"
                 >
                   <option value="">—</option>
                   {SIZE_OPTIONS.map(o => (
@@ -131,24 +131,24 @@ export function NewTaskModal({ open, onOpenChange, rootParam, onTaskCreated }: N
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted uppercase tracking-wide">Depends on</label>
+              <label className="block text-xs font-medium text-muted uppercase tracking-wide">Depends on</label>
               <input
                 type="text"
                 value={dependsOn}
                 onChange={e => setDependsOn(e.target.value)}
                 placeholder="e.g. T001, T003"
-                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-txt placeholder:text-muted focus:outline-none focus:border-accent transition-colors"
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-txt placeholder:text-muted focus:outline-hidden focus:border-accent transition-colors"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted uppercase tracking-wide">Description</label>
+              <label className="block text-xs font-medium text-muted uppercase tracking-wide">Description</label>
               <textarea
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 placeholder="What needs to be built?"
                 rows={3}
-                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-txt placeholder:text-muted focus:outline-none focus:border-accent transition-colors resize-none"
+                className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-txt placeholder:text-muted focus:outline-hidden focus:border-accent transition-colors resize-none"
               />
             </div>
 

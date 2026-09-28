@@ -68,7 +68,7 @@ export function GenerationPreview({
             className={cn(
               "px-3 py-1 text-sm rounded-md transition-colors",
               mode === "quick"
-                ? "bg-surface text-txt shadow-sm"
+                ? "bg-surface text-txt shadow-xs"
                 : "text-muted hover:text-txt",
             )}
           >
@@ -79,7 +79,7 @@ export function GenerationPreview({
             className={cn(
               "px-3 py-1 text-sm rounded-md transition-colors",
               mode === "ai"
-                ? "bg-surface text-txt shadow-sm"
+                ? "bg-surface text-txt shadow-xs"
                 : "text-muted hover:text-txt",
             )}
           >

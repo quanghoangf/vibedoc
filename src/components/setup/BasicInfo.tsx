@@ -49,7 +49,7 @@ export function BasicInfo({ answers, onChange }: BasicInfoProps) {
           <select
             value={answers.projectType}
             onChange={(e) => update("projectType", e.target.value)}
-            className="w-full h-10 px-3 rounded-md border border-border bg-surface2 text-txt text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
+            className="w-full h-10 px-3 rounded-md border border-border bg-surface2 text-txt text-sm focus:outline-hidden focus:ring-2 focus:ring-accent/50"
           >
             {PROJECT_TYPES.map(type => (
               <option key={type.value} value={type.value}>{type.label}</option>
@@ -78,7 +78,7 @@ export function BasicInfo({ answers, onChange }: BasicInfoProps) {
             onChange={(e) => update("description", e.target.value)}
             placeholder="A brief description of what your project does..."
             rows={3}
-            className="w-full px-3 py-2 rounded-md border border-border bg-surface2 text-txt text-sm resize-none focus:outline-none focus:ring-2 focus:ring-accent/50"
+            className="w-full px-3 py-2 rounded-md border border-border bg-surface2 text-txt text-sm resize-none focus:outline-hidden focus:ring-2 focus:ring-accent/50"
           />
         </div>
 

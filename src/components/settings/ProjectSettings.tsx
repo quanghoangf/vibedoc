@@ -32,7 +32,7 @@ export function ProjectSettings({ settings, onSave }: ProjectSettingsProps) {
 
       {/* Auto-refresh */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">Auto-refresh Interval</label>
+        <label className="block text-sm font-medium text-txt">Auto-refresh Interval</label>
         <p className="text-xs text-muted">How often to check for changes in the project files.</p>
         <div className="flex flex-wrap gap-2">
           {REFRESH_OPTIONS.map(option => {

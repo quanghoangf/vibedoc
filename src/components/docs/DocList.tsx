@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState, createContext, useContext } from "react"
-import { FileText, Folder, FolderOpen, ChevronRight, Search, Bot, Plus, CheckSquare, Copy, Check, X, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { useMemo, useRef, useState, createContext, useContext } from "react"
+import { FileText, Folder, FolderOpen, ChevronRight, ChevronsDownUp, ChevronsUpDown, Search, Bot, Plus, CheckSquare, Copy, Check, X, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -28,7 +28,21 @@ const SelectionCtx = createContext<{
   onDelete: (path: string) => void
   renamingPath: string | null
   setRenamingPath: (path: string | null) => void
-}>({ active: false, selected: new Set(), toggle: () => {}, onRename: () => {}, onDelete: () => {}, renamingPath: null, setRenamingPath: () => {} })
+  collapsed: Set<string>
+  toggleFolder: (folderPath: string) => void
+}>({ active: false, selected: new Set(), toggle: () => {}, onRename: () => {}, onDelete: () => {}, renamingPath: null, setRenamingPath: () => {}, collapsed: new Set(), toggleFolder: () => {} })
+
+// ─── Resizable width ──────────────────────────────────────────────────────────
+
+const DEFAULT_WIDTH = 224
+const MIN_WIDTH = 180
+const MAX_WIDTH = 560
+const KEYBOARD_STEP = 16
+// ponytail: module-level, so width survives page navigation but resets on reload
+// (no localStorage per project rules); persist via /api/settings if that matters.
+let lastWidth = DEFAULT_WIDTH
+
+const clampWidth = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w))
 
 // ─── Tree helpers ─────────────────────────────────────────────────────────────
 
@@ -60,6 +74,20 @@ function buildTree(docs: DocFile[]): TreeNode[] {
   return root.children
 }
 
+function collectFolderPaths(nodes: TreeNode[], prefix = ""): string[] {
+  return nodes.flatMap(n => {
+    if (n.docPath) return []
+    const path = prefix ? `${prefix}/${n.name}` : n.name
+    return [path, ...collectFolderPaths(n.children, path)]
+  })
+}
+
+/** "a/b/c.md" → ["a", "a/b"] — the folder paths that must be open to show the file. */
+function ancestorFolders(docPath: string): string[] {
+  const parts = normalizePath(docPath).split("/").slice(0, -1)
+  return parts.map((_, i) => parts.slice(0, i + 1).join("/"))
+}
+
 function formatName(raw: string): string {
   return raw
     .replace(/^\d+-/, "")
@@ -79,7 +107,7 @@ interface TreeNodeRowProps {
 }
 
 function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: TreeNodeRowProps) {
-  const { active: selectMode, selected, toggle, onRename, onDelete, renamingPath, setRenamingPath } = useContext(SelectionCtx)
+  const { active: selectMode, selected, toggle, onRename, onDelete, renamingPath, setRenamingPath, collapsed, toggleFolder } = useContext(SelectionCtx)
   const [renameValue, setRenameValue] = useState(node.name)
   const isFile = !!node.docPath
   const isActive = node.docPath === selectedPath
@@ -138,7 +166,7 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
         >
           {selectMode ? (
             <span className={cn(
-              "h-3.5 w-3.5 shrink-0 rounded border flex items-center justify-center transition-colors",
+              "h-3.5 w-3.5 shrink-0 rounded-sm border flex items-center justify-center transition-colors",
               isChecked ? "border-accent bg-accent/20" : "border-border",
             )}>
               {isChecked && <Check className="h-2.5 w-2.5 text-accent" />}
@@ -152,7 +180,7 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="h-5 w-5 shrink-0 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-surface2 transition-opacity"
+                className="h-5 w-5 shrink-0 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-surface2 transition-opacity"
                 onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
@@ -173,15 +201,16 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
   }
 
   return (
-    <Collapsible defaultOpen className="group/folder">
+    <Collapsible open={!collapsed.has(folderPath)} onOpenChange={() => toggleFolder(folderPath)}>
       <CollapsibleTrigger asChild>
         <button
           style={{ paddingLeft: `${8 + indent}px` }}
-          className="w-full flex items-center gap-2 h-7 pr-2 rounded-md text-xs font-medium text-muted hover:text-txt hover:bg-surface2 transition-colors"
+          className="group/trigger w-full flex items-center gap-2 h-7 pr-2 rounded-md text-xs font-medium text-muted hover:text-txt hover:bg-surface2 transition-colors"
         >
-          <ChevronRight className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]/folder:rotate-90" />
-          <Folder className="h-3.5 w-3.5 shrink-0 text-accent/70 group-data-[state=open]/folder:hidden" />
-          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-accent/70 hidden group-data-[state=open]/folder:block" />
+          {/* Keyed off this trigger's own data-state: /folder would also match any open ancestor folder */}
+          <ChevronRight className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]/trigger:rotate-90" />
+          <Folder className="h-3.5 w-3.5 shrink-0 text-accent/70 group-data-[state=open]/trigger:hidden" />
+          <FolderOpen className="h-3.5 w-3.5 shrink-0 text-accent/70 hidden group-data-[state=open]/trigger:block" />
           <span className="truncate">{formatName(node.name)}</span>
         </button>
       </CollapsibleTrigger>
@@ -221,6 +250,10 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
   const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "copied">("idle")
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
   const [pendingNewPath, setPendingNewPath] = useState<string | null>(null)
+  const [width, setWidth] = useState(lastWidth)
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [revealedPath, setRevealedPath] = useState(selectedDocPath)
 
   const agentConfigs = useMemo(() => docs.filter(d => {
     const p = normalizePath(d.path)
@@ -235,7 +268,37 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
   }), [docs])
 
   const tree = useMemo(() => buildTree(nonAgentDocs), [nonAgentDocs])
+  const folderPaths = useMemo(() => collectFolderPaths(tree), [tree])
   const isSearching = searchValue.trim().length > 0
+  const allCollapsed = folderPaths.length > 0 && folderPaths.every(p => collapsed.has(p))
+
+  // Opening a doc (click, Cmd+P, Cmd+K) expands its folders once; adjusting state
+  // during render instead of in an effect avoids a second paint.
+  if (selectedDocPath !== revealedPath) {
+    setRevealedPath(selectedDocPath)
+    const ancestors = selectedDocPath ? ancestorFolders(selectedDocPath) : []
+    if (ancestors.some(a => collapsed.has(a))) {
+      setCollapsed(prev => {
+        const next = new Set(prev)
+        ancestors.forEach(a => next.delete(a))
+        return next
+      })
+    }
+  }
+
+  function toggleFolder(folderPath: string) {
+    setCollapsed(prev => {
+      const next = new Set(prev)
+      if (next.has(folderPath)) next.delete(folderPath)
+      else next.add(folderPath)
+      return next
+    })
+  }
+
+  function resizeTo(w: number) {
+    lastWidth = clampWidth(w)
+    setWidth(lastWidth)
+  }
 
   function toggle(path: string) {
     setSelected(prev => {
@@ -301,16 +364,51 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
   }
 
   return (
-    <SelectionCtx.Provider value={{ active: selectMode, selected, toggle, onRename: handleRename, onDelete: handleDelete, renamingPath, setRenamingPath }}>
-      <aside className="w-56 flex flex-col border-r border-border flex-shrink-0 bg-sidebar">
+    <SelectionCtx.Provider value={{ active: selectMode, selected, toggle, onRename: handleRename, onDelete: handleDelete, renamingPath, setRenamingPath, collapsed, toggleFolder }}>
+      <aside style={{ width }} className="relative flex flex-col border-r border-border shrink-0 bg-sidebar">
+        {/* Resize handle — drag, arrow keys, or double-click to reset */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize docs panel"
+          aria-valuenow={width}
+          aria-valuemin={MIN_WIDTH}
+          aria-valuemax={MAX_WIDTH}
+          tabIndex={0}
+          onPointerDown={(e) => {
+            e.preventDefault()
+            e.currentTarget.setPointerCapture(e.pointerId)
+            dragRef.current = { startX: e.clientX, startWidth: width }
+          }}
+          onPointerMove={(e) => {
+            if (dragRef.current) resizeTo(dragRef.current.startWidth + e.clientX - dragRef.current.startX)
+          }}
+          onPointerUp={() => { dragRef.current = null }}
+          onDoubleClick={() => resizeTo(DEFAULT_WIDTH)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft") resizeTo(width - KEYBOARD_STEP)
+            else if (e.key === "ArrowRight") resizeTo(width + KEYBOARD_STEP)
+          }}
+          className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:transition-colors hover:after:bg-accent/60 focus-visible:outline-none focus-visible:after:bg-accent active:after:bg-accent"
+        />
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">
           <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Docs</span>
           <div className="flex items-center gap-1">
+            {!selectMode && !isSearching && folderPaths.length > 0 && (
+              <button
+                onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(folderPaths))}
+                className="h-5 w-5 flex items-center justify-center rounded-sm hover:bg-surface2 text-muted hover:text-accent transition-colors"
+                title={allCollapsed ? "Expand all folders" : "Collapse all folders"}
+                aria-label={allCollapsed ? "Expand all folders" : "Collapse all folders"}
+              >
+                {allCollapsed ? <ChevronsUpDown className="h-3.5 w-3.5" /> : <ChevronsDownUp className="h-3.5 w-3.5" />}
+              </button>
+            )}
             <button
               onClick={() => { if (selectMode) exitSelectMode(); else setSelectMode(true) }}
               className={cn(
-                "h-5 w-5 flex items-center justify-center rounded transition-colors",
+                "h-5 w-5 flex items-center justify-center rounded-sm transition-colors",
                 selectMode
                   ? "bg-accent/20 text-accent"
                   : "hover:bg-surface2 text-muted hover:text-accent",
@@ -322,7 +420,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
             {onNewDocClick && (
               <button
                 onClick={onNewDocClick}
-                className="h-5 w-5 flex items-center justify-center rounded hover:bg-surface2 text-muted hover:text-accent transition-colors"
+                className="h-5 w-5 flex items-center justify-center rounded-sm hover:bg-surface2 text-muted hover:text-accent transition-colors"
                 title="New document"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -364,7 +462,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                     )}
                   >
                     <span className={cn(
-                      "h-3.5 w-3.5 shrink-0 rounded border flex items-center justify-center transition-colors",
+                      "h-3.5 w-3.5 shrink-0 rounded-sm border flex items-center justify-center transition-colors",
                       isChecked ? "border-accent bg-accent/20" : "border-border",
                     )}>
                       {isChecked && <Check className="h-2.5 w-2.5 text-accent" />}

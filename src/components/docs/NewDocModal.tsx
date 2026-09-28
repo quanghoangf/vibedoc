@@ -118,7 +118,7 @@ export function NewDocModal({ open, onOpenChange, rootParam, onDocCreated }: New
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[11px] font-medium text-muted uppercase tracking-wider">File path</label>
+              <label className="block text-[11px] font-medium text-muted uppercase tracking-wider">File path</label>
               <Input
                 autoFocus
                 value={docPath}

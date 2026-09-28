@@ -63,7 +63,7 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
   return (
     <div className="flex-1 p-6 flex flex-col gap-4 overflow-auto">
       <div className="flex items-center gap-1.5 text-xs text-muted flex-wrap">
-        <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+        <FileText className="w-3.5 h-3.5 shrink-0" />
         {parts.map((part, i) => (
           <span key={i} className="flex items-center gap-1.5">
             {i > 0 && <span className="text-muted">/</span>}

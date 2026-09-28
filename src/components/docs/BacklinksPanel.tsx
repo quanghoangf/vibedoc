@@ -43,16 +43,16 @@ export function BacklinksPanel({ docPath, rootParam, onOpenDoc }: BacklinksPanel
   return (
     <div className="fixed right-4 bottom-8 z-40 group" onMouseEnter={handleMouseEnter}>
       {/* Hover trigger - small icon */}
-      <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center group-hover:opacity-0 transition-opacity duration-200 shadow-sm">
+      <div className="w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center group-hover:opacity-0 transition-opacity duration-200 shadow-xs">
         <Link2 className="h-4 w-4 text-muted" />
       </div>
 
       {/* Expanded panel on hover */}
       <div className={cn(
-        "absolute right-0 bottom-0 w-72 max-h-[50vh] bg-surface/95 backdrop-blur-sm border border-border rounded-lg shadow-xl",
+        "absolute right-0 bottom-0 w-72 max-h-[50vh] bg-surface/95 backdrop-blur-xs border border-border rounded-lg shadow-xl",
         "opacity-0 scale-95 origin-bottom-right pointer-events-none",
         "group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto",
-        "transition-all duration-200 ease-out"
+        "transition-[opacity,scale] duration-(--duration-base) ease-out-soft"
       )}>
         {/* Header */}
         <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50">

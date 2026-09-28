@@ -1,42 +1,132 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@custom-variant dark (&:is(.dark *));
+
+/* Raw RGB triplets live in --rgb-* (swapped at runtime by .dark / data-accent);
+   Tailwind tokens wrap them so opacity modifiers like bg-accent/20 still work. */
+@theme inline {
+  --font-sans: var(--app-font-sans), system-ui, sans-serif;
+  --font-mono: var(--app-font-mono), ui-monospace, monospace;
+  --font-display: var(--app-font-sans), system-ui, sans-serif;
+
+  --color-bg: rgb(var(--rgb-bg));
+  --color-surface: rgb(var(--rgb-surface));
+  --color-surface2: rgb(var(--rgb-surface2));
+  --color-border: rgb(var(--rgb-border));
+  --color-border2: rgb(var(--rgb-border2));
+  --color-txt: rgb(var(--rgb-txt));
+  --color-muted: rgb(var(--rgb-muted));
+  --color-accent: rgb(var(--rgb-accent));
+  --color-teal: #4fd8b4;
+  --color-amber: #f7a26a;
+  --color-danger: #f76a6a;
+  --color-background: rgb(var(--rgb-bg));
+  --color-foreground: rgb(var(--rgb-txt));
+  --color-card: rgb(var(--rgb-surface));
+  --color-card-foreground: rgb(var(--rgb-txt));
+  --color-popover: rgb(var(--rgb-surface));
+  --color-popover-foreground: rgb(var(--rgb-txt));
+  --color-primary: rgb(var(--rgb-accent));
+  --color-primary-foreground: rgb(var(--rgb-txt));
+  --color-secondary: rgb(var(--rgb-surface2));
+  --color-secondary-foreground: rgb(var(--rgb-txt));
+  --color-muted-foreground: rgb(var(--rgb-muted));
+  --color-accent-foreground: rgb(var(--rgb-txt));
+  --color-destructive: #f76a6a;
+  --color-destructive-foreground: #e8e8f0;
+  --color-input: rgb(var(--rgb-border));
+  --color-ring: rgb(var(--rgb-accent));
+
+  --color-sidebar: rgb(var(--rgb-surface));
+  --color-sidebar-foreground: rgb(var(--rgb-txt));
+  --color-sidebar-primary: rgb(var(--rgb-accent));
+  --color-sidebar-primary-foreground: rgb(var(--rgb-txt));
+  --color-sidebar-accent: rgb(var(--rgb-surface2));
+  --color-sidebar-accent-foreground: rgb(var(--rgb-txt));
+  --color-sidebar-border: rgb(var(--rgb-border));
+  --color-sidebar-ring: rgb(var(--rgb-accent));
+
+  --animate-fade-in: fadeIn var(--duration-slow) var(--ease-out-soft);
+  --animate-slide-in: slideIn var(--duration-slow) var(--ease-out-soft);
+  --animate-pulse-dot: pulseDot 2s ease-in-out infinite;
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes pulseDot {
+    0%, 100% { opacity: 0.4; transform: scale(0.8); }
+    50%      { opacity: 1; transform: scale(1.1); }
+  }
+}
+
+/* Motion tokens. static: always emitted, since plain CSS below reads them via var(). */
+@theme static {
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* Default border color (v4 defaults to currentcolor) */
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button {
+    border-color: var(--color-border, currentcolor);
+  }
+}
 
 :root {
-  --font-sans: 'DM Sans';
-  --font-mono: 'DM Mono';
-  --font-display: 'DM Serif Display';
 
   /* Accent color — RGB components (blue default) */
-  --color-accent: 124 106 247;
+  --rgb-accent: 124 106 247;
 
   /* Light theme core colors */
-  --color-bg: 255 255 255;
-  --color-surface: 248 248 252;
-  --color-surface2: 240 240 248;
-  --color-border: 224 224 238;
-  --color-border2: 208 208 228;
-  --color-txt: 26 26 46;
-  --color-muted: 107 107 128;
+  --rgb-bg: 255 255 255;
+  --rgb-surface: 248 248 252;
+  --rgb-surface2: 240 240 248;
+  --rgb-border: 224 224 238;
+  --rgb-border2: 208 208 228;
+  --rgb-txt: 26 26 46;
+  --rgb-muted: 107 107 128;
 }
 
 .dark {
   /* Dark theme core colors */
-  --color-bg: 10 10 15;
-  --color-surface: 17 17 24;
-  --color-surface2: 22 22 31;
-  --color-border: 34 34 46;
-  --color-border2: 45 45 61;
-  --color-txt: 232 232 240;
-  --color-muted: 107 107 128;
+  --rgb-bg: 10 10 15;
+  --rgb-surface: 17 17 24;
+  --rgb-surface2: 22 22 31;
+  --rgb-border: 34 34 46;
+  --rgb-border2: 45 45 61;
+  --rgb-txt: 232 232 240;
+  --rgb-muted: 107 107 128;
 }
 
 /* Accent color overrides */
-html[data-accent="purple"] { --color-accent: 168 85 247; }
-html[data-accent="green"]  { --color-accent: 34 197 94; }
-html[data-accent="orange"] { --color-accent: 249 115 22; }
+html[data-accent="purple"] { --rgb-accent: 168 85 247; }
+html[data-accent="green"]  { --rgb-accent: 34 197 94; }
+html[data-accent="orange"] { --rgb-accent: 249 115 22; }
+
+/* Font family — set by Settings → Appearance (data-font-* on <html>); vars come from next/font in app/layout.tsx */
+html[data-font-sans="geist"]          { --app-font-sans: var(--font-geist); }
+html[data-font-sans="inter"]          { --app-font-sans: var(--font-inter); }
+html[data-font-sans="ibm-plex-sans"]  { --app-font-sans: var(--font-ibm-plex-sans); }
+html[data-font-sans="atkinson"]       { --app-font-sans: var(--font-atkinson); }
+html[data-font-sans="dm-sans"]        { --app-font-sans: var(--font-dm-sans); }
+html[data-font-sans="system"]         { --app-font-sans: system-ui; }
+html[data-font-mono="geist-mono"]     { --app-font-mono: var(--font-geist-mono); }
+html[data-font-mono="jetbrains-mono"] { --app-font-mono: var(--font-jetbrains-mono); }
+html[data-font-mono="ibm-plex-mono"]  { --app-font-mono: var(--font-ibm-plex-mono); }
+html[data-font-mono="dm-mono"]        { --app-font-mono: var(--font-dm-mono); }
+html[data-font-mono="system"]         { --app-font-mono: ui-monospace, Menlo, Consolas, monospace; }
+
+/* CodeMirror's base theme hardcodes `monospace`; one extra selector beats it */
+html .cm-editor .cm-scroller { font-family: var(--font-mono); }
 
 /* Font size */
 html[data-font-size="small"]  { font-size: 13px; }
@@ -46,34 +136,36 @@ html[data-font-size="large"]  { font-size: 16px; }
 * { box-sizing: border-box; }
 
 body {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2d2d3d; border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: #44445a; }
+::-webkit-scrollbar-thumb { background: var(--color-border2); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--color-border2) 60%, var(--color-muted)); }
 
-/* Markdown rendering */
-.prose-dark h1 { font-family: 'DM Serif Display', serif; font-size: 1.6rem; color: #e8e8f0; margin-bottom: 1rem; }
-.prose-dark h2 { font-size: 1.1rem; font-weight: 600; color: #9490c8; margin: 1.5rem 0 0.5rem; border-bottom: 1px solid #22222e; padding-bottom: 0.25rem; }
-.prose-dark h3 { font-size: 0.95rem; font-weight: 600; color: #7c6af7; margin: 1rem 0 0.4rem; }
-.prose-dark p { font-size: 0.9rem; color: #b0b0c8; line-height: 1.7; margin-bottom: 0.75rem; }
+/* Markdown rendering — theme-aware via tokens (dark values match the original palette) */
+.prose-dark h1 { font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-txt); margin-bottom: 1rem; }
+.prose-dark h2 { font-size: 1.1rem; font-weight: 600; color: color-mix(in srgb, var(--color-accent) 75%, var(--color-txt)); margin: 1.5rem 0 0.5rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.25rem; }
+.prose-dark h3 { font-size: 0.95rem; font-weight: 600; color: var(--color-accent); margin: 1rem 0 0.4rem; }
+.prose-dark p { font-size: 0.9rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.7; margin-bottom: 0.75rem; }
 .prose-dark ul, .prose-dark ol { padding-left: 1.25rem; margin-bottom: 0.75rem; }
-.prose-dark li { font-size: 0.875rem; color: #b0b0c8; line-height: 1.7; margin-bottom: 0.2rem; }
-.prose-dark code { font-family: 'DM Mono', monospace; font-size: 0.8rem; background: #16161f; border: 1px solid #22222e; padding: 1px 5px; border-radius: 4px; color: #4fd8b4; }
-.prose-dark pre { background: #0d0d14; border: 1px solid #22222e; border-radius: 8px; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; }
-.prose-dark pre code { background: none; border: none; padding: 0; color: #c8c8e8; font-size: 0.8rem; }
+.prose-dark li { font-size: 0.875rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.7; margin-bottom: 0.2rem; }
+.prose-dark code { font-family: var(--font-mono); font-size: 0.8rem; background: var(--color-surface2); border: 1px solid var(--color-border); padding: 1px 5px; border-radius: 4px; color: var(--color-teal); }
+/* Teal on a light surface is unreadable; darken it toward the text color in light mode only. */
+html:not(.dark) .prose-dark :not(pre) > code { color: color-mix(in srgb, var(--color-teal) 55%, var(--color-txt)); }
+.prose-dark pre { background: color-mix(in srgb, var(--color-bg) 50%, var(--color-surface)); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; }
+.prose-dark pre code { background: none; border: none; padding: 0; color: color-mix(in srgb, var(--color-txt) 85%, var(--color-accent)); font-size: 0.8rem; }
 .prose-dark table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.8rem; }
-.prose-dark th { text-align: left; padding: 6px 10px; border-bottom: 1px solid #2d2d3d; color: #6b6b80; font-weight: 500; font-family: 'DM Mono', monospace; text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; }
-.prose-dark td { padding: 6px 10px; border-bottom: 1px solid #16161f; color: #b0b0c8; }
-.prose-dark blockquote { border-left: 2px solid #7c6af7; padding-left: 1rem; margin: 1rem 0; color: #6b6b80; font-style: italic; }
-.prose-dark a { color: #7c6af7; text-decoration: none; }
+.prose-dark th { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--color-border2); color: var(--color-muted); font-weight: 500; font-family: var(--font-mono); text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; }
+.prose-dark td { padding: 6px 10px; border-bottom: 1px solid var(--color-surface2); color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); }
+.prose-dark blockquote { border-left: 2px solid var(--color-accent); padding-left: 1rem; margin: 1rem 0; color: var(--color-muted); font-style: italic; }
+.prose-dark a { color: var(--color-accent); text-decoration: none; }
 .prose-dark a:hover { text-decoration: underline; }
-.prose-dark strong { color: #e8e8f0; font-weight: 600; }
-.prose-dark hr { border: none; border-top: 1px solid #22222e; margin: 1.5rem 0; }
+.prose-dark strong { color: var(--color-txt); font-weight: 600; }
+.prose-dark hr { border: none; border-top: 1px solid var(--color-border); margin: 1.5rem 0; }
 
 /* Collapsible animations */
 @keyframes collapsible-down {
@@ -84,32 +176,23 @@ body {
   from { height: var(--radix-collapsible-content-height); opacity: 1; }
   to   { height: 0; opacity: 0; }
 }
-.animate-collapsible-down { animation: collapsible-down 0.18s ease-out; }
-.animate-collapsible-up   { animation: collapsible-up   0.15s ease-in;  }
+.animate-collapsible-down { animation: collapsible-down var(--duration-base) var(--ease-out-soft); }
+.animate-collapsible-up   { animation: collapsible-up   var(--duration-fast) var(--ease-in-out-soft); }
+
+/* Near-zero, not 0: Radix waits for animationend before unmounting. */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Board moves use View Transitions; the rule above doesn't reach these pseudo-elements */
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
 
 /* Mermaid diagrams */
 .mermaid { margin: 1rem 0; text-align: center; }
 .mermaid svg { max-width: 100%; height: auto; border-radius: 8px; }
-
-@layer base {
-  :root {
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-  .dark {
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-}

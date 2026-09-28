@@ -207,7 +207,7 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-txt">{agent.name}</span>
                     {!agent.active && (
-                      <span className="text-xs bg-surface2 px-1.5 py-0.5 rounded text-muted">
+                      <span className="text-xs bg-surface2 px-1.5 py-0.5 rounded-sm text-muted">
                         Inactive
                       </span>
                     )}
@@ -218,7 +218,7 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
                       {agent.skills.map(skillId => {
                         const skill = skills.find(s => s.id === skillId)
                         return skill ? (
-                          <span key={skillId} className="flex items-center gap-1 text-xs bg-surface2 px-1.5 py-0.5 rounded text-muted">
+                          <span key={skillId} className="flex items-center gap-1 text-xs bg-surface2 px-1.5 py-0.5 rounded-sm text-muted">
                             {skill.icon} {skill.name}
                           </span>
                         ) : null
@@ -244,13 +244,13 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => startEdit(agent)}
-                      className="p-1.5 rounded hover:bg-surface2 text-muted hover:text-txt transition-colors"
+                      className="p-1.5 rounded-sm hover:bg-surface2 text-muted hover:text-txt transition-colors"
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => deleteAgent(agent.id)}
-                      className="p-1.5 rounded hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors"
+                      className="p-1.5 rounded-sm hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

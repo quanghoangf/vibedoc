@@ -1,5 +1,5 @@
 # Project Memory
-**Last updated:** 2026-04-11
+**Last updated:** 2026-09-28
 
 ## Current state
 **All 28 tasks are ✅ Done. T006 (task creation form) is ❌ Cancelled.**
@@ -39,10 +39,18 @@ src/
 - Docs page fetches its own doc list
 
 ## Working on now
-Nothing — all planned tasks complete.
+Branch `feat/roadmap` (on top of `chore/upgrade-deps`: Next 16, Tailwind 4, ESLint 9 flat config).
+Roadmap page `/roadmap` — roadmap.sh-style map built with `@xyflow/react`. Design notes: `01-brainstorm/roadmap-page.md`.
+
+**Agent chat sidebar** (branch `spartan-hoangnguyen/agent-chat`, brainstorm in `01-brainstorm/agent-chat-sidebar.md`):
+- `POST /api/chat` spawns `claude -p --output-format stream-json` per turn (OpenClaw pattern), billed to the local Claude Code login. `ANTHROPIC_API_KEY` is stripped from the child env. `--tools ""` + `--strict-mcp-config`, so only `mcp__vibedoc__*` tools; write/append/delete are disallowed.
+- The agent edits via `vibedoc_propose_edit` with `edits: [{old_string, new_string}]` (Claude Code Edit semantics: exact, unique match, applied in order; empty old_string = new doc). Validated server-side (dry run) so the agent retries bad matches. `ChatPanel` shows a diff (`src/lib/diff.ts`); Accept → `PUT /api/docs` with `{edits, actor: "ai"}` → `core.editDoc()` re-applies the spans to the current file.
+- `doc_updated` with `actor: "ai"` is applied span-by-span into the open Yjs buffer (`MarkdownEditor`), so the user's unsaved typing elsewhere survives. Only the tab with the lowest Yjs clientID applies it. Whole-file writes from other agents (`write_doc`) splice in only the differing middle.
+- `/api/mcp` now honors `?root=`.
+- Known ceilings: one process spawn per turn (~1–2s); no Stop button; if the user edits inside the exact span the agent targets, Accept fails with "doc changed" and the agent must re-propose.
 
 ## Up next
-No open tasks. Ready for new feature planning or v2 roadmap.
+- Fix the 16 pre-existing react-hooks lint errors
 
 ## Active issues
 | Issue | Severity | Status |
@@ -61,6 +69,16 @@ No open tasks. Ready for new feature planning or v2 roadmap.
 - `cn()` from `@/lib/utils` for all class merging
 - Types from `@/types` (re-exports core.ts types + UI-specific types)
 - `emitUpdate()` called after all mutations — never from core.ts
+- Roadmap items: `plans/roadmap/R*.md` (`**Parent:**` omitted = horizon, `**Status:**` planned|in-progress|done, `**Order:**`, `**Tasks:**`). Max depth 2.
+- Roadmap positions live ONLY in `plans/roadmap/layout.json` — never x/y in R*.md. Missing entries are auto-placed (`components/roadmap/layout.ts`).
+- Roadmap writes are serialized by an in-process lock (`withRoadmapLock` in core.ts); SSE event name `roadmap_updated`; the roadmap page opens its own EventSource.
+- Roadmap progress/drift is derived, never stored: `src/lib/roadmap-health.ts` (pure; used by the page via AppContext `board` and by MCP `vibedoc_get_roadmap` / the hint after `vibedoc_update_task`). Self-check: `node src/lib/roadmap-health.check.mts`.
+- At-risk is a derived drift kind (`'at-risk'`) in `roadmap-health.ts`: an epic with an overdue or blocked task, or due ≤7 days with nothing started. It reuses the map ⚠ / attention panel and tags the epic ` ⚠ at risk` in `vibedoc_get_roadmap`. Horizon progress counts tasks across its epics (untasked epic = 1 unit).
+- Roadmap `**Due:** YYYY-MM-DD` is optional and a local calendar date, not an instant: compare as strings, never `new Date("YYYY-MM-DD")` (UTC shift). `localToday()` / `dueState()` in `roadmap-health.ts`; overdue-and-not-done shows in the "Needs attention" panel.
+- `/roadmap?view=timeline` = month-axis Timeline (`components/roadmap/timeline.ts` pure layout, `RoadmapTimeline.tsx`); Map is the default view.
+- Empty `/roadmap` → "Generate roadmap" (`generateRoadmap()` in core.ts, pure drafting in `src/lib/roadmap-import.ts`): source = ROADMAP.md (`##` + bullets) → tasks grouped by Phase → starter Shipped/Now/Next/Later. Never touches ROADMAP.md/tasks, refuses when R*.md exist, writes layout.json once (client posts `resolvePositions`) so the map stays frozen. Self-check: `node src/lib/roadmap-import.check.mts`.
+- `ROADMAP.md` is now only a pointer to `plans/roadmap/`.
+- Lint: 16 pre-existing `react-hooks` errors (React Compiler rules) outside roadmap files — don't add new ones.
 
 ## Handoff for next session
 All tasks complete. Start by discussing what's next — new features, a v2 roadmap, or publishing/packaging work.

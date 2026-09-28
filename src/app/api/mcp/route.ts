@@ -27,6 +27,7 @@ import {
   listTasks,
   getTask,
   updateTaskStatus,
+  claimNextTask,
   logDecision,
   readMemory,
   updateMemory,
@@ -39,11 +40,18 @@ import {
   readRegistry,
   rebuildRegistry,
   updateRegistryAnnotation,
+  editDoc,
+  listRoadmap,
+  createRoadmapItem,
+  updateRoadmapItem,
   TaskStatus,
+  type CreateRoadmapItemParams,
+  type UpdateRoadmapItemPatch,
 } from "@/lib/core";
+import type { TextEdit } from "@/lib/diff";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
-import { z } from "zod";
+import { dueState, localToday, roadmapHealth, type TaskInfo } from "@/lib/roadmap-health";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
 // Implements the JSON-RPC 2.0 MCP protocol directly.
@@ -165,6 +173,18 @@ const TOOLS = [
     },
   },
   {
+    name: "vibedoc_next_task",
+    description:
+      "Claim the next ready task of an epic (deps done, not taken) and move it to in-progress. Call again after marking it done.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        epic: { type: "string", description: 'Epic roadmap id, e.g. "R037"' },
+      },
+      required: ["epic"],
+    },
+  },
+  {
     name: "vibedoc_log_decision",
     description:
       "Write a new Architecture Decision Record (ADR) when making a technical decision.",
@@ -250,6 +270,30 @@ const TOOLS = [
     },
   },
   {
+    name: "vibedoc_propose_edit",
+    description:
+      "Propose targeted edits to a doc for the user to review. Does NOT write the file: the user sees a diff in the UI and accepts or rejects it. Each edit replaces one exact old_string (must match exactly once, include enough surrounding text to be unique) with new_string; edits apply in order. Only send the parts that change. For a brand-new doc, use a single edit with an empty old_string.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Relative path to the doc file" },
+        edits: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              old_string: { type: "string", description: "Exact text currently in the doc" },
+              new_string: { type: "string", description: "Replacement text" },
+            },
+            required: ["old_string", "new_string"],
+          },
+        },
+        summary: { type: "string", description: "One short line describing the change" },
+      },
+      required: ["path", "edits"],
+    },
+  },
+  {
     name: "vibedoc_append_doc",
     description:
       "Append content to an existing doc file. Adds two newlines before the appended content.",
@@ -326,10 +370,70 @@ const TOOLS = [
       required: ["path", "description", "keywords"],
     },
   },
+  {
+    name: "vibedoc_get_roadmap",
+    description:
+      "Get the product roadmap: horizons (spine nodes, e.g. v2.0) with their nested feature items, statuses and linked tasks.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "vibedoc_create_roadmap_item",
+    description:
+      "Create a roadmap item (plans/roadmap/R*.md). Omit parent to create a horizon on the spine; set parent to a horizon id (e.g. R001) to create a feature under it.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        title: { type: "string" },
+        parent: { type: "string", description: "Horizon id, e.g. R001. Omit for a horizon." },
+        status: { type: "string", enum: ["planned", "in-progress", "done"] },
+        order: { type: "number", description: "Sort key (steps of 10). Defaults to last among siblings." },
+        tasks: { type: "array", items: { type: "string" }, description: 'Linked task ids, e.g. ["T001"]' },
+        due: { type: "string", description: "Due date YYYY-MM-DD (optional)" },
+        body: { type: "string", description: "Markdown description" },
+      },
+      required: ["title"],
+    },
+  },
+  {
+    name: "vibedoc_update_roadmap_item",
+    description:
+      "Update fields of a roadmap item. Only the given fields change. parent: null (or \"\") makes it a horizon.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "e.g. R004" },
+        title: { type: "string" },
+        parent: { type: ["string", "null"] },
+        status: { type: "string", enum: ["planned", "in-progress", "done"] },
+        order: { type: "number" },
+        tasks: { type: "array", items: { type: "string" } },
+        due: { type: ["string", "null"], description: "Due date YYYY-MM-DD; null clears it" },
+        body: { type: "string" },
+      },
+      required: ["id"],
+    },
+  },
 ];
 
-async function handleTool(name: string, args: Record<string, unknown>) {
-  const root = getConfiguredRoot();
+async function taskInfoMap(root: string): Promise<Record<string, TaskInfo>> {
+  const { tasks } = await listTasks(root);
+  return Object.fromEntries(tasks.map((t) => [t.id, { status: t.status, due: t.due }]));
+}
+
+/** After a task move, point the agent at roadmap items linking it that are now out of sync. */
+async function roadmapHint(root: string, taskId: string): Promise<string> {
+  const { items } = await listRoadmap(root);
+  const linked = new Set(items.filter((i) => i.tasks.includes(taskId)).map((i) => i.id));
+  if (!linked.size) return "";
+  const { drift } = roadmapHealth(items, await taskInfoMap(root), localToday());
+  const hits = drift.filter((d) => d.suggestedStatus && linked.has(d.id));
+  if (!hits.length) return "";
+  return "\n\n🗺️ Roadmap out of sync:\n" + hits
+    .map((d) => `- ${d.message} → vibedoc_update_roadmap_item { "id": "${d.id}", "status": "${d.suggestedStatus}" }`)
+    .join("\n");
+}
+
+async function handleTool(name: string, args: Record<string, unknown>, root: string) {
 
   switch (name) {
     case "vibedoc_get_status": {
@@ -403,7 +507,7 @@ async function handleTool(name: string, args: Record<string, unknown>) {
       const docPath = String(args.path);
       const content = String(args.content);
       await writeDoc(docPath, content, root);
-      emitUpdate("doc_updated", { path: docPath });
+      emitUpdate("doc_updated", { path: docPath, actor: "ai" });
       return `✅ Written: ${docPath}`;
     }
 
@@ -445,7 +549,38 @@ async function handleTool(name: string, args: Record<string, unknown>) {
         previousStatus: result.previousStatus,
         task: result.task,
       });
-      return `✅ **${result.task.id}** → **${result.task.status}**\n(was: ${result.previousStatus})`;
+      return `✅ **${result.task.id}** → **${result.task.status}**\n(was: ${result.previousStatus})` +
+        (await roadmapHint(root, result.task.id));
+    }
+
+    case "vibedoc_next_task": {
+      const epicId = String(args.epic ?? "").trim();
+      if (!epicId) throw new Error("epic is required");
+      const { result, task, previousStatus } = await claimNextTask(epicId, root);
+      if (result.kind === "finished") {
+        const { items } = await listRoadmap(root);
+        const statuses = await taskInfoMap(root);
+        const epic = items.find((i) => i.id === epicId.toUpperCase());
+        const id = epic?.id ?? epicId.toUpperCase();
+        const n = epic ? epic.tasks.filter((t) => t in statuses).length : 0;
+        const nudge = roadmapHealth(items, statuses, localToday()).drift
+          .find((d) => d.id === id && d.suggestedStatus === "done");
+        return `✅ Epic ${id} is finished — all ${n} tasks done or cancelled. Stop here.` +
+          (nudge ? `\n\n🗺️ ${nudge.message} → vibedoc_update_roadmap_item { "id": "${id}", "status": "done" }` : "");
+      }
+      if (result.kind === "waiting") {
+        return `⏳ Nothing ready in ${epicId.toUpperCase()}.\n` + result.waiting.map((w) => `- ${w.reason}`).join("\n") +
+          (result.needsHuman ? "\n\nNeeds a human: unblock one of the tasks above." : "");
+      }
+      if (!task) throw new Error(`claim of ${epicId.toUpperCase()} returned no task`);
+      emitUpdate("task_updated", {
+        taskId: task.id,
+        status: task.status,
+        previousStatus,
+        task,
+      });
+      return `🔨 Claimed **${task.id}** ${task.title} (now in-progress)\n\n## ${task.file}\n\n${task.raw}` +
+        (await roadmapHint(root, task.id));
     }
 
     case "vibedoc_log_decision": {
@@ -500,11 +635,20 @@ async function handleTool(name: string, args: Record<string, unknown>) {
       return context;
     }
 
+    case "vibedoc_propose_edit": {
+      const docPath = String(args.path);
+      const edits = Array.isArray(args.edits) ? (args.edits as TextEdit[]) : [];
+      if (edits.length === 0) throw new Error("edits must be a non-empty array");
+      // Validate now so the agent can fix a bad old_string before the user ever sees it
+      await editDoc(docPath, edits, root, true);
+      return `📝 Proposed ${edits.length} edit(s) to ${docPath}. The user will accept or reject them in the UI; not applied yet.`;
+    }
+
     case "vibedoc_append_doc": {
       const docPath = String(args.path);
       const content = String(args.content);
       await appendDoc(docPath, content, root);
-      emitUpdate("doc_updated", { path: docPath });
+      emitUpdate("doc_updated", { path: docPath, actor: "ai" });
       return `✅ Appended to: ${docPath}`;
     }
 
@@ -553,6 +697,50 @@ async function handleTool(name: string, args: Record<string, unknown>) {
       return `✅ Annotation updated for: ${docPath}`;
     }
 
+    case "vibedoc_get_roadmap": {
+      const { items } = await listRoadmap(root);
+      if (items.length === 0) return "No roadmap items yet (plans/roadmap/ is empty).";
+      const today = localToday();
+      const { progress, drift } = roadmapHealth(items, await taskInfoMap(root), today);
+      const icon = { done: "✓", "in-progress": "◐", planned: "○" } as const;
+      const atRisk = new Set(drift.filter((d) => d.kind === "at-risk").map((d) => d.id));
+      const fmt = (i: (typeof items)[number]) =>
+        `${icon[i.status]} **${i.id}** ${i.title} — ${i.status}` +
+        (i.tasks.length ? ` (tasks: ${i.tasks.join(", ")})` : "") +
+        (progress[i.id] ? ` [${progress[i.id].done}/${progress[i.id].total} done]` : "") +
+        (i.due ? ` due ${i.due}${dueState(i.due, i.status, today) === "overdue" ? " ⚠ overdue" : ""}` : "") +
+        (atRisk.has(i.id) ? " ⚠ at risk" : "");
+      const horizons = items.filter((i) => i.parent === null);
+      const lines = ["## Roadmap"];
+      for (const h of horizons) {
+        lines.push("", `### ${fmt(h)}`);
+        for (const c of items.filter((i) => i.parent === h.id)) lines.push(`- ${fmt(c)}`);
+      }
+      const orphans = items.filter((i) => i.parent !== null && !horizons.some((h) => h.id === i.parent));
+      if (orphans.length) {
+        lines.push("", "### Orphans (parent missing)");
+        for (const o of orphans) lines.push(`- ${fmt(o)} (parent: ${o.parent})`);
+      }
+      if (drift.length) {
+        lines.push("", "### ⚠️ Needs attention");
+        for (const d of drift) lines.push(`- ${d.message}${d.suggestedStatus ? ` → suggest status "${d.suggestedStatus}"` : ""}`);
+      }
+      return lines.join("\n");
+    }
+
+    case "vibedoc_create_roadmap_item": {
+      const item = await createRoadmapItem(args as unknown as CreateRoadmapItemParams, root, "ai");
+      emitUpdate("roadmap_updated", { kind: "create", id: item.id });
+      return `✅ Created **${item.id}** ${item.title}\nFile: ${item.file}`;
+    }
+
+    case "vibedoc_update_roadmap_item": {
+      const { id, ...patch } = args;
+      const item = await updateRoadmapItem(String(id ?? ""), patch as UpdateRoadmapItemPatch, root, "ai");
+      emitUpdate("roadmap_updated", { kind: "update", id: item.id });
+      return `✅ Updated **${item.id}** ${item.title} — ${item.status}${item.parent ? ` (parent: ${item.parent})` : " (horizon)"}`;
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -587,7 +775,8 @@ export async function POST(req: NextRequest) {
     const name = (params?.name as string) || "";
     const args = (params?.arguments as Record<string, unknown>) || {};
     try {
-      const text = await handleTool(name, args);
+      const root = req.nextUrl.searchParams.get("root") || getConfiguredRoot();
+      const text = await handleTool(name, args, root);
       return ok(id, { content: [{ type: "text", text }] });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);

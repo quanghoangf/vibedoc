@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect } from "react"
+import { useState } from "react"
 import { cn } from "@/lib/utils"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import type { Task } from "@/types"
 import { STATUS_ICONS } from "./TaskCard"
@@ -36,74 +37,55 @@ interface TaskDetailPanelProps {
   onMove: (id: string, status: string) => void
 }
 
-export function TaskDetailPanel({ task, onClose, onMove }: TaskDetailPanelProps) {
-  useEffect(() => {
-    if (!task) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose()
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [task, onClose])
+export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailPanelProps) {
+  // Keep the last task rendered while the sheet slides out
+  const [task, setTask] = useState(openTask)
+  if (openTask && openTask !== task) setTask(openTask)
 
-  if (!task) return null
-
-  const nextStatuses = NEXT_STATUS[task.status] || []
+  const nextStatuses = task ? NEXT_STATUS[task.status] || [] : []
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40"
-        onClick={onClose}
-      />
-
-      {/* Panel */}
-      <div className="fixed right-0 top-0 h-full w-[420px] z-50 bg-surface border-l border-border flex flex-col shadow-2xl">
-        {/* Header */}
-        <div className="flex items-start justify-between px-5 py-4 border-b border-border flex-shrink-0">
-          <div className="flex flex-col gap-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-muted">{task.id}</span>
-              <span className={cn("text-xs px-1.5 py-0.5 rounded border font-mono", STATUS_COLORS[task.status])}>
-                {STATUS_ICONS[task.status]} {task.status}
-              </span>
+    <Sheet open={!!openTask} onOpenChange={(open) => { if (!open) onClose() }}>
+      <SheetContent side="right" aria-describedby={undefined} className="p-0 gap-0 sm:max-w-[420px] border-border flex flex-col">
+        {task && (
+          <>
+            {/* Header */}
+            <div className="flex flex-col gap-1 min-w-0 pl-5 pr-12 py-4 border-b border-border shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs text-muted">{task.id}</span>
+                <span className={cn("text-xs px-1.5 py-0.5 rounded-sm border font-mono", STATUS_COLORS[task.status])}>
+                  {STATUS_ICONS[task.status]} {task.status}
+                </span>
+              </div>
+              <SheetTitle className="font-medium text-txt text-sm leading-snug">{task.title}</SheetTitle>
             </div>
-            <p className="font-medium text-txt text-sm leading-snug">{task.title}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="ml-3 flex-shrink-0 text-muted hover:text-txt transition-colors text-lg leading-none"
-            aria-label="Close panel"
-          >
-            ×
-          </button>
-        </div>
 
-        {/* Quick actions */}
-        {nextStatuses.length > 0 && (
-          <div className="flex items-center gap-2 px-5 py-3 border-b border-border flex-shrink-0">
-            {nextStatuses.map((s) => (
-              <button
-                key={s}
-                onClick={() => { onMove(task.id, s); onClose() }}
-                className="text-xs px-2.5 py-1 rounded bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
-              >
-                {STATUS_ICONS[s]} {STATUS_LABELS[s] || s}
-              </button>
-            ))}
-          </div>
+            {/* Quick actions */}
+            {nextStatuses.length > 0 && (
+              <div className="flex items-center gap-2 px-5 py-3 border-b border-border shrink-0">
+                {nextStatuses.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { onMove(task.id, s); onClose() }}
+                    className="text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
+                  >
+                    {STATUS_ICONS[s]} {STATUS_LABELS[s] || s}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {task.raw ? (
+                <MarkdownRenderer content={task.raw} />
+              ) : (
+                <p className="text-sm text-muted">No content available.</p>
+              )}
+            </div>
+          </>
         )}
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          {task.raw ? (
-            <MarkdownRenderer content={task.raw} />
-          ) : (
-            <p className="text-sm text-muted">No content available.</p>
-          )}
-        </div>
-      </div>
-    </>
+      </SheetContent>
+    </Sheet>
   )
 }

@@ -1,4 +1,4 @@
-import type { AppSettings } from "./settings"
+import { DEFAULT_SETTINGS, type AppSettings } from "./settings"
 
 export function applyTheme(theme: AppSettings["theme"]) {
   const html = document.documentElement
@@ -13,4 +13,11 @@ export function applyAccent(accent: AppSettings["accentColor"]) {
 
 export function applyFontSize(size: AppSettings["fontSize"]) {
   document.documentElement.setAttribute("data-font-size", size)
+}
+
+// Settings saved before fonts existed have no fontSans/fontMono — fall back to defaults.
+export function applyFonts(settings: Pick<AppSettings, "fontSans" | "fontMono">) {
+  const html = document.documentElement
+  html.setAttribute("data-font-sans", settings.fontSans ?? DEFAULT_SETTINGS.fontSans)
+  html.setAttribute("data-font-mono", settings.fontMono ?? DEFAULT_SETTINGS.fontMono)
 }

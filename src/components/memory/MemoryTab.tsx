@@ -9,7 +9,7 @@ export function MemoryTab({ memory }: MemoryTabProps) {
   return (
     <div className="p-6 max-w-2xl">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-display text-xl">Session Memory</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight">Session Memory</h1>
         <span className="text-xs font-mono text-muted">memory/MEMORY.md</span>
       </div>
 

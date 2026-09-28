@@ -38,7 +38,7 @@ export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
 
       {/* Auto-save */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">Auto-save</label>
+        <label className="block text-sm font-medium text-txt">Auto-save</label>
         <div className="flex flex-wrap gap-2">
           {AUTO_SAVE_OPTIONS.map(option => {
             const isActive = settings.editor.autoSave === option.value
@@ -62,7 +62,7 @@ export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
 
       {/* Preview Mode */}
       <div className="space-y-3">
-        <label className="text-sm font-medium text-txt">Preview Mode</label>
+        <label className="block text-sm font-medium text-txt">Preview Mode</label>
         <div className="flex flex-wrap gap-2">
           {PREVIEW_MODES.map(mode => {
             const isActive = settings.editor.previewMode === mode.id

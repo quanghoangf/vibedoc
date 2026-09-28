@@ -12,7 +12,7 @@ import { SkillsSettings } from "@/components/settings/SkillsSettings"
 import { AgentsSettings } from "@/components/settings/AgentsSettings"
 import type { AppSettings, Skill, Agent } from "@/lib/settings"
 import { DEFAULT_SETTINGS, DEFAULT_SKILLS, DEFAULT_AGENTS } from "@/lib/settings"
-import { applyTheme, applyAccent, applyFontSize } from "@/lib/applySettings"
+import { applyTheme, applyAccent, applyFontSize, applyFonts } from "@/lib/applySettings"
 
 const TABS = [
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -36,7 +36,7 @@ export default function SettingsPage() {
     try {
       const res = await fetch(`/api/settings${rootParam}&type=all`)
       const data = await res.json()
-      setSettings(data.settings || DEFAULT_SETTINGS)
+      setSettings({ ...DEFAULT_SETTINGS, ...data.settings })
       setSkills(data.skills || DEFAULT_SKILLS)
       setAgents(data.agents || DEFAULT_AGENTS)
     } catch {}
@@ -59,6 +59,7 @@ export default function SettingsPage() {
       applyTheme(newSettings.theme)
       applyAccent(newSettings.accentColor)
       applyFontSize(newSettings.fontSize)
+      applyFonts(newSettings)
       setEditorSettings(newSettings.editor)
       setAutoRefreshSeconds(newSettings.project?.autoRefresh ?? 0)
     } catch {}

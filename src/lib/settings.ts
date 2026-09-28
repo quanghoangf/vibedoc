@@ -2,6 +2,8 @@ export interface AppSettings {
   theme: 'dark' | 'light' | 'system'
   accentColor: 'blue' | 'purple' | 'green' | 'orange'
   fontSize: 'small' | 'medium' | 'large'
+  fontSans: FontSans
+  fontMono: FontMono
   editor: {
     autoSave: number // 0 = off, otherwise seconds
     wordWrap: boolean
@@ -37,10 +39,32 @@ export interface Agent {
   active: boolean
 }
 
+export const SANS_FONTS = [
+  { id: 'geist', label: 'Geist', note: 'Made for developer tools. Clean and neutral.' },
+  { id: 'inter', label: 'Inter', note: 'The standard UI font. Very clear at small sizes.' },
+  { id: 'ibm-plex-sans', label: 'IBM Plex Sans', note: 'Warm and humanist. Good for long reading.' },
+  { id: 'atkinson', label: 'Atkinson Hyperlegible', note: 'Letters are easy to tell apart. Best for legibility.' },
+  { id: 'dm-sans', label: 'DM Sans', note: 'Geometric. The previous default.' },
+  { id: 'system', label: 'System', note: 'Your OS font. Nothing to download.' },
+] as const
+
+export const MONO_FONTS = [
+  { id: 'geist-mono', label: 'Geist Mono', note: 'Pairs with Geist.' },
+  { id: 'jetbrains-mono', label: 'JetBrains Mono', note: 'Tall letters, made for code.' },
+  { id: 'ibm-plex-mono', label: 'IBM Plex Mono', note: 'Pairs with IBM Plex Sans.' },
+  { id: 'dm-mono', label: 'DM Mono', note: 'The previous default.' },
+  { id: 'system', label: 'System', note: 'Your OS monospace font.' },
+] as const
+
+export type FontSans = (typeof SANS_FONTS)[number]['id']
+export type FontMono = (typeof MONO_FONTS)[number]['id']
+
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
   accentColor: 'blue',
   fontSize: 'medium',
+  fontSans: 'geist',
+  fontMono: 'geist-mono',
   editor: {
     autoSave: 10,
     wordWrap: true,

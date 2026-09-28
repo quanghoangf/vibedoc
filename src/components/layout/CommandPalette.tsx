@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Search, FilePlus, LayoutDashboard, Activity, Brain } from "lucide-react"
+import { Search, FilePlus, LayoutDashboard, Activity, Brain, Map } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -31,6 +31,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, rootParam }
   const QUICK_ACTIONS = [
     { label: "New Doc", icon: FilePlus, action: () => { onNewDoc?.(); onClose() } },
     { label: "Go to Board", icon: LayoutDashboard, action: () => { router.push("/board"); onClose() } },
+    { label: "Go to Roadmap", icon: Map, action: () => { router.push("/roadmap"); onClose() } },
     { label: "Go to Activity", icon: Activity, action: () => { router.push("/activity"); onClose() } },
     { label: "Go to Memory", icon: Brain, action: () => { router.push("/memory"); onClose() } },
   ]

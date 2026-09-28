@@ -61,13 +61,13 @@ function TreeNodeRow({ node, depth, selectedPath, onSelect, heatmap, defaultOpen
       <button
         onClick={() => onSelect(node.file!.path)}
         className={cn(
-          "w-full flex flex-col gap-0.5 px-2 py-1.5 text-left hover:bg-surface2 transition-colors rounded",
+          "w-full flex flex-col gap-0.5 px-2 py-1.5 text-left hover:bg-surface2 transition-colors rounded-sm",
           isSelected && "bg-surface2 ring-1 ring-inset ring-accent/30"
         )}
         style={{ paddingLeft: indent + 8 }}
       >
         <div className="flex items-center gap-1.5">
-          <FileText className={cn("w-3.5 h-3.5 flex-shrink-0", colorClass)} />
+          <FileText className={cn("w-3.5 h-3.5 shrink-0", colorClass)} />
           <span className="text-xs text-txt truncate">{node.name}</span>
         </div>
         {node.file.description && (
@@ -83,15 +83,15 @@ function TreeNodeRow({ node, depth, selectedPath, onSelect, heatmap, defaultOpen
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger asChild>
         <button
-          className="w-full flex items-center gap-1.5 px-2 py-1 text-left hover:bg-surface2 transition-colors rounded"
+          className="w-full flex items-center gap-1.5 px-2 py-1 text-left hover:bg-surface2 transition-colors rounded-sm"
           style={{ paddingLeft: indent + 8 }}
         >
           <ChevronRight
-            className={cn("w-3 h-3 text-muted flex-shrink-0 transition-transform duration-200", open && "rotate-90")}
+            className={cn("w-3 h-3 text-muted shrink-0 transition-transform duration-200", open && "rotate-90")}
           />
           {open
-            ? <FolderOpen className="w-3.5 h-3.5 text-accent flex-shrink-0" />
-            : <Folder className="w-3.5 h-3.5 text-muted flex-shrink-0" />
+            ? <FolderOpen className="w-3.5 h-3.5 text-accent shrink-0" />
+            : <Folder className="w-3.5 h-3.5 text-muted shrink-0" />
           }
           <span className="text-xs text-txt font-medium">{node.name}</span>
         </button>

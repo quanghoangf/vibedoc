@@ -43,14 +43,14 @@ export function FileCards({ files, selectedPath, onSelect }: FileCardsProps) {
                   onClick={() => onSelect(file.path)}
                   className={cn(
                     "flex flex-col gap-1.5 p-3 rounded-lg border border-border text-left",
-                    "hover:border-accent/50 hover:bg-surface2 transition-all",
+                    "hover:border-accent/50 hover:bg-surface2 transition-colors",
                     selectedPath === file.path && "border-accent/50 bg-surface2"
                   )}
                 >
                   <div className="flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                    <FileText className="w-3.5 h-3.5 text-accent shrink-0" />
                     <span className="text-xs font-medium text-txt truncate flex-1">{file.name}</span>
-                    <Badge variant={SOURCE_VARIANT[file.source]} className="text-[10px] px-1 py-0 h-4 flex-shrink-0">
+                    <Badge variant={SOURCE_VARIANT[file.source]} className="text-[10px] px-1 py-0 h-4 shrink-0">
                       {SOURCE_LABEL[file.source]}
                     </Badge>
                   </div>

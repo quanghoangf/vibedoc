@@ -13,7 +13,7 @@ marked.setOptions({
 // Intercept mermaid code blocks — emit a div instead of <pre><code>
 marked.use({
   renderer: {
-    code(code: string, lang: string | undefined) {
+    code({ text: code, lang }) {
       if (lang === "mermaid") {
         // HTML-escape so the raw source sits safely as text in the div.
         // The browser decodes entities back when mermaid reads textContent.
@@ -31,7 +31,8 @@ marked.use({
 // Inject id attributes on h1-h6 headings for outline scroll-to
 marked.use({
   renderer: {
-    heading(text: string, level: number) {
+    heading({ tokens, depth: level }) {
+      const text = this.parser.parseInline(tokens)
       // Strip HTML tags before building the anchor slug
       const anchor = text
         .replace(/<[^>]*>/g, "")
