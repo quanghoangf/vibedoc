@@ -1,5 +1,5 @@
 # T035: At-risk flag per epic
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R038 — Epic & horizon progress
 **Size:** M (2–3 hrs)
 **Depends on:** —

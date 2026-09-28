@@ -22,7 +22,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
-import type { RoadmapItem, RoadmapLayout, RoadmapSource, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
+import type { RoadmapItem, RoadmapLayout, RoadmapSource, Task, UpdateRoadmapItemPatch } from "@/types"
 import { dueState, localToday, roadmapHealth, type RoadmapDrift } from "@/lib/roadmap-health"
 import { cn } from "@/lib/utils"
 import { RoadmapTimeline } from "./RoadmapTimeline"
@@ -216,11 +216,7 @@ export function RoadmapTab() {
     () => Object.fromEntries(Object.values(board ?? {}).flat().map((t) => [t.id, t])),
     [board],
   )
-  const health = useMemo(() => {
-    const taskStatus: Record<string, TaskStatus> = {}
-    for (const t of Object.values(tasksById)) taskStatus[t.id] = t.status
-    return roadmapHealth(items, taskStatus, today)
-  }, [items, tasksById, today])
+  const health = useMemo(() => roadmapHealth(items, tasksById, today), [items, tasksById, today])
 
   const shownNodes = useMemo(() => nodes.map((n) => ({
     ...n,
