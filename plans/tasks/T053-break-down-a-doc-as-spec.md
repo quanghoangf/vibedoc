@@ -1,5 +1,5 @@
 # T053: "Break down" on a doc page: the doc is the spec
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R033 — AI-generated task breakdowns
 **Size:** S (~1 hr)
 **Depends on:** T051

@@ -43,6 +43,8 @@ If the chosen epic already has linked tasks, show them and ask whether to **add 
 
 For a new epic, write its body the way `roadmap-planner` does: one outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**, taken from the spec and your interview.
 
+When the spec is a doc (e.g. "Break down the spec in docs/prd/export.md"), read it with `vibedoc_read_doc` instead of asking the user to paste it. Link back to it: put ``Spec: `<path>` `` on its own line in the new epic body and in each task's `## Context`.
+
 ## 2. Understand before asking
 
 Read the context that grounds the questions. Every question should come from something you found, not from a generic checklist.

@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Check, Download, Users } from "lucide-react"
+import { Check, Download, ListTodo, Users } from "lucide-react"
 import CodeMirror from "@uiw/react-codemirror"
 import type { ReactCodeMirrorRef } from "@uiw/react-codemirror"
 import type { Extension } from "@codemirror/state"
@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { EditorToolbar } from "./EditorToolbar"
 import { MarkdownRenderer } from "./MarkdownRenderer"
 import { useApp } from "@/context/AppContext"
+import { askAgent } from "@/lib/ask-agent"
 import type { TextEdit } from "@/lib/diff"
 
 type ViewMode = "edit" | "split" | "preview"
@@ -288,6 +289,17 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
           <Badge variant="secondary" className="h-5 gap-1 text-[10px] px-1.5">
             <Users className="h-3 w-3" />{userCount}
           </Badge>
+        )}
+        {docPath.endsWith(".md") && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Break down with agent"
+                onClick={() => askAgent(`Break down the spec in ${docPath} into tasks.`)}>
+                <ListTodo className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Break down with agent</TooltipContent>
+          </Tooltip>
         )}
         <Tooltip>
           <TooltipTrigger asChild>
