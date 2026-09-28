@@ -9,7 +9,7 @@ const ACTIVITY_ICONS: Record<string, string> = {
   roadmap_updated: "🗺️",
 }
 
-function timeAgo(ts: string): string {
+export function timeAgo(ts: string): string {
   const d = (Date.now() - new Date(ts).getTime()) / 1000
   if (d < 60) return "just now"
   if (d < 3600) return `${Math.floor(d / 60)}m ago`

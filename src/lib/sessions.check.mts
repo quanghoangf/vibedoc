@@ -25,6 +25,7 @@ assert.deepEqual(ls.map(s => s.eventCount), [2, 1, 3])  // newest first
 assert.deepEqual(ls[2].tasks, [{ id: 'T001', lastStatus: 'done' }])
 assert.equal(ls[2].start, at(0))
 assert.equal(ls[2].end, at(20))
+assert.deepEqual(ls[2].eventIds, legacy.slice(3).reverse().map(e => e.id))
 
 // Actors split independently.
 const human = ev(10, 'doc_created', { actor: 'human', detail: 'docs/a.md' })
@@ -50,11 +51,12 @@ const busy = groupSessions([
   ev(6, 'doc_read', { detail: 'docs/e.md' }),
   ev(7, 'decision_logged', { title: 'ADR-004: Use SSE' }),
   ev(8, 'memory_updated'),
+  ev(9, 'roadmap_updated'),
 ])[0]
 assert.deepEqual(busy.docs, ['docs/a.md', 'docs/c.md', 'docs/d.md'])
 assert.deepEqual(busy.decisions, ['ADR-004: Use SSE'])
 assert.equal(busy.memoryUpdated, true)
-assert.equal(busy.headline, '3 tasks moved (2 done) · 3 docs changed · 1 ADR · memory updated')
+assert.equal(busy.headline, '3 tasks moved (2 done) · 3 docs changed · 1 ADR · 1 roadmap edit · memory updated')
 assert.equal(groupSessions([ev(0, 'session_start')])[0].headline, '1 event')
 
 // sessionsForTask

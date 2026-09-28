@@ -13,6 +13,7 @@ export interface Session {
   start: string
   end: string
   eventCount: number
+  eventIds: string[]
   tasks: { id: string; lastStatus: TaskStatus }[]
   docs: string[]
   decisions: string[]
@@ -37,12 +38,14 @@ function summarize(id: string, events: ActivityEvent[]): Session {
   const docs = new Set<string>()
   const decisions: string[] = []
   let memoryUpdated = false
+  let roadmapEdits = 0
   for (const e of events) {
     if (e.type === 'task_updated' && e.taskId && e.taskStatus) tasks.set(e.taskId, e.taskStatus)
     const doc = changedDoc(e)
     if (doc) docs.add(doc)
     if (e.type === 'decision_logged') decisions.push(e.title)
     if (e.type === 'memory_updated') memoryUpdated = true
+    if (e.type === 'roadmap_updated') roadmapEdits++
   }
   const taskList = [...tasks].map(([tid, lastStatus]) => ({ id: tid, lastStatus }))
   const done = taskList.filter(t => t.lastStatus === 'done').length
@@ -50,6 +53,7 @@ function summarize(id: string, events: ActivityEvent[]): Session {
     taskList.length ? `${plural(taskList.length, 'task')} moved${done ? ` (${done} done)` : ''}` : '',
     docs.size ? `${plural(docs.size, 'doc')} changed` : '',
     decisions.length ? plural(decisions.length, 'ADR') : '',
+    roadmapEdits ? plural(roadmapEdits, 'roadmap edit') : '',
     memoryUpdated ? 'memory updated' : '',
   ].filter(Boolean)
   return {
@@ -58,6 +62,7 @@ function summarize(id: string, events: ActivityEvent[]): Session {
     start: events[0].timestamp,
     end: events[events.length - 1].timestamp,
     eventCount: events.length,
+    eventIds: events.map(e => e.id),
     tasks: taskList,
     docs: [...docs],
     decisions,
