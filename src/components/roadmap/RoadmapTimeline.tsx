@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react"
 import { cn } from "@/lib/utils"
 import type { RoadmapItem } from "@/types"
-import { StatusBadge } from "./RoadmapNodes"
+import { StatusDot } from "./RoadmapNodes"
 import { LANE_ROW_H, buildTimeline, formatDay } from "./timeline"
 
 const LANE_LABEL_W = 200
@@ -66,7 +66,7 @@ export function RoadmapTimeline({ items, today, onSelect }: RoadmapTimelineProps
                 className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r border-border bg-surface px-3 text-left hover:bg-surface2"
                 style={{ width: LANE_LABEL_W }}
               >
-                <StatusBadge status={lane.item.status} />
+                <StatusDot status={lane.item.status} />
                 <span className="text-sm font-semibold text-txt leading-snug">{lane.item.title}</span>
               </button>
               <div className="relative" style={{ width: tl.width, height: lane.rows * LANE_ROW_H + 12 }}>
@@ -89,7 +89,7 @@ export function RoadmapTimeline({ items, today, onSelect }: RoadmapTimelineProps
                       />
                     ) : (
                       <span className={cn("rounded-full", mk.state === "overdue" && "ring-2 ring-danger ring-offset-1 ring-offset-bg")}>
-                        <StatusBadge status={mk.item.status} />
+                        <StatusDot status={mk.item.status} />
                       </span>
                     )}
                     <span className="flex max-w-[150px] flex-col text-left">
@@ -130,7 +130,7 @@ export function RoadmapTimeline({ items, today, onSelect }: RoadmapTimelineProps
                 onClick={() => onSelect(i.id)}
                 className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-muted hover:border-accent hover:text-txt"
               >
-                <StatusBadge status={i.status} className="h-3 w-3 border" />
+                <StatusDot status={i.status} />
                 {i.title}
               </button>
             ))}

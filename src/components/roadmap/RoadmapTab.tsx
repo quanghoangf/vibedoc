@@ -22,13 +22,14 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
-import type { RoadmapItem, RoadmapLayout, RoadmapSource, Task, UpdateRoadmapItemPatch } from "@/types"
+import type { RoadmapItem, RoadmapLayout, RoadmapSource, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
+import { pickNextTask } from "@/lib/work-queue"
 import { dueState, localToday, roadmapHealth, taskDueSummary, type RoadmapDrift, type TaskInfo } from "@/lib/roadmap-health"
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { RoadmapTimeline } from "./RoadmapTimeline"
 import { FEATURE_W, HORIZON_W, resolvePositions } from "./layout"
-import { StatusBadge, nodeTypes, type RoadmapNode } from "./RoadmapNodes"
+import { StatusDot, nodeTypes, type RoadmapNode } from "./RoadmapNodes"
 import { RoadmapItemSheet } from "./RoadmapItemSheet"
 import { NewItemDialog } from "./NewItemDialog"
 import { PlanFromSpecDialog } from "./PlanFromSpecDialog"
@@ -87,6 +88,19 @@ function sides(a: RoadmapNode, b: RoadmapNode, horizontal: boolean): [Position, 
   return dy > 0 ? [Position.Bottom, Position.Top] : [Position.Top, Position.Bottom]
 }
 
+/** Spine: solid up to the current horizon, dashed after. Branch: follows the epic (live = animated accent). */
+function edgeStyle(a: RoadmapNode, b: RoadmapNode, spine: boolean): Pick<Edge, "style" | "animated"> {
+  if (spine) {
+    return a.data.item.status === "done"
+      ? { style: { stroke: "var(--color-accent)", strokeWidth: 3 } }
+      : { style: { stroke: "var(--color-border2)", strokeWidth: 3, strokeDasharray: "6 6" } }
+  }
+  const status = b.data.item.status
+  if (status === "in-progress") return { animated: true, style: { stroke: "var(--color-accent)", strokeWidth: 2 } }
+  if (status === "done") return { style: { stroke: "var(--color-border2)", strokeWidth: 1.5 } }
+  return { style: { stroke: "var(--color-border2)", strokeWidth: 1.5, strokeDasharray: "2 5", strokeLinecap: "round" } }
+}
+
 function edge(id: string, a: RoadmapNode, b: RoadmapNode, spine: boolean): Edge {
   const [s, t] = sides(a, b, !spine)
   return {
@@ -97,9 +111,7 @@ function edge(id: string, a: RoadmapNode, b: RoadmapNode, spine: boolean): Edge 
     targetHandle: `${t}-t`,
     type: spine ? "straight" : "default",
     selectable: false,
-    style: spine
-      ? { stroke: "var(--color-accent)", strokeWidth: 4 }
-      : { stroke: "var(--color-accent)", strokeWidth: 2, strokeDasharray: "2 6", strokeLinecap: "round", opacity: 0.7 },
+    ...edgeStyle(a, b, spine),
   }
 }
 
@@ -226,16 +238,34 @@ export function RoadmapTab() {
   )
   const health = useMemo(() => roadmapHealth(items, tasksById, today), [items, tasksById, today])
 
-  const shownNodes = useMemo(() => nodes.map((n) => ({
-    ...n,
-    data: {
-      ...n.data,
-      progress: health.progress[n.id],
-      drift: health.drift.filter((d) => d.id === n.id).map((d) => d.message),
-      dueState: dueState(n.data.item.due, n.data.item.status, today),
-      ...(n.type === "feature" && taskDueFields(n.data.item.tasks, tasksById, today)),
-    },
-  })), [nodes, health, today, tasksById])
+  const shownNodes = useMemo(() => {
+    const allTasks = Object.values(tasksById)
+    // chapters number real horizons only; orphans on the spine get none
+    const chapters = new Map(items.filter((i) => i.parent === null).sort((a, b) => a.order - b.order).map((h, i) => [h.id, i + 1]))
+    return nodes.map((n) => {
+      const { item } = n.data
+      const kids = items.filter((i) => i.parent === item.id)
+      const next = n.type === "feature" && item.status === "in-progress" ? pickNextTask(item, allTasks) : null
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          progress: health.progress[n.id],
+          drift: health.drift.filter((d) => d.id === n.id).map((d) => d.message),
+          dueState: dueState(item.due, item.status, today),
+          ...(n.type === "feature" && {
+            ...taskDueFields(item.tasks, tasksById, today),
+            taskStatuses: item.tasks.map((id) => tasksById[id]?.status).filter((s): s is TaskStatus => !!s && s !== "cancelled"),
+            nextTaskId: next?.kind === "ready" ? next.taskId : null,
+          }),
+          ...(n.type === "horizon" && {
+            chapter: chapters.get(item.id),
+            epics: { done: kids.filter((k) => k.status === "done").length, total: kids.length },
+          }),
+        },
+      }
+    })
+  }, [nodes, items, health, today, tasksById])
 
   const onNodesChange = useCallback(
     (changes: NodeChange<RoadmapNode>[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -404,9 +434,9 @@ export function RoadmapTab() {
             <Controls showInteractive={false} />
             <Panel position="top-left">
               <div className="flex flex-col gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted shadow-sm">
-                <span className="flex items-center gap-2"><StatusBadge status="done" /> Done</span>
-                <span className="flex items-center gap-2"><StatusBadge status="in-progress" /> In progress</span>
-                <span className="flex items-center gap-2"><StatusBadge status="planned" /> Planned</span>
+                <span className="flex items-center gap-2"><StatusDot status="done" /> Done</span>
+                <span className="flex items-center gap-2"><StatusDot status="in-progress" /> In progress</span>
+                <span className="flex items-center gap-2"><StatusDot status="planned" /> Planned</span>
               </div>
             </Panel>
           </ReactFlow>
