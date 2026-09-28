@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import type { Task } from "@/types"
 import { STATUS_ICONS } from "./TaskCard"
+import { TaskSessions } from "./TaskSessions"
 
 const NEXT_STATUS: Record<string, string[]> = {
   todo: ["in-progress"],
@@ -74,6 +75,8 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                 ))}
               </div>
             )}
+
+            <TaskSessions key={task.id} taskId={task.id} onNavigate={onClose} />
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-5 py-4">

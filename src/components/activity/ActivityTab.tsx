@@ -13,10 +13,17 @@ interface ActivityTabProps {
   rootParam: string
   onOpenTask: (taskId: string) => void
   onOpenDoc: (path: string) => void
+  focusSessionId?: string | null
 }
 
-export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc }: ActivityTabProps) {
+export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusSessionId }: ActivityTabProps) {
   const [view, setView] = useState<"sessions" | "events">("sessions")
+  // A new focus target (from a task's Sessions list) always lands on the Sessions view
+  const [lastFocus, setLastFocus] = useState(focusSessionId)
+  if (focusSessionId !== lastFocus) {
+    setLastFocus(focusSessionId)
+    if (focusSessionId) setView("sessions")
+  }
   const [sessions, setSessions] = useState<Session[]>([])
   const [events, setEvents] = useState<Map<string, ActivityEvent>>(new Map())
 
@@ -69,7 +76,7 @@ export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc }: Acti
           subMessage="Connect an AI agent to see real-time updates here."
         />
       ) : view === "sessions" ? (
-        <SessionTimeline sessions={sessions} events={events} onOpenTask={onOpenTask} onOpenDoc={onOpenDoc} />
+        <SessionTimeline key={focusSessionId ?? ""} focusSessionId={focusSessionId} sessions={sessions} events={events} onOpenTask={onOpenTask} onOpenDoc={onOpenDoc} />
       ) : (
         <ActivityFeed activity={activity} />
       )}

@@ -18,9 +18,10 @@ interface SessionTimelineProps {
   events: Map<string, ActivityEvent>
   onOpenTask: (taskId: string) => void
   onOpenDoc: (path: string) => void
+  focusSessionId?: string | null
 }
 
-export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc }: SessionTimelineProps) {
+export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, focusSessionId }: SessionTimelineProps) {
   return (
     <div className="flex flex-col gap-3">
       {sessions.map((s, i) => {
@@ -35,6 +36,7 @@ export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc }: Ses
               events={s.eventIds.flatMap(id => events.get(id) ?? [])}
               onOpenTask={onOpenTask}
               onOpenDoc={onOpenDoc}
+              focused={s.id === focusSessionId}
             />
           </div>
         )

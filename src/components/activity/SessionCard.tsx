@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ActivityEvent, Session } from "@/types"
 import { cn } from "@/lib/utils"
 import { STATUS_BADGE_COLORS } from "@/components/board/TaskCard"
@@ -19,12 +19,17 @@ interface SessionCardProps {
   events: ActivityEvent[]
   onOpenTask: (taskId: string) => void
   onOpenDoc: (path: string) => void
+  focused?: boolean
 }
 
-export function SessionCard({ session, events, onOpenTask, onOpenDoc }: SessionCardProps) {
-  const [open, setOpen] = useState(false)
+export function SessionCard({ session, events, onOpenTask, onOpenDoc, focused = false }: SessionCardProps) {
+  const [open, setOpen] = useState(focused)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: "center" })
+  }, [focused])
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 animate-fade-in">
+    <div ref={ref} className={cn("rounded-lg border bg-surface p-4 animate-fade-in", focused ? "border-accent/60" : "border-border")}>
       <button onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-2 text-left text-xs text-muted font-mono">
         <span className="text-sm">{session.actor === "ai" ? "🤖" : "👤"}</span>
         <span>{session.actor === "ai" ? "Agent" : "Human"}</span>
