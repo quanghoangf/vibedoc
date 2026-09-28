@@ -151,6 +151,30 @@ Needs a human: unblock one of the tasks above.
 
 ---
 
+### `vibedoc_get_roadmap`
+Get the product roadmap: horizons with their epics, statuses, linked tasks, progress and due dates. No parameters.
+
+**Progress** `[N/M done]` is derived from task status, never stored:
+- **Epic:** done tasks / linked tasks (cancelled tasks don't count).
+- **Horizon:** the sum of its epics' task progress. An epic without tasks counts as one unit, done when the epic is `done`.
+
+**At risk** — an epic that is not `done` gets ` ⚠ at risk` on its line, plus an entry under "⚠️ Needs attention" with the reasons, when any of these hold:
+- a linked task is not done and its `**Due:**` is before today → `T040 overdue since 2026-09-20`
+- a linked task is `blocked` → `T041 blocked`
+- the epic is due within 7 days and no linked task is `done` or `in-progress` (or it has no tasks) → `due 2026-10-02, nothing started`
+
+```
+### ◐ **R002** Near-term — in-progress [6/17 done]
+- ◐ **R038** Epic & horizon progress — in-progress (tasks: T035, T036) [1/2 done] ⚠ at risk
+
+### ⚠️ Needs attention
+- R038 "Epic & horizon progress" at risk: T036 blocked
+```
+
+The same rules drive the ⚠ mark and the "need attention" panel on the `/roadmap` page (`src/lib/roadmap-health.ts`).
+
+---
+
 ### `vibedoc_list_docs`
 List all documentation files grouped by section. Use to discover what docs exist before reading or writing.
 

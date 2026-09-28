@@ -703,11 +703,13 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const today = localToday();
       const { progress, drift } = roadmapHealth(items, await taskInfoMap(root), today);
       const icon = { done: "✓", "in-progress": "◐", planned: "○" } as const;
+      const atRisk = new Set(drift.filter((d) => d.kind === "at-risk").map((d) => d.id));
       const fmt = (i: (typeof items)[number]) =>
         `${icon[i.status]} **${i.id}** ${i.title} — ${i.status}` +
         (i.tasks.length ? ` (tasks: ${i.tasks.join(", ")})` : "") +
         (progress[i.id] ? ` [${progress[i.id].done}/${progress[i.id].total} done]` : "") +
-        (i.due ? ` due ${i.due}${dueState(i.due, i.status, today) === "overdue" ? " ⚠ overdue" : ""}` : "");
+        (i.due ? ` due ${i.due}${dueState(i.due, i.status, today) === "overdue" ? " ⚠ overdue" : ""}` : "") +
+        (atRisk.has(i.id) ? " ⚠ at risk" : "");
       const horizons = items.filter((i) => i.parent === null);
       const lines = ["## Roadmap"];
       for (const h of horizons) {

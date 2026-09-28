@@ -1,5 +1,5 @@
 # T038: At-risk tag in vibedoc_get_roadmap + docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R038 — Epic & horizon progress
 **Size:** S (~1 hr)
 **Depends on:** T035, T036
