@@ -70,6 +70,7 @@ Roadmap page `/roadmap` — roadmap.sh-style map built with `@xyflow/react`. Des
 - Types from `@/types` (re-exports core.ts types + UI-specific types)
 - `emitUpdate()` called after all mutations — never from core.ts
 - Roadmap items: `plans/roadmap/R*.md` (`**Parent:**` omitted = horizon, `**Status:**` planned|in-progress|done, `**Order:**`, `**Tasks:**`). Max depth 2.
+- A `breakdown` plan (`vibedoc_propose_plan`) targets an existing `epic`, a `newEpic: {title, parent, body}` created on Accept, or neither (loose tasks, no Phase). Validation lives in `src/lib/plan.ts`.
 - Roadmap positions live ONLY in `plans/roadmap/layout.json` — never x/y in R*.md. Missing entries are auto-placed (`components/roadmap/layout.ts`).
 - Roadmap writes are serialized by an in-process lock (`withRoadmapLock` in core.ts); SSE event name `roadmap_updated`; the roadmap page opens its own EventSource.
 - Roadmap progress/drift is derived, never stored: `src/lib/roadmap-health.ts` (pure; used by the page via AppContext `board` and by MCP `vibedoc_get_roadmap` / the hint after `vibedoc_update_task`). Self-check: `node src/lib/roadmap-health.check.mts`.

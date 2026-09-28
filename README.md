@@ -166,6 +166,8 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | `vibedoc_ask_questions`      | Show 1–4 multiple-choice questions as a card; answers come next turn   |
 | `vibedoc_propose_plan`       | Propose tasks or horizons/epics; the user unchecks and accepts in the UI |
 
+A pasted spec (**Plan from spec** on `/roadmap`) or a doc (the list icon in a doc's header) can also become tasks, under a new epic, an existing one, or no epic.
+
 None of the planning tools write files. Accept in the UI writes the plan. See [Planning from chat](docs/architecture/mcp-tools.md#planning-from-chat).
 
 ---

@@ -1,5 +1,5 @@
 # T054: Docs — planning from a spec
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R033 — AI-generated task breakdowns
 **Size:** S (~1 hr)
 **Depends on:** T052, T053

@@ -268,9 +268,18 @@ Write a new Architecture Decision Record (ADR) when making a significant technic
 
 ## Planning from chat
 
-The chat sidebar can plan a roadmap or break an epic into tasks. The agent never writes files while it plans: it asks questions, proposes a plan, and the user accepts it in the UI.
+The chat sidebar can plan a roadmap, break an epic into tasks, or turn a feature spec into tasks. The agent never writes files while it plans: it asks questions, proposes a plan, and the user accepts it in the UI.
 
-Start it from the UI: **Plan with agent** on an empty `/roadmap`, or **Break down with agent** in an epic's detail sheet (shown when the epic has no tasks). Both open the chat and send the request. You can also just ask in the chat.
+Start it from the UI. Each entry point opens the chat and sends the request. You can also just ask in the chat.
+
+| Entry point | Where | Sends |
+|---|---|---|
+| **Plan with agent** | empty `/roadmap` | "Plan a roadmap for this project." |
+| **Break down with agent** | an epic's detail sheet (epic has no tasks) | "Break down epic R0NN into tasks." |
+| **Plan from spec** | `/roadmap` toolbar (and the empty state) | a dialog to paste a spec → "Break down this spec into tasks: …" |
+| **Break down with agent** (list icon) | a `.md` doc's header | "Break down the spec in `<path>` into tasks." |
+
+For a spec, the agent first asks where the tasks go: a **new epic** under a horizon, an **existing epic**, or **no epic** (loose tasks). A spec that lives in a doc is read with `vibedoc_read_doc`, and the new epic and tasks get a ``Spec: `<path>` `` line that links back to it.
 
 ```
 1. vibedoc_get_planning_guide { kind }   ← "roadmap" or "breakdown"; returns the steps to follow
@@ -329,7 +338,8 @@ Propose a plan for the user to review. The server validates it against the curre
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `plan.kind` | `"breakdown"` \| `"roadmap"` | ✅ | Which kind of plan |
-| `plan.epic` | string | breakdown | Epic id, e.g. `R004` (not a horizon) |
+| `plan.epic` | string | breakdown, optional | Existing epic id, e.g. `R004` (not a horizon) |
+| `plan.newEpic` | `{title, parent, body}` | breakdown, optional | Create this epic with the tasks. `parent` is an existing horizon id. Not together with `epic` |
 | `plan.tasks` | `{key, title, size?, dependsOn?, due?, body}[]` | breakdown | New tasks |
 | `plan.horizons` | `{key, title, body?}[]` | roadmap | New horizons (no parent) |
 | `plan.epics` | `{key, title, parent, body}[]` | roadmap | New epics |
@@ -337,9 +347,10 @@ Propose a plan for the user to review. The server validates it against the curre
 - `key` is stable within the plan (`t1`, `h1`, `e1`). It becomes a real id (`T042`, `R044`) on apply.
 - Task `size`: `S (~1 hr)` \| `M (2–3 hrs)` \| `L (half day)`. `due`: `YYYY-MM-DD`. `body`: the full markdown below the meta block (`## Goal`, `## Context`, `## Scope`, `## Files`, `## Acceptance criteria`, `## Verify`).
 - Task `dependsOn`: keys of earlier tasks in this plan, or existing task ids (`"T030"`).
+- Breakdown target: `epic` (an existing epic), `newEpic` (create one), or neither (loose tasks, written with no phase). Validation errors: both set; `newEpic` parent missing, not found, or an epic (max depth 2); `newEpic` title missing or already used under that horizon; `newEpic` body not a string.
 - Epic `parent`: an existing horizon id (`R002`) or a horizon key in this plan (`h1`). Epic `body`: one outcome sentence, a blank line, then `**In scope:**` / `**Out of scope:**` / `**Done when:**`.
 
-**Returns:** a one-line summary ("Proposed 5 tasks for R040…"). Invalid plans return an error that lists every problem.
+**Returns:** a one-line summary ("Proposed 5 tasks for R040…", "…for new epic "Export"…", "…for no epic…"). Invalid plans return an error that lists every problem.
 
 **Writes:** nothing. Files are written only when the user clicks Accept, which calls `POST /api/plan/apply`.
 
@@ -352,8 +363,8 @@ Not an MCP tool: the plan card calls this REST route on Accept. Honors `?root=`.
 
 **Behavior:**
 - Re-validates the plan against the current files. A checked item that depends on an unchecked one is an error (a task on an unchecked task, an epic under an unchecked horizon).
-- `breakdown`: creates `plans/tasks/T*.md` for the checked tasks (phase = the epic, keys in `dependsOn` mapped to the new ids) and appends the new ids to the epic's `**Tasks:**` line.
+- `breakdown`: with `newEpic`, first creates the epic (`planned`, under its horizon). Then creates `plans/tasks/T*.md` for the checked tasks (phase = the epic, keys in `dependsOn` mapped to the new ids) and appends the new ids to the epic's `**Tasks:**` line. With no epic, the tasks are written with no phase and no roadmap file changes. Not atomic: if a task write fails after the new epic is created, the epic stays with no tasks.
 - `roadmap`: creates the checked horizons, then the checked epics under them, as `plans/roadmap/R*.md`.
-- Emits `task_created` per new task (breakdown) and `roadmap_updated`.
+- Emits `task_created` per new task (breakdown), and `roadmap_updated` when a roadmap item was created or linked.
 
 **Returns:** `200 { created: [{ key, id, file }] }`, or `400 { error }` on validation errors.
