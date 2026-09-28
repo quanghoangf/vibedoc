@@ -50,6 +50,8 @@
   --animate-fade-in: fadeIn var(--duration-slow) var(--ease-out-soft);
   --animate-slide-in: slideIn var(--duration-slow) var(--ease-out-soft);
   --animate-pulse-dot: pulseDot 2s ease-in-out infinite;
+  --animate-grow-x: growX 600ms var(--ease-out-soft) both;
+  --animate-flash: flash 1.2s var(--ease-out-soft);
 
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
@@ -58,6 +60,14 @@
   @keyframes slideIn {
     from { opacity: 0; transform: translateX(-8px); }
     to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes growX {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+  @keyframes flash {
+    from { box-shadow: 0 0 0 3px rgb(var(--rgb-accent) / 0.35); }
+    to   { box-shadow: 0 0 0 0 rgb(var(--rgb-accent) / 0); }
   }
   @keyframes pulseDot {
     0%, 100% { opacity: 0.4; transform: scale(0.8); }

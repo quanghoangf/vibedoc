@@ -104,6 +104,22 @@ export function sessionDuration(s: Pick<Session, 'start' | 'end'>): string {
   return min < 60 ? `${min}m` : `${Math.floor(min / 60)}h ${min % 60}m`
 }
 
+/** A session still receiving events (last one within `windowMs`). */
+export function isLive(s: Pick<Session, 'end'>, now = Date.now(), windowMs = 5 * 60 * 1000): boolean {
+  return now - Date.parse(s.end) < windowMs
+}
+
+/** Totals for the "catch up" strip: sessions that ended at or after `sinceMs`. */
+export function catchUp(sessions: Session[], sinceMs: number) {
+  const recent = sessions.filter(s => Date.parse(s.end) >= sinceMs)
+  return {
+    sessions: recent.length,
+    tasksDone: new Set(recent.flatMap(s => s.tasks.filter(t => t.lastStatus === 'done').map(t => t.id))).size,
+    docs: new Set(recent.flatMap(s => s.docs)).size,
+    decisions: recent.reduce((n, s) => n + s.decisions.length, 0),
+  }
+}
+
 export function sessionsForTask(sessions: Session[], taskId: string): Session[] {
   return sessions.filter(s => s.tasks.some(t => t.id === taskId))
 }

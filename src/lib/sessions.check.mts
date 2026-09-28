@@ -1,7 +1,7 @@
 // Self-check for sessions. Run: node src/lib/sessions.check.mts
 import assert from 'node:assert/strict'
 import type { ActivityEvent } from './core'
-import { groupSessions, sessionDuration, sessionsForTask } from './sessions.ts'
+import { catchUp, groupSessions, isLive, sessionDuration, sessionsForTask } from './sessions.ts'
 
 let n = 0
 const at = (min: number) => new Date(Date.UTC(2026, 8, 28, 9, 0) + min * 60_000).toISOString()
@@ -61,6 +61,12 @@ assert.equal(groupSessions([ev(0, 'session_start')])[0].headline, '1 event')
 
 assert.equal(sessionDuration({ start: at(0), end: at(0) }), '<1m')
 assert.equal(sessionDuration({ start: at(0), end: at(95) }), '1h 35m')
+
+// isLive / catchUp
+assert.equal(isLive({ end: at(0) }, Date.parse(at(4))), true)
+assert.equal(isLive({ end: at(0) }, Date.parse(at(6))), false)
+assert.deepEqual(catchUp(ls, Date.parse(at(60))), { sessions: 2, tasksDone: 1, docs: 0, decisions: 0 })
+assert.deepEqual(catchUp([busy, busy], 0), { sessions: 2, tasksDone: 2, docs: 3, decisions: 2 })
 
 // sessionsForTask
 assert.equal(sessionsForTask(ls, 'T001').length, 1)

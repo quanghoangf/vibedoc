@@ -788,8 +788,9 @@ export async function listExplorerFiles(root: string): Promise<ExplorerFile[]> {
   }))
 }
 
-// ponytail: current session per root+actor lives in memory; a server restart starts a new session.
-const currentSessions = new Map<string, { id: string; lastAt: number }>()
+// ponytail: current session per root+actor lives in memory (on globalThis so dev HMR keeps it); a server restart starts a new session.
+const globalForSessions = globalThis as unknown as { vibedocSessions?: Map<string, { id: string; lastAt: number }> }
+const currentSessions = globalForSessions.vibedocSessions ?? (globalForSessions.vibedocSessions = new Map())
 
 function stampSession(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp'>, now: number): string {
   const key = `${root}\0${event.actor}`
