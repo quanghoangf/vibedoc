@@ -3,14 +3,9 @@
 import { useEffect, useRef, useState } from "react"
 import type { ActivityEvent, Session } from "@/types"
 import { cn } from "@/lib/utils"
+import { sessionDuration } from "@/lib/sessions"
 import { STATUS_BADGE_COLORS } from "@/components/board/TaskCard"
 import { ActivityEventRow, timeAgo } from "./ActivityEventRow"
-
-function duration(s: Session): string {
-  const min = Math.round((Date.parse(s.end) - Date.parse(s.start)) / 60_000)
-  if (min < 1) return "<1m"
-  return min < 60 ? `${min}m` : `${Math.floor(min / 60)}h ${min % 60}m`
-}
 
 const chip = "text-xs font-mono px-1.5 py-0.5 rounded-sm border hover:bg-surface2 truncate max-w-full"
 
@@ -34,7 +29,7 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, focused = 
         <span className="text-sm">{session.actor === "ai" ? "🤖" : "👤"}</span>
         <span>{session.actor === "ai" ? "Agent" : "Human"}</span>
         <span>· {timeAgo(session.start)}</span>
-        <span>· {duration(session)}</span>
+        <span>· {sessionDuration(session)}</span>
         <span>· {session.eventCount} event{session.eventCount === 1 ? "" : "s"}</span>
         <span className="ml-auto">{open ? "▾" : "▸"}</span>
       </button>

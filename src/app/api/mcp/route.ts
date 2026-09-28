@@ -32,6 +32,7 @@ import {
   readMemory,
   updateMemory,
   logSessionStart,
+  readActivity,
   findBacklinks,
   appendDoc,
   renameDoc,
@@ -54,6 +55,7 @@ import type { TextEdit } from "@/lib/diff";
 import { validatePlan, type Plan } from "@/lib/plan";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
+import { groupSessions, sessionDuration, sessionsForTask } from "@/lib/sessions";
 import { dueState, localToday, roadmapHealth, type TaskInfo } from "@/lib/roadmap-health";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
@@ -80,6 +82,20 @@ const TOOLS = [
     description:
       "Get project status overview: active tasks, blockers, doc count, memory. Call this at session start.",
     inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "vibedoc_get_sessions",
+    description:
+      "Agent and human sessions grouped from the activity log, newest first: who, when, tasks moved, docs changed, ADRs. Call at session start to see what happened recently.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Max sessions to return (default 10)" },
+        taskId: { type: "string", description: 'Only sessions that moved this task, e.g. "T003"' },
+        since: { type: "string", description: "ISO timestamp; only sessions that ended at or after it" },
+      },
+      required: [],
+    },
   },
   {
     name: "vibedoc_read_doc",
@@ -576,7 +592,29 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         lines.push("", "**Blocked:**");
         s.tasks.blocked.forEach((t) => lines.push(`  🚫 ${t.id}: ${t.title}`));
       }
+      lines.push("", "_See vibedoc_get_sessions for what happened recently._");
       return lines.join("\n");
+    }
+
+    case "vibedoc_get_sessions": {
+      const limit = Number(args.limit) || 10;
+      const since = args.since ? String(args.since) : null;
+      let sessions = groupSessions(await readActivity(root, 2000));
+      if (args.taskId) sessions = sessionsForTask(sessions, String(args.taskId));
+      if (since) {
+        const t = Date.parse(since);
+        if (Number.isNaN(t)) return `Invalid "since": ${since} (expected an ISO timestamp)`;
+        sessions = sessions.filter((x) => Date.parse(x.end) >= t);
+      }
+      sessions = sessions.slice(0, limit);
+      if (!sessions.length) return "No sessions" + (args.taskId ? ` touched ${args.taskId}` : "") + (since ? ` since ${since}` : "") + ".";
+      return sessions.map((x) => [
+        `### ${x.actor === "ai" ? "🤖 Agent" : "👤 Human"} · ${x.start} (${sessionDuration(x)})`,
+        x.headline,
+        ...x.tasks.map((t) => `- ${t.id} → ${t.lastStatus}`),
+        ...x.docs.map((d) => `- 📄 ${d}`),
+        ...x.decisions.map((d) => `- 📝 ${d}`),
+      ].join("\n")).join("\n\n");
     }
 
     case "vibedoc_read_doc": {

@@ -98,6 +98,12 @@ export function groupSessions(events: ActivityEvent[], opts: { gapMs?: number } 
     .sort((a, b) => b.start.localeCompare(a.start))
 }
 
+export function sessionDuration(s: Pick<Session, 'start' | 'end'>): string {
+  const min = Math.round((Date.parse(s.end) - Date.parse(s.start)) / 60_000)
+  if (min < 1) return '<1m'
+  return min < 60 ? `${min}m` : `${Math.floor(min / 60)}h ${min % 60}m`
+}
+
 export function sessionsForTask(sessions: Session[], taskId: string): Session[] {
   return sessions.filter(s => s.tasks.some(t => t.id === taskId))
 }

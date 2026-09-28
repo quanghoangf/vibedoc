@@ -1,7 +1,7 @@
 // Self-check for sessions. Run: node src/lib/sessions.check.mts
 import assert from 'node:assert/strict'
 import type { ActivityEvent } from './core'
-import { groupSessions, sessionsForTask } from './sessions.ts'
+import { groupSessions, sessionDuration, sessionsForTask } from './sessions.ts'
 
 let n = 0
 const at = (min: number) => new Date(Date.UTC(2026, 8, 28, 9, 0) + min * 60_000).toISOString()
@@ -58,6 +58,9 @@ assert.deepEqual(busy.decisions, ['ADR-004: Use SSE'])
 assert.equal(busy.memoryUpdated, true)
 assert.equal(busy.headline, '3 tasks moved (2 done) · 3 docs changed · 1 ADR · 1 roadmap edit · memory updated')
 assert.equal(groupSessions([ev(0, 'session_start')])[0].headline, '1 event')
+
+assert.equal(sessionDuration({ start: at(0), end: at(0) }), '<1m')
+assert.equal(sessionDuration({ start: at(0), end: at(95) }), '1h 35m')
 
 // sessionsForTask
 assert.equal(sessionsForTask(ls, 'T001').length, 1)
