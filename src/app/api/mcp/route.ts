@@ -54,7 +54,7 @@ import type { TextEdit } from "@/lib/diff";
 import { validatePlan, type Plan } from "@/lib/plan";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
-import { dueState, localToday, roadmapHealth } from "@/lib/roadmap-health";
+import { dueState, localToday, roadmapHealth, type TaskInfo } from "@/lib/roadmap-health";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
 // Implements the JSON-RPC 2.0 MCP protocol directly.
@@ -536,9 +536,9 @@ const PLANNING_PREAMBLE = `You are running this planning skill inside the VibeDo
 
 `;
 
-async function taskStatusMap(root: string): Promise<Record<string, TaskStatus>> {
+async function taskInfoMap(root: string): Promise<Record<string, TaskInfo>> {
   const { tasks } = await listTasks(root);
-  return Object.fromEntries(tasks.map((t) => [t.id, t.status]));
+  return Object.fromEntries(tasks.map((t) => [t.id, { status: t.status, due: t.due }]));
 }
 
 /** After a task move, point the agent at roadmap items linking it that are now out of sync. */
@@ -546,7 +546,7 @@ async function roadmapHint(root: string, taskId: string): Promise<string> {
   const { items } = await listRoadmap(root);
   const linked = new Set(items.filter((i) => i.tasks.includes(taskId)).map((i) => i.id));
   if (!linked.size) return "";
-  const { drift } = roadmapHealth(items, await taskStatusMap(root), localToday());
+  const { drift } = roadmapHealth(items, await taskInfoMap(root), localToday());
   const hits = drift.filter((d) => d.suggestedStatus && linked.has(d.id));
   if (!hits.length) return "";
   return "\n\n🗺️ Roadmap out of sync:\n" + hits
@@ -680,7 +680,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const { result, task, previousStatus } = await claimNextTask(epicId, root);
       if (result.kind === "finished") {
         const { items } = await listRoadmap(root);
-        const statuses = await taskStatusMap(root);
+        const statuses = await taskInfoMap(root);
         const epic = items.find((i) => i.id === epicId.toUpperCase());
         const id = epic?.id ?? epicId.toUpperCase();
         const n = epic ? epic.tasks.filter((t) => t in statuses).length : 0;
@@ -865,13 +865,15 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const { items } = await listRoadmap(root);
       if (items.length === 0) return "No roadmap items yet (plans/roadmap/ is empty).";
       const today = localToday();
-      const { progress, drift } = roadmapHealth(items, await taskStatusMap(root), today);
+      const { progress, drift } = roadmapHealth(items, await taskInfoMap(root), today);
       const icon = { done: "✓", "in-progress": "◐", planned: "○" } as const;
+      const atRisk = new Set(drift.filter((d) => d.kind === "at-risk").map((d) => d.id));
       const fmt = (i: (typeof items)[number]) =>
         `${icon[i.status]} **${i.id}** ${i.title} — ${i.status}` +
         (i.tasks.length ? ` (tasks: ${i.tasks.join(", ")})` : "") +
         (progress[i.id] ? ` [${progress[i.id].done}/${progress[i.id].total} done]` : "") +
-        (i.due ? ` due ${i.due}${dueState(i.due, i.status, today) === "overdue" ? " ⚠ overdue" : ""}` : "");
+        (i.due ? ` due ${i.due}${dueState(i.due, i.status, today) === "overdue" ? " ⚠ overdue" : ""}` : "") +
+        (atRisk.has(i.id) ? " ⚠ at risk" : "");
       const horizons = items.filter((i) => i.parent === null);
       const lines = ["## Roadmap"];
       for (const h of horizons) {

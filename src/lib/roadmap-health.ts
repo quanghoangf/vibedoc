@@ -4,13 +4,16 @@
  * A feature's expected status comes from its linked tasks; a horizon's from its features.
  */
 
-import type { RoadmapItem, RoadmapStatus, TaskStatus } from './core'
+import type { RoadmapItem, RoadmapStatus, Task } from './core'
+
+/** What health needs from a task: status for progress, due for at-risk. */
+export type TaskInfo = Pick<Task, 'status' | 'due'>
 
 export interface RoadmapProgress { done: number; total: number }
 
 export interface RoadmapDrift {
   id: string
-  kind: 'status-mismatch' | 'missing-task' | 'overdue'
+  kind: 'status-mismatch' | 'missing-task' | 'overdue' | 'at-risk'
   message: string
   suggestedStatus?: RoadmapStatus
 }
@@ -50,8 +53,36 @@ function expectedStatus(states: Started[]): RoadmapStatus {
   return 'planned'
 }
 
+export interface TaskDueSummary { overdue: number; next: string | null }
+
+/** Open tasks' deadlines for a map node: how many are overdue, and the nearest upcoming due. */
+export function taskDueSummary(taskIds: string[], tasks: Record<string, TaskInfo>, today: string): TaskDueSummary | null {
+  const dues = taskIds
+    .map(id => tasks[id])
+    .filter(t => t && t.due && t.status !== 'done' && t.status !== 'cancelled')
+    .map(t => t.due as string)
+  if (!dues.length) return null
+  const upcoming = dues.filter(d => d >= today).sort()
+  return { overdue: dues.length - upcoming.length, next: upcoming[0] ?? null }
+}
+
+/** Why an unfinished epic may miss its date: overdue or blocked tasks, or due soon with nothing started. */
+function atRiskReasons(item: RoadmapItem, linked: string[], tasks: Record<string, TaskInfo>, today: string): string[] {
+  const reasons: string[] = []
+  for (const id of linked) {
+    const t = tasks[id]
+    if (t.status !== 'done' && t.due && t.due < today) reasons.push(`${id} overdue since ${t.due}`)
+    if (t.status === 'blocked') reasons.push(`${id} blocked`)
+  }
+  const started = linked.some(id => tasks[id].status === 'done' || tasks[id].status === 'in-progress')
+  if (item.due && dueState(item.due, item.status, today) === 'soon' && !started) {
+    reasons.push(`due ${item.due}, nothing started`)
+  }
+  return reasons
+}
+
 export function roadmapHealth(
-  items: RoadmapItem[], taskStatus: Record<string, TaskStatus>, today: string,
+  items: RoadmapItem[], tasks: Record<string, TaskInfo>, today: string,
 ): RoadmapHealth {
   const progress: Record<string, RoadmapProgress> = {}
   const drift: RoadmapDrift[] = []
@@ -65,19 +96,23 @@ export function roadmapHealth(
 
   for (const item of items) {
     if (item.parent === null) continue
-    const missing = item.tasks.filter(t => !(t in taskStatus))
+    const missing = item.tasks.filter(t => !(t in tasks))
     if (missing.length) {
       drift.push({ id: item.id, kind: 'missing-task', message: `${item.id} links unknown task ${missing.join(', ')}` })
     }
     // cancelled tasks don't count toward progress or expected status
-    const linked = item.tasks.filter(t => t in taskStatus && taskStatus[t] !== 'cancelled')
+    const linked = item.tasks.filter(t => t in tasks && tasks[t].status !== 'cancelled')
+    const risks = item.status === 'done' ? [] : atRiskReasons(item, linked, tasks, today)
+    if (risks.length) {
+      drift.push({ id: item.id, kind: 'at-risk', message: `${item.id} "${item.title}" at risk: ${risks.join('; ')}` })
+    }
     if (!linked.length) continue
     const states: Started[] = linked.map(t =>
-      taskStatus[t] === 'done' ? 'done' : taskStatus[t] === 'in-progress' ? 'in-progress' : 'other')
+      tasks[t].status === 'done' ? 'done' : tasks[t].status === 'in-progress' ? 'in-progress' : 'other')
     progress[item.id] = { done: states.filter(s => s === 'done').length, total: linked.length }
     const expected = expectedStatus(states)
     if (expected !== item.status) {
-      const open = linked.filter(t => taskStatus[t] !== 'done')
+      const open = linked.filter(t => tasks[t].status !== 'done')
       drift.push({
         id: item.id,
         kind: 'status-mismatch',
@@ -94,7 +129,11 @@ export function roadmapHealth(
     const kids = items.filter(i => i.parent === h.id)
     if (!kids.length) continue
     const states: Started[] = kids.map(k => k.status === 'done' ? 'done' : k.status === 'in-progress' ? 'in-progress' : 'other')
-    progress[h.id] = { done: states.filter(s => s === 'done').length, total: kids.length }
+    // weight by tasks; an epic not broken down yet counts as one unit
+    progress[h.id] = kids.reduce((sum, k) => {
+      const p = progress[k.id] ?? { done: k.status === 'done' ? 1 : 0, total: 1 }
+      return { done: sum.done + p.done, total: sum.total + p.total }
+    }, { done: 0, total: 0 })
     const expected = expectedStatus(states)
     if (expected !== h.status) {
       drift.push({

@@ -22,8 +22,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
-import type { RoadmapItem, RoadmapLayout, RoadmapSource, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
-import { dueState, localToday, roadmapHealth, type RoadmapDrift } from "@/lib/roadmap-health"
+import type { RoadmapItem, RoadmapLayout, RoadmapSource, Task, UpdateRoadmapItemPatch } from "@/types"
+import { dueState, localToday, roadmapHealth, taskDueSummary, type RoadmapDrift, type TaskInfo } from "@/lib/roadmap-health"
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { RoadmapTimeline } from "./RoadmapTimeline"
@@ -48,6 +48,11 @@ async function api<T>(url: string, body?: unknown): Promise<ApiResult<T>> {
   } catch {
     return { error: "Could not reach the server" }
   }
+}
+
+function taskDueFields(taskIds: string[], tasks: Record<string, TaskInfo>, today: string) {
+  const taskDue = taskDueSummary(taskIds, tasks, today)
+  return { taskDue, taskDueSoon: !!taskDue?.next && dueState(taskDue.next, "planned", today) === "soon" }
 }
 
 function buildNodes(items: RoadmapItem[], layout: RoadmapLayout, prev: RoadmapNode[]): RoadmapNode[] {
@@ -217,11 +222,7 @@ export function RoadmapTab() {
     () => Object.fromEntries(Object.values(board ?? {}).flat().map((t) => [t.id, t])),
     [board],
   )
-  const health = useMemo(() => {
-    const taskStatus: Record<string, TaskStatus> = {}
-    for (const t of Object.values(tasksById)) taskStatus[t.id] = t.status
-    return roadmapHealth(items, taskStatus, today)
-  }, [items, tasksById, today])
+  const health = useMemo(() => roadmapHealth(items, tasksById, today), [items, tasksById, today])
 
   const shownNodes = useMemo(() => nodes.map((n) => ({
     ...n,
@@ -230,8 +231,9 @@ export function RoadmapTab() {
       progress: health.progress[n.id],
       drift: health.drift.filter((d) => d.id === n.id).map((d) => d.message),
       dueState: dueState(n.data.item.due, n.data.item.status, today),
+      ...(n.type === "feature" && taskDueFields(n.data.item.tasks, tasksById, today)),
     },
-  })), [nodes, health, today])
+  })), [nodes, health, today, tasksById])
 
   const onNodesChange = useCallback(
     (changes: NodeChange<RoadmapNode>[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
