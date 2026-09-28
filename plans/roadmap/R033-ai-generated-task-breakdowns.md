@@ -2,6 +2,6 @@
 **Parent:** R004
 **Status:** planned
 **Order:** 20
-**Tasks:** —
+**Tasks:** T051, T052, T053, T054
 
 Paste a feature spec, get a set of task files.
