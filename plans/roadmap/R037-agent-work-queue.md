@@ -1,6 +1,6 @@
 # R037: Agent work queue
 **Parent:** R002
-**Status:** planned
+**Status:** done
 **Order:** 50
 **Tasks:** T030, T031, T032, T033, T034
 
