@@ -25,7 +25,8 @@ export function PlanCard({ proposal, onResolve }: {
   const tasks: PlanTask[] = plan.kind === "breakdown" ? plan.tasks : []
   const horizons = plan.kind === "roadmap" ? plan.horizons ?? [] : []
   const epics: PlanEpic[] = plan.kind === "roadmap" ? plan.epics ?? [] : []
-  const epicId = plan.kind === "breakdown" ? plan.epic.toUpperCase() : ""
+  const epicId = plan.kind === "breakdown" ? (plan.epic ?? "").trim().toUpperCase() : ""
+  const newEpic = plan.kind === "breakdown" ? plan.newEpic : undefined
   const [titles, setTitles] = useState<Map<string, string>>(new Map())
   const [unchecked, setUnchecked] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState<string | null>(null)
@@ -95,8 +96,19 @@ export function PlanCard({ proposal, onResolve }: {
         <span className="text-[10px] font-mono uppercase tracking-widest text-muted">Plan</span>
         {plan.kind === "breakdown" ? (
           <>
-            <span className="text-xs font-mono text-accent">{epicId}</span>
-            <span className="text-xs text-txt truncate">{titles.get(epicId) ?? ""}</span>
+            {epicId ? (
+              <>
+                <span className="text-xs font-mono text-accent">{epicId}</span>
+                <span className="text-xs text-txt truncate">{titles.get(epicId) ?? ""}</span>
+              </>
+            ) : newEpic ? (
+              <span className="text-xs text-txt truncate">
+                New epic: {newEpic.title}
+                <span className="text-muted"> (under {newEpic.parent.trim().toUpperCase()} {titles.get(newEpic.parent.trim().toUpperCase()) ?? ""})</span>
+              </span>
+            ) : (
+              <span className="text-xs text-muted">No epic</span>
+            )}
             <span className="ml-auto text-[10px] font-mono text-muted">{tasks.length} tasks</span>
           </>
         ) : (

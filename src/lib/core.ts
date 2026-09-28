@@ -511,10 +511,10 @@ function checkPlan(plan: unknown, selected: unknown, items: RoadmapItem[], taskI
 /**
  * Write the selected items of a plan. Validates again against the current files.
  * breakdown: plan keys become real T ids in order (so `dependsOn` keys are written as those ids) and are
- * linked to the epic; runs under the task-claim lock so ids can't collide with next_task or another apply.
+ * linked to the epic (an existing one, or `newEpic` created first; neither = loose tasks, no Phase); runs under the task-claim lock so ids can't collide with next_task or another apply.
  * roadmap: horizons first (keys → R ids), then epics under their resolved parent; order and status use
  * createRoadmapItem's defaults (after the last sibling, step 10; planned). Runs under the roadmap lock.
- * `epic` is the breakdown's epic, null for a roadmap plan.
+ * `epic` is the breakdown's epic, null for a roadmap plan or loose tasks.
  */
 export function applyPlan(
   plan: unknown, selected: unknown, root: string, actor: 'ai' | 'human' = 'human'
@@ -545,14 +545,20 @@ export function applyPlan(
     const sel = checkPlan(plan, selected, items, tasks.map(t => t.id))
     if (sel.kind !== 'breakdown') throw new RoadmapError('expected a breakdown plan')
 
-    const epic = await getRoadmapItem(sel.epic, root)
+    // Roadmap lock inside the task lock: same order as updateRoadmapItem below.
+    // ponytail: not atomic; a failure after the new epic is written leaves it with no tasks.
+    const epic = sel.epic?.trim() ? await getRoadmapItem(sel.epic, root)
+      : sel.newEpic ? await createRoadmapItem({
+        title: sel.newEpic.title.trim(), parent: sel.newEpic.parent.trim().toUpperCase(), body: sel.newEpic.body,
+      }, root, actor)
+      : null
     const ids = new Map<string, string>()
     const created: { key: string; id: string; file: string }[] = []
     for (const t of sel.tasks) {
       const deps = (t.dependsOn ?? []).map(d => ids.get(d.trim()) ?? d.trim().toUpperCase())
       const task = await createTaskUnlocked({
         title: t.title.trim(),
-        phase: `${epic.id} — ${epic.title}`,
+        phase: epic ? `${epic.id} — ${epic.title}` : undefined,
         size: t.size,
         dependsOn: deps.join(', ') || undefined,
         due: t.due,
@@ -562,6 +568,7 @@ export function applyPlan(
       created.push({ key: t.key, id: task.id, file: task.file })
     }
 
+    if (!epic) return { created, epic: null }
     const fresh = await getRoadmapItem(epic.id, root)
     const updated = await updateRoadmapItem(epic.id, { tasks: [...fresh.tasks, ...created.map(c => c.id)] }, root, actor)
     return { created, epic: updated }

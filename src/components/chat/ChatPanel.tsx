@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { ProposalCard, type Proposal, type ProposalStatus } from "./ProposalCard"
 import { PlanCard, type PlanCreated, type PlanProposal, type PlanStatus } from "./PlanCard"
 import { QuestionCard, formatAnswers, isRenderableQuestions, type Question, type QuestionSet } from "./QuestionCard"
-import { asRenderablePlan } from "@/lib/plan"
+import { asRenderablePlan, planTarget } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
 import { ASK_AGENT_EVENT } from "@/lib/ask-agent"
 
@@ -198,7 +198,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   }
 
   function resolvePlan(p: PlanProposal, status: PlanStatus, created: PlanCreated[], unchecked: string[]) {
-    const epic = p.plan.kind === "breakdown" ? p.plan.epic.toUpperCase() : "the roadmap"
+    const epic = p.plan.kind === "breakdown" ? planTarget(p.plan) : "the roadmap"
     notesRef.current.push(status === "accepted"
       ? `User accepted plan for ${epic}: created ${created.map((c) => c.id).join(", ")}${unchecked.length ? ` (unchecked: ${unchecked.join(", ")})` : ""}.`
       : `User rejected the plan for ${epic}.`)

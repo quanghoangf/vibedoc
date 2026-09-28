@@ -12,8 +12,10 @@ export interface PlanTask {
 }
 export interface PlanHorizon { key: string; title: string; body?: string }
 export interface PlanEpic { key: string; title: string; parent: string; status?: RoadmapStatus; body: string } // parent: existing horizon id or a horizon key
+export interface PlanNewEpic { title: string; parent: string; body: string } // parent: existing horizon id
+/** breakdown: exactly one of `epic` (existing) or `newEpic`, or neither (loose tasks, no Phase). */
 export type Plan =
-  | { kind: 'breakdown'; epic: string; tasks: PlanTask[] }
+  | { kind: 'breakdown'; epic?: string; newEpic?: PlanNewEpic; tasks: PlanTask[] }
   | { kind: 'roadmap'; horizons: PlanHorizon[]; epics: PlanEpic[] }
 
 export interface PlanContext { roadmap: RoadmapItem[]; taskIds: string[] }
@@ -28,6 +30,24 @@ function isDate(raw: string): boolean {
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '')
 
+/** Where a breakdown's tasks go, for one-line summaries: "R002", `new epic "X"`, or "no epic". */
+export function planTarget(plan: Extract<Plan, { kind: 'breakdown' }>): string {
+  if (str(plan.epic)) return str(plan.epic).toUpperCase()
+  return plan.newEpic ? `new epic "${str(plan.newEpic.title)}"` : 'no epic'
+}
+
+/** An existing roadmap item that can parent an epic (a horizon), else the reason it can't. */
+function resolveHorizon(parent: string, roadmap: RoadmapItem[], missing = 'is not an existing roadmap item'): { id: string } | { error: string } {
+  const p = roadmap.find(r => r.id === parent.toUpperCase())
+  if (!p) return { error: `parent "${parent}" ${missing}` }
+  if (p.parent !== null) return { error: `parent ${p.id} is an epic, not a horizon (max depth is 2)` }
+  return { id: p.id }
+}
+
+/** Id of an existing item with this title under `parent` ('' = horizon level), case-insensitive. */
+const titleTaken = (roadmap: RoadmapItem[], parent: string, title: string) =>
+  roadmap.find(i => (i.parent ?? '') === parent && i.title.trim().toLowerCase() === title.toLowerCase())?.id
+
 /**
  * Just enough shape for the chat UI to render a proposal before the server has validated it
  * (the tool_use streams in before its tool_result). Returns null for anything a card can't draw.
@@ -37,7 +57,9 @@ export function asRenderablePlan(p: unknown): Plan | null {
   const items = (v: unknown, need: string[]) => Array.isArray(v) && v.every(x =>
     isObj(x) && need.every(k => typeof x[k] === 'string') && (x.dependsOn === undefined || Array.isArray(x.dependsOn)))
   if (p.kind === 'breakdown') {
-    return typeof p.epic === 'string' && items(p.tasks, ['key', 'title']) && (p.tasks as unknown[]).length > 0
+    const target = p.epic === undefined || typeof p.epic === 'string'
+    const newEpic = p.newEpic === undefined || (isObj(p.newEpic) && typeof p.newEpic.title === 'string' && typeof p.newEpic.parent === 'string')
+    return target && newEpic && items(p.tasks, ['key', 'title']) && (p.tasks as unknown[]).length > 0
       ? (p as unknown as Plan) : null
   }
   if (p.kind === 'roadmap') {
@@ -56,9 +78,30 @@ export function validatePlan(plan: unknown, ctx: PlanContext): string[] {
 
   const errors: string[] = []
   const epicId = str(plan.epic).toUpperCase()
-  const epic = ctx.roadmap.find(i => i.id === epicId)
-  if (!epic) errors.push(`Epic ${JSON.stringify(plan.epic)} not found`)
-  else if (!epic.parent) errors.push(`${epic.id} is a horizon, not an epic; pass an epic id`)
+  if (plan.epic !== undefined && typeof plan.epic !== 'string') errors.push('epic must be a string (an epic id)')
+  else if (epicId && plan.newEpic !== undefined) errors.push('pass either epic (an existing epic) or newEpic, not both')
+  else if (epicId) {
+    const epic = ctx.roadmap.find(i => i.id === epicId)
+    if (!epic) errors.push(`Epic ${JSON.stringify(plan.epic)} not found`)
+    else if (!epic.parent) errors.push(`${epic.id} is a horizon, not an epic; pass an epic id`)
+  } else if (plan.newEpic !== undefined) {
+    const e = plan.newEpic
+    if (!isObj(e)) errors.push('newEpic must be an object { title, parent, body }')
+    else {
+      const title = str(e.title), parent = str(e.parent)
+      if (!title) errors.push('newEpic: title is required')
+      if (typeof e.body !== 'string') errors.push('newEpic: body must be a markdown string')
+      if (!parent) errors.push('newEpic: parent is required (an existing horizon id)')
+      else {
+        const h = resolveHorizon(parent, ctx.roadmap)
+        if ('error' in h) errors.push(`newEpic: ${h.error}`)
+        else if (title) {
+          const other = titleTaken(ctx.roadmap, h.id, title)
+          if (other) errors.push(`newEpic: "${title}" already exists under ${h.id} (${other})`)
+        }
+      }
+    }
+  }
 
   if (!Array.isArray(plan.tasks) || plan.tasks.length === 0) {
     errors.push('tasks must be a non-empty array')
@@ -149,11 +192,10 @@ function validateRoadmapPlan(plan: Record<string, unknown>, ctx: PlanContext): s
   es.forEach((e, i) => checkKey(e, `epic #${i + 1}`, false))
 
   // Titles are unique per level (spine, or one horizon), against existing items and within the plan.
-  const seen = new Map<string, string>() // "parent\0title" → who has it
-  for (const i of ctx.roadmap) seen.set(`${i.parent ?? ''}\0${i.title.trim().toLowerCase()}`, i.id)
+  const seen = new Map<string, string>() // "parent\0title" → who in this plan has it
   const claimTitle = (parent: string, title: string, label: string) => {
     const k = `${parent}\0${title.toLowerCase()}`
-    const other = seen.get(k)
+    const other = titleTaken(ctx.roadmap, parent, title) ?? seen.get(k)
     if (other) errors.push(`${label}: "${title}" already exists ${parent ? `under ${parent}` : 'as a horizon'} (${other})`)
     else seen.set(k, label)
   }
@@ -182,10 +224,9 @@ function validateRoadmapPlan(plan: Record<string, unknown>, ctx: PlanContext): s
     else if (horizonKeys.has(parent)) parentId = parent
     else if (keys.has(parent)) errors.push(`${label}: parent "${parent}" is an epic in this plan; an epic's parent must be a horizon`)
     else {
-      const p = ctx.roadmap.find(r => r.id === parent.toUpperCase())
-      if (!p) errors.push(`${label}: parent "${parent}" is neither a horizon key in this plan nor an existing roadmap item`)
-      else if (p.parent !== null) errors.push(`${label}: parent ${p.id} is an epic, not a horizon (max depth is 2)`)
-      else parentId = p.id
+      const h = resolveHorizon(parent, ctx.roadmap, 'is neither a horizon key in this plan nor an existing roadmap item')
+      if ('id' in h) parentId = h.id
+      else errors.push(`${label}: ${h.error}`)
     }
     if (title && parentId) claimTitle(parentId, title, label)
   })

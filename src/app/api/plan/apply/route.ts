@@ -9,11 +9,11 @@ export async function POST(req: NextRequest) {
     const { plan, selected } = await jsonBody(req)
     const root = rootOf(req)
     const { created, epic } = await applyPlan(plan, selected, root)
-    if (epic) {
-      for (const c of created) emitUpdate('task_created', { task: await getTask(c.id, root) })
-      emitUpdate('roadmap_updated', { kind: 'update', id: epic.id })
-    } else {
+    if ((plan as { kind?: unknown } | null)?.kind === 'roadmap') {
       emitUpdate('roadmap_updated', { kind: 'create', ids: created.map(c => c.id) })
+    } else {
+      for (const c of created) emitUpdate('task_created', { task: await getTask(c.id, root) })
+      if (epic) emitUpdate('roadmap_updated', { kind: 'update', id: epic.id })
     }
     return NextResponse.json({ created })
   } catch (e) {

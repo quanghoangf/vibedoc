@@ -35,6 +35,14 @@ Read the file. If what you read is a horizon (it has no `**Parent:**`), say so a
 
 If the chosen epic already has linked tasks, show them and ask whether to **add the missing tasks** or **stop**. Never rewrite existing task files, because an agent may already be working from them.
 
+**A spec instead of an epic:** the user pastes a feature spec (or describes a feature) rather than naming an epic. Use the spec as the epic body in the steps below, and first ask one single-select question about where the tasks go:
+
+- **New epic under <horizon>** (Recommended when a horizon fits, e.g. the in-progress one): name the horizon id and a proposed epic title.
+- **Under an existing epic:** name the closest one if there is one.
+- **Loose tasks, no epic:** the tasks go on the board without a Phase.
+
+For a new epic, write its body the way `roadmap-planner` does: one outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**, taken from the spec and your interview.
+
 ## 2. Understand before asking
 
 Read the context that grounds the questions. Every question should come from something you found, not from a generic checklist.
@@ -101,7 +109,7 @@ Ask a single-select question: **Create tasks** (Recommended) / **Adjust**. If th
 
 ## 5. Write the tasks
 
-**In the VibeDoc chat** (you have `vibedoc_propose_plan`): don't write anything yourself. Put every task (`kind: "breakdown"`, with each task's full body) in one `vibedoc_propose_plan` call. The user's Accept writes the task files and links them to the epic, so skip the rest of this step.
+**In the VibeDoc chat** (you have `vibedoc_propose_plan`): don't write anything yourself. Put every task (`kind: "breakdown"`, with each task's full body) in one `vibedoc_propose_plan` call, with `epic` for an existing epic, `newEpic: { title, parent, body }` for a new one, or neither for loose tasks. The user's Accept writes the task files (and the new epic) and links them, so skip the rest of this step.
 
 Continue the numbering from the highest existing `T` id, padded to 3 digits. Write the files to `plans/tasks/T<NNN>-<kebab-slug>.md`. There is no MCP tool that creates tasks, so write the files directly.
 

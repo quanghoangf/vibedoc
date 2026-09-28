@@ -1,7 +1,7 @@
 // Self-check for the plan model. Run: node src/lib/plan.check.mts
 import assert from 'node:assert/strict'
 import type { RoadmapItem } from './core'
-import { asRenderablePlan, selectPlan, validatePlan, type Plan, type PlanTask } from './plan.ts'
+import { asRenderablePlan, planTarget, selectPlan, validatePlan, type Plan, type PlanTask } from './plan.ts'
 
 const item = (id: string, parent: string | null): RoadmapItem =>
   ({ id, title: id, parent, status: 'planned', order: 10, tasks: [], due: null, body: '', file: `${id}.md` })
@@ -98,5 +98,28 @@ assert.equal(asRenderablePlan({ kind: 'breakdown', epic: 'R002' }), null)
 assert.equal(asRenderablePlan({ kind: 'roadmap', epics: [{ key: 'e1', title: 'E', body: 'x' }] }), null)
 assert.deepEqual(asRenderablePlan({ kind: 'roadmap', epics: [{ key: 'e1', title: 'E', parent: 'R001', body: 'x' }] }),
   { kind: 'roadmap', horizons: [], epics: [{ key: 'e1', title: 'E', parent: 'R001', body: 'x' }] })
+
+// ── breakdown from a spec: newEpic, or no epic ──
+const ne = (extra: Record<string, unknown> = {}) => ({ kind: 'breakdown', newEpic: { title: 'Spec import', parent: 'r003', body: 'Outcome.' }, tasks: [t('t1'), t('t2', ['t1'])], ...extra })
+assert.deepEqual(validatePlan(ne(), rctx), [])
+assert.deepEqual(validatePlan({ kind: 'breakdown', tasks: [t('t1')] }, rctx), [])          // loose tasks
+assert.deepEqual(validatePlan({ kind: 'breakdown', epic: '', tasks: [t('t1')] }, rctx), []) // "" = no epic
+assert.deepEqual(validatePlan(ne({ epic: 'R004' }), rctx), ['pass either epic (an existing epic) or newEpic, not both'])
+assert.deepEqual(validatePlan(ne({ newEpic: { title: 'X', parent: 'R004', body: '' } }), rctx), ['newEpic: parent R004 is an epic, not a horizon (max depth is 2)'])
+assert.deepEqual(validatePlan(ne({ newEpic: { title: 'X', parent: 'R9', body: '' } }), rctx), ['newEpic: parent "R9" is not an existing roadmap item'])
+assert.deepEqual(validatePlan(ne({ newEpic: { title: 'billing', parent: 'R003', body: '' } }), rctx), ['newEpic: "billing" already exists under R003 (R004)'])
+assert.deepEqual(validatePlan(ne({ newEpic: { parent: 'R003' } }), rctx), ['newEpic: title is required', 'newEpic: body must be a markdown string'])
+assert.deepEqual(validatePlan(ne({ newEpic: 'x' }), rctx), ['newEpic must be an object { title, parent, body }'])
+// selection keeps newEpic
+const neSel = selectPlan(ne() as Plan, ['t1'])
+assert.deepEqual(neSel.errors, [])
+assert.equal(neSel.plan.kind === 'breakdown' && neSel.plan.newEpic?.title, 'Spec import')
+// rendering + one-line target
+assert.ok(asRenderablePlan(ne()))
+assert.ok(asRenderablePlan({ kind: 'breakdown', tasks: [t('t1')] }))
+assert.equal(asRenderablePlan({ kind: 'breakdown', newEpic: { title: 'X' }, tasks: [t('t1')] }), null) // parent still streaming
+assert.equal(planTarget(ne() as Extract<Plan, { kind: 'breakdown' }>), 'new epic "Spec import"')
+assert.equal(planTarget({ kind: 'breakdown', tasks: [] }), 'no epic')
+assert.equal(planTarget({ kind: 'breakdown', epic: ' r002 ', tasks: [] }), 'R002')
 
 console.log('plan: ok')

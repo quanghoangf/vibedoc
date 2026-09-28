@@ -52,7 +52,7 @@ import {
   type UpdateRoadmapItemPatch,
 } from "@/lib/core";
 import type { TextEdit } from "@/lib/diff";
-import { validatePlan, type Plan } from "@/lib/plan";
+import { planTarget, validatePlan, type Plan } from "@/lib/plan";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
 import { groupSessions, sessionDuration, sessionsForTask } from "@/lib/sessions";
@@ -315,7 +315,7 @@ const TOOLS = [
   {
     name: "vibedoc_propose_plan",
     description:
-      "Propose a plan for the user to review: kind \"breakdown\" (tasks for an epic: epic + tasks) or kind \"roadmap\" (new horizons and epics: horizons + epics; an epic's parent is an existing horizon id or a horizon key in this plan; epic body = one outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**). Does NOT write anything: the user sees the plan in the UI, can uncheck items, and accepts. Validated against the current files; on errors, fix the plan and call again. Each task body is the full markdown below the meta block (## Goal, ## Context, ## Scope, ## Files, ## Acceptance criteria, ## Verify). dependsOn lists keys of earlier tasks in this plan or existing task ids (\"T030\").",
+      "Propose a plan for the user to review: kind \"breakdown\" (tasks: pass epic for an existing epic, newEpic to create the epic with the tasks, or neither for loose tasks with no epic) or kind \"roadmap\" (new horizons and epics: horizons + epics; an epic's parent is an existing horizon id or a horizon key in this plan; epic body = one outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**). Does NOT write anything: the user sees the plan in the UI, can uncheck items, and accepts. Validated against the current files; on errors, fix the plan and call again. Each task body is the full markdown below the meta block (## Goal, ## Context, ## Scope, ## Files, ## Acceptance criteria, ## Verify). dependsOn lists keys of earlier tasks in this plan or existing task ids (\"T030\").",
     inputSchema: {
       type: "object",
       properties: {
@@ -323,7 +323,17 @@ const TOOLS = [
           type: "object",
           properties: {
             kind: { type: "string", enum: ["breakdown", "roadmap"] },
-            epic: { type: "string", description: "breakdown: epic id, e.g. R004 (not a horizon)" },
+            epic: { type: "string", description: "breakdown: existing epic id, e.g. R004 (not a horizon). Omit with newEpic or for loose tasks" },
+            newEpic: {
+              type: "object",
+              description: "breakdown from a spec: create this epic and link the tasks to it (not together with epic)",
+              properties: {
+                title: { type: "string" },
+                parent: { type: "string", description: "Existing horizon id, e.g. R002" },
+                body: { type: "string", description: "One outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**" },
+              },
+              required: ["title", "parent", "body"],
+            },
             horizons: {
               type: "array",
               description: "roadmap: new horizons (no parent)",
@@ -812,7 +822,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       if (plan.kind === "roadmap") {
         return `📋 Proposed ${(plan.horizons ?? []).length} horizons and ${(plan.epics ?? []).length} epics. The user reviews and accepts in the UI; nothing is written yet.`;
       }
-      return `📋 Proposed ${plan.tasks.length} tasks for ${plan.epic.trim().toUpperCase()}. The user reviews and accepts in the UI; nothing is written yet.`;
+      return `📋 Proposed ${plan.tasks.length} tasks for ${planTarget(plan)}. The user reviews and accepts in the UI; nothing is written yet.`;
     }
 
     case "vibedoc_ask_questions": {
