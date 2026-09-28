@@ -18,11 +18,14 @@ import "@xyflow/react/dist/style.css"
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
 import { AlertTriangle, Plus } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
 import type { RoadmapItem, RoadmapLayout, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
-import { roadmapHealth, type RoadmapDrift } from "@/lib/roadmap-health"
+import { dueState, localToday, roadmapHealth, type RoadmapDrift } from "@/lib/roadmap-health"
+import { cn } from "@/lib/utils"
+import { RoadmapTimeline } from "./RoadmapTimeline"
 import { FEATURE_W, HORIZON_W, resolvePositions } from "./layout"
 import { StatusBadge, nodeTypes, type RoadmapNode } from "./RoadmapNodes"
 import { RoadmapItemSheet } from "./RoadmapItemSheet"
@@ -103,6 +106,17 @@ const FLOW_STYLE = { "--xy-background-color": "var(--color-bg)" } as React.CSSPr
 
 export function RoadmapTab() {
   const { rootParam, openDoc, board } = useApp()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const view = searchParams.get("view") === "timeline" ? "timeline" : "map"
+  const setView = (v: "map" | "timeline") => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (v === "map") params.delete("view")
+    else params.set("view", v)
+    const qs = params.toString()
+    router.replace(qs ? `/roadmap?${qs}` : "/roadmap")
+  }
+  const today = localToday()
   const [items, setItems] = useState<RoadmapItem[]>([])
   const [layout, setLayout] = useState<RoadmapLayout>({})
   const [nodes, setNodes] = useState<RoadmapNode[]>([])
@@ -197,8 +211,8 @@ export function RoadmapTab() {
   const health = useMemo(() => {
     const taskStatus: Record<string, TaskStatus> = {}
     for (const t of Object.values(board ?? {}).flat()) taskStatus[t.id] = t.status
-    return roadmapHealth(items, taskStatus)
-  }, [items, board])
+    return roadmapHealth(items, taskStatus, today)
+  }, [items, board, today])
 
   const shownNodes = useMemo(() => nodes.map((n) => ({
     ...n,
@@ -206,8 +220,9 @@ export function RoadmapTab() {
       ...n.data,
       progress: health.progress[n.id],
       drift: health.drift.filter((d) => d.id === n.id).map((d) => d.message),
+      dueState: dueState(n.data.item.due, n.data.item.status, today),
     },
-  })), [nodes, health])
+  })), [nodes, health, today])
 
   const onNodesChange = useCallback(
     (changes: NodeChange<RoadmapNode>[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -287,49 +302,70 @@ export function RoadmapTab() {
   }
 
   return (
-    <div ref={containerRef} className="relative flex-1 min-h-0">
-      <ReactFlow<RoadmapNode>
-        nodes={shownNodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onNodeClick={(_, n) => setSelectedId(n.id)}
-        onNodeDragStart={() => { draggingRef.current = true }}
-        onNodeDragStop={(_, __, dragged) => onDragStop(dragged)}
-        nodesConnectable={false}
-        deleteKeyCode={null}
-        colorMode={isDark ? "dark" : "light"}
-        onInit={showTop}
-        minZoom={0.2}
-        style={FLOW_STYLE}
-      >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-        <Controls showInteractive={false} />
-        <Panel position="top-left">
-          <div className="flex flex-col gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted shadow-sm">
-            <span className="flex items-center gap-2"><StatusBadge status="done" /> Done</span>
-            <span className="flex items-center gap-2"><StatusBadge status="in-progress" /> In progress</span>
-            <span className="flex items-center gap-2"><StatusBadge status="planned" /> Planned</span>
-          </div>
-          {health.drift.length > 0 && (
-            <DriftPanel
-              drift={health.drift}
-              onSelect={setSelectedId}
-              onApply={(d) => d.suggestedStatus && saveItem(d.id, { status: d.suggestedStatus }).then((err) => { if (err) setError(err) })}
-            />
-          )}
-        </Panel>
-        <Panel position="top-right">
+    <div className="relative flex flex-1 min-h-0 flex-col">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-1.5">
+        <div className="flex rounded-md border border-border p-0.5 text-xs">
+          {(["map", "timeline"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              className={cn(
+                "rounded-sm px-3 py-1 capitalize",
+                view === v ? "bg-surface2 text-txt" : "text-muted hover:text-txt",
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          {error && <p className="text-xs text-danger">{error}</p>}
           <Button size="sm" onClick={() => setCreateParent("")} className="bg-accent text-white hover:bg-accent/90">
             <Plus /> Horizon
           </Button>
-        </Panel>
-        {error && (
-          <Panel position="bottom-center">
-            <p className="rounded-md border border-danger/40 bg-surface px-3 py-1.5 text-xs text-danger">{error}</p>
-          </Panel>
-        )}
-      </ReactFlow>
+        </div>
+      </div>
+
+      {view === "map" ? (
+        <div ref={containerRef} className="relative flex-1 min-h-0">
+          <ReactFlow<RoadmapNode>
+            nodes={shownNodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodesChange={onNodesChange}
+            onNodeClick={(_, n) => setSelectedId(n.id)}
+            onNodeDragStart={() => { draggingRef.current = true }}
+            onNodeDragStop={(_, __, dragged) => onDragStop(dragged)}
+            nodesConnectable={false}
+            deleteKeyCode={null}
+            colorMode={isDark ? "dark" : "light"}
+            onInit={showTop}
+            minZoom={0.2}
+            style={FLOW_STYLE}
+          >
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+            <Controls showInteractive={false} />
+            <Panel position="top-left">
+              <div className="flex flex-col gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-xs text-muted shadow-sm">
+                <span className="flex items-center gap-2"><StatusBadge status="done" /> Done</span>
+                <span className="flex items-center gap-2"><StatusBadge status="in-progress" /> In progress</span>
+                <span className="flex items-center gap-2"><StatusBadge status="planned" /> Planned</span>
+              </div>
+            </Panel>
+          </ReactFlow>
+        </div>
+      ) : (
+        <RoadmapTimeline items={items} today={today} onSelect={setSelectedId} />
+      )}
+
+      {health.drift.length > 0 && (
+        <DriftPanel
+          drift={health.drift}
+          onSelect={setSelectedId}
+          onApply={(d) => d.suggestedStatus && saveItem(d.id, { status: d.suggestedStatus }).then((err) => { if (err) setError(err) })}
+        />
+      )}
       <RoadmapItemSheet
         item={selected}
         items={items}
@@ -350,11 +386,11 @@ function DriftPanel({ drift, onSelect, onApply }: {
   onApply: (d: RoadmapDrift) => void
 }) {
   return (
-    <div className="mt-2 w-72 rounded-md border border-amber/50 bg-surface text-xs shadow-sm">
-      <p className="flex items-center gap-1.5 border-b border-border px-3 py-2 font-medium text-amber">
-        <AlertTriangle className="h-3.5 w-3.5" /> {drift.length} out of sync with tasks
-      </p>
-      <ul className="max-h-60 overflow-y-auto">
+    <details open className="absolute right-3 top-14 z-30 w-72 rounded-md border border-amber/50 bg-surface text-xs shadow-sm">
+      <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 font-medium text-amber">
+        <AlertTriangle className="h-3.5 w-3.5" /> {drift.length} need attention
+      </summary>
+      <ul className="max-h-60 overflow-y-auto border-t border-border">
         {drift.map((d) => (
           <li key={`${d.id}-${d.kind}`} className="flex items-start gap-2 border-b border-border px-3 py-2 last:border-0">
             <button type="button" onClick={() => onSelect(d.id)} className="flex-1 text-left text-muted hover:text-txt">
@@ -373,6 +409,6 @@ function DriftPanel({ drift, onSelect, onApply }: {
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   )
 }

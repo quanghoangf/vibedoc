@@ -41,6 +41,7 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEdit
   const [parent, setParent] = useState(item.parent ?? "")
   const [order, setOrder] = useState(String(item.order))
   const [tasks, setTasks] = useState(item.tasks.join(", "))
+  const [due, setDue] = useState(item.due ?? "")
   const [body, setBody] = useState(item.body)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -76,6 +77,7 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEdit
     }
     const nextTasks = tasks.split(",").map((t) => t.trim()).filter(Boolean)
     if (nextTasks.join(",") !== base.tasks.join(",")) patch.tasks = nextTasks
+    if ((due || null) !== base.due) patch.due = due || null
     if (body !== base.body) patch.body = body
     if (Object.keys(patch).length === 0) {
       onClose()
@@ -136,6 +138,23 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onAddFeature, onEdit
           />
         </label>
       </div>
+
+      <label className="flex flex-col gap-1">
+        <span className={LABEL}>Due</span>
+        <div className="flex items-center gap-2">
+          <Input
+            type="date"
+            value={due}
+            onChange={(e) => setDue(e.target.value)}
+            className="bg-bg border-border text-txt scheme-light dark:scheme-dark"
+          />
+          {due && (
+            <button type="button" onClick={() => setDue("")} className="text-xs text-muted hover:text-txt">
+              Clear
+            </button>
+          )}
+        </div>
+      </label>
 
       <label className="flex flex-col gap-1">
         <span className={LABEL}>Tasks</span>

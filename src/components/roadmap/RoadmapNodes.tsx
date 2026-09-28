@@ -4,12 +4,15 @@ import { Handle, Position, type Node, type NodeProps } from "@xyflow/react"
 import { AlertTriangle, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { RoadmapItem, RoadmapStatus } from "@/types"
+import type { DueState } from "@/lib/roadmap-health"
+import { formatDay } from "./timeline"
 import { FEATURE_W, HORIZON_W } from "./layout"
 
 export type RoadmapNodeData = {
   item: RoadmapItem
   progress?: { done: number; total: number }  // derived, never persisted
   drift?: string[]
+  dueState?: DueState | null
 }
 export type RoadmapNode = Node<RoadmapNodeData, "horizon" | "feature">
 
@@ -59,6 +62,20 @@ function Progress({ progress }: { progress?: RoadmapNodeData["progress"] }) {
   )
 }
 
+function DueChip({ due, state }: { due: string | null; state?: DueState | null }) {
+  if (!due) return null
+  return (
+    <p
+      className={cn(
+        "mt-0.5 font-mono text-[10px]",
+        state === "overdue" ? "text-danger" : state === "soon" ? "text-amber" : "text-muted",
+      )}
+    >
+      Due {formatDay(due)}
+    </p>
+  )
+}
+
 function DriftMark({ drift }: { drift?: string[] }) {
   if (!drift?.length) return null
   return (
@@ -79,6 +96,7 @@ export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
     >
       <Handles />
       <p className="text-base font-semibold text-txt leading-snug">{data.item.title}</p>
+      <DueChip due={data.item.due} state={data.dueState} />
       <Progress progress={data.progress} />
       <DriftMark drift={data.drift} />
       <StatusBadge status={data.item.status} className="absolute -right-2.5 -top-2.5" />
@@ -98,6 +116,7 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
     >
       <Handles />
       <p className="text-sm text-txt leading-snug">{item.title}</p>
+      <DueChip due={item.due} state={data.dueState} />
       {item.tasks.length > 0 && (
         <div className="mt-1 flex flex-wrap justify-center gap-1">
           {item.tasks.map((t) => (

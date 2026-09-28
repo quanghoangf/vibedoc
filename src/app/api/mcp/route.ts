@@ -48,7 +48,7 @@ import {
 } from "@/lib/core";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
-import { roadmapHealth } from "@/lib/roadmap-health";
+import { dueState, localToday, roadmapHealth } from "@/lib/roadmap-health";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
 // Implements the JSON-RPC 2.0 MCP protocol directly.
@@ -349,6 +349,7 @@ const TOOLS = [
         status: { type: "string", enum: ["planned", "in-progress", "done"] },
         order: { type: "number", description: "Sort key (steps of 10). Defaults to last among siblings." },
         tasks: { type: "array", items: { type: "string" }, description: 'Linked task ids, e.g. ["T001"]' },
+        due: { type: "string", description: "Due date YYYY-MM-DD (optional)" },
         body: { type: "string", description: "Markdown description" },
       },
       required: ["title"],
@@ -367,6 +368,7 @@ const TOOLS = [
         status: { type: "string", enum: ["planned", "in-progress", "done"] },
         order: { type: "number" },
         tasks: { type: "array", items: { type: "string" } },
+        due: { type: ["string", "null"], description: "Due date YYYY-MM-DD; null clears it" },
         body: { type: "string" },
       },
       required: ["id"],
@@ -384,7 +386,7 @@ async function roadmapHint(root: string, taskId: string): Promise<string> {
   const { items } = await listRoadmap(root);
   const linked = new Set(items.filter((i) => i.tasks.includes(taskId)).map((i) => i.id));
   if (!linked.size) return "";
-  const { drift } = roadmapHealth(items, await taskStatusMap(root));
+  const { drift } = roadmapHealth(items, await taskStatusMap(root), localToday());
   const hits = drift.filter((d) => d.suggestedStatus && linked.has(d.id));
   if (!hits.length) return "";
   return "\n\n🗺️ Roadmap out of sync:\n" + hits
@@ -621,12 +623,14 @@ async function handleTool(name: string, args: Record<string, unknown>) {
     case "vibedoc_get_roadmap": {
       const { items } = await listRoadmap(root);
       if (items.length === 0) return "No roadmap items yet (plans/roadmap/ is empty).";
-      const { progress, drift } = roadmapHealth(items, await taskStatusMap(root));
+      const today = localToday();
+      const { progress, drift } = roadmapHealth(items, await taskStatusMap(root), today);
       const icon = { done: "✓", "in-progress": "◐", planned: "○" } as const;
       const fmt = (i: (typeof items)[number]) =>
         `${icon[i.status]} **${i.id}** ${i.title} — ${i.status}` +
         (i.tasks.length ? ` (tasks: ${i.tasks.join(", ")})` : "") +
-        (progress[i.id] ? ` [${progress[i.id].done}/${progress[i.id].total} done]` : "");
+        (progress[i.id] ? ` [${progress[i.id].done}/${progress[i.id].total} done]` : "") +
+        (i.due ? ` due ${i.due}${dueState(i.due, i.status, today) === "overdue" ? " ⚠ overdue" : ""}` : "");
       const horizons = items.filter((i) => i.parent === null);
       const lines = ["## Roadmap"];
       for (const h of horizons) {
@@ -639,7 +643,7 @@ async function handleTool(name: string, args: Record<string, unknown>) {
         for (const o of orphans) lines.push(`- ${fmt(o)} (parent: ${o.parent})`);
       }
       if (drift.length) {
-        lines.push("", "### ⚠️ Out of sync with tasks");
+        lines.push("", "### ⚠️ Needs attention");
         for (const d of drift) lines.push(`- ${d.message}${d.suggestedStatus ? ` → suggest status "${d.suggestedStatus}"` : ""}`);
       }
       return lines.join("\n");

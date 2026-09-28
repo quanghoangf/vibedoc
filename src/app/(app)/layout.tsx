@@ -76,7 +76,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <AppSidebar board={board} />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <AppHeader
           summary={summary}
           projects={projects}

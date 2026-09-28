@@ -959,6 +959,7 @@ export interface RoadmapItem {
   status: RoadmapStatus
   order: number
   tasks: string[]       // ["T001", "T012"]
+  due: string | null    // "2026-10-15" — a calendar date, not an instant; compare as strings
   body: string          // markdown after the metadata block
   file: string          // path relative to root
 }
@@ -971,6 +972,7 @@ export interface CreateRoadmapItemParams {
   status?: RoadmapStatus
   order?: number
   tasks?: string[]
+  due?: string | null
   body?: string
 }
 
@@ -1024,6 +1026,21 @@ function cleanTitle(title: unknown): string {
   return t
 }
 
+/** A real calendar date "YYYY-MM-DD" (rejects 2026-02-30), else null. */
+function parseDue(raw: string): string | null {
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return null
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]))
+  return d.toISOString().slice(0, 10) === raw ? raw : null
+}
+
+function cleanDue(due: unknown): string | null {
+  if (due === null || due === '') return null
+  const d = typeof due === 'string' ? parseDue(due.trim()) : null
+  if (!d) throw new RoadmapError(`due must be a date YYYY-MM-DD (got ${JSON.stringify(due)})`)
+  return d
+}
+
 function cleanOrder(order: unknown): number {
   const n = Number(order)
   if (typeof order !== 'number' || !Number.isFinite(n)) throw new RoadmapError('order must be a finite number')
@@ -1068,6 +1085,7 @@ function parseRoadmapFile(file: string, content: string): RoadmapItem {
     status,
     order: Number.isFinite(order) ? order : 0,
     tasks: (meta['tasks'] || '').split(/[,\s]+/).map(t => t.toUpperCase()).filter(t => /^T\d+$/.test(t)),
+    due: parseDue(meta['due'] || ''),
     body: lines.slice(metaEnd).join('\n').trim(),
     file,
   }
@@ -1149,6 +1167,7 @@ async function createRoadmapItemUnlocked(
   const status = params.status === undefined ? 'planned' : parseRoadmapStatus(params.status)
   const tasks = params.tasks === undefined ? [] : parseTaskIds(params.tasks)
   const body = params.body === undefined ? '' : cleanBody(params.body)
+  const due = params.due === undefined ? null : cleanDue(params.due)
   const items = (await readRoadmapFiles(root)).map(f => f.item)
 
   const parent = params.parent == null || params.parent === '' ? null : normalizeRoadmapId(params.parent)
@@ -1170,6 +1189,7 @@ async function createRoadmapItemUnlocked(
     `**Status:** ${status}`,
     `**Order:** ${order}`,
     `**Tasks:** ${formatTasks(tasks)}`,
+    ...(due ? [`**Due:** ${due}`] : []),
     '',
   ]
   const content = lines.join('\n') + (body ? `\n${body}\n` : '')
@@ -1200,6 +1220,7 @@ async function updateRoadmapItemUnlocked(
   const order = p.order === undefined ? undefined : cleanOrder(p.order)
   const tasks = p.tasks === undefined ? undefined : parseTaskIds(p.tasks)
   const body = p.body === undefined ? undefined : cleanBody(p.body)
+  const due = p.due === undefined ? undefined : cleanDue(p.due)
   let parent: string | null | undefined
   if (p.parent !== undefined) {
     parent = p.parent === null || p.parent === '' ? null : normalizeRoadmapId(p.parent)
@@ -1236,6 +1257,7 @@ async function updateRoadmapItemUnlocked(
   if (status !== undefined) setMeta('Status', status)
   if (order !== undefined) setMeta('Order', String(order))
   if (tasks !== undefined) setMeta('Tasks', formatTasks(tasks))
+  if (due !== undefined) setMeta('Due', due)
   if (body !== undefined) {
     rest = body ? ['', body, ''] : ['']
   }

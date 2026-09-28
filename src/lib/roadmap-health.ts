@@ -10,7 +10,7 @@ export interface RoadmapProgress { done: number; total: number }
 
 export interface RoadmapDrift {
   id: string
-  kind: 'status-mismatch' | 'missing-task'
+  kind: 'status-mismatch' | 'missing-task' | 'overdue'
   message: string
   suggestedStatus?: RoadmapStatus
 }
@@ -18,6 +18,28 @@ export interface RoadmapDrift {
 export interface RoadmapHealth {
   progress: Record<string, RoadmapProgress>
   drift: RoadmapDrift[]
+}
+
+export type DueState = 'overdue' | 'soon' | 'ok' | 'done'
+
+const SOON_DAYS = 7
+
+/** Local calendar date "YYYY-MM-DD" (due dates are calendar dates, not instants). */
+export function localToday(now = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`
+}
+
+function daysBetween(from: string, to: string): number {
+  const utc = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10))
+  return Math.round((utc(to) - utc(from)) / 86_400_000)
+}
+
+export function dueState(due: string | null, status: RoadmapStatus, today: string): DueState | null {
+  if (!due) return null
+  if (status === 'done') return 'done'
+  if (due < today) return 'overdue'
+  return daysBetween(today, due) <= SOON_DAYS ? 'soon' : 'ok'
 }
 
 type Started = 'done' | 'in-progress' | 'other'
@@ -28,9 +50,17 @@ function expectedStatus(states: Started[]): RoadmapStatus {
   return 'planned'
 }
 
-export function roadmapHealth(items: RoadmapItem[], taskStatus: Record<string, TaskStatus>): RoadmapHealth {
+export function roadmapHealth(
+  items: RoadmapItem[], taskStatus: Record<string, TaskStatus>, today: string,
+): RoadmapHealth {
   const progress: Record<string, RoadmapProgress> = {}
   const drift: RoadmapDrift[] = []
+
+  for (const item of items) {
+    if (item.due && dueState(item.due, item.status, today) === 'overdue') {
+      drift.push({ id: item.id, kind: 'overdue', message: `${item.id} "${item.title}" is overdue since ${item.due}` })
+    }
+  }
   const horizonIds = new Set(items.filter(i => i.parent === null).map(i => i.id))
 
   for (const item of items) {
