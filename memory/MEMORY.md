@@ -43,7 +43,6 @@ Branch `feat/roadmap` (on top of `chore/upgrade-deps`: Next 16, Tailwind 4, ESLi
 Roadmap page `/roadmap` — roadmap.sh-style map built with `@xyflow/react`. Design notes: `01-brainstorm/roadmap-page.md`.
 
 ## Up next
-- Roadmap round 2: progress bar from linked task statuses + drift warnings (items whose tasks are all done but not shipped)
 - Fix the 16 pre-existing react-hooks lint errors
 
 ## Active issues
@@ -66,6 +65,7 @@ Roadmap page `/roadmap` — roadmap.sh-style map built with `@xyflow/react`. Des
 - Roadmap items: `plans/roadmap/R*.md` (`**Parent:**` omitted = horizon, `**Status:**` planned|in-progress|done, `**Order:**`, `**Tasks:**`). Max depth 2.
 - Roadmap positions live ONLY in `plans/roadmap/layout.json` — never x/y in R*.md. Missing entries are auto-placed (`components/roadmap/layout.ts`).
 - Roadmap writes are serialized by an in-process lock (`withRoadmapLock` in core.ts); SSE event name `roadmap_updated`; the roadmap page opens its own EventSource.
+- Roadmap progress/drift is derived, never stored: `src/lib/roadmap-health.ts` (pure; used by the page via AppContext `board` and by MCP `vibedoc_get_roadmap` / the hint after `vibedoc_update_task`). Self-check: `node src/lib/roadmap-health.check.mts`.
 - `ROADMAP.md` is now only a pointer to `plans/roadmap/`.
 - Lint: 16 pre-existing `react-hooks` errors (React Compiler rules) outside roadmap files — don't add new ones.
 

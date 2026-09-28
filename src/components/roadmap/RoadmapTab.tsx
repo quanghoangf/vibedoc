@@ -17,11 +17,12 @@ import "@xyflow/react/dist/style.css"
 
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
-import { Plus } from "lucide-react"
+import { AlertTriangle, Plus } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
-import type { RoadmapItem, RoadmapLayout, UpdateRoadmapItemPatch } from "@/types"
+import type { RoadmapItem, RoadmapLayout, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
+import { roadmapHealth, type RoadmapDrift } from "@/lib/roadmap-health"
 import { FEATURE_W, HORIZON_W, resolvePositions } from "./layout"
 import { StatusBadge, nodeTypes, type RoadmapNode } from "./RoadmapNodes"
 import { RoadmapItemSheet } from "./RoadmapItemSheet"
@@ -101,7 +102,7 @@ function subscribeTheme(cb: () => void) {
 const FLOW_STYLE = { "--xy-background-color": "var(--color-bg)" } as React.CSSProperties
 
 export function RoadmapTab() {
-  const { rootParam, openDoc } = useApp()
+  const { rootParam, openDoc, board } = useApp()
   const [items, setItems] = useState<RoadmapItem[]>([])
   const [layout, setLayout] = useState<RoadmapLayout>({})
   const [nodes, setNodes] = useState<RoadmapNode[]>([])
@@ -192,6 +193,22 @@ export function RoadmapTab() {
     return out
   }, [items, nodes])
 
+  // board is refreshed by AppContext on task_updated, so progress/drift follow task moves live
+  const health = useMemo(() => {
+    const taskStatus: Record<string, TaskStatus> = {}
+    for (const t of Object.values(board ?? {}).flat()) taskStatus[t.id] = t.status
+    return roadmapHealth(items, taskStatus)
+  }, [items, board])
+
+  const shownNodes = useMemo(() => nodes.map((n) => ({
+    ...n,
+    data: {
+      ...n.data,
+      progress: health.progress[n.id],
+      drift: health.drift.filter((d) => d.id === n.id).map((d) => d.message),
+    },
+  })), [nodes, health])
+
   const onNodesChange = useCallback(
     (changes: NodeChange<RoadmapNode>[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
     [],
@@ -272,7 +289,7 @@ export function RoadmapTab() {
   return (
     <div ref={containerRef} className="relative flex-1 min-h-0">
       <ReactFlow<RoadmapNode>
-        nodes={nodes}
+        nodes={shownNodes}
         edges={edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
@@ -294,6 +311,13 @@ export function RoadmapTab() {
             <span className="flex items-center gap-2"><StatusBadge status="in-progress" /> In progress</span>
             <span className="flex items-center gap-2"><StatusBadge status="planned" /> Planned</span>
           </div>
+          {health.drift.length > 0 && (
+            <DriftPanel
+              drift={health.drift}
+              onSelect={setSelectedId}
+              onApply={(d) => d.suggestedStatus && saveItem(d.id, { status: d.suggestedStatus }).then((err) => { if (err) setError(err) })}
+            />
+          )}
         </Panel>
         <Panel position="top-right">
           <Button size="sm" onClick={() => setCreateParent("")} className="bg-accent text-white hover:bg-accent/90">
@@ -316,6 +340,39 @@ export function RoadmapTab() {
         onEditRaw={(file) => { openDoc(file) }}
       />
       {dialog}
+    </div>
+  )
+}
+
+function DriftPanel({ drift, onSelect, onApply }: {
+  drift: RoadmapDrift[]
+  onSelect: (id: string) => void
+  onApply: (d: RoadmapDrift) => void
+}) {
+  return (
+    <div className="mt-2 w-72 rounded-md border border-amber/50 bg-surface text-xs shadow-sm">
+      <p className="flex items-center gap-1.5 border-b border-border px-3 py-2 font-medium text-amber">
+        <AlertTriangle className="h-3.5 w-3.5" /> {drift.length} out of sync with tasks
+      </p>
+      <ul className="max-h-60 overflow-y-auto">
+        {drift.map((d) => (
+          <li key={`${d.id}-${d.kind}`} className="flex items-start gap-2 border-b border-border px-3 py-2 last:border-0">
+            <button type="button" onClick={() => onSelect(d.id)} className="flex-1 text-left text-muted hover:text-txt">
+              {d.message}
+            </button>
+            {d.suggestedStatus && (
+              <button
+                type="button"
+                onClick={() => onApply(d)}
+                className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-txt hover:border-accent"
+                title={`Set status to ${d.suggestedStatus}`}
+              >
+                → {d.suggestedStatus}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

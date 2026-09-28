@@ -1,12 +1,16 @@
 "use client"
 
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react"
-import { Check } from "lucide-react"
+import { AlertTriangle, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { RoadmapItem, RoadmapStatus } from "@/types"
 import { FEATURE_W, HORIZON_W } from "./layout"
 
-export type RoadmapNodeData = { item: RoadmapItem }
+export type RoadmapNodeData = {
+  item: RoadmapItem
+  progress?: { done: number; total: number }  // derived, never persisted
+  drift?: string[]
+}
 export type RoadmapNode = Node<RoadmapNodeData, "horizon" | "feature">
 
 const SIDES = [Position.Top, Position.Right, Position.Bottom, Position.Left]
@@ -42,6 +46,28 @@ export function StatusBadge({ status, className }: { status: RoadmapStatus; clas
   )
 }
 
+function Progress({ progress }: { progress?: RoadmapNodeData["progress"] }) {
+  if (!progress) return null
+  const pct = Math.round((progress.done / progress.total) * 100)
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5" title={`${progress.done}/${progress.total} done`}>
+      <div className="h-1 flex-1 overflow-hidden rounded-full bg-border">
+        <div className="h-full rounded-full bg-teal" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="font-mono text-[10px] text-muted">{progress.done}/{progress.total}</span>
+    </div>
+  )
+}
+
+function DriftMark({ drift }: { drift?: string[] }) {
+  if (!drift?.length) return null
+  return (
+    <span title={drift.join("\n")} className="absolute -left-2.5 -top-2.5 rounded-full bg-bg p-0.5 text-amber">
+      <AlertTriangle className="h-4 w-4" />
+    </span>
+  )
+}
+
 export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
   return (
     <div
@@ -53,6 +79,8 @@ export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
     >
       <Handles />
       <p className="text-base font-semibold text-txt leading-snug">{data.item.title}</p>
+      <Progress progress={data.progress} />
+      <DriftMark drift={data.drift} />
       <StatusBadge status={data.item.status} className="absolute -right-2.5 -top-2.5" />
     </div>
   )
@@ -79,6 +107,8 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
           ))}
         </div>
       )}
+      <Progress progress={data.progress} />
+      <DriftMark drift={data.drift} />
       <StatusBadge status={item.status} className="absolute -right-2.5 -top-2.5" />
     </div>
   )
