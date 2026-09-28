@@ -1,5 +1,5 @@
 # T036: Task-weighted horizon rollup
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R038 — Epic & horizon progress
 **Size:** S (~1 hr)
 **Depends on:** T035

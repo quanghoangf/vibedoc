@@ -116,7 +116,11 @@ export function roadmapHealth(
     const kids = items.filter(i => i.parent === h.id)
     if (!kids.length) continue
     const states: Started[] = kids.map(k => k.status === 'done' ? 'done' : k.status === 'in-progress' ? 'in-progress' : 'other')
-    progress[h.id] = { done: states.filter(s => s === 'done').length, total: kids.length }
+    // weight by tasks; an epic not broken down yet counts as one unit
+    progress[h.id] = kids.reduce((sum, k) => {
+      const p = progress[k.id] ?? { done: k.status === 'done' ? 1 : 0, total: 1 }
+      return { done: sum.done + p.done, total: sum.total + p.total }
+    }, { done: 0, total: 0 })
     const expected = expectedStatus(states)
     if (expected !== h.status) {
       drift.push({

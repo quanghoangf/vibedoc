@@ -21,7 +21,17 @@ const { progress, drift } = roadmapHealth(items, { T001: st('done'), T002: st('d
 assert.deepEqual(progress.R002, { done: 2, total: 2 })
 assert.deepEqual(progress.R003, { done: 0, total: 1 })
 assert.equal(progress.R004, undefined, 'cancelled-only tasks give no progress')
-assert.deepEqual(progress.R001, { done: 1, total: 3 })
+assert.deepEqual(progress.R001, { done: 2, total: 4 }, 'horizon counts tasks: 2/2 + 0/1 + untasked 0/1')
+{
+  const half = roadmapHealth([
+    item('H', null, 'in-progress'),
+    item('E1', 'H', 'in-progress', ['A1', 'A2']),
+    item('E2', 'H', 'planned', ['B1', 'B2']),
+  ], { A1: st('done'), A2: st('todo'), B1: st('todo'), B2: st('todo') }, TODAY)
+  assert.deepEqual(half.progress.H, { done: 1, total: 4 })
+  const untasked = roadmapHealth([item('H', null, 'in-progress'), item('E1', 'H', 'done'), item('E2', 'H', 'planned')], {}, TODAY)
+  assert.deepEqual(untasked.progress.H, { done: 1, total: 2 }, 'no tasks: done epics / epics')
+}
 const by = (id: string, kind: string) => drift.find(d => d.id === id && d.kind === kind)
 assert.equal(by('R002', 'status-mismatch')?.suggestedStatus, 'done')
 assert.equal(by('R003', 'status-mismatch')?.suggestedStatus, 'planned')
