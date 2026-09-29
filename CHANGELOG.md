@@ -1,3 +1,30 @@
+# [1.5.0](https://github.com/quanghoangf/vibedoc/compare/v1.4.1...v1.5.0) (2026-09-29)
+
+
+### Features
+
+* **activity:** group activity into sessions with GET /api/sessions ([e4e7138](https://github.com/quanghoangf/vibedoc/commit/e4e71387ec674f8e7187dd33c579201b13a9127a))
+* **activity:** redesign session timeline with catch-up strip and motion ([a7ca639](https://github.com/quanghoangf/vibedoc/commit/a7ca639a55a854609d3db826f82ca6a338c6611d))
+* **activity:** session timeline in the Activity tab ([52e7733](https://github.com/quanghoangf/vibedoc/commit/52e7733bc320a328e93b276ef3b75da73749e621))
+* **board:** list a task's sessions in the task detail panel ([97bf515](https://github.com/quanghoangf/vibedoc/commit/97bf515190527d9148e2d7c6bf934ff7c234a06b))
+* **chat:** add agent chat sidebar with reviewable partial doc edits ([2f28099](https://github.com/quanghoangf/vibedoc/commit/2f28099422457f20679a16b7dc5d0b5a445797ca))
+* **chat:** plan roadmaps and break down epics from the chat sidebar ([09eb185](https://github.com/quanghoangf/vibedoc/commit/09eb1850bc0c1c81e010af1d0309b51b53ec1d07))
+* **mcp:** add vibedoc_get_sessions tool ([64e8551](https://github.com/quanghoangf/vibedoc/commit/64e85510429b09b7b40f69d6c5133179c5c263e4))
+* **mcp:** add vibedoc_next_task work queue and epic task list in roadmap ([f791470](https://github.com/quanghoangf/vibedoc/commit/f791470fd0f45233d84465c11185f1f8e6f44b98))
+* **mcp:** tag at-risk epics in vibedoc_get_roadmap and document the rules ([bd4b99e](https://github.com/quanghoangf/vibedoc/commit/bd4b99e3cc6264005b3c54c9ec37e9f2a1a24768))
+* **roadmap:** add brainstorm notes and @xyflow/react dependency ([cafc8a5](https://github.com/quanghoangf/vibedoc/commit/cafc8a519c405412cd0e1904ef92a4464f21403a))
+* **roadmap:** add due dates and a timeline view ([e86f1c6](https://github.com/quanghoangf/vibedoc/commit/e86f1c6908459d5e6aff5a382912df9a0f507ef5))
+* **roadmap:** add roadmap.sh-style roadmap page ([365f563](https://github.com/quanghoangf/vibedoc/commit/365f5633c925144d13cdfed8adaf005739aabc65))
+* **roadmap:** flag at-risk epics on the map and in MCP ([27bceb0](https://github.com/quanghoangf/vibedoc/commit/27bceb0996b844d6970c84c370dc91481903a5b7))
+* **roadmap:** generate a roadmap for projects that have none ([4e3ab11](https://github.com/quanghoangf/vibedoc/commit/4e3ab1198f85e14df052f9c398395f6ed9c15291))
+* **roadmap:** show task due dates on epic nodes ([e0a465a](https://github.com/quanghoangf/vibedoc/commit/e0a465a091b628edfa06060f4c79beefa528fb99))
+* **roadmap:** show task progress and drift warnings ([4dd2d83](https://github.com/quanghoangf/vibedoc/commit/4dd2d835dec617868710a6ae67f37ab9797725aa))
+* **roadmap:** stub roadmap types and core API contract ([d05fada](https://github.com/quanghoangf/vibedoc/commit/d05fadaa251ca7a4a4020370bd9d792ab09bc17b))
+* **roadmap:** weight horizon progress by tasks ([051cd15](https://github.com/quanghoangf/vibedoc/commit/051cd151dc14156ba5ac437a9adc3f10d1cca1bd))
+* **skills:** add roadmap-planner and epic-breakdown skills ([2e6a7b9](https://github.com/quanghoangf/vibedoc/commit/2e6a7b9ddd0f0fddc47c35e1985e3a8e7747010d))
+* **skills:** add what-next skill to recommend the next action ([6eabdc4](https://github.com/quanghoangf/vibedoc/commit/6eabdc439cdef3f55c80264bf7103610bec0e0bc))
+* **ui:** smooth motion, theme tokens, font settings and docs quick open ([fff1643](https://github.com/quanghoangf/vibedoc/commit/fff16430a47af14af75294bb43d2d1a01190e379))
+
 ## [1.4.1](https://github.com/quanghoangf/vibedoc/compare/v1.4.0...v1.4.1) (2026-04-25)
 
 
