@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
+import { Loader2 } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
@@ -11,7 +12,7 @@ import { QuestionCard, formatAnswers, isRenderableQuestions, type Question, type
 import { asRenderablePlan, planTarget } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
 import { ASK_AGENT_EVENT, type AskAgentDetail } from "@/lib/ask-agent"
-import { addChat, chatTitle, patchChat, routeAsk, type Chat } from "@/lib/chats"
+import { addChat, chatStatus, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, type Chat, type ChatStatus } from "@/lib/chats"
 
 interface ChatMessage {
   role: "user" | "assistant"
@@ -24,6 +25,30 @@ interface ChatMessage {
 }
 
 type ChatTab = Chat<ChatMessage>
+
+const STATUS_LABEL: Record<ChatStatus, string> = {
+  running: "Running",
+  "needs-answer": "Waiting for your answers",
+  review: "Plan or edit to review",
+  error: "Error",
+  idle: "Idle",
+}
+
+function StatusMarker({ status }: { status: ChatStatus }) {
+  if (status === "idle") return null
+  return (
+    <span title={STATUS_LABEL[status]} className="shrink-0 inline-flex">
+      {status === "running"
+        ? <Loader2 className="size-3 animate-spin text-muted" />
+        : <span className={cn(
+            "size-1.5 rounded-full",
+            status === "needs-answer" && "bg-amber",
+            status === "review" && "bg-accent",
+            status === "error" && "bg-red-400",
+          )} />}
+    </span>
+  )
+}
 
 const blank = (role: ChatMessage["role"], text = ""): ChatMessage =>
   ({ role, text, tools: [], proposals: [], plans: [], questions: [] })
@@ -199,6 +224,18 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     }
   }
 
+  function closeTab(id: string) {
+    const chat = chats.find((c) => c.id === id)
+    const n = chat ? pendingReviews(chat) : 0
+    if (n && !window.confirm(`Discard ${n} unreviewed proposal${n === 1 ? "" : "s"}?`)) return
+    // Aborting the fetch makes /api/chat kill its `claude -p` child
+    abortsRef.current.get(id)?.abort()
+    abortsRef.current.delete(id)
+    // Functional update so a stream chunk queued since this render isn't dropped from the other tabs
+    setChats((cs) => closeChat(cs, id, activeId).chats)
+    setActiveId(closeChat(chats, id, activeId).activeId)
+  }
+
   function sendTyped() {
     if (!input.trim() || active?.busy) return
     send(activeId ?? openChat())
@@ -245,12 +282,15 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   }
 
   // Only the latest reply counts: once the user types past a card, it no longer blocks the hint
+  const needsYou = chats.filter((c) => c.id !== activeId && ["needs-answer", "review"].includes(chatStatus(c))).length
   const questionsPending = !!active?.messages[active.messages.length - 1]?.questions.some((q) => !q.answers)
 
   return (
     <aside className="w-[380px] h-full border-l border-border bg-surface flex flex-col">
       <div className="h-10 px-3 flex items-center gap-2 border-b border-border">
-        <span className="text-xs font-mono uppercase tracking-widest text-muted">Agent</span>
+        <span className="text-xs font-mono uppercase tracking-widest text-muted" title={needsYou ? `${needsYou} other chat${needsYou === 1 ? "" : "s"} need${needsYou === 1 ? "s" : ""} you` : undefined}>
+          Agent{needsYou > 0 && <span className="text-amber"> · {needsYou}</span>}
+        </span>
         <div className="flex-1" />
         <button onClick={newChat} className="text-xs text-muted hover:text-txt">New chat</button>
         <button onClick={onClose} className="text-muted hover:text-txt text-lg leading-none" aria-label="Close chat">×</button>
@@ -259,19 +299,32 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
       {chats.length > 0 && (
         <div role="tablist" aria-label="Chats" className="flex gap-1 overflow-x-auto border-b border-border px-2 py-1">
           {chats.map((c) => (
-            <button
+            <div
               key={c.id}
-              role="tab"
-              aria-selected={c.id === activeId}
-              onClick={() => setActiveId(c.id)}
-              title={c.title}
               className={cn(
-                "shrink-0 max-w-[140px] truncate rounded-sm px-2 py-0.5 text-xs",
+                "shrink-0 flex items-center rounded-sm text-xs",
                 c.id === activeId ? "bg-surface2 text-txt" : "text-muted hover:text-txt",
               )}
             >
-              {c.title}
-            </button>
+              <button
+                role="tab"
+                aria-selected={c.id === activeId}
+                onClick={() => setActiveId(c.id)}
+                title={c.title}
+                className="flex items-center gap-1.5 max-w-[140px] pl-2 py-0.5"
+              >
+                <StatusMarker status={chatStatus(c)} />
+                <span className="truncate">{c.title}</span>
+              </button>
+              <button
+                onClick={() => closeTab(c.id)}
+                aria-label={`Close ${c.title}`}
+                title="Close chat"
+                className="px-1.5 py-0.5 text-muted hover:text-txt leading-none"
+              >
+                ×
+              </button>
+            </div>
           ))}
         </div>
       )}

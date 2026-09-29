@@ -1,5 +1,5 @@
 # T056: Status marker per chat tab
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R044 — Parallel agent chats
 **Size:** S (~1 hr)
 **Depends on:** T055

@@ -15,8 +15,47 @@ export function addChat<M>(chats: Chat<M>[], id: string, title = "New chat"): Ch
   return [...chats, { id, title, messages: [], sessionId: null, busy: false, notes: [] }]
 }
 
+/** A missing id (e.g. a closed tab whose stream is still unwinding) is a no-op. */
 export function patchChat<M>(chats: Chat<M>[], id: string, fn: (c: Chat<M>) => Chat<M>): Chat<M>[] {
   return chats.map((c) => (c.id === id ? fn(c) : c))
+}
+
+/** Closing the active tab activates its right neighbor, else its left one; the last tab leaves none. */
+export function closeChat<M>(chats: Chat<M>[], id: string, activeId: string | null): { chats: Chat<M>[]; activeId: string | null } {
+  const i = chats.findIndex((c) => c.id === id)
+  if (i < 0) return { chats, activeId }
+  const rest = chats.filter((c) => c.id !== id)
+  return { chats: rest, activeId: id === activeId ? (rest[i] ?? rest[i - 1])?.id ?? null : activeId }
+}
+
+/** The fields of a chat message the tab status reads (ChatPanel's ChatMessage has more). */
+export interface StatusMessage {
+  role: "user" | "assistant"
+  questions: { answers?: unknown }[]
+  proposals: { status: string }[]
+  plans: { status: string }[]
+  error?: string
+}
+
+export type ChatStatus = "running" | "needs-answer" | "review" | "idle" | "error"
+
+/** Plan and edit cards the user hasn't accepted or rejected yet, across the whole chat. */
+export function pendingReviews(chat: Chat<StatusMessage>): number {
+  return chat.messages.reduce(
+    (n, m) => n + m.plans.filter((p) => p.status === "pending").length + m.proposals.filter((p) => p.status === "pending").length,
+    0,
+  )
+}
+
+/** Precedence: running > needs-answer > review > error > idle. */
+export function chatStatus(chat: Chat<StatusMessage>): ChatStatus {
+  if (chat.busy) return "running"
+  const last = chat.messages[chat.messages.length - 1]
+  // Same rule as the input hint: only the latest reply's questions block
+  if (last?.questions.some((q) => !q.answers)) return "needs-answer"
+  if (pendingReviews(chat)) return "review"
+  const lastReply = chat.messages.findLast((m) => m.role === "assistant")
+  return lastReply?.error ? "error" : "idle"
 }
 
 /** Where an askAgent() message goes: the active chat when it is idle, otherwise a new tab. */
