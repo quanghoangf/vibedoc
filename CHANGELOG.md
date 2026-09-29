@@ -1,3 +1,20 @@
+# [1.7.0](https://github.com/quanghoangf/vibedoc/compare/v1.6.1...v1.7.0) (2026-09-29)
+
+
+### Bug Fixes
+
+* **chat:** never save a chat into the next project; stop re-rendering the map per stream delta ([dfe78b8](https://github.com/quanghoangf/vibedoc/commit/dfe78b8fef75f432292be7bdabc9fdcd351183de))
+
+
+### Features
+
+* **chat:** add tab status markers and close-to-stop ([f4f9834](https://github.com/quanghoangf/vibedoc/commit/f4f9834bef734a875fec8f90e45b8f8b49350666))
+* **chat:** break down several epics at once from the roadmap ([55b9e79](https://github.com/quanghoangf/vibedoc/commit/55b9e79b2139bf825a3d24fb9c7e600d5ea35ac9))
+* **chat:** chat modal, /chat page and sidebar agents with saved chats on epics and tasks ([4399e20](https://github.com/quanghoangf/vibedoc/commit/4399e20e0484df6f3ca04c7f8238bf376a5f53af))
+* **chat:** run parallel agent chats as tabs ([b8a53d6](https://github.com/quanghoangf/vibedoc/commit/b8a53d6d2fb97837a336c4669a2d85552a746d6d))
+* **chat:** tell the user when a chat is waiting on them ([4f04da4](https://github.com/quanghoangf/vibedoc/commit/4f04da4d209a2ba43d614d89f5e470c4f2d52f57))
+* **roadmap:** show which epics an agent chat is working on ([89a0a34](https://github.com/quanghoangf/vibedoc/commit/89a0a341fbeab2eaab5c1411890b70fa57db1aef))
+
 ## [1.6.1](https://github.com/quanghoangf/vibedoc/compare/v1.6.0...v1.6.1) (2026-09-29)
 
 
