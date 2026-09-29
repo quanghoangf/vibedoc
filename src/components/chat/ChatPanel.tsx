@@ -11,8 +11,8 @@ import { PlanCard, type PlanCreated, type PlanProposal, type PlanStatus } from "
 import { QuestionCard, formatAnswers, isRenderableQuestions, type Question, type QuestionSet } from "./QuestionCard"
 import { asRenderablePlan, planTarget } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
-import { ASK_AGENT_EVENT, OPEN_CHAT_EVENT, type AskAgentDetail } from "@/lib/ask-agent"
-import { addChat, chatStatus, chatTitle, closeChat, epicAgents, epicAgentStore, epicOf, patchChat, pendingReviews, routeAsk, runningChats, type Chat, type ChatStatus } from "@/lib/chats"
+import { ASK_AGENT_EVENT, OPEN_CHAT_EVENT, openAgentChat, type AskAgentDetail } from "@/lib/ask-agent"
+import { addChat, chatStatus, chatTitle, closeChat, epicAgents, epicAgentStore, epicOf, isWaiting, newlyWaiting, patchChat, waitingChats, waitingTitle, pendingReviews, routeAsk, runningChats, type Chat, type ChatStatus } from "@/lib/chats"
 
 interface ChatMessage {
   role: "user" | "assistant"
@@ -74,6 +74,29 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   useEffect(() => { runningChats.set(runningCount) }, [runningCount])
   // Lets the roadmap mark the epics a chat is working on
   useEffect(() => { epicAgentStore.set(epicAgents(chats)) }, [chats])
+
+  // Chats waiting on the user: header badge (AppHeader) and "(n) VibeDoc" in the browser tab.
+  // pathname is a dep because a navigation can put Next's metadata title back.
+  const waitingCount = chats.filter((c) => isWaiting(chatStatus(c))).length
+  useEffect(() => {
+    waitingChats.set(waitingCount)
+    document.title = waitingTitle(document.title, waitingCount)
+  }, [waitingCount, pathname])
+
+  // Desktop notification when a chat starts waiting while this browser tab is in the background
+  const notifiedRef = useRef<Record<string, ChatStatus>>({})
+  useEffect(() => {
+    const fresh = newlyWaiting(notifiedRef.current, chats)
+    notifiedRef.current = Object.fromEntries(chats.map((c) => [c.id, chatStatus(c)]))
+    if (!fresh.length || !document.hidden || !("Notification" in window) || Notification.permission !== "granted") return
+    for (const { chat, status } of fresh) {
+      const n = new Notification(status === "needs-answer" ? "Agent needs your answer" : "Plan ready to review", {
+        body: chat.title,
+        tag: chat.id,
+      })
+      n.onclick = () => { window.focus(); openAgentChat(chat.id); n.close() }
+    }
+  }, [chats])
 
   // openAgentChat() from an epic's marker: show that tab (layout.tsx opens the sidebar)
   useEffect(() => {
@@ -201,6 +224,8 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     const chat = chats.find((c) => c.id === chatId)
     if (!message || chat?.busy) return
     if (text === undefined) setInput("")
+    // Ask once, from this click/Enter (browsers want a user gesture), so waiting chats can notify later
+    if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission().catch(() => {})
     const notes = chat?.notes ?? []
     setChats((cs) => patchChat(cs, chatId, (c) => ({
       ...c,

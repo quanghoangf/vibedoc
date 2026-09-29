@@ -1,4 +1,6 @@
+import { useSyncExternalStore } from "react"
 import type { Project, Summary } from "@/types"
+import { waitingChats } from "@/lib/chats"
 import { ProjectSwitcher } from "./ProjectSwitcher"
 import { StatsPills } from "./StatsPills"
 import { LiveIndicator } from "./LiveIndicator"
@@ -17,6 +19,8 @@ interface AppHeaderProps {
 
 export function AppHeader({ summary, projects, activeProject, liveIndicator, onProjectChange, onToggleChat }: AppHeaderProps) {
   const host = useOrigin().replace(/^https?:\/\//, "")
+  // Chats waiting on the user (published by ChatPanel), visible even while the sidebar is closed
+  const waiting = useSyncExternalStore(waitingChats.subscribe, waitingChats.get, () => 0)
   return (
     <header className="h-12 border-b border-border flex items-center px-4 gap-4 shrink-0 bg-surface/80 backdrop-blur-xs sticky top-0 z-50">
       <SidebarTrigger className="-ml-1" />
@@ -46,10 +50,18 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
 
       <button
         onClick={onToggleChat}
-        title="Agent chat (c)"
-        className="px-2 py-1 rounded-sm border border-border bg-surface2 text-xs font-mono text-muted hover:text-txt"
+        title={waiting ? `Agent chat (c) · ${waiting} waiting for you` : "Agent chat (c)"}
+        className="relative px-2 py-1 rounded-sm border border-border bg-surface2 text-xs font-mono text-muted hover:text-txt"
       >
         Agent
+        {waiting > 0 && (
+          <span
+            aria-label={`${waiting} waiting for you`}
+            className="absolute -right-1.5 -top-1.5 min-w-4 h-4 px-1 rounded-full bg-amber text-bg text-[10px] leading-4 font-semibold text-center"
+          >
+            {waiting}
+          </span>
+        )}
       </button>
 
       {/* MCP endpoint hint */}

@@ -118,6 +118,24 @@ export const runningChats = store(0, (a, b) => a === b)
 /** epicId → EpicAgent: the map node, timeline and item sheet show it. */
 export const epicAgentStore = store<Record<string, EpicAgent>>({}, (a, b) => JSON.stringify(a) === JSON.stringify(b))
 
+/** Chats waiting on the user; the header badge, page title and desktop notifications count these. */
+export const isWaiting = (s: ChatStatus): s is "needs-answer" | "review" => s === "needs-answer" || s === "review"
+export const waitingChats = store(0, (a, b) => a === b)
+
+/** Chats that became waiting since `prev` (id → last status), so each one notifies once per change. */
+export function newlyWaiting<C extends Chat<StatusMessage>>(prev: Record<string, ChatStatus>, chats: C[]): { chat: C; status: "needs-answer" | "review" }[] {
+  return chats.flatMap((chat) => {
+    const status = chatStatus(chat)
+    return isWaiting(status) && prev[chat.id] !== status ? [{ chat, status }] : []
+  })
+}
+
+/** "(2) VibeDoc" while 2 chats wait; the plain title otherwise. Idempotent. */
+export function waitingTitle(title: string, n: number): string {
+  const base = title.replace(/^\(\d+\) /, "")
+  return n > 0 ? `(${n}) ${base}` : base
+}
+
 /** The epic a message asks to break down: the roadmap's "Break down with agent" wording, or the same typed by hand. */
 export function epicOf(message: string): string | null {
   return message.trim().match(/^Break down epic (R\d+)/i)?.[1].toUpperCase() ?? null

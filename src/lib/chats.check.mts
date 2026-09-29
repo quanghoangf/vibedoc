@@ -1,6 +1,6 @@
 // Self-check for chat tabs. Run: node src/lib/chats.check.mts
 import assert from 'node:assert/strict'
-import { MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, chatStatus, epicAgents, epicAgentStore, epicOf, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, runningChats, type Chat, type StatusMessage } from './chats.ts'
+import { MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, chatStatus, epicAgents, epicAgentStore, epicOf, newlyWaiting, waitingTitle, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, runningChats, type Chat, type StatusMessage } from './chats.ts'
 
 const two = addChat(addChat([], 'a'), 'b')
 const busyB = patchChat(two, 'b', (c) => ({ ...c, busy: true }))
@@ -103,5 +103,14 @@ epicAgentStore.set({ R001: { status: 'running', chatId: 'c1' } })
 epicAgentStore.set({})
 unsub()
 assert.equal(hits, 2)
+
+// newlyWaiting / waitingTitle: badge, page title, desktop notification
+const w1 = on('w1', null, [ask]), w2 = on('w2', null, [plan]), w3 = on('w3', null, [msg()], true)
+assert.deepEqual(newlyWaiting({}, [w1, w2, w3]).map((x) => [x.chat.id, x.status]), [['w1', 'needs-answer'], ['w2', 'review']])
+assert.deepEqual(newlyWaiting({ w1: 'needs-answer', w2: 'running' }, [w1, w2]).map((x) => x.chat.id), ['w2'])  // already notified → once
+assert.deepEqual(newlyWaiting({ w2: 'needs-answer' }, [w2]).map((x) => x.status), ['review'])                  // answered, now a plan
+assert.equal(waitingTitle('VibeDoc', 2), '(2) VibeDoc')
+assert.equal(waitingTitle('(2) VibeDoc', 3), '(3) VibeDoc')
+assert.equal(waitingTitle('(3) VibeDoc', 0), 'VibeDoc')
 
 console.log('chats: ok')
