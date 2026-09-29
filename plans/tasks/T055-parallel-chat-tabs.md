@@ -1,5 +1,5 @@
 # T055: Parallel chats — tabs, a session per chat, new tab if busy
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R044 — Parallel agent chats
 **Size:** L (half a day)
 **Depends on:** —

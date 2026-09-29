@@ -10,7 +10,8 @@ import { PlanCard, type PlanCreated, type PlanProposal, type PlanStatus } from "
 import { QuestionCard, formatAnswers, isRenderableQuestions, type Question, type QuestionSet } from "./QuestionCard"
 import { asRenderablePlan, planTarget } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
-import { ASK_AGENT_EVENT } from "@/lib/ask-agent"
+import { ASK_AGENT_EVENT, type AskAgentDetail } from "@/lib/ask-agent"
+import { addChat, chatTitle, patchChat, routeAsk, type Chat } from "@/lib/chats"
 
 interface ChatMessage {
   role: "user" | "assistant"
@@ -22,60 +23,73 @@ interface ChatMessage {
   error?: string
 }
 
+type ChatTab = Chat<ChatMessage>
+
+const blank = (role: ChatMessage["role"], text = ""): ChatMessage =>
+  ({ role, text, tools: [], proposals: [], plans: [], questions: [] })
+
 export function ChatPanel({ onClose }: { onClose: () => void }) {
   const { rootParam, activeProject, selectedDoc } = useApp()
   const pathname = usePathname()
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [chats, setChats] = useState<ChatTab[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [input, setInput] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
-  const sessionRef = useRef<string | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
+  // One in-flight request per chat; a stream only ever writes into the chat id it was started for
+  const abortsRef = useRef(new Map<string, AbortController>())
+  const nextIdRef = useRef(0)
   const scrollRef = useRef<HTMLDivElement>(null)
-  // Accept/reject outcomes the agent hasn't heard about yet; sent with the next message
-  const notesRef = useRef<string[]>([])
 
   const docPath = pathname === "/docs" ? selectedDoc?.path : undefined
+  const active = chats.find((c) => c.id === activeId)
 
   // A Claude session belongs to one project
   useEffect(() => {
-    abortRef.current?.abort()
-    sessionRef.current = null
-    notesRef.current = []
-    setMessages([])
+    for (const ac of abortsRef.current.values()) ac.abort()
+    abortsRef.current.clear()
+    setChats([])
+    setActiveId(null)
   }, [activeProject])
 
+  // Only the visible chat scrolls the panel: patchChat keeps background chats referentially equal
+  const activeMessages = active?.messages
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [messages])
+  }, [activeMessages, activeId])
 
-  // askAgent() from the roadmap: send it now, or refuse while a turn runs (no queue).
-  // No deps on purpose: re-subscribes each render so the handler sees the current `busy`/`send`.
+  // askAgent(): into the active chat when it is idle, otherwise into a new tab.
+  // No deps on purpose: re-subscribes each render so the handler sees the current `chats`/`send`.
   useEffect(() => {
     function onAsk(e: Event) {
-      const message = (e as CustomEvent<{ message: string }>).detail?.message
+      const { message, newChat } = (e as CustomEvent<AskAgentDetail>).detail ?? {}
       if (!message) return
-      if (busy) setNotice("Agent is busy. Try again when this turn finishes.")
-      else send(message)
+      const route = routeAsk(chats, activeId, { newChat })
+      send("chatId" in route ? route.chatId : openChat(), message)
     }
     window.addEventListener(ASK_AGENT_EVENT, onAsk)
     return () => window.removeEventListener(ASK_AGENT_EVENT, onAsk)
   })
 
-  function patchLast(fn: (m: ChatMessage) => ChatMessage) {
-    setMessages((prev) => [...prev.slice(0, -1), fn(prev[prev.length - 1])])
+  function openChat() {
+    const id = `chat${++nextIdRef.current}`
+    setChats((cs) => addChat(cs, id))
+    setActiveId(id)
+    return id
   }
 
-  // Handles one line of `claude -p --output-format stream-json`
-  function handleEvent(ev: any) {
-    if (ev.session_id) sessionRef.current = ev.session_id
+  function patchLast(chatId: string, fn: (m: ChatMessage) => ChatMessage) {
+    setChats((cs) => patchChat(cs, chatId, (c) => ({ ...c, messages: [...c.messages.slice(0, -1), fn(c.messages[c.messages.length - 1])] })))
+  }
+
+  // Handles one line of `claude -p --output-format stream-json` for chat `chatId`
+  function handleEvent(chatId: string, ev: any) {
+    if (ev.session_id) setChats((cs) => patchChat(cs, chatId, (c) => (c.sessionId === ev.session_id ? c : { ...c, sessionId: ev.session_id })))
     if (ev.type === "stream_event") {
       const e = ev.event
       if (e?.type === "message_start") {
-        patchLast((m) => (m.text && !m.text.endsWith("\n\n") ? { ...m, text: m.text + "\n\n" } : m))
+        patchLast(chatId, (m) => (m.text && !m.text.endsWith("\n\n") ? { ...m, text: m.text + "\n\n" } : m))
       } else if (e?.type === "content_block_delta" && e.delta?.type === "text_delta") {
-        patchLast((m) => ({ ...m, text: m.text + e.delta.text }))
+        patchLast(chatId, (m) => ({ ...m, text: m.text + e.delta.text }))
       }
     } else if (ev.type === "assistant") {
       const uses: { type: string; id: string; name: string; input: Record<string, unknown> }[] =
@@ -104,7 +118,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
         .filter((b) => !cards.some((c) => b.name.endsWith(c)))
         .map((b) => b.name.replace(/^mcp__vibedoc__vibedoc_/, ""))
       if (tools.length || proposals.length || plans.length || questions.length) {
-        patchLast((m) => ({
+        patchLast(chatId, (m) => ({
           ...m,
           tools: [...m.tools, ...tools],
           proposals: [...m.proposals, ...proposals],
@@ -120,7 +134,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
           .map((b: { tool_use_id: string }) => b.tool_use_id),
       )
       if (failed.size) {
-        patchLast((m) => ({
+        patchLast(chatId, (m) => ({
           ...m,
           proposals: m.proposals.filter((p) => !failed.has(p.id)),
           plans: m.plans.filter((p) => !failed.has(p.id)),
@@ -128,33 +142,35 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
         }))
       }
     } else if (ev.type === "result" && ev.is_error) {
-      patchLast((m) => ({ ...m, error: ev.result ?? ev.subtype ?? "Agent error" }))
+      patchLast(chatId, (m) => ({ ...m, error: ev.result ?? ev.subtype ?? "Agent error" }))
     } else if (ev.type === "error") {
-      patchLast((m) => ({ ...m, error: ev.message }))
+      patchLast(chatId, (m) => ({ ...m, error: ev.message }))
     }
   }
 
-  // `text` is a message built by a card (question answers); otherwise send what's typed
-  async function send(text?: string) {
+  // `text` is a message built by a card (question answers) or askAgent(); otherwise send what's typed.
+  // `chatId` may be a chat openChat() just queued, so a missing chat means a fresh one.
+  async function send(chatId: string, text?: string) {
     const message = (text ?? input).trim()
-    if (!message || busy) return
+    const chat = chats.find((c) => c.id === chatId)
+    if (!message || chat?.busy) return
     if (text === undefined) setInput("")
-    setNotice(null)
-    setBusy(true)
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", text: message, tools: [], proposals: [], plans: [], questions: [] },
-      { role: "assistant", text: "", tools: [], proposals: [], plans: [], questions: [] },
-    ])
-    const notes = notesRef.current.splice(0)
+    const notes = chat?.notes ?? []
+    setChats((cs) => patchChat(cs, chatId, (c) => ({
+      ...c,
+      title: c.messages.length ? c.title : chatTitle(message),
+      busy: true,
+      notes: [],
+      messages: [...c.messages, blank("user", message), blank("assistant")],
+    })))
     const outgoing = notes.length ? `[${notes.join(" ")}]\n\n${message}` : message
     const ac = new AbortController()
-    abortRef.current = ac
+    abortsRef.current.set(chatId, ac)
     try {
       const res = await fetch(`/api/chat${rootParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: outgoing, sessionId: sessionRef.current, docPath }),
+        body: JSON.stringify({ message: outgoing, sessionId: chat?.sessionId ?? null, docPath }),
         signal: ac.signal,
       })
       if (!res.ok || !res.body) {
@@ -172,53 +188,64 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
         buf = lines.pop() ?? ""
         for (const line of lines) {
           if (!line.trim()) continue
-          try { handleEvent(JSON.parse(line)) } catch { /* partial or non-JSON line */ }
+          try { handleEvent(chatId, JSON.parse(line)) } catch { /* partial or non-JSON line */ }
         }
       }
     } catch (e) {
-      if (!ac.signal.aborted) patchLast((m) => ({ ...m, error: (e as Error).message }))
+      if (!ac.signal.aborted) patchLast(chatId, (m) => ({ ...m, error: (e as Error).message }))
     } finally {
-      setBusy(false)
+      if (abortsRef.current.get(chatId) === ac) abortsRef.current.delete(chatId)
+      setChats((cs) => patchChat(cs, chatId, (c) => ({ ...c, busy: false })))
     }
   }
 
-  function newChat() {
-    abortRef.current?.abort()
-    sessionRef.current = null
-    notesRef.current = []
-    setMessages([])
+  function sendTyped() {
+    if (!input.trim() || active?.busy) return
+    send(activeId ?? openChat())
   }
 
-  function resolveProposal(id: string, path: string, status: ProposalStatus) {
-    notesRef.current.push(`User ${status} your proposed edit to ${path}.`)
-    setMessages((prev) => prev.map((m) => ({
+  // A blank active tab is already a new chat
+  function newChat() {
+    if (active && !active.messages.length) return
+    openChat()
+  }
+
+  function mapMessages(chatId: string, fn: (m: ChatMessage) => ChatMessage, note?: string) {
+    setChats((cs) => patchChat(cs, chatId, (c) => ({
+      ...c,
+      notes: note ? [...c.notes, note] : c.notes,
+      messages: c.messages.map(fn),
+    })))
+  }
+
+  function resolveProposal(chatId: string, id: string, path: string, status: ProposalStatus) {
+    mapMessages(chatId, (m) => ({
       ...m,
       proposals: m.proposals.map((p) => (p.id === id ? { ...p, status } : p)),
-    })))
+    }), `User ${status} your proposed edit to ${path}.`)
   }
 
-  function resolvePlan(p: PlanProposal, status: PlanStatus, created: PlanCreated[], unchecked: string[]) {
+  function resolvePlan(chatId: string, p: PlanProposal, status: PlanStatus, created: PlanCreated[], unchecked: string[]) {
     const epic = p.plan.kind === "breakdown" ? planTarget(p.plan) : "the roadmap"
-    notesRef.current.push(status === "accepted"
-      ? `User accepted plan for ${epic}: created ${created.map((c) => c.id).join(", ")}${unchecked.length ? ` (unchecked: ${unchecked.join(", ")})` : ""}.`
-      : `User rejected the plan for ${epic}.`)
-    setMessages((prev) => prev.map((m) => ({
+    mapMessages(chatId, (m) => ({
       ...m,
       plans: m.plans.map((x) => (x.id === p.id ? { ...x, status, created } : x)),
-    })))
+    }), status === "accepted"
+      ? `User accepted plan for ${epic}: created ${created.map((c) => c.id).join(", ")}${unchecked.length ? ` (unchecked: ${unchecked.join(", ")})` : ""}.`
+      : `User rejected the plan for ${epic}.`)
   }
 
-  function answerQuestions(set: QuestionSet, answers: string[]) {
-    if (busy) return
-    setMessages((prev) => prev.map((m) => ({
+  function answerQuestions(chatId: string, set: QuestionSet, answers: string[]) {
+    if (chats.find((c) => c.id === chatId)?.busy) return
+    mapMessages(chatId, (m) => ({
       ...m,
       questions: m.questions.map((q) => (q.id === set.id ? { ...q, answers } : q)),
-    })))
-    send(formatAnswers(set.questions, answers))
+    }))
+    send(chatId, formatAnswers(set.questions, answers))
   }
 
   // Only the latest reply counts: once the user types past a card, it no longer blocks the hint
-  const questionsPending = !!messages[messages.length - 1]?.questions.some((q) => !q.answers)
+  const questionsPending = !!active?.messages[active.messages.length - 1]?.questions.some((q) => !q.answers)
 
   return (
     <aside className="w-[380px] h-full border-l border-border bg-surface flex flex-col">
@@ -229,45 +256,69 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
         <button onClick={onClose} className="text-muted hover:text-txt text-lg leading-none" aria-label="Close chat">×</button>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 text-sm">
-        {messages.length === 0 && (
+      {chats.length > 0 && (
+        <div role="tablist" aria-label="Chats" className="flex gap-1 overflow-x-auto border-b border-border px-2 py-1">
+          {chats.map((c) => (
+            <button
+              key={c.id}
+              role="tab"
+              aria-selected={c.id === activeId}
+              onClick={() => setActiveId(c.id)}
+              title={c.title}
+              className={cn(
+                "shrink-0 max-w-[140px] truncate rounded-sm px-2 py-0.5 text-xs",
+                c.id === activeId ? "bg-surface2 text-txt" : "text-muted hover:text-txt",
+              )}
+            >
+              {c.title}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 text-sm">
+        {!active?.messages.length && (
           <p className="text-muted text-xs">
             Ask the agent to read, write or restructure docs. Runs on your local Claude Code login.
           </p>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={cn(m.role === "user" && "ml-8 rounded-lg bg-surface2 px-3 py-2 whitespace-pre-wrap")}>
-            {m.role === "user" ? m.text : (
-              <>
-                {m.tools.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {m.tools.map((t, j) => (
-                      <span key={j} className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-surface2 border border-border text-accent">{t}</span>
+        {/* Every chat stays mounted (hidden when inactive) so card state like unchecked tasks survives a tab switch */}
+        {chats.map((c) => (
+          <div key={c.id} role="tabpanel" hidden={c.id !== activeId} className="space-y-3">
+            {c.messages.map((m, i) => (
+              <div key={i} className={cn(m.role === "user" && "ml-8 rounded-lg bg-surface2 px-3 py-2 whitespace-pre-wrap")}>
+                {m.role === "user" ? m.text : (
+                  <>
+                    {m.tools.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {m.tools.map((t, j) => (
+                          <span key={j} className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-surface2 border border-border text-accent">{t}</span>
+                        ))}
+                      </div>
+                    )}
+                    {m.proposals.map((p) => (
+                      <ProposalCard key={p.id} proposal={p} onResolve={(status) => resolveProposal(c.id, p.id, p.path, status)} />
                     ))}
-                  </div>
+                    {m.plans.map((p) => (
+                      <PlanCard key={p.id} proposal={p} onResolve={(status, created, unchecked) => resolvePlan(c.id, p, status, created, unchecked)} />
+                    ))}
+                    {m.questions.map((q) => (
+                      <QuestionCard key={q.id} set={q} disabled={c.busy} onSubmit={(answers) => answerQuestions(c.id, q, answers)} />
+                    ))}
+                    {m.text && <MarkdownRenderer content={m.text} className="text-sm" />}
+                    {!m.text && !m.error && c.busy && i === c.messages.length - 1 && (
+                      <span className="text-muted text-xs">Thinking…</span>
+                    )}
+                    {m.error && <p className="text-red-400 text-xs whitespace-pre-wrap">{m.error}</p>}
+                  </>
                 )}
-                {m.proposals.map((p) => (
-                  <ProposalCard key={p.id} proposal={p} onResolve={(status) => resolveProposal(p.id, p.path, status)} />
-                ))}
-                {m.plans.map((p) => (
-                  <PlanCard key={p.id} proposal={p} onResolve={(status, created, unchecked) => resolvePlan(p, status, created, unchecked)} />
-                ))}
-                {m.questions.map((q) => (
-                  <QuestionCard key={q.id} set={q} disabled={busy} onSubmit={(answers) => answerQuestions(q, answers)} />
-                ))}
-                {m.text && <MarkdownRenderer content={m.text} className="text-sm" />}
-                {!m.text && !m.error && busy && i === messages.length - 1 && (
-                  <span className="text-muted text-xs">Thinking…</span>
-                )}
-                {m.error && <p className="text-red-400 text-xs whitespace-pre-wrap">{m.error}</p>}
-              </>
-            )}
+              </div>
+            ))}
           </div>
         ))}
       </div>
 
       <div className="border-t border-border p-2">
-        {notice && <div className="text-[11px] text-amber px-1 pb-1">{notice}</div>}
         {docPath && <div className="text-[10px] font-mono text-muted px-1 pb-1 truncate">@ {docPath}</div>}
         <textarea
           value={input}
@@ -275,11 +326,11 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
-              send()
+              sendTyped()
             }
           }}
           rows={3}
-          placeholder={busy ? "Agent is working…" : questionsPending ? "Answer the questions above…" : "Ask the agent… (Enter to send)"}
+          placeholder={active?.busy ? "Agent is working…" : questionsPending ? "Answer the questions above…" : "Ask the agent… (Enter to send)"}
           className="w-full resize-none rounded-md bg-surface2 border border-border px-2 py-1.5 text-sm text-txt placeholder:text-muted focus:outline-hidden focus:border-accent"
         />
       </div>
