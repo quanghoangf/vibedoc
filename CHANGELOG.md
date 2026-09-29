@@ -1,3 +1,21 @@
+# [1.6.0](https://github.com/quanghoangf/vibedoc/compare/v1.5.0...v1.6.0) (2026-09-29)
+
+
+### Bug Fixes
+
+* **build:** bundle glob so the published package runs outside the repo ([9614d18](https://github.com/quanghoangf/vibedoc/commit/9614d18e7afc8bfe83055d6373cccf2ad52eaf04))
+
+
+### Features
+
+* **docs:** break down a doc as a spec from the doc header ([7319501](https://github.com/quanghoangf/vibedoc/commit/7319501a34c55992d6889ed2e92ed230060255b7))
+* **plan:** break a spec into tasks with a new epic or no epic ([ab83bb7](https://github.com/quanghoangf/vibedoc/commit/ab83bb7c6bcc8befcae737a144c5e491c997ad7d))
+* **roadmap:** add plan from spec dialog that hands a pasted spec to the agent ([c7e896f](https://github.com/quanghoangf/vibedoc/commit/c7e896f7a56dd53f58de6f9b1bf9c010d892a5c0))
+* **roadmap:** mission-control nodes with task segments, chapters and status edges ([2e73d9c](https://github.com/quanghoangf/vibedoc/commit/2e73d9cc5e425e17cba6678d447ad93c2a6be8b2))
+* **roadmap:** read-first item sheet with progress, next task and rendered brief ([62f44a6](https://github.com/quanghoangf/vibedoc/commit/62f44a6923b73c2c69864e2b0b571861883c6b9a))
+* **roadmap:** stats toolbar as legend and an attention menu ([010a978](https://github.com/quanghoangf/vibedoc/commit/010a978b774a575536c06e0487715e953f4badcf))
+* **roadmap:** timeline lanes with chapters, progress and status chips ([d292012](https://github.com/quanghoangf/vibedoc/commit/d292012ea3dfa7821e94b74a2e405eff81e3cbde))
+
 # [1.5.0](https://github.com/quanghoangf/vibedoc/compare/v1.4.1...v1.5.0) (2026-09-29)
 
 
