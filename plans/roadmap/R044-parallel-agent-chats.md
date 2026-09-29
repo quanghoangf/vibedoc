@@ -1,6 +1,6 @@
 # R044: Parallel agent chats
 **Parent:** R002
-**Status:** planned
+**Status:** done
 **Order:** 110
 **Tasks:** T055, T056, T057, T058, T059
 

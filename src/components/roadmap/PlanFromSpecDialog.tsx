@@ -12,7 +12,7 @@ interface PlanFromSpecDialogProps {
 
 /** Paste a feature spec → the chat agent breaks it into tasks (new epic, existing epic, or loose). */
 export function PlanFromSpecDialog({ open, onOpenChange }: PlanFromSpecDialogProps) {
-  // Kept after submit (cleared only on Cancel): if the agent is busy, askAgent is refused and reopening restores the spec.
+  // Kept after submit (cleared only on Cancel): if the running-agent cap refuses the ask, reopening restores the spec.
   const [spec, setSpec] = useState("")
 
   function submit(e: React.FormEvent) {
