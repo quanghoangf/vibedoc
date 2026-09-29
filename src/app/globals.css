@@ -162,6 +162,11 @@ body {
 .prose-dark h3 { font-size: 0.95rem; font-weight: 600; color: var(--color-accent); margin: 1rem 0 0.4rem; }
 .prose-dark p { font-size: 0.9rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.7; margin-bottom: 0.75rem; }
 .prose-dark ul, .prose-dark ol { padding-left: 1.25rem; margin-bottom: 0.75rem; }
+/* Compact prose for side rails (chat context): headings become small labels, body text shrinks */
+.prose-dark.prose-compact h1, .prose-dark.prose-compact h2, .prose-dark.prose-compact h3 { font-size: 0.75rem; font-weight: 600; color: var(--color-txt); margin: 0.9rem 0 0.3rem; padding: 0; border: 0; letter-spacing: 0; }
+.prose-dark.prose-compact > :first-child { margin-top: 0; }
+.prose-dark.prose-compact p, .prose-dark.prose-compact li { font-size: 0.75rem; line-height: 1.6; }
+.prose-dark.prose-compact p { margin-bottom: 0.5rem; }
 .prose-dark li { font-size: 0.875rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.7; margin-bottom: 0.2rem; }
 .prose-dark code { font-family: var(--font-mono); font-size: 0.8rem; background: var(--color-surface2); border: 1px solid var(--color-border); padding: 1px 5px; border-radius: 4px; color: var(--color-teal); }
 /* Teal on a light surface is unreadable; darken it toward the text color in light mode only. */

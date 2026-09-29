@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import type { RoadmapItem } from "@/types"
 import type { RoadmapProgress } from "@/lib/roadmap-health"
 import { StatusDot } from "./RoadmapNodes"
-import { AgentDot } from "./AgentMark"
+import { AgentDot } from "@/components/chat/AgentMark"
 import { LANE_ROW_H, buildTimeline, formatDay } from "./timeline"
 
 const LANE_LABEL_W = 200
@@ -102,7 +102,7 @@ export function RoadmapTimeline({ items, today, onSelect, progressById }: Roadma
                         <span className={cn("truncate text-xs", mk.item.status === "done" ? "text-muted" : "text-txt", mk.horizon && "font-semibold")}>
                           {mk.item.title}
                         </span>
-                        <AgentDot id={mk.item.id} />
+                        <AgentDot attach={{ kind: "epic", id: mk.item.id }} />
                       </span>
                       <span
                         className={cn(
@@ -140,7 +140,7 @@ export function RoadmapTimeline({ items, today, onSelect, progressById }: Roadma
               >
                 <StatusDot status={i.status} />
                 {i.title}
-                <AgentDot id={i.id} />
+                <AgentDot attach={{ kind: "epic", id: i.id }} />
               </button>
             ))}
           </div>

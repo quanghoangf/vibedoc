@@ -7,7 +7,8 @@ import type { RoadmapItem, RoadmapStatus, TaskStatus } from "@/types"
 import type { DueState, TaskDueSummary } from "@/lib/roadmap-health"
 import { formatDay } from "./timeline"
 import { FEATURE_W, HORIZON_W } from "./layout"
-import { AgentMark, useEpicAgent } from "./AgentMark"
+import { AgentMark } from "@/components/chat/AgentMark"
+import { useItemAgent } from "@/context/ChatContext"
 
 export type RoadmapNodeData = {
   item: RoadmapItem
@@ -204,7 +205,7 @@ export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
  */
 export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
   const { item, taskStatuses, nextTaskId } = data
-  const agent = useEpicAgent(item.id)
+  const agent = useItemAgent({ kind: "epic", id: item.id })
   const drifting = !!data.drift?.length
   const ring = selected && "ring-2 ring-accent/60 ring-offset-2 ring-offset-bg"
 
@@ -217,7 +218,7 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
         <Handles />
         <Check className="h-3.5 w-3.5 shrink-0 text-teal" strokeWidth={3} />
         <p className="min-w-0 flex-1 truncate text-[13px] text-muted group-hover:text-txt" title={item.title}>{item.title}</p>
-        {agent ? <AgentMark id={item.id} />
+        {agent ? <AgentMark attach={{ kind: "epic", id: item.id }} />
           : data.progress && <span className="font-mono text-[10px] text-muted">{data.progress.done}/{data.progress.total}</span>}
         <DriftMark drift={data.drift} />
       </div>
@@ -241,7 +242,7 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
       <div className="flex items-center justify-between font-mono text-[10px]">
         <span className="text-muted">{item.id}</span>
         {agent ? (
-          <AgentMark id={item.id} />
+          <AgentMark attach={{ kind: "epic", id: item.id }} />
         ) : live ? (
           <span className="flex items-center gap-1.5 uppercase tracking-wider text-accent"><StatusDot status="in-progress" className="h-1.5 w-1.5" />Live</span>
         ) : (

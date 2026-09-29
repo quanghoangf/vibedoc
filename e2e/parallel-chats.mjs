@@ -1,5 +1,6 @@
-// Browser check for parallel agent chats (R044, T059): three breakdowns run at once, and accepting their
-// plans in a different order than they were proposed yields unique, contiguous T ids per epic.
+// Browser check for parallel agent chats (R044): three breakdowns run at once in the background, the roadmap
+// and sidebar show their status, accepting their plans in a different order than they were proposed yields
+// unique, contiguous T ids per epic, and chats are saved to .vibedoc/chats (delete + reload).
 //
 //   PW_DIR=<dir with node_modules/playwright> node e2e/parallel-chats.mjs
 //
@@ -53,10 +54,13 @@ try {
   await dialog.getByRole("button", { name: "Break down 3 epics" }).click()
   for (let i = 0; i < 50 && inFlight < 3; i++) await page.waitForTimeout(100)
   assert.equal(inFlight, 3, "3 /api/chat requests in flight before any is released")
-  // DOM queries: the closing dialog briefly aria-hides the rest of the page
-  await page.waitForFunction(() => document.querySelectorAll("[role=tab]").length === 3)
-  await page.waitForFunction(() => document.querySelectorAll('[role=tab] [title="Running"]').length === 3)
-  console.log("ok  Break down epics… starts 3 chats; 3 requests in flight, 3 tabs running")
+  // DOM queries: a dialog aria-hides the rest of the page. The 3 chats run in the background (no modal)
+  const SIDEBAR = '[aria-label="Agent chats"]'
+  await page.waitForFunction((s) => document.querySelectorAll(`${s} li button[title]`).length === 3, SIDEBAR)
+  await page.waitForFunction((s) => document.querySelectorAll(`${s} [title="Running"]`).length === 3, SIDEBAR)
+  await dialog.waitFor({ state: "hidden" })
+  assert.equal(await page.getByRole("dialog").count(), 0, "background breakdowns don't open the chat modal")
+  console.log("ok  Break down epics… starts 3 chats in the background; 3 requests in flight, 3 running in the sidebar")
 
   // Each epic on the map shows its chat is working
   const agentMarks = (label) => page.evaluate((l) =>
@@ -68,28 +72,30 @@ try {
 
   // 3. Release all → every tab needs review; accept in a different order than created
   release()
-  await page.waitForFunction(() => document.querySelectorAll('[role=tab] [title="Plan or edit to review"]').length === 3)
+  await page.waitForFunction((s) => document.querySelectorAll(`${s} [title="Plan or edit to review"]`).length === 3, SIDEBAR)
   assert.deepEqual(calls.map((c) => c.message).sort(), EPICS.map((e) => `Break down epic ${e} into tasks.`))
-  console.log("ok  released: all 3 tabs show review")
+  console.log("ok  released: all 3 chats show review in the sidebar")
   await page.waitForFunction(() => document.querySelectorAll('.react-flow__node [aria-label="Plan to review, open chat"]').length === 3)
   assert.deepEqual(await agentMarks("Plan to review"), EPICS)
   console.log("ok  map: all 3 epics show Plan to review")
 
-  // Clicking an epic's mark opens that epic's chat tab
-  await page.getByRole("tab", { name: "Break down R004" }).click()
+  // Clicking an epic's mark opens that epic's chat
   await page.locator(".react-flow__node", { hasText: "R003" }).getByRole("button", { name: /open chat/ }).dispatchEvent("click")
-  await page.waitForFunction(() => document.querySelector('[role=tab][aria-selected="true"]')?.textContent.includes("R003"))
-  console.log("ok  clicking the R003 mark opens the R003 chat tab")
+  await page.getByRole("dialog", { name: "Break down R003" }).waitFor()
+  await page.keyboard.press("Escape")
+  console.log("ok  clicking the R003 mark opens the R003 chat")
 
   const acceptOrder = ["R004", "R002", "R003"]
   for (const epic of acceptOrder) {
-    await page.getByRole("tab", { name: `Break down ${epic}` }).click()
-    const panel = page.locator("[role=tabpanel]:not([hidden])")
-    await panel.getByText(`Plan for ${epic}.`).waitFor()
-    await panel.getByRole("button", { name: "Accept (2)" }).click()
-    await panel.getByText("✓ Created").waitFor()
+    await page.locator(`${SIDEBAR} button`, { hasText: `Break down ${epic}` }).click()
+    const modal = page.getByRole("dialog", { name: `Break down ${epic}` })
+    await modal.getByText(`Plan for ${epic}.`).waitFor()
+    await modal.getByRole("button", { name: "Accept (2)" }).click()
+    await modal.getByText("✓ Created").waitFor()
+    await page.keyboard.press("Escape")
+    await modal.waitFor({ state: "hidden" })
   }
-  await page.waitForFunction(() => !document.querySelector('[role=tab] [title="Plan or edit to review"]'))
+  await page.waitForFunction((s) => !document.querySelector(`${s} [title="Plan or edit to review"]`), SIDEBAR)
   console.log(`ok  accepted all 3 plans in order ${acceptOrder.join(", ")}`)
   await page.waitForFunction(() => !document.querySelector('.react-flow__node [aria-label$=", open chat"]'))
   console.log("ok  map: agent marks clear once the plans are reviewed")
@@ -115,13 +121,25 @@ try {
   })
   console.log(`ok  ${files.length} task files, T001–T006 unique and contiguous; each epic lists only its own`)
 
-  // 5. Close a tab → it disappears, the others stay
-  await page.getByRole("button", { name: "Close Break down R003" }).click()
-  await page.waitForFunction(() => document.querySelectorAll("[role=tab]").length === 2)
-  await page.getByRole("tab", { name: "Break down R002" }).waitFor()
-  await page.getByRole("tab", { name: "Break down R004" }).waitFor()
-  assert.equal(await page.getByRole("tab", { name: "Break down R003" }).count(), 0)
-  console.log("ok  closing a tab removes only that tab")
+  // 5. /chat lists all 3; deleting one removes only that chat, here and in the sidebar, and its saved file
+  await page.locator(`${SIDEBAR} a`, { hasText: "All chats" }).click()
+  const list = page.getByRole("complementary", { name: "All chats" })
+  await list.getByRole("button", { name: /^Break down R003/ }).waitFor()
+  const savedBefore = readdirSync(path.join(fx, ".vibedoc/chats")).length
+  assert.equal(savedBefore, 3, "each chat is saved to .vibedoc/chats")
+  await list.getByRole("button", { name: "Close Break down R003" }).click()
+  await page.waitForFunction((s) => document.querySelectorAll(`${s} li button[title]`).length === 2, SIDEBAR)
+  assert.equal(await list.getByRole("button", { name: /^Break down R003/ }).count(), 0)
+  await list.getByRole("button", { name: /^Break down R002/ }).waitFor()
+  for (let i = 0; i < 20 && readdirSync(path.join(fx, ".vibedoc/chats")).length !== 2; i++) await page.waitForTimeout(100)
+  assert.equal(readdirSync(path.join(fx, ".vibedoc/chats")).length, 2, "the deleted chat's file is gone")
+  console.log("ok  /chat lists every chat; deleting one removes it everywhere, file included")
+
+  // 6. Reload: chats come back from .vibedoc/chats with their plans resolved
+  await page.reload()
+  await page.getByRole("complementary", { name: "All chats" }).getByRole("button", { name: /^Break down R004/ }).waitFor()
+  assert.equal(await page.locator(`${SIDEBAR} li button[title]`).count(), 2)
+  console.log("ok  chats survive a reload")
   console.log(`fixture: ${fx}`)
 } finally {
   await browser.close()

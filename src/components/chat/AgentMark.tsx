@@ -1,0 +1,55 @@
+"use client"
+
+import { Bot, Loader2 } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { useChats, useItemAgent } from "@/context/ChatContext"
+import type { Attach, ItemAgent } from "@/lib/chats"
+
+export const AGENT_LABEL: Record<ItemAgent["status"], string> = {
+  running: "Agent working",
+  "needs-answer": "Agent needs you",
+  review: "Plan to review",
+}
+
+/**
+ * Pill on an epic/task while a chat works on it; click opens that chat.
+ * `nodrag` + stopPropagation keep a React Flow node from dragging/selecting on click.
+ */
+export function AgentMark({ attach, className }: { attach: Attach; className?: string }) {
+  const agent = useItemAgent(attach)
+  const { show } = useChats()
+  if (!agent) return null
+  const label = AGENT_LABEL[agent.status]
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); show(agent.chatId) }}
+      title={`${label} · open chat`}
+      aria-label={`${label}, open chat`}
+      className={cn(
+        "nodrag inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-px font-mono text-[10px] leading-4 animate-fade-in transition-colors duration-(--duration-fast)",
+        agent.status === "running" && "border-accent/50 text-accent hover:bg-accent/10",
+        agent.status === "needs-answer" && "border-amber/50 text-amber hover:bg-amber/10",
+        agent.status === "review" && "border-accent/50 bg-accent/10 text-accent hover:bg-accent/20",
+        className,
+      )}
+    >
+      {agent.status === "running" ? <Loader2 className="size-3 animate-spin" /> : <Bot className="size-3" />}
+      {label}
+    </button>
+  )
+}
+
+/** Non-interactive variant for places that are already a button (timeline markers, board cards, task rows). */
+export function AgentDot({ attach }: { attach: Attach }) {
+  const agent = useItemAgent(attach)
+  if (!agent) return null
+  const label = AGENT_LABEL[agent.status]
+  return (
+    <span title={label} aria-label={label} role="img" className="inline-flex shrink-0">
+      {agent.status === "running"
+        ? <Loader2 className="size-3 animate-spin text-accent" />
+        : <span className={cn("size-1.5 rounded-full animate-pulse-dot", agent.status === "needs-answer" ? "bg-amber" : "bg-accent")} />}
+    </span>
+  )
+}

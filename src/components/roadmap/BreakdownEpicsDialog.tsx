@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useSyncExternalStore } from "react"
+import { useState } from "react"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { askAgent } from "@/lib/ask-agent"
-import { MAX_RUNNING_CHATS, runningChats } from "@/lib/chats"
+import { MAX_RUNNING_CHATS } from "@/lib/chats"
+import { useChats } from "@/context/ChatContext"
 import type { RoadmapItem } from "@/types"
 
 interface BreakdownEpicsDialogProps {
@@ -46,7 +47,7 @@ function BreakdownForm({ items, onDone }: { items: RoadmapItem[]; onDone: () => 
   const [checked, setChecked] = useState(
     () => new Set(groups.flatMap((g) => g.epics.filter((e) => e.tasks.length === 0).map((e) => e.id))),
   )
-  const running = useSyncExternalStore(runningChats.subscribe, runningChats.get, () => 0)
+  const running = useChats().runningCount
   const free = Math.max(0, MAX_RUNNING_CHATS - running)
   const over = checked.size > free
 
@@ -105,9 +106,9 @@ function BreakdownForm({ items, onDone }: { items: RoadmapItem[]; onDone: () => 
       </div>
       <p className={over || free === 0 ? "text-xs text-amber" : "text-xs text-muted"}>
         {free === 0
-          ? `All ${MAX_RUNNING_CHATS} agent slots are busy. Close a chat tab or wait for one to finish.`
+          ? `All ${MAX_RUNNING_CHATS} agent slots are busy. Stop a chat or wait for one to finish.`
           : over
-            ? `${checked.size} selected, but only ${free} of ${MAX_RUNNING_CHATS} agent slots ${free === 1 ? "is" : "are"} free (${running} running). Uncheck some or close a chat tab.`
+            ? `${checked.size} selected, but only ${free} of ${MAX_RUNNING_CHATS} agent slots ${free === 1 ? "is" : "are"} free (${running} running). Uncheck some or stop a chat.`
             : `One chat per epic, running at once (${free} of ${MAX_RUNNING_CHATS} agent slots free). Each shows a plan before writing anything.`}
       </p>
       <div className="flex justify-end gap-2">

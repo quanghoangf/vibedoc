@@ -16,6 +16,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar"
 import type { TaskBoard } from "@/types"
+import { SidebarChats } from "./SidebarChats"
 
 const NAV_ITEMS = [
   { href: "/board", icon: LayoutDashboard, label: "Board" },
@@ -70,6 +71,8 @@ export function AppSidebar({ board }: AppSidebarProps) {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+        <SidebarSeparator />
+        <SidebarChats />
         {board && (
           <>
             <SidebarSeparator />

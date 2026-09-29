@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { Task } from "@/types"
+import { AgentDot } from "@/components/chat/AgentMark"
 
 const STATUS_COLORS: Record<string, string> = {
   todo: "text-muted border-border2",
@@ -66,7 +67,7 @@ export function TaskCard({ task, onMove, onOpen }: TaskCardProps) {
     >
       {/* ID + status badge */}
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs font-mono text-muted">{task.id}</span>
+        <span className="flex items-center gap-1.5 text-xs font-mono text-muted">{task.id}<AgentDot attach={{ kind: "task", id: task.id }} /></span>
         <Badge
           variant="outline"
           className={cn("text-[10px] h-4 px-1.5 font-normal", STATUS_BADGE_COLORS[task.status])}

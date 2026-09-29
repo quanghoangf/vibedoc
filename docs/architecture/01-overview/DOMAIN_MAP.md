@@ -34,6 +34,7 @@ graph TB
 | Memory | Target project | `memory/MEMORY.md` | Markdown |
 | ADRs | Target project | `docs/architecture/decisions/ADR-*.md` | Markdown |
 | Activity log | Target project | `.vibedoc-activity.json` | JSON array (2000 events max) |
+| Agent chats | Target project | `.vibedoc/chats/<id>.json` | One JSON file per chat (messages, Claude session id, attached epic/task) |
 | Project config | VibeDoc env | `.env.local` | `VIBEDOC_ROOT=<path>` |
 
 ## Key relationships

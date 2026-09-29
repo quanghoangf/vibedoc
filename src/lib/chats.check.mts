@@ -1,116 +1,132 @@
-// Self-check for chat tabs. Run: node src/lib/chats.check.mts
+// Self-check for chats. Run: node src/lib/chats.check.mts
 import assert from 'node:assert/strict'
-import { MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, chatStatus, epicAgents, epicAgentStore, epicOf, newlyWaiting, waitingTitle, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, runningChats, type Chat, type StatusMessage } from './chats.ts'
+import {
+  MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, ago, attachContext, chatFor, chatStatus, chatTitle, defaultChat, epicOf,
+  fromSaved, groupChats, itemAgents, newChatId, newlyWaiting, patchChat, pendingReviews, routeAsk, suggestions,
+  toSaved, waitingTitle, type Attach, type Chat, type StatusMessage,
+} from './chats.ts'
 
-const two = addChat(addChat([], 'a'), 'b')
-const busyB = patchChat(two, 'b', (c) => ({ ...c, busy: true }))
-assert.equal(two.length, 2)
-assert.equal(busyB[0], two[0]) // untouched chats keep their identity
-assert.equal(busyB[1].busy, true)
-assert.deepEqual(patchChat(two, 'gone', (c) => ({ ...c, busy: true })), two) // missing id → no-op
-
-// routeAsk
-assert.deepEqual(routeAsk(two, 'a'), { chatId: 'a' })                   // idle active → reuse
-assert.deepEqual(routeAsk(busyB, 'b'), { newChat: true })               // busy active → new
-assert.deepEqual(routeAsk(busyB, 'a'), { chatId: 'a' })                 // another chat busy doesn't matter
-assert.deepEqual(routeAsk(two, 'a', { newChat: true }), { newChat: true })
-assert.deepEqual(routeAsk([], null), { newChat: true })                 // no chats → new
-assert.deepEqual(routeAsk(two, 'gone'), { newChat: true })              // stale active id → new
-
-// routeAsk: cap on running chats (one `claude -p` each)
-const busy = (n: number) => Array.from({ length: n }, (_, i) => patchChat(addChat([], `r${i}`), `r${i}`, (c) => ({ ...c, busy: true }))[0])
-const idleA = addChat([], 'a')
-assert.deepEqual(routeAsk([...busy(MAX_RUNNING_CHATS - 1), ...idleA], 'a', { newChat: true }), { newChat: true }) // one slot left
-assert.deepEqual(routeAsk(busy(MAX_RUNNING_CHATS), 'r0', { newChat: true }), { refused: TOO_MANY_CHATS })
-assert.deepEqual(routeAsk([...busy(MAX_RUNNING_CHATS), ...idleA], 'a'), { refused: TOO_MANY_CHATS })     // an idle tab would still start a 5th process
-assert.deepEqual(routeAsk(idleA, 'a', { newChat: true, running: MAX_RUNNING_CHATS }), { refused: TOO_MANY_CHATS }) // explicit count beats stale chats
-assert.equal(TOO_MANY_CHATS, 'Too many agents running (4). Close a tab or wait.')
-
-// runningChats store
-let heard = 0
-const off = runningChats.subscribe(() => heard++)
-runningChats.set(2); runningChats.set(2)
-assert.deepEqual([runningChats.get(), heard], [2, 1]) // unchanged value → no notify
-off(); runningChats.set(0)
-assert.equal(heard, 1)
-
-// chatTitle
-assert.equal(chatTitle('Break down epic R004 into tasks.'), 'Break down R004')
-assert.equal(chatTitle('again'), 'again')
-assert.equal(chatTitle('Plan a roadmap for this project.'), 'Plan a roadmap for this projec…')
-assert.equal(chatTitle('Break down this spec into tasks:\n\nlong spec'), 'Break down this spec into task…')
-
-// closeChat
-const three = addChat(two, 'c')
-const ids = (r: { chats: Chat[] }) => r.chats.map((c) => c.id).join('')
-assert.deepEqual({ ids: ids(closeChat(three, 'b', 'b')), active: closeChat(three, 'b', 'b').activeId }, { ids: 'ac', active: 'c' }) // active → right
-assert.equal(closeChat(three, 'c', 'c').activeId, 'b')               // active, rightmost → left
-assert.deepEqual({ ids: ids(closeChat(three, 'a', 'c')), active: closeChat(three, 'a', 'c').activeId }, { ids: 'bc', active: 'c' }) // inactive keeps active
-assert.deepEqual(closeChat(addChat([], 'a'), 'a', 'a'), { chats: [], activeId: null }) // last → empty
-assert.deepEqual(closeChat(three, 'gone', 'a'), { chats: three, activeId: 'a' })
-
-// chatStatus: running > needs-answer > review > error > idle
+const T = (min: number) => new Date(Date.UTC(2026, 8, 29, 9, min)).toISOString()
 const msg = (m: Partial<StatusMessage> = {}): StatusMessage => ({ role: 'assistant', questions: [], proposals: [], plans: [], ...m })
-const chat = (messages: StatusMessage[], busy = false): Chat<StatusMessage> =>
-  ({ id: 'x', title: 't', messages, sessionId: null, busy, notes: [], epicId: null })
+const chat = (id: string, messages: StatusMessage[] = [msg()], o: Partial<Chat<StatusMessage>> = {}): Chat<StatusMessage> =>
+  ({ id, title: id, messages, sessionId: null, busy: false, notes: [], attach: null, createdAt: T(0), updatedAt: T(0), ...o })
 const ask = msg({ questions: [{}] })
 const plan = msg({ plans: [{ status: 'pending' }] })
 const edit = msg({ proposals: [{ status: 'pending' }] })
 const failed = msg({ error: 'boom' })
-assert.equal(chatStatus(chat([])), 'idle')
-assert.equal(chatStatus(chat([msg({ role: 'user' }), msg()])), 'idle')
-assert.equal(chatStatus(chat([msg({ role: 'user' }), msg()], true)), 'running')
-assert.equal(chatStatus(chat([ask])), 'needs-answer')
-assert.equal(chatStatus(chat([msg({ questions: [{ answers: ['a'] }] })])), 'idle')    // answered
-assert.equal(chatStatus(chat([ask, msg({ role: 'user' })])), 'idle')                  // typed past the card
-assert.equal(chatStatus(chat([plan])), 'review')
-assert.equal(chatStatus(chat([edit, msg({ role: 'user' }), msg()])), 'review')         // older pending card still counts
-assert.equal(chatStatus(chat([msg({ plans: [{ status: 'accepted' }], proposals: [{ status: 'rejected' }] })])), 'idle')
-assert.equal(chatStatus(chat([failed])), 'error')
-assert.equal(chatStatus(chat([failed, msg({ role: 'user' }), msg()])), 'idle')         // only the last reply's error
-assert.equal(chatStatus(chat([ask], true)), 'running')                                  // precedence
-assert.equal(chatStatus(chat([msg({ questions: [{}], plans: [{ status: 'pending' }] })])), 'needs-answer')
-assert.equal(chatStatus(chat([msg({ plans: [{ status: 'pending' }], error: 'boom' })])), 'review')
-assert.equal(pendingReviews(chat([plan, edit, msg({ plans: [{ status: 'pending' }, { status: 'accepted' }] })])), 3)
+const epic = (id: string): Attach => ({ kind: 'epic', id })
+const task = (id: string): Attach => ({ kind: 'task', id })
 
-// epicOf / epicAgents: the roadmap marker
+// ids, addChat, patchChat
+assert.match(newChatId(1790000000000, 0.123456), /^c-[a-z0-9]+$/)
+assert.notEqual(newChatId(1, 0.1), newChatId(1, 0.2))
+const added = addChat<StatusMessage>([], 'a', { attach: task('T055'), now: T(1) })
+assert.equal(added[0].title, 'Task T055')
+assert.deepEqual(added[0].attach, task('T055'))
+assert.equal(added[0].updatedAt, T(1))
+assert.equal(addChat([], 'b')[0].title, 'New chat')
+assert.deepEqual(patchChat(added, 'missing', (c) => c), added)   // missing id is a no-op
+
+// chatStatus precedence: running > needs-answer > review > error > idle
+assert.equal(chatStatus(chat('x', [msg()], { busy: true })), 'running')
+assert.equal(chatStatus(chat('x', [ask])), 'needs-answer')
+assert.equal(chatStatus(chat('x', [msg({ questions: [{ answers: ['a'] }] })])), 'idle')
+assert.equal(chatStatus(chat('x', [ask, msg({ role: 'user' })])), 'idle')              // typed past the card
+assert.equal(chatStatus(chat('x', [plan])), 'review')
+assert.equal(chatStatus(chat('x', [edit, msg({ role: 'user' }), msg()])), 'review')     // older pending card still counts
+assert.equal(chatStatus(chat('x', [failed])), 'error')
+assert.equal(chatStatus(chat('x', [failed, msg({ role: 'user' }), msg()])), 'idle')     // only the last reply's error
+assert.equal(chatStatus(chat('x', [ask], { busy: true })), 'running')
+assert.equal(chatStatus(chat('x', [msg({ questions: [{}], plans: [{ status: 'pending' }] })])), 'needs-answer')
+assert.equal(chatStatus(chat('x', [msg({ plans: [{ status: 'pending' }], error: 'boom' })])), 'review')
+assert.equal(pendingReviews(chat('x', [plan, edit, msg({ plans: [{ status: 'pending' }, { status: 'accepted' }] })])), 3)
+
+// routeAsk
+const idle = chat('i'), busy = chat('b', [msg()], { busy: true })
+assert.deepEqual(routeAsk([idle], 'i'), { chatId: 'i' })
+assert.deepEqual(routeAsk([busy], 'b'), { newChat: true })
+assert.deepEqual(routeAsk([idle], 'i', { newChat: true }), { newChat: true })
+assert.deepEqual(routeAsk([], null), { newChat: true })
+assert.deepEqual(routeAsk([idle], 'gone'), { newChat: true })
+const running = Array.from({ length: MAX_RUNNING_CHATS }, (_, i) => chat(`r${i}`, [msg()], { busy: true }))
+assert.deepEqual(routeAsk(running, null), { refused: TOO_MANY_CHATS })
+assert.deepEqual(routeAsk([idle], 'i', { running: MAX_RUNNING_CHATS }), { refused: TOO_MANY_CHATS })
+
+// epicOf, chatTitle
 assert.equal(epicOf('Break down epic R004 into tasks.'), 'R004')
 assert.equal(epicOf('  break down epic r12 please'), 'R12')
 assert.equal(epicOf('Break down the spec in docs/x.md into tasks.'), null)
 assert.equal(chatTitle('Break down epic R004 into tasks.'), 'Break down R004')
-const on = (id: string, epicId: string | null, messages: StatusMessage[], busy = false): Chat<StatusMessage> =>
-  ({ ...chat(messages, busy), id, epicId })
-assert.deepEqual(epicAgents([
-  on('c1', 'R001', [msg()], true),                       // running
-  on('c2', 'R002', [ask]),                               // needs-answer
-  on('c3', 'R003', [plan]),                              // review
-  on('c4', 'R004', [msg()]),                             // idle → nothing
-  on('c5', 'R005', [failed]),                            // error → nothing
-  on('c6', null, [msg()], true),                         // not an epic chat
-]), {
-  R001: { status: 'running', chatId: 'c1' },
-  R002: { status: 'needs-answer', chatId: 'c2' },
-  R003: { status: 'review', chatId: 'c3' },
-})
-// Two chats on one epic: the most urgent wins, whatever the order
-assert.deepEqual(epicAgents([on('a', 'R009', [plan]), on('b', 'R009', [msg()], true)]), { R009: { status: 'running', chatId: 'b' } })
-assert.deepEqual(epicAgents([on('b', 'R009', [ask]), on('a', 'R009', [plan])]), { R009: { status: 'needs-answer', chatId: 'b' } })
-// The store only notifies on a real change
-let hits = 0
-const unsub = epicAgentStore.subscribe(() => hits++)
-epicAgentStore.set({ R001: { status: 'running', chatId: 'c1' } })
-epicAgentStore.set({ R001: { status: 'running', chatId: 'c1' } })
-epicAgentStore.set({})
-unsub()
-assert.equal(hits, 2)
+assert.equal(chatTitle('short'), 'short')
+assert.equal(chatTitle('x'.repeat(60)), `${'x'.repeat(40)}…`)
 
-// newlyWaiting / waitingTitle: badge, page title, desktop notification
-const w1 = on('w1', null, [ask]), w2 = on('w2', null, [plan]), w3 = on('w3', null, [msg()], true)
+// chatFor: the newest chat on the item
+const onEpic = [chat('old', [msg()], { attach: epic('R4'), updatedAt: T(1) }), chat('new', [msg()], { attach: epic('R4'), updatedAt: T(5) }), chat('t', [msg()], { attach: task('R4') })]
+assert.equal(chatFor(onEpic, epic('R4'))?.id, 'new')
+assert.equal(chatFor(onEpic, task('R4'))?.id, 't')                                     // kind matters
+assert.equal(chatFor(onEpic, epic('R5')), undefined)
+
+// itemAgents: most urgent chat per item; idle/error/unattached show nothing
+assert.deepEqual(itemAgents([
+  chat('c1', [msg()], { busy: true, attach: epic('R1') }),
+  chat('c2', [ask], { attach: task('T2') }),
+  chat('c3', [plan], { attach: epic('R3') }),
+  chat('c4', [msg()], { attach: epic('R4') }),
+  chat('c5', [failed], { attach: epic('R5') }),
+  chat('c6', [msg()], { busy: true }),
+]), {
+  'epic:R1': { status: 'running', chatId: 'c1' },
+  'task:T2': { status: 'needs-answer', chatId: 'c2' },
+  'epic:R3': { status: 'review', chatId: 'c3' },
+})
+assert.deepEqual(itemAgents([chat('a', [plan], { attach: epic('R9') }), chat('b', [msg()], { busy: true, attach: epic('R9') })]), { 'epic:R9': { status: 'running', chatId: 'b' } })
+
+// attachContext / suggestions name only real tools and real actions
+assert.match(attachContext(epic('R4')), /epic R4.*vibedoc_get_roadmap/)
+assert.match(attachContext(task('T5')), /task T5.*vibedoc_get_task/)
+assert.equal(suggestions(epic('R4'))[0], 'Break down epic R004'.replace('R004', 'R4') + ' into tasks.')
+assert.equal(suggestions(task('T5')).length, 3)
+assert.equal(suggestions(null).length, 3)
+
+// groupChats / defaultChat
+const g = groupChats([
+  chat('idleOld', [msg()], { updatedAt: T(1) }),
+  chat('idleNew', [msg()], { updatedAt: T(9) }),
+  chat('run', [msg()], { busy: true, updatedAt: T(2) }),
+  chat('wait1', [ask], { updatedAt: T(3) }),
+  chat('wait2', [plan], { updatedAt: T(4) }),
+])
+assert.deepEqual([g.needsYou, g.running, g.recent].map((l) => l.map((c) => c.id)), [['wait2', 'wait1'], ['run'], ['idleNew', 'idleOld']])
+assert.equal(defaultChat([chat('a', [msg()], { updatedAt: T(9) }), chat('b', [ask], { updatedAt: T(1) })])?.id, 'b')
+assert.equal(defaultChat([]), undefined)
+
+// toSaved / fromSaved
+assert.equal(toSaved(chat('e', [])), null)                                              // empty chats aren't saved
+assert.equal(toSaved(chat('s', [msg()], { busy: true }))?.busy, false)
+const cut = fromSaved<StatusMessage>(chat('cut', [msg({ role: 'user', text: 'hi' }), msg({ text: '' })], { busy: true }))
+assert.equal(cut?.busy, false)
+assert.match(cut?.messages[1].error ?? '', /Interrupted/)
+assert.equal(fromSaved<StatusMessage>(chat('ok', [msg({ text: 'done' })]))?.messages[0].error, undefined)
+assert.equal(fromSaved<StatusMessage>(chat('card', [plan]))?.messages[0].error, undefined)   // a card-only reply isn't cut off
+assert.equal(fromSaved(null), null)
+assert.equal(fromSaved({ id: 1 }), null)
+assert.deepEqual(fromSaved<StatusMessage>({ id: 'legacy', title: 't', messages: [msg({ text: 'x' })], sessionId: null })?.attach, null)
+
+// newlyWaiting / waitingTitle
+const w1 = chat('w1', [ask]), w2 = chat('w2', [plan]), w3 = chat('w3', [msg()], { busy: true })
 assert.deepEqual(newlyWaiting({}, [w1, w2, w3]).map((x) => [x.chat.id, x.status]), [['w1', 'needs-answer'], ['w2', 'review']])
-assert.deepEqual(newlyWaiting({ w1: 'needs-answer', w2: 'running' }, [w1, w2]).map((x) => x.chat.id), ['w2'])  // already notified → once
-assert.deepEqual(newlyWaiting({ w2: 'needs-answer' }, [w2]).map((x) => x.status), ['review'])                  // answered, now a plan
+assert.deepEqual(newlyWaiting({ w1: 'needs-answer', w2: 'running' }, [w1, w2]).map((x) => x.chat.id), ['w2'])
+assert.deepEqual(newlyWaiting({ w2: 'needs-answer' }, [w2]).map((x) => x.status), ['review'])
 assert.equal(waitingTitle('VibeDoc', 2), '(2) VibeDoc')
 assert.equal(waitingTitle('(2) VibeDoc', 3), '(3) VibeDoc')
 assert.equal(waitingTitle('(3) VibeDoc', 0), 'VibeDoc')
+
+// ago
+const base = Date.parse(T(0))
+assert.equal(ago(T(0), base + 30_000), 'now')
+assert.equal(ago(T(0), base + 5 * 60_000), '5m')
+assert.equal(ago(T(0), base + 3 * 3600_000), '3h')
+assert.equal(ago(T(0), base + 50 * 3600_000), '2d')
+assert.equal(ago(T(5), base), 'now')                                                    // future clamps to now
 
 console.log('chats: ok')

@@ -23,12 +23,12 @@ try {
     await page.getByText("Reply 0.").waitFor()
     assert.equal(calls.length, 1)
     assert.equal(calls[0].message, "Plan a roadmap for this project.")
-    assert.equal(await page.getByRole("button", { name: "Close chat" }).isVisible(), true)
-    console.log("ok  Plan with agent opens the chat and sends the message")
+    assert.equal(await page.getByRole("dialog", { name: "Plan a roadmap for this project." }).isVisible(), true)
+    console.log("ok  Plan with agent opens the chat modal and sends the message")
     await page.close()
   }
 
-  // 2. Epic without tasks → "Break down with agent"; a second ask while busy opens a second tab and runs in parallel
+  // 2. Epic without tasks → "Break down with agent"; a second ask while busy opens a second chat that runs in parallel
   {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
     let release
@@ -44,17 +44,22 @@ try {
     await page.getByRole("button", { name: "Break down with agent" }).click()
     await page.getByText("Thinking…").waitFor()
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("vibedoc:ask-agent", { detail: { message: "again" } })))
-    await page.getByRole("tab", { name: "again" }).waitFor()
-    await page.waitForFunction(() => document.querySelectorAll('[role=tabpanel]:not([hidden])').length === 1)
+    // The sidebar lists both chats; the modal switched to the new one.
+    // CSS locators: while the modal is open, the page behind it is aria-hidden
+    const agents = page.locator('[aria-label="Agent chats"]')
+    const chatA = agents.locator("button", { hasText: "Break down R002" })
+    await agents.locator("button", { hasText: "again" }).waitFor()
+    await page.getByRole("dialog", { name: "again" }).waitFor()
     for (let i = 0; i < 50 && inFlight < 2; i++) await page.waitForTimeout(100)
     assert.equal(inFlight, 2, "both /api/chat requests are in flight at once")
-    assert.equal(await page.getByRole("tab").count(), 2)
     assert.equal(await page.getByText("Agent is busy").count(), 0)
     release()
-    // The active tab is the new one; each reply lands in its own chat
+    // Each reply lands in its own chat
     await page.getByText("Reply B.").waitFor()
     assert.equal(await page.getByText("Reply A.").isVisible(), false)
-    await page.getByRole("tab", { name: "Break down R002" }).click()
+    await page.keyboard.press("Escape")
+    await chatA.click()
+    await page.getByRole("dialog", { name: "Break down R002" }).waitFor()
     await page.getByText("Reply A.").waitFor()
     assert.equal(await page.getByText("Reply B.").isVisible(), false)
     assert.equal(calls.length, 2)
@@ -62,22 +67,32 @@ try {
     const second = calls.find((c) => c.message === "again")
     assert.ok(first && second)
     assert.equal(second.sessionId ?? null, null)
-    console.log("ok  busy ask opens a second tab; both stream at once into their own chats")
+    console.log("ok  busy ask opens a second chat; both stream at once into their own chats")
 
-    // A follow-up in tab A resumes A's session
+    // A follow-up in chat A resumes A's session
     await page.getByPlaceholder("Ask the agent… (Enter to send)").fill("more")
     await page.keyboard.press("Enter")
     await page.getByText("Reply A.").nth(1).waitFor()
     assert.equal(calls.length, 3)
     assert.equal(calls[2].sessionId, "sA")
-    console.log("ok  follow-up in tab A resumes A's session")
+    console.log("ok  follow-up in chat A resumes A's session")
 
-    // An ask while the active chat is idle goes into that chat, no new tab
+    // An ask while the current chat is idle goes into that chat, no new chat
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("vibedoc:ask-agent", { detail: { message: "idle ask" } })))
     await page.getByText("Reply A.").nth(2).waitFor()
-    assert.equal(await page.getByRole("tab").count(), 2)
+    assert.equal(await agents.locator("li button[title]").count(), 2)
     assert.equal(calls[3].sessionId, "sA")
-    console.log("ok  ask while the active chat is idle reuses it")
+    console.log("ok  ask while the current chat is idle reuses it")
+
+    // The epic now has a chat: its sheet offers "Open chat" instead of another breakdown
+    await page.keyboard.press("Escape")
+    await page.locator(".react-flow__node-feature", { hasText: "Epic" }).click()
+    await page.getByRole("button", { name: "Open chat" }).waitFor()
+    assert.equal(await page.getByRole("button", { name: "Break down with agent" }).count(), 0)
+    await page.getByRole("button", { name: "Open chat" }).click()
+    await page.getByRole("dialog", { name: "Break down R002" }).waitFor()
+    await page.keyboard.press("Escape")
+    console.log("ok  epic sheet: Open chat resumes the epic's chat")
 
     // Horizon sheet has no such button
     await page.locator(".react-flow__node", { hasText: "Now" }).first().click()

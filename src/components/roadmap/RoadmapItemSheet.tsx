@@ -1,14 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { Bot, ChevronRight, FileText, Pencil, Plus } from "lucide-react"
+import { Bot, ChevronRight, FileText, MessageSquare, Pencil, Plus } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
-import { askAgent, openAgentChat } from "@/lib/ask-agent"
-import { AgentMark, useEpicAgent } from "./AgentMark"
+import { askAgent } from "@/lib/ask-agent"
+import { chatFor } from "@/lib/chats"
+import { AgentDot, AgentMark } from "@/components/chat/AgentMark"
+import { useChats } from "@/context/ChatContext"
 import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
 import { pickNextTask } from "@/lib/work-queue"
 import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
@@ -60,7 +62,9 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
   const epics = items.filter((i) => i.parent === item.id).sort((a, b) => a.order - b.order)
   const progress = progressById[item.id]
   const today = localToday()
-  const agent = useEpicAgent(item.id)
+  const { chats, showAbout } = useChats()
+  const chat = isHorizon ? undefined : chatFor(chats, { kind: "epic", id: item.id })
+  const offerBreakdown = !isHorizon && item.tasks.length === 0 && !chat
 
   return (
     <div className="flex min-h-full flex-col">
@@ -79,7 +83,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
         <SheetTitle className="mt-2 text-xl font-semibold leading-tight text-txt">{item.title}</SheetTitle>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <StatusPill status={item.status} />
-          <AgentMark id={item.id} />
+          <AgentMark attach={{ kind: "epic", id: item.id }} />
           <DueChip due={item.due} state={dueState(item.due, item.status, today)} />
         </div>
         {progress && (
@@ -135,19 +139,26 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
       </div>
 
       <footer className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-border bg-surface px-6 py-3">
-        {!isHorizon && agent ? (
-          <Button size="sm" onClick={() => { onClose(); openAgentChat(agent.chatId) }} className="bg-accent text-white hover:bg-accent/90">
-            <Bot /> Open chat
-          </Button>
-        ) : !isHorizon && item.tasks.length === 0 ? (
+        {offerBreakdown && (
           <Button size="sm" onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} className="bg-accent text-white hover:bg-accent/90">
             <Bot /> Break down with agent
           </Button>
-        ) : isHorizon ? (
+        )}
+        {!isHorizon && (
+          <Button
+            size="sm"
+            variant={offerBreakdown ? "outline" : "default"}
+            onClick={() => { onClose(); showAbout({ kind: "epic", id: item.id }) }}
+            className={cn(!offerBreakdown && "bg-accent text-white hover:bg-accent/90")}
+          >
+            <MessageSquare /> {chat ? "Open chat" : "Chat"}
+          </Button>
+        )}
+        {isHorizon && (
           <Button size="sm" onClick={() => onAddFeature(item.id)} className="bg-accent text-white hover:bg-accent/90">
             <Plus /> Add epic
           </Button>
-        ) : null}
+        )}
         <Button size="sm" variant="outline" onClick={onEdit}>
           <Pencil /> Edit
         </Button>
@@ -339,11 +350,11 @@ function LinkedTasks({ item, tasksById, onOpen }: {
           }
           const isNext = t.id === nextId
           return (
-            <li key={id}>
+            <li key={id} className={cn("group flex items-center rounded-md hover:bg-surface2", isNext && "bg-accent/10 hover:bg-accent/15")}>
               <button
                 type="button"
                 onClick={() => onOpen(t.file)}
-                className={cn("flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-surface2", isNext && "bg-accent/10 hover:bg-accent/15")}
+                className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 text-left"
               >
                 <span title={t.status} className={cn("h-2 w-2 shrink-0 rounded-full", TASK_STATUS_BG[t.status])} />
                 <span className="shrink-0 font-mono text-[11px] text-muted">{t.id}</span>
@@ -354,7 +365,9 @@ function LinkedTasks({ item, tasksById, onOpen }: {
                 {isNext
                   ? <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-accent">Next up</span>
                   : t.size && t.size !== "—" && <span className="shrink-0 font-mono text-[10px] text-muted">{t.size.split(" ")[0]}</span>}
+                <AgentDot attach={{ kind: "task", id: t.id }} />
               </button>
+              <TaskChatButton taskId={t.id} />
             </li>
           )
         })}
@@ -365,5 +378,25 @@ function LinkedTasks({ item, tasksById, onOpen }: {
         </p>
       )}
     </section>
+  )
+}
+
+/** Per-task chat entry in the epic sheet: always visible when a chat exists, on hover otherwise. */
+function TaskChatButton({ taskId }: { taskId: string }) {
+  const { chats, showAbout } = useChats()
+  const has = !!chatFor(chats, { kind: "task", id: taskId })
+  return (
+    <button
+      type="button"
+      onClick={() => showAbout({ kind: "task", id: taskId })}
+      aria-label={`${has ? "Open chat" : "Chat"} about ${taskId}`}
+      title={has ? `Open the chat about ${taskId}` : `Chat about ${taskId}`}
+      className={cn(
+        "mr-1 grid size-7 shrink-0 place-items-center rounded-md text-muted transition-[opacity,color] duration-(--duration-fast) hover:bg-surface hover:text-accent focus-visible:opacity-100",
+        has ? "text-accent opacity-100" : "opacity-0 group-hover:opacity-100",
+      )}
+    >
+      <MessageSquare className="size-3.5" />
+    </button>
   )
 }

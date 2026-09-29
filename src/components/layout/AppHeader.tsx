@@ -1,6 +1,5 @@
-import { useSyncExternalStore } from "react"
 import type { Project, Summary } from "@/types"
-import { waitingChats } from "@/lib/chats"
+import { useChats } from "@/context/ChatContext"
 import { ProjectSwitcher } from "./ProjectSwitcher"
 import { StatsPills } from "./StatsPills"
 import { LiveIndicator } from "./LiveIndicator"
@@ -19,8 +18,8 @@ interface AppHeaderProps {
 
 export function AppHeader({ summary, projects, activeProject, liveIndicator, onProjectChange, onToggleChat }: AppHeaderProps) {
   const host = useOrigin().replace(/^https?:\/\//, "")
-  // Chats waiting on the user (published by ChatPanel), visible even while the sidebar is closed
-  const waiting = useSyncExternalStore(waitingChats.subscribe, waitingChats.get, () => 0)
+  // Chats waiting on the user, visible even while the chat modal is closed
+  const waiting = useChats().waitingCount
   return (
     <header className="h-12 border-b border-border flex items-center px-4 gap-4 shrink-0 bg-surface/80 backdrop-blur-xs sticky top-0 z-50">
       <SidebarTrigger className="-ml-1" />

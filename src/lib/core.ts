@@ -1565,3 +1565,45 @@ export async function readPlanningSkill(kind: PlanningKind): Promise<string> {
   const text = await fs.readFile(path.join(process.cwd(), 'skills', PLANNING_SKILLS[kind], 'SKILL.md'), 'utf-8')
   return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trimStart()
 }
+
+// ─── Agent chats (.vibedoc/chats/<id>.json) ───────────────────────────────────
+// The browser owns the chat shape (src/lib/chats.ts); core only stores it by id.
+
+const CHATS_DIR = path.join('.vibedoc', 'chats')
+const CHAT_ID = /^[a-z0-9-]{1,64}$/
+
+function chatFile(id: string, root: string): string {
+  if (!CHAT_ID.test(id)) throw new Error(`Invalid chat id "${id}"`)
+  return path.join(root, CHATS_DIR, `${id}.json`)
+}
+
+/** Every saved chat, unparsed beyond JSON. Unreadable files are skipped (logged). */
+export async function listChats(root: string): Promise<unknown[]> {
+  const dir = path.join(root, CHATS_DIR)
+  const files = await fs.readdir(dir).catch(() => [] as string[])
+  // ponytail: reads every chat file on load; add a limit/index if projects collect hundreds of chats
+  const chats = await Promise.all(files.filter(f => f.endsWith('.json')).map(async f => {
+    try {
+      return JSON.parse(await fs.readFile(path.join(dir, f), 'utf-8')) as unknown
+    } catch (e) {
+      console.warn(`[vibedoc] skipping unreadable chat ${f}: ${(e as Error).message}`)
+      return null
+    }
+  }))
+  return chats.filter(c => c !== null)
+}
+
+export async function saveChat(chat: unknown, root: string): Promise<void> {
+  const id = (chat as { id?: unknown } | null)?.id
+  if (typeof id !== 'string') throw new Error('chat.id is required')
+  const file = chatFile(id, root)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  // Write-then-rename so a crash mid-write never leaves half a JSON file
+  const tmp = `${file}.tmp`
+  await fs.writeFile(tmp, JSON.stringify(chat), 'utf-8')
+  await fs.rename(tmp, file)
+}
+
+export async function deleteChat(id: string, root: string): Promise<void> {
+  await fs.rm(chatFile(id, root), { force: true })
+}

@@ -142,6 +142,13 @@ export function RoadmapTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // ?item=R004 (links from a chat) opens that item's sheet; adjusted during render so a new link re-opens it
+  const itemParam = searchParams.get("item")
+  const [seenItemParam, setSeenItemParam] = useState<string | null>(null)
+  if (itemParam !== seenItemParam) {
+    setSeenItemParam(itemParam)
+    if (itemParam) setSelectedId(itemParam)
+  }
   const [generateSource, setGenerateSource] = useState<RoadmapSource | null>(null)
   const [generating, setGenerating] = useState(false)
   // null = closed; "" = new horizon; "R001" = new feature under R001
