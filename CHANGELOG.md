@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/quanghoangf/vibedoc/compare/v1.6.0...v1.6.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **mcp:** show the real server address instead of localhost:3000 ([99e9731](https://github.com/quanghoangf/vibedoc/commit/99e9731eb7936507fdf68dca00e0505a0d1e997b))
+
 # [1.6.0](https://github.com/quanghoangf/vibedoc/compare/v1.5.0...v1.6.0) (2026-09-29)
 
 
