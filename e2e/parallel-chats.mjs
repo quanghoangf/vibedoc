@@ -58,11 +58,28 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('[role=tab] [title="Running"]').length === 3)
   console.log("ok  Break down epics… starts 3 chats; 3 requests in flight, 3 tabs running")
 
+  // Each epic on the map shows its chat is working
+  const agentMarks = (label) => page.evaluate((l) =>
+    [...document.querySelectorAll(`.react-flow__node [aria-label="${l}, open chat"]`)]
+      .map((b) => b.closest(".react-flow__node").textContent.match(/R\d+/)?.[0]).sort(), label)
+  await page.waitForFunction(() => document.querySelectorAll('.react-flow__node [aria-label="Agent working, open chat"]').length === 3)
+  assert.deepEqual(await agentMarks("Agent working"), EPICS)
+  console.log("ok  map: all 3 epics show Agent working")
+
   // 3. Release all → every tab needs review; accept in a different order than created
   release()
   await page.waitForFunction(() => document.querySelectorAll('[role=tab] [title="Plan or edit to review"]').length === 3)
   assert.deepEqual(calls.map((c) => c.message).sort(), EPICS.map((e) => `Break down epic ${e} into tasks.`))
   console.log("ok  released: all 3 tabs show review")
+  await page.waitForFunction(() => document.querySelectorAll('.react-flow__node [aria-label="Plan to review, open chat"]').length === 3)
+  assert.deepEqual(await agentMarks("Plan to review"), EPICS)
+  console.log("ok  map: all 3 epics show Plan to review")
+
+  // Clicking an epic's mark opens that epic's chat tab
+  await page.getByRole("tab", { name: "Break down R004" }).click()
+  await page.locator(".react-flow__node", { hasText: "R003" }).getByRole("button", { name: /open chat/ }).dispatchEvent("click")
+  await page.waitForFunction(() => document.querySelector('[role=tab][aria-selected="true"]')?.textContent.includes("R003"))
+  console.log("ok  clicking the R003 mark opens the R003 chat tab")
 
   const acceptOrder = ["R004", "R002", "R003"]
   for (const epic of acceptOrder) {
@@ -74,6 +91,8 @@ try {
   }
   await page.waitForFunction(() => !document.querySelector('[role=tab] [title="Plan or edit to review"]'))
   console.log(`ok  accepted all 3 plans in order ${acceptOrder.join(", ")}`)
+  await page.waitForFunction(() => !document.querySelector('.react-flow__node [aria-label$=", open chat"]'))
+  console.log("ok  map: agent marks clear once the plans are reviewed")
 
   // 4. T ids unique and contiguous; each epic lists only its own, assigned in accept order
   const files = readdirSync(tasksDir).sort()

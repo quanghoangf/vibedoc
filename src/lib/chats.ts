@@ -9,10 +9,12 @@ export interface Chat<M = unknown> {
   busy: boolean
   /** Accept/reject outcomes the agent hasn't heard about yet; sent with this chat's next message */
   notes: string[]
+  /** The epic this chat is breaking down (from a "Break down epic R…" message); the roadmap shows its status */
+  epicId: string | null
 }
 
 export function addChat<M>(chats: Chat<M>[], id: string, title = "New chat"): Chat<M>[] {
-  return [...chats, { id, title, messages: [], sessionId: null, busy: false, notes: [] }]
+  return [...chats, { id, title, messages: [], sessionId: null, busy: false, notes: [], epicId: null }]
 }
 
 /** A missing id (e.g. a closed tab whose stream is still unwinding) is a no-op. */
@@ -76,25 +78,54 @@ export function routeAsk(
   return active && !active.busy && !opts.newChat ? { chatId: active.id } : { newChat: true }
 }
 
-// Running-chat count for UI outside ChatPanel (the breakdown dialog); ChatPanel publishes it. useSyncExternalStore-shaped.
-let running = 0
-const listeners = new Set<() => void>()
-export const runningChats = {
-  get: () => running,
-  set(n: number) {
-    if (n === running) return
-    running = n
-    for (const l of listeners) l()
-  },
-  subscribe(l: () => void) {
-    listeners.add(l)
-    return () => { listeners.delete(l) }
-  },
+/** What the roadmap shows on an epic while a chat works on it. Idle and errored chats show nothing. */
+export interface EpicAgent { status: Exclude<ChatStatus, "idle" | "error">; chatId: string }
+
+const EPIC_RANK = { running: 3, "needs-answer": 2, review: 1 } as const
+
+/** epicId → the most urgent chat on it (running > needs-answer > review). */
+export function epicAgents(chats: Chat<StatusMessage>[]): Record<string, EpicAgent> {
+  const out: Record<string, EpicAgent> = {}
+  for (const c of chats) {
+    const status = chatStatus(c)
+    if (!c.epicId || status === "idle" || status === "error") continue
+    const cur = out[c.epicId]
+    if (!cur || EPIC_RANK[status] > EPIC_RANK[cur.status]) out[c.epicId] = { status, chatId: c.id }
+  }
+  return out
+}
+
+// Chat state for UI outside ChatPanel (roadmap), published by ChatPanel. useSyncExternalStore-shaped.
+function store<T>(initial: T, same: (a: T, b: T) => boolean) {
+  let value = initial
+  const listeners = new Set<() => void>()
+  return {
+    get: () => value,
+    set(next: T) {
+      if (same(value, next)) return
+      value = next
+      for (const l of listeners) l()
+    },
+    subscribe(l: () => void) {
+      listeners.add(l)
+      return () => { listeners.delete(l) }
+    },
+  }
+}
+
+/** Running-chat count: the breakdown dialog's free slots. */
+export const runningChats = store(0, (a, b) => a === b)
+/** epicId → EpicAgent: the map node, timeline and item sheet show it. */
+export const epicAgentStore = store<Record<string, EpicAgent>>({}, (a, b) => JSON.stringify(a) === JSON.stringify(b))
+
+/** The epic a message asks to break down: the roadmap's "Break down with agent" wording, or the same typed by hand. */
+export function epicOf(message: string): string | null {
+  return message.trim().match(/^Break down epic (R\d+)/i)?.[1].toUpperCase() ?? null
 }
 
 export function chatTitle(firstMessage: string): string {
-  const epic = firstMessage.match(/^Break down epic (R\d+)/)
-  if (epic) return `Break down ${epic[1]}`
+  const epic = epicOf(firstMessage)
+  if (epic) return `Break down ${epic}`
   const line = firstMessage.trim().split("\n")[0]
   return line.length > 30 ? `${line.slice(0, 30).trimEnd()}…` : line
 }

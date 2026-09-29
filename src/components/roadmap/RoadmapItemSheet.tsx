@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
-import { askAgent } from "@/lib/ask-agent"
+import { askAgent, openAgentChat } from "@/lib/ask-agent"
+import { AgentMark, useEpicAgent } from "./AgentMark"
 import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
 import { pickNextTask } from "@/lib/work-queue"
 import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
@@ -59,6 +60,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
   const epics = items.filter((i) => i.parent === item.id).sort((a, b) => a.order - b.order)
   const progress = progressById[item.id]
   const today = localToday()
+  const agent = useEpicAgent(item.id)
 
   return (
     <div className="flex min-h-full flex-col">
@@ -77,6 +79,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
         <SheetTitle className="mt-2 text-xl font-semibold leading-tight text-txt">{item.title}</SheetTitle>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <StatusPill status={item.status} />
+          <AgentMark id={item.id} />
           <DueChip due={item.due} state={dueState(item.due, item.status, today)} />
         </div>
         {progress && (
@@ -132,7 +135,11 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
       </div>
 
       <footer className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-border bg-surface px-6 py-3">
-        {!isHorizon && item.tasks.length === 0 ? (
+        {!isHorizon && agent ? (
+          <Button size="sm" onClick={() => { onClose(); openAgentChat(agent.chatId) }} className="bg-accent text-white hover:bg-accent/90">
+            <Bot /> Open chat
+          </Button>
+        ) : !isHorizon && item.tasks.length === 0 ? (
           <Button size="sm" onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} className="bg-accent text-white hover:bg-accent/90">
             <Bot /> Break down with agent
           </Button>

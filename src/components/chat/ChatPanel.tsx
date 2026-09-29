@@ -11,8 +11,8 @@ import { PlanCard, type PlanCreated, type PlanProposal, type PlanStatus } from "
 import { QuestionCard, formatAnswers, isRenderableQuestions, type Question, type QuestionSet } from "./QuestionCard"
 import { asRenderablePlan, planTarget } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
-import { ASK_AGENT_EVENT, type AskAgentDetail } from "@/lib/ask-agent"
-import { addChat, chatStatus, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, runningChats, type Chat, type ChatStatus } from "@/lib/chats"
+import { ASK_AGENT_EVENT, OPEN_CHAT_EVENT, type AskAgentDetail } from "@/lib/ask-agent"
+import { addChat, chatStatus, chatTitle, closeChat, epicAgents, epicAgentStore, epicOf, patchChat, pendingReviews, routeAsk, runningChats, type Chat, type ChatStatus } from "@/lib/chats"
 
 interface ChatMessage {
   role: "user" | "assistant"
@@ -72,6 +72,18 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 
   // Lets the roadmap's breakdown dialog see the free slots
   useEffect(() => { runningChats.set(runningCount) }, [runningCount])
+  // Lets the roadmap mark the epics a chat is working on
+  useEffect(() => { epicAgentStore.set(epicAgents(chats)) }, [chats])
+
+  // openAgentChat() from an epic's marker: show that tab (layout.tsx opens the sidebar)
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const chatId = (e as CustomEvent<{ chatId: string }>).detail?.chatId
+      if (chatId) setActiveId((cur) => (chats.some((c) => c.id === chatId) ? chatId : cur))
+    }
+    window.addEventListener(OPEN_CHAT_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_CHAT_EVENT, onOpen)
+  }, [chats])
 
   // A Claude session belongs to one project
   useEffect(() => {
@@ -193,6 +205,7 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     setChats((cs) => patchChat(cs, chatId, (c) => ({
       ...c,
       title: c.messages.length ? c.title : chatTitle(message),
+      epicId: epicOf(message) ?? c.epicId,
       busy: true,
       notes: [],
       messages: [...c.messages, blank("user", message), blank("assistant")],

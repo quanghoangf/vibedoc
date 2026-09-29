@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import type { RoadmapItem } from "@/types"
 import type { RoadmapProgress } from "@/lib/roadmap-health"
 import { StatusDot } from "./RoadmapNodes"
+import { AgentDot } from "./AgentMark"
 import { LANE_ROW_H, buildTimeline, formatDay } from "./timeline"
 
 const LANE_LABEL_W = 200
@@ -97,8 +98,11 @@ export function RoadmapTimeline({ items, today, onSelect, progressById }: Roadma
                         "group-hover:border-accent",
                       )}
                     >
-                      <span className={cn("truncate text-xs", mk.item.status === "done" ? "text-muted" : "text-txt", mk.horizon && "font-semibold")}>
-                        {mk.item.title}
+                      <span className="flex items-center gap-1">
+                        <span className={cn("truncate text-xs", mk.item.status === "done" ? "text-muted" : "text-txt", mk.horizon && "font-semibold")}>
+                          {mk.item.title}
+                        </span>
+                        <AgentDot id={mk.item.id} />
                       </span>
                       <span
                         className={cn(
@@ -136,6 +140,7 @@ export function RoadmapTimeline({ items, today, onSelect, progressById }: Roadma
               >
                 <StatusDot status={i.status} />
                 {i.title}
+                <AgentDot id={i.id} />
               </button>
             ))}
           </div>

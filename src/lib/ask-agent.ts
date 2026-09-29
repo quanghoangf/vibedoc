@@ -10,3 +10,10 @@ export interface AskAgentDetail {
 export function askAgent(message: string, opts: { newChat?: boolean } = {}) {
   window.dispatchEvent(new CustomEvent<AskAgentDetail>(ASK_AGENT_EVENT, { detail: { message, ...opts } }))
 }
+
+export const OPEN_CHAT_EVENT = "vibedoc:open-chat"
+
+/** Opens the chat sidebar on tab `chatId` (e.g. from an epic's "agent working" marker). */
+export function openAgentChat(chatId: string) {
+  window.dispatchEvent(new CustomEvent<{ chatId: string }>(OPEN_CHAT_EVENT, { detail: { chatId } }))
+}

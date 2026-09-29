@@ -1,6 +1,6 @@
 // Self-check for chat tabs. Run: node src/lib/chats.check.mts
 import assert from 'node:assert/strict'
-import { MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, chatStatus, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, runningChats, type Chat, type StatusMessage } from './chats.ts'
+import { MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, chatStatus, epicAgents, epicAgentStore, epicOf, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, runningChats, type Chat, type StatusMessage } from './chats.ts'
 
 const two = addChat(addChat([], 'a'), 'b')
 const busyB = patchChat(two, 'b', (c) => ({ ...c, busy: true }))
@@ -52,7 +52,7 @@ assert.deepEqual(closeChat(three, 'gone', 'a'), { chats: three, activeId: 'a' })
 // chatStatus: running > needs-answer > review > error > idle
 const msg = (m: Partial<StatusMessage> = {}): StatusMessage => ({ role: 'assistant', questions: [], proposals: [], plans: [], ...m })
 const chat = (messages: StatusMessage[], busy = false): Chat<StatusMessage> =>
-  ({ id: 'x', title: 't', messages, sessionId: null, busy, notes: [] })
+  ({ id: 'x', title: 't', messages, sessionId: null, busy, notes: [], epicId: null })
 const ask = msg({ questions: [{}] })
 const plan = msg({ plans: [{ status: 'pending' }] })
 const edit = msg({ proposals: [{ status: 'pending' }] })
@@ -72,5 +72,36 @@ assert.equal(chatStatus(chat([ask], true)), 'running')                          
 assert.equal(chatStatus(chat([msg({ questions: [{}], plans: [{ status: 'pending' }] })])), 'needs-answer')
 assert.equal(chatStatus(chat([msg({ plans: [{ status: 'pending' }], error: 'boom' })])), 'review')
 assert.equal(pendingReviews(chat([plan, edit, msg({ plans: [{ status: 'pending' }, { status: 'accepted' }] })])), 3)
+
+// epicOf / epicAgents: the roadmap marker
+assert.equal(epicOf('Break down epic R004 into tasks.'), 'R004')
+assert.equal(epicOf('  break down epic r12 please'), 'R12')
+assert.equal(epicOf('Break down the spec in docs/x.md into tasks.'), null)
+assert.equal(chatTitle('Break down epic R004 into tasks.'), 'Break down R004')
+const on = (id: string, epicId: string | null, messages: StatusMessage[], busy = false): Chat<StatusMessage> =>
+  ({ ...chat(messages, busy), id, epicId })
+assert.deepEqual(epicAgents([
+  on('c1', 'R001', [msg()], true),                       // running
+  on('c2', 'R002', [ask]),                               // needs-answer
+  on('c3', 'R003', [plan]),                              // review
+  on('c4', 'R004', [msg()]),                             // idle → nothing
+  on('c5', 'R005', [failed]),                            // error → nothing
+  on('c6', null, [msg()], true),                         // not an epic chat
+]), {
+  R001: { status: 'running', chatId: 'c1' },
+  R002: { status: 'needs-answer', chatId: 'c2' },
+  R003: { status: 'review', chatId: 'c3' },
+})
+// Two chats on one epic: the most urgent wins, whatever the order
+assert.deepEqual(epicAgents([on('a', 'R009', [plan]), on('b', 'R009', [msg()], true)]), { R009: { status: 'running', chatId: 'b' } })
+assert.deepEqual(epicAgents([on('b', 'R009', [ask]), on('a', 'R009', [plan])]), { R009: { status: 'needs-answer', chatId: 'b' } })
+// The store only notifies on a real change
+let hits = 0
+const unsub = epicAgentStore.subscribe(() => hits++)
+epicAgentStore.set({ R001: { status: 'running', chatId: 'c1' } })
+epicAgentStore.set({ R001: { status: 'running', chatId: 'c1' } })
+epicAgentStore.set({})
+unsub()
+assert.equal(hits, 2)
 
 console.log('chats: ok')
