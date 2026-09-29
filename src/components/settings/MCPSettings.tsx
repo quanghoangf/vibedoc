@@ -4,7 +4,8 @@ import { useState } from "react"
 import { Plug, Check, X, Copy, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
-import type { AppSettings } from "@/lib/settings"
+import { resolveMcpEndpoint, type AppSettings } from "@/lib/settings"
+import { useOrigin } from "@/hooks/use-origin"
 
 interface MCPSettingsProps {
   settings: AppSettings
@@ -53,6 +54,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<"success" | "error" | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const endpoint = resolveMcpEndpoint(settings.mcp.endpoint, useOrigin())
 
   const updateMcp = (key: keyof AppSettings["mcp"], value: string) => {
     onSave({
@@ -65,7 +67,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
     setTesting(true)
     setTestResult(null)
     try {
-      const res = await fetch(settings.mcp.endpoint, {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -87,7 +89,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
 
   const copyConfig = async (agentId: string) => {
     const agent = AGENT_CONFIGS[agentId as keyof typeof AGENT_CONFIGS]
-    const config = agent.config.replace("{{ENDPOINT}}", settings.mcp.endpoint)
+    const config = agent.config.replace("{{ENDPOINT}}", endpoint)
     await navigator.clipboard.writeText(config)
     setCopied(agentId)
     setTimeout(() => setCopied(null), 2000)
@@ -105,7 +107,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
         <label className="block text-sm font-medium text-txt">MCP Endpoint</label>
         <div className="flex gap-2">
           <Input
-            value={settings.mcp.endpoint}
+            value={endpoint}
             onChange={(e) => updateMcp("endpoint", e.target.value)}
             className="bg-surface2 font-mono text-sm"
           />

@@ -76,8 +76,16 @@ export const DEFAULT_SETTINGS: AppSettings = {
     showHidden: false,
   },
   mcp: {
-    endpoint: 'http://localhost:3000/api/mcp',
+    endpoint: '',
   },
+}
+
+// Older builds saved this hardcoded default into .vibedoc/settings.json; treat it like "unset".
+const LEGACY_MCP_ENDPOINT = 'http://localhost:3000/api/mcp'
+
+/** The saved endpoint, or this server's own /api/mcp when none was set. */
+export function resolveMcpEndpoint(saved: string, origin: string): string {
+  return !saved || saved === LEGACY_MCP_ENDPOINT ? `${origin}/api/mcp` : saved
 }
 
 export const DEFAULT_SKILLS: Skill[] = [
