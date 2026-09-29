@@ -4,7 +4,7 @@
 //
 // Stubs /api/chat (see stub-chat.mjs); writes only a fresh mktemp fixture.
 import assert from "node:assert/strict"
-import { mkdtempSync } from "node:fs"
+import { mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat, toolTurn } from "./stub-chat.mjs"
@@ -99,6 +99,27 @@ try {
     await page.getByRole("button", { name: "Add epic" }).waitFor()
     assert.equal(await page.getByRole("button", { name: "Break down with agent" }).count(), 0)
     console.log("ok  horizon sheet has no Break down button")
+  }
+
+  // 3. Board task → "Chat about task": an attached chat whose first turn names the task; reopening resumes it
+  {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+    const fx = makeFixture()
+    writeFileSync(path.join(fx, "plans/tasks/T001-alpha.md"), "# T001: Alpha\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n\n## Goal\nA\n")
+    const calls = await stubChat(page, turn, { root: fx })
+    await page.goto(`${BASE}/board?task=T001`)
+    await page.getByRole("button", { name: "Chat about task" }).click()
+    const modal = page.getByRole("dialog", { name: "Task T001" })
+    await modal.getByText("Ask about T001").waitFor()
+    await modal.getByRole("button", { name: "What blocks this task?" }).click()
+    await page.getByText("Reply 0.").waitFor()
+    assert.equal(calls[0].message, "[This chat is about task T001. Read it with vibedoc_get_task before answering.]\n\nWhat blocks this task?")
+    await page.keyboard.press("Escape")
+    await page.goto(`${BASE}/board?task=T001`)
+    await page.getByRole("button", { name: "Open chat" }).click()
+    await page.getByText("Reply 0.").waitFor()
+    assert.equal(await page.locator('[aria-label="Agent chats"] li button[title]').count(), 1, "no second chat for the same task")
+    console.log("ok  board task chat: first turn names the task; reopening resumes the same chat")
   }
 } finally {
   await browser.close()

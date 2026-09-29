@@ -68,6 +68,8 @@ interface ChatApi {
 }
 
 const ChatContext = createContext<ChatApi | null>(null)
+// Split out so roadmap nodes and board cards re-render only when some item's status flips, not per stream delta
+const ItemAgentsContext = createContext<Record<string, ItemAgent>>({})
 
 export function useChats(): ChatApi {
   const ctx = useContext(ChatContext)
@@ -77,7 +79,7 @@ export function useChats(): ChatApi {
 
 /** The chat working on an epic/task, if any (roadmap nodes, sheets, board cards). */
 export function useItemAgent(a: Attach): ItemAgent | undefined {
-  return useChats().agents[attachKey(a)]
+  return useContext(ItemAgentsContext)[attachKey(a)]
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
@@ -139,7 +141,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [chats, rootParam])
 
-  const agents = useMemo(() => itemAgents(chats), [chats])
+  // Reference-stable while no item's status changes (streaming text changes `chats` many times a second)
+  const agentsRef = useRef<{ key: string; value: Record<string, ItemAgent> }>({ key: "{}", value: {} })
+  const agents = useMemo(() => {
+    const next = itemAgents(chats)
+    const key = JSON.stringify(next)
+    if (key !== agentsRef.current.key) agentsRef.current = { key, value: next }
+    return agentsRef.current.value
+  }, [chats])
   const runningCount = chats.filter((c) => c.busy).length
   const waitingCount = chats.filter((c) => isWaiting(chatStatus(c))).length
 
@@ -348,8 +357,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (!ac.signal.aborted) patchLast(chatId, (m) => ({ ...m, error: (e as Error).message }))
       else patchLast(chatId, (m) => (m.text || m.error ? m : { ...m, error: "Stopped." }))
     } finally {
-      if (abortsRef.current.get(chatId) === ac) abortsRef.current.delete(chatId)
-      markDirty(chatId)
+      // Only save a turn that is still ours: a project switch or delete clears the map first,
+      // and saving then would write this chat into the next project (or resurrect a deleted one)
+      if (abortsRef.current.get(chatId) === ac) {
+        abortsRef.current.delete(chatId)
+        markDirty(chatId)
+      }
       setChats((cs) => patchChat(cs, chatId, (c) => ({ ...c, busy: false, updatedAt: new Date().toISOString() })))
     }
   }
@@ -421,5 +434,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     agents, runningCount, waitingCount,
     notice, dismissNotice: () => setNotice(null),
   }
-  return <ChatContext.Provider value={api}>{children}</ChatContext.Provider>
+  return (
+    <ChatContext.Provider value={api}>
+      <ItemAgentsContext.Provider value={agents}>{children}</ItemAgentsContext.Provider>
+    </ChatContext.Provider>
+  )
 }

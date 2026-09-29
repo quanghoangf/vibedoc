@@ -158,7 +158,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | `vibedoc_create_roadmap_item` | Create a horizon or a feature under a horizon              |
 | `vibedoc_update_roadmap_item` | Change title, parent, status, order, tasks, or body        |
 
-### Planning (chat sidebar)
+### Planning (agent chat)
 
 | Tool                         | Effect                                                                 |
 | ---------------------------- | ---------------------------------------------------------------------- |

@@ -108,6 +108,7 @@ assert.equal(cut?.busy, false)
 assert.match(cut?.messages[1].error ?? '', /Interrupted/)
 assert.equal(fromSaved<StatusMessage>(chat('ok', [msg({ text: 'done' })]))?.messages[0].error, undefined)
 assert.equal(fromSaved<StatusMessage>(chat('card', [plan]))?.messages[0].error, undefined)   // a card-only reply isn't cut off
+assert.equal(fromSaved<StatusMessage>(chat('tool', [msg({ tools: ['get_status'] })]))?.messages[0].error, undefined)  // nor a tool-only one
 assert.equal(fromSaved(null), null)
 assert.equal(fromSaved({ id: 1 }), null)
 assert.deepEqual(fromSaved<StatusMessage>({ id: 'legacy', title: 't', messages: [msg({ text: 'x' })], sessionId: null })?.attach, null)

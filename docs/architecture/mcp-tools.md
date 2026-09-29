@@ -268,7 +268,7 @@ Write a new Architecture Decision Record (ADR) when making a significant technic
 
 ## Planning from chat
 
-The chat sidebar can plan a roadmap, break an epic into tasks, or turn a feature spec into tasks. The agent never writes files while it plans: it asks questions, proposes a plan, and the user accepts it in the UI.
+The agent chat can plan a roadmap, break an epic into tasks, or turn a feature spec into tasks. The agent never writes files while it plans: it asks questions, proposes a plan, and the user accepts it in the UI.
 
 Start it from the UI. Each entry point opens the chat and sends the request. You can also just ask in the chat.
 
@@ -294,17 +294,23 @@ For a spec, the agent first asks where the tasks go: a **new epic** under a hori
 
 Steps 3–4 can repeat. After Accept, the new tasks appear on the board and the new items on `/roadmap` (SSE `task_created` / `roadmap_updated`).
 
-### Parallel chats
+### Agent chats
 
-The chat sidebar holds several chats as tabs. Each tab has its own Claude session and its own `claude -p` turn, so several agents can run at once.
+Every chat is its own Claude session and its own `claude -p` turn, so several agents can run at once. `ChatProvider` (`src/context/ChatContext.tsx`) owns them all; one `ChatView` renders in two frames that are the same chat:
 
-- **Tabs.** Each tab resumes its own session (`--resume`). A tab shows a marker: running (spinner), waiting for your answers (amber), plan or edit to review (accent), error (red). Idle has no marker. The **Agent** header counts the other tabs that need you.
-- **New tab if busy.** `askAgent(message, { newChat })` (`src/lib/ask-agent.ts`) sends to the active tab when it is idle. When the active tab is running, or `newChat: true`, it opens a new tab. Every UI entry point above uses `askAgent()`.
-- **Cap: 4 running chats** (`MAX_RUNNING_CHATS` in `src/lib/chats.ts`), one `claude -p` process each. An ask over the cap is refused with a notice above the input.
-- **Break down epics…** (`/roadmap` toolbar): tick up to the free slots, and each checked epic starts its own chat with "Break down epic R0NN into tasks.".
-- **Close = stop.** The × on a tab closes it and aborts its request, and `/api/chat` kills the `claude -p` child. If the tab has plan or edit cards that are not reviewed, you confirm first.
+- **Modal** (`ChatModal`): the header **Agent** button, the `c` key, and the Chat buttons on roadmap epics, their task rows and board tasks. **Open as page** moves it to `/chat?id=…`.
+- **`/chat` page**: all chats grouped as Needs you / Running / Recent, the conversation, and a context rail for the attached epic or task (status, progress, tasks, brief or spec).
+- **Sidebar "Agents" section**: the same grouping, most urgent first. A running chat shows a spinner; waiting for your answers is amber; a plan or edit to review is accent; error is red.
+
+Details:
+
+- **Attach to an epic or task.** A chat opened from an item is attached to it (`attach: { kind, id }`); opening it again resumes the newest chat on that item (`showAbout`). Its first turn tells the agent to read the item (`vibedoc_get_roadmap` / `vibedoc_get_task`). "Break down epic R0NN…" attaches the chat to that epic. The item shows the chat's status on the map node, timeline, epic sheet, task rows and board cards.
+- **New chat if busy.** `askAgent(message, { newChat })` (`src/lib/ask-agent.ts`) sends to the current chat when it is idle, otherwise to a new chat, and shows it. `newChat: true` runs in the background (the multi-epic dialog).
+- **Cap: 4 running chats** (`MAX_RUNNING_CHATS` in `src/lib/chats.ts`), one `claude -p` process each. An ask over the cap is refused with a notice.
+- **Break down epics…** (`/roadmap` toolbar): tick up to the free slots; each checked epic starts its own chat with "Break down epic R0NN into tasks.".
+- **Stop / delete.** Stop aborts the request and `/api/chat` kills the `claude -p` child. Deleting a chat (× on `/chat`) also stops it; with unreviewed plan or edit cards you confirm first.
+- **Saved.** Each chat is saved to `.vibedoc/chats/<id>.json` (`/api/conversations`) when a turn starts and ends and when you resolve a card, so chats survive a reload and follow-ups resume the same Claude session. A turn cut off by a reload shows as interrupted. Empty chats are not saved. Add `/.vibedoc/chats/` to the project's `.gitignore` if you don't want conversations in git.
 - **No id collisions.** Plans get real T ids only at Accept. `applyPlan()` runs under `withTaskClaimLock`, so you can accept plans from several chats in any order. Check: `node e2e/parallel-chats.mjs`.
-- Chats are in memory only. A page reload or a project switch clears them.
 
 ---
 

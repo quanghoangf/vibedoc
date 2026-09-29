@@ -104,6 +104,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const msg = JSON.parse(e.data)
         if (msg.type === "connected") return
         window.dispatchEvent(new CustomEvent("vibedoc:sse", { detail: msg }))
+        // Saving a chat is this tab's own bookkeeping, not a project change: don't flash "live update"
+        if (msg.type === "chat_saved") return
         setLiveIndicator(true)
         setTimeout(() => setLiveIndicator(false), 2000)
         if (["task_updated", "task_created", "decision_logged", "memory_updated", "session_start"].includes(msg.type)) {

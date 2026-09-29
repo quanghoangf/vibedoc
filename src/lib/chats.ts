@@ -37,6 +37,7 @@ export function patchChat<M>(chats: Chat<M>[], id: string, fn: (c: Chat<M>) => C
 export interface StatusMessage {
   role: "user" | "assistant"
   text?: string
+  tools?: unknown[]
   questions: { answers?: unknown }[]
   proposals: { status: string }[]
   plans: { status: string }[]
@@ -178,7 +179,7 @@ export function fromSaved<M extends StatusMessage>(raw: unknown): Chat<M> | null
   const c = raw as Chat<M> | null
   if (!c || typeof c.id !== "string" || !Array.isArray(c.messages)) return null
   const last = c.messages[c.messages.length - 1]
-  const cut = last?.role === "assistant" && !last.text && !last.error && !last.plans?.length && !last.proposals?.length && !last.questions?.length
+  const cut = last?.role === "assistant" && !last.text && !last.error && !last.tools?.length && !last.plans?.length && !last.proposals?.length && !last.questions?.length
   const messages = cut ? [...c.messages.slice(0, -1), { ...last, error: "Interrupted: the page reloaded while the agent was working." }] : c.messages
   const at = c.updatedAt ?? c.createdAt ?? new Date(0).toISOString()
   return { ...c, messages, busy: false, notes: c.notes ?? [], attach: c.attach ?? null, createdAt: c.createdAt ?? at, updatedAt: at }
