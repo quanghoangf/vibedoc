@@ -16,7 +16,7 @@ import "@xyflow/react/dist/style.css"
 
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
-import { AlertTriangle, Bot, FileText, Plus, Sparkles } from "lucide-react"
+import { AlertTriangle, Bot, FileText, ListTree, Plus, Sparkles } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -32,6 +32,7 @@ import { STATUS_LABEL, StatusDot, nodeTypes, type RoadmapNode } from "./RoadmapN
 import { RoadmapItemSheet } from "./RoadmapItemSheet"
 import { NewItemDialog } from "./NewItemDialog"
 import { PlanFromSpecDialog } from "./PlanFromSpecDialog"
+import { BreakdownEpicsDialog } from "./BreakdownEpicsDialog"
 
 type ApiResult<T> = { data?: T; error?: string }
 
@@ -146,6 +147,7 @@ export function RoadmapTab() {
   // null = closed; "" = new horizon; "R001" = new feature under R001
   const [createParent, setCreateParent] = useState<string | null>(null)
   const [specOpen, setSpecOpen] = useState(false)
+  const [breakdownOpen, setBreakdownOpen] = useState(false)
   const draggingRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -349,6 +351,7 @@ export function RoadmapTab() {
         onSubmit={createItem}
       />
       <PlanFromSpecDialog open={specOpen} onOpenChange={setSpecOpen} />
+      <BreakdownEpicsDialog open={breakdownOpen} onOpenChange={setBreakdownOpen} items={items} />
     </>
   )
 
@@ -414,6 +417,11 @@ export function RoadmapTab() {
           <Button size="sm" variant="outline" onClick={() => setSpecOpen(true)}>
             <FileText /> Plan from spec
           </Button>
+          {items.some((i) => i.parent !== null && i.status !== "done") && (
+            <Button size="sm" variant="outline" onClick={() => setBreakdownOpen(true)}>
+              <ListTree /> Break down epics…
+            </Button>
+          )}
           <Button size="sm" onClick={() => setCreateParent("")} className="bg-accent text-white hover:bg-accent/90">
             <Plus /> Horizon
           </Button>

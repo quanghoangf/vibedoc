@@ -58,14 +58,38 @@ export function chatStatus(chat: Chat<StatusMessage>): ChatStatus {
   return lastReply?.error ? "error" : "idle"
 }
 
-/** Where an askAgent() message goes: the active chat when it is idle, otherwise a new tab. */
+/** Each running chat is one `claude -p` process. */
+export const MAX_RUNNING_CHATS = 4
+export const TOO_MANY_CHATS = `Too many agents running (${MAX_RUNNING_CHATS}). Close a tab or wait.`
+
+/**
+ * Where an askAgent() message goes: the active chat when it is idle, otherwise a new tab.
+ * Refused at the cap. `running` overrides the busy count when `chats` may be stale (several asks in one tick).
+ */
 export function routeAsk(
   chats: Chat[],
   activeId: string | null,
-  opts: { newChat?: boolean } = {},
-): { chatId: string } | { newChat: true } {
+  opts: { newChat?: boolean; running?: number } = {},
+): { chatId: string } | { newChat: true } | { refused: string } {
+  if ((opts.running ?? chats.filter((c) => c.busy).length) >= MAX_RUNNING_CHATS) return { refused: TOO_MANY_CHATS }
   const active = chats.find((c) => c.id === activeId)
   return active && !active.busy && !opts.newChat ? { chatId: active.id } : { newChat: true }
+}
+
+// Running-chat count for UI outside ChatPanel (the breakdown dialog); ChatPanel publishes it. useSyncExternalStore-shaped.
+let running = 0
+const listeners = new Set<() => void>()
+export const runningChats = {
+  get: () => running,
+  set(n: number) {
+    if (n === running) return
+    running = n
+    for (const l of listeners) l()
+  },
+  subscribe(l: () => void) {
+    listeners.add(l)
+    return () => { listeners.delete(l) }
+  },
 }
 
 export function chatTitle(firstMessage: string): string {

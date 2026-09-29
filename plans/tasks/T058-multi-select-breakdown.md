@@ -1,5 +1,5 @@
 # T058: "Break down epics…" multi-select from the roadmap
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R044 — Parallel agent chats
 **Size:** M (2–3 hrs)
 **Depends on:** T055

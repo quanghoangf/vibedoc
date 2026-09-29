@@ -12,7 +12,7 @@ import { QuestionCard, formatAnswers, isRenderableQuestions, type Question, type
 import { asRenderablePlan, planTarget } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
 import { ASK_AGENT_EVENT, type AskAgentDetail } from "@/lib/ask-agent"
-import { addChat, chatStatus, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, type Chat, type ChatStatus } from "@/lib/chats"
+import { addChat, chatStatus, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, runningChats, type Chat, type ChatStatus } from "@/lib/chats"
 
 interface ChatMessage {
   role: "user" | "assistant"
@@ -59,6 +59,8 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
   const [chats, setChats] = useState<ChatTab[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [input, setInput] = useState("")
+  // An askAgent() refused at the running-chat cap
+  const [notice, setNotice] = useState<string | null>(null)
   // One in-flight request per chat; a stream only ever writes into the chat id it was started for
   const abortsRef = useRef(new Map<string, AbortController>())
   const nextIdRef = useRef(0)
@@ -66,6 +68,10 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
 
   const docPath = pathname === "/docs" ? selectedDoc?.path : undefined
   const active = chats.find((c) => c.id === activeId)
+  const runningCount = chats.filter((c) => c.busy).length
+
+  // Lets the roadmap's breakdown dialog see the free slots
+  useEffect(() => { runningChats.set(runningCount) }, [runningCount])
 
   // A Claude session belongs to one project
   useEffect(() => {
@@ -88,7 +94,10 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
     function onAsk(e: Event) {
       const { message, newChat } = (e as CustomEvent<AskAgentDetail>).detail ?? {}
       if (!message) return
-      const route = routeAsk(chats, activeId, { newChat })
+      // abortsRef is updated synchronously by send(), so it counts asks fired earlier in this same tick
+      const route = routeAsk(chats, activeId, { newChat, running: abortsRef.current.size })
+      if ("refused" in route) return setNotice(route.refused)
+      setNotice(null)
       send("chatId" in route ? route.chatId : openChat(), message)
     }
     window.addEventListener(ASK_AGENT_EVENT, onAsk)
@@ -372,6 +381,12 @@ export function ChatPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="border-t border-border p-2">
+        {notice && (
+          <div role="status" className="flex items-start gap-2 px-1 pb-1.5 text-xs text-amber">
+            <span className="flex-1">{notice}</span>
+            <button onClick={() => setNotice(null)} aria-label="Dismiss" className="text-muted hover:text-txt leading-none">×</button>
+          </div>
+        )}
         {docPath && <div className="text-[10px] font-mono text-muted px-1 pb-1 truncate">@ {docPath}</div>}
         <textarea
           value={input}

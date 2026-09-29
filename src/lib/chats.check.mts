@@ -1,6 +1,6 @@
 // Self-check for chat tabs. Run: node src/lib/chats.check.mts
 import assert from 'node:assert/strict'
-import { addChat, chatStatus, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, type Chat, type StatusMessage } from './chats.ts'
+import { MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, chatStatus, chatTitle, closeChat, patchChat, pendingReviews, routeAsk, runningChats, type Chat, type StatusMessage } from './chats.ts'
 
 const two = addChat(addChat([], 'a'), 'b')
 const busyB = patchChat(two, 'b', (c) => ({ ...c, busy: true }))
@@ -16,6 +16,23 @@ assert.deepEqual(routeAsk(busyB, 'a'), { chatId: 'a' })                 // anoth
 assert.deepEqual(routeAsk(two, 'a', { newChat: true }), { newChat: true })
 assert.deepEqual(routeAsk([], null), { newChat: true })                 // no chats → new
 assert.deepEqual(routeAsk(two, 'gone'), { newChat: true })              // stale active id → new
+
+// routeAsk: cap on running chats (one `claude -p` each)
+const busy = (n: number) => Array.from({ length: n }, (_, i) => patchChat(addChat([], `r${i}`), `r${i}`, (c) => ({ ...c, busy: true }))[0])
+const idleA = addChat([], 'a')
+assert.deepEqual(routeAsk([...busy(MAX_RUNNING_CHATS - 1), ...idleA], 'a', { newChat: true }), { newChat: true }) // one slot left
+assert.deepEqual(routeAsk(busy(MAX_RUNNING_CHATS), 'r0', { newChat: true }), { refused: TOO_MANY_CHATS })
+assert.deepEqual(routeAsk([...busy(MAX_RUNNING_CHATS), ...idleA], 'a'), { refused: TOO_MANY_CHATS })     // an idle tab would still start a 5th process
+assert.deepEqual(routeAsk(idleA, 'a', { newChat: true, running: MAX_RUNNING_CHATS }), { refused: TOO_MANY_CHATS }) // explicit count beats stale chats
+assert.equal(TOO_MANY_CHATS, 'Too many agents running (4). Close a tab or wait.')
+
+// runningChats store
+let heard = 0
+const off = runningChats.subscribe(() => heard++)
+runningChats.set(2); runningChats.set(2)
+assert.deepEqual([runningChats.get(), heard], [2, 1]) // unchanged value → no notify
+off(); runningChats.set(0)
+assert.equal(heard, 1)
 
 // chatTitle
 assert.equal(chatTitle('Break down epic R004 into tasks.'), 'Break down R004')
