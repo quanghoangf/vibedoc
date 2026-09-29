@@ -47,7 +47,8 @@ Roadmap page `/roadmap` — roadmap.sh-style map built with `@xyflow/react`. Des
 - The agent edits via `vibedoc_propose_edit` with `edits: [{old_string, new_string}]` (Claude Code Edit semantics: exact, unique match, applied in order; empty old_string = new doc). Validated server-side (dry run) so the agent retries bad matches. `ChatPanel` shows a diff (`src/lib/diff.ts`); Accept → `PUT /api/docs` with `{edits, actor: "ai"}` → `core.editDoc()` re-applies the spans to the current file.
 - `doc_updated` with `actor: "ai"` is applied span-by-span into the open Yjs buffer (`MarkdownEditor`), so the user's unsaved typing elsewhere survives. Only the tab with the lowest Yjs clientID applies it. Whole-file writes from other agents (`write_doc`) splice in only the differing middle.
 - `/api/mcp` now honors `?root=`.
-- Known ceilings: one process spawn per turn (~1–2s); no Stop button; if the user edits inside the exact span the agent targets, Accept fails with "doc changed" and the agent must re-propose.
+- Parallel chats (R044): the sidebar holds chat tabs, each with its own session and `claude -p` turn, so up to 4 agents run at once (`MAX_RUNNING_CHATS`). `askAgent(msg, { newChat })` reuses the idle active tab, else opens a new one; over the cap it is refused with a notice. Tab markers: running / needs answer / review / error. × on a tab = stop (aborts the fetch → `/api/chat` kills the child; confirms if cards are unreviewed). "Break down epics…" on `/roadmap` starts one chat per checked epic. T ids are assigned at Accept under `withTaskClaimLock`, so plans from several chats never collide (`e2e/parallel-chats.mjs`). Chats live in memory only (reload / project switch clears them).
+- Known ceilings: one process spawn per turn (~1–2s); if the user edits inside the exact span the agent targets, Accept fails with "doc changed" and the agent must re-propose.
 
 ## Up next
 - Fix the 16 pre-existing react-hooks lint errors
@@ -79,6 +80,7 @@ Roadmap page `/roadmap` — roadmap.sh-style map built with `@xyflow/react`. Des
 - `/roadmap?view=timeline` = month-axis Timeline (`components/roadmap/timeline.ts` pure layout, `RoadmapTimeline.tsx`); Map is the default view.
 - Empty `/roadmap` → "Generate roadmap" (`generateRoadmap()` in core.ts, pure drafting in `src/lib/roadmap-import.ts`): source = ROADMAP.md (`##` + bullets) → tasks grouped by Phase → starter Shipped/Now/Next/Later. Never touches ROADMAP.md/tasks, refuses when R*.md exist, writes layout.json once (client posts `resolvePositions`) so the map stays frozen. Self-check: `node src/lib/roadmap-import.check.mts`.
 - `ROADMAP.md` is now only a pointer to `plans/roadmap/`.
+- Chat tab state logic lives in `src/lib/chats.ts` (pure: `routeAsk`, `chatStatus`, `closeChat`, `MAX_RUNNING_CHATS`; no React, no fs). Self-check: `node src/lib/chats.check.mts`.
 - Lint: 16 pre-existing `react-hooks` errors (React Compiler rules) outside roadmap files — don't add new ones.
 
 ## Handoff for next session

@@ -276,6 +276,7 @@ Start it from the UI. Each entry point opens the chat and sends the request. You
 |---|---|---|
 | **Plan with agent** | empty `/roadmap` | "Plan a roadmap for this project." |
 | **Break down with agent** | an epic's detail sheet (epic has no tasks) | "Break down epic R0NN into tasks." |
+| **Break down epics…** | `/roadmap` toolbar | the same message, one new chat per checked epic |
 | **Plan from spec** | `/roadmap` toolbar (and the empty state) | a dialog to paste a spec → "Break down this spec into tasks: …" |
 | **Break down with agent** (list icon) | a `.md` doc's header | "Break down the spec in `<path>` into tasks." |
 
@@ -292,6 +293,18 @@ For a spec, the agent first asks where the tasks go: a **new epic** under a hori
 ```
 
 Steps 3–4 can repeat. After Accept, the new tasks appear on the board and the new items on `/roadmap` (SSE `task_created` / `roadmap_updated`).
+
+### Parallel chats
+
+The chat sidebar holds several chats as tabs. Each tab has its own Claude session and its own `claude -p` turn, so several agents can run at once.
+
+- **Tabs.** Each tab resumes its own session (`--resume`). A tab shows a marker: running (spinner), waiting for your answers (amber), plan or edit to review (accent), error (red). Idle has no marker. The **Agent** header counts the other tabs that need you.
+- **New tab if busy.** `askAgent(message, { newChat })` (`src/lib/ask-agent.ts`) sends to the active tab when it is idle. When the active tab is running, or `newChat: true`, it opens a new tab. Every UI entry point above uses `askAgent()`.
+- **Cap: 4 running chats** (`MAX_RUNNING_CHATS` in `src/lib/chats.ts`), one `claude -p` process each. An ask over the cap is refused with a notice above the input.
+- **Break down epics…** (`/roadmap` toolbar): tick up to the free slots, and each checked epic starts its own chat with "Break down epic R0NN into tasks.".
+- **Close = stop.** The × on a tab closes it and aborts its request, and `/api/chat` kills the `claude -p` child. If the tab has plan or edit cards that are not reviewed, you confirm first.
+- **No id collisions.** Plans get real T ids only at Accept. `applyPlan()` runs under `withTaskClaimLock`, so you can accept plans from several chats in any order. Check: `node e2e/parallel-chats.mjs`.
+- Chats are in memory only. A page reload or a project switch clears them.
 
 ---
 

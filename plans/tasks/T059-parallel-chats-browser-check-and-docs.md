@@ -1,5 +1,5 @@
 # T059: Browser check for 3 parallel breakdowns + docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R044 — Parallel agent chats
 **Size:** M (2–3 hrs)
 **Depends on:** T056, T057, T058
