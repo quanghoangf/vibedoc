@@ -47,3 +47,39 @@ export function rankEntries(entries: RecallEntry[], query: string, opts: { type?
 export function formatCompactLine(h: RecallHit): string {
   return `${h.id} · ${h.type} · ${h.summary} (~${h.tokens} tok)`
 }
+
+/** Every entry as a compact hit, newest first: the session-start index order. */
+export function indexHits(entries: RecallEntry[]): RecallHit[] {
+  return [...entries].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id, 'en', { numeric: true }))
+    .map(e => ({ id: e.id, type: e.type, summary: e.summary, tokens: estimateTokens(`${e.summary}\n${e.body}`), score: 0 }))
+}
+
+export const DEFAULT_SESSION_BUDGET = 2000
+const INDEX_HINT = 'Save new facts with vibedoc_save_entry; fetch bodies with vibedoc_get_entries.'
+
+/**
+ * Session start = the whole handoff + as many index lines (in the order given) as fit `budget` tokens,
+ * then "+N more" when some were left out. Header, footer and hint count toward the budget. The handoff is never cut.
+ */
+export function fitToBudget(handoff: string, index: RecallHit[], budget: number):
+  { text: string; shown: number; omitted: number; tokens: number } {
+  const render = (n: number, warning?: string) => [
+    handoff.trimEnd(), '',
+    ...(warning ? [warning] : []),
+    `## Knowledge entries (${index.length})`,
+    ...index.slice(0, n).map(formatCompactLine),
+    ...(n < index.length ? [`+${index.length - n} more entries — use vibedoc_recall { query }`] : []),
+    INDEX_HINT,
+  ].join('\n')
+  const fits = (n: number) => estimateTokens(render(n)) <= budget
+  let text: string
+  let shown = 0
+  if (!fits(0)) {
+    text = render(0, `⚠️ The handoff alone is ~${estimateTokens(handoff)} tokens, over the ${budget}-token session budget: trim memory/MEMORY.md.`)
+  } else {
+    // ponytail: re-renders per line (O(n²) chars); fine for hundreds of entries
+    while (shown < index.length && fits(shown + 1)) shown++
+    text = render(shown)
+  }
+  return { text, shown, omitted: index.length - shown, tokens: estimateTokens(text) }
+}

@@ -19,7 +19,7 @@ import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
-import { rankEntries, type RecallHit } from './recall'
+import { DEFAULT_SESSION_BUDGET, fitToBudget, indexHits, rankEntries, type RecallHit } from './recall'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -412,10 +412,15 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
  * The task settings from .vibedoc/settings.json (R055): `tasks.sizeDays` over the defaults (automatic due dates)
  * and `statuses` (custom statuses; the built-ins when unset).
  */
-export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[] }> {
-  let s: { tasks?: { sizeDays?: SizeDays }; statuses?: unknown } | null = null
+export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number }> {
+  let s: { tasks?: { sizeDays?: SizeDays }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown } } | null = null
   try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
-  return { sizeDays: { ...DEFAULT_SIZE_DAYS, ...(s?.tasks?.sizeDays ?? {}) }, statuses: statusDefs(s?.statuses) }
+  const budget = Number(s?.memory?.sessionBudgetTokens)
+  return {
+    sizeDays: { ...DEFAULT_SIZE_DAYS, ...(s?.tasks?.sizeDays ?? {}) }, statuses: statusDefs(s?.statuses),
+    // R048: token cap for what vibedoc_read_memory returns
+    sessionBudgetTokens: budget > 0 ? budget : DEFAULT_SESSION_BUDGET,
+  }
 }
 
 /** Replace-or-insert (or remove, for '' / null) one `**Label:**` line inside the head meta block. */
@@ -982,6 +987,12 @@ export async function getEntriesByIds(ids: string[], root: string): Promise<{ fo
     else missing.push(String(raw))
   }
   return { found, missing }
+}
+
+/** What an agent reads at session start: MEMORY.md + the entry index, capped at `memory.sessionBudgetTokens` (R048). */
+export async function sessionStartMemory(root: string): Promise<string> {
+  const [memory, entries, { sessionBudgetTokens }] = await Promise.all([readMemory(root), listEntries(root), readProjectSettings(root)])
+  return fitToBudget(memory.content, indexHits(entries), sessionBudgetTokens).text
 }
 
 /** Keyword recall over the entries: compact hits, no bodies (R048). */

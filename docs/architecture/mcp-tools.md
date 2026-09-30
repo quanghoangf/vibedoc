@@ -77,7 +77,7 @@ Read `MEMORY.md` — the session handoff file written by the previous agent sess
 
 **Parameters:** none
 
-**Returns:** full content of `memory/MEMORY.md`, then `## Knowledge entries (N)` with one `E001 · type · summary` line per entry
+**Returns:** full content of `memory/MEMORY.md`, then `## Knowledge entries (N)` with one `E001 · type · summary (~N tok)` line per entry, newest first, capped at `memory.sessionBudgetTokens` (`.vibedoc/settings.json`, default 2000 tokens; the rest → `+N more entries`, use `vibedoc_recall`)
 
 ---
 

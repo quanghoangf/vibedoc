@@ -1,6 +1,6 @@
 // Self-check for recall. Run: node src/lib/recall.check.mts
 import assert from 'node:assert/strict'
-import { estimateTokens, formatCompactLine, rankEntries, tokenize, type RecallEntry } from './recall.ts'
+import { DEFAULT_SESSION_BUDGET, estimateTokens, fitToBudget, formatCompactLine, indexHits, rankEntries, tokenize, type RecallEntry } from './recall.ts'
 
 const e = (id: string, type: string, summary: string, body = '', updatedAt = '2026-09-01'): RecallEntry =>
   ({ id, type, summary, body, updatedAt })
@@ -71,5 +71,44 @@ const top = rankEntries(big, 'sse events project switch')
 assert.equal(top.length, 10)
 assert.ok(top.some(t => t.id === 'E999'), 'target in top 10')
 assert.equal(top[0].id, 'E999')
+
+// indexHits: newest first, id breaks ties, no bodies
+assert.deepEqual(indexHits([e('E002', 'note', 'b', 'x', '2026-01-01'), e('E003', 'note', 'c', '', '2026-05-01'), e('E001', 'note', 'a', '', '2026-05-01')]).map(h => h.id),
+  ['E001', 'E003', 'E002'])
+
+// fitToBudget: everything fits → all lines, no footer
+const handoff = '# Project Memory\nhandoff text\n'
+const few = indexHits(fixture)
+const all = fitToBudget(handoff, few, 2000)
+assert.equal(all.shown, 3)
+assert.equal(all.omitted, 0)
+assert.ok(!all.text.includes('more entries'))
+assert.ok(all.text.startsWith('# Project Memory\nhandoff text\n\n## Knowledge entries (3)\n'))
+assert.equal(all.tokens, estimateTokens(all.text))
+
+// overflow: footer counted, result within budget, more budget → more lines
+const bigIndex = indexHits(big)
+const tight = fitToBudget(handoff, bigIndex, 300)
+assert.ok(tight.tokens <= 300, `tight ${tight.tokens}`)
+assert.ok(tight.shown > 0 && tight.omitted > 0)
+assert.equal(tight.shown + tight.omitted, bigIndex.length)
+assert.ok(tight.text.includes(`+${tight.omitted} more entries — use vibedoc_recall { query }`))
+assert.ok(fitToBudget(handoff, bigIndex, 600).shown > tight.shown)
+
+// 200+ entries at the default budget stay inside it
+const def = fitToBudget(handoff, bigIndex, DEFAULT_SESSION_BUDGET)
+assert.ok(def.tokens <= DEFAULT_SESSION_BUDGET, `default ${def.tokens}`)
+assert.ok(def.omitted > 0)
+
+// handoff alone over budget: never cut, no index lines, one warning
+const longHandoff = 'x'.repeat(4000)
+const over = fitToBudget(longHandoff, few, 500)
+assert.equal(over.shown, 0)
+assert.ok(over.text.startsWith(longHandoff))
+assert.match(over.text, /over the 500-token session budget: trim memory\/MEMORY.md/)
+
+// empty index
+assert.equal(fitToBudget(handoff, [], 2000).text,
+  '# Project Memory\nhandoff text\n\n## Knowledge entries (0)\nSave new facts with vibedoc_save_entry; fetch bodies with vibedoc_get_entries.')
 
 console.log('recall: ok')

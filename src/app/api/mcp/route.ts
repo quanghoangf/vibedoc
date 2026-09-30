@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { ENTRY_TYPES, formatEntryIndex, type EntryInput } from "@/lib/entries";
+import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
 import { formatCompactLine, tokenize } from "@/lib/recall";
 import {
   getConfiguredRoot,
@@ -32,11 +32,10 @@ import {
   saveManualTests,
   claimNextTask,
   logDecision,
-  readMemory,
   updateMemory,
   saveEntry,
   deleteEntry,
-  listEntries,
+  sessionStartMemory,
   recallEntries,
   getEntriesByIds,
   noteDocEdit,
@@ -856,8 +855,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     case "vibedoc_read_memory": {
       await logSessionStart(root, "ai");
       emitUpdate("session_start", { root });
-      const memory = await readMemory(root);
-      return `${memory.content.trimEnd()}\n\n${formatEntryIndex(await listEntries(root))}`;
+      return sessionStartMemory(root);
     }
 
     case "vibedoc_update_memory": {

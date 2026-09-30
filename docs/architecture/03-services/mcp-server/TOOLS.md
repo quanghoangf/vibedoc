@@ -20,7 +20,7 @@
 
 ### `vibedoc_read_memory`
 **Call at:** start of every session
-Reads `memory/MEMORY.md`, then appends the knowledge entry index: `## Knowledge entries (N)` and one `E001 · type · summary` line per entry (no bodies). Also logs a `session_start` event to the activity feed.
+Reads `memory/MEMORY.md`, then appends the knowledge entry index: `## Knowledge entries (N)` and one `E001 · type · summary (~N tok)` line per entry, newest first, no bodies. The whole reply is capped at `memory.sessionBudgetTokens` in `.vibedoc/settings.json` (default 2000, estimated as chars / 4); lines that don't fit become `+N more entries — use vibedoc_recall { query }`. The handoff is never cut. Also logs a `session_start` event to the activity feed.
 ```json
 { "name": "vibedoc_read_memory", "arguments": {} }
 ```
