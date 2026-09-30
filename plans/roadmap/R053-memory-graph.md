@@ -1,6 +1,6 @@
 # R053: Memory graph
 **Parent:** R004
-**Status:** in-progress
+**Status:** done
 **Order:** 70
 **Tasks:** T069, T070, T071, T072, T073
 
