@@ -1,5 +1,5 @@
 # R004: Long-term / ideas
-**Status:** planned
+**Status:** in-progress
 **Order:** 40
 **Tasks:** —
 
