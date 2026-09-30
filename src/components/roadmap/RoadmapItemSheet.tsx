@@ -49,7 +49,7 @@ interface RoadmapItemSheetProps {
 export function RoadmapItemSheet({ item, onClose, ...rest }: RoadmapItemSheetProps) {
   return (
     <Sheet open={!!item} onOpenChange={(v) => { if (!v) onClose() }}>
-      <SheetContent className="w-[480px] sm:max-w-[480px] gap-0 bg-surface border-border text-txt flex flex-col overflow-y-auto p-0">
+      <SheetContent className="w-full sm:w-[480px] sm:max-w-[480px] gap-0 bg-surface border-border text-txt flex flex-col overflow-y-auto p-0">
         {/* keyed so view/edit and form state re-initialise when a different item opens */}
         {item && <ItemPanel key={item.id} item={item} onClose={onClose} {...rest} />}
       </SheetContent>

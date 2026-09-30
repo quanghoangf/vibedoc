@@ -53,7 +53,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions }: D
   return (
     <div className="flex flex-col h-full">
       <ItemPanelHeader
-        kicker={<><span className="truncate">{slash > 0 ? doc.path.slice(0, slash) : "project root"}</span><span className="shrink-0">· doc</span></>}
+        kicker={<span className="truncate">{slash > 0 ? doc.path.slice(0, slash) : "project root"}</span>}
         title={<h1>{doc.path.slice(slash + 1).replace(/\.md$/, "")}</h1>}
         menu={docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
         properties={[

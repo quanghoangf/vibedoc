@@ -8,7 +8,7 @@ import type { Task } from "@/types"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
 import Link from "next/link"
-import { Check, CornerUpLeft, FlaskConical, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Check, ChevronRight, CornerUpLeft, FlaskConical, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
@@ -94,7 +94,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
         {task && (
           <>
             <ItemPanelHeader
-              kicker={<><span>{task.id}</span><span>· task</span><AgentMark attach={{ kind: "task", id: task.id }} /></>}
+              kicker={<TaskCrumb task={task} onNavigate={onClose} />}
               title={<SheetTitle className="text-base font-semibold leading-snug text-txt">{task.title}</SheetTitle>}
               menu={
                   <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -103,7 +103,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                         <MoreHorizontal className="size-4" />
                       </button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuContent align="end" className="w-56">
                       <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> Edit<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
                       <DropdownMenuSub>
                         <DropdownMenuSubTrigger><StatusIcon status={displayStatus(task)} /> Status<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
@@ -183,6 +183,23 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** "R002 › T002": the epic links to its sheet on the roadmap, like the epic sheet's "Now › R002". */
+function TaskCrumb({ task, onNavigate }: { task: Task; onNavigate: () => void }) {
+  const epic = task.phase && task.phase !== "—" ? epicOf(task.phase) : null
+  return (
+    <>
+      {epic?.id && (
+        <>
+          <Link href={`/roadmap?item=${epic.id}`} onClick={onNavigate} title={epic.title} className="hover:text-txt">{epic.id}</Link>
+          <ChevronRight className="size-3 shrink-0" aria-hidden />
+        </>
+      )}
+      <span>{task.id}</span>
+      <AgentMark attach={{ kind: "task", id: task.id }} />
+    </>
   )
 }
 

@@ -11,7 +11,11 @@ import { BUILTIN_STATUSES, STATUS_COLORS, invalidStatusId, statusDefs, type Stat
 import type { AppSettings } from "@/lib/settings"
 import type { TaskStatus } from "@/types"
 
-const FIELD = "rounded-md border border-border bg-bg px-2 py-1.5 text-sm text-txt focus:outline-hidden focus:ring-1 focus:ring-accent disabled:opacity-50"
+const FIELD = "h-8 rounded-md border border-border bg-bg px-2 text-sm text-txt focus:outline-hidden focus:ring-1 focus:ring-accent disabled:opacity-50"
+/** One row = icon · label · id · color · category · actions, in columns from sm up; wraps on a phone */
+/** One row = icon · label · id · color · category · actions. On a phone the id / color / category line wraps under the label. */
+const ROW = "grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[16px_minmax(0,9rem)_minmax(0,6rem)_6rem_minmax(0,1fr)_5.25rem]"
+const ICON_BTN = "grid size-7 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt disabled:opacity-30 disabled:hover:bg-transparent"
 const CATEGORY_HELP: Record<TaskStatus, string> = {
   todo: "waiting to start", "in-progress": "being worked on", review: "waits for a human", blocked: "stuck",
   paused: "stopped on purpose", done: "finished", cancelled: "dropped",
@@ -70,14 +74,22 @@ export function StatusesSettings({ settings, onSave }: { settings: AppSettings; 
         </p>
       </div>
 
-      <ul className="flex flex-col gap-2">
+      <div aria-hidden className={cn(ROW, "hidden px-2.5 font-mono text-[10px] uppercase tracking-[0.06em] text-muted sm:grid")}>
+        <span />
+        <span>Label</span>
+        <span>Id</span>
+        <span>Color</span>
+        <span>Works like</span>
+        <span />
+      </div>
+      <ul className="-mt-6 flex flex-col gap-2">
         {defs.map((d, i) => {
           const builtin = (BUILTIN_STATUSES as string[]).includes(d.id)
           const Icon = STATUS_META[d.category].icon
           const count = builtin ? 0 : tasksIn(d.id).length
           return (
             <li key={d.id} className="rounded-lg border border-border bg-surface p-2.5">
-              <div className="flex items-center gap-2">
+              <div className={ROW}>
                 <Icon className={cn("size-4 shrink-0", STATUS_COLOR_CLASS[d.color].text)} aria-hidden />
                 <Input
                   aria-label={`Label for ${d.id}`}
@@ -85,28 +97,34 @@ export function StatusesSettings({ settings, onSave }: { settings: AppSettings; 
                   key={`${d.id}:${d.label}`}
                   onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== d.label) patch(d.id, { label: v }) }}
                   onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur() }}
-                  className="h-8 w-40 border-border bg-bg text-txt"
+                  className="h-8 w-full border-border bg-bg text-txt"
                 />
-                <span className="font-mono text-[11px] text-muted">{d.id}</span>
-                <select aria-label={`Color for ${d.id}`} value={d.color} onChange={(e) => patch(d.id, { color: e.target.value as StatusColor })} className={FIELD}>
+                <div className="order-last col-span-3 flex min-w-0 items-center gap-2 pl-6 sm:order-none sm:contents">
+                <span className="w-20 shrink-0 truncate font-mono text-[11px] text-muted sm:w-auto" title={d.id}>{d.id}</span>
+                <select aria-label={`Color for ${d.id}`} value={d.color} onChange={(e) => patch(d.id, { color: e.target.value as StatusColor })} className={cn(FIELD, "min-w-0")}>
                   {STATUS_COLORS.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <select
-                  aria-label={`Category for ${d.id}`}
-                  value={d.category}
-                  disabled={builtin}
-                  title={builtin ? "Built-in statuses keep their category" : CATEGORY_HELP[d.category]}
-                  onChange={(e) => patch(d.id, { category: e.target.value as TaskStatus })}
-                  className={FIELD}
-                >
-                  {BUILTIN_STATUSES.map((c) => <option key={c} value={c}>works like {c}</option>)}
-                </select>
-                <span className="flex-1" />
-                <button type="button" aria-label={`Move ${d.id} up`} disabled={i === 0} onClick={() => move(i, -1)} className="grid size-7 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt disabled:opacity-30"><ArrowUp className="size-3.5" /></button>
-                <button type="button" aria-label={`Move ${d.id} down`} disabled={i === defs.length - 1} onClick={() => move(i, 1)} className="grid size-7 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt disabled:opacity-30"><ArrowDown className="size-3.5" /></button>
-                {!builtin && (
-                  <button type="button" aria-label={`Delete ${d.id}`} onClick={() => { setRemoving(d.id); setMoveTo(d.category) }} className="grid size-7 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-danger"><Trash2 className="size-3.5" /></button>
+                {builtin ? (
+                  <span className="px-2 text-xs text-muted" title="Built-in statuses keep their category">Built-in</span>
+                ) : (
+                  <select
+                    aria-label={`Category for ${d.id}`}
+                    value={d.category}
+                    title={CATEGORY_HELP[d.category]}
+                    onChange={(e) => patch(d.id, { category: e.target.value as TaskStatus })}
+                    className={cn(FIELD, "min-w-0 flex-1")}
+                  >
+                    {BUILTIN_STATUSES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
                 )}
+                </div>
+                <div className="ml-auto flex items-center justify-end">
+                  <button type="button" aria-label={`Move ${d.id} up`} disabled={i === 0} onClick={() => move(i, -1)} className={ICON_BTN}><ArrowUp className="size-3.5" /></button>
+                  <button type="button" aria-label={`Move ${d.id} down`} disabled={i === defs.length - 1} onClick={() => move(i, 1)} className={ICON_BTN}><ArrowDown className="size-3.5" /></button>
+                  {builtin
+                    ? <span className="size-7" aria-hidden />
+                    : <button type="button" aria-label={`Delete ${d.id}`} onClick={() => { setRemoving(d.id); setMoveTo(d.category) }} className={cn(ICON_BTN, "hover:text-danger")}><Trash2 className="size-3.5" /></button>}
+                </div>
               </div>
               {removing === d.id && (
                 <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border pt-2 text-xs text-muted">

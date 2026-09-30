@@ -106,9 +106,26 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-col sm:flex-row">
+      {/* Phone: the sections as a scrolling tab strip instead of the sidebar */}
+      <nav aria-label="Settings sections" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 py-2 sm:hidden [scrollbar-width:none]">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            aria-current={activeTab === tab.id ? "page" : undefined}
+            className={cn(
+              "shrink-0 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+              activeTab === tab.id ? "bg-accent/10 font-medium text-accent" : "text-muted hover:bg-surface2 hover:text-txt",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
       {/* Sidebar */}
-      <aside className="w-56 border-r border-border bg-sidebar shrink-0">
+      <aside className="hidden w-56 shrink-0 border-r border-border bg-sidebar sm:block">
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-accent" />
@@ -139,7 +156,7 @@ export default function SettingsPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-2xl mx-auto p-6">
+        <div className="max-w-2xl mx-auto p-4 sm:p-6">
           {saving && (
             <div className="fixed top-4 right-4 bg-accent text-accent-fg px-3 py-1.5 rounded-lg text-sm shadow-lg">
               Saving...

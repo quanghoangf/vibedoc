@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type MouseEvent } from "react"
-import { ArrowDown, ArrowUp, Bot, ChevronRight, FlaskConical } from "lucide-react"
+import { ArrowDown, ArrowUp, Bot, Check, ChevronRight, FlaskConical, Minus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { localToday } from "@/lib/roadmap-health"
@@ -68,7 +68,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
 
   const colCount = 3 + props.length
   const allPicked = tasks.every((t) => selected.has(t.id))
-  const check = "size-3.5 cursor-pointer accent-[var(--color-accent)]"
+  const somePicked = !allPicked && tasks.some((t) => selected.has(t.id))
   const hideSm = (p: PropertyKey) => (WIDE_ONLY.has(p) ? "hidden md:table-cell" : "")
 
   const header = (key: string, label: string, extra = "") => {
@@ -186,13 +186,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
         )}
       >
         <td className="pl-3" onClick={(e) => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            aria-label={`Select ${task.id}`}
-            checked={selected.has(task.id)}
-            onChange={() => onToggleSelect?.([task.id])}
-            className={check}
-          />
+          <SelectBox label={`Select ${task.id}`} checked={selected.has(task.id)} onChange={() => onToggleSelect?.([task.id])} />
         </td>
         <td className={cn("px-2.5", cellMono)}>{task.id}</td>
         <td className="min-w-0 px-1">
@@ -222,12 +216,11 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
         <thead>
           <tr className="h-[34px] border-b border-border2 bg-bg text-[11px] text-muted">
             <th scope="col" className="pl-3 text-left">
-              <input
-                type="checkbox"
-                aria-label="Select all shown tasks"
+              <SelectBox
+                label="Select all shown tasks"
                 checked={allPicked}
+                mixed={somePicked}
                 onChange={() => onToggleSelect?.(tasks.map((t) => t.id), !allPicked)}
-                className={check}
               />
             </th>
             {header("id", "ID")}
@@ -272,5 +265,28 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
         })}
       </table>
     </div>
+  )
+}
+
+/** Selection checkbox drawn like the Manual tests boxes, in the accent (selected, not done). */
+function SelectBox({ label, checked, mixed = false, onChange }: { label: string; checked: boolean; mixed?: boolean; onChange: () => void }) {
+  return (
+    <span className="relative inline-flex size-4 align-middle">
+      <input
+        type="checkbox"
+        aria-label={label}
+        checked={checked}
+        ref={(el) => { if (el) el.indeterminate = mixed }}
+        onChange={onChange}
+        className={cn(
+          "peer size-4 cursor-pointer appearance-none rounded-sm border border-muted bg-bg transition-colors duration-(--duration-fast)",
+          "checked:border-accent checked:bg-accent hover:border-txt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+          mixed && "border-accent",
+        )}
+      />
+      {mixed
+        ? <Minus strokeWidth={3} className="pointer-events-none absolute inset-0.5 size-3 text-accent" aria-hidden />
+        : <Check strokeWidth={3} className="pointer-events-none absolute inset-0.5 size-3 text-accent-fg opacity-0 peer-checked:opacity-100" aria-hidden />}
+    </span>
   )
 }
