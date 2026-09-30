@@ -1,6 +1,6 @@
 # R047: Memory browser
 **Parent:** R002
-**Status:** in-progress
+**Status:** done
 **Order:** 140
 **Tasks:** T089, T090, T091, T092
 
