@@ -1,6 +1,6 @@
 # R055: Item properties
 **Parent:** R002
-**Status:** in-progress
+**Status:** done
 **Order:** 160
 **Tasks:** T080, T081, T082, T083, T084, T085
 
