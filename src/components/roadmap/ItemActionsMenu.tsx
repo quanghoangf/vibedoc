@@ -17,7 +17,7 @@ import { itemKeyLabel } from "@/components/shared/item-commands"
 import { STATUS_LABEL, StatusDot } from "./RoadmapNodes"
 import type { RoadmapItem, RoadmapStatus } from "@/types"
 
-const STATUSES: RoadmapStatus[] = ["planned", "in-progress", "done"]
+const STATUSES: RoadmapStatus[] = ["planned", "in-progress", "paused", "done"]
 
 /** What the roadmap page does for each menu entry. The menu itself holds no state. */
 export interface ItemActions {

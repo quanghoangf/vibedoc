@@ -102,7 +102,8 @@ export function roadmapHealth(
     }
     // cancelled tasks don't count toward progress or expected status
     const linked = item.tasks.filter(t => t in tasks && tasks[t].status !== 'cancelled')
-    const risks = item.status === 'done' ? [] : atRiskReasons(item, linked, tasks, today)
+    // a paused epic is stopped on purpose: not at risk
+    const risks = item.status === 'done' || item.status === 'paused' ? [] : atRiskReasons(item, linked, tasks, today)
     if (risks.length) {
       drift.push({ id: item.id, kind: 'at-risk', message: `${item.id} "${item.title}" at risk: ${risks.join('; ')}` })
     }
@@ -111,7 +112,8 @@ export function roadmapHealth(
       tasks[t].status === 'done' ? 'done' : tasks[t].status === 'in-progress' || tasks[t].status === 'review' ? 'in-progress' : 'other')
     progress[item.id] = { done: states.filter(s => s === 'done').length, total: linked.length }
     const expected = expectedStatus(states)
-    if (expected !== item.status) {
+    // paused stays paused until everything is done
+    if (expected !== item.status && !(item.status === 'paused' && expected !== 'done')) {
       const open = linked.filter(t => tasks[t].status !== 'done')
       drift.push({
         id: item.id,
@@ -135,7 +137,7 @@ export function roadmapHealth(
       return { done: sum.done + p.done, total: sum.total + p.total }
     }, { done: 0, total: 0 })
     const expected = expectedStatus(states)
-    if (expected !== h.status) {
+    if (expected !== h.status && !(h.status === 'paused' && expected !== 'done')) {
       drift.push({
         id: h.id,
         kind: 'status-mismatch',

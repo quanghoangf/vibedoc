@@ -86,4 +86,16 @@ assert.equal(dueState('2027-01-01', 'planned', '2026-12-30'), 'soon', 'across a 
   assert.equal(taskDueSummary([], tasks, TODAY), null)
 }
 
+// paused (R055): a paused epic with a blocked, overdue task is not at risk and gets no status nudge;
+// once every task is done it is nudged to done like any other
+{
+  const h = roadmapHealth([
+    item('H', null, 'paused'),
+    item('P', 'H', 'paused', ['P1', 'P2'], '2026-09-30'),
+  ], { P1: st('blocked', '2026-09-01'), P2: st('paused') }, TODAY)
+  assert.deepEqual(h.drift.filter((d) => d.kind === 'at-risk' || d.kind === 'status-mismatch'), [])
+  const all = roadmapHealth([item('H', null, 'in-progress'), item('P', 'H', 'paused', ['P1'])], { P1: st('done') }, TODAY)
+  assert.ok(all.drift.some((d) => d.id === 'P' && d.suggestedStatus === 'done'))
+}
+
 console.log('roadmap-health: ok')

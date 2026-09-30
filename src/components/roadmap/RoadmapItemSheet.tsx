@@ -19,7 +19,7 @@ import { OwnerChip } from "@/components/shared/OwnerChip"
 import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
 import type { RoadmapItem, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 
-const STATUSES: RoadmapStatus[] = ["planned", "in-progress", "done"]
+const STATUSES: RoadmapStatus[] = ["planned", "in-progress", "paused", "done"]
 
 const FIELD = "w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-txt focus:outline-hidden focus:ring-1 focus:ring-accent disabled:opacity-50"
 const LABEL = "text-xs font-medium text-muted"

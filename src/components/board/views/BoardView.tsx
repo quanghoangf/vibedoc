@@ -19,11 +19,12 @@ export interface ViewProps {
   onToggleSelect?: (ids: string[], on?: boolean) => void
 }
 
-type Column = "todo" | "in-progress" | "review" | "blocked" | "done"
+type Column = "todo" | "in-progress" | "review" | "blocked" | "paused" | "done"
 /** Review is optional: a task can wait there for a human, but nothing has to pass through it. */
-const COLUMNS: Column[] = ["todo", "in-progress", "review", "blocked", "done"]
+/** Paused and Done sit collapsed at the end until opened. */
+const COLUMNS: Column[] = ["todo", "in-progress", "review", "blocked", "paused", "done"]
 /** Mobile stacks sections by urgency instead. */
-const MOBILE_ORDER: Column[] = ["in-progress", "review", "todo", "blocked", "done"]
+const MOBILE_ORDER: Column[] = ["in-progress", "review", "todo", "blocked", "paused", "done"]
 /** Newest done IDs shown in the collapsed Done column. */
 const DONE_IDS = 5
 /** Fully done lanes shown before "+ N more … all done". */
@@ -35,6 +36,7 @@ const MARK: Record<TaskStatus, string> = {
   "in-progress": "bg-amber",
   review: "bg-accent",
   blocked: "bg-danger",
+  paused: "bg-muted/60",
   done: "bg-teal",
   cancelled: "bg-border",
 }
@@ -46,6 +48,7 @@ const inColumn = (tasks: Task[], col: Column) => tasks.filter((t) => (col === "d
 
 export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onToggleSelect }: ViewProps & { onMoveTask: (id: string, status: string) => void }) {
   const [doneOpen, setDoneOpen] = useState(false)
+  const [pausedOpen, setPausedOpen] = useState(false)
   const [laneOpen, setLaneOpen] = useState<Record<string, boolean>>({})
   const [showAllDoneLanes, setShowAllDoneLanes] = useState(false)
   // Empty lane cells are drop targets; they only draw a box while a card is being dragged
@@ -85,15 +88,16 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
     if (doneWide) { setDoneOpen(false); setLaneOpen((m) => Object.fromEntries(Object.entries(m).filter(([k]) => !doneLanes.some((l) => l.key === k)))) }
     else setDoneOpen(true)
   }
-  const grid = doneWide ? "md:grid-cols-5" : "md:grid-cols-[repeat(4,minmax(0,1fr))_140px]"
+  const narrow = (wide: boolean) => (wide ? "minmax(0,1fr)" : "140px")
+  const grid = { gridTemplateColumns: `repeat(4,minmax(0,1fr)) ${narrow(pausedOpen)} ${narrow(doneWide)}` }
 
   const cells = (list: Task[], compact: boolean) =>
     COLUMNS.map((col) => {
       const colTasks = inColumn(list, col)
       return (
         <DropCell key={col} status={col} onMoveTask={onMoveTask}>
-          {col === "done" && !doneWide ? (
-            <DoneSummary tasks={colTasks} compact={compact} dragging={dragging} onOpenTask={onOpenTask} />
+          {(col === "done" && !doneWide) || (col === "paused" && !pausedOpen) ? (
+            <ColumnSummary tasks={colTasks} noun={col === "done" ? "done" : "paused"} compact={compact} dragging={dragging} onOpenTask={onOpenTask} />
           ) : colTasks.length ? (
             (col === "done" ? [...colTasks].sort(newestFirst) : colTasks).map(card)
           ) : compact && !dragging ? null : (
@@ -109,7 +113,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
     <>
       {/* Desktop: status columns, optionally split into swimlanes */}
       <div className="hidden md:block" onDragStartCapture={() => setDragging(true)} onDragEndCapture={() => setDragging(false)}>
-        <div className={cn("grid gap-3 border-b border-border", grid, lanes && "pl-7.5")}>
+        <div className={cn("grid gap-3 border-b border-border", lanes && "pl-7.5")} style={grid}>
           {COLUMNS.map((col) => (
             // The header is a drop target too, so a card can always reach every status (even when all lanes are done)
             <DropCell key={col} status={col} onMoveTask={onMoveTask} header>
@@ -117,27 +121,30 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
               <StatusIcon status={col} />
               <h2 className="truncate">{STATUS_META[col].label}</h2>
               <span className="font-mono font-normal text-muted tabular-nums">{inColumn(tasks, col).length}</span>
-              {col === "done" && (
-                <>
-                  <span className="flex-1" />
-                  <button
-                    type="button"
-                    onClick={toggleDone}
-                    aria-expanded={doneWide}
-                    aria-label={doneWide ? "Collapse Done" : "Expand Done"}
-                    className="-my-1 grid size-6 place-items-center rounded-md text-muted outline-hidden transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent/60"
-                  >
-                    <ChevronRight className={cn("size-3.5 transition-transform duration-(--duration-base) ease-out-soft", doneWide && "rotate-180")} aria-hidden />
-                  </button>
-                </>
-              )}
+              {(col === "done" || col === "paused") && (() => {
+                const wide = col === "done" ? doneWide : pausedOpen
+                return (
+                  <>
+                    <span className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={col === "done" ? toggleDone : () => setPausedOpen((v) => !v)}
+                      aria-expanded={wide}
+                      aria-label={`${wide ? "Collapse" : "Expand"} ${STATUS_META[col].label}`}
+                      className="-my-1 grid size-6 place-items-center rounded-md text-muted outline-hidden transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent/60"
+                    >
+                      <ChevronRight className={cn("size-3.5 transition-transform duration-(--duration-base) ease-out-soft", wide && "rotate-180")} aria-hidden />
+                    </button>
+                  </>
+                )
+              })()}
             </div>
             </DropCell>
           ))}
         </div>
 
         {!lanes ? (
-          <div className={cn("grid gap-3 pt-3", grid)}>{cells(tasks, false)}</div>
+          <div className="grid gap-3 pt-3" style={grid}>{cells(tasks, false)}</div>
         ) : (
           <>
             {shownLanes.map((lane) => {
@@ -165,7 +172,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
                   </button>
                   <div className={cn("grid transition-[grid-template-rows,opacity] duration-(--duration-base) ease-out-soft", open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
                     <div className="min-h-0 overflow-hidden" inert={!open}>
-                      <div className={cn("grid gap-3 pt-2 pb-1 pl-7.5", grid)}>{cells(lane.tasks, true)}</div>
+                      <div className="grid gap-3 pt-2 pb-1 pl-7.5" style={grid}>{cells(lane.tasks, true)}</div>
                     </div>
                   </div>
                 </section>
@@ -193,7 +200,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
         {MOBILE_ORDER.map((col) => {
           const colTasks = inColumn(tasks, col)
           if (!colTasks.length) return null
-          const collapsed = col === "done" && !doneOpen
+          const collapsed = (col === "done" && !doneOpen) || (col === "paused" && !pausedOpen)
           return (
             <section key={col} aria-label={STATUS_META[col].label}>
               <h2 className="mt-3.5 mb-2 flex items-center gap-1.5 text-xs font-semibold text-txt">
@@ -201,14 +208,14 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
                 {STATUS_META[col].label}
                 <span className="font-mono font-normal text-muted tabular-nums">{colTasks.length}</span>
                 <span className="h-px flex-1 bg-border" />
-                {col === "done" && (
+                {(col === "done" || col === "paused") && (
                   <button
                     type="button"
-                    onClick={() => setDoneOpen((v) => !v)}
-                    aria-expanded={doneOpen}
+                    onClick={() => (col === "done" ? setDoneOpen : setPausedOpen)((v) => !v)}
+                    aria-expanded={!collapsed}
                     className="min-h-11 rounded-md px-2 text-xs font-normal text-muted outline-hidden hover:text-txt focus-visible:ring-2 focus-visible:ring-accent/60"
                   >
-                    {doneOpen ? "Hide" : "Show"}
+                    {collapsed ? "Show" : "Hide"}
                   </button>
                 )}
               </h2>
@@ -248,8 +255,8 @@ function DropCell({ status, onMoveTask, header = false, children }: { status: Co
   )
 }
 
-/** Collapsed Done: the count and the newest few IDs (each opens its task). */
-function DoneSummary({ tasks, compact, dragging, onOpenTask }: { tasks: Task[]; compact: boolean; dragging: boolean; onOpenTask: (task: Task) => void }) {
+/** Collapsed Done / Paused: the count and the newest few IDs (each opens its task). */
+function ColumnSummary({ tasks, noun, compact, dragging, onOpenTask }: { tasks: Task[]; noun: string; compact: boolean; dragging: boolean; onOpenTask: (task: Task) => void }) {
   if (!tasks.length) {
     if (compact && !dragging) return null
     return <div className="grid h-11 place-items-center rounded-lg border border-dashed border-border text-[11px] text-muted/70">{compact ? "" : "Drop here"}</div>
@@ -270,7 +277,7 @@ function DoneSummary({ tasks, compact, dragging, onOpenTask }: { tasks: Task[]; 
           </button>
         ))}
       </span>
-      <span><span className="font-mono">{tasks.length}</span> done</span>
+      <span><span className="font-mono">{tasks.length}</span> {noun}</span>
     </div>
   )
 }

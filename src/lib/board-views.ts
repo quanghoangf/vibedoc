@@ -116,9 +116,9 @@ export const DEFAULT_VIEWS: SavedView[] = KINDS.map((kind) => ({ ...defaultView(
 
 // ─── Task fields ──────────────────────────────────────────────────────────────
 
-const STATUS_ORDER: TaskStatus[] = ["in-progress", "review", "todo", "blocked", "done", "cancelled"]
+const STATUS_ORDER: TaskStatus[] = ["in-progress", "review", "todo", "blocked", "paused", "done", "cancelled"]
 const STATUS_LABEL: Record<TaskStatus, string> = {
-  "in-progress": "In progress", review: "Review", todo: "Todo", blocked: "Blocked", done: "Done", cancelled: "Cancelled",
+  "in-progress": "In progress", review: "Review", todo: "Todo", blocked: "Blocked", paused: "Paused", done: "Done", cancelled: "Cancelled",
 }
 const SIZES = ["XS", "S", "M", "L", "XL"]
 const cmpId = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true })

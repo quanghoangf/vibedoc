@@ -32,7 +32,7 @@ const WIDTH: Record<PropertyKey, string> = {
 const WIDE_ONLY = new Set<PropertyKey>(["epic", "size", "deps", "tests", "owner"])
 const SORTABLE = new Set<string>(["id", "title", "status", "epic", "size", "due"])
 const MARK_BG: Record<TaskStatus, string> = {
-  todo: "bg-border2", "in-progress": "bg-amber", review: "bg-accent", blocked: "bg-danger", done: "bg-teal", cancelled: "bg-border",
+  todo: "bg-border2", "in-progress": "bg-amber", review: "bg-accent", blocked: "bg-danger", paused: "bg-muted/60", done: "bg-teal", cancelled: "bg-border",
 }
 
 const cellMono = "font-mono text-[11px] text-muted"

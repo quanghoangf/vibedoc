@@ -161,7 +161,7 @@ const TOOLS = [
       properties: {
         status: {
           type: "string",
-          enum: ["all", "todo", "in-progress", "review", "blocked", "done", "cancelled"],
+          enum: ["all", "todo", "in-progress", "review", "blocked", "paused", "done", "cancelled"],
         },
       },
       required: [],
@@ -191,7 +191,7 @@ const TOOLS = [
         taskId: { type: "string" },
         status: {
           type: "string",
-          enum: ["todo", "in-progress", "review", "done", "blocked", "cancelled"],
+          enum: ["todo", "in-progress", "review", "done", "blocked", "paused", "cancelled"],
         },
         manualTests: {
           type: "string",
@@ -542,7 +542,7 @@ const TOOLS = [
       properties: {
         title: { type: "string" },
         parent: { type: "string", description: "Horizon id, e.g. R001. Omit for a horizon." },
-        status: { type: "string", enum: ["planned", "in-progress", "done"] },
+        status: { type: "string", enum: ["planned", "in-progress", "paused", "done"] },
         order: { type: "number", description: "Sort key (steps of 10). Defaults to last among siblings." },
         tasks: { type: "array", items: { type: "string" }, description: 'Linked task ids, e.g. ["T001"]' },
         due: { type: "string", description: "Due date YYYY-MM-DD (optional)" },
@@ -561,7 +561,7 @@ const TOOLS = [
         id: { type: "string", description: "e.g. R004" },
         title: { type: "string" },
         parent: { type: ["string", "null"] },
-        status: { type: "string", enum: ["planned", "in-progress", "done"] },
+        status: { type: "string", enum: ["planned", "in-progress", "paused", "done"] },
         order: { type: "number" },
         tasks: { type: "array", items: { type: "string" } },
         due: { type: ["string", "null"], description: "Due date YYYY-MM-DD; null clears it" },
@@ -708,7 +708,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const filter = (args.status as string) || "all";
       const cols =
         filter === "all"
-          ? ["in-progress", "review", "blocked", "todo", "done", "cancelled"]
+          ? ["in-progress", "review", "blocked", "paused", "todo", "done", "cancelled"]
           : [filter];
       const lines = [`## Tasks (${tasks.length})\n`];
       for (const col of cols) {
@@ -948,7 +948,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       if (items.length === 0) return "No roadmap items yet (plans/roadmap/ is empty).";
       const today = localToday();
       const { progress, drift } = roadmapHealth(items, await taskInfoMap(root), today);
-      const icon = { done: "✓", "in-progress": "◐", planned: "○" } as const;
+      const icon = { done: "✓", "in-progress": "◐", paused: "⏸", planned: "○" } as const;
       const atRisk = new Set(drift.filter((d) => d.kind === "at-risk").map((d) => d.id));
       const fmt = (i: (typeof items)[number]) =>
         `${icon[i.status]} **${i.id}** ${i.title} — ${i.status}` +

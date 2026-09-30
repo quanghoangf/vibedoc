@@ -82,4 +82,14 @@ assert.deepEqual(pickNextTask(epic(['T001', 'T002']), [t('T001', 'review'), t('T
 // a sent-back task is just todo again: handed out like any other
 assert.deepEqual(pickNextTask(epic(['T001']), [t('T001', 'todo')]), { kind: 'ready', taskId: 'T001' })
 
+// paused (R055): never handed out, not a met dependency, and only a human can resume it
+{
+  const r = pickNextTask(epic(['T001', 'T002']), [t('T001', 'paused'), t('T002', 'todo', 'T001')])
+  assert.equal(r.kind, 'waiting')
+  if (r.kind === 'waiting') {
+    assert.equal(r.needsHuman, true)
+    assert.ok(r.waiting.some((w) => w.reason.includes('T001 is paused')))
+  }
+}
+
 console.log('work-queue: ok')

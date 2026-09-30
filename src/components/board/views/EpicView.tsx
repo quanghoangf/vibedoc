@@ -25,6 +25,7 @@ const MARK_BG: Record<TaskStatus, string> = {
   "in-progress": "bg-amber",
   review: "bg-accent",
   blocked: "bg-danger",
+  paused: "bg-muted/60",
   done: "bg-teal",
   cancelled: "bg-border2",
 }

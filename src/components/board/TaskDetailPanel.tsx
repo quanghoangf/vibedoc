@@ -22,11 +22,12 @@ import { chatFor } from "@/lib/chats"
 import { reviewHistory, type ReviewEntry } from "@/lib/review"
 
 const NEXT_STATUS: Record<string, string[]> = {
-  todo: ["in-progress"],
-  "in-progress": ["done", "review", "blocked", "todo"],
+  todo: ["in-progress", "paused"],
+  "in-progress": ["done", "review", "blocked", "paused", "todo"],
   // Review tasks get Approve / Send back instead (ReviewActions)
   review: [],
   blocked: ["in-progress", "cancelled"],
+  paused: ["in-progress", "todo"],
   done: ["todo"],
   cancelled: ["todo"],
 }
@@ -36,6 +37,7 @@ const STATUS_LABELS: Record<string, string> = {
   review: "to review",
   done: "done",
   blocked: "blocked",
+  paused: "pause",
   todo: "backlog",
   cancelled: "cancel",
 }

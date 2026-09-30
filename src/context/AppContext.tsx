@@ -75,6 +75,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         'in-progress': rawBoard['in-progress'] ?? [],
         review: rawBoard.review ?? [],
         blocked: rawBoard.blocked ?? [],
+        paused: rawBoard.paused ?? [],
         done: rawBoard.done ?? [],
         cancelled: rawBoard.cancelled ?? [],
       } : null)

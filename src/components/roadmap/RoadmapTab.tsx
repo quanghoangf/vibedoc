@@ -539,7 +539,7 @@ function RoadmapStats({ items, tasksById }: { items: RoadmapItem[]; tasksById: R
   const done = linked.filter((t) => t.status === "done").length
   return (
     <div className="hidden items-center gap-4 font-mono text-[11px] text-muted md:flex">
-      {(["in-progress", "done", "planned"] as const).map((st) => (
+      {(["in-progress", "paused", "done", "planned"] as const).filter((st) => st !== "paused" || count(st) > 0).map((st) => (
         <span key={st} className="flex items-center gap-1.5">
           <StatusDot status={st} />
           <span className={cn("tabular-nums", st === "in-progress" && count(st) > 0 ? "text-accent" : "text-txt")}>{count(st)}</span>

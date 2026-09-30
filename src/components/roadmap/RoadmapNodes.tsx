@@ -40,7 +40,7 @@ function Handles() {
   )
 }
 
-export const STATUS_LABEL: Record<RoadmapStatus, string> = { "in-progress": "Active", done: "Done", planned: "Planned" }
+export const STATUS_LABEL: Record<RoadmapStatus, string> = { "in-progress": "Active", paused: "Paused", done: "Done", planned: "Planned" }
 
 /** Roadmap status as a dot: live = accent with a pulse, done = teal, planned = hollow. */
 export function StatusDot({ status, className }: { status: RoadmapStatus; className?: string }) {
@@ -53,6 +53,7 @@ export function StatusDot({ status, className }: { status: RoadmapStatus; classN
           status === "done" && "bg-teal",
           status === "in-progress" && "bg-accent",
           status === "planned" && "border border-muted",
+          status === "paused" && "border-2 border-y-0 border-muted",
         )}
       />
     </span>
@@ -67,6 +68,7 @@ export function StatusPill({ status }: { status: RoadmapStatus }) {
         status === "done" && "border-teal/40 text-teal",
         status === "in-progress" && "border-accent/50 text-accent",
         status === "planned" && "border-dashed border-border2 text-muted",
+        status === "paused" && "border-border2 text-muted",
       )}
     >
       <StatusDot status={status} className="h-1.5 w-1.5" />
@@ -80,6 +82,7 @@ export const TASK_STATUS_BG: Record<TaskStatus, string> = {
   "in-progress": "bg-amber",
   review: "bg-accent",
   blocked: "bg-danger",
+  paused: "bg-muted/60",
   todo: "bg-border2",
   cancelled: "bg-border",
 }
@@ -173,6 +176,7 @@ export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
         status === "in-progress" && "border-accent/60 shadow-[0_0_0_1px_rgb(var(--rgb-accent)/0.25),0_10px_30px_-12px_rgb(var(--rgb-accent)/0.6)]",
         status === "done" && "border-teal/40",
         status === "planned" && "border-dashed border-border2",
+        status === "paused" && "border-border2 opacity-75",
         selected && "ring-2 ring-accent/60 ring-offset-2 ring-offset-bg",
       )}
     >
@@ -235,6 +239,7 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
         live
           ? "border-accent/50 bg-surface shadow-[0_8px_24px_-10px_rgb(var(--rgb-accent)/0.55)]"
           : "border-dashed border-border2 bg-bg hover:border-muted",
+        item.status === "paused" && "opacity-70",
         ring,
       )}
     >
