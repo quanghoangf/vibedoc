@@ -37,6 +37,7 @@ import {
   deleteEntry,
   sessionStartMemory,
   recallEntries,
+  relatedEntries,
   getEntriesByIds,
   noteDocEdit,
   readProjectSettings,
@@ -89,6 +90,7 @@ function err(id: JsonRpcRequest["id"], code: number, message: string) {
 }
 
 const MAX_ENTRY_IDS = 20;
+const withGap = (block: string) => (block ? `\n\n${block}` : "");
 
 const TOOLS = [
   {
@@ -782,7 +784,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
     case "vibedoc_get_task": {
       const task = await getTask(String(args.taskId), root);
-      return `## ${task.file}\n\n${task.raw}`;
+      return `## ${task.file}\n\n${task.raw}` + withGap(await relatedEntries(task, root));
     }
 
     case "vibedoc_update_task": {
@@ -839,7 +841,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         ? `\n\n⚠️ Changes requested (${review.at}):\n${review.note}\nAddress this first; the rest of the spec below still applies.`
         : "";
       return `🔨 Claimed **${task.id}** ${task.title} (now in-progress)${changes}\n\n## ${task.file}\n\n${task.raw}` +
-        (await roadmapHint(root, task.id));
+        (await roadmapHint(root, task.id)) + withGap(await relatedEntries(task, root));
     }
 
     case "vibedoc_log_decision": {

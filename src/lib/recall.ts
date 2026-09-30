@@ -83,3 +83,20 @@ export function fitToBudget(handoff: string, index: RecallHit[], budget: number)
   }
   return { text, shown, omitted: index.length - shown, tokens: estimateTokens(text) }
 }
+
+export const RELATED_MIN_SCORE = 3
+const GOAL_CHARS = 500
+
+/** Recall query for a task: its title, the first 500 chars of its Goal, and the Phase epic title (id dropped). */
+export function taskQuery(task: { title: string; phase?: string; raw?: string }): string {
+  const goal = /^## Goal[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(task.raw ?? '')?.[1].trim() ?? ''
+  const epic = (task.phase ?? '').replace(/^R\d+\s*[—–-]\s*/, '')
+  return [task.title, goal.slice(0, GOAL_CHARS), epic].filter(Boolean).join(' ')
+}
+
+/** Only strong matches (at least one summary hit) → "## Related memory" block; '' when none qualify. */
+export function formatRelated(hits: RecallHit[], limit = 3): string {
+  const strong = hits.filter(h => h.score >= RELATED_MIN_SCORE).slice(0, limit)
+  if (!strong.length) return ''
+  return `## Related memory\n${strong.map(formatCompactLine).join('\n')}\nFetch with vibedoc_get_entries`
+}

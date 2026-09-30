@@ -1,6 +1,6 @@
 // Self-check for recall. Run: node src/lib/recall.check.mts
 import assert from 'node:assert/strict'
-import { DEFAULT_SESSION_BUDGET, estimateTokens, fitToBudget, formatCompactLine, indexHits, rankEntries, tokenize, type RecallEntry } from './recall.ts'
+import { DEFAULT_SESSION_BUDGET, estimateTokens, fitToBudget, formatCompactLine, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry } from './recall.ts'
 
 const e = (id: string, type: string, summary: string, body = '', updatedAt = '2026-09-01'): RecallEntry =>
   ({ id, type, summary, body, updatedAt })
@@ -110,5 +110,25 @@ assert.match(over.text, /over the 500-token session budget: trim memory\/MEMORY.
 // empty index
 assert.equal(fitToBudget(handoff, [], 2000).text,
   '# Project Memory\nhandoff text\n\n## Knowledge entries (0)\nSave new facts with vibedoc_save_entry; fetch bodies with vibedoc_get_entries.')
+
+// taskQuery: title + Goal (capped) + epic title without its id; other sections ignored
+const raw = '# T090: SSE reconnect\n**Phase:** R012 — Live updates\n\n## Goal\nKeep the EventSource alive.\n\n## Scope\n- [ ] kubernetes\n'
+assert.equal(taskQuery({ title: 'SSE reconnect on project switch', phase: 'R012 — Live updates', raw }),
+  'SSE reconnect on project switch Keep the EventSource alive. Live updates')
+assert.equal(taskQuery({ title: 'Only title' }), 'Only title')
+assert.equal(taskQuery({ title: 'T', raw: '## Goal\nlast section' }), 'T last section')
+assert.equal(taskQuery({ title: 'T', raw: `## Goal\n${'y'.repeat(900)}\n## Scope` }).length, 2 + 500)
+
+// formatRelated: strong matches only (score ≥ 3), max 3, '' when none, never bodies
+const rel = rankEntries([
+  e('E030', 'gotcha', 'SSE drops on project switch', 'Reconnect the EventSource.'),
+  e('E031', 'note', 'unrelated', 'mentions sse in body only'),
+  e('E032', 'convention', 'Tailwind only'),
+], taskQuery({ title: 'SSE reconnect on project switch', phase: 'R012 — Live updates', raw }))
+assert.equal(formatRelated(rel), '## Related memory\nE030 · gotcha · SSE drops on project switch (~14 tok)\nFetch with vibedoc_get_entries')
+assert.equal(formatRelated(rankEntries([e('E031', 'note', 'unrelated', 'sse')], 'sse')), '')
+assert.equal(formatRelated([]), '')
+const four = rankEntries(Array.from({ length: 5 }, (_, i) => e(`E04${i}`, 'note', `deploy step ${i}`)), 'deploy')
+assert.equal(formatRelated(four).split('\n').filter(l => l.startsWith('E')).length, 3)
 
 console.log('recall: ok')

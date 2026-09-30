@@ -19,7 +19,7 @@ import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
-import { DEFAULT_SESSION_BUDGET, fitToBudget, indexHits, rankEntries, type RecallHit } from './recall'
+import { DEFAULT_SESSION_BUDGET, fitToBudget, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -993,6 +993,13 @@ export async function getEntriesByIds(ids: string[], root: string): Promise<{ fo
 export async function sessionStartMemory(root: string): Promise<string> {
   const [memory, entries, { sessionBudgetTokens }] = await Promise.all([readMemory(root), listEntries(root), readProjectSettings(root)])
   return fitToBudget(memory.content, indexHits(entries), sessionBudgetTokens).text
+}
+
+/** The "## Related memory" block for a task (up to `limit` strong keyword matches), or '' (R048). */
+export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>, root: string, limit = 3): Promise<string> {
+  // rank everything so the score filter in formatRelated sees all candidates before the limit
+  const entries = await listEntries(root)
+  return formatRelated(rankEntries(entries, taskQuery(task), { limit: entries.length }), limit)
 }
 
 /** Keyword recall over the entries: compact hits, no bodies (R048). */
