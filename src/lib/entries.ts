@@ -65,3 +65,10 @@ export function validateEntryInput(i: EntryInput): string | null {
   if (i.body !== undefined && typeof i.body !== 'string') return 'body must be a string'
   return null
 }
+
+/** The session-start index: one line per entry. R048 T067 caps this with a token budget. */
+export function formatEntryIndex(entries: Entry[]): string {
+  const lines = [...entries].sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }))
+    .map(e => `${e.id} · ${e.type} · ${e.summary}`)
+  return [`## Knowledge entries (${entries.length})`, ...lines, 'Save new facts with vibedoc_save_entry; pass id to update.'].join('\n')
+}

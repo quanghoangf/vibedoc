@@ -1,6 +1,6 @@
 // Self-check for entries. Run: node src/lib/entries.check.mts
 import assert from 'node:assert/strict'
-import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput } from './entries.ts'
+import { entrySlug, formatEntry, formatEntryIndex, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput } from './entries.ts'
 
 // normalizeEntryId: case, padding, junk
 assert.equal(normalizeEntryId('e1'), 'E001')
@@ -52,5 +52,14 @@ assert.match(validateEntryInput({ type: 'convention', summary: 'a\nb' }) ?? '', 
 assert.match(validateEntryInput({ type: 'convention', summary: 'x'.repeat(121) }) ?? '', /120/)
 assert.match(validateEntryInput({ id: 'T1', type: 'convention', summary: 'x' }) ?? '', /Invalid id/)
 assert.match(validateEntryInput({ type: 'convention', summary: 'x', body: 5 as unknown as string }) ?? '', /body/)
+
+// formatEntryIndex: 0, 1, several (sorted by id, numeric)
+const hint = 'Save new facts with vibedoc_save_entry; pass id to update.'
+assert.equal(formatEntryIndex([]), `## Knowledge entries (0)\n${hint}`)
+assert.equal(formatEntryIndex([{ ...e, file: 'f' }]), `## Knowledge entries (1)\nE001 · convention · Only core.ts touches fs\n${hint}`)
+const mk = (id: string, summary: string) => ({ ...e, id, summary, file: id })
+assert.equal(formatEntryIndex([mk('E1000', 'd'), mk('E010', 'c'), mk('E002', 'b')]),
+  `## Knowledge entries (3)\nE002 · convention · b\nE010 · convention · c\nE1000 · convention · d\n${hint}`)
+assert.ok(!formatEntryIndex([{ ...e, file: 'f' }]).includes('API routes'), 'index never includes bodies')
 
 console.log('entries: ok')

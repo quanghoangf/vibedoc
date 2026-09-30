@@ -1,8 +1,12 @@
 # T087: vibedoc_delete_entry + entry index at session start
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R046 — Project knowledge entries
 **Size:** M (2–3 hrs)
 **Depends on:** T086
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 A convention an agent saves in one session shows up in the next session's start, and nobody has to copy it into the handoff. `vibedoc_read_memory` now ends with an index of every entry, one line each. Agents can also remove an entry that has become wrong. This task delivers the epic's "Done when".
@@ -63,3 +67,14 @@ curl -s $M -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"meth
 curl -s $M -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_delete_entry","arguments":{"id":"E999"}}}'   # error
 ```
 Delete any test entry files afterwards. Don't commit them.
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] From an agent, call vibedoc_read_memory in a project with no memory/entries folder → the handoff, then "## Knowledge entries (0)" and a hint to use vibedoc_save_entry
+- [ ] Save an entry with vibedoc_save_entry, then start a new agent session (vibedoc_read_memory) → the reply ends with "E001 · <type> · <summary>" under "## Knowledge entries (1)", and no entry body
+- [ ] Call vibedoc_delete_entry with id "e1" → "Deleted E001", the file is gone from memory/entries, and the next vibedoc_read_memory no longer lists it
+- [ ] Call vibedoc_delete_entry with id "E999" → an error, and no file changes
+- [ ] Open /activity → the delete shows as "Entry E001 deleted" with the summary
+### Regression risk
+- [ ] The Memory tab still shows only memory/MEMORY.md, and a new agent session still appears as "Session started" in /activity

@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
+import { ENTRY_TYPES, formatEntryIndex, type EntryInput } from "@/lib/entries";
 import {
   getConfiguredRoot,
   listDocs,
@@ -34,6 +34,8 @@ import {
   readMemory,
   updateMemory,
   saveEntry,
+  deleteEntry,
+  listEntries,
   noteDocEdit,
   readProjectSettings,
   logSessionStart,
@@ -292,6 +294,15 @@ const TOOLS = [
         body: { type: "string", description: "Details and the why (markdown)" },
       },
       required: ["type", "summary"],
+    },
+  },
+  {
+    name: "vibedoc_delete_entry",
+    description: "Delete a knowledge entry that is wrong or no longer true. Git keeps its history.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "e.g. E001" } },
+      required: ["id"],
     },
   },
   {
@@ -818,7 +829,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       await logSessionStart(root, "ai");
       emitUpdate("session_start", { root });
       const memory = await readMemory(root);
-      return memory.content;
+      return `${memory.content.trimEnd()}\n\n${formatEntryIndex(await listEntries(root))}`;
     }
 
     case "vibedoc_update_memory": {
@@ -835,6 +846,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const entry = await saveEntry(args as unknown as EntryInput, root, "ai");
       emitUpdate("memory_updated", { root, entryId: entry.id });
       return `🧠 Saved **${entry.id}** · ${entry.type} · ${entry.summary}\n${entry.file}`;
+    }
+
+    case "vibedoc_delete_entry": {
+      const entry = await deleteEntry(String(args.id ?? ""), root, "ai");
+      emitUpdate("memory_updated", { root, entryId: entry.id });
+      return `🗑️ Deleted **${entry.id}** · ${entry.summary}`;
     }
 
     case "vibedoc_create_doc": {

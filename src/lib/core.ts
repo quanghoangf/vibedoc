@@ -970,6 +970,20 @@ export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human'
   })
 }
 
+/** Removes the file for good; git keeps its history. Throws on an unknown id. */
+export function deleteEntry(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<Entry> {
+  const norm = normalizeEntryId(String(id ?? ''))
+  if (!norm) return Promise.reject(new Error(`Invalid id "${id}": expected E followed by a number, e.g. E001`))
+  // ponytail: ids come from files on disk, so deleting the highest entry lets the next save reuse its id; git history is per path and the slug differs
+  return withEntryLock(async () => {
+    const entry = (await listEntries(root)).find(e => e.id === norm)
+    if (!entry) throw new Error(`Entry ${norm} not found`)
+    await fs.rm(path.join(root, entry.file))
+    await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${norm} deleted`, detail: entry.summary })
+    return entry
+  })
+}
+
 // ─── Activity log ─────────────────────────────────────────────────────────────
 
 const ACTIVITY_FILE = '.vibedoc-activity.json'
