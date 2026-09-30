@@ -26,8 +26,27 @@ export const PAGE_SHORTCUTS: readonly PageShortcut[] = [
 /** Opens the head of the attention queue (needs you, then errors); again on the head walks to the next. */
 export const CHAT_KEY = "c"
 
+/**
+ * Actions on the open or selected item (task panel, epic sheet, open doc, board selection).
+ * Shift + letter so they never collide with the bare-letter page jumps above.
+ */
+export const ITEM_KEYS = {
+  edit: { key: "E", label: "⇧E", help: "Edit / rename" },
+  status: { key: "S", label: "⇧S", help: "Change status" },
+  duplicate: { key: "D", label: "⇧D", help: "Duplicate" },
+  chat: { key: "C", label: "⇧C", help: "Chat about it" },
+  remove: { key: "Backspace", label: "⌫", help: "Delete (Undo in the toast)" },
+} as const
+export type ItemAction = keyof typeof ITEM_KEYS
+
+/** The item action a key press means (Delete works like Backspace). */
+export function itemActionForKey(key: string): ItemAction | undefined {
+  if (key === "Delete") return "remove"
+  return (Object.keys(ITEM_KEYS) as ItemAction[]).find((a) => ITEM_KEYS[a].key === key)
+}
+
 /** Everything else the help sheet lists, after the page jumps, grouped by `section`. */
-export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "Open" | "Board" | "Editing & other" }[] = [
+export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "Open" | "Board" | "Open item" | "Editing & other" }[] = [
   { key: "⌘K", label: "Command palette", section: "Open" },
   { key: "⌘P", label: "Go to file", section: "Open" },
   { key: CHAT_KEY, label: "Open next chat", section: "Open" },
@@ -35,6 +54,8 @@ export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "O
   { key: "v", label: "Next view", section: "Board" },
   { key: "1–4", label: "Board · Table · By epic · Timeline", section: "Board" },
   { key: "f", label: "Open filters", section: "Board" },
+  { key: "⇧-click", label: "Select tasks (bulk actions)", section: "Board" },
+  ...Object.values(ITEM_KEYS).map(({ label, help }) => ({ key: label, label: help, section: "Open item" as const })),
   { key: "/", label: "Focus search (docs, board)", section: "Editing & other" },
   { key: "⌘B", label: "Toggle sidebar", section: "Editing & other" },
   { key: "?", label: "Toggle this help", section: "Editing & other" },

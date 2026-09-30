@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import {
   Search, FilePlus, LayoutDashboard, Activity, Brain, Map, BookOpen, Bot, FlaskConical, FolderTree, Settings,
-  FileText, MessageSquarePlus, SunMoon, FolderOpen, Keyboard, type LucideIcon,
+  FileText, MessageSquarePlus, SunMoon, FolderOpen, Keyboard, Zap, type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fuzzyFilter } from "@/lib/fuzzy"
@@ -18,6 +18,7 @@ import { StatusIcon } from "@/components/shared/StatusIcon"
 import { StatusMarker, attachHref } from "@/components/chat/StatusMarker"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import type { RoadmapItem } from "@/types"
+import { itemKeyLabel, useCurrentItemCommands } from "@/components/shared/item-commands"
 
 const PAGES: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/chat", label: "Chats", icon: Bot },
@@ -68,6 +69,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
   const [docs, setDocs] = useState<DocSearch | null>(null)
   const [epics, setEpics] = useState<RoadmapItem[]>([])
   const listRef = useRef<HTMLDivElement>(null)
+  const current = useCurrentItemCommands()
 
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
@@ -109,6 +111,16 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
     const top = <T,>(items: T[], key: (item: T) => string) => (q ? fuzzyFilter(q, items, key).slice(0, PER_GROUP) : items)
     const out: Row[] = []
     const itemRows: Row[] = []
+
+    // Actions on the open / selected item come first, under its name
+    if (current) {
+      for (const c of top(current.commands, (c) => c.label)) {
+        out.push({
+          id: `item-cmd-${c.action}`, group: current.title, label: c.label, lead: icon(Zap), kbd: itemKeyLabel(c.action),
+          run: () => { onClose(); c.run() },
+        })
+      }
+    }
 
     if (q) {
       const tasks = board ? Object.values(board).flat() : []
@@ -172,7 +184,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
       }
     }
     return out
-  }, [q, chats, queue, now, board, epics, projects, activeProject, docs, router, onClose, show, create, onNewDoc, onQuickOpen, onShowHelp, onOpenDoc, onProjectChange, rootParam])
+  }, [q, current, chats, queue, now, board, epics, projects, activeProject, docs, router, onClose, show, create, onNewDoc, onQuickOpen, onShowHelp, onOpenDoc, onProjectChange, rootParam])
 
   const active = Math.max(0, Math.min(activeIndex, rows.length - 1))
   // Runs of one group, each rendered as an ARIA group named by its heading

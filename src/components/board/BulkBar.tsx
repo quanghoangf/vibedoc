@@ -13,6 +13,7 @@ import { STATUS_META, StatusIcon } from "@/components/shared/StatusIcon"
 import { toast, undoToast } from "@/components/ui/toast"
 import { useApp } from "@/context/AppContext"
 import type { RoadmapItem, Task, TaskStatus } from "@/types"
+import { useItemCommands } from "@/components/shared/item-commands"
 
 const STATUSES = Object.keys(STATUS_META) as TaskStatus[]
 
@@ -30,6 +31,7 @@ export function BulkBar({ ids, onClear }: { ids: string[]; onClear: () => void }
   const { rootParam } = useApp()
   const [epics, setEpics] = useState<RoadmapItem[]>([])
   const [busy, setBusy] = useState(false)
+  const [statusOpen, setStatusOpen] = useState(false)
 
   useEffect(() => {
     fetch(`/api/roadmap${rootParam}`)
@@ -60,6 +62,11 @@ export function BulkBar({ ids, onClear }: { ids: string[]; onClear: () => void }
     })
   })
 
+  useItemCommands(`${ids.length} selected task${ids.length === 1 ? "" : "s"}`, [
+    { action: "status", label: "Change status…", run: () => setStatusOpen(true) },
+    { action: "remove", label: `Delete ${ids.length} task${ids.length === 1 ? "" : "s"}`, run: remove },
+  ])
+
   return (
     <div
       role="toolbar"
@@ -67,7 +74,7 @@ export function BulkBar({ ids, onClear }: { ids: string[]; onClear: () => void }
       className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 animate-slide-in items-center gap-1 rounded-lg border border-border bg-surface2 p-1 pl-3 shadow-xl"
     >
       <span className="mr-1 font-mono text-xs tabular-nums text-txt">{ids.length} selected</span>
-      <DropdownMenu>
+      <DropdownMenu open={statusOpen} onOpenChange={setStatusOpen}>
         <DropdownMenuTrigger asChild>
           <button type="button" disabled={busy} className={pill}>Status <ChevronUp className="size-3.5 text-muted" /></button>
         </DropdownMenuTrigger>

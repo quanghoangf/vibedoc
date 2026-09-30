@@ -12,6 +12,7 @@ import { QuickOpen } from "@/components/layout/QuickOpen"
 import { NewDocModal } from "@/components/docs/NewDocModal"
 import { ChatModal } from "@/components/chat/ChatModal"
 import { Toaster } from "@/components/ui/toast"
+import { ItemCommandKeys } from "@/components/shared/item-commands"
 import { ChatProvider, useChats } from "@/context/ChatContext"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
@@ -30,7 +31,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 const SHORTCUT_SECTIONS = [
   { title: "Go to", rows: PAGE_SHORTCUTS.map(({ key, label, help }) => ({ key, description: help ?? label })) },
-  ...(["Open", "Board", "Editing & other"] as const).map((title) => ({
+  ...(["Open", "Board", "Open item", "Editing & other"] as const).map((title) => ({
     title, rows: OTHER_SHORTCUTS.filter((s) => s.section === title).map(({ key, label }) => ({ key, description: label })),
   })),
 ]
@@ -134,6 +135,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         <main id="main" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto outline-none">{children}</main>
         <ChatModal />
         <Toaster />
+        <ItemCommandKeys />
 
         <QuickOpen
           open={quickOpen}

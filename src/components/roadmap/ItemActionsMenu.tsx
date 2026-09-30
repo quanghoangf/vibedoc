@@ -6,12 +6,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { itemKeyLabel } from "@/components/shared/item-commands"
 import { STATUS_LABEL, StatusDot } from "./RoadmapNodes"
 import type { RoadmapItem, RoadmapStatus } from "@/types"
 
@@ -36,9 +38,9 @@ function ItemMenuItems({ item, items, actions }: { item: RoadmapItem; items: Roa
 
   return (
     <>
-      <DropdownMenuItem onSelect={() => actions.edit(item.id)}><Pencil /> Edit</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.edit(item.id)}><Pencil /> Edit<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuSub>
-        <DropdownMenuSubTrigger><StatusDot status={item.status} /> Status</DropdownMenuSubTrigger>
+        <DropdownMenuSubTrigger><StatusDot status={item.status} /> Status<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
           {STATUSES.map((s) => (
             <DropdownMenuItem key={s} disabled={s === item.status} onSelect={() => actions.setStatus(item.id, s)}>
@@ -60,9 +62,9 @@ function ItemMenuItems({ item, items, actions }: { item: RoadmapItem; items: Roa
         </DropdownMenuSub>
       )}
       {isHorizon && <DropdownMenuItem onSelect={() => actions.addEpic(item.id)}><Plus /> Add epic</DropdownMenuItem>}
-      <DropdownMenuItem onSelect={() => actions.duplicate(item.id)}><Copy /> Duplicate</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.duplicate(item.id)}><Copy /> Duplicate<DropdownMenuShortcut>{itemKeyLabel("duplicate")}</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuSeparator />
-      {!isHorizon && <DropdownMenuItem onSelect={() => actions.chat(item.id)}><MessageSquare /> Chat about it</DropdownMenuItem>}
+      {!isHorizon && <DropdownMenuItem onSelect={() => actions.chat(item.id)}><MessageSquare /> Chat about it<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>}
       <DropdownMenuItem onSelect={() => actions.openFile(item.file)}><FileText /> Open file</DropdownMenuItem>
       <DropdownMenuSeparator />
       {children > 0 ? (
@@ -72,7 +74,7 @@ function ItemMenuItems({ item, items, actions }: { item: RoadmapItem; items: Roa
         </DropdownMenuItem>
       ) : (
         <DropdownMenuItem onSelect={() => actions.remove(item.id)} className="text-danger focus:text-danger">
-          <Trash2 /> Delete
+          <Trash2 /> Delete<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut>
         </DropdownMenuItem>
       )}
     </>
@@ -80,14 +82,16 @@ function ItemMenuItems({ item, items, actions }: { item: RoadmapItem; items: Roa
 }
 
 /** ⋯ button that opens the item's actions. */
-export function ItemActionsMenu({ item, items, actions, className }: {
+export function ItemActionsMenu({ item, items, actions, className, open, onOpenChange }: {
   item: RoadmapItem
   items: RoadmapItem[]
   actions: ItemActions
   className?: string
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"

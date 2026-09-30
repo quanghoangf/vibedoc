@@ -14,6 +14,7 @@ import { useChats } from "@/context/ChatContext"
 import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
 import { pickNextTask } from "@/lib/work-queue"
 import { ItemActionsMenu, type ItemActions } from "./ItemActionsMenu"
+import { useItemCommands } from "@/components/shared/item-commands"
 import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
 import type { RoadmapItem, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 
@@ -68,6 +69,14 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
   const { chats, showAbout } = useChats()
   const chat = isHorizon ? undefined : chatFor(chats, { kind: "epic", id: item.id })
   const offerBreakdown = !isHorizon && item.tasks.length === 0 && !chat
+  const [menuOpen, setMenuOpen] = useState(false)
+  useItemCommands(`${item.id} · ${item.title}`, [
+    { action: "edit", label: "Edit", run: onEdit },
+    { action: "status", label: "Change status…", run: () => setMenuOpen(true) },
+    { action: "duplicate", label: "Duplicate", run: () => actions.duplicate(item.id) },
+    ...(isHorizon ? [] : [{ action: "chat" as const, label: "Chat about it", run: () => actions.chat(item.id) }]),
+    ...(epics.length ? [] : [{ action: "remove" as const, label: "Delete", run: () => actions.remove(item.id) }]),
+  ])
 
   return (
     <div className="flex min-h-full flex-col">
@@ -88,7 +97,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
           <StatusPill status={item.status} />
           <AgentMark attach={{ kind: "epic", id: item.id }} />
           <DueChip due={item.due} state={dueState(item.due, item.status, today)} />
-          <ItemActionsMenu item={item} items={items} actions={actions} className="ml-auto" />
+          <ItemActionsMenu item={item} items={items} actions={actions} className="ml-auto" open={menuOpen} onOpenChange={setMenuOpen} />
         </div>
         {progress && (
           <div className="mt-5 flex items-end gap-4">

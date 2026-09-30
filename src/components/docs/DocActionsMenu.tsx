@@ -7,12 +7,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { itemKeyLabel } from "@/components/shared/item-commands"
 
 /** What the docs page does for each entry; the menu holds no state. */
 export interface DocActions {
@@ -28,15 +30,15 @@ export interface DocActions {
 export function DocMenuItems({ path, actions }: { path: string; actions: DocActions }) {
   return (
     <>
-      <DropdownMenuItem onSelect={() => actions.rename(path)}><Pencil /> Rename</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.rename(path)}><Pencil /> Rename<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuItem onSelect={() => actions.move(path)}><FolderInput /> Move to folder</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => actions.duplicate(path)}><CopyPlus /> Duplicate</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.duplicate(path)}><CopyPlus /> Duplicate<DropdownMenuShortcut>{itemKeyLabel("duplicate")}</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => actions.copyPath(path)}><Copy /> Copy path</DropdownMenuItem>
       <DropdownMenuItem onSelect={() => actions.copyLink(path)}><Link2 /> Copy link</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => actions.chat(path)}><MessageSquare /> Chat about this doc</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.chat(path)}><MessageSquare /> Chat about this doc<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={() => actions.remove(path)} className="text-danger focus:text-danger"><Trash2 /> Delete</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.remove(path)} className="text-danger focus:text-danger"><Trash2 /> Delete<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
     </>
   )
 }

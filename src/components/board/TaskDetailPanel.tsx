@@ -9,7 +9,9 @@ import { StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
 import Link from "next/link"
 import { Check, CornerUpLeft, FlaskConical, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { STATUS_META } from "@/components/shared/StatusIcon"
+import { itemKeyLabel, useItemCommands } from "@/components/shared/item-commands"
 import { deleteTaskWithUndo, updateTask } from "./task-api"
 import type { TaskMetaPatch } from "@/types"
 import { AgentMark } from "@/components/chat/AgentMark"
@@ -57,6 +59,14 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
   const [editingId, setEditingId] = useState<string | null>(null)
   const editing = !!task && editingId === task.id
   const [error, setError] = useState<string | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const chatAbout = () => { if (task) { onClose(); showAbout({ kind: "task", id: task.id }) } }
+  useItemCommands(openTask && task && !editing ? `${task.id} · ${task.title}` : null, task ? [
+    { action: "edit", label: "Edit", run: () => setEditingId(task.id) },
+    { action: "status", label: "Change status…", run: () => setMenuOpen(true) },
+    { action: "chat", label: "Chat about task", run: chatAbout },
+    { action: "remove", label: "Delete", run: () => { remove() } },
+  ] : [])
 
   async function remove() {
     if (!task) return
@@ -80,17 +90,27 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                 <span className="font-mono text-xs text-muted">{task.id}</span>
                 <StatusChip status={task.status} />
                 <AgentMark attach={{ kind: "task", id: task.id }} />
-                <DropdownMenu>
+                <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                   <DropdownMenuTrigger asChild>
                     <button type="button" aria-label={`Actions for ${task.id}`} className="ml-auto grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
                       <MoreHorizontal className="size-4" />
                     </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> Edit</DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => { onClose(); showAbout({ kind: "task", id: task.id }) }}><MessageSquare /> Chat about task</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> Edit<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger><StatusIcon status={task.status} /> Status<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {(Object.keys(STATUS_META) as Task["status"][]).map((s) => (
+                          <DropdownMenuItem key={s} disabled={s === task.status} onSelect={() => onMove(task.id, s)}>
+                            <StatusIcon status={s} /> {STATUS_META[s].label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                    <DropdownMenuItem onSelect={chatAbout}><MessageSquare /> Chat about task<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> Delete</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> Delete<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
