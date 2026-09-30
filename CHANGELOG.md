@@ -1,3 +1,57 @@
+# [1.9.0](https://github.com/quanghoangf/vibedoc/compare/v1.8.0...v1.9.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* **chat:** chat agents can't delete knowledge entries ([57cd7c9](https://github.com/quanghoangf/vibedoc/commit/57cd7c9dec4de34dfcfc075509c4887e7a18c1f1))
+
+
+### Features
+
+* **memory:** delete a knowledge entry from /memory with Undo ([41015a8](https://github.com/quanghoangf/vibedoc/commit/41015a83617b38147139abe281cdf357516d98c5))
+* **memory:** entry history from git on /memory ([a96dd3b](https://github.com/quanghoangf/vibedoc/commit/a96dd3b2f2cad1b987814bf1140c94c075e01b43))
+* **memory:** graph view of entries and their links on /memory ([a4a94bf](https://github.com/quanghoangf/vibedoc/commit/a4a94bfba46f0be74f83f8e1bc085b6076bee89b))
+* **memory:** knowledge entries list with search and type filter on /memory ([64dbcd0](https://github.com/quanghoangf/vibedoc/commit/64dbcd0f437296948728a47ecae17d4d2d6672d6))
+* **memory:** knowledge entry files and vibedoc_save_entry ([a3b8279](https://github.com/quanghoangf/vibedoc/commit/a3b8279e2657481b99cc043e6cc581f1858d9e01))
+* **memory:** link graph inferred from entry text; GET /api/memory/graph ([d63af35](https://github.com/quanghoangf/vibedoc/commit/d63af3549696f227db6e1bb0f39a35e24dc58d1f))
+* **memory:** links and backlinks in vibedoc_get_entries ([c2aef6e](https://github.com/quanghoangf/vibedoc/commit/c2aef6ee11ed396f986dbd5d6a4cea716b4bcc89))
+* **memory:** open, edit and add knowledge entries on /memory ([43595cf](https://github.com/quanghoangf/vibedoc/commit/43595cfe0d7dad9869f846255830ac350195dfdb))
+* **memory:** Related panel on an entry — links to and linked from ([89a2b04](https://github.com/quanghoangf/vibedoc/commit/89a2b04e4fda9da3b2ff97097c3673331b20485f))
+* **memory:** show who changed each knowledge entry; e2e for the Memory browser ([7abf6a0](https://github.com/quanghoangf/vibedoc/commit/7abf6a02366edaa76c5dac594d740e2048c7d6ff))
+* **memory:** suggest related entries when a task is claimed or opened ([1f9228a](https://github.com/quanghoangf/vibedoc/commit/1f9228ac47c42e8922b08f7406d8fd1d17909fec))
+* **memory:** token budget for the session-start entry index ([476f194](https://github.com/quanghoangf/vibedoc/commit/476f194c527e61ea68a1c83e000f7c01a29ccf4f))
+* **memory:** vibedoc_delete_entry and the entry index at session start ([9fde28f](https://github.com/quanghoangf/vibedoc/commit/9fde28fac395d570168a80d684cdab72c8580b73))
+* **memory:** vibedoc_get_entries — fetch full entries by id ([1b40c24](https://github.com/quanghoangf/vibedoc/commit/1b40c245e70ece5681e618947644af060904315c))
+* **memory:** vibedoc_recall — compact ranked list of entries by keyword ([9fc9e41](https://github.com/quanghoangf/vibedoc/commit/9fc9e416cbe65d931b4fb93d07611eac513bf450))
+
+# [1.8.0](https://github.com/quanghoangf/vibedoc/compare/v1.7.0...v1.8.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* **core:** warn once per unknown status; coalesce doc edits across interleaved events ([3ee94c1](https://github.com/quanghoangf/vibedoc/commit/3ee94c10f09c6f24897d39f0921b8728eb3f4dd6))
+
+
+### Features
+
+* **board:** select tasks and change status, epic or delete them in bulk ([7c39745](https://github.com/quanghoangf/vibedoc/commit/7c39745474f31e5294e7d270c6cc1c61771003f5))
+* **docs:** actions menu in the doc header and on right-click in the list ([a1bbbd1](https://github.com/quanghoangf/vibedoc/commit/a1bbbd1171fa532b510d3e9dd7ceeed01275333a))
+* **roadmap:** actions menu on roadmap items (map, timeline, sheet) ([5db4746](https://github.com/quanghoangf/vibedoc/commit/5db474634b59b877720fb0a1deab183bbd9dc789))
+* **tasks:** automatic due, started and done dates ([0e58941](https://github.com/quanghoangf/vibedoc/commit/0e58941978a0bcb4d847b83d8c463fa267b8aac7))
+* **tasks:** custom statuses per project, mapped onto the built-in lifecycle ([a44304a](https://github.com/quanghoangf/vibedoc/commit/a44304a20734ef644717b767bd576459c0f21776))
+* **tasks:** edit task fields and delete tasks from the panel and card ([1fe71ee](https://github.com/quanghoangf/vibedoc/commit/1fe71eec24ef50334ed11f4315db142490fb7416))
+* **tasks:** manual test report on a task with a card badge ([7aec884](https://github.com/quanghoangf/vibedoc/commit/7aec884748fa47f231753936202d211a5f29052e))
+* **tasks:** manual tests page to tick a task's checklist ([be34c8d](https://github.com/quanghoangf/vibedoc/commit/be34c8df754730a39be024c820529cff97ffc86c))
+* **tasks:** optional Review column with approve / send back ([d14772e](https://github.com/quanghoangf/vibedoc/commit/d14772e3cb63853f73c00758526a71c82cc91da4))
+* **tasks:** owner (human or agent) on tasks, epics and docs, with board filter and group ([b63777c](https://github.com/quanghoangf/vibedoc/commit/b63777cc22a0c2a8c3fde581d5dab4b452c98686))
+* **tasks:** paused status for tasks and epics ([f8140b0](https://github.com/quanghoangf/vibedoc/commit/f8140b0773ef30017fa4c26571955d8d5d446649))
+* **ui:** calmer app shell, one status icon system, compact board ([452b1b3](https://github.com/quanghoangf/vibedoc/commit/452b1b3281e13a51fb044b31ca9f5424c1cc7ec0))
+* **ui:** edit status, owner, due and size in place ([4aeb892](https://github.com/quanghoangf/vibedoc/commit/4aeb892ceea8911bfbce4fa9189d5c0629e91996))
+* **ui:** keyboard shortcuts and palette entries for item actions ([c2ed706](https://github.com/quanghoangf/vibedoc/commit/c2ed7060021294c6d4768b25afceb7a62da98755))
+* **ui:** one panel header for tasks, epics and docs ([5493c30](https://github.com/quanghoangf/vibedoc/commit/5493c30aee7972b6d09745534018ddf98a8f55c4))
+* **ui:** undo toast for deleting tasks, epics and docs ([f415009](https://github.com/quanghoangf/vibedoc/commit/f4150092dd542f5bf2d6676b0e81c16e242bc808))
+* **work-epic:** write a manual test report per task; queue waits on review ([4371a19](https://github.com/quanghoangf/vibedoc/commit/4371a1930f3e1effdf5b8d1ec60e4a832b27f917))
+
 # [1.7.0](https://github.com/quanghoangf/vibedoc/compare/v1.6.1...v1.7.0) (2026-09-29)
 
 

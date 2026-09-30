@@ -21,6 +21,8 @@ const AVAILABLE_TOOLS = [
   "vibedoc_update_task",
   "vibedoc_read_memory",
   "vibedoc_update_memory",
+  "vibedoc_save_entry",
+  "vibedoc_delete_entry",
 ]
 
 const SKILL_ICONS = ["🔧", "📝", "🧪", "🔍", "📊", "🔒", "⚡", "🎯", "💡", "🚀"]

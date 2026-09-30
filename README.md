@@ -47,12 +47,12 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **Kanban board** — tasks live in `plans/tasks/*.md`, rendered as draggable cards
 - **Docs viewer** — browse and edit every markdown file in `docs/`
 - **Live activity feed** — every AI action appears instantly via SSE, no polling
-- **Memory tab** — persistent `MEMORY.md` for session handoffs between AI agents
+- **Memory tab** — the `MEMORY.md` session handoff, plus a browser for knowledge entries: search (ranked like `vibedoc_recall`), filter by type, open, edit, add, and delete with Undo. Each entry shows who changed it last (a person or a named agent)
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
 - **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
 - **Plan from the chat** — ask the agent sidebar to plan a roadmap or break an epic into tasks; it asks questions, shows the plan, and writes nothing until you accept
 - **Manual tests & review** — the agent leaves a click-through checklist on each finished task (`🧪 0/5` on the card, ticked on `/manual-tests`); an optional Review column lets you approve a task or send it back with a note. Nothing ever blocks "done"
-- **MCP server** — 30 tools your AI agent can call to read docs, move tasks, write ADRs, and more
+- **MCP server** — 34 tools your AI agent can call to read docs, move tasks, write ADRs, and more
 
 ---
 
@@ -100,7 +100,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 ## MCP tools
 
-30 tools your AI agent can call, grouped by category.
+34 tools your AI agent can call, grouped by category.
 
 ### Session & status
 
@@ -108,6 +108,10 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | ----------------------- | ---------------------------------------------------------------- |
 | `vibedoc_read_memory`   | Read `MEMORY.md` — triggers "session start" in the activity feed |
 | `vibedoc_update_memory` | Write end-of-session summary and handoff note                    |
+| `vibedoc_save_entry`    | Save a long-lived fact as `memory/entries/E001-*.md` (listed at session start) |
+| `vibedoc_delete_entry`  | Delete a knowledge entry that is no longer true                  |
+| `vibedoc_recall`        | Search entries by keyword → compact list (id, type, summary)     |
+| `vibedoc_get_entries`   | Fetch full entries by id (max 20)                                |
 | `vibedoc_get_status`    | Board snapshot — active tasks, blockers, doc count               |
 | `vibedoc_get_sessions`  | Recent sessions: who, when, tasks moved, docs changed, ADRs      |
 
@@ -198,6 +202,7 @@ Add this to your project's `CLAUDE.md` to guide your AI agent:
 **End of session:**
 
 - Call `vibedoc_update_task` for each task touched
+- Call `vibedoc_save_entry` for each fact that should outlast the session (convention, gotcha, decision, preference)
 - Call `vibedoc_update_memory` with full summary and handoff note
 ```
 
@@ -227,7 +232,9 @@ your-project/
 │   ├── T001-scaffold.md          ← **Status:** 📋 Ready
 │   └── T002-auth.md
 └── memory/
-    └── MEMORY.md
+    ├── MEMORY.md                 ← session handoff
+    └── entries/
+        └── E001-only-core-ts-touches-fs.md   ← one long-lived fact (**Type:**, **Updated:**, **By:**)
 ```
 
 ---

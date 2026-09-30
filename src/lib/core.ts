@@ -7,6 +7,8 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { glob } from 'glob'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { applyEdits, type TextEdit } from './diff'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 import { pickNextTask, type QueueResult } from './work-queue'
@@ -20,6 +22,9 @@ import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
+import { DEFAULT_SESSION_BUDGET, fitToBudget, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
+import { buildGraph, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
+import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -426,10 +431,15 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
  * The task settings from .vibedoc/settings.json (R055): `tasks.sizeDays` over the defaults (automatic due dates)
  * and `statuses` (custom statuses; the built-ins when unset).
  */
-export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[] }> {
-  let s: { tasks?: { sizeDays?: SizeDays }; statuses?: unknown } | null = null
+export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number }> {
+  let s: { tasks?: { sizeDays?: SizeDays }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown } } | null = null
   try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
-  return { sizeDays: { ...DEFAULT_SIZE_DAYS, ...(s?.tasks?.sizeDays ?? {}) }, statuses: statusDefs(s?.statuses) }
+  const budget = Number(s?.memory?.sessionBudgetTokens)
+  return {
+    sizeDays: { ...DEFAULT_SIZE_DAYS, ...(s?.tasks?.sizeDays ?? {}) }, statuses: statusDefs(s?.statuses),
+    // R048: token cap for what vibedoc_read_memory returns
+    sessionBudgetTokens: budget > 0 ? budget : DEFAULT_SESSION_BUDGET,
+  }
 }
 
 /** Replace-or-insert (or remove, for '' / null) one `**Label:**` line inside the head meta block. */
@@ -931,6 +941,196 @@ export async function updateMemory(params: MemoryParams, root: string, actor: 'a
   })
 }
 
+// ─── Knowledge entries (R046) ─────────────────────────────────────────────────
+
+const ENTRIES_DIR = path.join('memory', 'entries')
+
+// ponytail: in-process mutex so two agents never get the same new id; doesn't cover a second VibeDoc process on the same root.
+let entryLock: Promise<unknown> = Promise.resolve()
+function withEntryLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = entryLock.then(fn, fn)
+  entryLock = run.catch(() => {})
+  return run
+}
+
+/** Every parseable `memory/entries/*.md`, sorted by id. Missing folder → []. */
+export async function listEntries(root: string): Promise<Entry[]> {
+  let names: string[]
+  try {
+    names = await fs.readdir(path.join(root, ENTRIES_DIR))
+  } catch {
+    return []
+  }
+  const entries = await Promise.all(names.filter(n => n.endsWith('.md')).map(async n => {
+    const file = path.join(ENTRIES_DIR, n)
+    return parseEntry(await fs.readFile(path.join(root, file), 'utf8'), file)
+  }))
+  return entries.filter((e): e is Entry => !!e).sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }))
+}
+
+export async function getEntry(id: string, root: string): Promise<Entry | null> {
+  const norm = normalizeEntryId(id)
+  return (await listEntries(root)).find(e => e.id === norm) ?? null
+}
+
+/**
+ * Create (no id) or update (id) one entry. Throws with the validation message on bad input or an unknown id.
+ * Stamps `**By:**`: "human", or "ai:<agent>" for an agent save (R047).
+ */
+export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human' = 'human', agent?: string): Promise<Entry> {
+  const error = validateEntryInput(input)
+  if (error) return Promise.reject(new Error(error))
+  return withEntryLock(async () => {
+    const entries = await listEntries(root)
+    let id: string
+    let previous: Entry | undefined
+    if (input.id !== undefined) {
+      id = normalizeEntryId(String(input.id)) as string
+      previous = entries.find(e => e.id === id)
+      if (!previous) throw new Error(`Entry ${id} not found`)
+    } else {
+      id = nextEntryId(entries.map(e => e.id))
+    }
+    const summary = input.summary.trim()
+    const entry: Entry = {
+      id, type: input.type as EntryType, summary, body: (input.body ?? '').trim(),
+      updatedAt: localToday(), by: actor === 'human' ? 'human' : parseOwner(`ai:${agent || 'agent'}`) ?? 'ai:agent',
+      file: path.join(ENTRIES_DIR, `${id}-${entrySlug(summary)}.md`),
+    }
+    await fs.mkdir(path.join(root, ENTRIES_DIR), { recursive: true })
+    await fs.writeFile(path.join(root, entry.file), formatEntry(entry), 'utf8')
+    // Summary changed → new slug; the id stays
+    if (previous && previous.file !== entry.file) await fs.rm(path.join(root, previous.file), { force: true })
+    await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${id} saved`, detail: summary })
+    return entry
+  })
+}
+
+/** Entries in the order of `ids` (any case / padding), plus the ids that matched nothing. */
+export async function getEntriesByIds(ids: string[], root: string): Promise<{ found: Entry[]; missing: string[] }> {
+  const byId = new Map((await listEntries(root)).map(e => [e.id, e]))
+  const found: Entry[] = []
+  const missing: string[] = []
+  for (const raw of ids) {
+    const entry = byId.get(normalizeEntryId(String(raw)) ?? '')
+    if (entry) found.push(entry)
+    else missing.push(String(raw))
+  }
+  return { found, missing }
+}
+
+/** What an agent reads at session start: MEMORY.md + the entry index, capped at `memory.sessionBudgetTokens` (R048). */
+export async function sessionStartMemory(root: string): Promise<string> {
+  const [memory, entries, { sessionBudgetTokens }] = await Promise.all([readMemory(root), listEntries(root), readProjectSettings(root)])
+  return fitToBudget(memory.content, indexHits(entries), sessionBudgetTokens).text
+}
+
+/** The "## Related memory" block for a task (up to `limit` strong keyword matches), or '' (R048). */
+export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>, root: string, limit = 3): Promise<string> {
+  // rank everything so the score filter in formatRelated sees all candidates before the limit
+  const entries = await listEntries(root)
+  return formatRelated(rankEntries(entries, taskQuery(task), { limit: entries.length }), limit)
+}
+
+// ─── File history from git (R053) ─────────────────────────────────────────────
+
+const execFileP = promisify(execFile)
+const GIT_SHA_RE = /^[0-9a-f]{7,40}$/
+const HISTORY_MAX = 50
+
+/** One commit that touched a file; `path` is its repo-relative path after that commit ('' if the commit only deleted it). */
+export type FileCommit = { sha: string; author: string; date: string; subject: string; path: string }
+/** `reason: 'no-git'` when the project isn't a git repo or git is missing. */
+export type FileHistory = { history: FileCommit[]; uncommitted: boolean; reason?: 'no-git' }
+
+/** git with an argument array (never a shell string), run in the project root. */
+async function git(args: string[], root: string): Promise<string> {
+  const { stdout } = await execFileP('git', args, { cwd: root, maxBuffer: 4 * 1024 * 1024 })
+  return stdout
+}
+
+function relInsideRoot(relPath: string, root: string): string {
+  const full = path.resolve(root, relPath)
+  if (!full.startsWith(path.resolve(root) + path.sep)) throw new RoadmapError('Path outside root')
+  return path.relative(root, full).split(path.sep).join('/')
+}
+
+/**
+ * Commits that touched `relPath`, newest first, plus whether it has uncommitted changes.
+ * An entry file (`E001-<slug>.md`) is matched by its id, not its name: a new summary renames the file, and small
+ * files often fall under git's rename detection, so `--follow` would lose the history before the rename.
+ */
+export async function getFileHistory(relPath: string, root: string, limit = 20): Promise<FileHistory> {
+  const rel = relInsideRoot(relPath, root)
+  const id = /^(E\d+)-[^/]*\.md$/.exec(path.posix.basename(rel))?.[1]
+  // ponytail: a deleted id that gets reused later shares this history; fine while ids are rarely reused
+  const spec = id ? [`:(glob)${path.posix.dirname(rel)}/${id}-*.md`] : ['--follow', rel]
+  try {
+    const out = await git(['log', '--name-status', '--format=%x1e%H%x1f%an%x1f%aI%x1f%s', '-n', String(Math.min(limit, HISTORY_MAX)), ...(id ? ['--', ...spec] : [spec[0], '--', spec[1]])], root)
+    const history = out.split('\x1e').filter(r => r.trim()).map((record): FileCommit => {
+      const [head, ...rest] = record.split('\n')
+      const [sha, author, date, subject] = head.split('\x1f')
+      // "M\tpath", "A\tpath", "R087\told\tnew", "D\tpath": the path that exists after this commit (none if only deleted)
+      const kept = rest.map(l => l.split('\t')).filter(f => f.length > 1 && f[0] !== 'D').map(f => f[f.length - 1])
+      return { sha, author, date, subject, path: kept[0] ?? '' }
+    })
+    const status = await git(['status', '--porcelain', '--', id ? spec[0] : rel], root)
+    return { history, uncommitted: status.trim().length > 0 }
+  } catch (e) {
+    console.warn(`git history unavailable for ${rel}`, e instanceof Error ? e.message : e)
+    return { history: [], uncommitted: false, reason: 'no-git' }
+  }
+}
+
+/** The file's text at `sha`, using the path it had in that commit. Throws 400 on a bad sha, 404 if `sha` isn't in its history. */
+export async function getFileAtCommit(relPath: string, sha: string, root: string): Promise<string> {
+  if (!GIT_SHA_RE.test(sha)) throw new RoadmapError(`Invalid commit "${sha}"`)
+  const { history } = await getFileHistory(relPath, root, HISTORY_MAX)
+  const commit = history.find(c => c.sha.startsWith(sha))
+  if (!commit) throw new RoadmapError(`Commit ${sha} did not touch ${relPath}`, 404)
+  if (!commit.path) throw new RoadmapError(`The file was deleted in ${commit.sha.slice(0, 7)}`, 404)
+  // commit.path is relative to the repo top level, which may be above root
+  const top = (await git(['rev-parse', '--show-toplevel'], root)).trim()
+  return git(['show', `${commit.sha}:${commit.path}`], top)
+}
+
+/** Keyword recall over the entries: compact hits, no bodies (R048). */
+export async function recallEntries(query: string, opts: { type?: string; limit?: number }, root: string): Promise<RecallHit[]> {
+  return rankEntries(await listEntries(root), query, opts)
+}
+
+/** Removes the file for good; git keeps its history. Throws on an unknown id. */
+/** Returns the deleted entry plus its file text, so a UI can undo (restoreEntry). */
+export function deleteEntry(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<Entry & { raw: string }> {
+  const norm = normalizeEntryId(String(id ?? ''))
+  if (!norm) return Promise.reject(new Error(`Invalid id "${id}": expected E followed by a number, e.g. E001`))
+  // ponytail: ids come from files on disk, so deleting the highest entry lets the next save reuse its id; git history is per path and the slug differs
+  return withEntryLock(async () => {
+    const entry = (await listEntries(root)).find(e => e.id === norm)
+    if (!entry) throw new Error(`Entry ${norm} not found`)
+    const raw = await fs.readFile(path.join(root, entry.file), 'utf8')
+    await fs.rm(path.join(root, entry.file))
+    await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${norm} deleted`, detail: entry.summary })
+    return { ...entry, raw }
+  })
+}
+
+/** Undo for deleteEntry: write the file back byte-for-byte, only as a plain memory/entries/E<n>-*.md and only if that id is free. */
+export function restoreEntry(file: unknown, raw: unknown, root: string, actor: 'ai' | 'human' = 'human'): Promise<Entry> {
+  return withEntryLock(async () => {
+    if (!isFileIn(file, 'memory/entries', /^E\d+[^/]*\.md$/) || typeof raw !== 'string') throw new RoadmapError('Invalid entry to restore')
+    const entry = parseEntry(raw, file)
+    const id = normalizeEntryId(path.basename(file).match(/^(E\d+)/i)?.[1] ?? '')
+    if (!entry || entry.id !== id) throw new RoadmapError('Invalid entry to restore')
+    // the next save can reuse the highest id, so the id may be taken by now
+    if ((await listEntries(root)).some(e => e.id === id)) throw new RoadmapError(`${id} already exists`)
+    await fs.mkdir(path.join(root, ENTRIES_DIR), { recursive: true })
+    await fs.writeFile(path.join(root, file), raw, { flag: 'wx', encoding: 'utf8' })
+    await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${id} restored`, detail: entry.summary })
+    return entry
+  })
+}
+
 // ─── Activity log ─────────────────────────────────────────────────────────────
 
 const ACTIVITY_FILE = '.vibedoc-activity.json'
@@ -1388,6 +1588,31 @@ export async function findBacklinks(
     } catch { /* skip unreadable */ }
   }
   return results
+}
+
+/**
+ * The memory link graph (R053), built on request from the files: every entry, plus the tasks, roadmap items,
+ * ADRs and docs an entry mentions or that mention an entry id. Pure resolution in src/lib/memory-graph.ts.
+ */
+export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
+  // ponytail: reads every .md on each call, like findBacklinks; cache by mtime if big repos make it slow
+  const [entries, files] = await Promise.all([
+    listEntries(root),
+    glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**', 'memory/entries/**'], nodir: true }),
+  ])
+  const others = await Promise.all(files.map(async (f): Promise<GraphItem | null> => {
+    try {
+      const raw = await fs.readFile(path.join(root, f), 'utf8')
+      return { ...fileNode(f, raw), text: raw }
+    } catch (e) {
+      console.warn(`memory graph: skipped ${f}`, e)
+      return null
+    }
+  }))
+  return buildGraph(
+    entries.map(e => ({ id: e.id, kind: 'entry', label: e.summary, path: e.file.replace(/\\/g, '/'), text: `${e.summary}\n${e.body}` })),
+    others.filter((o): o is GraphItem => !!o),
+  )
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────

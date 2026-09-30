@@ -1,8 +1,12 @@
 # T073: Graph view in the Memory tab (React Flow)
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R053 — Memory graph
 **Size:** M
 **Depends on:** T069, T071
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 The Memory tab has a Graph view showing entries and the tasks, epics, ADRs and docs they link to, so clusters and unlinked entries stand out. Clicking a node opens it. This covers the second half of the epic's done-when.
@@ -46,3 +50,15 @@ The Memory tab has a Graph view showing entries and the tasks, epics, ADRs and d
 pnpm build && pnpm lint
 # pnpm dev → Memory tab → Graph → click an entry → neighbours highlighted → click a linked task → task detail opens
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] On /memory click Graph (top right) → the URL gets ?view=graph and a graph shows entries in the middle, epics and tasks to the left, ADRs and docs to the right, with lines for each link
+- [ ] Open an entry in the List view and compare with its node in the Graph → the graph shows the same links as its Related section
+- [ ] Click an entry node → it gets an accent border, its neighbours stay bright, everything else dims, and its panel opens on the right
+- [ ] Click a task node → /board opens that task; an epic node → /roadmap opens that epic; a doc node → the doc opens
+- [ ] An entry with no links is drawn with a dashed, faded border
+- [ ] Reload the page → every node is in the same place
+### Regression risk
+- [ ] Switch back to List → search, type chips, edit and delete still work, and the Roadmap map still renders

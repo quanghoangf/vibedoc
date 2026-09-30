@@ -1,8 +1,12 @@
 # T072: Entry history from git log
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R053 — Memory graph
 **Size:** M
 **Depends on:** T071
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 On an entry, people can see how the fact changed over time: each commit that touched the entry file, with date, author and message, and the entry's text at that commit.
@@ -37,9 +41,23 @@ On an entry, people can see how the fact changed over time: each commit that tou
 - [ ] A project that isn't a git repo shows "History needs git" instead of an error
 - [ ] Nothing is fetched until the section is expanded
 
+## Implementation note (done)
+Entry files are matched by id (`:(glob)memory/entries/E001-*.md`), not with `git log --follow`: a new summary renames the file and small files fall under git's rename detection, so `--follow` lost the history before a rename. Each row carries the path the file had after that commit; `?sha=` looks it up server-side (the client never sends a path).
+
 ## Verify
 ```bash
 pnpm build && pnpm lint
 curl -s 'localhost:3000/api/memory/history?entry=E001'
 curl -s 'localhost:3000/api/memory/history?entry=E001&sha=zzz'   # 400
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] In a project that is a git repo, open an entry that has been committed a few times on /memory → a collapsed "History" section under Related; open it → one row per commit, newest first, with date, message and author
+- [ ] Change the entry's summary (the file gets a new name), commit, and reopen History → the commits from before the rename are still listed
+- [ ] Click an old row → that version's text shows read-only below the list; ✕ closes it
+- [ ] Edit the entry without committing → an "Uncommitted changes" row at the top
+- [ ] Open History in a project that is not a git repo → "History needs git: this project is not a git repository."
+### Regression risk
+- [ ] The Related section and Edit / Delete on the entry still work with History open
