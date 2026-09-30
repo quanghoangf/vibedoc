@@ -2,10 +2,10 @@
 **Parent:** R003
 **Status:** planned
 **Order:** 40
-**Tasks:** —
+**Tasks:** T060, T061, T062, T063, T064
 
-Only count a task as done after the agent attaches proof it works and a human approves it, so 'done' on the board can be trusted.
+After each task, the agent writes a manual test checklist for the human, so it's clear what to click through before trusting 'done', without ever blocking the board.
 
-**In scope:** agent attaches verify results (commands run, pass/fail output), a Review step between in-progress and done, approve or send back with a note
-**Out of scope:** running tests inside VibeDoc, CI integration
-**Done when:** no task reaches done without verify output and an approval on record
+**In scope:** a manual test report per task (steps, expected result, regression risk, tickable items), a badge on cards, a page listing tasks with untested items, an optional Review column with approve / send back with a note
+**Out of scope:** blocking the move to done, running tests inside VibeDoc, CI integration
+**Done when:** an agent finishing a task via /work-epic leaves a manual test checklist that shows as a card badge and on the summary page, and ticking items there updates the task file
