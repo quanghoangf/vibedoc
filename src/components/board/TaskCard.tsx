@@ -6,6 +6,7 @@ import { CornerDownRight, CornerUpLeft, FlaskConical, MoreHorizontal, PanelRight
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/context/AppContext"
 import { deleteTaskWithUndo } from "./task-api"
+import { OwnerChip } from "@/components/shared/OwnerChip"
 import { toast } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/types"
@@ -13,7 +14,7 @@ import { AgentDot } from "@/components/chat/AgentMark"
 import { latestReview } from "@/lib/review"
 import { epicOf, sizeOf, type PropertyKey } from "@/lib/board-views"
 
-const ALL_PROPERTIES: PropertyKey[] = ["status", "epic", "size", "due", "deps", "tests", "agent"]
+const ALL_PROPERTIES: PropertyKey[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "owner"]
 
 interface TaskCardProps {
   task: Task
@@ -67,6 +68,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
       <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted">
         <span>{task.id}</span>
         {show("agent") && <AgentDot attach={{ kind: "task", id: task.id }} />}
+        {show("owner") && <OwnerChip owner={task.owner} className="text-[10px] [&_svg]:size-3" />}
         <span className="flex-1" />
         {show("due") && task.due && !done && <span title="Due">{task.due.slice(5)}</span>}
         {size && <span title={task.size} className="rounded-sm bg-surface2 px-1 text-[10px]">{size}</span>}

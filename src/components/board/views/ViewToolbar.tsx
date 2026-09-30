@@ -18,7 +18,7 @@ type Op = FilterRule["op"]
 const FILTER_PROPS: { prop: FilterProp; label: string }[] = [
   { prop: "status", label: "Status" }, { prop: "epic", label: "Epic" }, { prop: "size", label: "Size" },
   { prop: "due", label: "Due" }, { prop: "deps", label: "Depends on" }, { prop: "tests", label: "Tests" },
-  { prop: "agent", label: "Agent" }, { prop: "ready", label: "Ready" },
+  { prop: "agent", label: "Agent" }, { prop: "ready", label: "Ready" }, { prop: "owner", label: "Owner" },
 ]
 const PROP_LABEL = Object.fromEntries(FILTER_PROPS.map(p => [p.prop, p.label])) as Record<FilterProp, string>
 
@@ -32,8 +32,10 @@ const OPS: Record<FilterProp, Partial<Record<Op, string>>> = {
   tests: { "is-set": "reported", "not-set": "not reported" },
   agent: { "is-set": "is active", "not-set": "is not active" },
   ready: { "is-set": "yes", "not-set": "no" },
+  owner: { is: "is", "is-not": "is not" },
 }
-const LIST_PROPS: FilterProp[] = ["status", "epic", "size"]
+const LIST_PROPS: FilterProp[] = ["status", "epic", "size", "owner"]
+const OWNER_LABEL: Record<string, string> = { human: "Human", ai: "AI agent", none: "No owner" }
 const STATUSES = Object.keys(STATUS_META) as TaskStatus[]
 const SIZES = ["XS", "S", "M", "L", "XL"]
 
@@ -42,14 +44,14 @@ const SORT_PROPS: { prop: SortProp; label: string }[] = [
   { prop: "size", label: "Size" }, { prop: "due", label: "Due" }, { prop: "title", label: "Title" },
 ]
 const GROUPS: { value: GroupBy; label: string }[] = [
-  { value: "status", label: "Status" }, { value: "epic", label: "Epic" }, { value: "size", label: "Size" }, { value: "none", label: "None" },
+  { value: "status", label: "Status" }, { value: "epic", label: "Epic" }, { value: "size", label: "Size" }, { value: "owner", label: "Owner" }, { value: "none", label: "None" },
 ]
 const LANES: { value: ViewState["subGroup"]; label: string }[] = [
   { value: "epic", label: "Epic" }, { value: "size", label: "Size" }, { value: "none", label: "None" },
 ]
 const PROPERTIES: { key: PropertyKey; label: string }[] = [
   { key: "status", label: "Status" }, { key: "epic", label: "Epic" }, { key: "size", label: "Size" }, { key: "due", label: "Due" },
-  { key: "deps", label: "Depends on" }, { key: "tests", label: "Tests" }, { key: "agent", label: "Agent" },
+  { key: "deps", label: "Depends on" }, { key: "tests", label: "Tests" }, { key: "agent", label: "Agent" }, { key: "owner", label: "Owner" },
 ]
 
 function localToday(): string {
@@ -65,6 +67,7 @@ function newRule(prop: FilterProp, epics: EpicOption[]): FilterRule {
     case "epic": return { prop, op: "is", value: [(epics.find(e => e.open) ?? epics[0])?.id ?? "none"] }
     case "size": return { prop, op: "is", value: ["M"] }
     case "due": return { prop, op: "before", value: [localToday()] }
+    case "owner": return { prop, op: "is", value: ["ai"] }
     default: return { prop, op: "is-set", value: [] }
   }
 }
@@ -336,6 +339,7 @@ export function ViewToolbar({
 function valueText(rule: FilterRule): { text: string; mono: boolean } {
   if (rule.prop === "status") return { text: rule.value.map(v => STATUS_META[v as TaskStatus]?.label ?? v).join(", "), mono: false }
   if (rule.prop === "epic") return { text: rule.value.map(v => (v === "none" ? "No epic" : v)).join(", "), mono: !rule.value.includes("none") }
+  if (rule.prop === "owner") return { text: rule.value.map(v => OWNER_LABEL[v] ?? v).join(", "), mono: false }
   return { text: rule.value.join(", "), mono: true }
 }
 
@@ -487,11 +491,14 @@ function MultiSelect({ rule, n, epics, onChange }: { rule: FilterRule; n: number
             { value: "none", node: <span className="text-muted">No epic</span> },
             ...epics.map(e => ({ value: e.id, node: <><span className="font-mono text-[11px] text-muted">{e.id}</span><span className="truncate">{e.title}</span></> })),
           ]
-        : SIZES.map(s => ({ value: s, node: <span className="font-mono">{s}</span> }))
+        : rule.prop === "owner"
+          ? Object.entries(OWNER_LABEL).map(([value, label]) => ({ value, node: <span>{label}</span> }))
+          : SIZES.map(s => ({ value: s, node: <span className="font-mono">{s}</span> }))
   const first = rule.value[0]
   const summary =
     !first ? <span className="text-muted">Choose…</span>
     : rule.prop === "status" ? <><StatusIcon status={first as TaskStatus} /><span className="truncate">{STATUS_META[first as TaskStatus]?.label ?? first}</span></>
+    : rule.prop === "owner" ? <span className="truncate">{OWNER_LABEL[first] ?? first}</span>
     : rule.prop === "epic" && first !== "none" ? <><span className="font-mono text-[11px] text-muted">{first}</span><span className="truncate">{epics.find(e => e.id === first)?.title ?? ""}</span></>
     : <span className={cn("truncate", rule.prop === "size" && "font-mono")}>{first === "none" ? "No epic" : first}</span>
 

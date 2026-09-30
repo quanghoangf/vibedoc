@@ -6,6 +6,8 @@ import { MarkdownEditor } from "./MarkdownEditor"
 import { BacklinksPanel } from "./BacklinksPanel"
 import { DocActionsMenu, type DocActions } from "./DocActionsMenu"
 import { useItemCommands } from "@/components/shared/item-commands"
+import { timeAgo } from "@/components/activity/ActivityEventRow"
+import { Bot, User } from "lucide-react"
 
 interface DocViewerProps {
   doc: SelectedDoc | null
@@ -42,7 +44,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions }: D
       const data = await res.json()
       throw new Error(data.error ?? "Save failed")
     }
-    setSelectedDoc({ ...doc!, content })
+    setSelectedDoc({ ...doc!, content, lastEdit: { actor: "human", at: new Date().toISOString() } })
   }
 
   return (
@@ -55,7 +57,17 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions }: D
         onContentChange={onContentChange}
         wordWrap={editorSettings.wordWrap}
         lineNumbers={editorSettings.lineNumbers}
-        headerActions={docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
+        headerActions={
+          <>
+            {doc.lastEdit && (
+              <span title={`Last edited ${new Date(doc.lastEdit.at).toLocaleString()}`} className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted">
+                {doc.lastEdit.actor === "ai" ? <Bot className="size-3.5 text-accent" aria-hidden /> : <User className="size-3.5" aria-hidden />}
+                {doc.lastEdit.actor === "ai" ? "AI" : "Human"} · {timeAgo(doc.lastEdit.at)}
+              </span>
+            )}
+            {docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
+          </>
+        }
       />
       <BacklinksPanel
         docPath={doc.path}

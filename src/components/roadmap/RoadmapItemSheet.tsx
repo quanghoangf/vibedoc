@@ -15,6 +15,7 @@ import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health
 import { pickNextTask } from "@/lib/work-queue"
 import { ItemActionsMenu, type ItemActions } from "./ItemActionsMenu"
 import { useItemCommands } from "@/components/shared/item-commands"
+import { OwnerChip } from "@/components/shared/OwnerChip"
 import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
 import type { RoadmapItem, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 
@@ -95,6 +96,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
         <SheetTitle className="mt-2 text-xl font-semibold leading-tight text-txt">{item.title}</SheetTitle>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <StatusPill status={item.status} />
+          <OwnerChip owner={item.owner} />
           <AgentMark attach={{ kind: "epic", id: item.id }} />
           <DueChip due={item.due} state={dueState(item.due, item.status, today)} />
           <ItemActionsMenu item={item} items={items} actions={actions} className="ml-auto" open={menuOpen} onOpenChange={setMenuOpen} />

@@ -15,6 +15,7 @@ import { SESSION_GAP_MS } from './sessions'
 import { parseManualTests, setManualTests, toggleManualTest } from './manual-tests'
 import { appendReviewEntry, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
+import { parseOwner } from './owner'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,8 @@ export interface Task {
   size: string
   phase: string
   dependsOn: string
+  /** `**Owner:**` "human" | "ai:<agent>", null when unset (R055) */
+  owner: string | null
   /** Optional `**Due:** YYYY-MM-DD` (local calendar date, compare as string). */
   due: string | null
   /** The `## Manual tests` checklist (R043), counted; null when the task has none */
@@ -78,7 +81,7 @@ export interface SearchResult {
 export interface ActivityEvent {
   id: string
   timestamp: string
-  type: 'task_updated' | 'decision_logged' | 'memory_updated' | 'doc_read' | 'session_start' | 'doc_created' | 'doc_deleted' | 'doc_renamed' | 'registry_rebuilt' | 'roadmap_updated'
+  type: 'task_updated' | 'decision_logged' | 'memory_updated' | 'doc_read' | 'session_start' | 'doc_created' | 'doc_updated' | 'doc_deleted' | 'doc_renamed' | 'registry_rebuilt' | 'roadmap_updated'
   actor: 'ai' | 'human'
   title: string
   detail?: string
@@ -356,7 +359,7 @@ function parseTaskFile(filePath: string, content: string): Task {
 
   const tests = parseManualTests(content)
   const manualTests = tests && { total: tests.total, done: tests.done }
-  return { id, title, status, size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', due: parseDue(meta['due'] || ''), manualTests, file: filePath, raw: content }
+  return { id, title, status, size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), due: parseDue(meta['due'] || ''), manualTests, file: filePath, raw: content }
 }
 
 export async function listTasks(root: string): Promise<{ tasks: Task[]; board: TaskBoard }> {
@@ -391,8 +394,31 @@ export async function getTask(taskId: string, root: string): Promise<Task> {
   throw new Error(`Task not found: ${taskId}`)
 }
 
+/**
+ * Owner that a status change assigns (R055): an agent that starts a task takes it over;
+ * a human move only fills an empty owner. Approve / send back pass no mover and leave it alone.
+ */
+function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { actor: 'ai' | 'human'; agent?: string }): string | null {
+  if (!mover) return current
+  if (mover.actor === 'ai') return status === 'in-progress' ? parseOwner(`ai:${mover.agent || 'agent'}`) ?? 'ai:agent' : current
+  return current ?? 'human'
+}
+
+/** Replace-or-insert (or remove, for '' / null) one `**Label:**` line inside the head meta block. */
+function withMetaLine(content: string, label: string, value: string | null): string {
+  const lines = content.split('\n')
+  const end = roadmapMetaEnd(lines)
+  const at = lines.slice(0, end).findIndex(l => l.toLowerCase().startsWith(`**${label.toLowerCase()}:**`))
+  if (!value) { if (at >= 0) lines.splice(at, 1) }
+  else if (at >= 0) lines[at] = `**${label}:** ${value}`
+  else lines.splice(end, 0, `**${label}:** ${value}`)
+  return lines.join('\n')
+}
+
 export async function updateTaskStatus(
-  taskId: string, newStatus: TaskStatus, root: string, actor: 'ai' | 'human' = 'human'
+  taskId: string, newStatus: TaskStatus, root: string, actor: 'ai' | 'human' = 'human',
+  /** Set by a board move or an agent claim / update; drives the owner (see ownerAfterMove) */
+  mover?: { actor: 'ai' | 'human'; agent?: string },
 ): Promise<{ task: Task; previousStatus: TaskStatus }> {
   const task = await getTask(taskId, root)
   const previousStatus = task.status
@@ -406,6 +432,9 @@ export async function updateTaskStatus(
     content = content.replace(/^(#[^\n]+\n)/, `$1**Status:** ${icon} ${capitalize(newStatus)}\n`)
   }
 
+  const owner = ownerAfterMove(task.owner, newStatus, mover)
+  if (owner !== task.owner) content = withMetaLine(content, 'Owner', owner)
+
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
 
   // Append to activity log
@@ -417,7 +446,7 @@ export async function updateTaskStatus(
     taskStatus: newStatus,
   })
 
-  return { task: { ...task, status: newStatus, raw: content }, previousStatus }
+  return { task: { ...task, status: newStatus, owner, raw: content }, previousStatus }
 }
 
 /** Write (or replace) the task's `## Manual tests` checklist. `report` is a markdown checklist; plain lines become items. */
@@ -428,10 +457,12 @@ export interface TaskMetaPatch {
   dependsOn?: string
   /** YYYY-MM-DD, or null / '' to remove the line */
   due?: string | null
+  /** "human" | "ai:<agent>", or null / '' to remove the line */
+  owner?: string | null
 }
 
 const TASK_META_LABELS: [keyof Omit<TaskMetaPatch, 'title'>, string][] = [
-  ['phase', 'Phase'], ['size', 'Size'], ['dependsOn', 'Depends on'], ['due', 'Due'],
+  ['phase', 'Phase'], ['size', 'Size'], ['dependsOn', 'Depends on'], ['due', 'Due'], ['owner', 'Owner'],
 ]
 
 /** Rewrite the H1 and the head meta block only; the body (manual tests, review, spec) stays byte-for-byte. */
@@ -460,8 +491,13 @@ export async function updateTaskMeta(
       if (!d) throw new RoadmapError(`due must be a date YYYY-MM-DD (got ${JSON.stringify(raw)})`)
       value = d
     }
+    if (key === 'owner' && value) {
+      const o = parseOwner(value)
+      if (!o) throw new RoadmapError(`owner must be "human" or "ai:<agent>" (got ${JSON.stringify(raw)})`)
+      value = o
+    }
     const at = lines.slice(0, end).findIndex(l => l.toLowerCase().startsWith(`**${label.toLowerCase()}:**`))
-    if (!value && key === 'due') {
+    if (!value && (key === 'due' || key === 'owner')) {
       if (at >= 0) { lines.splice(at, 1); end-- }
       continue
     }
@@ -518,7 +554,7 @@ export async function bulkTasks(
 ): Promise<{ deleted: { task: Task; links: TaskLink[] }[] }> {
   const deleted: { task: Task; links: TaskLink[] }[] = []
   for (const id of ids) {
-    if ('status' in action) await updateTaskStatus(id, normalizeStatus(action.status), root, actor)
+    if ('status' in action) await updateTaskStatus(id, normalizeStatus(action.status), root, actor, { actor })
     else if ('epic' in action) await setTaskEpic(id, action.epic, root, actor)
     else if ('delete' in action) deleted.push(await deleteTask(id, root, actor))
   }
@@ -601,7 +637,7 @@ function withTaskClaimLock<T>(fn: () => Promise<T>): Promise<T> {
 
 /** Atomically pick the next ready task of an epic and move it to in-progress. */
 export function claimNextTask(
-  epicId: string, root: string
+  epicId: string, root: string, agent?: string
 ): Promise<{ result: QueueResult; task?: Task; previousStatus?: TaskStatus }> {
   return withTaskClaimLock(async () => {
     const epic = await getRoadmapItem(epicId, root)
@@ -609,7 +645,7 @@ export function claimNextTask(
     const { tasks } = await listTasks(root)
     const result = pickNextTask(epic, tasks)
     if (result.kind !== 'ready') return { result }
-    const { task, previousStatus } = await updateTaskStatus(result.taskId, 'in-progress', root, 'ai')
+    const { task, previousStatus } = await updateTaskStatus(result.taskId, 'in-progress', root, 'ai', { actor: 'ai', agent })
     return { result, task, previousStatus }
   })
 }
@@ -1012,6 +1048,34 @@ async function appendActivity(root: string, event: Omit<ActivityEvent, 'id' | 't
   await fs.writeFile(file, JSON.stringify(events, null, 2), 'utf8')
 }
 
+const DOC_EDIT_COALESCE_MS = 10 * 60_000
+
+/**
+ * Record who last saved a doc (R055 doc owner). Autosave fires every few seconds, so a save by the same
+ * actor within 10 minutes of the newest event for that doc just moves that event's time forward.
+ */
+export async function noteDocEdit(root: string, docPath: string, actor: 'ai' | 'human'): Promise<void> {
+  const file = path.join(root, ACTIVITY_FILE)
+  let events: ActivityEvent[] = []
+  try { events = JSON.parse(await fs.readFile(file, 'utf8')) } catch {}
+  const top = events[0]
+  if (top?.type === 'doc_updated' && top.detail === docPath && top.actor === actor
+    && Date.now() - Date.parse(top.timestamp) < DOC_EDIT_COALESCE_MS) {
+    top.timestamp = new Date().toISOString()
+    await fs.writeFile(file, JSON.stringify(events, null, 2), 'utf8')
+    return
+  }
+  await appendActivity(root, { type: 'doc_updated', actor, title: `Edited ${docPath}`, detail: docPath })
+}
+
+/** Who last created or saved the doc, from the activity log; null when the log has nothing on it. */
+export async function docLastEdit(root: string, docPath: string): Promise<{ actor: 'ai' | 'human'; at: string } | null> {
+  const e = (await readActivity(root, ACTIVITY_CAP)).find(
+    (x) => (x.type === 'doc_updated' || x.type === 'doc_created') && x.detail === docPath,
+  )
+  return e ? { actor: e.actor, at: e.timestamp } : null
+}
+
 export async function readActivity(root: string, limit = 50): Promise<ActivityEvent[]> {
   try {
     const raw = await fs.readFile(path.join(root, ACTIVITY_FILE), 'utf8')
@@ -1314,6 +1378,7 @@ export interface RoadmapItem {
   order: number
   tasks: string[]       // ["T001", "T012"]
   due: string | null    // "2026-10-15" — a calendar date, not an instant; compare as strings
+  owner: string | null  // "human" | "ai:<agent>" (R055)
   body: string          // markdown after the metadata block
   file: string          // path relative to root
 }
@@ -1327,6 +1392,7 @@ export interface CreateRoadmapItemParams {
   order?: number
   tasks?: string[]
   due?: string | null
+  owner?: string | null
   body?: string
 }
 
@@ -1440,6 +1506,7 @@ function parseRoadmapFile(file: string, content: string): RoadmapItem {
     order: Number.isFinite(order) ? order : 0,
     tasks: (meta['tasks'] || '').split(/[,\s]+/).map(t => t.toUpperCase()).filter(t => /^T\d+$/.test(t)),
     due: parseDue(meta['due'] || ''),
+    owner: parseOwner(meta['owner']),
     body: lines.slice(metaEnd).join('\n').trim(),
     file,
   }
@@ -1517,7 +1584,7 @@ export function createRoadmapItem(
 const roadmapId = (n: number) => `R${String(n).padStart(3, '0')}`
 
 /** Write a new R*.md (flag 'wx': never overwrites). Callers validate fields and mkdir first. */
-async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file'>): Promise<void> {
+async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner'>): Promise<void> {
   const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
   const filename = slug ? `${f.id}-${slug}.md` : `${f.id}.md`
   const lines = [
@@ -1637,6 +1704,11 @@ async function updateRoadmapItemUnlocked(
   const tasks = p.tasks === undefined ? undefined : parseTaskIds(p.tasks)
   const body = p.body === undefined ? undefined : cleanBody(p.body)
   const due = p.due === undefined ? undefined : cleanDue(p.due)
+  let owner: string | null | undefined
+  if (p.owner !== undefined) {
+    owner = p.owner === null || p.owner === '' ? null : parseOwner(p.owner)
+    if (p.owner && !owner) throw new RoadmapError(`owner must be "human" or "ai:<agent>" (got ${JSON.stringify(p.owner)})`)
+  }
   let parent: string | null | undefined
   if (p.parent !== undefined) {
     parent = p.parent === null || p.parent === '' ? null : normalizeRoadmapId(p.parent)
@@ -1674,6 +1746,7 @@ async function updateRoadmapItemUnlocked(
   if (order !== undefined) setMeta('Order', String(order))
   if (tasks !== undefined) setMeta('Tasks', formatTasks(tasks))
   if (due !== undefined) setMeta('Due', due)
+  if (owner !== undefined) setMeta('Owner', owner)
   if (body !== undefined) {
     rest = body ? ['', body, ''] : ['']
   }

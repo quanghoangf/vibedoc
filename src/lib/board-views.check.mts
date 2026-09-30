@@ -7,7 +7,7 @@ import {
 } from './board-views.ts'
 
 const task = (id: string, o: Partial<Task> = {}): Task =>
-  ({ id, title: `Task ${id}`, status: 'todo', size: 'M (2–3 hrs)', phase: '', dependsOn: '—', due: null, manualTests: null, file: `${id}.md`, ...o })
+  ({ id, title: `Task ${id}`, status: 'todo', size: 'M (2–3 hrs)', phase: '', dependsOn: '—', owner: null, due: null, manualTests: null, file: `${id}.md`, ...o })
 const ids = (ts: { id: string }[]) => ts.map((t) => t.id)
 const ctx = { agentTasks: new Set(['T3']) }
 const view = (o: Partial<ViewState> = {}): ViewState => ({ ...defaultView('table'), sorts: [], ...o })
@@ -138,5 +138,18 @@ assert.equal(isDirty({ ...defaultView('epic'), group: 'size' }, DEFAULT_VIEWS[2]
 // unknown values fall back
 assert.deepEqual(fromParams(new URLSearchParams('view=nope&g=bad&sc=year&f=zzz:is:x;status:bogus:x&s=nope,-id&p=due,wat')),
   { ...defaultView('board'), sorts: [{ prop: 'id', dir: 'desc' }], properties: ['due'] })
+
+// owner (R055): filter by kind, group human → agents → none, survives the URL
+{
+  const ts = [task('T1', { owner: 'ai:claude' }), task('T2', { owner: 'human' }), task('T3'), task('T4', { owner: 'ai:cursor' })]
+  assert.deepEqual(ids(applyView(ts, view({ filters: [{ prop: 'owner', op: 'is', value: ['ai'] }] }), ctx)), ['T1', 'T4'])
+  assert.deepEqual(ids(applyView(ts, view({ filters: [{ prop: 'owner', op: 'is', value: ['none'] }] }), ctx)), ['T3'])
+  assert.deepEqual(ids(applyView(ts, view({ filters: [{ prop: 'owner', op: 'is-not', value: ['human'] }] }), ctx)), ['T1', 'T3', 'T4'])
+  assert.deepEqual(groupTasks(ts, 'owner').map((g) => [g.key, g.label]), [['human', 'Human'], ['ai:claude', 'claude (AI)'], ['ai:cursor', 'cursor (AI)'], ['none', 'No owner']])
+  const st = view({ group: 'owner', filters: [{ prop: 'owner', op: 'is', value: ['ai', 'human'] }] })
+  const back = fromParams(toParams(st))
+  assert.equal(back.group, 'owner')
+  assert.deepEqual(back.filters, st.filters)
+}
 
 console.log('board-views: ok')

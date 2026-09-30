@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Bot, ChevronRight, FlaskConical } from "lucide-reac
 import { cn } from "@/lib/utils"
 import { STATUS_META, StatusIcon } from "@/components/shared/StatusIcon"
 import { localToday } from "@/lib/roadmap-health"
+import { OwnerChip } from "@/components/shared/OwnerChip"
 import { epicOf, groupTasks, sizeOf, type PropertyKey, type SortProp, type SortRule, type TaskGroup, type ViewState } from "@/lib/board-views"
 import type { Task, TaskStatus } from "@/types"
 
@@ -20,15 +21,15 @@ interface ViewProps {
 
 type TableViewProps = ViewProps & { onSort: (sorts: SortRule[]) => void }
 
-const ORDER: PropertyKey[] = ["status", "epic", "size", "due", "deps", "tests", "agent"]
+const ORDER: PropertyKey[] = ["status", "epic", "owner", "size", "due", "deps", "tests", "agent"]
 const LABEL: Record<PropertyKey, string> = {
-  status: "Status", epic: "Epic", size: "Size", due: "Due", deps: "Depends on", tests: "Tests", agent: "Agent",
+  status: "Status", epic: "Epic", size: "Size", due: "Due", deps: "Depends on", tests: "Tests", agent: "Agent", owner: "Owner",
 }
 const WIDTH: Record<PropertyKey, string> = {
-  status: "w-[120px]", epic: "w-[170px]", size: "w-[56px]", due: "w-[92px]", deps: "w-[140px]", tests: "w-[72px]", agent: "w-[88px]",
+  status: "w-[120px]", epic: "w-[170px]", size: "w-[56px]", due: "w-[92px]", deps: "w-[140px]", tests: "w-[72px]", agent: "w-[88px]", owner: "w-[104px]",
 }
 /** Hidden below md: the phone table keeps ID · Title · Status · Due · Agent. */
-const WIDE_ONLY = new Set<PropertyKey>(["epic", "size", "deps", "tests"])
+const WIDE_ONLY = new Set<PropertyKey>(["epic", "size", "deps", "tests", "owner"])
 const SORTABLE = new Set<string>(["id", "title", "status", "epic", "size", "due"])
 const MARK_BG: Record<TaskStatus, string> = {
   todo: "bg-border2", "in-progress": "bg-amber", review: "bg-accent", blocked: "bg-danger", done: "bg-teal", cancelled: "bg-border",
@@ -133,6 +134,8 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
       }
       case "size":
         return <td key={p} className={cn(cls, cellMono)}>{sizeOf(task) ?? "—"}</td>
+      case "owner":
+        return <td key={p} className={cls}>{task.owner ? <OwnerChip owner={task.owner} /> : <span className={cellMono}>—</span>}</td>
       case "due": {
         const overdue = !!task.due && task.status !== "done" && task.status !== "cancelled" && task.due < today
         return <td key={p} className={cn(cls, cellMono, overdue && "text-amber")}>{task.due ?? "—"}</td>

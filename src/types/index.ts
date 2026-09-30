@@ -21,4 +21,6 @@ export interface Summary {
 export interface SelectedDoc {
   path: string
   content: string
+  /** Who last created or saved it, from the activity log (R055) */
+  lastEdit?: { actor: "ai" | "human"; at: string } | null
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listDocs, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, getConfiguredRoot, enrichDescription } from '@/lib/core'
+import { listDocs, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, getConfiguredRoot, enrichDescription, noteDocEdit, docLastEdit } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 
 export async function GET(req: NextRequest) {
@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
 
   if (read) {
     const doc = await readDoc(read, root)
-    return NextResponse.json(doc)
+    return NextResponse.json({ ...doc, lastEdit: await docLastEdit(root, doc.path) })
   }
   if (query) {
     const results = await searchDocs(query, root)
@@ -26,6 +26,7 @@ export async function PUT(req: NextRequest) {
     // `edits` (old_string→new_string) touches only the matched spans; `content` replaces the file (editor save)
     if (Array.isArray(edits)) await editDoc(docPath, edits, root)
     else await writeDoc(docPath, content, root)
+    await noteDocEdit(root, docPath, actor === 'ai' ? 'ai' : 'human')
     emitUpdate('doc_updated', { path: docPath, actor, edits })
     return NextResponse.json({ ok: true })
   } catch (e) {

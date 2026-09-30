@@ -7,11 +7,12 @@ import type { ActivityEvent, Task, TaskStatus } from "./core"
 export type ViewKind = "board" | "table" | "epic" | "timeline"
 
 /** Filterable task properties. `ready` = todo with every dependency done; `agent` = a chat working on the task. */
-export type FilterProp = "status" | "epic" | "size" | "due" | "deps" | "tests" | "agent" | "ready"
+export type FilterProp = "status" | "epic" | "size" | "due" | "deps" | "tests" | "agent" | "ready" | "owner"
 
 /**
  * One filter rule. Ops by prop:
  * - status / epic / size: "is" | "is-not" with `value` = a list (any-of). Epic values are IDs like "R043" ("none" = no epic).
+ * - owner: "is" | "is-not" with values "human" | "ai" (any agent) | "none".
  * - due: "before" | "after" with `value[0]` = "YYYY-MM-DD"; "is-set" | "not-set" ignore value.
  * - deps / tests / agent / ready: "is-set" | "not-set" (deps: has dependencies; tests: has a manual test report;
  *   agent: a chat is running / needs you / has a plan to review on the task; ready: see FilterProp).
@@ -25,9 +26,9 @@ export interface FilterRule {
 export type SortProp = "status" | "id" | "epic" | "size" | "due" | "title"
 export interface SortRule { prop: SortProp; dir: "asc" | "desc" }
 
-export type GroupBy = "status" | "epic" | "size" | "none"
+export type GroupBy = "status" | "epic" | "size" | "owner" | "none"
 /** Table / Board columns and card lines that can be hidden. */
-export type PropertyKey = "status" | "epic" | "size" | "due" | "deps" | "tests" | "agent"
+export type PropertyKey = "status" | "epic" | "size" | "due" | "deps" | "tests" | "agent" | "owner"
 export type TimelineScale = "active" | "day" | "week"
 
 export interface ViewState {
@@ -100,13 +101,13 @@ export interface AxisSegment { startMs: number; endMs: number }
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
-const ALL_PROPERTIES: PropertyKey[] = ["status", "epic", "size", "due", "deps", "tests", "agent"]
+const ALL_PROPERTIES: PropertyKey[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "owner"]
 const KINDS: ViewKind[] = ["board", "table", "epic", "timeline"]
 const NAMES: Record<ViewKind, string> = { board: "Board", table: "Table", epic: "By epic", timeline: "Timeline" }
 
 export function defaultView(kind: ViewKind): ViewState {
   const base: ViewState = { kind, filters: [], sorts: [], group: "epic", subGroup: "none", q: "", properties: [...ALL_PROPERTIES], scale: "active" }
-  if (kind === "board") return { ...base, group: "none", subGroup: "epic", properties: ["epic", "size", "deps", "tests", "agent"] }
+  if (kind === "board") return { ...base, group: "none", subGroup: "epic", properties: ["epic", "size", "deps", "tests", "agent", "owner"] }
   if (kind === "table") return { ...base, sorts: [{ prop: "status", dir: "asc" }, { prop: "id", dir: "asc" }] }
   return base
 }
@@ -126,6 +127,11 @@ const isOpen = (t: Task) => t.status !== "done" && t.status !== "cancelled"
 /** Every `T\d+` in a free-text "Depends on" line (same rule as work-queue `depIds`; inlined so node can run this file). */
 function deps(t: Task): string[] {
   return [...new Set((t.dependsOn.match(/\bT\d+\b/gi) ?? []).map((d) => d.toUpperCase()))]
+}
+
+/** "human" | "ai" | "none" (same rule as owner.ts `ownerKind`; inlined so node can run this file). */
+function ownerKindOf(t: Task): "human" | "ai" | "none" {
+  return t.owner === "human" ? "human" : t.owner?.startsWith("ai:") ? "ai" : "none"
 }
 
 export function epicOf(phase: string): { id: string | null; title: string } {
@@ -160,6 +166,7 @@ function matches(t: Task, r: FilterRule, ctx: ViewContext, byId: Map<string, Tas
     case "tests": return flag(t.manualTests !== null)
     case "agent": return flag(ctx.agentTasks.has(t.id))
     case "ready": return flag(isReady(t, byId))
+    case "owner": return oneOf(ownerKindOf(t))
   }
 }
 
@@ -211,7 +218,8 @@ export function groupTasks(tasks: Task[], by: GroupBy): TaskGroup[] {
   if (!tasks.length) return []
   if (by === "none") return [{ key: "all", label: "All tasks", epicId: null, tasks }]
   const buckets = new Map<string, Task[]>()
-  const keyOf = (t: Task) => (by === "status" ? t.status : by === "size" ? sizeOf(t) ?? "none" : epicOf(t.phase).id ?? "none")
+  const keyOf = (t: Task) =>
+    by === "status" ? t.status : by === "size" ? sizeOf(t) ?? "none" : by === "owner" ? t.owner ?? "none" : epicOf(t.phase).id ?? "none"
   for (const t of tasks) {
     const k = keyOf(t)
     const list = buckets.get(k)
@@ -221,6 +229,12 @@ export function groupTasks(tasks: Task[], by: GroupBy): TaskGroup[] {
   const group = (key: string, label: string, epicId: string | null = null): TaskGroup => ({ key, label, epicId, tasks: buckets.get(key) ?? [] })
   if (by === "status") return STATUS_ORDER.filter((s) => buckets.has(s)).map((s) => group(s, STATUS_LABEL[s]))
   if (by === "size") return [...SIZES, "none"].filter((s) => buckets.has(s)).map((s) => group(s, s === "none" ? "No size" : s))
+  if (by === "owner") {
+    // human, then each agent by name, then unowned
+    const agents = [...buckets.keys()].filter((k) => k.startsWith("ai:")).sort()
+    return ["human", ...agents, "none"].filter((k) => buckets.has(k))
+      .map((k) => group(k, k === "human" ? "Human" : k === "none" ? "No owner" : `${k.slice(3)} (AI)`))
+  }
 
   // epic: open work first (by lowest open task ID), then the rest by epic ID descending; "none" last
   const lowestOpen = (k: string) => (buckets.get(k) ?? []).filter(isOpen).map((t) => t.id).sort(cmpId)[0] ?? null
@@ -315,10 +329,10 @@ export function foldAxis(bars: TimelineBar[], gapMs: number): AxisSegment[] {
 
 // ─── URL state ────────────────────────────────────────────────────────────────
 
-const FILTER_PROPS: FilterProp[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "ready"]
+const FILTER_PROPS: FilterProp[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "ready", "owner"]
 const FILTER_OPS: FilterRule["op"][] = ["is", "is-not", "before", "after", "is-set", "not-set"]
 const SORT_PROPS: SortProp[] = ["status", "id", "epic", "size", "due", "title"]
-const GROUPS: GroupBy[] = ["status", "epic", "size", "none"]
+const GROUPS: GroupBy[] = ["status", "epic", "size", "owner", "none"]
 const SUBGROUPS: ViewState["subGroup"][] = ["epic", "size", "none"]
 const SCALES: TimelineScale[] = ["active", "day", "week"]
 

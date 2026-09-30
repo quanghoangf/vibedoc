@@ -1,5 +1,5 @@
 # T080: Owner / PIC on tasks, epics and docs
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R055 — Item properties
 **Size:** M
 **Depends on:** T075
@@ -27,3 +27,17 @@ Every task, epic and doc shows who is in charge: a human, or which agent. An age
 ```bash
 pnpm build && pnpm lint
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Run /work-epic on an epic from Claude Code → the claimed task file gets **Owner:** ai:claude and its card shows a bot icon + "claude"
+- [ ] /board: a task with no owner → open it → "start" → its file gets **Owner:** human and the card shows a person icon
+- [ ] A task owned by human that an agent starts → owner becomes ai:<agent>
+- [ ] Filter → Add rule → property Owner → "AI agent" → only agent-owned tasks show; reload → the filter is still there
+- [ ] Table view → Group → Owner → sections Human, <agent> (AI), No owner; Properties → Owner toggles the column
+- [ ] /roadmap: an epic with **Owner:** in its file shows the owner next to its status in the sheet
+- [ ] /docs: open a doc saved by an agent → the header says "AI · <time>"; edit and save it yourself → "Human · just now"
+### Regression risk
+- [ ] Moving tasks between columns and the review approve / send back still work and do not change an existing owner
+- [ ] The Activity page still lists events (new "Edited <doc>" entries, at most one per doc per 10 minutes of autosaves)

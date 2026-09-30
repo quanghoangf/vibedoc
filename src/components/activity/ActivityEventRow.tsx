@@ -8,6 +8,7 @@ const TYPE_ICON: Record<ActivityEvent["type"], LucideIcon> = {
   memory_updated: Brain,
   doc_read: FileSearch,
   doc_created: FilePlus,
+  doc_updated: FileText,
   doc_deleted: FileX,
   doc_renamed: FilePen,
   session_start: Plug,

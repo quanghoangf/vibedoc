@@ -11,6 +11,7 @@ import Link from "next/link"
 import { Check, CornerUpLeft, FlaskConical, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { STATUS_META } from "@/components/shared/StatusIcon"
+import { OwnerChip } from "@/components/shared/OwnerChip"
 import { itemKeyLabel, useItemCommands } from "@/components/shared/item-commands"
 import { deleteTaskWithUndo, updateTask } from "./task-api"
 import type { TaskMetaPatch } from "@/types"
@@ -89,6 +90,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs text-muted">{task.id}</span>
                 <StatusChip status={task.status} />
+                <OwnerChip owner={task.owner} />
                 <AgentMark attach={{ kind: "task", id: task.id }} />
                 <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                   <DropdownMenuTrigger asChild>

@@ -32,6 +32,7 @@ import {
   logDecision,
   readMemory,
   updateMemory,
+  noteDocEdit,
   logSessionStart,
   readActivity,
   findBacklinks,
@@ -53,6 +54,7 @@ import {
   type UpdateRoadmapItemPatch,
 } from "@/lib/core";
 import type { TextEdit } from "@/lib/diff";
+import { agentFromUserAgent } from "@/lib/owner";
 import { planTarget, validatePlan, type Plan } from "@/lib/plan";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
@@ -198,6 +200,10 @@ const TOOLS = [
             "`### Steps` items as `- [ ] <what to do> → <what you should see>`, then `### Regression risk` items for existing features worth re-checking. " +
             "Plain lines become unticked steps.",
         },
+        agent: {
+          type: "string",
+          description: 'Your name as the owner of the task, e.g. "claude" (defaults to the MCP client\'s name). Starting a task makes you its owner.',
+        },
       },
       required: ["taskId", "status"],
     },
@@ -210,6 +216,10 @@ const TOOLS = [
       type: "object",
       properties: {
         epic: { type: "string", description: 'Epic roadmap id, e.g. "R037"' },
+        agent: {
+          type: "string",
+          description: 'Your name as the owner of the task, e.g. "claude" (defaults to the MCP client\'s name). Starting a task makes you its owner.',
+        },
       },
       required: ["epic"],
     },
@@ -591,7 +601,8 @@ async function roadmapHint(root: string, taskId: string): Promise<string> {
     .join("\n");
 }
 
-async function handleTool(name: string, args: Record<string, unknown>, root: string) {
+/** `agent` is who is calling (args.agent, else the MCP client from its User-Agent); starting a task makes it the owner. */
+async function handleTool(name: string, args: Record<string, unknown>, root: string, agent = "agent") {
 
   switch (name) {
     case "vibedoc_get_status": {
@@ -687,6 +698,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const docPath = String(args.path);
       const content = String(args.content);
       await writeDoc(docPath, content, root);
+      await noteDocEdit(root, docPath, "ai");
       emitUpdate("doc_updated", { path: docPath, actor: "ai" });
       return `✅ Written: ${docPath}`;
     }
@@ -724,6 +736,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         args.status as TaskStatus,
         root,
         "ai",
+        { actor: "ai", agent },
       );
       emitUpdate("task_updated", {
         taskId: args.taskId,
@@ -740,7 +753,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     case "vibedoc_next_task": {
       const epicId = String(args.epic ?? "").trim();
       if (!epicId) throw new Error("epic is required");
-      const { result, task, previousStatus } = await claimNextTask(epicId, root);
+      const { result, task, previousStatus } = await claimNextTask(epicId, root, agent);
       if (result.kind === "finished") {
         const { items } = await listRoadmap(root);
         const statuses = await taskInfoMap(root);
@@ -880,6 +893,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const docPath = String(args.path);
       const content = String(args.content);
       await appendDoc(docPath, content, root);
+      await noteDocEdit(root, docPath, "ai");
       emitUpdate("doc_updated", { path: docPath, actor: "ai" });
       return `✅ Appended to: ${docPath}`;
     }
@@ -1008,7 +1022,8 @@ export async function POST(req: NextRequest) {
     const args = (params?.arguments as Record<string, unknown>) || {};
     try {
       const root = req.nextUrl.searchParams.get("root") || getConfiguredRoot();
-      const text = await handleTool(name, args, root);
+      const agent = typeof args.agent === "string" && args.agent.trim() ? args.agent.trim() : agentFromUserAgent(req.headers.get("user-agent"));
+      const text = await handleTool(name, args, root, agent);
       return ok(id, { content: [{ type: "text", text }] });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
