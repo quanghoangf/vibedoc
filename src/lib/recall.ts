@@ -100,3 +100,15 @@ export function formatRelated(hits: RecallHit[], limit = 3): string {
   if (!strong.length) return ''
   return `## Related memory\n${strong.map(formatCompactLine).join('\n')}\nFetch with vibedoc_get_entries`
 }
+
+/**
+ * The Memory tab list (R047). No searchable words → the entries of `type`, newest first (session-start order).
+ * Otherwise ranked like vibedoc_recall, so the UI and agents agree on the first hit. Returns the full entries.
+ */
+export function filterEntries<T extends RecallEntry>(entries: T[], opts: { query?: string; type?: string | null }): T[] {
+  const pool = opts.type ? entries.filter(e => e.type === opts.type) : entries
+  const byId = new Map(pool.map(e => [e.id, e]))
+  const query = opts.query ?? ''
+  const hits = tokenize(query).length ? rankEntries(pool, query, { limit: pool.length }) : indexHits(pool)
+  return hits.map(h => byId.get(h.id)).filter((e): e is T => !!e)
+}

@@ -1,8 +1,12 @@
 # T089: Entries on /memory — API + list, search and type filter
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R047 — Memory browser
 **Size:** M (2–3 hrs)
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 The Memory tab shows every knowledge entry next to the handoff. A user can type a word and see the matching entries, ranked the way agents see them in `vibedoc_recall`, and narrow the list by type. This is the thin read-only slice of the epic. Later tasks add the detail view, editing and delete.
@@ -49,6 +53,9 @@ The Memory tab shows every knowledge entry next to the handoff. A user can type 
 - [ ] When an agent saves an entry through MCP, the list updates without a reload
 - [ ] `memory-view.check.mts` covers: empty query order, type filter, ranked query, query plus type, no hits
 
+## Implementation note (done)
+`filterEntries` lives in `src/lib/recall.ts` (self-check `recall.check.mts`), not in a new `memory-view.ts`: the pure libs don't import values from each other, because `node *.check.mts` runs them without a bundler.
+
 ## Verify
 ```bash
 node src/lib/memory-view.check.mts
@@ -56,3 +63,15 @@ pnpm typecheck && pnpm build && pnpm lint   # no new lint errors beyond the 14 p
 curl -s 'localhost:3000/api/memory/entries' | head -c 300
 # pnpm dev → /memory → search "sse" → type chips → save an entry via MCP → the list updates live
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Open /memory in a project with a few knowledge entries → a "Knowledge entries" list on the left and the session handoff on the right, the list newest first
+- [ ] Type "sse events" in the search box → the SSE entry is first (the same order vibedoc_recall gives); clear it → the full list is back
+- [ ] Click the "gotcha" chip → only gotchas; each chip shows the right count
+- [ ] Type a word no entry has → "No entries match …"
+- [ ] Keep /memory open and have an agent call vibedoc_save_entry → the new entry appears without a reload
+- [ ] Open /memory in a project with no memory/entries folder → "No knowledge entries yet…" and the handoff still shows
+### Regression risk
+- [ ] On a phone-width window the list stacks above the handoff and nothing scrolls sideways

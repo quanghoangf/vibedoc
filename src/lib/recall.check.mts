@@ -1,6 +1,6 @@
 // Self-check for recall. Run: node src/lib/recall.check.mts
 import assert from 'node:assert/strict'
-import { DEFAULT_SESSION_BUDGET, estimateTokens, fitToBudget, formatCompactLine, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry } from './recall.ts'
+import { DEFAULT_SESSION_BUDGET, estimateTokens, filterEntries, fitToBudget, formatCompactLine, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry } from './recall.ts'
 
 const e = (id: string, type: string, summary: string, body = '', updatedAt = '2026-09-01'): RecallEntry =>
   ({ id, type, summary, body, updatedAt })
@@ -130,5 +130,24 @@ assert.equal(formatRelated(rankEntries([e('E031', 'note', 'unrelated', 'sse')], 
 assert.equal(formatRelated([]), '')
 const four = rankEntries(Array.from({ length: 5 }, (_, i) => e(`E04${i}`, 'note', `deploy step ${i}`)), 'deploy')
 assert.equal(formatRelated(four).split('\n').filter(l => l.startsWith('E')).length, 3)
+
+// filterEntries (Memory tab list): newest first without a query, ranked with one, type filter, full entries back
+const mem = [
+  e('E101', 'convention', 'Tailwind only, no CSS-in-JS', '', '2026-09-01'),
+  e('E102', 'gotcha', 'The SSE bus drops events on project switch', 'Reconnect the EventSource.', '2026-09-20'),
+  e('E103', 'decision', 'No database', 'Files are the source of truth.', '2026-09-10'),
+  e('E104', 'gotcha', 'Due dates are local calendar dates', '', '2026-09-25'),
+]
+const fids = (o: { query?: string; type?: string | null }) => filterEntries(mem, o).map(x => x.id)
+assert.deepEqual(fids({}), ['E104', 'E102', 'E103', 'E101'])
+assert.deepEqual(fids({ query: '  the ' }), ['E104', 'E102', 'E103', 'E101'])
+assert.deepEqual(fids({ type: 'gotcha' }), ['E104', 'E102'])
+assert.deepEqual(fids({ type: 'preference' }), [])
+assert.deepEqual(fids({ query: 'sse events' }), ['E102'])
+assert.equal(filterEntries(mem, { query: 'sse' })[0].body, 'Reconnect the EventSource.')
+assert.deepEqual(fids({ query: 'dates database', type: 'gotcha' }), ['E104'])
+assert.deepEqual(fids({ query: 'database', type: 'gotcha' }), [])
+assert.deepEqual(fids({ query: 'kubernetes' }), [])
+assert.deepEqual(filterEntries([], { query: 'sse' }), [])
 
 console.log('recall: ok')
