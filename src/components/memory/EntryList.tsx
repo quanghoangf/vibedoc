@@ -1,14 +1,19 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Search } from "lucide-react"
+import { Plus, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { ENTRY_TYPES, type Entry, type EntryType } from "@/lib/entries"
 import { filterEntries, tokenize } from "@/lib/recall"
 
 /** Knowledge entries (R046) with search (ranked like vibedoc_recall) and a type filter. */
-export function EntryList({ entries, onOpen }: { entries: Entry[]; onOpen?: (id: string) => void }) {
+export function EntryList({ entries, selectedId, onOpen, onNew }: {
+  entries: Entry[]
+  selectedId?: string | null
+  onOpen: (id: string) => void
+  onNew: () => void
+}) {
   const [query, setQuery] = useState("")
   const [type, setType] = useState<EntryType | null>(null)
   const shown = useMemo(() => filterEntries(entries, { query, type }), [entries, query, type])
@@ -39,7 +44,13 @@ export function EntryList({ entries, onOpen }: { entries: Entry[]; onOpen?: (id:
     <section aria-label="Knowledge entries" className="flex min-w-0 flex-col gap-3">
       <div className="flex items-baseline justify-between">
         <h2 className="font-display text-base font-semibold tracking-tight">Knowledge entries</h2>
-        <span className="font-mono text-xs text-muted">memory/entries/</span>
+        <button
+          type="button"
+          onClick={onNew}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted outline-none hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <Plus className="size-3.5" aria-hidden /> New entry
+        </button>
       </div>
 
       <div className="relative">
@@ -74,8 +85,12 @@ export function EntryList({ entries, onOpen }: { entries: Entry[]; onOpen?: (id:
             <li key={e.id}>
               <button
                 type="button"
-                onClick={() => onOpen?.(e.id)}
-                className="flex w-full flex-col gap-0.5 px-3 py-2 text-left outline-none transition-colors hover:bg-surface2 focus-visible:bg-surface2"
+                onClick={() => onOpen(e.id)}
+                aria-current={e.id === selectedId ? "true" : undefined}
+                className={cn(
+                  "flex w-full flex-col gap-0.5 px-3 py-2 text-left outline-none transition-colors hover:bg-surface2 focus-visible:bg-surface2",
+                  e.id === selectedId && "bg-surface2 shadow-[inset_2px_0_0_var(--color-accent)]",
+                )}
               >
                 <span className="flex items-center gap-2 font-mono text-[11px] text-muted">
                   <span>{e.id}</span>

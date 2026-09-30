@@ -1,8 +1,12 @@
 # T090: Entry detail, edit and New entry
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R047 — Memory browser
 **Size:** M (2–3 hrs)
 **Depends on:** T089
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 Clicking an entry opens it on the right: its type, summary, body and date. The user can correct any of them, or add a new entry, and the next agent session sees the change. `/memory?entry=E012` opens that entry directly.
@@ -52,3 +56,15 @@ curl -s -X POST 'localhost:3000/api/memory/entries/save' -H 'content-type: appli
   -d '{"type":"rule","summary":"x"}'   # 400 with the list of valid types
 # pnpm dev → /memory → open an entry → Edit → change the summary → Save → the list updates → New entry
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Open /memory and click an entry → it opens on the right with its type, updated date, file and details, and the URL becomes /memory?entry=E00N; reload → it is still open
+- [ ] Click Edit, change the summary and type, Save → the list and the detail show the new text at once; memory/entries has the file under the new name with the same id
+- [ ] After that edit, start an agent session (vibedoc_read_memory) → the index shows the fixed summary
+- [ ] Click New entry, fill it in, press ⌘↵ (Ctrl+Enter) → it gets the next E id and opens
+- [ ] Clear the summary and Save → "summary is required" under the form, nothing saved; Esc returns to the read view
+- [ ] Open /memory?entry=E999 → "Entry E999 not found" with a link back to the handoff; the ✕ on an open entry also returns to the handoff
+### Regression risk
+- [ ] On a phone-width window, open an entry from the top of a long list → check whether you have to scroll down to see it (it renders below the list)
