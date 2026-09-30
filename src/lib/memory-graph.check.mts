@@ -1,6 +1,6 @@
 // Self-check for memory-graph. Run: node src/lib/memory-graph.check.mts
 import assert from 'node:assert/strict'
-import { buildGraph, extractRefs, fileNode, formatEntryLinks, neighbourhood, type GraphItem } from './memory-graph.ts'
+import { GRAPH_COL_W, GRAPH_ROW_H, buildGraph, extractRefs, fileNode, formatEntryLinks, graphLayout, neighbourhood, type GraphItem } from './memory-graph.ts'
 
 // extractRefs: id patterns, padding, whole tokens only
 assert.deepEqual(extractRefs('See T065, R048 and ADR-4; also E12 and E001.').ids, ['T065', 'R048', 'ADR-004', 'E012', 'E001'])
@@ -63,5 +63,22 @@ assert.deepEqual(formatEntryLinks(g, 'E002'), ['Links: E001', 'Linked from: T065
 assert.deepEqual(formatEntryLinks(g, 'E003'), [])
 const hub = { nodes: [], edges: Array.from({ length: 13 }, (_, i) => ({ from: 'E050', to: `T${100 + i}` })) }
 assert.deepEqual(formatEntryLinks(hub, 'E050'), ['Links: T100, T101, T102, T103, T104, T105, T106, T107, T108, T109, +3 more'])
+
+// graphLayout: entries in the centre by type then id; others in their kind's column near their entries, no overlaps
+const types = { E001: 'convention', E002: 'gotcha', E003: 'convention' }
+const pos = graphLayout(g, types)
+assert.deepEqual([pos.E001, pos.E003, pos.E002], [{ x: 0, y: 0 }, { x: 0, y: GRAPH_ROW_H }, { x: 0, y: 2 * GRAPH_ROW_H }])
+assert.equal(pos.T065.x, -GRAPH_COL_W)
+assert.equal(pos.R048.x, -2 * GRAPH_COL_W)
+assert.equal(pos['docs/architecture/HLD.md'].x, 2 * GRAPH_COL_W)
+assert.equal(pos.T065.y, GRAPH_ROW_H, 'T065 touches E001 (row 0) and E002 (row 2) → sits between them')
+assert.equal(pos.R048.y, 0, 'R048 next to E001')
+assert.equal(Object.keys(pos).length, g.nodes.length)
+assert.deepEqual(graphLayout(g, types), pos, 'deterministic')
+// many nodes wanting the same row are pushed down one row each
+const fan = { nodes: [{ id: 'E001', kind: 'entry' as const, label: '', path: '' }, ...['T101', 'T102', 'T103'].map(id => ({ id, kind: 'task' as const, label: '', path: '' }))],
+  edges: ['T101', 'T102', 'T103'].map(to => ({ from: 'E001', to })) }
+const fp = graphLayout(fan)
+assert.deepEqual(['T101', 'T102', 'T103'].map(id => fp[id].y), [0, GRAPH_ROW_H, 2 * GRAPH_ROW_H])
 
 console.log('memory-graph: ok')

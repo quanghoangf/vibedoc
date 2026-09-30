@@ -15,15 +15,27 @@ const GROUPS: { kind: NodeKind; label: string }[] = [
   { kind: "doc", label: "Docs" },
   { kind: "entry", label: "Entries" },
 ]
-const KIND_ICON = { epic: Flag, adr: Scale, doc: FileText, entry: Lightbulb, task: BookOpen } as const
+export const KIND_ICON = { epic: Flag, adr: Scale, doc: FileText, entry: Lightbulb, task: BookOpen } as const
+
+/** Open a graph node where it lives: a task on /board, an epic on /roadmap, a doc or ADR in Docs, an entry here. */
+export function useOpenNode(onOpenEntry: (id: string) => void) {
+  const router = useRouter()
+  const { openDoc } = useApp()
+  return (n: GraphNode) => {
+    if (n.kind === "task") router.push(`/board?task=${n.id}`)
+    else if (n.kind === "epic") router.push(`/roadmap?item=${n.id}`)
+    else if (n.kind === "entry") onOpenEntry(n.id)
+    else void openDoc(n.path)
+  }
+}
 
 /**
  * What an entry links to and what links back (R053), from GET /api/memory/graph?entry=.
  * Links are inferred from text, so the way to change them is to edit the entry.
  */
 export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpenEntry: (id: string) => void }) {
-  const { rootParam, summary, board, openDoc } = useApp()
-  const router = useRouter()
+  const { rootParam, summary, board } = useApp()
+  const open = useOpenNode(onOpenEntry)
   const [graph, setGraph] = useState<MemoryGraph | null>(null)
 
   // refetch when the entry changes and on every memory_updated SSE event (AppContext replaces `summary`)
@@ -44,13 +56,6 @@ export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpen
   const pick = (ids: string[]) => ids.map((id) => byId.get(id)).filter((n): n is GraphNode => !!n)
   const linksTo = pick((graph?.edges ?? []).filter((e) => e.from === entryId).map((e) => e.to))
   const linkedFrom = pick((graph?.edges ?? []).filter((e) => e.to === entryId).map((e) => e.from))
-
-  const open = (n: GraphNode) => {
-    if (n.kind === "task") router.push(`/board?task=${n.id}`)
-    else if (n.kind === "epic") router.push(`/roadmap?item=${n.id}`)
-    else if (n.kind === "entry") onOpenEntry(n.id)
-    else void openDoc(n.path)
-  }
 
   const row = (n: GraphNode) => {
     const task = n.kind === "task" ? tasks.get(n.id) : undefined

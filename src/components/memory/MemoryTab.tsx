@@ -5,6 +5,8 @@ import { EntryList } from "./EntryList"
 import { EntryDetail } from "./EntryDetail"
 import { EntryRelated } from "./EntryRelated"
 import { EntryHistory } from "./EntryHistory"
+import { MemoryGraph } from "./MemoryGraph"
+import { cn } from "@/lib/utils"
 
 interface MemoryTabProps {
   memory: { content: string; exists: boolean } | null
@@ -20,14 +22,40 @@ interface MemoryTabProps {
   onClose: () => void
   onSaved: (entry: Entry) => void
   onDelete: (entry: Entry) => void
+  view: "list" | "graph"
+  onView: (view: "list" | "graph") => void
 }
 
-export function MemoryTab({ memory, entries, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved, onDelete }: MemoryTabProps) {
+export function MemoryTab({ memory, entries, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved, onDelete, view, onView }: MemoryTabProps) {
   const selected = selectedId ? entries?.find((e) => e.id === selectedId) : undefined
   return (
-    <div className="grid items-start gap-6 p-6 lg:grid-cols-[minmax(280px,380px)_minmax(0,42rem)]">
-      <h1 className="font-display text-xl font-semibold tracking-tight lg:col-span-2">Memory</h1>
-      {entries ? (
+    <div className={cn(
+      "grid items-start gap-6 p-6",
+      view === "graph" ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)]" : "lg:grid-cols-[minmax(280px,380px)_minmax(0,42rem)]",
+    )}>
+      <div className="flex items-center justify-between gap-4 lg:col-span-2">
+        <h1 className="font-display text-xl font-semibold tracking-tight">Memory</h1>
+        <div role="group" aria-label="Entries view" className="flex rounded-md border border-border p-0.5">
+          {(["list", "graph"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={view === v}
+              onClick={() => onView(v)}
+              className={cn(
+                "h-6 rounded-[5px] border border-transparent px-2.5 text-xs font-medium capitalize text-muted outline-none transition-colors",
+                "hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent",
+                view === v && "border-border2 bg-surface2 text-txt",
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      </div>
+      {entries && view === "graph" ? (
+        <MemoryGraph entries={entries} selectedId={selectedId} onOpenEntry={onOpen} />
+      ) : entries ? (
         <EntryList entries={entries} selectedId={selectedId} onOpen={onOpen} onNew={onNew} />
       ) : (
         <p className="text-sm text-muted">Loading entries…</p>

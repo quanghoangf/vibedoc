@@ -18,8 +18,10 @@ export default function MemoryPage() {
 function MemoryPageInner() {
   const { summary, rootParam } = useApp()
   const router = useRouter()
-  // ?entry=E012 is the open entry, so a link or a reload opens it
-  const selectedId = useSearchParams().get("entry")
+  // ?entry=E012 is the open entry and ?view=graph the Graph view, so a link or a reload keeps both
+  const params = useSearchParams()
+  const selectedId = params.get("entry")
+  const view = params.get("view") === "graph" ? "graph" : "list"
   const [entries, setEntries] = useState<Entry[] | null>(null)
   const [creating, setCreating] = useState(false)
 
@@ -38,10 +40,16 @@ function MemoryPageInner() {
   // AppContext replaces `summary` on every memory_updated SSE event, so refetch the entries with it
   useEffect(() => load(), [load, summary])
 
+  const go = useCallback((entry: string | null, v: "list" | "graph") => {
+    const q = new URLSearchParams()
+    if (v === "graph") q.set("view", "graph")
+    if (entry) q.set("entry", entry)
+    router.replace(q.size ? `/memory?${q}` : "/memory", { scroll: false })
+  }, [router])
   const select = useCallback((id: string | null) => {
     setCreating(false)
-    router.replace(id ? `/memory?entry=${encodeURIComponent(id)}` : "/memory", { scroll: false })
-  }, [router])
+    go(id, view)
+  }, [go, view])
 
   // No confirm: delete now, offer Undo (restores the same file), like tasks and docs
   const remove = useCallback(async (entry: Entry) => {
@@ -76,6 +84,8 @@ function MemoryPageInner() {
       onNew={() => setCreating(true)}
       onClose={() => select(null)}
       onDelete={remove}
+      view={view}
+      onView={(v) => go(selectedId, v)}
       onSaved={(entry) => {
         // show the saved text now; the SSE refetch confirms it
         setEntries((list) => [...(list ?? []).filter((e) => e.id !== entry.id), entry])

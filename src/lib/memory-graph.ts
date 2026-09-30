@@ -108,3 +108,41 @@ export function formatEntryLinks(graph: MemoryGraph, id: string, cap = 10): stri
     ...line('Linked from', graph.edges.filter(e => e.to === id).map(e => e.from)),
   ]
 }
+
+export const GRAPH_COL_W = 240
+export const GRAPH_ROW_H = 48
+/** Column per kind: epics and tasks left of the entries, ADRs and docs right of them. */
+const GRAPH_COL: Record<NodeKind, number> = { epic: -2, task: -1, entry: 0, adr: 1, doc: 2 }
+
+/**
+ * Deterministic positions for the graph view (no layout library, no saved positions): entries stacked in the
+ * centre column (sorted by type, then id), every other node in its kind's column at the average y of the
+ * entries it links with, pushed down to keep one row of space. Same graph → same positions on every load.
+ */
+export function graphLayout(graph: MemoryGraph, entryType: Record<string, string> = {}): Record<string, { x: number; y: number }> {
+  const pos: Record<string, { x: number; y: number }> = {}
+  const num = (id: string) => Number(id.replace(/\D/g, '')) || 0
+  const entries = graph.nodes.filter(n => n.kind === 'entry')
+    .sort((a, b) => (entryType[a.id] ?? '').localeCompare(entryType[b.id] ?? '') || num(a.id) - num(b.id))
+  entries.forEach((e, i) => { pos[e.id] = { x: 0, y: i * GRAPH_ROW_H } })
+
+  const neighbourYs = new Map<string, number[]>()
+  for (const { from, to } of graph.edges) {
+    for (const [other, entry] of [[from, to], [to, from]]) {
+      if (pos[entry] && !pos[other]) neighbourYs.set(other, [...(neighbourYs.get(other) ?? []), pos[entry].y])
+    }
+  }
+  for (const kind of ['epic', 'task', 'adr', 'doc'] as const) {
+    const col = graph.nodes.filter(n => n.kind === kind).map(n => {
+      const ys = neighbourYs.get(n.id) ?? [0]
+      return { id: n.id, want: ys.reduce((a, b) => a + b, 0) / ys.length }
+    }).sort((a, b) => a.want - b.want || a.id.localeCompare(b.id, 'en', { numeric: true }))
+    let next = -Infinity
+    for (const { id, want } of col) {
+      const y = Math.max(want, next)
+      pos[id] = { x: GRAPH_COL[kind] * GRAPH_COL_W, y }
+      next = y + GRAPH_ROW_H
+    }
+  }
+  return pos
+}
