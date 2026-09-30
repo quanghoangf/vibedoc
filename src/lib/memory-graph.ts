@@ -92,3 +92,19 @@ export function neighbourhood(graph: MemoryGraph, id: string): MemoryGraph {
   const keep = new Set([id, ...edges.flatMap(e => [e.from, e.to])])
   return { nodes: graph.nodes.filter(n => keep.has(n.id)), edges }
 }
+
+/**
+ * "Links: …" / "Linked from: …" lines for one entry (vibedoc_get_entries). A line with nothing is left out;
+ * each is capped at `cap` items plus "+N more", so a hub entry stays short.
+ */
+export function formatEntryLinks(graph: MemoryGraph, id: string, cap = 10): string[] {
+  const line = (label: string, ids: string[]) => {
+    if (!ids.length) return []
+    const more = ids.length > cap ? `, +${ids.length - cap} more` : ''
+    return [`${label}: ${ids.slice(0, cap).join(', ')}${more}`]
+  }
+  return [
+    ...line('Links', graph.edges.filter(e => e.from === id).map(e => e.to)),
+    ...line('Linked from', graph.edges.filter(e => e.to === id).map(e => e.from)),
+  ]
+}

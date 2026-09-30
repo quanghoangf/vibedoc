@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
 import { formatCompactLine, tokenize } from "@/lib/recall";
+import { formatEntryLinks } from "@/lib/memory-graph";
 import {
   getConfiguredRoot,
   listDocs,
@@ -39,6 +40,7 @@ import {
   recallEntries,
   relatedEntries,
   getEntriesByIds,
+  getMemoryGraph,
   noteDocEdit,
   readProjectSettings,
   logSessionStart,
@@ -893,8 +895,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const ids = Array.isArray(args.ids) ? args.ids.map(String) : [];
       if (!ids.length) throw new Error('ids must be a non-empty array, e.g. { "ids": ["E001"] }');
       if (ids.length > MAX_ENTRY_IDS) throw new Error(`Too many ids (${ids.length}); fetch at most ${MAX_ENTRY_IDS} per call and split the rest`);
-      const { found, missing } = await getEntriesByIds(ids, root);
-      const blocks = found.map((e) => `## ${e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.body ? `\n\n${e.body}` : ""}`);
+      const [{ found, missing }, graph] = await Promise.all([getEntriesByIds(ids, root), getMemoryGraph(root)]);
+      const blocks = found.map((e) => {
+        const links = formatEntryLinks(graph, e.id);
+        return `## ${e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.body ? `\n\n${e.body}` : ""}` +
+          (links.length ? `\n\n${links.join("\n")}` : "");
+      });
       if (missing.length) blocks.push(`Not found: ${missing.join(", ")}`);
       return blocks.join("\n\n");
     }

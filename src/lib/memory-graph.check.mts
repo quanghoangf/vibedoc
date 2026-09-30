@@ -1,6 +1,6 @@
 // Self-check for memory-graph. Run: node src/lib/memory-graph.check.mts
 import assert from 'node:assert/strict'
-import { buildGraph, extractRefs, fileNode, neighbourhood, type GraphItem } from './memory-graph.ts'
+import { buildGraph, extractRefs, fileNode, formatEntryLinks, neighbourhood, type GraphItem } from './memory-graph.ts'
 
 // extractRefs: id patterns, padding, whole tokens only
 assert.deepEqual(extractRefs('See T065, R048 and ADR-4; also E12 and E001.').ids, ['T065', 'R048', 'ADR-004', 'E012', 'E001'])
@@ -56,5 +56,12 @@ assert.deepEqual(n1.nodes.map(n => n.id).sort(), ['E001', 'E002', 'R048', 'T065'
 assert.equal(n1.edges.length, 5)
 assert.deepEqual(neighbourhood(g, 'E003'), { nodes: [g.nodes.find(n => n.id === 'E003')], edges: [] })
 assert.deepEqual(neighbourhood(g, 'E404'), { nodes: [], edges: [] })
+
+// formatEntryLinks: both lines, one line, none, capped
+assert.deepEqual(formatEntryLinks(g, 'E001'), ['Links: T065, R048, docs/architecture/HLD.md', 'Linked from: E002, docs/architecture/HLD.md'])
+assert.deepEqual(formatEntryLinks(g, 'E002'), ['Links: E001', 'Linked from: T065'])
+assert.deepEqual(formatEntryLinks(g, 'E003'), [])
+const hub = { nodes: [], edges: Array.from({ length: 13 }, (_, i) => ({ from: 'E050', to: `T${100 + i}` })) }
+assert.deepEqual(formatEntryLinks(hub, 'E050'), ['Links: T100, T101, T102, T103, T104, T105, T106, T107, T108, T109, +3 more'])
 
 console.log('memory-graph: ok')
