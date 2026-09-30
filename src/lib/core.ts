@@ -7,6 +7,8 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { glob } from 'glob'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { applyEdits, type TextEdit } from './diff'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 import { pickNextTask, type QueueResult } from './work-queue'
@@ -1005,6 +1007,68 @@ export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>
   // rank everything so the score filter in formatRelated sees all candidates before the limit
   const entries = await listEntries(root)
   return formatRelated(rankEntries(entries, taskQuery(task), { limit: entries.length }), limit)
+}
+
+// ─── File history from git (R053) ─────────────────────────────────────────────
+
+const execFileP = promisify(execFile)
+const GIT_SHA_RE = /^[0-9a-f]{7,40}$/
+const HISTORY_MAX = 50
+
+/** One commit that touched a file; `path` is its repo-relative path after that commit ('' if the commit only deleted it). */
+export type FileCommit = { sha: string; author: string; date: string; subject: string; path: string }
+/** `reason: 'no-git'` when the project isn't a git repo or git is missing. */
+export type FileHistory = { history: FileCommit[]; uncommitted: boolean; reason?: 'no-git' }
+
+/** git with an argument array (never a shell string), run in the project root. */
+async function git(args: string[], root: string): Promise<string> {
+  const { stdout } = await execFileP('git', args, { cwd: root, maxBuffer: 4 * 1024 * 1024 })
+  return stdout
+}
+
+function relInsideRoot(relPath: string, root: string): string {
+  const full = path.resolve(root, relPath)
+  if (!full.startsWith(path.resolve(root) + path.sep)) throw new RoadmapError('Path outside root')
+  return path.relative(root, full).split(path.sep).join('/')
+}
+
+/**
+ * Commits that touched `relPath`, newest first, plus whether it has uncommitted changes.
+ * An entry file (`E001-<slug>.md`) is matched by its id, not its name: a new summary renames the file, and small
+ * files often fall under git's rename detection, so `--follow` would lose the history before the rename.
+ */
+export async function getFileHistory(relPath: string, root: string, limit = 20): Promise<FileHistory> {
+  const rel = relInsideRoot(relPath, root)
+  const id = /^(E\d+)-[^/]*\.md$/.exec(path.posix.basename(rel))?.[1]
+  // ponytail: a deleted id that gets reused later shares this history; fine while ids are rarely reused
+  const spec = id ? [`:(glob)${path.posix.dirname(rel)}/${id}-*.md`] : ['--follow', rel]
+  try {
+    const out = await git(['log', '--name-status', '--format=%x1e%H%x1f%an%x1f%aI%x1f%s', '-n', String(Math.min(limit, HISTORY_MAX)), ...(id ? ['--', ...spec] : [spec[0], '--', spec[1]])], root)
+    const history = out.split('\x1e').filter(r => r.trim()).map((record): FileCommit => {
+      const [head, ...rest] = record.split('\n')
+      const [sha, author, date, subject] = head.split('\x1f')
+      // "M\tpath", "A\tpath", "R087\told\tnew", "D\tpath": the path that exists after this commit (none if only deleted)
+      const kept = rest.map(l => l.split('\t')).filter(f => f.length > 1 && f[0] !== 'D').map(f => f[f.length - 1])
+      return { sha, author, date, subject, path: kept[0] ?? '' }
+    })
+    const status = await git(['status', '--porcelain', '--', id ? spec[0] : rel], root)
+    return { history, uncommitted: status.trim().length > 0 }
+  } catch (e) {
+    console.warn(`git history unavailable for ${rel}`, e instanceof Error ? e.message : e)
+    return { history: [], uncommitted: false, reason: 'no-git' }
+  }
+}
+
+/** The file's text at `sha`, using the path it had in that commit. Throws 400 on a bad sha, 404 if `sha` isn't in its history. */
+export async function getFileAtCommit(relPath: string, sha: string, root: string): Promise<string> {
+  if (!GIT_SHA_RE.test(sha)) throw new RoadmapError(`Invalid commit "${sha}"`)
+  const { history } = await getFileHistory(relPath, root, HISTORY_MAX)
+  const commit = history.find(c => c.sha.startsWith(sha))
+  if (!commit) throw new RoadmapError(`Commit ${sha} did not touch ${relPath}`, 404)
+  if (!commit.path) throw new RoadmapError(`The file was deleted in ${commit.sha.slice(0, 7)}`, 404)
+  // commit.path is relative to the repo top level, which may be above root
+  const top = (await git(['rev-parse', '--show-toplevel'], root)).trim()
+  return git(['show', `${commit.sha}:${commit.path}`], top)
 }
 
 /** Keyword recall over the entries: compact hits, no bodies (R048). */

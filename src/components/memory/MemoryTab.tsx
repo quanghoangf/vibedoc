@@ -4,6 +4,7 @@ import type { Entry } from "@/lib/entries"
 import { EntryList } from "./EntryList"
 import { EntryDetail } from "./EntryDetail"
 import { EntryRelated } from "./EntryRelated"
+import { EntryHistory } from "./EntryHistory"
 
 interface MemoryTabProps {
   memory: { content: string; exists: boolean } | null
@@ -34,7 +35,12 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
       {creating || selected ? (
         <div className="min-w-0 lg:sticky lg:top-6">
           <EntryDetail key={creating ? "new" : selected?.id} entry={creating ? null : selected ?? null} rootParam={rootParam} onSaved={onSaved} onDelete={onDelete} onClose={onClose}>
-            {selected && !creating && <EntryRelated entryId={selected.id} onOpenEntry={onOpen} />}
+            {selected && !creating && (
+              <>
+                <EntryRelated entryId={selected.id} onOpenEntry={onOpen} />
+                <EntryHistory entryId={selected.id} />
+              </>
+            )}
           </EntryDetail>
         </div>
       ) : selectedId && entries ? (
