@@ -971,6 +971,19 @@ export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human'
   })
 }
 
+/** Entries in the order of `ids` (any case / padding), plus the ids that matched nothing. */
+export async function getEntriesByIds(ids: string[], root: string): Promise<{ found: Entry[]; missing: string[] }> {
+  const byId = new Map((await listEntries(root)).map(e => [e.id, e]))
+  const found: Entry[] = []
+  const missing: string[] = []
+  for (const raw of ids) {
+    const entry = byId.get(normalizeEntryId(String(raw)) ?? '')
+    if (entry) found.push(entry)
+    else missing.push(String(raw))
+  }
+  return { found, missing }
+}
+
 /** Keyword recall over the entries: compact hits, no bodies (R048). */
 export async function recallEntries(query: string, opts: { type?: string; limit?: number }, root: string): Promise<RecallHit[]> {
   return rankEntries(await listEntries(root), query, opts)

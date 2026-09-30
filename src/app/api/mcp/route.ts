@@ -38,6 +38,7 @@ import {
   deleteEntry,
   listEntries,
   recallEntries,
+  getEntriesByIds,
   noteDocEdit,
   readProjectSettings,
   logSessionStart,
@@ -87,6 +88,8 @@ function ok(id: JsonRpcRequest["id"], result: unknown) {
 function err(id: JsonRpcRequest["id"], code: number, message: string) {
   return NextResponse.json({ jsonrpc: "2.0", id, error: { code, message } });
 }
+
+const MAX_ENTRY_IDS = 20;
 
 const TOOLS = [
   {
@@ -310,6 +313,15 @@ const TOOLS = [
         limit: { type: "number", description: "Max results, default 10" },
       },
       required: ["query"],
+    },
+  },
+  {
+    name: "vibedoc_get_entries",
+    description: "Fetch full knowledge entries (body included) by id, after vibedoc_recall or the session-start index. Max 20 ids per call.",
+    inputSchema: {
+      type: "object",
+      properties: { ids: { type: "array", items: { type: "string" }, description: 'e.g. ["E012", "E030"]' } },
+      required: ["ids"],
     },
   },
   {
@@ -875,6 +887,16 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       return `${hits.length} ${hits.length === 1 ? "match" : "matches"} for "${query}"\n` +
         hits.map(formatCompactLine).join("\n") +
         `\nFetch full entries with vibedoc_get_entries { ids: [...] }`;
+    }
+
+    case "vibedoc_get_entries": {
+      const ids = Array.isArray(args.ids) ? args.ids.map(String) : [];
+      if (!ids.length) throw new Error('ids must be a non-empty array, e.g. { "ids": ["E001"] }');
+      if (ids.length > MAX_ENTRY_IDS) throw new Error(`Too many ids (${ids.length}); fetch at most ${MAX_ENTRY_IDS} per call and split the rest`);
+      const { found, missing } = await getEntriesByIds(ids, root);
+      const blocks = found.map((e) => `## ${e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.body ? `\n\n${e.body}` : ""}`);
+      if (missing.length) blocks.push(`Not found: ${missing.join(", ")}`);
+      return blocks.join("\n\n");
     }
 
     case "vibedoc_delete_entry": {
