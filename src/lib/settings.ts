@@ -17,6 +17,8 @@ export interface AppSettings {
   mcp: {
     endpoint: string
   }
+  /** Optional: calendar days per size for automatic due dates, e.g. { "S": 1, "M": 3 } (R055) */
+  tasks?: { sizeDays?: Record<string, number> }
 }
 
 export interface Skill {

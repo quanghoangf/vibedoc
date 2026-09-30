@@ -16,6 +16,8 @@ import { parseManualTests, setManualTests, toggleManualTest } from './manual-tes
 import { appendReviewEntry, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
 import { parseOwner } from './owner'
+import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
+import { localToday } from './roadmap-health'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +34,9 @@ export interface Task {
   owner: string | null
   /** Optional `**Due:** YYYY-MM-DD` (local calendar date, compare as string). */
   due: string | null
+  /** `**Started:**` / `**Done:**` dates, stamped on status moves (R055) */
+  started: string | null
+  finished: string | null
   /** The `## Manual tests` checklist (R043), counted; null when the task has none */
   manualTests: { total: number; done: number } | null
   file: string
@@ -363,7 +368,7 @@ function parseTaskFile(filePath: string, content: string): Task {
 
   const tests = parseManualTests(content)
   const manualTests = tests && { total: tests.total, done: tests.done }
-  return { id, title, status, size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), due: parseDue(meta['due'] || ''), manualTests, file: filePath, raw: content }
+  return { id, title, status, size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, file: filePath, raw: content }
 }
 
 export async function listTasks(root: string): Promise<{ tasks: Task[]; board: TaskBoard }> {
@@ -408,6 +413,16 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
   return current ?? 'human'
 }
 
+/** Days of work per size for automatic due dates: `tasks.sizeDays` in .vibedoc/settings.json over the defaults. */
+async function readSizeDays(root: string): Promise<SizeDays> {
+  try {
+    const s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8'))
+    return { ...DEFAULT_SIZE_DAYS, ...(s?.tasks?.sizeDays ?? {}) }
+  } catch {
+    return DEFAULT_SIZE_DAYS
+  }
+}
+
 /** Replace-or-insert (or remove, for '' / null) one `**Label:**` line inside the head meta block. */
 function withMetaLine(content: string, label: string, value: string | null): string {
   const lines = content.split('\n')
@@ -439,6 +454,11 @@ export async function updateTaskStatus(
   const owner = ownerAfterMove(task.owner, newStatus, mover)
   if (owner !== task.owner) content = withMetaLine(content, 'Owner', owner)
 
+  const dates = datesOnMove(newStatus, { due: task.due, started: task.started, done: task.finished }, task.size, localToday(), await readSizeDays(root))
+  if (dates.due !== task.due) content = withMetaLine(content, 'Due', dates.due)
+  if (dates.started !== task.started) content = withMetaLine(content, 'Started', dates.started)
+  if (dates.done !== task.finished) content = withMetaLine(content, 'Done', dates.done)
+
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
 
   // Append to activity log
@@ -450,7 +470,7 @@ export async function updateTaskStatus(
     taskStatus: newStatus,
   })
 
-  return { task: { ...task, status: newStatus, owner, raw: content }, previousStatus }
+  return { task: { ...task, status: newStatus, owner, due: dates.due, started: dates.started, finished: dates.done, raw: content }, previousStatus }
 }
 
 /** Write (or replace) the task's `## Manual tests` checklist. `report` is a markdown checklist; plain lines become items. */
@@ -692,8 +712,11 @@ async function createTaskUnlocked(params: CreateTaskParams, root: string): Promi
   await fs.mkdir(tasksDir, { recursive: true })
   const filePath = path.join(tasksDir, filename)
 
-  const due = params.due ? parseDue(params.due) : null
+  let due = params.due ? parseDue(params.due) : null
   if (params.due && !due) throw new RoadmapError(`due must be a date YYYY-MM-DD (got ${JSON.stringify(params.due)})`)
+  // A new task in an epic with a deadline takes the epic's due (R055)
+  const epicId = params.phase?.trim().match(/^(R\d+)\b/i)?.[1]
+  if (!due && epicId) due = (await getRoadmapItem(epicId, root).catch(() => null))?.due ?? null
 
   const meta = `# ${id}: ${title}
 **Status:** 📋 Ready

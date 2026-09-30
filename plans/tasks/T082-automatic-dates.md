@@ -1,8 +1,10 @@
 # T082: Automatic dates
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R055 — Item properties
 **Size:** M
 **Depends on:** T080
+**Owner:** ai:claude
+**Done:** 2026-09-30
 
 ## Goal
 Due dates are filled in without typing, and start/done dates are recorded when the status changes.
@@ -26,3 +28,14 @@ Due dates are filled in without typing, and start/done dates are recorded when t
 ```bash
 pnpm build && pnpm lint
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Start (or let an agent claim) an M-size task with no due → its file gets **Started:** <today> and **Due:** <today + 3 days>; the card shows the due
+- [ ] Start a task that already has a due you typed → the due stays as it was
+- [ ] Mark a task done → **Done:** <today> is added; move it back to todo → the Done line goes away, Started stays
+- [ ] Give an epic a due date, then create a task in it (New task with that epic, or a plan breakdown) → the task starts with the epic's due
+- [ ] Add "tasks": { "sizeDays": { "M": 5 } } to .vibedoc/settings.json, start an M task → due is today + 5
+### Regression risk
+- [ ] Moving tasks between columns still works and does not touch Owner or the task body
