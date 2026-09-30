@@ -1,5 +1,5 @@
 # T076: Doc actions menu in the doc header
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R054 — Item actions
 **Size:** S
 **Depends on:** —
@@ -24,3 +24,17 @@ The open doc has a ⋯ menu in its header, so actions don't depend on hovering o
 ```bash
 pnpm build && pnpm lint
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Open /docs and open a doc → the header row ends with a ⋯ button: Rename, Move to folder, Duplicate, Copy path, Copy link, Chat about this doc, Delete
+- [ ] Rename → dialog shows the new path → Rename → the doc stays open under its new name
+- [ ] Rename it to the name of another doc in the same folder → the dialog shows "A file already exists…" and the other doc is untouched
+- [ ] Move to folder → type notes → the doc moves to notes/ and stays open
+- [ ] Duplicate → <name>-copy.md opens with the same content
+- [ ] Copy link, paste it into a new tab → /docs?doc=… opens that doc
+- [ ] Right-click a doc in the left list → the same menu; Delete → confirm → it disappears from the list
+### Regression risk
+- [ ] Clicking a doc in the list still opens it, and select mode (Copy context) still works
+- [ ] Editing and saving a doc still works

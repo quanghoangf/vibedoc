@@ -4,7 +4,19 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useApp } from "@/context/AppContext"
 import { DocsTab } from "@/components/docs/DocsTab"
 import { NewDocModal } from "@/components/docs/NewDocModal"
+import { DocPathDialog, type DocActions } from "@/components/docs/DocActionsMenu"
+import { askAgent } from "@/lib/ask-agent"
 import type { DocFile } from "@/types"
+
+async function send(url: string, method: string, body: unknown): Promise<string | null> {
+  try {
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    if (res.ok) return null
+    return (await res.json().catch(() => null))?.error ?? `Request failed (${res.status})`
+  } catch {
+    return "Could not reach the server"
+  }
+}
 
 export default function DocsPage() {
   const { selectedDoc, setSelectedDoc, rootParam, activeProject } = useApp()
@@ -12,6 +24,7 @@ export default function DocsPage() {
   const [docSearch, setDocSearch] = useState("")
   const [newDocOpen, setNewDocOpen] = useState(false)
   const isDirtyRef = useRef(false)
+  const [pathDialog, setPathDialog] = useState<{ mode: "rename" | "move"; path: string } | null>(null)
 
   const fetchDocs = useCallback(() => {
     if (!activeProject) return
@@ -49,6 +62,19 @@ export default function DocsPage() {
     setSelectedDoc(data)
   }
 
+  // ?doc=path (Copy link) opens that doc once on arrival
+  const openedLinkRef = useRef(false)
+  useEffect(() => {
+    if (openedLinkRef.current || !activeProject) return
+    openedLinkRef.current = true
+    const linked = new URLSearchParams(window.location.search).get("doc")
+    if (!linked) return
+    fetch(`/api/docs${rootParam}&read=${encodeURIComponent(linked)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d?.path) setSelectedDoc(d) })
+      .catch(() => {})
+  }, [activeProject, rootParam, setSelectedDoc])
+
   async function handleDocCreated(path: string) {
     fetchDocs()
     await handleDocSelect(path)
@@ -77,9 +103,48 @@ export default function DocsPage() {
     }
   }
 
+  async function renameTo(oldPath: string, newPath: string): Promise<string | null> {
+    const err = await send(`/api/docs${rootParam}`, "PATCH", { oldPath, newPath })
+    if (!err) await handleDocRenamed(oldPath, newPath)
+    return err
+  }
+
+  const docActions: DocActions = {
+    rename: (path) => setPathDialog({ mode: "rename", path }),
+    move: (path) => setPathDialog({ mode: "move", path }),
+    duplicate: async (path) => {
+      const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(path)}`)
+      const { content } = await res.json()
+      const stem = path.replace(/\.md$/, "")
+      // first free name: x-copy.md, x-copy-2.md, …
+      for (let n = 1; n < 50; n++) {
+        const target = `${stem}-copy${n > 1 ? `-${n}` : ""}.md`
+        const err = await send(`/api/docs${rootParam}`, "POST", { path: target, content })
+        if (!err) return handleDocCreated(target)
+        if (err !== "File already exists") return window.alert(err)
+      }
+    },
+    copyPath: (path) => { navigator.clipboard.writeText(path) },
+    copyLink: (path) => { navigator.clipboard.writeText(`${window.location.origin}/docs?doc=${encodeURIComponent(path)}`) },
+    chat: (path) => askAgent(`Let's talk about ${path}. Read it first.`, { newChat: true }),
+    remove: async (path) => {
+      if (!window.confirm(`Delete ${path}?`)) return
+      const err = await send(`/api/docs${rootParam}`, "DELETE", { path })
+      if (err) return window.alert(err)
+      handleDocDeleted(path)
+    },
+  }
+
   return (
     <>
+      <DocPathDialog
+        mode={pathDialog?.mode ?? null}
+        path={pathDialog?.path ?? ""}
+        onSubmit={(newPath) => renameTo(pathDialog?.path ?? "", newPath)}
+        onClose={() => setPathDialog(null)}
+      />
       <DocsTab
+        docActions={docActions}
         docs={docs}
         selectedDoc={selectedDoc}
         docSearch={docSearch}

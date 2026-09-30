@@ -994,6 +994,10 @@ export async function renameDoc(oldPath: string, newPath: string, root: string):
   if (!fullNew.startsWith(resolvedRoot + path.sep) && fullNew !== resolvedRoot) {
     throw new Error('Path outside root')
   }
+  // fs.rename silently replaces an existing file
+  if (fullNew !== fullOld && await fs.access(fullNew).then(() => true, () => false)) {
+    throw new Error(`A file already exists at ${newPath}`)
+  }
   await fs.mkdir(path.dirname(fullNew), { recursive: true })
   try {
     await fs.rename(fullOld, fullNew)

@@ -4,14 +4,16 @@ import { useApp } from "@/context/AppContext"
 import type { SelectedDoc } from "@/types"
 import { MarkdownEditor } from "./MarkdownEditor"
 import { BacklinksPanel } from "./BacklinksPanel"
+import { DocActionsMenu, type DocActions } from "./DocActionsMenu"
 
 interface DocViewerProps {
   doc: SelectedDoc | null
   onDirtyChange?: (dirty: boolean) => void
   onContentChange?: (content: string) => void
+  docActions?: DocActions
 }
 
-export function DocViewer({ doc, onDirtyChange, onContentChange }: DocViewerProps) {
+export function DocViewer({ doc, onDirtyChange, onContentChange, docActions }: DocViewerProps) {
   const { rootParam, setSelectedDoc, openDoc, editorSettings } = useApp()
 
   if (!doc) {
@@ -45,6 +47,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange }: DocViewerProp
         onContentChange={onContentChange}
         wordWrap={editorSettings.wordWrap}
         lineNumbers={editorSettings.lineNumbers}
+        headerActions={docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
       />
       <BacklinksPanel
         docPath={doc.path}

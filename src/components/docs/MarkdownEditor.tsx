@@ -26,9 +26,11 @@ interface Props {
   onContentChange?: (content: string) => void
   wordWrap?: boolean
   lineNumbers?: boolean
+  /** Extra controls at the end of the header row (e.g. the doc ⋯ menu) */
+  headerActions?: React.ReactNode
 }
 
-export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true }: Props) {
+export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, headerActions }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
   const { rootParam } = useApp()
   const ytextRef = useRef<import("yjs").Text | null>(null)
@@ -312,6 +314,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         <span className={`text-xs flex items-center gap-1 ${statusColor}`}>
           {saveStatus === "saved" && <Check className="h-3 w-3" />}{statusText}
         </span>
+        {headerActions}
       </div>
 
       {/* Toolbar — hidden in preview mode */}

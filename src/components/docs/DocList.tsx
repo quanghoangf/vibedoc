@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { DocFile } from "@/types"
+import { DocActionsMenu, type DocActions } from "./DocActionsMenu"
 
 // ─── Selection context (scoped to DocList, not exported) ──────────────────────
 
@@ -24,13 +25,10 @@ const SelectionCtx = createContext<{
   active: boolean
   selected: Set<string>
   toggle: (path: string) => void
-  onRename: (path: string) => void
-  onDelete: (path: string) => void
-  renamingPath: string | null
-  setRenamingPath: (path: string | null) => void
+  actions: DocActions | null
   collapsed: Set<string>
   toggleFolder: (folderPath: string) => void
-}>({ active: false, selected: new Set(), toggle: () => {}, onRename: () => {}, onDelete: () => {}, renamingPath: null, setRenamingPath: () => {}, collapsed: new Set(), toggleFolder: () => {} })
+}>({ active: false, selected: new Set(), toggle: () => {}, actions: null, collapsed: new Set(), toggleFolder: () => {} })
 
 // ─── Resizable width ──────────────────────────────────────────────────────────
 
@@ -107,49 +105,17 @@ interface TreeNodeRowProps {
 }
 
 function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: TreeNodeRowProps) {
-  const { active: selectMode, selected, toggle, onRename, onDelete, renamingPath, setRenamingPath, collapsed, toggleFolder } = useContext(SelectionCtx)
-  const [renameValue, setRenameValue] = useState(node.name)
+  const { active: selectMode, selected, toggle, actions, collapsed, toggleFolder } = useContext(SelectionCtx)
+  const [menuOpen, setMenuOpen] = useState(false)
   const isFile = !!node.docPath
   const isActive = node.docPath === selectedPath
   const isChecked = node.docPath ? selected.has(node.docPath) : false
-  const isRenaming = node.docPath === renamingPath
   const indent = depth * 12
 
   if (isFile) {
-    if (isRenaming) {
-      return (
-        <div
-          style={{ paddingLeft: `${8 + indent}px` }}
-          className="flex items-center gap-2 h-7 pr-2"
-        >
-          <FileText className="h-3.5 w-3.5 shrink-0 opacity-50" />
-          <Input
-            autoFocus
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const newName = renameValue.trim()
-                if (newName && newName !== node.name) {
-                  const dir = node.docPath!.split("/").slice(0, -1).join("/")
-                  const newPath = dir ? `${dir}/${newName}.md` : `${newName}.md`
-                  onRename(newPath)
-                }
-                setRenamingPath(null)
-              } else if (e.key === "Escape") {
-                setRenameValue(node.name)
-                setRenamingPath(null)
-              }
-            }}
-            onBlur={() => { setRenameValue(node.name); setRenamingPath(null) }}
-            className="h-5 text-xs px-1 py-0"
-          />
-        </div>
-      )
-    }
-
     return (
       <div
+        onContextMenu={(e) => { if (!selectMode && actions) { e.preventDefault(); setMenuOpen(true) } }}
         className={cn(
           "group w-full flex items-center gap-2 h-7 pr-1 rounded-md text-xs transition-colors",
           isActive && !selectMode
@@ -176,25 +142,14 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
           )}
           <span className="truncate">{formatName(node.name)}</span>
         </button>
-        {!selectMode && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="h-5 w-5 shrink-0 flex items-center justify-center rounded-sm opacity-0 group-hover:opacity-100 hover:bg-surface2 transition-opacity"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-3.5 w-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-32">
-              <DropdownMenuItem onClick={() => { setRenameValue(node.name.replace(/\.md$/, "")); setRenamingPath(node.docPath!) }}>
-                <Pencil className="h-3.5 w-3.5 mr-2" /> Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onDelete(node.docPath!)} className="text-red-400 focus:text-red-400">
-                <Trash2 className="h-3.5 w-3.5 mr-2" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {!selectMode && actions && (
+          <DocActionsMenu
+            path={node.docPath!}
+            actions={actions}
+            open={menuOpen}
+            onOpenChange={setMenuOpen}
+            className="size-5 rounded-sm opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+          />
         )}
       </div>
     )
@@ -239,16 +194,14 @@ interface DocListProps {
   onSearchChange: (value: string) => void
   onDocClick: (path: string) => void
   onNewDocClick?: () => void
-  onDocDeleted?: (path: string) => void
-  onDocRenamed?: (oldPath: string, newPath: string) => void
   rootParam?: string
+  docActions?: DocActions
 }
 
-export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, onDocDeleted, onDocRenamed, rootParam = "" }: DocListProps) {
+export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, rootParam = "", docActions }: DocListProps) {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "copied">("idle")
-  const [renamingPath, setRenamingPath] = useState<string | null>(null)
   const [pendingNewPath, setPendingNewPath] = useState<string | null>(null)
   const [width, setWidth] = useState(lastWidth)
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
@@ -315,36 +268,6 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
     setCopyStatus("idle")
   }
 
-  async function handleRename(newPath: string) {
-    if (!renamingPath || !onDocRenamed) return
-    try {
-      const res = await fetch(`/api/docs${rootParam}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ oldPath: renamingPath, newPath }),
-      })
-      if (res.ok) {
-        onDocRenamed(renamingPath, newPath)
-      }
-    } catch {}
-    setRenamingPath(null)
-  }
-
-  async function handleDelete(docPath: string) {
-    if (!onDocDeleted) return
-    if (!window.confirm(`Delete ${docPath}?`)) return
-    try {
-      const res = await fetch(`/api/docs${rootParam}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: docPath }),
-      })
-      if (res.ok) {
-        onDocDeleted(docPath)
-      }
-    } catch {}
-  }
-
   async function handleCopyContext() {
     if (selected.size === 0) return
     setCopyStatus("copying")
@@ -364,7 +287,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
   }
 
   return (
-    <SelectionCtx.Provider value={{ active: selectMode, selected, toggle, onRename: handleRename, onDelete: handleDelete, renamingPath, setRenamingPath, collapsed, toggleFolder }}>
+    <SelectionCtx.Provider value={{ active: selectMode, selected, toggle, actions: docActions ?? null, collapsed, toggleFolder }}>
       <aside style={{ width }} className="relative flex flex-col border-r border-border shrink-0 bg-sidebar">
         {/* Resize handle — drag, arrow keys, or double-click to reset */}
         <div

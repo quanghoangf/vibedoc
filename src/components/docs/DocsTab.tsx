@@ -6,6 +6,7 @@ import { extractHeadings } from "@/lib/headings"
 import { DocList } from "./DocList"
 import { DocViewer } from "./DocViewer"
 import { DocOutline } from "./DocOutline"
+import type { DocActions } from "./DocActionsMenu"
 
 interface DocsTabProps {
   docs: DocFile[]
@@ -18,9 +19,10 @@ interface DocsTabProps {
   onDocDeleted?: (path: string) => void
   onDocRenamed?: (oldPath: string, newPath: string) => void
   rootParam?: string
+  docActions?: DocActions
 }
 
-export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSelect, onDirtyChange, onNewDocClick, onDocDeleted, onDocRenamed, rootParam }: DocsTabProps) {
+export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSelect, onDirtyChange, onNewDocClick, onDocDeleted, onDocRenamed, rootParam, docActions }: DocsTabProps) {
   const [liveContent, setLiveContent] = useState(selectedDoc?.content ?? "")
   useEffect(() => { setLiveContent(selectedDoc?.content ?? "") }, [selectedDoc?.path])
   const headings = useMemo(() => extractHeadings(liveContent), [liveContent])
@@ -34,12 +36,11 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
         onSearchChange={onSearchChange}
         onDocClick={onDocSelect}
         onNewDocClick={onNewDocClick}
-        onDocDeleted={onDocDeleted}
-        onDocRenamed={onDocRenamed}
         rootParam={rootParam}
+        docActions={docActions}
       />
       <div className="flex-1 overflow-y-auto">
-        <DocViewer doc={selectedDoc} onDirtyChange={onDirtyChange} onContentChange={setLiveContent} />
+        <DocViewer doc={selectedDoc} onDirtyChange={onDirtyChange} onContentChange={setLiveContent} docActions={docActions} />
       </div>
       {selectedDoc && <DocOutline headings={headings} />}
     </div>
