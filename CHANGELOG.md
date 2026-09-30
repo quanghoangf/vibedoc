@@ -1,3 +1,12 @@
+# [1.10.0](https://github.com/quanghoangf/vibedoc/compare/v1.9.0...v1.10.0) (2026-09-30)
+
+
+### Features
+
+* **docs:** content-first reading pane, token editor theme, collapsible docs list ([d346899](https://github.com/quanghoangf/vibedoc/commit/d346899608b3e2790e98feb3c75046947a649ed5))
+* **roadmap:** Arrange button to tidy the map ([1bcfba7](https://github.com/quanghoangf/vibedoc/commit/1bcfba77f139f4046f974e3160fc2d5dc9248a73))
+* **ui:** P0-P3 priority and Notion-style properties for docs, tasks and epics ([818f3cf](https://github.com/quanghoangf/vibedoc/commit/818f3cfed50fa18de2a7c3e40af4251fe61ec03d))
+
 # [1.9.0](https://github.com/quanghoangf/vibedoc/compare/v1.8.0...v1.9.0) (2026-09-30)
 
 
