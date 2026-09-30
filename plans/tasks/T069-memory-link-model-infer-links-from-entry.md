@@ -1,8 +1,12 @@
 # T069: Memory link model — infer links from entry text + /api/memory/graph
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R053 — Memory graph
 **Size:** M
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 VibeDoc knows, for every memory entry, which tasks, epics, ADRs, docs and other entries it mentions and which of those mention it back. That comes out as one graph (nodes + edges) that the panel, the MCP output and the graph view all read from.
@@ -56,3 +60,14 @@ node src/lib/memory-graph.check.mts
 pnpm build && pnpm lint
 curl -s 'localhost:3000/api/memory/graph' | head -c 800
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Save an entry whose details mention a task id, an epic id and a doc path in backticks (e.g. `docs/architecture/HLD.md`), then open /api/memory/graph?entry=<its id> → the entry, that task, epic and doc, and one edge to each
+- [ ] Add the entry id (e.g. E001) to a task file and reload the URL → an edge from that task to the entry
+- [ ] Mention an id that doesn't exist (T999) or the entry's own id → no node or edge for it
+- [ ] Open /api/memory/graph → every entry is listed, including ones with no links; tasks or docs that never touch an entry are not
+- [ ] Open /api/memory/graph?entry=bad → a 400 error
+### Regression risk
+- [ ] The "Referenced by" backlinks panel on a doc still lists the docs that link to it

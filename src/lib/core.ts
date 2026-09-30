@@ -20,6 +20,7 @@ import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
+import { buildGraph, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1500,6 +1501,31 @@ export async function findBacklinks(
     } catch { /* skip unreadable */ }
   }
   return results
+}
+
+/**
+ * The memory link graph (R053), built on request from the files: every entry, plus the tasks, roadmap items,
+ * ADRs and docs an entry mentions or that mention an entry id. Pure resolution in src/lib/memory-graph.ts.
+ */
+export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
+  // ponytail: reads every .md on each call, like findBacklinks; cache by mtime if big repos make it slow
+  const [entries, files] = await Promise.all([
+    listEntries(root),
+    glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**', 'memory/entries/**'], nodir: true }),
+  ])
+  const others = await Promise.all(files.map(async (f): Promise<GraphItem | null> => {
+    try {
+      const raw = await fs.readFile(path.join(root, f), 'utf8')
+      return { ...fileNode(f, raw), text: raw }
+    } catch (e) {
+      console.warn(`memory graph: skipped ${f}`, e)
+      return null
+    }
+  }))
+  return buildGraph(
+    entries.map(e => ({ id: e.id, kind: 'entry', label: e.summary, path: e.file.replace(/\\/g, '/'), text: `${e.summary}\n${e.body}` })),
+    others.filter((o): o is GraphItem => !!o),
+  )
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────
