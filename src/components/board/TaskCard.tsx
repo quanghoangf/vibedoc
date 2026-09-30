@@ -5,7 +5,8 @@ import Link from "next/link"
 import { CornerDownRight, CornerUpLeft, FlaskConical, MoreHorizontal, PanelRightOpen, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/context/AppContext"
-import { deleteTaskWithConfirm } from "./task-api"
+import { deleteTaskWithUndo } from "./task-api"
+import { toast } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
@@ -135,7 +136,7 @@ function CardMenu({ task, onOpen }: { task: Task; onOpen: () => void }) {
         <DropdownMenuItem onSelect={onOpen}><PanelRightOpen /> Open</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onSelect={() => { deleteTaskWithConfirm(task, rootParam).catch((e: Error) => window.alert(e.message)) }}
+          onSelect={() => { deleteTaskWithUndo(task, rootParam).catch((e: Error) => toast(e.message)) }}
           className="text-danger focus:text-danger"
         >
           <Trash2 /> Delete

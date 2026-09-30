@@ -1,5 +1,5 @@
 # T077: Undo for deletes
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R054 — Item actions
 **Size:** M
 **Depends on:** T074, T075, T076
@@ -25,3 +25,15 @@ Deleting a task, epic or doc shows a toast with Undo for a few seconds, instead 
 ```bash
 pnpm build && pnpm lint
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] /board: hover a card → ⋯ → Delete → no confirm dialog; the card disappears and a toast "Deleted T0xx · Undo" shows at the bottom
+- [ ] Click Undo → the card comes back, the task file is identical to before, and it is back in the same spot in its epic's **Tasks:** line
+- [ ] /roadmap: right-click an epic with no children → Delete → toast → Undo → the epic comes back at the same place on the map
+- [ ] /docs: open a doc → ⋯ → Delete → toast → Undo → the doc comes back with the same content and is open again
+- [ ] Wait ~8 s after a delete without clicking Undo → the toast goes away and the item stays deleted
+### Regression risk
+- [ ] Deleting a horizon that still has epics is still refused (Delete greyed out)
+- [ ] Deleting a saved board view still asks for confirmation (unchanged)

@@ -477,18 +477,51 @@ export async function updateTaskMeta(
   return getTask(task.id, root)
 }
 
-/** Delete the task file and unlink it from every epic's **Tasks:** line. Returns the removed task (with raw). */
-export function deleteTask(taskId: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<Task> {
+/** Where a deleted task sat in an epic's **Tasks:** line, so Undo can put it back in place. */
+export interface TaskLink { epic: string; index: number }
+
+/** Delete the task file and unlink it from every epic's **Tasks:** line. Returns the removed task (with raw) and its links. */
+export function deleteTask(taskId: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<{ task: Task; links: TaskLink[] }> {
   return withTaskClaimLock(async () => {
     const task = await getTask(taskId, root)
     await fs.unlink(path.join(root, task.file))
     // Task lock, then roadmap lock: same order as applyPlan.
     const { items } = await listRoadmap(root)
+    const links: TaskLink[] = []
     for (const epic of items.filter(i => i.tasks.includes(task.id))) {
+      links.push({ epic: epic.id, index: epic.tasks.indexOf(task.id) })
       await updateRoadmapItem(epic.id, { tasks: epic.tasks.filter(t => t !== task.id) }, root, actor)
     }
     await appendActivity(root, { type: 'task_updated', actor, title: `${task.id} deleted`, detail: task.title, taskId: task.id })
-    return task
+    return { task, links }
+  })
+}
+
+/** Only a plain `<dir>/<name>.md` path counts: no traversal, no subfolders. */
+function isFileIn(rel: unknown, dir: string, name: RegExp): rel is string {
+  if (typeof rel !== 'string') return false
+  const norm = path.posix.normalize(rel)
+  return norm === rel && path.posix.dirname(norm) === dir && name.test(path.posix.basename(norm))
+}
+
+/** Undo for deleteTask: write the file back byte-for-byte (never over an existing one) and re-link it. */
+export function restoreTask(file: unknown, raw: unknown, links: TaskLink[], root: string, actor: 'ai' | 'human' = 'human'): Promise<Task> {
+  return withTaskClaimLock(async () => {
+    if (!isFileIn(file, 'plans/tasks', /^T\d+[^/]*\.md$/) || typeof raw !== 'string') throw new RoadmapError('Invalid task to restore')
+    const id = path.basename(file).match(/^(T\d+)/i)![1].toUpperCase()
+    if (await getTask(id, root).then(() => true, () => false)) throw new RoadmapError(`${id} already exists`)
+    await fs.mkdir(path.join(root, 'plans/tasks'), { recursive: true })
+    await fs.writeFile(path.join(root, file), raw, { flag: 'wx', encoding: 'utf8' })
+    const { items } = await listRoadmap(root)
+    for (const link of Array.isArray(links) ? links : []) {
+      const epic = items.find(i => i.id === link?.epic)
+      if (!epic || epic.tasks.includes(id)) continue
+      const tasks = [...epic.tasks]
+      tasks.splice(Math.max(0, Math.min(Number(link.index) || 0, tasks.length)), 0, id)
+      await updateRoadmapItem(epic.id, { tasks }, root, actor)
+    }
+    await appendActivity(root, { type: 'task_updated', actor, title: `${id} restored`, taskId: id })
+    return getTask(id, root)
   })
 }
 
@@ -1011,15 +1044,18 @@ export async function renameDoc(oldPath: string, newPath: string, root: string):
   try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root) } catch {}
 }
 
-export async function deleteDoc(docPath: string, root: string): Promise<void> {
+/** Returns the removed content, so the client can offer Undo (re-create via createDoc). */
+export async function deleteDoc(docPath: string, root: string): Promise<string> {
   const resolvedRoot = path.resolve(root)
   const fullPath = path.resolve(root, docPath)
   if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
     throw new Error('Path outside root')
   }
+  const content = await fs.readFile(fullPath, 'utf8')
   await fs.unlink(fullPath)
   await appendActivity(root, { type: 'doc_deleted', actor: 'human', title: `Deleted ${docPath}` })
   try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root) } catch {}
+  return content
 }
 
 // ─── Document Registry ────────────────────────────────────────────────────────
@@ -1620,12 +1656,15 @@ async function updateRoadmapItemUnlocked(
   return updated
 }
 
-export function deleteRoadmapItem(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<void> {
+export interface DeletedRoadmapItem { item: RoadmapItem; raw: string; position: { x: number; y: number } | null }
+
+export function deleteRoadmapItem(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<DeletedRoadmapItem> {
   return withRoadmapLock(() => deleteRoadmapItemUnlocked(id, root, actor))
 }
 
-async function deleteRoadmapItemUnlocked(id: string, root: string, actor: 'ai' | 'human'): Promise<void> {
-  const { item } = await findRoadmapFile(id, root)
+async function deleteRoadmapItemUnlocked(id: string, root: string, actor: 'ai' | 'human'): Promise<DeletedRoadmapItem> {
+  const { item, raw } = await findRoadmapFile(id, root)
+  const position = (await readRoadmapLayout(root))[item.id] ?? null
   const items = (await readRoadmapFiles(root)).map(f => f.item)
   const children = items.filter(i => i.parent === item.id).map(i => i.id)
   if (children.length > 0) {
@@ -1635,6 +1674,24 @@ async function deleteRoadmapItemUnlocked(id: string, root: string, actor: 'ai' |
   // Prune now so a later create reusing this id doesn't inherit the old position.
   await writeRoadmapLayoutUnlocked({}, root)
   await appendActivity(root, { type: 'roadmap_updated', actor, title: `${item.id} deleted`, detail: item.title })
+  return { item, raw, position }
+}
+
+/** Undo for deleteRoadmapItem: write the file back byte-for-byte (never over an existing id) and its position. */
+export function restoreRoadmapItem(
+  file: unknown, raw: unknown, position: unknown, root: string, actor: 'ai' | 'human' = 'human'
+): Promise<RoadmapItem> {
+  return withRoadmapLock(async () => {
+    if (!isFileIn(file, ROADMAP_DIR, /^R\d+[^/]*\.md$/) || typeof raw !== 'string') throw new RoadmapError('Invalid roadmap item to restore')
+    const id = roadmapIdOf(file)
+    if (!id) throw new RoadmapError('Invalid roadmap item to restore')
+    if (await findRoadmapFile(id, root).then(() => true, () => false)) throw new RoadmapError(`${id} already exists`)
+    await fs.mkdir(path.join(root, ROADMAP_DIR), { recursive: true })
+    await fs.writeFile(path.join(root, file), raw, { flag: 'wx', encoding: 'utf8' })
+    if (position) await writeRoadmapLayoutUnlocked({ [id]: position as { x: number; y: number } }, root)
+    await appendActivity(root, { type: 'roadmap_updated', actor, title: `${id} restored` })
+    return (await findRoadmapFile(id, root)).item
+  })
 }
 
 export async function readRoadmapLayout(root: string): Promise<RoadmapLayout> {

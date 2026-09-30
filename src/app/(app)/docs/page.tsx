@@ -6,6 +6,7 @@ import { DocsTab } from "@/components/docs/DocsTab"
 import { NewDocModal } from "@/components/docs/NewDocModal"
 import { DocPathDialog, type DocActions } from "@/components/docs/DocActionsMenu"
 import { askAgent } from "@/lib/ask-agent"
+import { toast, undoToast } from "@/components/ui/toast"
 import type { DocFile } from "@/types"
 
 async function send(url: string, method: string, body: unknown): Promise<string | null> {
@@ -121,17 +122,24 @@ export default function DocsPage() {
         const target = `${stem}-copy${n > 1 ? `-${n}` : ""}.md`
         const err = await send(`/api/docs${rootParam}`, "POST", { path: target, content })
         if (!err) return handleDocCreated(target)
-        if (err !== "File already exists") return window.alert(err)
+        if (err !== "File already exists") return toast(err)
       }
     },
     copyPath: (path) => { navigator.clipboard.writeText(path) },
     copyLink: (path) => { navigator.clipboard.writeText(`${window.location.origin}/docs?doc=${encodeURIComponent(path)}`) },
     chat: (path) => askAgent(`Let's talk about ${path}. Read it first.`, { newChat: true }),
     remove: async (path) => {
-      if (!window.confirm(`Delete ${path}?`)) return
-      const err = await send(`/api/docs${rootParam}`, "DELETE", { path })
-      if (err) return window.alert(err)
+      const wasOpen = selectedDoc?.path === path
+      const res = await fetch(`/api/docs${rootParam}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) return toast(data?.error ?? "Delete failed")
       handleDocDeleted(path)
+      undoToast(`Deleted ${path}`, async () => {
+        const err = await send(`/api/docs${rootParam}`, "POST", { path, content: data.content })
+        if (err) throw new Error(err)
+        if (wasOpen) await handleDocCreated(path)
+        else fetchDocs()
+      })
     },
   }
 

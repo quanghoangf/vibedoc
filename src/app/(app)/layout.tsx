@@ -11,6 +11,7 @@ import { CommandPalette } from "@/components/layout/CommandPalette"
 import { QuickOpen } from "@/components/layout/QuickOpen"
 import { NewDocModal } from "@/components/docs/NewDocModal"
 import { ChatModal } from "@/components/chat/ChatModal"
+import { Toaster } from "@/components/ui/toast"
 import { ChatProvider, useChats } from "@/context/ChatContext"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
@@ -132,6 +133,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         />
         <main id="main" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto outline-none">{children}</main>
         <ChatModal />
+        <Toaster />
 
         <QuickOpen
           open={quickOpen}

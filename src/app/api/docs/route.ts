@@ -67,9 +67,10 @@ export async function DELETE(req: NextRequest) {
   try {
     const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
     const { path: docPath } = await req.json()
-    await deleteDoc(docPath, root)
+    const content = await deleteDoc(docPath, root)
     emitUpdate('doc_deleted', { path: docPath })
-    return NextResponse.json({ ok: true })
+    // content lets the client undo by re-creating the doc
+    return NextResponse.json({ ok: true, content })
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 })
   }

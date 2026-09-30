@@ -10,7 +10,7 @@ import { TaskSessions } from "./TaskSessions"
 import Link from "next/link"
 import { Check, CornerUpLeft, FlaskConical, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { deleteTaskWithConfirm, updateTask } from "./task-api"
+import { deleteTaskWithUndo, updateTask } from "./task-api"
 import type { TaskMetaPatch } from "@/types"
 import { AgentMark } from "@/components/chat/AgentMark"
 import { useApp } from "@/context/AppContext"
@@ -62,7 +62,8 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
     if (!task) return
     setError(null)
     try {
-      if (await deleteTaskWithConfirm(task, rootParam)) onClose()
+      await deleteTaskWithUndo(task, rootParam)
+      onClose()
     } catch (e) {
       setError((e as Error).message)
     }

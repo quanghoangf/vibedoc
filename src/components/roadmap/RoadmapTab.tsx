@@ -35,6 +35,7 @@ import { PlanFromSpecDialog } from "./PlanFromSpecDialog"
 import { BreakdownEpicsDialog } from "./BreakdownEpicsDialog"
 import { ItemContextMenu, type ContextMenuState, type ItemActions } from "./ItemActionsMenu"
 import { useChats } from "@/context/ChatContext"
+import { undoToast } from "@/components/ui/toast"
 
 type ApiResult<T> = { data?: T; error?: string }
 
@@ -347,9 +348,17 @@ export function RoadmapTab() {
   }
 
   async function deleteItem(id: string): Promise<string | null> {
-    const { error: err } = await api(`/api/roadmap/delete${rootParam}`, { id })
+    type Deleted = { file: string; raw: string; position: { x: number; y: number } | null }
+    const { data, error: err } = await api<Deleted>(`/api/roadmap/delete${rootParam}`, { id })
     if (err) return err
     applyData(items.filter((i) => i.id !== id), layout)
+    if (data) {
+      undoToast(`Deleted ${id}`, async () => {
+        const { error: undoErr } = await api(`/api/roadmap/restore${rootParam}`, data)
+        if (undoErr) throw new Error(undoErr)
+        await load()
+      })
+    }
     return null
   }
 
@@ -379,8 +388,6 @@ export function RoadmapTab() {
     openFile: (file) => openDoc(file),
     chat: (id) => { setSelectedId(null); showAbout({ kind: "epic", id }) },
     remove: async (id) => {
-      const it = items.find((i) => i.id === id)
-      if (!it || !window.confirm(`Delete ${it.id}: ${it.title}?`)) return
       const err = await deleteItem(id)
       if (err) return setError(err)
       if (selectedId === id) setSelectedId(null)

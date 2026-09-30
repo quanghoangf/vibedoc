@@ -228,7 +228,6 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
   }
 
   async function remove() {
-    if (!window.confirm(`Delete ${item.id}: ${item.title}?`)) return
     if (await run(() => onDelete(item.id))) onClose()
   }
 
