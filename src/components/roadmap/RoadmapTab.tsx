@@ -16,7 +16,7 @@ import "@xyflow/react/dist/style.css"
 
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
-import { AlertTriangle, Bot, FileText, ListTree, Plus, Sparkles } from "lucide-react"
+import { AlertTriangle, Bot, FileText, LayoutGrid, ListTree, Plus, Sparkles } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -27,7 +27,7 @@ import { dueState, localToday, roadmapHealth, taskDueSummary, type RoadmapDrift,
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { RoadmapTimeline } from "./RoadmapTimeline"
-import { FEATURE_W, HORIZON_W, resolvePositions } from "./layout"
+import { FEATURE_W, HORIZON_W, arrangePositions, resolvePositions } from "./layout"
 import { STATUS_LABEL, StatusDot, nodeTypes, type RoadmapNode } from "./RoadmapNodes"
 import { RoadmapItemSheet } from "./RoadmapItemSheet"
 import { NewItemDialog } from "./NewItemDialog"
@@ -167,12 +167,14 @@ export function RoadmapTab() {
 
   // Like roadmap.sh: open at readable zoom, centered horizontally, from the top of the map.
   // fitView on a large roadmap shrinks text to unreadable sizes.
-  const showTop = useCallback((rf: ReactFlowInstance<RoadmapNode>) => {
+  const rfRef = useRef<ReactFlowInstance<RoadmapNode> | null>(null)
+  const showTop = useCallback((rf: ReactFlowInstance<RoadmapNode>, duration = 0) => {
+    rfRef.current = rf
     const width = containerRef.current?.clientWidth ?? 0
     const bounds = rf.getNodesBounds(rf.getNodes())
     if (!width || !bounds.width) return
     const zoom = Math.min(1, Math.max(MIN_INITIAL_ZOOM, (width - VIEWPORT_PAD * 2) / bounds.width))
-    rf.setViewport({ x: width / 2 - (bounds.x + bounds.width / 2) * zoom, y: VIEWPORT_PAD - bounds.y * zoom, zoom })
+    rf.setViewport({ x: width / 2 - (bounds.x + bounds.width / 2) * zoom, y: VIEWPORT_PAD - bounds.y * zoom, zoom }, { duration })
   }, [])
   // a roadmap_updated that arrived mid-drag; reloaded once the drag's layout POST lands
   const pendingReloadRef = useRef(false)
@@ -301,6 +303,49 @@ export function RoadmapTab() {
         load()
       }
     })
+  }
+
+  const [arranging, setArranging] = useState(false)
+
+  /** Tidy the whole map: every node glides to its arranged spot, then the layout is saved (Undo puts the old one back). */
+  function arrange() {
+    const round = (p: { x: number; y: number }) => ({ x: Math.round(p.x), y: Math.round(p.y) })
+    const heights = new Map(nodes.map((n) => [n.id, n.measured?.height ?? 48]))
+    const before = resolvePositions(items, layout)
+    const after: RoadmapLayout = Object.fromEntries(
+      Object.entries(arrangePositions(items, (id) => heights.get(id) ?? 48)).map(([id, p]) => [id, round(p)]),
+    )
+    const previous: RoadmapLayout = Object.fromEntries(Object.entries(before).map(([id, p]) => [id, round(p)]))
+    setArranging(true)
+    const finish = () => {
+      applyData(items, { ...layout, ...after })
+      setArranging(false)
+      requestAnimationFrame(() => { if (rfRef.current) showTop(rfRef.current, 320) })
+      api(`/api/roadmap/layout${rootParam}`, { positions: after }).then(({ error: err }) => {
+        if (err) return setError(err)
+        undoToast("Arranged the map", async () => {
+          const { error: undoErr } = await api(`/api/roadmap/layout${rootParam}`, { positions: previous })
+          if (undoErr) throw new Error(undoErr)
+          await load()
+        })
+      })
+    }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return finish()
+    // ponytail: JS tween of node positions (edges follow because they're derived from nodes); ~40 nodes is cheap
+    const from = new Map(nodes.map((n) => [n.id, n.position]))
+    const t0 = performance.now()
+    const DURATION = 420
+    const step = (now: number) => {
+      const k = Math.min(1, (now - t0) / DURATION)
+      const e = 1 - Math.pow(1 - k, 4) // ease-out-quart
+      setNodes((nds) => nds.map((n) => {
+        const a = from.get(n.id), b = after[n.id]
+        return a && b ? { ...n, position: { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e } } : n
+      }))
+      if (k < 1) requestAnimationFrame(step)
+      else finish()
+    }
+    requestAnimationFrame(step)
   }
 
   async function generate() {
@@ -471,6 +516,11 @@ export function RoadmapTab() {
               onSelect={setSelectedId}
               onApply={(d) => d.suggestedStatus && saveItem(d.id, { status: d.suggestedStatus }).then((err) => { if (err) setError(err) })}
             />
+          )}
+          {view === "map" && (
+            <Button size="sm" variant="outline" onClick={arrange} disabled={arranging} title="Tidy the map: epics in one column each side of their horizon, nothing overlapping">
+              <LayoutGrid /> Arrange
+            </Button>
           )}
           <Button size="sm" variant="outline" onClick={() => setSpecOpen(true)}>
             <FileText /> Plan from spec

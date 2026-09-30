@@ -48,3 +48,40 @@ export function resolvePositions(items: RoadmapItem[], layout: RoadmapLayout): R
   }
   return out
 }
+
+const ARRANGE_ROW_GAP = 14 // between stacked epics in a column
+const ARRANGE_BLOCK_GAP = 120 // between one horizon's block and the next
+
+/**
+ * "Arrange" (tidy the whole map): ignores saved positions. Each horizon sits on the spine with its epics
+ * in one column per side, stacked by their real heights, in order, each epic going to the shorter side.
+ * The column is centred on its horizon so branches fan out evenly and never cross a node; each horizon's
+ * block starts below the previous block's lowest node.
+ */
+export function arrangePositions(items: RoadmapItem[], heightOf: (id: string) => number): RoadmapLayout {
+  const out: RoadmapLayout = {}
+  let top = 0
+  for (const h of spineItems(items)) {
+    const hh = heightOf(h.id)
+    const kids = h.parent === null ? childrenOf(items, h.id) : []
+    const sides: { id: string; y: number }[][] = [[], []] // right, left
+    const used = [0, 0]
+    for (const c of kids) {
+      const s = used[0] <= used[1] ? 0 : 1
+      sides[s].push({ id: c.id, y: used[s] })
+      used[s] += heightOf(c.id) + ARRANGE_ROW_GAP
+    }
+    const colH = used.map((u) => Math.max(0, u - ARRANGE_ROW_GAP))
+    // centre each column on the horizon, then shift the whole block down so its top is at `top`
+    const centre = hh / 2
+    const colTop = colH.map((c) => centre - c / 2)
+    const shift = top - Math.min(0, ...colTop)
+    out[h.id] = { x: 0, y: shift }
+    sides.forEach((col, s) => {
+      const x = (HORIZON_W - FEATURE_W) / 2 + (s === 0 ? 1 : -1) * BRANCH_DX
+      for (const { id, y } of col) out[id] = { x, y: shift + colTop[s] + y }
+    })
+    top = shift + Math.max(hh, ...colTop.map((t, s) => t + colH[s])) + ARRANGE_BLOCK_GAP
+  }
+  return out
+}
