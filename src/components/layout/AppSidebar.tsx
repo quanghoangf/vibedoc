@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, BookOpen, Zap, Brain, CircleDot, Ban, ClipboardList, CheckCircle2, Settings, FolderTree, Map, FlaskConical } from "lucide-react"
+import { LayoutDashboard, BookOpen, Zap, Brain, CircleDot, Ban, ClipboardList, CheckCircle2, Settings, FolderTree, Map, FlaskConical, Eye } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -31,6 +31,7 @@ const NAV_ITEMS = [
 
 const BOARD_STATS = [
   { status: "in-progress", icon: CircleDot, label: "Active" },
+  { status: "review", icon: Eye, label: "Review" },
   { status: "blocked", icon: Ban, label: "Blocked" },
   { status: "todo", icon: ClipboardList, label: "Todo" },
   { status: "done", icon: CheckCircle2, label: "Done" },

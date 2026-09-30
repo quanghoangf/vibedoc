@@ -67,6 +67,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setBoard(rawBoard && typeof rawBoard === 'object' ? {
         todo: rawBoard.todo ?? [],
         'in-progress': rawBoard['in-progress'] ?? [],
+        review: rawBoard.review ?? [],
         blocked: rawBoard.blocked ?? [],
         done: rawBoard.done ?? [],
         cancelled: rawBoard.cancelled ?? [],

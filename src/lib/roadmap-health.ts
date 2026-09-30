@@ -74,7 +74,7 @@ function atRiskReasons(item: RoadmapItem, linked: string[], tasks: Record<string
     if (t.status !== 'done' && t.due && t.due < today) reasons.push(`${id} overdue since ${t.due}`)
     if (t.status === 'blocked') reasons.push(`${id} blocked`)
   }
-  const started = linked.some(id => tasks[id].status === 'done' || tasks[id].status === 'in-progress')
+  const started = linked.some(id => ['done', 'in-progress', 'review'].includes(tasks[id].status))
   if (item.due && dueState(item.due, item.status, today) === 'soon' && !started) {
     reasons.push(`due ${item.due}, nothing started`)
   }
@@ -108,7 +108,7 @@ export function roadmapHealth(
     }
     if (!linked.length) continue
     const states: Started[] = linked.map(t =>
-      tasks[t].status === 'done' ? 'done' : tasks[t].status === 'in-progress' ? 'in-progress' : 'other')
+      tasks[t].status === 'done' ? 'done' : tasks[t].status === 'in-progress' || tasks[t].status === 'review' ? 'in-progress' : 'other')
     progress[item.id] = { done: states.filter(s => s === 'done').length, total: linked.length }
     const expected = expectedStatus(states)
     if (expected !== item.status) {

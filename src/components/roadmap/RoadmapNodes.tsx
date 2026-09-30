@@ -78,6 +78,7 @@ export function StatusPill({ status }: { status: RoadmapStatus }) {
 export const TASK_STATUS_BG: Record<TaskStatus, string> = {
   done: "bg-teal",
   "in-progress": "bg-amber",
+  review: "bg-accent",
   blocked: "bg-danger",
   todo: "bg-border2",
   cancelled: "bg-border",

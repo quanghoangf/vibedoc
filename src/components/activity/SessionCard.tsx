@@ -9,6 +9,7 @@ import { ActivityEventRow } from "./ActivityEventRow"
 const STATUS_DOT: Record<string, string> = {
   done: "bg-teal",
   "in-progress": "bg-amber",
+  review: "bg-accent",
   blocked: "bg-danger",
   todo: "bg-muted",
   cancelled: "bg-border2",

@@ -7,7 +7,7 @@ import type { Task } from "@/types"
 import { TaskCard, STATUS_ICONS } from "./TaskCard"
 
 interface BoardColumnProps {
-  status: "in-progress" | "todo" | "blocked" | "done"
+  status: "in-progress" | "review" | "todo" | "blocked" | "done"
   tasks: Task[]
   onMoveTask: (id: string, status: string) => void
   onOpenTask: (task: Task) => void

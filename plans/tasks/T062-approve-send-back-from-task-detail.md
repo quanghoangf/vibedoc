@@ -1,5 +1,5 @@
 # T062: Optional Review column + approve / send back
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R043 — Task verification & review
 **Size:** L
 **Depends on:** T060
@@ -57,3 +57,16 @@ call vibedoc_update_task '{"taskId":"T001","status":"review"}'
 curl -s "localhost:3000/api/tasks/review?root=$FX" -H 'content-type: application/json' -d '{"id":"T001","action":"send-back","note":"scroll broken"}'
 call vibedoc_update_task '{"taskId":"T002","status":"done"}'   # still allowed
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Open /board → a Review column sits between In progress and Todo (5 columns on a wide screen)
+- [ ] Drag a card into Review and back out → it moves both ways, and the task file status reads 👀 Review
+- [ ] Open a task in Review → Approve / Send back… buttons; Approve moves it to Done and adds an approved entry under Review history
+- [ ] Send back… with an empty note → the Send back button stays disabled; type a note and send → the card lands in Todo with a changes requested badge (hover shows the note)
+- [ ] Open a task that has a manual test report → the panel shows 0/N manual tests ticked, linking to /manual-tests
+### Regression risk
+- [ ] Moving a task straight to done (drag, panel button, or vibedoc_update_task) still works without review
+- [ ] Roadmap progress and the header stats still count correctly (a task in review counts as started, not done)
+- [ ] vibedoc_list_tasks and vibedoc_get_status include REVIEW

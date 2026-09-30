@@ -29,8 +29,9 @@ export function BoardTab({ board, summary, onMoveTask, onOpenTask, onNewTask }: 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {(["in-progress", "todo", "blocked", "done"] as const).map((col) => (
+      {/* Review is optional: a task can wait there for a human, but nothing has to pass through it */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+        {(["in-progress", "review", "todo", "blocked", "done"] as const).map((col) => (
           <BoardColumn
             key={col}
             status={col}

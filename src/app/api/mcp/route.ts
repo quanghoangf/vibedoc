@@ -158,7 +158,7 @@ const TOOLS = [
       properties: {
         status: {
           type: "string",
-          enum: ["all", "todo", "in-progress", "blocked", "done", "cancelled"],
+          enum: ["all", "todo", "in-progress", "review", "blocked", "done", "cancelled"],
         },
       },
       required: [],
@@ -188,7 +188,7 @@ const TOOLS = [
         taskId: { type: "string" },
         status: {
           type: "string",
-          enum: ["todo", "in-progress", "done", "blocked", "cancelled"],
+          enum: ["todo", "in-progress", "review", "done", "blocked", "cancelled"],
         },
         manualTests: {
           type: "string",
@@ -602,7 +602,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         `**Memory:** ${s.memory.exists ? "exists" : "not yet created"}`,
         "",
         "### Board",
-        `📋 Todo: ${b.todo}  🔨 In Progress: ${b["in-progress"]}  🚫 Blocked: ${b.blocked}  ✅ Done: ${b.done}`,
+        `📋 Todo: ${b.todo}  🔨 In Progress: ${b["in-progress"]}  👀 Review: ${b.review ?? 0}  🚫 Blocked: ${b.blocked}  ✅ Done: ${b.done}`,
       ];
       if (s.tasks.active.length > 0) {
         lines.push("", "**Active:**");
@@ -695,7 +695,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const filter = (args.status as string) || "all";
       const cols =
         filter === "all"
-          ? ["in-progress", "blocked", "todo", "done", "cancelled"]
+          ? ["in-progress", "review", "blocked", "todo", "done", "cancelled"]
           : [filter];
       const lines = [`## Tasks (${tasks.length})\n`];
       for (const col of cols) {

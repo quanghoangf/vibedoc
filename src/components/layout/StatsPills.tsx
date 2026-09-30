@@ -10,6 +10,11 @@ export function StatsPills({ board }: StatsPillsProps) {
       <Badge variant="secondary" className="gap-1 text-xs font-mono text-amber">
         🔨 {board["in-progress"] || 0}
       </Badge>
+      {(board.review ?? 0) > 0 && (
+        <Badge variant="secondary" className="gap-1 text-xs font-mono text-accent" title="Waiting for review">
+          👀 {board.review}
+        </Badge>
+      )}
       <Badge variant="secondary" className="gap-1 text-xs font-mono text-muted">
         📋 {board.todo || 0}
       </Badge>

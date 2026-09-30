@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button"
 import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
 import Link from "next/link"
+import { latestReview } from "@/lib/review"
 
 const STATUS_COLORS: Record<string, string> = {
   todo: "text-muted border-border2",
   "in-progress": "text-amber border-amber/30 bg-amber/5",
+  review: "text-accent border-accent/30 bg-accent/5",
   blocked: "text-danger border-danger/30 bg-danger/5",
   done: "text-teal border-teal/30 bg-teal/5",
   cancelled: "text-muted border-border line-through",
@@ -19,6 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 export const STATUS_BADGE_COLORS: Record<string, string> = {
   todo: "border-border2 text-muted",
   "in-progress": "border-amber/40 text-amber",
+  review: "border-accent/40 text-accent",
   blocked: "border-danger/40 text-danger",
   done: "border-teal/40 text-teal",
   cancelled: "border-border text-muted",
@@ -27,6 +30,7 @@ export const STATUS_BADGE_COLORS: Record<string, string> = {
 export const STATUS_ICONS: Record<string, string> = {
   todo: "📋",
   "in-progress": "🔨",
+  review: "👀",
   blocked: "🚫",
   done: "✅",
   cancelled: "❌",
@@ -34,7 +38,8 @@ export const STATUS_ICONS: Record<string, string> = {
 
 const NEXT_STATUS: Record<string, string[]> = {
   todo: ["in-progress"],
-  "in-progress": ["done", "blocked", "todo"],
+  "in-progress": ["done", "review", "blocked", "todo"],
+  review: ["done", "in-progress"],
   blocked: ["in-progress", "cancelled"],
   done: ["todo"],
   cancelled: ["todo"],
@@ -82,6 +87,13 @@ export function TaskCard({ task, onMove, onOpen }: TaskCardProps) {
 
       {/* Phase */}
       {task.phase && <p className="text-xs text-muted mb-2">{task.phase}</p>}
+
+      {/* Sent back from Review (R043): the reviewer's note is in the task file */}
+      {task.status === "todo" && task.raw && latestReview(task.raw)?.outcome === "changes requested" && (
+        <p className="mb-2 mr-1.5 inline-flex w-fit items-center gap-1 rounded-sm border border-amber/40 bg-amber/5 px-1.5 py-0.5 font-mono text-[10px] text-amber" title={latestReview(task.raw)?.note}>
+          ↩ changes requested
+        </p>
+      )}
 
       {/* Manual test report (R043): what the human should click through */}
       {task.manualTests && (

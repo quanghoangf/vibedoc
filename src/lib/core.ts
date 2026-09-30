@@ -13,10 +13,11 @@ import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS } from './sessions'
 import { parseManualTests, setManualTests, toggleManualTest } from './manual-tests'
+import { appendReviewEntry, type ReviewOutcome } from './review'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type TaskStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled'
+export type TaskStatus = 'todo' | 'in-progress' | 'review' | 'blocked' | 'done' | 'cancelled'
 
 export interface Task {
   id: string
@@ -36,6 +37,8 @@ export interface Task {
 export interface TaskBoard {
   todo: Task[]
   'in-progress': Task[]
+  /** Optional step (R043): waiting for a human to approve or send back. Nothing requires it. */
+  review: Task[]
   blocked: Task[]
   done: Task[]
   cancelled: Task[]
@@ -95,6 +98,7 @@ export interface Project {
 export const STATUS_ICONS: Record<TaskStatus, string> = {
   'todo': '📋',
   'in-progress': '🔨',
+  'review': '👀',
   'blocked': '🚫',
   'done': '✅',
   'cancelled': '❌',
@@ -105,11 +109,12 @@ const STATUS_ALIASES: Record<string, TaskStatus> = {
   wip: 'in-progress', doing: 'in-progress', active: 'in-progress', start: 'in-progress', started: 'in-progress',
   complete: 'done', completed: 'done', finished: 'done', finish: 'done',
   block: 'blocked',
+  'in review': 'review', reviewing: 'review', 'needs review': 'review',
   cancel: 'cancelled', skip: 'cancelled',
 }
 
 export function normalizeStatus(raw: string): TaskStatus {
-  const s = raw.toLowerCase().trim().replace(/[📋🔨✅🚫❌\s]+$/, '').trim()
+  const s = raw.toLowerCase().trim().replace(/[📋🔨👀✅🚫❌\s]+$/, '').trim()
   return (STATUS_ALIASES[s] || s) as TaskStatus
 }
 
@@ -343,7 +348,7 @@ function parseTaskFile(filePath: string, content: string): Task {
     if (m) meta[m[1].toLowerCase().trim()] = m[2].trim()
   }
 
-  const rawStatus = (meta['status'] || 'todo').replace(/[📋🔨✅🚫❌]/g, '').trim()
+  const rawStatus = (meta['status'] || 'todo').replace(/[📋🔨👀✅🚫❌]/g, '').trim()
   const status = normalizeStatus(rawStatus)
   const idM = filename.match(/^(T\d+)/i)
   const id = idM ? idM[1].toUpperCase() : filename.toUpperCase()
@@ -365,7 +370,7 @@ export async function listTasks(root: string): Promise<{ tasks: Task[]; board: T
     } catch {}
   }
 
-  const board: TaskBoard = { todo: [], 'in-progress': [], blocked: [], done: [], cancelled: [] }
+  const board: TaskBoard = { todo: [], 'in-progress': [], review: [], blocked: [], done: [], cancelled: [] }
   for (const t of tasks) {
     const col = (board[t.status] ? t.status : 'todo') as TaskStatus
     board[col].push(t)
@@ -420,6 +425,28 @@ export async function saveManualTests(taskId: string, report: string, root: stri
   const content = setManualTests(task.raw ?? '', report, actor, new Date().toISOString().slice(0, 10))
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
   return parseTaskFile(task.file, content)
+}
+
+/** The task isn't in the state an action needs (e.g. approving a task that isn't in review). Routes map it to 409. */
+export class TaskStateError extends Error {}
+
+async function reviewTask(taskId: string, outcome: ReviewOutcome, note: string, next: TaskStatus, root: string) {
+  const task = await getTask(taskId, root)
+  if (task.status !== 'review') throw new TaskStateError(`${task.id} is ${task.status}, not in review`)
+  const at = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  const content = appendReviewEntry(task.raw ?? '', outcome, note, at)
+  await fs.writeFile(path.join(root, task.file), content, 'utf8')
+  return updateTaskStatus(task.id, next, root, 'human')
+}
+
+/** Review → done, with an `approved` entry in the task's `## Review` section. */
+export function approveTask(taskId: string, root: string, note = '') {
+  return reviewTask(taskId, 'approved', note, 'done', root)
+}
+
+/** Review → todo (so vibedoc_next_task hands it out again), with the note as a `changes requested` entry. Note required. */
+export function sendBackTask(taskId: string, note: string, root: string) {
+  return reviewTask(taskId, 'changes requested', note, 'todo', root)
 }
 
 /** Tick or untick one manual test item (index in file order). Never changes the task status. Throws RangeError for a bad index. */
@@ -1122,7 +1149,7 @@ export async function getProjectSummary(root: string) {
     name: path.basename(root),
     tasks: {
       total: tasks.length,
-      board: { todo: board.todo.length, 'in-progress': board['in-progress'].length, blocked: board.blocked.length, done: board.done.length, cancelled: board.cancelled.length },
+      board: { todo: board.todo.length, 'in-progress': board['in-progress'].length, review: board.review.length, blocked: board.blocked.length, done: board.done.length, cancelled: board.cancelled.length },
       active: board['in-progress'],
       blocked: board.blocked,
     },
