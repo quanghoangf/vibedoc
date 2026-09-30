@@ -58,6 +58,7 @@ import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
 import { groupSessions, sessionDuration, sessionsForTask } from "@/lib/sessions";
 import { dueState, localToday, roadmapHealth, type TaskInfo } from "@/lib/roadmap-health";
+import { latestReview } from "@/lib/review";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
 // Implements the JSON-RPC 2.0 MCP protocol directly.
@@ -753,7 +754,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       }
       if (result.kind === "waiting") {
         return `⏳ Nothing ready in ${epicId.toUpperCase()}.\n` + result.waiting.map((w) => `- ${w.reason}`).join("\n") +
-          (result.needsHuman ? "\n\nNeeds a human: unblock one of the tasks above." : "");
+          (result.needsHuman ? "\n\nNeeds a human: approve, send back or unblock one of the tasks above." : "");
       }
       if (!task) throw new Error(`claim of ${epicId.toUpperCase()} returned no task`);
       emitUpdate("task_updated", {
@@ -762,7 +763,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         previousStatus,
         task,
       });
-      return `🔨 Claimed **${task.id}** ${task.title} (now in-progress)\n\n## ${task.file}\n\n${task.raw}` +
+      // Sent back from review (R043): the reviewer's note comes first, before the spec
+      const review = latestReview(task.raw ?? "");
+      const changes = review?.outcome === "changes requested"
+        ? `\n\n⚠️ Changes requested (${review.at}):\n${review.note}\nAddress this first; the rest of the spec below still applies.`
+        : "";
+      return `🔨 Claimed **${task.id}** ${task.title} (now in-progress)${changes}\n\n## ${task.file}\n\n${task.raw}` +
         (await roadmapHint(root, task.id));
     }
 

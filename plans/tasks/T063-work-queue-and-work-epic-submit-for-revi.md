@@ -1,5 +1,5 @@
 # T063: /work-epic writes a manual test report; queue handles review
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R043 — Task verification & review
 **Size:** M
 **Depends on:** T060, T062
@@ -44,3 +44,14 @@ pnpm build && pnpm lint
 # Fixture: /work-epic R002 → T001, T002 done with manual test reports; /manual-tests lists both
 # Move T001 to review, send it back with a note → /work-epic R002 reclaims T001 and shows the note
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Run /work-epic on a small epic → each finished task ends with a ## Manual tests section and a 🧪 badge on its card
+- [ ] Move a task to Review → /work-epic on its epic stops with "T0xx in review — needs a human" instead of skipping ahead to tasks that depend on it
+- [ ] Send that task back with a note, run /work-epic again → the agent claims it and the reply shows ⚠️ Changes requested with your note before the spec
+- [ ] Open /manual-tests → the reports the agent wrote are listed there
+### Regression risk
+- [ ] /work-epic on an epic with no review tasks runs to "Epic … is finished" as before
+- [ ] A blocked task still stops the run with Needs a human

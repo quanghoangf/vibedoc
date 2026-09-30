@@ -28,7 +28,8 @@ export function pickNextTask(epic: RoadmapItem, tasks: QueueTask[]): QueueResult
   }
   if (linked.every(t => settled(t.status))) return { kind: 'finished' }
 
-  // Can this task still move without a human? in-progress/settled yes; blocked/missing no;
+  // Can this task still move without a human? in-progress/settled yes; blocked/review/missing no
+  // (review waits for someone to approve or send it back, R043);
   // todo only if it's in this epic (the queue never hands out outside tasks) and every unmet dep can.
   // Cycles count as stuck.
   const inEpic = new Set(epic.tasks)
@@ -37,7 +38,7 @@ export function pickNextTask(epic: RoadmapItem, tasks: QueueTask[]): QueueResult
     if (memo.has(id)) return memo.get(id) ?? false
     memo.set(id, false)
     const t = byId.get(id)
-    const ok = !!t && t.status !== 'blocked' && (t.status !== 'todo' || (inEpic.has(id) && unmet(t).every(canMove)))
+    const ok = !!t && t.status !== 'blocked' && t.status !== 'review' && (t.status !== 'todo' || (inEpic.has(id) && unmet(t).every(canMove)))
     memo.set(id, ok)
     return ok
   }
@@ -48,6 +49,7 @@ export function pickNextTask(epic: RoadmapItem, tasks: QueueTask[]): QueueResult
     if (!t) waiting.push({ taskId: id, reason: `${id} has no task file` })
     else if (t.status === 'in-progress') waiting.push({ taskId: id, reason: `${id} is in progress (claimed)` })
     else if (t.status === 'blocked') waiting.push({ taskId: id, reason: `${id} is blocked` })
+    else if (t.status === 'review') waiting.push({ taskId: id, reason: `${id} in review — needs a human` })
     else if (t.status === 'todo') {
       const deps = unmet(t).map(d => `${d} (${byId.get(d)?.status ?? 'missing'})`)
       waiting.push({ taskId: id, reason: `${id} waits on ${deps.join(', ')}` })

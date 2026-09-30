@@ -69,4 +69,17 @@ assert.equal(needsHuman(pickNextTask(epic(['T001', 'T002']), [t('T001', 'todo', 
 // only a linked id with no file left → finished ignores it
 assert.deepEqual(pickNextTask(epic(['T001', 'T404']), [t('T001', 'done')]), { kind: 'finished' })
 
+// review (R043): not a met dependency, blocks finished, and only a human can move it
+assert.deepEqual(pickNextTask(epic(['T001', 'T002']), [t('T001', 'review'), t('T002', 'todo', 'T001')]), { kind: 'waiting', needsHuman: true, waiting: [
+  { taskId: 'T001', reason: 'T001 in review — needs a human' },
+  { taskId: 'T002', reason: 'T002 waits on T001 (review)' },
+] })
+assert.deepEqual(pickNextTask(epic(['T001', 'T002']), [t('T001', 'done'), t('T002', 'review')]), { kind: 'waiting', needsHuman: true, waiting: [
+  { taskId: 'T002', reason: 'T002 in review — needs a human' },
+] }, 'review + done is not finished')
+// review elsewhere doesn't hide a ready task
+assert.deepEqual(pickNextTask(epic(['T001', 'T002']), [t('T001', 'review'), t('T002', 'todo')]), { kind: 'ready', taskId: 'T002' })
+// a sent-back task is just todo again: handed out like any other
+assert.deepEqual(pickNextTask(epic(['T001']), [t('T001', 'todo')]), { kind: 'ready', taskId: 'T001' })
+
 console.log('work-queue: ok')
