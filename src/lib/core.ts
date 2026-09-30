@@ -19,6 +19,7 @@ import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
+import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -905,6 +906,67 @@ export async function updateMemory(params: MemoryParams, root: string, actor: 'a
     type: 'memory_updated', actor,
     title: 'Session memory updated',
     detail: handoff.slice(0, 120),
+  })
+}
+
+// ─── Knowledge entries (R046) ─────────────────────────────────────────────────
+
+const ENTRIES_DIR = path.join('memory', 'entries')
+
+// ponytail: in-process mutex so two agents never get the same new id; doesn't cover a second VibeDoc process on the same root.
+let entryLock: Promise<unknown> = Promise.resolve()
+function withEntryLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = entryLock.then(fn, fn)
+  entryLock = run.catch(() => {})
+  return run
+}
+
+/** Every parseable `memory/entries/*.md`, sorted by id. Missing folder → []. */
+export async function listEntries(root: string): Promise<Entry[]> {
+  let names: string[]
+  try {
+    names = await fs.readdir(path.join(root, ENTRIES_DIR))
+  } catch {
+    return []
+  }
+  const entries = await Promise.all(names.filter(n => n.endsWith('.md')).map(async n => {
+    const file = path.join(ENTRIES_DIR, n)
+    return parseEntry(await fs.readFile(path.join(root, file), 'utf8'), file)
+  }))
+  return entries.filter((e): e is Entry => !!e).sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }))
+}
+
+export async function getEntry(id: string, root: string): Promise<Entry | null> {
+  const norm = normalizeEntryId(id)
+  return (await listEntries(root)).find(e => e.id === norm) ?? null
+}
+
+/** Create (no id) or update (id) one entry. Throws with the validation message on bad input or an unknown id. */
+export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human' = 'human'): Promise<Entry> {
+  const error = validateEntryInput(input)
+  if (error) return Promise.reject(new Error(error))
+  return withEntryLock(async () => {
+    const entries = await listEntries(root)
+    let id: string
+    let previous: Entry | undefined
+    if (input.id !== undefined) {
+      id = normalizeEntryId(String(input.id)) as string
+      previous = entries.find(e => e.id === id)
+      if (!previous) throw new Error(`Entry ${id} not found`)
+    } else {
+      id = nextEntryId(entries.map(e => e.id))
+    }
+    const summary = input.summary.trim()
+    const entry: Entry = {
+      id, type: input.type as EntryType, summary, body: (input.body ?? '').trim(),
+      updatedAt: localToday(), file: path.join(ENTRIES_DIR, `${id}-${entrySlug(summary)}.md`),
+    }
+    await fs.mkdir(path.join(root, ENTRIES_DIR), { recursive: true })
+    await fs.writeFile(path.join(root, entry.file), formatEntry(entry), 'utf8')
+    // Summary changed → new slug; the id stays
+    if (previous && previous.file !== entry.file) await fs.rm(path.join(root, previous.file), { force: true })
+    await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${id} saved`, detail: summary })
+    return entry
   })
 }
 

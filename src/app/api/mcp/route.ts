@@ -15,6 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
 import {
   getConfiguredRoot,
   listDocs,
@@ -32,6 +33,7 @@ import {
   logDecision,
   readMemory,
   updateMemory,
+  saveEntry,
   noteDocEdit,
   readProjectSettings,
   logSessionStart,
@@ -275,6 +277,21 @@ const TOOLS = [
         handoff: { type: "string" },
       },
       required: ["currentState", "handoff"],
+    },
+  },
+  {
+    name: "vibedoc_save_entry",
+    description:
+      "Save one long-lived fact (convention, gotcha, decision, preference) as its own entry. Omit id to create; pass id to update. Put facts that should outlast this session here, not in the handoff.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Entry id to update, e.g. E001. Omit to create." },
+        type: { type: "string", enum: [...ENTRY_TYPES] },
+        summary: { type: "string", description: "One line, at most 120 characters" },
+        body: { type: "string", description: "Details and the why (markdown)" },
+      },
+      required: ["type", "summary"],
     },
   },
   {
@@ -812,6 +829,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       );
       emitUpdate("memory_updated", { root });
       return `🧠 MEMORY.md updated`;
+    }
+
+    case "vibedoc_save_entry": {
+      const entry = await saveEntry(args as unknown as EntryInput, root, "ai");
+      emitUpdate("memory_updated", { root, entryId: entry.id });
+      return `🧠 Saved **${entry.id}** · ${entry.type} · ${entry.summary}\n${entry.file}`;
     }
 
     case "vibedoc_create_doc": {

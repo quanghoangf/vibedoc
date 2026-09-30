@@ -1,8 +1,12 @@
 # T086: Entry files + vibedoc_save_entry
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R046 — Project knowledge entries
 **Size:** M (2–3 hrs)
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 An agent calls `vibedoc_save_entry { type: "convention", summary: "Only core.ts touches the file system", body: "…" }` and a new file `memory/entries/E001-only-core-ts-touches-the-file-system.md` appears in the project. Calling it again with `id: "E001"` updates that file. This is the thin end-to-end path of the epic: one fact becomes one plain markdown file in git.
@@ -83,3 +87,14 @@ curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_save_entry","arguments":{"type":"rule","summary":"x"}}}'   # error listing the valid types
 ```
 Delete the test entry files afterwards. Don't commit them.
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] From an agent connected to VibeDoc, call vibedoc_save_entry with type "convention" and a one-line summary → a new file memory/entries/E001-<summary-slug>.md appears in the project
+- [ ] Open that file → it starts with "# E001: <summary>", then **Type:** and **Updated:** (today) lines, then the body
+- [ ] Call vibedoc_save_entry again with id "e1" and a different summary → the same id is kept, the old file is gone and a file with the new slug replaces it
+- [ ] Call vibedoc_save_entry with type "rule" → the agent gets an error listing convention, gotcha, decision, preference, and no file is written
+- [ ] Open /activity → each save shows as "Entry E00N saved" with the summary
+### Regression risk
+- [ ] vibedoc_update_memory still rewrites memory/MEMORY.md, and the Memory tab shows it as before
