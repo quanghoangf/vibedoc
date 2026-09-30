@@ -51,6 +51,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
 - **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
 - **Plan from the chat** — ask the agent sidebar to plan a roadmap or break an epic into tasks; it asks questions, shows the plan, and writes nothing until you accept
+- **Manual tests & review** — the agent leaves a click-through checklist on each finished task (`🧪 0/5` on the card, ticked on `/manual-tests`); an optional Review column lets you approve a task or send it back with a note. Nothing ever blocks "done"
 - **MCP server** — 30 tools your AI agent can call to read docs, move tasks, write ADRs, and more
 
 ---
@@ -116,7 +117,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | --------------------- | ------------------------------------------------------- |
 | `vibedoc_list_tasks`  | Full kanban board, filterable by status                 |
 | `vibedoc_get_task`    | Read a specific task with scope and acceptance criteria |
-| `vibedoc_update_task` | Move task status → **you see it live in the browser**   |
+| `vibedoc_update_task` | Move task status → **you see it live in the browser**; optional `manualTests` checklist |
 | `vibedoc_next_task`   | Claim the next ready task of an epic (deps done) → in-progress |
 
 ### Docs

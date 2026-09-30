@@ -7,3 +7,4 @@
 | ADR-002 | File system as source of truth (no database) | ✅ Accepted | 2025-02-28 |
 | ADR-003 | SSE over WebSockets for real-time | ✅ Accepted | 2025-02-28 |
 | ADR-004 | Hand-rolled JSON-RPC MCP (no SDK stdio) | ✅ Accepted | 2025-02-28 |
+| ADR-005 | Manual test checklist instead of a done gate | ✅ Accepted | 2026-09-30 |

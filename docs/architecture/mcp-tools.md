@@ -124,9 +124,12 @@ Update a task's status. Triggers a real-time kanban board update in the browser.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `taskId` | string | ✅ | e.g. `"T003"` |
-| `status` | enum | ✅ | `todo` \| `in-progress` \| `done` \| `blocked` \| `cancelled` |
+| `status` | enum | ✅ | `todo` \| `in-progress` \| `review` \| `done` \| `blocked` \| `cancelled` |
+| `manualTests` | string | | Manual test report, a markdown checklist saved as the task's `## Manual tests` section (replaces an older one). See [Manual tests & review](#manual-tests--review) |
 
-**Returns:** confirmation with previous and new status
+Every transition is allowed: nothing requires a report or a review before `done`.
+
+**Returns:** confirmation with previous and new status, and `🧪 Manual tests: 0/N ticked` when the task has a report
 
 ---
 
@@ -263,6 +266,41 @@ Write a new Architecture Decision Record (ADR) when making a significant technic
 | `consequences` | string | | Trade-offs and follow-ups |
 
 **Returns:** ADR number and file path (written to `docs/architecture/decisions/ADR-NNN-*.md`)
+
+---
+
+## Manual tests & review
+
+After a task, the agent leaves a **manual test report**: what a person should click through, and what they should see, before trusting "done". It is encouraged, never required, and nothing blocks moving a task to done.
+
+**The report** is passed as `manualTests` on `vibedoc_update_task` and saved at the end of the task file. `/work-epic` writes one for every task it finishes. Plain lines become unticked steps.
+
+```md
+## Manual tests
+_2026-10-01 — ai_
+### Steps
+- [ ] Open /roadmap, click an epic → its sheet shows a Chat button
+### Regression risk
+- [ ] Dragging a card between columns still works
+```
+
+- The board card shows `🧪 done/total`: muted while items remain, green when all are ticked. Click it to open the checklist.
+- **`/manual-tests`** lists every task with unticked items, grouped by epic, newest report first. Ticking an item writes `- [x]` to the task file (`POST /api/tasks/manual-tests` `{ id, index, checked }`) and never changes the task's status. **Show fully tested** lists the rest. The sidebar link counts unticked items.
+- A new report replaces the old one, because the code changed and old ticks no longer apply.
+
+**Review is an optional status** (`👀 Review`), a column between In progress and Todo:
+
+```
+in-progress ──► review ──► Approve    ──► done
+                   └─────► Send back  ──► todo   (note required)
+```
+
+- Approve and Send back are in the task panel (`POST /api/tasks/review` `{ id, action: "approve" | "send-back", note? }`: 400 for an empty send-back note, 409 when the task isn't in review). Both are recorded in the task's `## Review` section, which the panel shows as history.
+- A sent-back todo card shows **changes requested**. When `vibedoc_next_task` hands it out again, the reply starts with `⚠️ Changes requested:` and the note.
+- A task in review is not done: its dependents wait, the epic isn't finished, and `vibedoc_next_task` says `T0xx in review — needs a human`.
+- `/work-epic` defaults to done. It uses review only when it can't judge the result itself (a visual change it couldn't see, or a Verify step it couldn't run).
+
+Why a checklist and not a done gate: [ADR-005](decisions/ADR-005-manual-test-checklist-instead-of-a-done-gate.md).
 
 ---
 

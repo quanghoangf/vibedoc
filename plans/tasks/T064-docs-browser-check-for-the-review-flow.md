@@ -1,5 +1,5 @@
 # T064: Docs + browser check for manual tests and review
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R043 — Task verification & review
 **Size:** S
 **Depends on:** T061, T063
@@ -39,3 +39,12 @@ The manual test report and the optional Review column are documented, and one fu
 pnpm build && pnpm lint
 grep -n -i "manual tests\|review" docs/**/mcp-tools.md README.md CLAUDE.md
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Read docs/architecture/mcp-tools.md → Manual tests & review explains the report, the optional review lifecycle, and that nothing blocks done
+- [ ] Open README → What you get lists Manual tests & review
+- [ ] Open docs/architecture/decisions/ADR-005 → it records the rejected done gate and why
+### Regression risk
+- [ ] The ADR index (docs/architecture/decisions/_INDEX.md) still lists ADR-001 to ADR-004
