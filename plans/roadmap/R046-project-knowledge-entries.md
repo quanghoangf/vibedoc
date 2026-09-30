@@ -1,6 +1,6 @@
 # R046: Project knowledge entries
 **Parent:** R002
-**Status:** in-progress
+**Status:** done
 **Order:** 130
 **Tasks:** T086, T087, T088
 
