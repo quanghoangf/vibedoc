@@ -1,7 +1,7 @@
 # MCP Server — Tool Catalog
 **Endpoint:** `POST http://localhost:3000/api/mcp`
 **Protocol:** JSON-RPC 2.0
-**Last updated:** 2025-02-28
+**Last updated:** 2026-09-30
 
 ## Connection config
 
@@ -20,7 +20,7 @@
 
 ### `vibedoc_read_memory`
 **Call at:** start of every session
-Reads `memory/MEMORY.md`. Also logs a `session_start` event to the activity feed.
+Reads `memory/MEMORY.md`, then appends the knowledge entry index: `## Knowledge entries (N)` and one `E001 · type · summary (~N tok)` line per entry, newest first, no bodies. The whole reply is capped at `memory.sessionBudgetTokens` in `.vibedoc/settings.json` (default 2000, estimated as chars / 4); lines that don't fit become `+N more entries — use vibedoc_recall { query }`. The handoff is never cut. Also logs a `session_start` event to the activity feed.
 ```json
 { "name": "vibedoc_read_memory", "arguments": {} }
 ```
@@ -90,6 +90,19 @@ Write a new ADR. Auto-numbered, updates `_INDEX.md`.
     "consequences": "Browser must reconnect on disconnect. Heartbeat every 25s prevents proxy timeouts."
   }
 }
+```
+
+### `vibedoc_save_entry` ⚡ triggers real-time UI update
+Save one long-lived fact as its own file, `memory/entries/E001-<slug>.md`. Omit `id` to create; pass `id` to update (a new summary renames the file, the id stays). `type` is one of `convention`, `gotcha`, `decision`, `preference`; `summary` is one line, at most 120 characters. Each save writes `**By:** ai:<agent>` (the `agent` argument, else the MCP client name); a save from the Memory tab writes `**By:** human`.
+**Entry or handoff?** A fact that should still be true next week goes in an entry. What happened this session goes in the handoff.
+```json
+{ "name": "vibedoc_save_entry", "arguments": { "type": "convention", "summary": "Only core.ts touches the file system", "body": "API routes import from core, never fs." } }
+```
+
+### `vibedoc_delete_entry` ⚡ triggers real-time UI update
+Delete an entry that is wrong or no longer true. The file is removed; git keeps its history.
+```json
+{ "name": "vibedoc_delete_entry", "arguments": { "id": "E001" } }
 ```
 
 ### `vibedoc_update_memory` ⚡ triggers real-time UI update

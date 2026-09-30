@@ -1,5 +1,5 @@
 # MCP Tools Reference
-**Last updated:** 2026-09-28
+**Last updated:** 2026-09-30
 
 VibeDoc exposes an MCP server at `/api/mcp` (HTTP JSON-RPC 2.0). AI coding agents connect here to read project state, manage tasks, and write documentation.
 
@@ -24,14 +24,15 @@ Add the same `url` entry to your MCP server config.
 ## Recommended session workflow
 
 ```
-1. vibedoc_read_memory             ← what happened last session?
+1. vibedoc_read_memory             ← what happened last session? (ends with the knowledge entry index)
    vibedoc_get_sessions            ← (optional) what other agents did since
 2. vibedoc_next_task { epic }      ← claim the next ready task (returns its full spec, now in-progress)
 3. vibedoc_search_docs             ← find relevant docs before writing
 4. ... do the work, vibedoc_write_doc as needed ...
 5. vibedoc_update_task <id> done   ← mark done when finished
 6. repeat from 2 until next_task says "finished" or "nothing ready"
-7. vibedoc_update_memory           ← write handoff for next session
+7. vibedoc_save_entry             ← save facts that outlast the session (conventions, gotchas, …)
+   vibedoc_update_memory           ← write handoff for next session
 ```
 
 For a task outside an epic, pick it by hand: `vibedoc_get_status` → `vibedoc_get_task <id>` → `vibedoc_update_task <id> in-progress` → work → `vibedoc_update_task <id> done`.
@@ -76,7 +77,28 @@ Read `MEMORY.md` — the session handoff file written by the previous agent sess
 
 **Parameters:** none
 
-**Returns:** full content of `memory/MEMORY.md`
+**Returns:** full content of `memory/MEMORY.md`, then `## Knowledge entries (N)` with one `E001 · type · summary (~N tok)` line per entry, newest first, capped at `memory.sessionBudgetTokens` (`.vibedoc/settings.json`, default 2000 tokens; the rest → `+N more entries`, use `vibedoc_recall`)
+
+---
+
+### `vibedoc_save_entry`
+Save one long-lived fact as its own file, `memory/entries/E001-<slug>.md`. A fact that should still be true next week goes in an entry; what happened this session goes in the handoff.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `type` | string | ✅ | `convention` \| `gotcha` \| `decision` \| `preference` |
+| `summary` | string | ✅ | One line, at most 120 characters (the file's H1) |
+| `body` | string | | Details and the why (markdown) |
+| `id` | string | | Entry to update, e.g. `E001`. Omit to create |
+
+**Returns:** `🧠 Saved **E001** · convention · <summary>` and the file path. Unknown type, bad summary or unknown id → error, nothing written.
+
+---
+
+### `vibedoc_delete_entry`
+Delete an entry that is wrong or no longer true. The file is removed; git keeps its history.
+
+**Parameters:** `id` (string, required), e.g. `E001`
 
 ---
 

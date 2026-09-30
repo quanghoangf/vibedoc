@@ -15,6 +15,9 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
+import { formatCompactLine, tokenize } from "@/lib/recall";
+import { formatEntryLinks } from "@/lib/memory-graph";
 import {
   getConfiguredRoot,
   listDocs,
@@ -30,8 +33,14 @@ import {
   saveManualTests,
   claimNextTask,
   logDecision,
-  readMemory,
   updateMemory,
+  saveEntry,
+  deleteEntry,
+  sessionStartMemory,
+  recallEntries,
+  relatedEntries,
+  getEntriesByIds,
+  getMemoryGraph,
   noteDocEdit,
   readProjectSettings,
   logSessionStart,
@@ -81,6 +90,9 @@ function ok(id: JsonRpcRequest["id"], result: unknown) {
 function err(id: JsonRpcRequest["id"], code: number, message: string) {
   return NextResponse.json({ jsonrpc: "2.0", id, error: { code, message } });
 }
+
+const MAX_ENTRY_IDS = 20;
+const withGap = (block: string) => (block ? `\n\n${block}` : "");
 
 const TOOLS = [
   {
@@ -261,7 +273,7 @@ const TOOLS = [
   {
     name: "vibedoc_update_memory",
     description:
-      "Update MEMORY.md with session summary. Call at END of every session.",
+      "Update MEMORY.md with session summary. Call at END of every session. Durable facts (conventions, gotchas, decisions, preferences) go to vibedoc_save_entry, not the handoff.",
     inputSchema: {
       type: "object",
       properties: {
@@ -275,6 +287,53 @@ const TOOLS = [
         handoff: { type: "string" },
       },
       required: ["currentState", "handoff"],
+    },
+  },
+  {
+    name: "vibedoc_save_entry",
+    description:
+      "Save one long-lived fact (convention, gotcha, decision, preference) as its own entry. Omit id to create; pass id to update. Put facts that should outlast this session here, not in the handoff.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Entry id to update, e.g. E001. Omit to create." },
+        type: { type: "string", enum: [...ENTRY_TYPES] },
+        summary: { type: "string", description: "One line, at most 120 characters" },
+        body: { type: "string", description: "Details and the why (markdown)" },
+      },
+      required: ["type", "summary"],
+    },
+  },
+  {
+    name: "vibedoc_recall",
+    description:
+      "Search memory entries by topic or keyword. Returns a compact list (id, type, summary); fetch bodies with vibedoc_get_entries.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Topic or keywords, e.g. \"sse events\"" },
+        type: { type: "string", enum: [...ENTRY_TYPES] },
+        limit: { type: "number", description: "Max results, default 10" },
+      },
+      required: ["query"],
+    },
+  },
+  {
+    name: "vibedoc_get_entries",
+    description: "Fetch full knowledge entries (body included) by id, after vibedoc_recall or the session-start index. Max 20 ids per call.",
+    inputSchema: {
+      type: "object",
+      properties: { ids: { type: "array", items: { type: "string" }, description: 'e.g. ["E012", "E030"]' } },
+      required: ["ids"],
+    },
+  },
+  {
+    name: "vibedoc_delete_entry",
+    description: "Delete a knowledge entry that is wrong or no longer true. Git keeps its history.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "e.g. E001" } },
+      required: ["id"],
     },
   },
   {
@@ -727,7 +786,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
     case "vibedoc_get_task": {
       const task = await getTask(String(args.taskId), root);
-      return `## ${task.file}\n\n${task.raw}`;
+      return `## ${task.file}\n\n${task.raw}` + withGap(await relatedEntries(task, root));
     }
 
     case "vibedoc_update_task": {
@@ -784,7 +843,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         ? `\n\n⚠️ Changes requested (${review.at}):\n${review.note}\nAddress this first; the rest of the spec below still applies.`
         : "";
       return `🔨 Claimed **${task.id}** ${task.title} (now in-progress)${changes}\n\n## ${task.file}\n\n${task.raw}` +
-        (await roadmapHint(root, task.id));
+        (await roadmapHint(root, task.id)) + withGap(await relatedEntries(task, root));
     }
 
     case "vibedoc_log_decision": {
@@ -800,8 +859,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     case "vibedoc_read_memory": {
       await logSessionStart(root, "ai");
       emitUpdate("session_start", { root });
-      const memory = await readMemory(root);
-      return memory.content;
+      return sessionStartMemory(root);
     }
 
     case "vibedoc_update_memory": {
@@ -812,6 +870,45 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       );
       emitUpdate("memory_updated", { root });
       return `🧠 MEMORY.md updated`;
+    }
+
+    case "vibedoc_save_entry": {
+      const entry = await saveEntry(args as unknown as EntryInput, root, "ai", agent);
+      emitUpdate("memory_updated", { root, entryId: entry.id });
+      return `🧠 Saved **${entry.id}** · ${entry.type} · ${entry.summary}\n${entry.file}`;
+    }
+
+    case "vibedoc_recall": {
+      const query = String(args.query ?? "");
+      if (!tokenize(query).length) {
+        return `No searchable words in "${query}". Use topic words, e.g. vibedoc_recall { "query": "sse events" }.`;
+      }
+      const limit = Number(args.limit) > 0 ? Math.floor(Number(args.limit)) : undefined;
+      const hits = await recallEntries(query, { type: args.type ? String(args.type) : undefined, limit }, root);
+      if (!hits.length) return `No entries match "${query}".`;
+      return `${hits.length} ${hits.length === 1 ? "match" : "matches"} for "${query}"\n` +
+        hits.map(formatCompactLine).join("\n") +
+        `\nFetch full entries with vibedoc_get_entries { ids: [...] }`;
+    }
+
+    case "vibedoc_get_entries": {
+      const ids = Array.isArray(args.ids) ? args.ids.map(String) : [];
+      if (!ids.length) throw new Error('ids must be a non-empty array, e.g. { "ids": ["E001"] }');
+      if (ids.length > MAX_ENTRY_IDS) throw new Error(`Too many ids (${ids.length}); fetch at most ${MAX_ENTRY_IDS} per call and split the rest`);
+      const [{ found, missing }, graph] = await Promise.all([getEntriesByIds(ids, root), getMemoryGraph(root)]);
+      const blocks = found.map((e) => {
+        const links = formatEntryLinks(graph, e.id);
+        return `## ${e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.body ? `\n\n${e.body}` : ""}` +
+          (links.length ? `\n\n${links.join("\n")}` : "");
+      });
+      if (missing.length) blocks.push(`Not found: ${missing.join(", ")}`);
+      return blocks.join("\n\n");
+    }
+
+    case "vibedoc_delete_entry": {
+      const entry = await deleteEntry(String(args.id ?? ""), root, "ai");
+      emitUpdate("memory_updated", { root, entryId: entry.id });
+      return `🗑️ Deleted **${entry.id}** · ${entry.summary}`;
     }
 
     case "vibedoc_create_doc": {

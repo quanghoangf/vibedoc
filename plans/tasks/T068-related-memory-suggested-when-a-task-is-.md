@@ -1,8 +1,12 @@
 # T068: Related memory suggested when a task is claimed
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R048 — Token-cheap recall
 **Size:** S
 **Depends on:** T065
+**Owner:** ai:claude-code
+**Due:** 2026-10-01
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 When an agent claims or opens a task, it sees up to 3 entries related to that task as compact lines, so relevant conventions and gotchas turn up without the agent having to go looking.
@@ -44,3 +48,13 @@ pnpm build && pnpm lint
 curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_get_task","arguments":{"taskId":"T001"}}}'
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Save an entry "SSE EventSource must reconnect when root changes", then have an agent claim a task titled "SSE reconnect on project switch" with vibedoc_next_task → the reply ends with "## Related memory", that entry as one compact line, and "Fetch with vibedoc_get_entries"
+- [ ] Call vibedoc_get_task on the same task → the same Related memory block at the end
+- [ ] Call vibedoc_get_task on a task about something else (e.g. "Invoice PDF export") → no Related memory heading at all
+- [ ] With 5+ matching entries → at most 3 lines, never an entry body
+### Regression risk
+- [ ] Claiming with vibedoc_next_task still moves the card to In progress on /board live, and the roadmap hint still shows when an epic is out of sync

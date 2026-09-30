@@ -1,8 +1,12 @@
 # T067: Session-start token budget in vibedoc_read_memory
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R048 — Token-cheap recall
 **Size:** M
 **Depends on:** T065
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 Session start stays small no matter how much memory there is. `vibedoc_read_memory` returns the handoff plus as much of the entry index as fits a token budget, then a pointer to `vibedoc_recall` for the rest.
@@ -51,3 +55,13 @@ pnpm build && pnpm lint
 curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_read_memory","arguments":{}}}' | wc -c   # ≈ ≤ 4 × budget
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] With a few entries, ask an agent to call vibedoc_read_memory → the handoff, then "## Knowledge entries (N)" listing every entry newest first as "E00N · type · summary (~N tok)", and no "+N more" line
+- [ ] With 200+ entries in memory/entries, call vibedoc_read_memory → the reply is about 8,000 characters or less (2000 tokens) and ends with "+N more entries — use vibedoc_recall { query }"
+- [ ] Add {"memory":{"sessionBudgetTokens":500}} to .vibedoc/settings.json and call it again → far fewer entry lines are shown and the "+N more" count goes up
+- [ ] Make memory/MEMORY.md longer than the budget → the whole handoff is still there, no entry lines are shown, and a warning says to trim MEMORY.md
+### Regression risk
+- [ ] Each vibedoc_read_memory call still shows "Session started" in /activity, and task custom statuses / automatic due dates (same settings file) still work

@@ -1,15 +1,19 @@
 # T065: vibedoc_recall — compact ranked list by topic or keyword
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R048 — Token-cheap recall
 **Size:** M
-**Depends on:** —
+**Depends on:** T087 (R046 entries)
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 An agent calls `vibedoc_recall { query: "sse events" }` and gets back a short ranked list of matching knowledge entries, one line each (id, type, summary, rough token cost), not the full bodies. This is the thin end-to-end path of the epic: it proves recall works before we add budgets and suggestions.
 
 ## Context
 - Epic: `plans/roadmap/R048-token-cheap-recall.md`
-- **Blocked on R046 (Project knowledge entries).** This task assumes R046 has shipped: one fact per markdown file, with a type and a one-line summary, plus a core function that lists them. Don't start until R046 is done.
+- R046 (Project knowledge entries) has shipped: `listEntries(root)` in `core.ts` returns `Entry = { id, type, summary, body, updatedAt, file }` from `src/lib/entries.ts`, which maps 1:1 onto `RecallEntry`. Ids are normalized with `normalizeEntryId()`.
 - Decided: keyword matching only. No vector or semantic search (out of scope for the epic).
 - Project rules (CLAUDE.md): only `src/lib/core.ts` touches the file system. `/api/mcp` is hand-rolled JSON-RPC, so don't add the MCP SDK. Pure logic goes in its own `src/lib/*.ts` with a `*.check.mts` self-check, the way `work-queue.ts` does (T030).
 
@@ -57,3 +61,14 @@ pnpm build && pnpm lint
 curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_recall","arguments":{"query":"sse events"}}}'
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Save three entries with vibedoc_save_entry (e.g. "The SSE bus lives in events.ts", "Tailwind only", "No database"), then ask an agent to call vibedoc_recall with query "sse events" → the SSE entry is the first line, shown as "E00N · convention · <summary> (~N tok)"
+- [ ] Check the recall reply → it has a "N matches for …" header, one line per entry, a vibedoc_get_entries footer, and no entry bodies
+- [ ] Call vibedoc_recall with type "decision" → only decision entries are listed
+- [ ] Call vibedoc_recall with query "the and" → a message asking for topic words, not an error
+- [ ] Call vibedoc_recall with a word no entry has → "No entries match …"
+### Regression risk
+- [ ] vibedoc_read_memory still ends with the full "## Knowledge entries (N)" index

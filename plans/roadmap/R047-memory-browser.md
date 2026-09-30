@@ -1,8 +1,8 @@
 # R047: Memory browser
 **Parent:** R002
-**Status:** planned
+**Status:** done
 **Order:** 140
-**Tasks:** —
+**Tasks:** T089, T090, T091, T092
 
 People can see and fix what agents remember without opening files, so bad memory gets corrected before it misleads the next session. Today the Memory tab only displays MEMORY.md.
 

@@ -1,8 +1,12 @@
 # T066: vibedoc_get_entries — fetch full entries by id
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R048 — Token-cheap recall
 **Size:** S
 **Depends on:** T065
+**Owner:** ai:claude-code
+**Due:** 2026-10-01
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 After recall, an agent fetches only the entries it needs in full: `vibedoc_get_entries { ids: ["E012", "E030"] }`. This is the second half of "index first, bodies on request".
@@ -39,3 +43,13 @@ pnpm build && pnpm lint
 curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_get_entries","arguments":{"ids":["E001","E999"]}}}'
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Save two entries, then ask an agent to call vibedoc_get_entries with ids ["e2", "E001"] → both entries come back in full, E002 first, each as "## E00N · <type> · <summary>", an "updated <date>" line and the body
+- [ ] Add an id that doesn't exist, e.g. "E999" → the two entries still come back, followed by "Not found: E999"
+- [ ] Call it with an empty ids list → an error asking for at least one id
+- [ ] Call it with 21 ids → an error saying to fetch at most 20 and split the call
+### Regression risk
+- [ ] vibedoc_recall still returns compact lines only, and its footer now points to a tool that works

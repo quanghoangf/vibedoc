@@ -1,8 +1,12 @@
 # T070: Links in vibedoc_get_entries output
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R053 — Memory graph
 **Size:** S
 **Depends on:** T069, T066
+**Owner:** ai:claude-code
+**Due:** 2026-10-01
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 When an agent fetches an entry, it also sees what the entry relates to (tasks, epics, docs, other entries) and what links back to it, without making another tool call.
@@ -36,3 +40,13 @@ pnpm build && pnpm lint
 curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_get_entries","arguments":{"ids":["E001"]}}}'
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Save an entry that mentions a task and a doc path, and add its id to another task file; ask an agent to call vibedoc_get_entries for it → after the body, a "Links: …" line (the task and the doc) and a "Linked from: …" line (the other task)
+- [ ] Fetch an entry that mentions nothing and that nothing mentions → neither line appears
+- [ ] Fetch an entry that mentions 12+ tasks → the Links line shows 10 ids and "+N more"
+- [ ] Fetch ["E002", "E001", "E999"] → entries in that order, then "Not found: E999"
+### Regression risk
+- [ ] vibedoc_recall output stays one compact line per entry, with no links
