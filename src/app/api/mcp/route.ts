@@ -16,6 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { ENTRY_TYPES, formatEntryIndex, type EntryInput } from "@/lib/entries";
+import { formatCompactLine, tokenize } from "@/lib/recall";
 import {
   getConfiguredRoot,
   listDocs,
@@ -36,6 +37,7 @@ import {
   saveEntry,
   deleteEntry,
   listEntries,
+  recallEntries,
   noteDocEdit,
   readProjectSettings,
   logSessionStart,
@@ -294,6 +296,20 @@ const TOOLS = [
         body: { type: "string", description: "Details and the why (markdown)" },
       },
       required: ["type", "summary"],
+    },
+  },
+  {
+    name: "vibedoc_recall",
+    description:
+      "Search memory entries by topic or keyword. Returns a compact list (id, type, summary); fetch bodies with vibedoc_get_entries.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Topic or keywords, e.g. \"sse events\"" },
+        type: { type: "string", enum: [...ENTRY_TYPES] },
+        limit: { type: "number", description: "Max results, default 10" },
+      },
+      required: ["query"],
     },
   },
   {
@@ -846,6 +862,19 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const entry = await saveEntry(args as unknown as EntryInput, root, "ai");
       emitUpdate("memory_updated", { root, entryId: entry.id });
       return `🧠 Saved **${entry.id}** · ${entry.type} · ${entry.summary}\n${entry.file}`;
+    }
+
+    case "vibedoc_recall": {
+      const query = String(args.query ?? "");
+      if (!tokenize(query).length) {
+        return `No searchable words in "${query}". Use topic words, e.g. vibedoc_recall { "query": "sse events" }.`;
+      }
+      const limit = Number(args.limit) > 0 ? Math.floor(Number(args.limit)) : undefined;
+      const hits = await recallEntries(query, { type: args.type ? String(args.type) : undefined, limit }, root);
+      if (!hits.length) return `No entries match "${query}".`;
+      return `${hits.length} ${hits.length === 1 ? "match" : "matches"} for "${query}"\n` +
+        hits.map(formatCompactLine).join("\n") +
+        `\nFetch full entries with vibedoc_get_entries { ids: [...] }`;
     }
 
     case "vibedoc_delete_entry": {

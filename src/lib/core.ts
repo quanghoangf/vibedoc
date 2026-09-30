@@ -19,6 +19,7 @@ import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
+import { rankEntries, type RecallHit } from './recall'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -968,6 +969,11 @@ export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human'
     await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${id} saved`, detail: summary })
     return entry
   })
+}
+
+/** Keyword recall over the entries: compact hits, no bodies (R048). */
+export async function recallEntries(query: string, opts: { type?: string; limit?: number }, root: string): Promise<RecallHit[]> {
+  return rankEntries(await listEntries(root), query, opts)
 }
 
 /** Removes the file for good; git keeps its history. Throws on an unknown id. */

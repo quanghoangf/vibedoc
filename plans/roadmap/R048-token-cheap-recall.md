@@ -1,6 +1,6 @@
 # R048: Token-cheap recall
 **Parent:** R003
-**Status:** planned
+**Status:** in-progress
 **Order:** 50
 **Tasks:** T065, T066, T067, T068
 
