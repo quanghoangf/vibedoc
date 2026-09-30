@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   Search, FilePlus, LayoutDashboard, Activity, Brain, Map, BookOpen, Bot, FlaskConical, FolderTree, Settings,
-  FileText, MessageSquarePlus, SunMoon, FolderOpen, Keyboard, Zap, type LucideIcon,
+  FileText, MessageSquarePlus, SunMoon, FolderOpen, Keyboard, Zap, PanelLeft, type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fuzzyFilter } from "@/lib/fuzzy"
-import { shortcutFor } from "@/lib/shortcuts"
+import { DOCS_LIST_KEY, TOGGLE_DOCS_LIST_EVENT, shortcutFor } from "@/lib/shortcuts"
 import { applyTheme } from "@/lib/applySettings"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings"
 import { groupChats, shellStatus } from "@/lib/chats"
@@ -63,6 +63,7 @@ const icon = (Icon: LucideIcon) => <Icon className="size-3.5 shrink-0 text-muted
 /** ⌘K — chats first (task/epic ids first when the query is one), then pages, tasks & epics by id or title, docs by content, and actions. */
 export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen, onShowHelp, rootParam }: CommandPaletteProps) {
   const router = useRouter()
+  const pathname = usePathname()
   const { board, projects, activeProject, onProjectChange } = useApp()
   const { chats, queue, now, show, create } = useChats()
   const [query, setQuery] = useState("")
@@ -162,6 +163,10 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
       { id: "new-chat", group: "Actions", label: "New chat", lead: icon(MessageSquarePlus), run: () => { show(create()); onClose() } },
       { id: "new-doc", group: "Actions", label: "New doc", lead: icon(FilePlus), run: () => { onNewDoc?.(); onClose() } },
       { id: "go-file", group: "Actions", label: "Go to file", lead: icon(FileText), kbd: "⌘P", run: onQuickOpen },
+      ...(pathname?.startsWith("/docs") ? [{
+        id: "toggle-docs-list", group: "Actions", label: "Hide / show docs list", lead: icon(PanelLeft), kbd: DOCS_LIST_KEY.label,
+        run: () => { window.dispatchEvent(new Event(TOGGLE_DOCS_LIST_EVENT)); onClose() },
+      }] : []),
       { id: "theme", group: "Actions", label: "Toggle light / dark theme", lead: icon(SunMoon), run: () => { toggleTheme(rootParam); onClose() } },
       { id: "help", group: "Actions", label: "Keyboard shortcuts", lead: icon(Keyboard), kbd: "?", run: onShowHelp },
       // Project switching only when searched for: there can be many sibling projects
@@ -185,7 +190,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
       }
     }
     return out
-  }, [q, current, chats, queue, now, board, epics, projects, activeProject, docs, router, onClose, show, create, onNewDoc, onQuickOpen, onShowHelp, onOpenDoc, onProjectChange, rootParam])
+  }, [q, current, chats, queue, now, board, epics, projects, activeProject, docs, router, onClose, show, create, onNewDoc, onQuickOpen, onShowHelp, onOpenDoc, onProjectChange, rootParam, pathname])
 
   const active = Math.max(0, Math.min(activeIndex, rows.length - 1))
   // Runs of one group, each rendered as an ARIA group named by its heading

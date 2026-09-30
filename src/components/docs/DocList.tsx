@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState, createContext, useContext } from "react"
-import { FileText, Folder, FolderOpen, ChevronRight, ChevronsDownUp, ChevronsUpDown, Search, Bot, Plus, CheckSquare, Copy, Check, X, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { FileText, Folder, FolderOpen, ChevronRight, ChevronsDownUp, ChevronsUpDown, Search, Bot, Plus, CheckSquare, Copy, Check, X, ListFilter } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -13,11 +13,16 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { DocFile } from "@/types"
+import { priorityRank, type Priority } from "@/lib/doc-priority"
 import { DocActionsMenu, type DocActions } from "./DocActionsMenu"
+import { PriorityBadge } from "@/components/shared/PriorityBadge"
 
 // ─── Selection context (scoped to DocList, not exported) ──────────────────────
 
@@ -48,6 +53,18 @@ interface TreeNode {
   name: string
   children: TreeNode[]
   docPath?: string
+  priority?: Priority | null
+}
+
+type DocOrder = "tree" | "priority"
+/** "P1" = P1 and above; "set" = any priority */
+type PriorityFilter = "all" | "P0" | "P1" | "P2" | "set"
+const FILTER_LABELS: Record<PriorityFilter, string> = { all: "All docs", P0: "P0 only", P1: "P0 – P1", P2: "P0 – P2", set: "Any priority" }
+
+function passesFilter(p: Priority | null | undefined, filter: PriorityFilter): boolean {
+  if (filter === "all") return true
+  if (filter === "set") return !!p
+  return !!p && priorityRank(p) <= priorityRank(filter)
 }
 
 function normalizePath(p: string): string {
@@ -67,7 +84,7 @@ function buildTree(docs: DocFile[]): TreeNode[] {
       }
       node = child
     }
-    node.children.push({ name: doc.name, docPath: doc.path, children: [] })
+    node.children.push({ name: doc.name, docPath: doc.path, priority: doc.priority, children: [] })
   }
   return root.children
 }
@@ -86,12 +103,13 @@ function ancestorFolders(docPath: string): string[] {
   return parts.map((_, i) => parts.slice(0, i + 1).join("/"))
 }
 
+/** "api-reference" → "Api Reference", "DOMAIN_MAP" → "Domain Map"; a short all-caps word in a mixed name (HLD, MCP) stays. */
 function formatName(raw: string): string {
-  return raw
-    .replace(/^\d+-/, "")
-    .replace(/[-_]/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, c => c.toUpperCase())
+  const words = raw.replace(/^\d+-/, "").split(/[-_ ]+/)
+  const shouty = words.length > 1 && words.every(w => w === w.toUpperCase())
+  return words
+    .map(w => !shouty && /^[A-Z0-9]{2,4}$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ")
 }
 
 // ─── Tree node row ────────────────────────────────────────────────────────────
@@ -128,6 +146,7 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
         <button
           onClick={() => selectMode ? toggle(node.docPath!) : onDocClick(node.docPath!)}
           style={{ paddingLeft: `${8 + indent}px` }}
+          title={node.docPath}
           className="flex-1 flex items-center gap-2 h-full truncate"
         >
           {selectMode ? (
@@ -141,6 +160,7 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
             <FileText className="h-3.5 w-3.5 shrink-0 opacity-50" />
           )}
           <span className="truncate">{formatName(node.name)}</span>
+          {node.priority && <PriorityBadge priority={node.priority} className="ml-auto" />}
         </button>
         {!selectMode && actions && (
           <DocActionsMenu
@@ -196,17 +216,23 @@ interface DocListProps {
   onNewDocClick?: () => void
   rootParam?: string
   docActions?: DocActions
+  className?: string
+  /** Slid shut (⌘\); content stays mounted but inert */
+  collapsed?: boolean
 }
 
-export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, rootParam = "", docActions }: DocListProps) {
+export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, rootParam = "", docActions, className, collapsed: listCollapsed = false }: DocListProps) {
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [copyStatus, setCopyStatus] = useState<"idle" | "copying" | "copied">("idle")
   const [pendingNewPath, setPendingNewPath] = useState<string | null>(null)
   const [width, setWidth] = useState(lastWidth)
   const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const [dragging, setDragging] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [revealedPath, setRevealedPath] = useState(selectedDocPath)
+  const [order, setOrder] = useState<DocOrder>("tree")
+  const [filter, setFilter] = useState<PriorityFilter>("all")
 
   const agentConfigs = useMemo(() => docs.filter(d => {
     const p = normalizePath(d.path)
@@ -220,7 +246,13 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
            !p.endsWith('/CLAUDE.md') && !p.endsWith('/AGENTS.md')
   }), [docs])
 
-  const tree = useMemo(() => buildTree(nonAgentDocs), [nonAgentDocs])
+  const shownDocs = useMemo(() => nonAgentDocs.filter(d => passesFilter(d.priority, filter)), [nonAgentDocs, filter])
+  const tree = useMemo(() => buildTree(shownDocs), [shownDocs])
+  const byPriority = useMemo<TreeNode[]>(() => [...shownDocs]
+    .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || a.path.localeCompare(b.path))
+    .map(d => ({ name: d.name, docPath: d.path, priority: d.priority, children: [] })),
+  [shownDocs])
+  const viewChanged = order !== "tree" || filter !== "all"
   const folderPaths = useMemo(() => collectFolderPaths(tree), [tree])
   const isSearching = searchValue.trim().length > 0
   const allCollapsed = folderPaths.length > 0 && folderPaths.every(p => collapsed.has(p))
@@ -288,7 +320,18 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
 
   return (
     <SelectionCtx.Provider value={{ active: selectMode, selected, toggle, actions: docActions ?? null, collapsed, toggleFolder }}>
-      <aside style={{ width }} className="relative flex flex-col border-r border-border shrink-0 bg-sidebar">
+      <aside
+        style={{ width: listCollapsed ? 0 : width }}
+        inert={listCollapsed}
+        aria-hidden={listCollapsed || undefined}
+        className={cn(
+          "relative flex flex-col border-r border-border shrink-0 bg-sidebar max-md:w-full! max-md:border-r-0",
+          // no transition while dragging the edge, or the panel lags the pointer
+          !dragging && "transition-[width,border-color] duration-(--duration-slow) ease-out-soft",
+          listCollapsed && "border-transparent",
+          className,
+        )}
+      >
         {/* Resize handle — drag, arrow keys, or double-click to reset */}
         <div
           role="separator"
@@ -302,23 +345,56 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
             e.preventDefault()
             e.currentTarget.setPointerCapture(e.pointerId)
             dragRef.current = { startX: e.clientX, startWidth: width }
+            setDragging(true)
           }}
           onPointerMove={(e) => {
             if (dragRef.current) resizeTo(dragRef.current.startWidth + e.clientX - dragRef.current.startX)
           }}
-          onPointerUp={() => { dragRef.current = null }}
+          onPointerUp={() => { dragRef.current = null; setDragging(false) }}
           onDoubleClick={() => resizeTo(DEFAULT_WIDTH)}
           onKeyDown={(e) => {
             if (e.key === "ArrowLeft") resizeTo(width - KEYBOARD_STEP)
             else if (e.key === "ArrowRight") resizeTo(width + KEYBOARD_STEP)
           }}
-          className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:transition-colors hover:after:bg-accent/60 focus-visible:outline-none focus-visible:after:bg-accent active:after:bg-accent"
+          className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize max-md:hidden after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:transition-colors hover:after:bg-accent/60 focus-visible:outline-none focus-visible:after:bg-accent active:after:bg-accent"
         />
+        <div className={cn("min-h-0 flex-1 overflow-hidden transition-opacity duration-(--duration-base)", listCollapsed && "opacity-0")}>
+        <div style={{ width }} className="flex h-full flex-col max-md:w-full!">
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-          <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Docs</span>
+          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">Docs</span>
           <div className="flex items-center gap-1">
-            {!selectMode && !isSearching && folderPaths.length > 0 && (
+            {!selectMode && !isSearching && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(
+                      "h-5 w-5 flex items-center justify-center rounded-sm transition-colors",
+                      viewChanged ? "bg-accent/20 text-accent" : "hover:bg-surface2 text-muted hover:text-accent",
+                    )}
+                    title="Sort and filter by priority"
+                    aria-label={viewChanged ? `Sort and filter: ${order === "priority" ? "by priority" : "folders"}, ${FILTER_LABELS[filter]}` : "Sort and filter by priority"}
+                  >
+                    <ListFilter className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuLabel className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">Order</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={order} onValueChange={(v) => setOrder(v as DocOrder)}>
+                    <DropdownMenuRadioItem value="tree">Folders</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="priority">Priority</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">Show</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={filter} onValueChange={(v) => setFilter(v as PriorityFilter)}>
+                    {(Object.keys(FILTER_LABELS) as PriorityFilter[]).map(f => (
+                      <DropdownMenuRadioItem key={f} value={f}>{FILTER_LABELS[f]}</DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {!selectMode && !isSearching && order === "tree" && folderPaths.length > 0 && (
               <button
                 onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(folderPaths))}
                 className="h-5 w-5 flex items-center justify-center rounded-sm hover:bg-surface2 text-muted hover:text-accent transition-colors"
@@ -337,6 +413,8 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                   : "hover:bg-surface2 text-muted hover:text-accent",
               )}
               title="Select docs"
+              aria-label="Select docs"
+              aria-pressed={selectMode}
             >
               <CheckSquare className="h-3.5 w-3.5" />
             </button>
@@ -345,6 +423,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                 onClick={onNewDocClick}
                 className="h-5 w-5 flex items-center justify-center rounded-sm hover:bg-surface2 text-muted hover:text-accent transition-colors"
                 title="New document"
+                aria-label="New document"
               >
                 <Plus className="h-3.5 w-3.5" />
               </button>
@@ -369,7 +448,8 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
         )}
 
         {/* File list */}
-        <ScrollArea className="flex-1">
+        {/* Radix wraps content in a display:table div that grows with its widest row; block keeps rows to the panel width so they truncate */}
+        <ScrollArea className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!">
           <div className="p-1.5 space-y-0.5">
             {selectMode ? (
               // Flat list in select mode
@@ -390,8 +470,8 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                     )}>
                       {isChecked && <Check className="h-2.5 w-2.5 text-accent" />}
                     </span>
-                    <span className="truncate flex-1 text-left">{doc.name}</span>
-                    <span className="text-[10px] opacity-40 truncate max-w-[60px]">
+                    <span className="truncate flex-1 text-left">{formatName(doc.name)}</span>
+                    <span className="max-w-[45%] shrink-0 truncate font-mono text-[10px] text-muted">
                       {normalizePath(doc.path).split("/").slice(0, -1).join("/") || "root"}
                     </span>
                   </button>
@@ -402,9 +482,8 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                 {!isSearching && agentConfigs.length > 0 && (
                   <div className="mb-2">
                     <div className="flex items-center gap-1.5 px-2 py-1">
-                      <Bot className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                      <span className="text-[10px] font-semibold text-muted uppercase tracking-wider">Agent Config</span>
-                      <span className="ml-auto text-[9px] font-medium bg-amber-400/15 text-amber-400 px-1.5 py-0.5 rounded-full">AI</span>
+                      <Bot className="h-3.5 w-3.5 text-muted shrink-0" aria-hidden />
+                      <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">Agent config</span>
                     </div>
                     {agentConfigs.map(doc => (
                       <button
@@ -440,12 +519,21 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                         )}
                       >
                         <span className="font-medium truncate w-full">{formatName(doc.name)}</span>
-                        <span className="text-[10px] opacity-50 truncate w-full">
+                        <span className="w-full truncate font-mono text-[10px] text-muted">
                           {normalizePath(doc.path).split("/").slice(0, -1).join("/")}
                         </span>
                       </button>
                     ))
                   )
+                ) : shownDocs.length === 0 && filter !== "all" ? (
+                  <p className="text-xs text-muted px-2 py-4 text-center">
+                    No docs at this priority.{" "}
+                    <button onClick={() => setFilter("all")} className="text-accent hover:underline">Show all</button>
+                  </p>
+                ) : order === "priority" ? (
+                  byPriority.map(node => (
+                    <TreeNodeRow key={node.docPath} node={node} depth={0} selectedPath={selectedDocPath} onDocClick={onDocClick} folderPath={node.name} />
+                  ))
                 ) : (
                   tree.map(node => (
                     <TreeNodeRow
@@ -478,20 +566,22 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
               className={cn(
                 "w-full flex items-center justify-center gap-1.5 h-7 rounded-md text-xs font-medium transition-colors",
                 copyStatus === "copied"
-                  ? "bg-green-500/20 text-green-400"
+                  ? "bg-teal/15 text-teal"
                   : selected.size === 0
                   ? "bg-surface2 text-muted cursor-not-allowed"
                   : "bg-accent/20 text-accent hover:bg-accent/30",
               )}
             >
               {copyStatus === "copied" ? (
-                <><Check className="h-3 w-3" /> Copied!</>
+                <><Check className="h-3 w-3" /> Copied</>
               ) : (
-                <><Copy className="h-3 w-3" /> Copy Context</>
+                <><Copy className="h-3 w-3" /> Copy context</>
               )}
             </button>
           </div>
         )}
+        </div>
+        </div>
       </aside>
     </SelectionCtx.Provider>
   )

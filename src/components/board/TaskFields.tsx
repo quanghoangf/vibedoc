@@ -1,10 +1,12 @@
 "use client"
 
 import type { ReactNode } from "react"
+import { Minus } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { InlineDate, InlineSelect, type InlineOption } from "@/components/shared/InlineProperty"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
+import { PriorityField } from "@/components/shared/PriorityBadge"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
 import { sizeOf } from "@/lib/board-views"
@@ -14,7 +16,8 @@ import type { Task } from "@/types"
 // Task properties edited in place (R055): the table, the card and the panel header all use these.
 
 const SIZES = ["XS", "S", "M", "L", "XL"]
-const empty = <span className="text-muted">—</span>
+const empty = <span className="font-mono text-[11px] text-muted">—</span>
+const none = (label: string) => <span className="inline-flex items-center gap-1 text-xs text-muted"><Minus className="size-3.5" aria-hidden />{label}</span>
 
 export function TaskStatusField({ task, chip = false }: { task: Task; chip?: boolean }) {
   const { moveTask } = useApp()
@@ -35,7 +38,7 @@ export function TaskOwnerField({ task, children }: { task: Task; children?: Reac
   const options: InlineOption[] = [
     { value: "human", label: "Human", node: <OwnerChip owner="human" className="text-xs" /> },
     ...agents.map((a) => ({ value: a, label: ownerLabel(a), node: <OwnerChip owner={a} className="text-xs" /> })),
-    { value: "", label: "No owner", node: <span className="text-muted">No owner</span> },
+    { value: "", label: "No owner", node: none("No owner") },
   ]
   return (
     <InlineSelect label={`Owner of ${task.id}`} value={task.owner ?? ""} options={options} onChange={(v) => updateTaskFields(task.id, { owner: v || null })}>
@@ -47,12 +50,17 @@ export function TaskOwnerField({ task, children }: { task: Task; children?: Reac
 export function TaskSizeField({ task, children }: { task: Task; children?: ReactNode }) {
   const { updateTaskFields } = useApp()
   const size = sizeOf(task)
-  const options: InlineOption[] = [...SIZES.map((s) => ({ value: s, label: s, node: <span className="font-mono">{s}</span> })), { value: "", label: "No size", node: <span className="text-muted">No size</span> }]
+  const options: InlineOption[] = [...SIZES.map((s) => ({ value: s, label: s, node: <span className="font-mono">{s}</span> })), { value: "", label: "No size", node: none("No size") }]
   return (
     <InlineSelect label={`Size of ${task.id}`} value={size ?? ""} options={options} onChange={(v) => updateTaskFields(task.id, { size: v || "—" })}>
       {children ?? (size ? <span className="font-mono text-xs">{size}</span> : empty)}
     </InlineSelect>
   )
+}
+
+export function TaskPriorityField({ task }: { task: Task }) {
+  const { updateTaskFields } = useApp()
+  return <PriorityField label={`Priority of ${task.id}`} value={task.priority ?? null} onChange={(priority) => updateTaskFields(task.id, { priority })} empty={empty} />
 }
 
 export function TaskDueField({ task, children }: { task: Task; children?: ReactNode }) {

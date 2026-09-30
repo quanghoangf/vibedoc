@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { Check, Download, ListTodo, Users } from "lucide-react"
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
+import { Check, Download, ListTodo, Pencil, Users } from "lucide-react"
 import CodeMirror from "@uiw/react-codemirror"
 import type { ReactCodeMirrorRef } from "@uiw/react-codemirror"
 import type { Extension } from "@codemirror/state"
@@ -14,8 +14,12 @@ import { MarkdownRenderer } from "./MarkdownRenderer"
 import { useApp } from "@/context/AppContext"
 import { askAgent } from "@/lib/ask-agent"
 import type { TextEdit } from "@/lib/diff"
+import { docStats } from "@/lib/headings"
+import { setDocProperty, stripFrontmatter } from "@/lib/doc-priority"
 
-type ViewMode = "edit" | "split" | "preview"
+export type ViewMode = "edit" | "split" | "preview"
+
+const EMPTY_HINT = "# Title\n\nStart writing in markdown. It saves as you type."
 type SaveStatus = "saved" | "saving" | "unsaved"
 
 interface Props {
@@ -26,17 +30,29 @@ interface Props {
   onContentChange?: (content: string) => void
   wordWrap?: boolean
   lineNumbers?: boolean
+  /** Left end of the doc bar (back button, path) */
+  barStart?: ReactNode
+  /** Right end of the doc bar, after the built-in tools (outline, backlinks, ⋯ menu); gets the mode */
+  barEnd?: (mode: ViewMode) => ReactNode
+  /** Title + meta, set at the top of the reading column */
+  titleBlock?: ReactNode
 }
 
-export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true }: Props) {
+export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, barStart, barEnd, titleBlock }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
   const { rootParam } = useApp()
   const ytextRef = useRef<import("yjs").Text | null>(null)
   const awarenessRef = useRef<{ getStates: () => Map<number, unknown> } | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>("split")
+  const [viewMode, setViewMode] = useState<ViewMode>(initialContent.trim() ? "preview" : "edit")
   const [previewContent, setPreviewContent] = useState(initialContent)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved")
   const [userCount, setUserCount] = useState(1)
+  // When the agent last edited this doc: the preview marks the blocks that change right after it
+  const [aiEditAt, setAiEditAt] = useState(0)
+  const viewModeRef = useRef(viewMode)
+  useEffect(() => { viewModeRef.current = viewMode }, [viewMode])
+  const onContentChangeRef = useRef(onContentChange)
+  useEffect(() => { onContentChangeRef.current = onContentChange }, [onContentChange])
 
   // Phase 1: base extensions (no yCollab) — shown immediately
   const [baseExtensions, setBaseExtensions] = useState<Extension[]>([])
@@ -79,21 +95,21 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         { WebsocketProvider },
         { yCollab },
         { markdown },
-        { oneDark },
-        { EditorView: CMEditorView },
+        { editorTheme },
+        { EditorView: CMEditorView, placeholder },
       ] = await Promise.all([
         import("yjs"),
         import("y-websocket"),
         import("y-codemirror.next"),
         import("@codemirror/lang-markdown"),
-        import("@codemirror/theme-one-dark"),
+        import("./editor-theme"),
         import("@codemirror/view"),
       ])
 
       if (destroyed) return
 
       // Phase 1: show editor immediately with syntax highlighting — no yCollab yet
-      const base: Extension[] = [markdown(), oneDark]
+      const base: Extension[] = [markdown(), editorTheme, placeholder(EMPTY_HINT)]
       if (wordWrap) base.push(CMEditorView.lineWrapping)
       setBaseExtensions(base)
 
@@ -119,6 +135,14 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         if (!synced || destroyed) return
         // Initialize ytext from the file content if room is fresh
         if (ytext.length === 0) ytext.insert(0, initialContent)
+        // Preview mode has no editor mounted, so nothing else feeds the preview remote changes (agent edits,
+        // other tabs). Split/Edit get them through CodeMirror's onChange, which also tracks dirty state.
+        ytext.observe(() => {
+          if (viewModeRef.current !== "preview") return
+          const text = ytext.toString()
+          setPreviewContent(text)
+          onContentChangeRef.current?.(text)
+        })
         // Phase 2: swap in yCollab extension
         setCollabExtensions([yCollab(ytext, provider.awareness, { undoManager })])
         setIsSynced(true)
@@ -142,8 +166,11 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
   useEffect(() => {
     async function onSse(e: Event) {
       const msg = (e as CustomEvent).detail
-      if (msg?.type !== "doc_updated" || msg.payload?.actor !== "ai") return
+      // A property change (from you or an agent) rewrites only the frontmatter; apply the same rewrite here
+      const properties: Record<string, string | null> | undefined = msg?.payload?.properties
+      if (msg?.type !== "doc_updated" || (msg.payload?.actor !== "ai" && !properties)) return
       if (String(msg.payload.path).replace(/^\.\//, "") !== docPath) return
+      if (!properties) setAiEditAt(Date.now())
       const ytext = ytextRef.current
       const awareness = awarenessRef.current
       if (!ytext?.doc || !awareness) return
@@ -151,7 +178,11 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
 
       const edits: TextEdit[] | undefined = Array.isArray(msg.payload.edits) ? msg.payload.edits : undefined
       let target: string | null = null
-      if (!edits) {
+      if (properties) {
+        try {
+          target = Object.entries(properties).reduce((c, [k, v]) => setDocProperty(c, k, v), ytext.toString())
+        } catch { return } // the buffer turned the key into a list meanwhile; the file already has the change
+      } else if (!edits) {
         // Whole-file write (e.g. vibedoc_write_doc from another agent): splice in only the differing middle
         const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(docPath)}`)
         const content = (await res.json())?.content
@@ -187,14 +218,13 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
   useEffect(() => {
     if (baseExtensions.length === 0) return // not yet loaded
     async function rebuild() {
-      const [{ markdown }, { oneDark }, { EditorView: CMEditorView }, { lineNumbers: cmLineNumbers }] =
+      const [{ markdown }, { editorTheme }, { EditorView: CMEditorView, lineNumbers: cmLineNumbers, placeholder }] =
         await Promise.all([
           import("@codemirror/lang-markdown"),
-          import("@codemirror/theme-one-dark"),
-          import("@codemirror/view"),
+          import("./editor-theme"),
           import("@codemirror/view"),
         ])
-      const base: Extension[] = [markdown(), oneDark]
+      const base: Extension[] = [markdown(), editorTheme, placeholder(EMPTY_HINT)]
       if (wordWrap) base.push(CMEditorView.lineWrapping)
       if (lineNumbers) base.push(cmLineNumbers())
       setBaseExtensions(base)
@@ -265,35 +295,34 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
   const showPreview = viewMode !== "edit"
   const extensions = isSynced ? [...baseExtensions, ...collabExtensions] : baseExtensions
   const statusText = saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : "Unsaved"
-  const statusColor =
-    saveStatus === "saving"
-      ? "text-muted"
-      : saveStatus === "saved"
-      ? "text-teal-400"
-      : "text-yellow-400"
+  const statusColor = saveStatus === "unsaved" ? "text-amber" : "text-muted"
 
   return (
     <TooltipProvider delayDuration={300}>
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Single header row */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border shrink-0">
-        <span className="text-xs font-mono text-muted flex-1 truncate min-w-0">{docPath}</span>
+      {/* Doc bar: where the doc lives on the left, the mode and every tool on the right */}
+      <div className="flex h-11 shrink-0 items-center gap-1 border-b border-border px-3 sm:px-4">
+        <div className="flex min-w-0 flex-1 items-center gap-1 font-mono text-[11px] text-muted">{barStart}</div>
+        <span role="status" className={`mr-2 flex items-center gap-1 whitespace-nowrap text-xs ${statusColor} ${saveStatus === "saved" ? "max-sm:sr-only" : ""}`}>
+          {saveStatus === "saved" && <Check className="h-3 w-3 animate-in fade-in zoom-in-50 duration-(--duration-base)" aria-hidden />}{statusText}
+        </span>
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
           <TabsList className="h-7 bg-surface2 p-0.5">
-            <TabsTrigger value="edit" className="h-6 px-2.5 text-xs">Edit</TabsTrigger>
-            <TabsTrigger value="split" className="h-6 px-2.5 text-xs">Split</TabsTrigger>
             <TabsTrigger value="preview" className="h-6 px-2.5 text-xs">Preview</TabsTrigger>
+            <TabsTrigger value="split" className="h-6 px-2.5 text-xs max-md:hidden">Split</TabsTrigger>
+            <TabsTrigger value="edit" className="h-6 px-2.5 text-xs">Edit</TabsTrigger>
           </TabsList>
         </Tabs>
+        <div className="mx-1.5 h-4 w-px bg-border" aria-hidden />
         {userCount > 1 && (
-          <Badge variant="secondary" className="h-5 gap-1 text-[10px] px-1.5">
+          <Badge variant="secondary" className="h-5 gap-1 text-[10px] px-1.5 max-sm:hidden" title={`${userCount} tabs have this doc open`}>
             <Users className="h-3 w-3" />{userCount}
           </Badge>
         )}
         {docPath.endsWith(".md") && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="Break down with agent"
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt max-sm:hidden" aria-label="Break down with agent"
                 onClick={() => askAgent(`Break down the spec in ${docPath} into tasks.`)}>
                 <ListTodo className="h-3.5 w-3.5" />
               </Button>
@@ -303,31 +332,33 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         )}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleDownload}>
-              <Download className="h-3.5 w-3.5" />
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt max-sm:hidden" onClick={handleDownload} aria-label="Download .md">
+              <Download className="h-3.5 w-3.5" aria-hidden />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">Download .md</TooltipContent>
         </Tooltip>
-        <span className={`text-xs flex items-center gap-1 ${statusColor}`}>
-          {saveStatus === "saved" && <Check className="h-3 w-3" />}{statusText}
-        </span>
+        {barEnd?.(viewMode)}
       </div>
 
       {/* Toolbar — hidden in preview mode */}
-      {viewMode !== "preview" && <EditorToolbar editorView={editorView} />}
+      {viewMode !== "preview" && (
+        <div className={viewMode === "split" ? "max-md:hidden" : undefined}>
+          <EditorToolbar editorView={editorView} />
+        </div>
+      )}
 
       {/* Editor / Preview area */}
       <div
         className={`flex-1 overflow-hidden ${
-          showEditor && showPreview ? "grid grid-cols-2 divide-x divide-border" : "flex"
+          showEditor && showPreview ? "grid grid-cols-2 divide-x divide-border max-md:grid-cols-1" : "flex"
         }`}
       >
         {showEditor && (
-          <div className="flex flex-col overflow-hidden min-h-0">
+          <div className={`animate-pane-in flex flex-col overflow-hidden min-h-0 ${showPreview ? "max-md:hidden" : ""}`}>
             {baseExtensions.length === 0 ? (
               // Modules not yet loaded — show a plain fallback
-              <div className="flex-1 p-4 font-mono text-sm text-txt bg-[#282c34] overflow-auto whitespace-pre-wrap">
+              <div className="flex-1 overflow-auto whitespace-pre-wrap bg-bg px-4 py-3 font-mono text-sm text-txt">
                 {previewContent}
               </div>
             ) : (
@@ -347,8 +378,24 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         )}
 
         {showPreview && (
-          <div className="flex-1 overflow-y-auto p-6 min-w-0">
-            <MarkdownRenderer content={previewContent} />
+          // keyed by doc: opening another doc starts at its top and settles in, instead of keeping the old scroll
+          <div key={docPath} className="flex-1 overflow-y-auto min-w-0 px-5 pt-10 pb-24 sm:px-10 sm:pt-14">
+            <div className="animate-doc-in">
+            {titleBlock && <div className="mx-auto w-full max-w-[72ch]">{titleBlock}</div>}
+            {!previewContent.trim() && (
+              <div className="mx-auto flex w-full max-w-[72ch] items-center gap-3 text-sm text-muted">
+                This doc is empty.
+                <Button size="sm" variant="outline" onClick={() => setViewMode("edit")}>
+                  <Pencil className="size-3.5" aria-hidden /> Start writing
+                </Button>
+              </div>
+            )}
+            <MarkdownRenderer
+              content={previewContent}
+              className={docStats(stripFrontmatter(previewContent)).title ? "doc-preview doc-preview-titled" : "doc-preview"}
+              highlightSince={aiEditAt}
+            />
+            </div>
           </div>
         )}
       </div>

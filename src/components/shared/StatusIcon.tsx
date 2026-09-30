@@ -15,7 +15,7 @@ export const STATUS_META: Record<TaskStatus, { label: string; icon: LucideIcon; 
   cancelled:     { label: "Cancelled",   icon: CircleX,     text: "text-muted",  chip: "border-border text-muted" },
 }
 
-/** Literal classes per palette color (Tailwind only generates classes it can see). */
+/** Literal classes per palette color (Tailwind only generates classes it can see). Extra hues take -600 ink on paper, -400 on dark (4.5:1 both ways). */
 export const STATUS_COLOR_CLASS: Record<StatusColor, { text: string; chip: string; bg: string }> = {
   gray:   { text: "text-muted",      chip: "border-border2 text-muted",                       bg: "bg-border2" },
   amber:  { text: "text-amber",      chip: "border-amber/30 bg-amber/5 text-amber",           bg: "bg-amber" },
@@ -23,10 +23,10 @@ export const STATUS_COLOR_CLASS: Record<StatusColor, { text: string; chip: strin
   red:    { text: "text-danger",     chip: "border-danger/30 bg-danger/5 text-danger",        bg: "bg-danger" },
   slate:  { text: "text-muted",      chip: "border-border2 bg-surface2 text-muted",           bg: "bg-muted/60" },
   teal:   { text: "text-teal",       chip: "border-teal/30 bg-teal/5 text-teal",              bg: "bg-teal" },
-  blue:   { text: "text-blue-400",   chip: "border-blue-400/30 bg-blue-400/5 text-blue-400",  bg: "bg-blue-400" },
-  pink:   { text: "text-pink-400",   chip: "border-pink-400/30 bg-pink-400/5 text-pink-400",  bg: "bg-pink-400" },
-  green:  { text: "text-green-400",  chip: "border-green-400/30 bg-green-400/5 text-green-400", bg: "bg-green-400" },
-  orange: { text: "text-orange-400", chip: "border-orange-400/30 bg-orange-400/5 text-orange-400", bg: "bg-orange-400" },
+  blue:   { text: "text-blue-600 dark:text-blue-400", chip: "border-blue-600/30 bg-blue-600/5 text-blue-600 dark:border-blue-400/30 dark:bg-blue-400/5 dark:text-blue-400", bg: "bg-blue-500 dark:bg-blue-400" },
+  pink:   { text: "text-pink-600 dark:text-pink-400", chip: "border-pink-600/30 bg-pink-600/5 text-pink-600 dark:border-pink-400/30 dark:bg-pink-400/5 dark:text-pink-400", bg: "bg-pink-500 dark:bg-pink-400" },
+  green:  { text: "text-green-600 dark:text-green-400", chip: "border-green-600/30 bg-green-600/5 text-green-600 dark:border-green-400/30 dark:bg-green-400/5 dark:text-green-400", bg: "bg-green-500 dark:bg-green-400" },
+  orange: { text: "text-orange-600 dark:text-orange-400", chip: "border-orange-600/30 bg-orange-600/5 text-orange-600 dark:border-orange-400/30 dark:bg-orange-400/5 dark:text-orange-400", bg: "bg-orange-500 dark:bg-orange-400" },
 }
 
 /** Label, icon (from the category) and color classes for any status key, built-in or custom. */

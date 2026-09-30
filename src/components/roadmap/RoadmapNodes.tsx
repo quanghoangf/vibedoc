@@ -53,7 +53,7 @@ export function StatusDot({ status, className }: { status: RoadmapStatus; classN
           status === "done" && "bg-teal",
           status === "in-progress" && "bg-accent",
           status === "planned" && "border border-muted",
-          status === "paused" && "border-2 border-y-0 border-muted",
+          status === "paused" && "bg-muted",
         )}
       />
     </span>

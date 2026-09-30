@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Bot, ChevronRight, FileText, MessageSquare, Pencil, Plus } from "lucide-react"
+import { Bot, Calendar, ChevronRight, CircleDashed, FileText, Flag, Layers, ListChecks, MessageSquare, Pencil, Plus, User } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ import { useItemCommands } from "@/components/shared/item-commands"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
 import { InlineDate, InlineSelect } from "@/components/shared/InlineProperty"
+import { PriorityField } from "@/components/shared/PriorityBadge"
 import { toast } from "@/components/ui/toast"
 import { DueChip, STATUS_LABEL, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
 import type { RoadmapItem, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
@@ -49,7 +50,7 @@ interface RoadmapItemSheetProps {
 export function RoadmapItemSheet({ item, onClose, ...rest }: RoadmapItemSheetProps) {
   return (
     <Sheet open={!!item} onOpenChange={(v) => { if (!v) onClose() }}>
-      <SheetContent className="w-[480px] sm:max-w-[480px] gap-0 bg-surface border-border text-txt flex flex-col overflow-y-auto p-0">
+      <SheetContent className="w-full sm:w-[480px] sm:max-w-[480px] gap-0 bg-surface border-border text-txt flex flex-col overflow-y-auto p-0">
         {/* keyed so view/edit and form state re-initialise when a different item opens */}
         {item && <ItemPanel key={item.id} item={item} onClose={onClose} {...rest} />}
       </SheetContent>
@@ -106,6 +107,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
         properties={[
           {
             label: "Status",
+            icon: CircleDashed,
             value: (
               <InlineSelect label={`Status of ${item.id}`} value={item.status} onChange={(v) => actions.setStatus(item.id, v as RoadmapStatus)}
                 options={STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s], node: <><StatusDot status={s} />{STATUS_LABEL[s]}</> }))}>
@@ -114,7 +116,13 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
             ),
           },
           {
+            label: "Priority",
+            icon: Flag,
+            value: <PriorityField label={`Priority of ${item.id}`} value={item.priority ?? null} onChange={(priority) => save({ priority })} />,
+          },
+          {
             label: "Owner",
+            icon: User,
             value: (
               <InlineSelect label={`Owner of ${item.id}`} value={item.owner ?? ""} onChange={(v) => save({ owner: v || null })}
                 options={[
@@ -128,13 +136,14 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
           },
           {
             label: "Due",
+            icon: Calendar,
             value: (
               <InlineDate label={`Due date of ${item.id}`} value={item.due} onChange={(v) => save({ due: v })}>
                 {item.due ? <DueChip due={item.due} state={dueState(item.due, item.status, today)} /> : <span className="text-muted">—</span>}
               </InlineDate>
             ),
           },
-          { label: isHorizon ? "Epics" : "Tasks", value: <span className="font-mono">{isHorizon ? epics.length : item.tasks.length}</span> },
+          { label: isHorizon ? "Epics" : "Tasks", icon: isHorizon ? Layers : ListChecks, value: <span className="font-mono">{isHorizon ? epics.length : item.tasks.length}</span> },
         ]}
       >
         {progress && (

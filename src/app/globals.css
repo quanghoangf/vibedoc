@@ -175,6 +175,10 @@ body {
 .prose-dark h3 { font-size: 0.95rem; font-weight: 600; color: var(--color-accent); margin: 1rem 0 0.4rem; }
 .prose-dark p { font-size: 0.9rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.7; margin-bottom: 0.75rem; }
 .prose-dark ul, .prose-dark ol { padding-left: 1.25rem; margin-bottom: 0.75rem; }
+/* Tailwind's preflight strips list markers; prose needs them back */
+.prose-dark ul { list-style: disc; }
+.prose-dark ol { list-style: decimal; }
+.prose-dark li::marker { color: var(--color-muted); }
 /* Compact prose for side rails (chat context): headings become small labels, body text shrinks */
 .prose-dark.prose-compact h1, .prose-dark.prose-compact h2, .prose-dark.prose-compact h3 { font-size: 0.75rem; font-weight: 600; color: var(--color-txt); margin: 0.9rem 0 0.3rem; padding: 0; border: 0; letter-spacing: 0; }
 .prose-dark.prose-compact > :first-child { margin-top: 0; }
@@ -194,6 +198,33 @@ html:not(.dark) .prose-dark :not(pre) > code { color: color-mix(in srgb, var(--c
 .prose-dark a:hover { text-decoration: underline; }
 .prose-dark strong { color: var(--color-txt); font-weight: 600; }
 .prose-dark hr { border: none; border-top: 1px solid var(--color-border); margin: 1.5rem 0; }
+/* Docs reading pane: prose held to a reading measure, mermaid diagrams may use the full width.
+   The opening H1 is shown as the doc header's title, so the preview keeps it only for outline scroll. */
+.doc-preview { display: grid; grid-template-columns: minmax(0, 1fr) min(72ch, 100%) minmax(0, 1fr); }
+.doc-preview > * { grid-column: 2; min-width: 0; }
+.doc-preview > .mermaid { grid-column: 1 / -1; }
+.doc-preview-titled > h1:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* Docs motion: a pane that appears on a mode switch fades in; a newly opened doc settles into place. */
+.animate-pane-in { animation: pane-in var(--duration-base) var(--ease-out-soft); }
+.animate-doc-in { animation: doc-in var(--duration-slow) var(--ease-out-soft); }
+@keyframes pane-in { from { opacity: 0; } }
+@keyframes doc-in { from { opacity: 0; transform: translateY(6px); } }
+/* An agent edit landing: the changed blocks get a highlighter stroke that draws left to right, then fades. */
+@property --doc-hl { syntax: "<color>"; inherits: false; initial-value: transparent; }
+.doc-block-changed {
+  margin-inline: -6px; padding-inline: 6px; border-radius: 4px;
+  background: linear-gradient(var(--doc-hl), var(--doc-hl)) no-repeat;
+  animation: doc-highlight 2.4s var(--ease-out-soft);
+}
+@keyframes doc-highlight {
+  0%   { background-size: 0% 100%;   --doc-hl: rgb(var(--rgb-accent) / 0.22); }
+  18%  { background-size: 100% 100%; --doc-hl: rgb(var(--rgb-accent) / 0.22); }
+  100% { background-size: 100% 100%; --doc-hl: rgb(var(--rgb-accent) / 0); }
+}
+@keyframes doc-highlight-fade {
+  from { background-size: 100% 100%; --doc-hl: rgb(var(--rgb-accent) / 0.22); }
+  to   { background-size: 100% 100%; --doc-hl: rgb(var(--rgb-accent) / 0); }
+}
 
 /* Collapsible animations */
 @keyframes collapsible-down {
@@ -219,6 +250,8 @@ html:not(.dark) .prose-dark :not(pre) > code { color: color-mix(in srgb, var(--c
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
     animation: none !important;
   }
+  /* What the agent changed must still read: no stroke, just the highlight fading out */
+  .doc-block-changed { animation: doc-highlight-fade 2.4s linear !important; }
 }
 
 /* Mermaid diagrams */

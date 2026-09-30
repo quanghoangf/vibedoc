@@ -39,6 +39,17 @@ export default function DocsPage() {
     fetchDocs()
   }, [fetchDocs])
 
+  // Priorities live in each doc's frontmatter, so any edit (picker, agent, typing) can change the list's badges
+  const searchingRef = useRef(false)
+  useEffect(() => { searchingRef.current = docSearch.trim() !== "" }, [docSearch])
+  useEffect(() => {
+    function onSse(e: Event) {
+      if ((e as CustomEvent).detail?.type === "doc_updated" && !searchingRef.current) fetchDocs()
+    }
+    window.addEventListener("vibedoc:sse", onSse)
+    return () => window.removeEventListener("vibedoc:sse", onSse)
+  }, [fetchDocs])
+
   const searchDocsFn = useCallback(async (q: string) => {
     if (!q.trim()) {
       fetchDocs()
@@ -50,7 +61,7 @@ export default function DocsPage() {
       data.results?.map((r: { file: string }) => ({
         path: r.file,
         section: "search",
-        name: r.file,
+        name: r.file.split("/").pop()?.replace(/\.md$/, "") ?? r.file,
       })) || [],
     )
   }, [rootParam, fetchDocs])
