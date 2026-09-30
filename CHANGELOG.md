@@ -1,3 +1,29 @@
+# [1.9.0](https://github.com/quanghoangf/vibedoc/compare/v1.8.0...v1.9.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* **chat:** chat agents can't delete knowledge entries ([57cd7c9](https://github.com/quanghoangf/vibedoc/commit/57cd7c9dec4de34dfcfc075509c4887e7a18c1f1))
+
+
+### Features
+
+* **memory:** delete a knowledge entry from /memory with Undo ([41015a8](https://github.com/quanghoangf/vibedoc/commit/41015a83617b38147139abe281cdf357516d98c5))
+* **memory:** entry history from git on /memory ([a96dd3b](https://github.com/quanghoangf/vibedoc/commit/a96dd3b2f2cad1b987814bf1140c94c075e01b43))
+* **memory:** graph view of entries and their links on /memory ([a4a94bf](https://github.com/quanghoangf/vibedoc/commit/a4a94bfba46f0be74f83f8e1bc085b6076bee89b))
+* **memory:** knowledge entries list with search and type filter on /memory ([64dbcd0](https://github.com/quanghoangf/vibedoc/commit/64dbcd0f437296948728a47ecae17d4d2d6672d6))
+* **memory:** knowledge entry files and vibedoc_save_entry ([a3b8279](https://github.com/quanghoangf/vibedoc/commit/a3b8279e2657481b99cc043e6cc581f1858d9e01))
+* **memory:** link graph inferred from entry text; GET /api/memory/graph ([d63af35](https://github.com/quanghoangf/vibedoc/commit/d63af3549696f227db6e1bb0f39a35e24dc58d1f))
+* **memory:** links and backlinks in vibedoc_get_entries ([c2aef6e](https://github.com/quanghoangf/vibedoc/commit/c2aef6ee11ed396f986dbd5d6a4cea716b4bcc89))
+* **memory:** open, edit and add knowledge entries on /memory ([43595cf](https://github.com/quanghoangf/vibedoc/commit/43595cfe0d7dad9869f846255830ac350195dfdb))
+* **memory:** Related panel on an entry — links to and linked from ([89a2b04](https://github.com/quanghoangf/vibedoc/commit/89a2b04e4fda9da3b2ff97097c3673331b20485f))
+* **memory:** show who changed each knowledge entry; e2e for the Memory browser ([7abf6a0](https://github.com/quanghoangf/vibedoc/commit/7abf6a02366edaa76c5dac594d740e2048c7d6ff))
+* **memory:** suggest related entries when a task is claimed or opened ([1f9228a](https://github.com/quanghoangf/vibedoc/commit/1f9228ac47c42e8922b08f7406d8fd1d17909fec))
+* **memory:** token budget for the session-start entry index ([476f194](https://github.com/quanghoangf/vibedoc/commit/476f194c527e61ea68a1c83e000f7c01a29ccf4f))
+* **memory:** vibedoc_delete_entry and the entry index at session start ([9fde28f](https://github.com/quanghoangf/vibedoc/commit/9fde28fac395d570168a80d684cdab72c8580b73))
+* **memory:** vibedoc_get_entries — fetch full entries by id ([1b40c24](https://github.com/quanghoangf/vibedoc/commit/1b40c245e70ece5681e618947644af060904315c))
+* **memory:** vibedoc_recall — compact ranked list of entries by keyword ([9fc9e41](https://github.com/quanghoangf/vibedoc/commit/9fc9e416cbe65d931b4fb93d07611eac513bf450))
+
 # [1.8.0](https://github.com/quanghoangf/vibedoc/compare/v1.7.0...v1.8.0) (2026-09-30)
 
 
