@@ -14,6 +14,9 @@ export interface ViewProps {
   state: ViewState
   agentTasks: Set<string>
   onOpenTask: (task: Task) => void
+  selected?: Set<string>
+  /** Toggle (or with `on`, set) selection for these ids */
+  onToggleSelect?: (ids: string[], on?: boolean) => void
 }
 
 type Column = "todo" | "in-progress" | "review" | "blocked" | "done"
@@ -41,7 +44,7 @@ const newestFirst = (a: Task, b: Task) => b.id.localeCompare(a.id, undefined, { 
 /** Cancelled tasks (shown only when a status filter names them) sit in Done, matching the lane tallies. */
 const inColumn = (tasks: Task[], col: Column) => tasks.filter((t) => (col === "done" ? isDone(t) : t.status === col))
 
-export function BoardView({ tasks, state, onOpenTask, onMoveTask }: ViewProps & { onMoveTask: (id: string, status: string) => void }) {
+export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onToggleSelect }: ViewProps & { onMoveTask: (id: string, status: string) => void }) {
   const [doneOpen, setDoneOpen] = useState(false)
   const [laneOpen, setLaneOpen] = useState<Record<string, boolean>>({})
   const [showAllDoneLanes, setShowAllDoneLanes] = useState(false)
@@ -60,7 +63,16 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask }: ViewProps & 
   const lanes: TaskGroup[] | null = state.subGroup === "none" ? null : groupTasks(tasks, state.subGroup)
   // A card inside an epic lane doesn't repeat the epic
   const properties: PropertyKey[] = state.subGroup === "epic" ? state.properties.filter((p) => p !== "epic") : state.properties
-  const card = (t: Task) => <TaskCard key={t.id} task={t} properties={properties} onOpen={() => onOpenTask(t)} />
+  const card = (t: Task) => (
+    <TaskCard
+      key={t.id}
+      task={t}
+      properties={properties}
+      onOpen={() => onOpenTask(t)}
+      selected={selected?.has(t.id)}
+      onSelect={onToggleSelect && (() => onToggleSelect([t.id]))}
+    />
+  )
   // Lanes with open work first, then fully done ones (collapsed, capped)
   const openLanes = lanes?.filter((l) => !l.tasks.every(isDone)) ?? []
   const doneLanes = lanes?.filter((l) => l.tasks.every(isDone)) ?? []

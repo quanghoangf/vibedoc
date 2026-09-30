@@ -16,6 +16,7 @@ import { BoardView } from "./views/BoardView"
 import { TableView } from "./views/TableView"
 import { EpicView } from "./views/EpicView"
 import TimelineView from "./views/TimelineView"
+import { BulkBar } from "./BulkBar"
 
 interface BoardTabProps {
   tasks: Task[]
@@ -53,6 +54,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
   const [filterOpen, setFilterOpen] = useState(false)
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
+  const [picked, setPicked] = useState<Set<string>>(new Set())
 
   // ── Saved views (.vibedoc/views.json) ───────────────────────────────────────
   const loadViews = useCallback(() => {
@@ -198,8 +200,26 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
     return () => window.removeEventListener("keydown", onKey)
   }, [order, activeId, select, onNewTask])
 
+  // Only tasks still on screen count as selected (a filter or a delete drops the rest)
+  const selected = useMemo(() => new Set(shown.map((t) => t.id).filter((id) => picked.has(id))), [shown, picked])
+  const toggleSelect = useCallback((ids: string[], on?: boolean) => setPicked((prev) => {
+    const next = new Set(prev)
+    for (const id of ids) {
+      if (on ?? !next.has(id)) next.add(id)
+      else next.delete(id)
+    }
+    return next
+  }), [])
+  const clearSelection = useCallback(() => setPicked(new Set()), [])
+  useEffect(() => {
+    if (selected.size === 0) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && !document.querySelector("[role=dialog],[role=menu]")) clearSelection() }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [selected.size, clearSelection])
+
   const count = (...s: Task["status"][]) => tasks.filter((t) => s.includes(t.status)).length
-  const viewProps = { tasks: shown, allTasks: tasks, state, agentTasks, onOpenTask }
+  const viewProps = { tasks: shown, allTasks: tasks, state, agentTasks, onOpenTask, selected, onToggleSelect: toggleSelect }
 
   return (
     <div className="flex min-w-0 flex-col">
@@ -258,6 +278,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
         </div>
       )}
       </div>
+      {selected.size > 0 && <BulkBar ids={[...selected]} onClear={clearSelection} />}
     </div>
   )
 }

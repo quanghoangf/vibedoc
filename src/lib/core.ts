@@ -497,6 +497,34 @@ export function deleteTask(taskId: string, root: string, actor: 'ai' | 'human' =
   })
 }
 
+/** Move a task to an epic (or out of every epic): the epics' **Tasks:** lines and the task's **Phase:** follow. */
+export async function setTaskEpic(taskId: string, epicId: string | null, root: string, actor: 'ai' | 'human' = 'human'): Promise<Task> {
+  const task = await getTask(taskId, root)
+  const { items } = await listRoadmap(root)
+  const target = epicId ? items.find(i => i.id === epicId.trim().toUpperCase() && i.parent !== null) : undefined
+  if (epicId && !target) throw new RoadmapError(`Epic not found: ${epicId}`)
+  for (const e of items.filter(i => i.tasks.includes(task.id) && i.id !== target?.id)) {
+    await updateRoadmapItem(e.id, { tasks: e.tasks.filter(t => t !== task.id) }, root, actor)
+  }
+  if (target && !target.tasks.includes(task.id)) await updateRoadmapItem(target.id, { tasks: [...target.tasks, task.id] }, root, actor)
+  return updateTaskMeta(task.id, { phase: target ? `${target.id} — ${target.title}` : '' }, root, actor)
+}
+
+export type BulkTaskAction = { status: TaskStatus } | { epic: string | null } | { delete: true }
+
+/** One action over many tasks. Stops at the first failure; tasks before it keep the change. */
+export async function bulkTasks(
+  ids: string[], action: BulkTaskAction, root: string, actor: 'ai' | 'human' = 'human'
+): Promise<{ deleted: { task: Task; links: TaskLink[] }[] }> {
+  const deleted: { task: Task; links: TaskLink[] }[] = []
+  for (const id of ids) {
+    if ('status' in action) await updateTaskStatus(id, normalizeStatus(action.status), root, actor)
+    else if ('epic' in action) await setTaskEpic(id, action.epic, root, actor)
+    else if ('delete' in action) deleted.push(await deleteTask(id, root, actor))
+  }
+  return { deleted }
+}
+
 /** Only a plain `<dir>/<name>.md` path counts: no traversal, no subfolders. */
 function isFileIn(rel: unknown, dir: string, name: RegExp): rel is string {
   if (typeof rel !== 'string') return false

@@ -20,13 +20,16 @@ interface TaskCardProps {
   onOpen: () => void
   /** Which lines show; defaults to every property. */
   properties?: PropertyKey[]
+  selected?: boolean
+  /** Shift / Cmd / Ctrl-click toggles selection instead of opening */
+  onSelect?: () => void
 }
 
 /**
  * A task on the board. The column already says the status, so the card doesn't repeat it.
  * Click (or Enter) opens the task panel, where every action lives; drag moves it between columns.
  */
-export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES }: TaskCardProps) {
+export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected = false, onSelect }: TaskCardProps) {
   const [isDragging, setIsDragging] = useState(false)
   const show = (p: PropertyKey) => properties.includes(p)
   const epic = show("epic") && task.phase ? epicOf(task.phase) : null
@@ -43,7 +46,8 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES }: TaskCard
       role="button"
       tabIndex={0}
       aria-label={`${task.id} ${task.title}`}
-      onClick={onOpen}
+      aria-pressed={onSelect ? selected : undefined}
+      onClick={(e) => { if (onSelect && (e.shiftKey || e.metaKey || e.ctrlKey)) onSelect(); else onOpen() }}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen() } }}
       onDragStart={(e) => {
         e.dataTransfer.setData("taskId", task.id)
@@ -57,6 +61,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES }: TaskCard
         "transition-[border-color,background-color,opacity,box-shadow] duration-(--duration-fast)",
         "hover:border-border2 hover:bg-surface2/50 focus-visible:border-accent/60 focus-visible:shadow-[0_0_0_3px_rgb(var(--rgb-accent)/0.15)]",
         isDragging && "cursor-grabbing opacity-50",
+        selected && "border-accent bg-accent/5 hover:border-accent",
       )}
     >
       <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted">

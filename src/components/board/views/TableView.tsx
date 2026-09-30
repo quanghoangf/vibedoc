@@ -14,6 +14,8 @@ interface ViewProps {
   state: ViewState
   agentTasks: Set<string>
   onOpenTask: (task: Task) => void
+  selected?: Set<string>
+  onToggleSelect?: (ids: string[], on?: boolean) => void
 }
 
 type TableViewProps = ViewProps & { onSort: (sorts: SortRule[]) => void }
@@ -45,7 +47,7 @@ export function nextSorts(sorts: SortRule[], prop: SortProp, additive: boolean):
   return sorts.length === 1 && i === 0 ? [flip(sorts[0])] : [{ prop, dir: "asc" }]
 }
 
-export function TableView({ tasks, state, agentTasks, onOpenTask, onSort }: TableViewProps) {
+export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, selected = new Set(), onToggleSelect }: TableViewProps) {
   const props = ORDER.filter((p) => state.properties.includes(p))
   const groups: TaskGroup[] =
     state.group === "none" ? [{ key: "all", label: "All tasks", epicId: null, tasks }] : groupTasks(tasks, state.group)
@@ -62,7 +64,9 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort }: Tabl
     )
   }
 
-  const colCount = 2 + props.length
+  const colCount = 3 + props.length
+  const allPicked = tasks.every((t) => selected.has(t.id))
+  const check = "size-3.5 cursor-pointer accent-[var(--color-accent)]"
   const hideSm = (p: PropertyKey) => (WIDE_ONLY.has(p) ? "hidden md:table-cell" : "")
 
   const header = (key: string, label: string, extra = "") => {
@@ -171,8 +175,20 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort }: Tabl
           if ((e.target as HTMLElement).closest("button")) return
           onOpenTask(task)
         }}
-        className="h-9 cursor-pointer border-b border-border text-[13px] transition-colors duration-(--duration-fast) ease-out-soft last:border-b-0 hover:bg-surface2"
+        className={cn(
+          "h-9 cursor-pointer border-b border-border text-[13px] transition-colors duration-(--duration-fast) ease-out-soft last:border-b-0 hover:bg-surface2",
+          selected.has(task.id) && "bg-accent/5",
+        )}
       >
+        <td className="pl-3" onClick={(e) => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            aria-label={`Select ${task.id}`}
+            checked={selected.has(task.id)}
+            onChange={() => onToggleSelect?.([task.id])}
+            className={check}
+          />
+        </td>
         <td className={cn("px-2.5", cellMono)}>{task.id}</td>
         <td className="min-w-0 px-1">
           <button
@@ -193,12 +209,22 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort }: Tabl
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full min-w-[580px] table-fixed border-collapse md:min-w-[760px]">
         <colgroup>
+          <col className="w-[34px]" />
           <col className="w-[72px]" />
           <col className="w-[200px] md:w-auto" />
           {props.map((p) => <col key={p} className={cn(WIDTH[p], WIDE_ONLY.has(p) && "hidden md:table-column")} />)}
         </colgroup>
         <thead>
           <tr className="h-[34px] border-b border-border2 bg-bg text-[11px] text-muted">
+            <th scope="col" className="pl-3 text-left">
+              <input
+                type="checkbox"
+                aria-label="Select all shown tasks"
+                checked={allPicked}
+                onChange={() => onToggleSelect?.(tasks.map((t) => t.id), !allPicked)}
+                className={check}
+              />
+            </th>
             {header("id", "ID")}
             {header("title", "Title")}
             {props.map((p) => header(p, LABEL[p], hideSm(p)))}
