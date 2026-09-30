@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { MemoryTab } from "@/components/memory/MemoryTab"
+import { toast, undoToast } from "@/components/ui/toast"
 import type { Entry } from "@/lib/entries"
 
 export default function MemoryPage() {
@@ -37,10 +38,32 @@ function MemoryPageInner() {
   // AppContext replaces `summary` on every memory_updated SSE event, so refetch the entries with it
   useEffect(() => load(), [load, summary])
 
-  const select = (id: string | null) => {
+  const select = useCallback((id: string | null) => {
     setCreating(false)
     router.replace(id ? `/memory?entry=${encodeURIComponent(id)}` : "/memory", { scroll: false })
-  }
+  }, [router])
+
+  // No confirm: delete now, offer Undo (restores the same file), like tasks and docs
+  const remove = useCallback(async (entry: Entry) => {
+    const post = async (url: string, body: object) => {
+      const res = await fetch(`${url}${rootParam}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`)
+      return data
+    }
+    try {
+      const { file, raw } = await post("/api/memory/entries/delete", { id: entry.id })
+      setEntries((list) => (list ?? []).filter((e) => e.id !== entry.id))
+      select(null)
+      undoToast(`Deleted ${entry.id}`, async () => {
+        await post("/api/memory/entries/restore", { file, raw })
+        load()
+        select(entry.id)
+      })
+    } catch (e) {
+      toast(`Delete failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }, [rootParam, select, load])
 
   return (
     <MemoryTab
@@ -52,6 +75,7 @@ function MemoryPageInner() {
       onOpen={select}
       onNew={() => setCreating(true)}
       onClose={() => select(null)}
+      onDelete={remove}
       onSaved={(entry) => {
         // show the saved text now; the SSE refetch confirms it
         setEntries((list) => [...(list ?? []).filter((e) => e.id !== entry.id), entry])

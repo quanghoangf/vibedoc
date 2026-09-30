@@ -17,9 +17,10 @@ interface MemoryTabProps {
   onNew: () => void
   onClose: () => void
   onSaved: (entry: Entry) => void
+  onDelete: (entry: Entry) => void
 }
 
-export function MemoryTab({ memory, entries, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved }: MemoryTabProps) {
+export function MemoryTab({ memory, entries, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved, onDelete }: MemoryTabProps) {
   const selected = selectedId ? entries?.find((e) => e.id === selectedId) : undefined
   return (
     <div className="grid items-start gap-6 p-6 lg:grid-cols-[minmax(280px,380px)_minmax(0,42rem)]">
@@ -31,7 +32,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
       )}
       {creating || selected ? (
         <div className="min-w-0 lg:sticky lg:top-6">
-          <EntryDetail key={creating ? "new" : selected?.id} entry={creating ? null : selected ?? null} rootParam={rootParam} onSaved={onSaved} onClose={onClose} />
+          <EntryDetail key={creating ? "new" : selected?.id} entry={creating ? null : selected ?? null} rootParam={rootParam} onSaved={onSaved} onDelete={onDelete} onClose={onClose} />
         </div>
       ) : selectedId && entries ? (
         <div role="alert" className="min-w-0 rounded-xl border border-dashed border-border p-5 text-sm text-muted">

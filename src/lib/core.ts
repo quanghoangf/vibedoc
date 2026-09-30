@@ -1008,15 +1008,33 @@ export async function recallEntries(query: string, opts: { type?: string; limit?
 }
 
 /** Removes the file for good; git keeps its history. Throws on an unknown id. */
-export function deleteEntry(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<Entry> {
+/** Returns the deleted entry plus its file text, so a UI can undo (restoreEntry). */
+export function deleteEntry(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<Entry & { raw: string }> {
   const norm = normalizeEntryId(String(id ?? ''))
   if (!norm) return Promise.reject(new Error(`Invalid id "${id}": expected E followed by a number, e.g. E001`))
   // ponytail: ids come from files on disk, so deleting the highest entry lets the next save reuse its id; git history is per path and the slug differs
   return withEntryLock(async () => {
     const entry = (await listEntries(root)).find(e => e.id === norm)
     if (!entry) throw new Error(`Entry ${norm} not found`)
+    const raw = await fs.readFile(path.join(root, entry.file), 'utf8')
     await fs.rm(path.join(root, entry.file))
     await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${norm} deleted`, detail: entry.summary })
+    return { ...entry, raw }
+  })
+}
+
+/** Undo for deleteEntry: write the file back byte-for-byte, only as a plain memory/entries/E<n>-*.md and only if that id is free. */
+export function restoreEntry(file: unknown, raw: unknown, root: string, actor: 'ai' | 'human' = 'human'): Promise<Entry> {
+  return withEntryLock(async () => {
+    if (!isFileIn(file, 'memory/entries', /^E\d+[^/]*\.md$/) || typeof raw !== 'string') throw new RoadmapError('Invalid entry to restore')
+    const entry = parseEntry(raw, file)
+    const id = normalizeEntryId(path.basename(file).match(/^(E\d+)/i)?.[1] ?? '')
+    if (!entry || entry.id !== id) throw new RoadmapError('Invalid entry to restore')
+    // the next save can reuse the highest id, so the id may be taken by now
+    if ((await listEntries(root)).some(e => e.id === id)) throw new RoadmapError(`${id} already exists`)
+    await fs.mkdir(path.join(root, ENTRIES_DIR), { recursive: true })
+    await fs.writeFile(path.join(root, file), raw, { flag: 'wx', encoding: 'utf8' })
+    await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${id} restored`, detail: entry.summary })
     return entry
   })
 }

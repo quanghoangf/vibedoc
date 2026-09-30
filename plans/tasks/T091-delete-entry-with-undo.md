@@ -1,8 +1,12 @@
 # T091: Delete an entry with Undo
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R047 — Memory browser
 **Size:** S (~1 hr)
 **Depends on:** T090
+**Owner:** ai:claude-code
+**Due:** 2026-10-01
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 A user removes a wrong entry from the Memory tab in one click, and can undo it for a few seconds. This works the same as deleting a task or a doc.
@@ -46,3 +50,14 @@ curl -s -X POST 'localhost:3000/api/memory/entries/restore' -H 'content-type: ap
   -d '{"file":"../../etc/passwd","raw":"x"}'   # 400
 # pnpm dev → /memory → open an entry → Delete → Undo → it is back
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Open an entry on /memory and click Delete → it disappears from the list, the handoff shows again, and a "Deleted E00N · Undo" toast appears; its file is gone from memory/entries
+- [ ] Click Undo in the toast → the entry is back in the list and open again, with the same file name and text
+- [ ] Open an entry, click on its panel and press ⌫ → it is deleted the same way
+- [ ] Type in the search box and press ⌫ → only the text is erased, no entry is deleted
+- [ ] Delete an entry, then start an agent session (vibedoc_read_memory) → the entry is not in the index
+### Regression risk
+- [ ] Deleting a task or a doc still shows its own Undo toast and Undo still restores it

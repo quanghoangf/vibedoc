@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
-import { Pencil, X } from "lucide-react"
+import { useEffect, useState, type ReactNode } from "react"
+import { Pencil, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
@@ -14,10 +14,11 @@ type Draft = { type: EntryType; summary: string; body: string }
  * One knowledge entry: read view with Edit, or the edit form. `entry` null = a new entry (form only).
  * R053 adds its panels (Related, History) under the body via `children`.
  */
-export function EntryDetail({ entry, rootParam, onSaved, onClose, children }: {
+export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, children }: {
   entry: Entry | null
   rootParam: string
   onSaved: (entry: Entry) => void
+  onDelete: (entry: Entry) => void
   onClose: () => void
   children?: ReactNode
 }) {
@@ -51,6 +52,21 @@ export function EntryDetail({ entry, rootParam, onSaved, onClose, children }: {
       setSaving(false)
     }
   }
+
+  // ⌫ / Delete deletes the open entry, unless the user is typing somewhere
+  useEffect(() => {
+    if (editing || !entry) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Backspace" && e.key !== "Delete") return
+      if (e.metaKey || e.ctrlKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return
+      e.preventDefault()
+      onDelete(entry)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [editing, entry, onDelete])
 
   const closeButton = (
     <button type="button" onClick={onClose} aria-label="Close entry" className="rounded p-1 text-muted hover:bg-surface2 hover:text-txt">
@@ -122,6 +138,9 @@ export function EntryDetail({ entry, rootParam, onSaved, onClose, children }: {
           <span className="flex items-center gap-1">
             <Button variant="ghost" size="sm" onClick={startEdit} className="h-7 px-2 text-xs">
               <Pencil className="size-3.5" /> Edit
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onDelete(entry)} title="Delete (⌫)" className="h-7 px-2 text-xs hover:text-danger">
+              <Trash2 className="size-3.5" /> Delete
             </Button>
             {closeButton}
           </span>
