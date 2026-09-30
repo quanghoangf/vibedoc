@@ -33,6 +33,8 @@ import { RoadmapItemSheet } from "./RoadmapItemSheet"
 import { NewItemDialog } from "./NewItemDialog"
 import { PlanFromSpecDialog } from "./PlanFromSpecDialog"
 import { BreakdownEpicsDialog } from "./BreakdownEpicsDialog"
+import { ItemContextMenu, type ContextMenuState, type ItemActions } from "./ItemActionsMenu"
+import { useChats } from "@/context/ChatContext"
 
 type ApiResult<T> = { data?: T; error?: string }
 
@@ -125,6 +127,7 @@ const FLOW_STYLE = { "--xy-background-color": "var(--color-bg)" } as React.CSSPr
 
 export function RoadmapTab() {
   const { rootParam, openDoc, board } = useApp()
+  const { showAbout } = useChats()
   const router = useRouter()
   const searchParams = useSearchParams()
   const view = searchParams.get("view") === "timeline" ? "timeline" : "map"
@@ -142,6 +145,9 @@ export function RoadmapTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // the sheet shows the edit form while this matches the selected item
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [menuAt, setMenuAt] = useState<ContextMenuState>(null)
   // ?item=R004 (links from a chat) opens that item's sheet; adjusted during render so a new link re-opens it
   const itemParam = searchParams.get("item")
   const [seenItemParam, setSeenItemParam] = useState<string | null>(null)
@@ -349,6 +355,42 @@ export function RoadmapTab() {
 
   const selected = items.find((i) => i.id === selectedId) ?? null
 
+  const report = (err: string | null) => { if (err) setError(err) }
+  const actions: ItemActions = {
+    edit: (id) => { setSelectedId(id); setEditingId(id) },
+    setStatus: (id, status) => { saveItem(id, { status }).then(report) },
+    move: (id, horizonId) => { saveItem(id, { parent: horizonId }).then(report) },
+    addEpic: (horizonId) => { setSelectedId(null); setCreateParent(horizonId) },
+    duplicate: async (id) => {
+      const src = items.find((i) => i.id === id)
+      if (!src) return
+      const { data, error: err } = await api<{ item: RoadmapItem }>(`/api/roadmap/create${rootParam}`, {
+        title: `${src.title} (copy)`,
+        parent: src.parent,
+        status: "planned",
+        order: src.order + 1,
+        due: src.due,
+        body: src.body,
+      })
+      if (err) return setError(err)
+      await load()
+      if (data?.item) setSelectedId(data.item.id)
+    },
+    openFile: (file) => openDoc(file),
+    chat: (id) => { setSelectedId(null); showAbout({ kind: "epic", id }) },
+    remove: async (id) => {
+      const it = items.find((i) => i.id === id)
+      if (!it || !window.confirm(`Delete ${it.id}: ${it.title}?`)) return
+      const err = await deleteItem(id)
+      if (err) return setError(err)
+      if (selectedId === id) setSelectedId(null)
+    },
+  }
+  const openMenu = (id: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    setMenuAt({ id, x: e.clientX, y: e.clientY })
+  }
+
   const dialog = (
     <>
       <NewItemDialog
@@ -443,6 +485,7 @@ export function RoadmapTab() {
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onNodeClick={(_, n) => setSelectedId(n.id)}
+            onNodeContextMenu={(e, n) => openMenu(n.id, e)}
             onNodeDragStart={() => { draggingRef.current = true }}
             onNodeDragStop={(_, __, dragged) => onDragStop(dragged)}
             nodesConnectable={false}
@@ -457,13 +500,16 @@ export function RoadmapTab() {
           </ReactFlow>
         </div>
       ) : (
-        <RoadmapTimeline items={items} today={today} onSelect={setSelectedId} progressById={health.progress} />
+        <RoadmapTimeline items={items} today={today} onSelect={setSelectedId} onItemContextMenu={openMenu} progressById={health.progress} />
       )}
 
       <RoadmapItemSheet
         item={selected}
         items={items}
         onClose={() => setSelectedId(null)}
+        editing={!!selected && editingId === selected.id}
+        onEditingChange={(v) => setEditingId(v ? selectedId : null)}
+        actions={actions}
         onSave={saveItem}
         onDelete={deleteItem}
         onAddFeature={(parentId) => { setSelectedId(null); setCreateParent(parentId) }}
@@ -472,6 +518,7 @@ export function RoadmapTab() {
         progressById={health.progress}
         onSelect={setSelectedId}
       />
+      <ItemContextMenu at={menuAt} items={items} actions={actions} onClose={() => setMenuAt(null)} />
       {dialog}
     </div>
   )

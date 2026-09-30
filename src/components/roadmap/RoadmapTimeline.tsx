@@ -15,10 +15,11 @@ interface RoadmapTimelineProps {
   items: RoadmapItem[]
   today: string
   onSelect: (id: string) => void
+  onItemContextMenu?: (id: string, e: React.MouseEvent) => void
   progressById: Record<string, RoadmapProgress>
 }
 
-export function RoadmapTimeline({ items, today, onSelect, progressById }: RoadmapTimelineProps) {
+export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, progressById }: RoadmapTimelineProps) {
   // same chapter numbers as the map: real horizons by order
   const chapters = new Map(items.filter((i) => i.parent === null).sort((a, b) => a.order - b.order).map((h, i) => [h.id, i + 1]))
   const tl = useMemo(() => buildTimeline(items, today), [items, today])
@@ -66,13 +67,14 @@ export function RoadmapTimeline({ items, today, onSelect, progressById }: Roadma
 
           {tl.lanes.map((lane) => (
             <div key={lane.item.id} className="relative flex border-b border-border">
-              <LaneLabel item={lane.item} chapter={chapters.get(lane.item.id)} progress={progressById[lane.item.id]} onSelect={onSelect} />
+              <LaneLabel item={lane.item} chapter={chapters.get(lane.item.id)} progress={progressById[lane.item.id]} onSelect={onSelect} onContextMenu={onItemContextMenu} />
               <div className="relative" style={{ width: tl.width, height: lane.rows * LANE_ROW_H + 12 }}>
                 {lane.markers.map((mk) => (
                   <button
                     key={mk.item.id}
                     type="button"
                     onClick={() => onSelect(mk.item.id)}
+                    onContextMenu={(e) => onItemContextMenu?.(mk.item.id, e)}
                     title={`${mk.item.id} · ${mk.item.title} · due ${mk.item.due}${mk.state === "overdue" ? " (overdue)" : ""}`}
                     className="group absolute flex items-center gap-1.5"
                     style={{ left: mk.x - 10, top: 6 + mk.row * LANE_ROW_H }}
@@ -136,6 +138,7 @@ export function RoadmapTimeline({ items, today, onSelect, progressById }: Roadma
                 key={i.id}
                 type="button"
                 onClick={() => onSelect(i.id)}
+                onContextMenu={(e) => onItemContextMenu?.(i.id, e)}
                 className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-muted hover:border-accent hover:text-txt"
               >
                 <StatusDot status={i.status} />
@@ -150,16 +153,18 @@ export function RoadmapTimeline({ items, today, onSelect, progressById }: Roadma
   )
 }
 
-function LaneLabel({ item, chapter, progress, onSelect }: {
+function LaneLabel({ item, chapter, progress, onSelect, onContextMenu }: {
   item: RoadmapItem
   chapter?: number
   progress?: RoadmapProgress
   onSelect: (id: string) => void
+  onContextMenu?: (id: string, e: React.MouseEvent) => void
 }) {
   return (
     <button
       type="button"
       onClick={() => onSelect(item.id)}
+      onContextMenu={(e) => onContextMenu?.(item.id, e)}
       className="sticky left-0 z-10 flex shrink-0 items-center gap-3 border-r border-border bg-surface px-3 text-left hover:bg-surface2"
       style={{ width: LANE_LABEL_W }}
     >

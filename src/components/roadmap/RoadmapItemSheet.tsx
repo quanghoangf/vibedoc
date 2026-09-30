@@ -13,6 +13,7 @@ import { AgentDot, AgentMark } from "@/components/chat/AgentMark"
 import { useChats } from "@/context/ChatContext"
 import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
 import { pickNextTask } from "@/lib/work-queue"
+import { ItemActionsMenu, type ItemActions } from "./ItemActionsMenu"
 import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
 import type { RoadmapItem, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 
@@ -35,6 +36,9 @@ interface RoadmapItemSheetProps {
   /** Every task on the board, by id — the epic's linked tasks are looked up here. */
   tasksById: Record<string, Task>
   progressById: Record<string, RoadmapProgress>
+  editing: boolean
+  onEditingChange: (editing: boolean) => void
+  actions: ItemActions
 }
 
 export function RoadmapItemSheet({ item, onClose, ...rest }: RoadmapItemSheetProps) {
@@ -49,14 +53,13 @@ export function RoadmapItemSheet({ item, onClose, ...rest }: RoadmapItemSheetPro
 }
 
 function ItemPanel(props: RoadmapItemSheetProps & { item: RoadmapItem }) {
-  const [editing, setEditing] = useState(false)
-  return editing
-    ? <ItemForm {...props} onCancel={() => setEditing(false)} />
-    : <ItemView {...props} onEdit={() => setEditing(true)} />
+  return props.editing
+    ? <ItemForm {...props} onCancel={() => props.onEditingChange(false)} />
+    : <ItemView {...props} onEdit={() => props.onEditingChange(true)} />
 }
 
 /** Read-first view: where it sits, how far along, what's next, and the brief. */
-function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tasksById, progressById, onEdit }: RoadmapItemSheetProps & { item: RoadmapItem; onEdit: () => void }) {
+function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tasksById, progressById, onEdit, actions }: RoadmapItemSheetProps & { item: RoadmapItem; onEdit: () => void }) {
   const isHorizon = item.parent === null
   const parent = items.find((i) => i.id === item.parent)
   const epics = items.filter((i) => i.parent === item.id).sort((a, b) => a.order - b.order)
@@ -85,6 +88,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
           <StatusPill status={item.status} />
           <AgentMark attach={{ kind: "epic", id: item.id }} />
           <DueChip due={item.due} state={dueState(item.due, item.status, today)} />
+          <ItemActionsMenu item={item} items={items} actions={actions} className="ml-auto" />
         </div>
         {progress && (
           <div className="mt-5 flex items-end gap-4">

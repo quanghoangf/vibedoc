@@ -1,5 +1,5 @@
 # T074: Roadmap item actions menu
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R054 — Item actions
 **Size:** M
 **Depends on:** —
@@ -27,3 +27,16 @@ Every epic and horizon has a ⋯ / right-click menu on the map node and in the s
 ```bash
 pnpm build && pnpm lint
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Open /roadmap and right-click an epic node → a menu shows Edit, Status, Move to horizon, Duplicate, Chat about it, Open file, Delete
+- [ ] Status ▸ Done → the node turns done and the R*.md file says **Status:** done
+- [ ] Move to horizon ▸ another horizon → the epic jumps under that horizon
+- [ ] Duplicate → a new "<title> (copy)" epic appears under the same horizon with the same brief and no tasks, and its sheet opens
+- [ ] Right-click a horizon that has epics → Delete is greyed out with "Move or delete its N epics first"
+- [ ] Open an epic sheet → the ⋯ button next to the status opens the same menu; Edit switches to the form
+- [ ] Timeline view: right-click a bar, a lane label or an undated chip → the same menu
+### Regression risk
+- [ ] Clicking a node still opens its sheet, and dragging a node still saves its position
