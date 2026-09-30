@@ -331,6 +331,8 @@ export async function searchDocs(query: string, root: string): Promise<SearchRes
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
+const warnedStatuses = new Set<string>()
+
 function parseTaskFile(filePath: string, content: string, defs: StatusDef[]): Task {
   const lines = content.split('\n')
   const filename = path.basename(filePath, '.md')
@@ -345,7 +347,12 @@ function parseTaskFile(filePath: string, content: string, defs: StatusDef[]): Ta
   }
 
   const resolved = resolveStatus(meta['status'] || 'todo', defs)
-  if (resolved.unknown) console.warn(`[vibedoc] ${filePath}: unknown status "${meta['status']}", shown as todo`)
+  const warnKey = `${filePath}\0${meta['status']}`
+  if (resolved.unknown && !warnedStatuses.has(warnKey)) {
+    // listTasks runs on every refresh: warn once per file + value per process
+    warnedStatuses.add(warnKey)
+    console.warn(`[vibedoc] ${filePath}: unknown status "${meta['status']}", shown as todo`)
+  }
   const { status, customStatus } = resolved
   const idM = filename.match(/^(T\d+)/i)
   const id = idM ? idM[1].toUpperCase() : filename.toUpperCase()
@@ -1067,6 +1074,7 @@ async function appendActivity(root: string, event: Omit<ActivityEvent, 'id' | 't
 }
 
 const DOC_EDIT_COALESCE_MS = 10 * 60_000
+const DOC_EDIT_LOOKBACK = 50
 
 /**
  * Record who last saved a doc (R055 doc owner). Autosave fires every few seconds, so a save by the same
@@ -1076,10 +1084,13 @@ export async function noteDocEdit(root: string, docPath: string, actor: 'ai' | '
   const file = path.join(root, ACTIVITY_FILE)
   let events: ActivityEvent[] = []
   try { events = JSON.parse(await fs.readFile(file, 'utf8')) } catch {}
-  const top = events[0]
-  if (top?.type === 'doc_updated' && top.detail === docPath && top.actor === actor
-    && Date.now() - Date.parse(top.timestamp) < DOC_EDIT_COALESCE_MS) {
-    top.timestamp = new Date().toISOString()
+  // Other events (an agent moving tasks) land in between, so look back a little, not just at the top
+  const i = events.slice(0, DOC_EDIT_LOOKBACK).findIndex(e => e.type === 'doc_updated' && e.detail === docPath)
+  const prev = i >= 0 ? events[i] : undefined
+  if (prev && prev.actor === actor && Date.now() - Date.parse(prev.timestamp) < DOC_EDIT_COALESCE_MS) {
+    // move it to the top with the new time, so the log stays newest-first
+    events.splice(i, 1)
+    events.unshift({ ...prev, timestamp: new Date().toISOString() })
     await fs.writeFile(file, JSON.stringify(events, null, 2), 'utf8')
     return
   }
