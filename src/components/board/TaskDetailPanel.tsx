@@ -8,7 +8,10 @@ import type { Task } from "@/types"
 import { StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
 import Link from "next/link"
-import { Check, CornerUpLeft, FlaskConical, MessageSquare } from "lucide-react"
+import { Check, CornerUpLeft, FlaskConical, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { deleteTaskWithConfirm, updateTask } from "./task-api"
+import type { TaskMetaPatch } from "@/types"
 import { AgentMark } from "@/components/chat/AgentMark"
 import { useApp } from "@/context/AppContext"
 import { useChats } from "@/context/ChatContext"
@@ -48,7 +51,22 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
 
   const nextStatuses = task ? NEXT_STATUS[task.status] || [] : []
   const { chats, showAbout } = useChats()
+  const { rootParam } = useApp()
   const chat = task ? chatFor(chats, { kind: "task", id: task.id }) : undefined
+  // the edit form shows while this matches the open task
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const editing = !!task && editingId === task.id
+  const [error, setError] = useState<string | null>(null)
+
+  async function remove() {
+    if (!task) return
+    setError(null)
+    try {
+      if (await deleteTaskWithConfirm(task, rootParam)) onClose()
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
 
   return (
     <Sheet open={!!openTask} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -61,9 +79,26 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                 <span className="font-mono text-xs text-muted">{task.id}</span>
                 <StatusChip status={task.status} />
                 <AgentMark attach={{ kind: "task", id: task.id }} />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" aria-label={`Actions for ${task.id}`} className="ml-auto grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
+                      <MoreHorizontal className="size-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> Edit</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => { onClose(); showAbout({ kind: "task", id: task.id }) }}><MessageSquare /> Chat about task</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> Delete</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <SheetTitle className="font-medium text-txt text-sm leading-snug">{task.title}</SheetTitle>
             </div>
+
+            {error && <p role="alert" className="px-5 py-2 text-xs text-danger border-b border-border">{error}</p>}
+
+            {editing && <TaskEditForm key={`edit-${task.id}`} task={task} rootParam={rootParam} onDone={() => setEditingId(null)} />}
 
             {/* Quick actions */}
             <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-border shrink-0">
@@ -117,6 +152,76 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+const FIELD = "w-full rounded-md border border-border bg-bg px-2.5 py-1.5 text-sm text-txt focus:border-accent/60 focus:outline-hidden"
+
+/** Title and meta fields; sends only what changed, so the body and other fields stay as they are. */
+function TaskEditForm({ task, rootParam, onDone }: { task: Task; rootParam: string; onDone: () => void }) {
+  const [base] = useState(task)
+  const [title, setTitle] = useState(task.title)
+  const [size, setSize] = useState(task.size === "—" ? "" : task.size)
+  const [phase, setPhase] = useState(task.phase === "—" ? "" : task.phase)
+  const [dependsOn, setDependsOn] = useState(task.dependsOn === "—" ? "" : task.dependsOn)
+  const [due, setDue] = useState(task.due ?? "")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const orDash = (v: string) => (v.trim() === "—" ? "" : v.trim())
+
+  async function save() {
+    const patch: TaskMetaPatch = {}
+    if (title.trim() && title.trim() !== base.title) patch.title = title
+    if (size.trim() !== orDash(base.size)) patch.size = size
+    if (phase.trim() !== orDash(base.phase)) patch.phase = phase
+    if (dependsOn.trim() !== orDash(base.dependsOn)) patch.dependsOn = dependsOn
+    if ((due || null) !== base.due) patch.due = due || null
+    if (Object.keys(patch).length === 0) return onDone()
+    setBusy(true)
+    setError(null)
+    try {
+      await updateTask(task.id, patch, rootParam)
+      onDone()
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); save() }}
+      onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onDone() } }}
+      className="flex flex-col gap-3 px-5 py-4 border-b border-border shrink-0 bg-surface2/40"
+    >
+      <label className="flex flex-col gap-1 text-xs text-muted">
+        Title
+        <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} className={FIELD} />
+      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          Size
+          <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="S / M / L" className={FIELD} />
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          Due
+          <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={cn(FIELD, "scheme-light dark:scheme-dark")} />
+        </label>
+      </div>
+      <label className="flex flex-col gap-1 text-xs text-muted">
+        Epic / phase
+        <input value={phase} onChange={(e) => setPhase(e.target.value)} placeholder="R054 — Item actions" className={FIELD} />
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-muted">
+        Depends on
+        <input value={dependsOn} onChange={(e) => setDependsOn(e.target.value)} placeholder="T001, T002" className={cn(FIELD, "font-mono")} />
+      </label>
+      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
+      <div className="flex items-center gap-2">
+        <button type="submit" disabled={busy} className="text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110 disabled:opacity-40">Save</button>
+        <button type="button" onClick={onDone} disabled={busy} className="text-xs text-muted hover:text-txt">Cancel</button>
+      </div>
+    </form>
   )
 }
 

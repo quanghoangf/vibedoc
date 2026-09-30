@@ -1,5 +1,5 @@
 # T075: Edit and delete tasks from the UI
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R054 — Item actions
 **Size:** M
 **Depends on:** —
@@ -27,3 +27,17 @@ A user can change a task's title, size, phase, depends-on and due date, and dele
 ```bash
 pnpm build && pnpm lint
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Open /board, click a task → the panel header has a ⋯ button; ⋯ → Edit shows a form with Title, Size, Due, Epic / phase, Depends on
+- [ ] Change the title and size, Save → the panel and the card show the new values without a reload
+- [ ] Open the task file → only the H1 and the **Key:** lines changed; ## Manual tests / ## Review and the body are exactly as before
+- [ ] Edit again, clear Due, Save → the **Due:** line is gone from the file
+- [ ] Hover a card → a ⋯ appears top-right; ⋯ → Delete → confirm → the card disappears and the panel does not open
+- [ ] The deleted task is gone from its epic's **Tasks:** line and the epic sheet on /roadmap
+- [ ] Panel ⋯ → Delete → confirm → the panel closes and the task is gone
+### Regression risk
+- [ ] Clicking a card still opens the panel, and dragging a card between columns still moves it
+- [ ] /board?task=T0xx still opens that task's panel

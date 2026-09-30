@@ -421,6 +421,77 @@ export async function updateTaskStatus(
 }
 
 /** Write (or replace) the task's `## Manual tests` checklist. `report` is a markdown checklist; plain lines become items. */
+export interface TaskMetaPatch {
+  title?: string
+  size?: string
+  phase?: string
+  dependsOn?: string
+  /** YYYY-MM-DD, or null / '' to remove the line */
+  due?: string | null
+}
+
+const TASK_META_LABELS: [keyof Omit<TaskMetaPatch, 'title'>, string][] = [
+  ['phase', 'Phase'], ['size', 'Size'], ['dependsOn', 'Depends on'], ['due', 'Due'],
+]
+
+/** Rewrite the H1 and the head meta block only; the body (manual tests, review, spec) stays byte-for-byte. */
+export async function updateTaskMeta(
+  taskId: string, patch: TaskMetaPatch, root: string, actor: 'ai' | 'human' = 'human'
+): Promise<Task> {
+  const task = await getTask(taskId, root)
+  const oneLine = (v: string) => v.replace(/\s+/g, ' ').trim()
+  const lines = task.raw!.split('\n')
+  let end = roadmapMetaEnd(lines)
+
+  if (patch.title !== undefined) {
+    const title = oneLine(patch.title)
+    if (!title) throw new RoadmapError('title must not be empty')
+    const h1 = lines.findIndex(l => l.startsWith('# '))
+    if (h1 >= 0) lines[h1] = `# ${task.id}: ${title}`
+    else { lines.unshift(`# ${task.id}: ${title}`); end++ }
+  }
+
+  for (const [key, label] of TASK_META_LABELS) {
+    const raw = patch[key]
+    if (raw === undefined) continue
+    let value = raw === null ? '' : oneLine(raw)
+    if (key === 'due' && value) {
+      const d = parseDue(value)
+      if (!d) throw new RoadmapError(`due must be a date YYYY-MM-DD (got ${JSON.stringify(raw)})`)
+      value = d
+    }
+    const at = lines.slice(0, end).findIndex(l => l.toLowerCase().startsWith(`**${label.toLowerCase()}:**`))
+    if (!value && key === 'due') {
+      if (at >= 0) { lines.splice(at, 1); end-- }
+      continue
+    }
+    const line = `**${label}:** ${value || '—'}`
+    if (at >= 0) lines[at] = line
+    else { lines.splice(end, 0, line); end++ }
+  }
+
+  const content = lines.join('\n')
+  if (content === task.raw) return task
+  await fs.writeFile(path.join(root, task.file), content, 'utf8')
+  await appendActivity(root, { type: 'task_updated', actor, title: `${task.id} edited`, detail: task.title, taskId: task.id })
+  return getTask(task.id, root)
+}
+
+/** Delete the task file and unlink it from every epic's **Tasks:** line. Returns the removed task (with raw). */
+export function deleteTask(taskId: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<Task> {
+  return withTaskClaimLock(async () => {
+    const task = await getTask(taskId, root)
+    await fs.unlink(path.join(root, task.file))
+    // Task lock, then roadmap lock: same order as applyPlan.
+    const { items } = await listRoadmap(root)
+    for (const epic of items.filter(i => i.tasks.includes(task.id))) {
+      await updateRoadmapItem(epic.id, { tasks: epic.tasks.filter(t => t !== task.id) }, root, actor)
+    }
+    await appendActivity(root, { type: 'task_updated', actor, title: `${task.id} deleted`, detail: task.title, taskId: task.id })
+    return task
+  })
+}
+
 export async function saveManualTests(taskId: string, report: string, root: string, actor: 'ai' | 'human' = 'ai'): Promise<Task> {
   const task = await getTask(taskId, root)
   const content = setManualTests(task.raw ?? '', report, actor, new Date().toISOString().slice(0, 10))

@@ -19,14 +19,13 @@ export default function BoardPage() {
 function BoardPageInner() {
   const { board, moveTask, refresh, rootParam } = useApp()
   const router = useRouter()
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   // ?task=T055 (links from a chat) opens that task; adjusted during render so a new link re-opens it
   const taskParam = useSearchParams().get("task")
   const [seenTaskParam, setSeenTaskParam] = useState<string | null>(null)
   if (board && taskParam !== seenTaskParam) {
     setSeenTaskParam(taskParam)
-    const found = taskParam ? Object.values(board).flat().find((t) => t.id === taskParam) : undefined
-    if (found) setSelectedTask(found)
+    if (taskParam && Object.values(board).flat().some((t) => t.id === taskParam)) setSelectedId(taskParam)
   }
   const [newTaskOpen, setNewTaskOpen] = useState(false)
   // Drop only ?task=: the rest of the query is the live board view
@@ -37,6 +36,8 @@ function BoardPageInner() {
   }
 
   const tasks = useMemo(() => (board ? Object.values(board).flat() : []), [board])
+  // derived from the board so edits show live and a deleted task closes the panel
+  const selectedTask = tasks.find((t) => t.id === selectedId) ?? null
 
   if (!board) return null
 
@@ -45,12 +46,12 @@ function BoardPageInner() {
       <BoardTab
         tasks={tasks}
         onMoveTask={moveTask}
-        onOpenTask={setSelectedTask}
+        onOpenTask={(t: Task) => setSelectedId(t.id)}
         onNewTask={() => setNewTaskOpen(true)}
       />
       <TaskDetailPanel
         task={selectedTask}
-        onClose={() => { setSelectedTask(null); if (taskParam) closeTaskParam() }}
+        onClose={() => { setSelectedId(null); if (taskParam) closeTaskParam() }}
         onMove={moveTask}
       />
       <NewTaskModal

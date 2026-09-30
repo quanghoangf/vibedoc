@@ -2,7 +2,10 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { CornerDownRight, CornerUpLeft, FlaskConical } from "lucide-react"
+import { CornerDownRight, CornerUpLeft, FlaskConical, MoreHorizontal, PanelRightOpen, Trash2 } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useApp } from "@/context/AppContext"
+import { deleteTaskWithConfirm } from "./task-api"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
@@ -61,6 +64,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES }: TaskCard
         <span className="flex-1" />
         {show("due") && task.due && !done && <span title="Due">{task.due.slice(5)}</span>}
         {size && <span title={task.size} className="rounded-sm bg-surface2 px-1 text-[10px]">{size}</span>}
+        <CardMenu task={task} onOpen={onOpen} />
       </div>
 
       <p className={cn("mt-1 line-clamp-2 text-[13px] font-medium leading-snug", done ? "text-muted" : "text-txt")}>{task.title}</p>
@@ -105,5 +109,38 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES }: TaskCard
         </div>
       )}
     </div>
+  )
+}
+
+/** ⋯ on the card (on hover / focus). Events are stopped so the card doesn't open or drag underneath. */
+function CardMenu({ task, onOpen }: { task: Task; onOpen: () => void }) {
+  const { rootParam } = useApp()
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          draggable={false}
+          aria-label={`Actions for ${task.id}`}
+          onClick={stop}
+          onKeyDown={stop}
+          className="-my-1 -mr-1 grid size-5 place-items-center rounded-sm text-muted opacity-0 transition-opacity hover:bg-surface2 hover:text-txt focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+        >
+          <MoreHorizontal className="size-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      {/* React events bubble through the portal to the card: stop them here */}
+      <DropdownMenuContent align="end" className="w-40" onClick={stop} onKeyDown={stop}>
+        <DropdownMenuItem onSelect={onOpen}><PanelRightOpen /> Open</DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() => { deleteTaskWithConfirm(task, rootParam).catch((e: Error) => window.alert(e.message)) }}
+          className="text-danger focus:text-danger"
+        >
+          <Trash2 /> Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
