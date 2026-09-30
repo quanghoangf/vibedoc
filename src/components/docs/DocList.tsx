@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useRef, useState, createContext, useContext } from "react"
-import { FileText, Folder, FolderOpen, ChevronRight, ChevronsDownUp, ChevronsUpDown, Search, Bot, Plus, CheckSquare, Copy, Check, X, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { FileText, Folder, FolderOpen, ChevronRight, ChevronsDownUp, ChevronsUpDown, Search, Bot, Plus, CheckSquare, Copy, Check, X, ListFilter } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -13,11 +13,16 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { DocFile } from "@/types"
+import { priorityRank, type Priority } from "@/lib/doc-priority"
 import { DocActionsMenu, type DocActions } from "./DocActionsMenu"
+import { PriorityBadge } from "@/components/shared/PriorityBadge"
 
 // ─── Selection context (scoped to DocList, not exported) ──────────────────────
 
@@ -48,6 +53,18 @@ interface TreeNode {
   name: string
   children: TreeNode[]
   docPath?: string
+  priority?: Priority | null
+}
+
+type DocOrder = "tree" | "priority"
+/** "P1" = P1 and above; "set" = any priority */
+type PriorityFilter = "all" | "P0" | "P1" | "P2" | "set"
+const FILTER_LABELS: Record<PriorityFilter, string> = { all: "All docs", P0: "P0 only", P1: "P0 – P1", P2: "P0 – P2", set: "Any priority" }
+
+function passesFilter(p: Priority | null | undefined, filter: PriorityFilter): boolean {
+  if (filter === "all") return true
+  if (filter === "set") return !!p
+  return !!p && priorityRank(p) <= priorityRank(filter)
 }
 
 function normalizePath(p: string): string {
@@ -67,7 +84,7 @@ function buildTree(docs: DocFile[]): TreeNode[] {
       }
       node = child
     }
-    node.children.push({ name: doc.name, docPath: doc.path, children: [] })
+    node.children.push({ name: doc.name, docPath: doc.path, priority: doc.priority, children: [] })
   }
   return root.children
 }
@@ -129,6 +146,7 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
         <button
           onClick={() => selectMode ? toggle(node.docPath!) : onDocClick(node.docPath!)}
           style={{ paddingLeft: `${8 + indent}px` }}
+          title={node.docPath}
           className="flex-1 flex items-center gap-2 h-full truncate"
         >
           {selectMode ? (
@@ -142,6 +160,7 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
             <FileText className="h-3.5 w-3.5 shrink-0 opacity-50" />
           )}
           <span className="truncate">{formatName(node.name)}</span>
+          {node.priority && <PriorityBadge priority={node.priority} className="ml-auto" />}
         </button>
         {!selectMode && actions && (
           <DocActionsMenu
@@ -212,6 +231,8 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
   const [dragging, setDragging] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [revealedPath, setRevealedPath] = useState(selectedDocPath)
+  const [order, setOrder] = useState<DocOrder>("tree")
+  const [filter, setFilter] = useState<PriorityFilter>("all")
 
   const agentConfigs = useMemo(() => docs.filter(d => {
     const p = normalizePath(d.path)
@@ -225,7 +246,13 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
            !p.endsWith('/CLAUDE.md') && !p.endsWith('/AGENTS.md')
   }), [docs])
 
-  const tree = useMemo(() => buildTree(nonAgentDocs), [nonAgentDocs])
+  const shownDocs = useMemo(() => nonAgentDocs.filter(d => passesFilter(d.priority, filter)), [nonAgentDocs, filter])
+  const tree = useMemo(() => buildTree(shownDocs), [shownDocs])
+  const byPriority = useMemo<TreeNode[]>(() => [...shownDocs]
+    .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || a.path.localeCompare(b.path))
+    .map(d => ({ name: d.name, docPath: d.path, priority: d.priority, children: [] })),
+  [shownDocs])
+  const viewChanged = order !== "tree" || filter !== "all"
   const folderPaths = useMemo(() => collectFolderPaths(tree), [tree])
   const isSearching = searchValue.trim().length > 0
   const allCollapsed = folderPaths.length > 0 && folderPaths.every(p => collapsed.has(p))
@@ -337,7 +364,37 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">
           <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">Docs</span>
           <div className="flex items-center gap-1">
-            {!selectMode && !isSearching && folderPaths.length > 0 && (
+            {!selectMode && !isSearching && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(
+                      "h-5 w-5 flex items-center justify-center rounded-sm transition-colors",
+                      viewChanged ? "bg-accent/20 text-accent" : "hover:bg-surface2 text-muted hover:text-accent",
+                    )}
+                    title="Sort and filter by priority"
+                    aria-label={viewChanged ? `Sort and filter: ${order === "priority" ? "by priority" : "folders"}, ${FILTER_LABELS[filter]}` : "Sort and filter by priority"}
+                  >
+                    <ListFilter className="h-3.5 w-3.5" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuLabel className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">Order</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={order} onValueChange={(v) => setOrder(v as DocOrder)}>
+                    <DropdownMenuRadioItem value="tree">Folders</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="priority">Priority</DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">Show</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={filter} onValueChange={(v) => setFilter(v as PriorityFilter)}>
+                    {(Object.keys(FILTER_LABELS) as PriorityFilter[]).map(f => (
+                      <DropdownMenuRadioItem key={f} value={f}>{FILTER_LABELS[f]}</DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            {!selectMode && !isSearching && order === "tree" && folderPaths.length > 0 && (
               <button
                 onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(folderPaths))}
                 className="h-5 w-5 flex items-center justify-center rounded-sm hover:bg-surface2 text-muted hover:text-accent transition-colors"
@@ -468,6 +525,15 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                       </button>
                     ))
                   )
+                ) : shownDocs.length === 0 && filter !== "all" ? (
+                  <p className="text-xs text-muted px-2 py-4 text-center">
+                    No docs at this priority.{" "}
+                    <button onClick={() => setFilter("all")} className="text-accent hover:underline">Show all</button>
+                  </p>
+                ) : order === "priority" ? (
+                  byPriority.map(node => (
+                    <TreeNodeRow key={node.docPath} node={node} depth={0} selectedPath={selectedDocPath} onDocClick={onDocClick} folderPath={node.name} />
+                  ))
                 ) : (
                   tree.map(node => (
                     <TreeNodeRow

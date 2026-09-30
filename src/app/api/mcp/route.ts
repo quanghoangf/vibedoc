@@ -33,6 +33,7 @@ import {
   readMemory,
   updateMemory,
   noteDocEdit,
+  setDocProperties,
   readProjectSettings,
   logSessionStart,
   readActivity,
@@ -63,6 +64,7 @@ import { emitUpdate } from "@/lib/events";
 import { groupSessions, sessionDuration, sessionsForTask } from "@/lib/sessions";
 import { dueState, localToday, roadmapHealth, type TaskInfo } from "@/lib/roadmap-health";
 import { latestReview } from "@/lib/review";
+import { PRIORITIES, type Priority } from "@/lib/doc-priority";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
 // Implements the JSON-RPC 2.0 MCP protocol directly.
@@ -121,8 +123,21 @@ const TOOLS = [
   {
     name: "vibedoc_list_docs",
     description:
-      "List all documentation files grouped by section. Use to discover what docs exist.",
+      "List all documentation files grouped by section, with each doc's priority (P0 highest) when set. Use to discover what docs exist.",
     inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "vibedoc_set_doc_priority",
+    description:
+      'Set a doc\'s priority (P0 highest … P3 lowest), or clear it with null. Stored as `priority:` in the doc\'s frontmatter; nothing else in the file changes.',
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: 'Relative path from project root, e.g. "docs/api/my-guide.md"' },
+        priority: { type: ["string", "null"], enum: [...PRIORITIES, null], description: "P0, P1, P2, P3, or null to clear" },
+      },
+      required: ["path", "priority"],
+    },
   },
   {
     name: "vibedoc_search_docs",
@@ -567,6 +582,7 @@ const TOOLS = [
         order: { type: "number" },
         tasks: { type: "array", items: { type: "string" } },
         due: { type: ["string", "null"], description: "Due date YYYY-MM-DD; null clears it" },
+        priority: { type: ["string", "null"], enum: [...PRIORITIES, null], description: "P0 (highest) … P3; null clears it" },
         body: { type: "string" },
       },
       required: ["id"],
@@ -673,7 +689,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const sections: Record<string, string[]> = {};
       for (const d of docs) {
         if (!sections[d.section]) sections[d.section] = [];
-        sections[d.section].push(d.path);
+        sections[d.section].push(d.priority ? `${d.path} [${d.priority}]` : d.path);
       }
       const lines = [`📚 ${docs.length} files\n`];
       for (const [s, files] of Object.entries(sections)) {
@@ -703,6 +719,18 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       await noteDocEdit(root, docPath, "ai");
       emitUpdate("doc_updated", { path: docPath, actor: "ai" });
       return `✅ Written: ${docPath}`;
+    }
+
+    case "vibedoc_set_doc_priority": {
+      const docPath = String(args.path);
+      const priority = args.priority ?? null;
+      if (priority !== null && !PRIORITIES.includes(priority as Priority)) {
+        return `❌ priority must be one of ${PRIORITIES.join(", ")} or null`;
+      }
+      await setDocProperties(docPath, { priority: priority as Priority | null }, root);
+      await noteDocEdit(root, docPath, "ai");
+      emitUpdate("doc_updated", { path: docPath, actor: "ai", properties: { priority } });
+      return priority ? `✅ ${docPath} is now ${priority}` : `✅ Cleared the priority of ${docPath}`;
     }
 
     case "vibedoc_list_tasks": {

@@ -19,6 +19,7 @@ import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
+import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,8 @@ export interface Task {
   customStatus?: string
   /** `**Owner:**` "human" | "ai:<agent>", null when unset (R055) */
   owner: string | null
+  /** `**Priority:** P0–P3`, null when unset */
+  priority: Priority | null
   /** Optional `**Due:** YYYY-MM-DD` (local calendar date, compare as string). */
   due: string | null
   /** `**Started:**` / `**Done:**` dates, stamped on status moves (R055) */
@@ -62,6 +65,8 @@ export interface DocFile {
   path: string
   section: string
   name: string
+  /** `priority:` in the doc's frontmatter, null when unset */
+  priority?: Priority | null
 }
 
 export interface DescriptionCache {
@@ -177,11 +182,22 @@ export async function listDocs(root: string): Promise<DocFile[]> {
     nodir: true,
   })
 
-  return files.sort().map(f => ({
+  // ponytail: reads every doc for its frontmatter; read only the head of each file if lists get slow
+  return Promise.all(files.sort().map(async f => ({
     path: f,
     section: inferSection(f),
     name: path.basename(f, '.md'),
-  }))
+    priority: docPriority(await fs.readFile(path.join(root, f), 'utf8').catch(() => '')),
+  })))
+}
+
+/** Sets (value) or removes (null) frontmatter properties of a doc; the rest of the file is untouched. */
+export async function setDocProperties(docPath: string, props: Record<string, string | null>, root: string): Promise<void> {
+  const fullPath = path.resolve(root, docPath)
+  if (!fullPath.startsWith(path.resolve(root) + path.sep)) throw new Error('Path outside root')
+  const content = await fs.readFile(fullPath, 'utf8')
+  const next = Object.entries(props).reduce((c, [k, v]) => setDocProperty(c, k, v), content)
+  if (next !== content) await fs.writeFile(fullPath, next, 'utf8')
 }
 
 function inferSection(f: string): string {
@@ -359,7 +375,7 @@ function parseTaskFile(filePath: string, content: string, defs: StatusDef[]): Ta
 
   const tests = parseManualTests(content)
   const manualTests = tests && { total: tests.total, done: tests.done }
-  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, file: filePath, raw: content }
+  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, file: filePath, raw: content }
 }
 
 export async function listTasks(root: string): Promise<{ tasks: Task[]; board: TaskBoard }> {
@@ -482,10 +498,12 @@ export interface TaskMetaPatch {
   due?: string | null
   /** "human" | "ai:<agent>", or null / '' to remove the line */
   owner?: string | null
+  /** P0–P3, or null / '' to remove the line */
+  priority?: string | null
 }
 
 const TASK_META_LABELS: [keyof Omit<TaskMetaPatch, 'title'>, string][] = [
-  ['phase', 'Phase'], ['size', 'Size'], ['dependsOn', 'Depends on'], ['due', 'Due'], ['owner', 'Owner'],
+  ['phase', 'Phase'], ['size', 'Size'], ['dependsOn', 'Depends on'], ['due', 'Due'], ['owner', 'Owner'], ['priority', 'Priority'],
 ]
 
 /** Rewrite the H1 and the head meta block only; the body (manual tests, review, spec) stays byte-for-byte. */
@@ -519,8 +537,13 @@ export async function updateTaskMeta(
       if (!o) throw new RoadmapError(`owner must be "human" or "ai:<agent>" (got ${JSON.stringify(raw)})`)
       value = o
     }
+    if (key === 'priority' && value) {
+      const p = parsePriority(value)
+      if (!p) throw new RoadmapError(`priority must be P0, P1, P2 or P3 (got ${JSON.stringify(raw)})`)
+      value = p
+    }
     const at = lines.slice(0, end).findIndex(l => l.toLowerCase().startsWith(`**${label.toLowerCase()}:**`))
-    if (!value && (key === 'due' || key === 'owner')) {
+    if (!value && (key === 'due' || key === 'owner' || key === 'priority')) {
       if (at >= 0) { lines.splice(at, 1); end-- }
       continue
     }
@@ -1408,6 +1431,7 @@ export interface RoadmapItem {
   tasks: string[]       // ["T001", "T012"]
   due: string | null    // "2026-10-15" — a calendar date, not an instant; compare as strings
   owner: string | null  // "human" | "ai:<agent>" (R055)
+  priority: Priority | null  // **Priority:** P0–P3
   body: string          // markdown after the metadata block
   file: string          // path relative to root
 }
@@ -1422,6 +1446,7 @@ export interface CreateRoadmapItemParams {
   tasks?: string[]
   due?: string | null
   owner?: string | null
+  priority?: string | null
   body?: string
 }
 
@@ -1537,6 +1562,7 @@ function parseRoadmapFile(file: string, content: string): RoadmapItem {
     tasks: (meta['tasks'] || '').split(/[,\s]+/).map(t => t.toUpperCase()).filter(t => /^T\d+$/.test(t)),
     due: parseDue(meta['due'] || ''),
     owner: parseOwner(meta['owner']),
+    priority: parsePriority(meta['priority']),
     body: lines.slice(metaEnd).join('\n').trim(),
     file,
   }
@@ -1614,7 +1640,7 @@ export function createRoadmapItem(
 const roadmapId = (n: number) => `R${String(n).padStart(3, '0')}`
 
 /** Write a new R*.md (flag 'wx': never overwrites). Callers validate fields and mkdir first. */
-async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner'>): Promise<void> {
+async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner' | 'priority'>): Promise<void> {
   const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
   const filename = slug ? `${f.id}-${slug}.md` : `${f.id}.md`
   const lines = [
@@ -1739,6 +1765,11 @@ async function updateRoadmapItemUnlocked(
     owner = p.owner === null || p.owner === '' ? null : parseOwner(p.owner)
     if (p.owner && !owner) throw new RoadmapError(`owner must be "human" or "ai:<agent>" (got ${JSON.stringify(p.owner)})`)
   }
+  let priority: string | null | undefined
+  if (p.priority !== undefined) {
+    priority = p.priority === null || p.priority === '' ? null : parsePriority(p.priority)
+    if (p.priority && !priority) throw new RoadmapError(`priority must be P0, P1, P2 or P3 (got ${JSON.stringify(p.priority)})`)
+  }
   let parent: string | null | undefined
   if (p.parent !== undefined) {
     parent = p.parent === null || p.parent === '' ? null : normalizeRoadmapId(p.parent)
@@ -1777,6 +1808,7 @@ async function updateRoadmapItemUnlocked(
   if (tasks !== undefined) setMeta('Tasks', formatTasks(tasks))
   if (due !== undefined) setMeta('Due', due)
   if (owner !== undefined) setMeta('Owner', owner)
+  if (priority !== undefined) setMeta('Priority', priority)
   if (body !== undefined) {
     rest = body ? ['', body, ''] : ['']
   }

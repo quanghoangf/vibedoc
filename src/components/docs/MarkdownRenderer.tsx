@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef } from "react"
 import { marked } from "marked"
 import { cn } from "@/lib/utils"
+import { stripFrontmatter } from "@/lib/doc-priority"
 
 // Configure marked for GitHub Flavored Markdown
 marked.setOptions({
@@ -62,7 +63,8 @@ interface MarkdownRendererProps {
 const HIGHLIGHT_WINDOW = 3000
 
 export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className, highlightSince = 0 }: MarkdownRendererProps) {
-  const html = sanitize(marked.parse(content) as string)
+  // Frontmatter is metadata (e.g. a doc's priority), never body text
+  const html = sanitize(marked.parse(stripFrontmatter(content)) as string)
   const containerRef = useRef<HTMLDivElement>(null)
   const prevBlocksRef = useRef<string[] | null>(null)
 

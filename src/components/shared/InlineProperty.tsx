@@ -89,3 +89,57 @@ export function InlineDate({ label, value, onChange, children, className }: {
     />
   )
 }
+
+/** The shown text turns into a text input: Enter or leaving saves, Esc cancels. Saving "" passes null. */
+export function InlineText({ label, value, onChange, children, className, placeholder, startEditing = false, onCancel }: {
+  label: string
+  value: string | null
+  onChange: (value: string | null) => void
+  children: ReactNode
+  className?: string
+  placeholder?: string
+  /** Open as an input right away (a property that was just added) */
+  startEditing?: boolean
+  onCancel?: () => void
+}) {
+  const [editing, setEditing] = useState(startEditing)
+  const [draft, setDraft] = useState(value ?? "")
+  const commit = () => {
+    setEditing(false)
+    const next = draft.trim() || null
+    if (next !== value) onChange(next)
+    else if (!next) onCancel?.()
+  }
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        draggable={false}
+        onClick={(e) => { stop(e); setDraft(value ?? ""); setEditing(true) }}
+        onKeyDown={stop}
+        className={cn(trigger, className)}
+      >
+        {children}
+      </button>
+    )
+  }
+  return (
+    <input
+      autoFocus
+      aria-label={label}
+      value={draft}
+      placeholder={placeholder}
+      onChange={(e) => setDraft(e.target.value)}
+      onClick={stop}
+      onPointerDown={stop}
+      onKeyDown={(e) => {
+        stop(e)
+        if (e.key === "Enter") { e.preventDefault(); commit() }
+        if (e.key === "Escape") { e.preventDefault(); setEditing(false); onCancel?.() }
+      }}
+      onBlur={commit}
+      className="h-7 w-full min-w-0 rounded-sm border border-accent/60 bg-bg px-1.5 text-[13px] text-txt outline-hidden placeholder:text-muted"
+    />
+  )
+}

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listDocs, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, getConfiguredRoot, enrichDescription, noteDocEdit, docLastEdit } from '@/lib/core'
+import { listDocs, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, getConfiguredRoot, enrichDescription, noteDocEdit, docLastEdit, setDocProperties } from '@/lib/core'
+import { PROPERTY_KEY, parsePriority } from '@/lib/doc-priority'
 import { emitUpdate } from '@/lib/events'
 
 export async function GET(req: NextRequest) {
@@ -22,7 +23,20 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
-    const { path: docPath, content, edits, actor } = await req.json()
+    const { path: docPath, content, edits, actor, properties } = await req.json()
+    // `properties` ({key: value | null}) rewrites only those frontmatter keys
+    if (properties !== undefined) {
+      if (!properties || typeof properties !== 'object' || Array.isArray(properties)) throw new Error('properties must be an object')
+      for (const [k, v] of Object.entries(properties)) {
+        if (!PROPERTY_KEY.test(k)) throw new Error(`"${k}" is not a property name: letters, digits, - and _, starting with a letter`)
+        if (v !== null && typeof v !== 'string') throw new Error(`${k} must be text or null`)
+        if (k.toLowerCase() === 'priority' && v !== null && !parsePriority(v)) throw new Error('priority must be P0, P1, P2 or P3')
+      }
+      await setDocProperties(docPath, properties, root)
+      await noteDocEdit(root, docPath, actor === 'ai' ? 'ai' : 'human')
+      emitUpdate('doc_updated', { path: docPath, actor, properties })
+      return NextResponse.json({ ok: true })
+    }
     // `edits` (old_string→new_string) touches only the matched spans; `content` replaces the file (editor save)
     if (Array.isArray(edits)) await editDoc(docPath, edits, root)
     else await writeDoc(docPath, content, root)

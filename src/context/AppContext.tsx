@@ -8,6 +8,7 @@ import { flushSync } from "react-dom"
 import { useRouter } from "next/navigation"
 import type { Task, TaskBoard, ActivityEvent, Project } from "@/lib/core"
 import type { Summary, SelectedDoc } from "@/types"
+import type { Priority } from "@/lib/doc-priority"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings"
 
 /** The SSE link to /api/events. EventSource retries on its own, so "disconnected" means "retrying". */
@@ -29,7 +30,7 @@ interface AppContextValue {
   refresh: (root?: string) => Promise<void>
   moveTask: (taskId: string, status: string) => Promise<void>
   /** Optimistic owner / due / size edit (R055); rolls back with a toast when the write fails */
-  updateTaskFields: (taskId: string, patch: { owner?: string | null; due?: string | null; size?: string }) => Promise<void>
+  updateTaskFields: (taskId: string, patch: { owner?: string | null; due?: string | null; size?: string; priority?: Priority | null }) => Promise<void>
   openDoc: (path: string) => Promise<void>
   editorSettings: AppSettings["editor"]
   setEditorSettings: (s: AppSettings["editor"]) => void
@@ -183,7 +184,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     refresh() // real state (also reverts a failed move)
   }, [rootParam, refresh])
 
-  const updateTaskFields = useCallback(async (taskId: string, patch: { owner?: string | null; due?: string | null; size?: string }) => {
+  const updateTaskFields = useCallback(async (taskId: string, patch: { owner?: string | null; due?: string | null; size?: string; priority?: Priority | null }) => {
     setBoard((prev) => {
       if (!prev) return prev
       const next = { ...prev }

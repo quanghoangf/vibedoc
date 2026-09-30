@@ -15,6 +15,7 @@ import { useApp } from "@/context/AppContext"
 import { askAgent } from "@/lib/ask-agent"
 import type { TextEdit } from "@/lib/diff"
 import { docStats } from "@/lib/headings"
+import { setDocProperty, stripFrontmatter } from "@/lib/doc-priority"
 
 export type ViewMode = "edit" | "split" | "preview"
 
@@ -50,6 +51,8 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
   const [aiEditAt, setAiEditAt] = useState(0)
   const viewModeRef = useRef(viewMode)
   useEffect(() => { viewModeRef.current = viewMode }, [viewMode])
+  const onContentChangeRef = useRef(onContentChange)
+  useEffect(() => { onContentChangeRef.current = onContentChange }, [onContentChange])
 
   // Phase 1: base extensions (no yCollab) — shown immediately
   const [baseExtensions, setBaseExtensions] = useState<Extension[]>([])
@@ -134,7 +137,12 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         if (ytext.length === 0) ytext.insert(0, initialContent)
         // Preview mode has no editor mounted, so nothing else feeds the preview remote changes (agent edits,
         // other tabs). Split/Edit get them through CodeMirror's onChange, which also tracks dirty state.
-        ytext.observe(() => { if (viewModeRef.current === "preview") setPreviewContent(ytext.toString()) })
+        ytext.observe(() => {
+          if (viewModeRef.current !== "preview") return
+          const text = ytext.toString()
+          setPreviewContent(text)
+          onContentChangeRef.current?.(text)
+        })
         // Phase 2: swap in yCollab extension
         setCollabExtensions([yCollab(ytext, provider.awareness, { undoManager })])
         setIsSynced(true)
@@ -158,9 +166,11 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
   useEffect(() => {
     async function onSse(e: Event) {
       const msg = (e as CustomEvent).detail
-      if (msg?.type !== "doc_updated" || msg.payload?.actor !== "ai") return
+      // A property change (from you or an agent) rewrites only the frontmatter; apply the same rewrite here
+      const properties: Record<string, string | null> | undefined = msg?.payload?.properties
+      if (msg?.type !== "doc_updated" || (msg.payload?.actor !== "ai" && !properties)) return
       if (String(msg.payload.path).replace(/^\.\//, "") !== docPath) return
-      setAiEditAt(Date.now())
+      if (!properties) setAiEditAt(Date.now())
       const ytext = ytextRef.current
       const awareness = awarenessRef.current
       if (!ytext?.doc || !awareness) return
@@ -168,7 +178,11 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
 
       const edits: TextEdit[] | undefined = Array.isArray(msg.payload.edits) ? msg.payload.edits : undefined
       let target: string | null = null
-      if (!edits) {
+      if (properties) {
+        try {
+          target = Object.entries(properties).reduce((c, [k, v]) => setDocProperty(c, k, v), ytext.toString())
+        } catch { return } // the buffer turned the key into a list meanwhile; the file already has the change
+      } else if (!edits) {
         // Whole-file write (e.g. vibedoc_write_doc from another agent): splice in only the differing middle
         const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(docPath)}`)
         const content = (await res.json())?.content
@@ -378,7 +392,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
             )}
             <MarkdownRenderer
               content={previewContent}
-              className={docStats(previewContent).title ? "doc-preview doc-preview-titled" : "doc-preview"}
+              className={docStats(stripFrontmatter(previewContent)).title ? "doc-preview doc-preview-titled" : "doc-preview"}
               highlightSince={aiEditAt}
             />
             </div>

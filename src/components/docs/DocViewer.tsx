@@ -12,6 +12,8 @@ import { docStats, extractHeadings } from "@/lib/headings"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Bot, PanelLeftClose, PanelLeftOpen, Plus, User } from "lucide-react"
 import { DOCS_LIST_KEY } from "@/lib/shortcuts"
+import { stripFrontmatter } from "@/lib/doc-priority"
+import { DocProperties } from "./DocProperties"
 
 const kbdClass = "rounded-sm border border-border bg-surface2 px-1 font-mono text-[10px] leading-4 text-txt"
 
@@ -84,10 +86,12 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
 
   const slash = doc.path.lastIndexOf("/")
   const fileName = doc.path.slice(slash + 1)
-  const stats = docStats(content ?? doc.content)
+  const raw = content ?? doc.content
+  const body = stripFrontmatter(raw)
+  const stats = docStats(body)
   const title = stats.title ?? fileName.replace(/\.md$/, "")
   const lastEdit = doc.lastEdit
-  const headings = extractHeadings(content ?? doc.content)
+  const headings = extractHeadings(body)
   return (
     <div className="flex h-full flex-col">
       <MarkdownEditor
@@ -136,22 +140,11 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
           </>
         )}
         titleBlock={
-          <header className="mb-8">
+          <header className="mb-8 border-b border-border pb-4">
             <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-balance text-txt">{title}</h1>
-            <p className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] text-muted">
-              {lastEdit && (
-                <>
-                  <span className="inline-flex items-center gap-1" title={`Last edited ${new Date(lastEdit.at).toLocaleString()}`}>
-                    {lastEdit.actor === "ai" ? <Bot className="size-3.5 text-accent" aria-hidden /> : <User className="size-3.5" aria-hidden />}
-                    Edited by {lastEdit.actor === "ai" ? "AI" : "you"} · {timeAgo(lastEdit.at)}
-                  </span>
-                  <span aria-hidden>·</span>
-                </>
-              )}
-              <span>{stats.words.toLocaleString()} words</span>
-              <span aria-hidden>·</span>
-              <span>{stats.minutes} min read</span>
-            </p>
+            <div className="mt-5">
+              <DocProperties path={doc.path} content={raw} lastEdit={lastEdit} words={stats.words} minutes={stats.minutes} />
+            </div>
           </header>
         }
       />

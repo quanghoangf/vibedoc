@@ -6,6 +6,7 @@ import { useApp } from "@/context/AppContext"
 import { InlineDate, InlineSelect, type InlineOption } from "@/components/shared/InlineProperty"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
+import { PriorityField } from "@/components/shared/PriorityBadge"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
 import { sizeOf } from "@/lib/board-views"
@@ -55,6 +56,11 @@ export function TaskSizeField({ task, children }: { task: Task; children?: React
       {children ?? (size ? <span className="font-mono text-xs">{size}</span> : empty)}
     </InlineSelect>
   )
+}
+
+export function TaskPriorityField({ task }: { task: Task }) {
+  const { updateTaskFields } = useApp()
+  return <PriorityField label={`Priority of ${task.id}`} value={task.priority ?? null} onChange={(priority) => updateTaskFields(task.id, { priority })} empty={empty} />
 }
 
 export function TaskDueField({ task, children }: { task: Task; children?: ReactNode }) {
