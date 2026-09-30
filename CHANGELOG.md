@@ -1,3 +1,31 @@
+# [1.8.0](https://github.com/quanghoangf/vibedoc/compare/v1.7.0...v1.8.0) (2026-09-30)
+
+
+### Bug Fixes
+
+* **core:** warn once per unknown status; coalesce doc edits across interleaved events ([3ee94c1](https://github.com/quanghoangf/vibedoc/commit/3ee94c10f09c6f24897d39f0921b8728eb3f4dd6))
+
+
+### Features
+
+* **board:** select tasks and change status, epic or delete them in bulk ([7c39745](https://github.com/quanghoangf/vibedoc/commit/7c39745474f31e5294e7d270c6cc1c61771003f5))
+* **docs:** actions menu in the doc header and on right-click in the list ([a1bbbd1](https://github.com/quanghoangf/vibedoc/commit/a1bbbd1171fa532b510d3e9dd7ceeed01275333a))
+* **roadmap:** actions menu on roadmap items (map, timeline, sheet) ([5db4746](https://github.com/quanghoangf/vibedoc/commit/5db474634b59b877720fb0a1deab183bbd9dc789))
+* **tasks:** automatic due, started and done dates ([0e58941](https://github.com/quanghoangf/vibedoc/commit/0e58941978a0bcb4d847b83d8c463fa267b8aac7))
+* **tasks:** custom statuses per project, mapped onto the built-in lifecycle ([a44304a](https://github.com/quanghoangf/vibedoc/commit/a44304a20734ef644717b767bd576459c0f21776))
+* **tasks:** edit task fields and delete tasks from the panel and card ([1fe71ee](https://github.com/quanghoangf/vibedoc/commit/1fe71eec24ef50334ed11f4315db142490fb7416))
+* **tasks:** manual test report on a task with a card badge ([7aec884](https://github.com/quanghoangf/vibedoc/commit/7aec884748fa47f231753936202d211a5f29052e))
+* **tasks:** manual tests page to tick a task's checklist ([be34c8d](https://github.com/quanghoangf/vibedoc/commit/be34c8df754730a39be024c820529cff97ffc86c))
+* **tasks:** optional Review column with approve / send back ([d14772e](https://github.com/quanghoangf/vibedoc/commit/d14772e3cb63853f73c00758526a71c82cc91da4))
+* **tasks:** owner (human or agent) on tasks, epics and docs, with board filter and group ([b63777c](https://github.com/quanghoangf/vibedoc/commit/b63777cc22a0c2a8c3fde581d5dab4b452c98686))
+* **tasks:** paused status for tasks and epics ([f8140b0](https://github.com/quanghoangf/vibedoc/commit/f8140b0773ef30017fa4c26571955d8d5d446649))
+* **ui:** calmer app shell, one status icon system, compact board ([452b1b3](https://github.com/quanghoangf/vibedoc/commit/452b1b3281e13a51fb044b31ca9f5424c1cc7ec0))
+* **ui:** edit status, owner, due and size in place ([4aeb892](https://github.com/quanghoangf/vibedoc/commit/4aeb892ceea8911bfbce4fa9189d5c0629e91996))
+* **ui:** keyboard shortcuts and palette entries for item actions ([c2ed706](https://github.com/quanghoangf/vibedoc/commit/c2ed7060021294c6d4768b25afceb7a62da98755))
+* **ui:** one panel header for tasks, epics and docs ([5493c30](https://github.com/quanghoangf/vibedoc/commit/5493c30aee7972b6d09745534018ddf98a8f55c4))
+* **ui:** undo toast for deleting tasks, epics and docs ([f415009](https://github.com/quanghoangf/vibedoc/commit/f4150092dd542f5bf2d6676b0e81c16e242bc808))
+* **work-epic:** write a manual test report per task; queue waits on review ([4371a19](https://github.com/quanghoangf/vibedoc/commit/4371a1930f3e1effdf5b8d1ec60e4a832b27f917))
+
 # [1.7.0](https://github.com/quanghoangf/vibedoc/compare/v1.6.1...v1.7.0) (2026-09-29)
 
 
