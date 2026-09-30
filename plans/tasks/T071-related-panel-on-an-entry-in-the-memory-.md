@@ -1,8 +1,12 @@
 # T071: Related panel on an entry in the Memory tab
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R053 — Memory graph
 **Size:** M
 **Depends on:** T069
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 Opening an entry in the Memory tab shows the tasks, epics, ADRs, docs and entries it relates to, split into "Links to" and "Linked from". Clicking one opens it. This covers the first half of the epic's done-when.
@@ -44,3 +48,14 @@ Opening an entry in the Memory tab shows the tasks, epics, ADRs, docs and entrie
 pnpm build && pnpm lint
 # pnpm dev → Memory tab → open an entry that mentions a task → click the task row → task detail opens
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] On /memory open an entry whose details mention a task id, an epic id and a doc path → a Related section under the details lists them under "Links to", grouped as Tasks / Epics / Docs, the task with its status icon
+- [ ] Add the entry id to a task file → the task shows under "Linked from" when you reopen the entry
+- [ ] Click the task row → /board opens with that task's panel; click the epic row → /roadmap opens on that epic; click the doc row → the doc opens in Docs; click an entry row → that entry opens
+- [ ] Open an entry that mentions nothing → "No links yet. Mention a task, epic or doc in the entry to link it."
+- [ ] Edit that entry, add an epic id like R048 to the details, Save → it appears under Links to without a reload
+### Regression risk
+- [ ] Editing, deleting and Undo on an entry still work as before (the Related section only shows in the read view)
