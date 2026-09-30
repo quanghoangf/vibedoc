@@ -1,8 +1,11 @@
 # T065: vibedoc_recall — compact ranked list by topic or keyword
-**Status:** 📋 Ready
+**Status:** 🚫 Blocked
 **Phase:** R048 — Token-cheap recall
 **Size:** M
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
 
 ## Goal
 An agent calls `vibedoc_recall { query: "sse events" }` and gets back a short ranked list of matching knowledge entries, one line each (id, type, summary, rough token cost), not the full bodies. This is the thin end-to-end path of the epic: it proves recall works before we add budgets and suggestions.
@@ -57,3 +60,10 @@ pnpm build && pnpm lint
 curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_recall","arguments":{"query":"sse events"}}}'
 ```
+
+## Blocked because
+This task needs R046 (Project knowledge entries), and R046 has not shipped. `plans/roadmap/R046-project-knowledge-entries.md` has **Status:** planned and **Tasks:** —. `src/lib/core.ts` has no function that lists knowledge entries. Without it, `recallEntries()` has nothing to rank. The Context section of this task says "Don't start until R046 is done."
+
+A human must decide one of these:
+- Break down and ship R046 first (`/epic-breakdown R046`), then unblock this task.
+- Or change this task's scope so that it ranks something that exists now (for example, `##` sections of `memory/MEMORY.md`), and update T066–T068 to match.
