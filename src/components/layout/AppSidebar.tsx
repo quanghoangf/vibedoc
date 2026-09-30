@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, BookOpen, Zap, Brain, CircleDot, Ban, ClipboardList, CheckCircle2, Settings, FolderTree, Map } from "lucide-react"
+import { LayoutDashboard, BookOpen, Zap, Brain, CircleDot, Ban, ClipboardList, CheckCircle2, Settings, FolderTree, Map, FlaskConical } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -24,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/docs", icon: BookOpen, label: "Docs" },
   { href: "/activity", icon: Zap, label: "Activity" },
   { href: "/memory", icon: Brain, label: "Memory" },
+  { href: "/manual-tests", icon: FlaskConical, label: "Manual tests" },
   { href: "/explorer", icon: FolderTree, label: "Explorer" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ]
@@ -41,6 +42,8 @@ interface AppSidebarProps {
 
 export function AppSidebar({ board }: AppSidebarProps) {
   const pathname = usePathname()
+  // Unticked manual test items across all tasks (R043)
+  const untested = board ? Object.values(board).flat().reduce((n, t) => n + (t.manualTests ? t.manualTests.total - t.manualTests.done : 0), 0) : 0
 
   return (
     <Sidebar collapsible="icon">
@@ -64,6 +67,9 @@ export function AppSidebar({ board }: AppSidebarProps) {
                     <Link href={href}>
                       <Icon />
                       <span>{label}</span>
+                      {href === "/manual-tests" && untested > 0 && (
+                        <span className="ml-auto font-mono text-[10px] text-amber" aria-label={`${untested} unticked`}>{untested}</span>
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

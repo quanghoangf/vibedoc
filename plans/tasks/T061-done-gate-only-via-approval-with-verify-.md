@@ -1,5 +1,5 @@
 # T061: Manual tests page: list untested tasks, tick items
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R043 — Task verification & review
 **Size:** M
 **Depends on:** T060
@@ -49,3 +49,15 @@ pnpm build && pnpm lint
 curl -s "localhost:3000/api/tasks/manual-tests?root=$FX" -H 'content-type: application/json' -d '{"id":"T001","index":0,"checked":true}'
 # Browser: open /manual-tests?root=$FX → tick an item → the board badge goes 1/2
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Open /manual-tests → T060 and T061 are listed under R043 with their unticked items, newest report first
+- [ ] Tick one item → it strikes through at once, and the task file shows - [x] for that line
+- [ ] Go to /board → that task badge shows the new count; click the badge → /manual-tests scrolls to the task
+- [ ] Tick the last item of a task → it stays on the page as N/N; reload → it is gone, and Show fully tested brings it back
+- [ ] The sidebar Manual tests link shows the count of unticked items and drops as you tick
+### Regression risk
+- [ ] Ticking never changes a task status (check the card column stays the same)
+- [ ] Acceptance criteria checkboxes in a task file are untouched by ticking

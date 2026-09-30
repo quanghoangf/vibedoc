@@ -24,6 +24,8 @@ export interface ManualTests {
   items: ManualTestItem[]
   total: number
   done: number
+  /** From the `_YYYY-MM-DD — actor_` line; null if missing */
+  date: string | null
 }
 
 const ITEM = /^\s*[-*]\s+\[( |x|X)\]\s+(.*)$/
@@ -84,11 +86,30 @@ export function parseManualTests(raw: string): ManualTests | null {
   if (!range) return null
   const items: ManualTestItem[] = []
   let group: ManualTestGroup = "steps"
+  let date: string | null = null
   for (const line of lines.slice(range[0] + 1, range[1])) {
+    const stamp = line.match(/^_(\d{4}-\d{2}-\d{2})\b/)
+    if (stamp && !date && !items.length) { date = stamp[1]; continue }
     if (/^\s*###\s/.test(line)) { group = /^\s*###\s+regression/i.test(line) ? "regression" : "steps"; continue }
     const m = line.match(ITEM)
     if (m) items.push({ text: m[2].trim(), checked: m[1] !== " ", group, index: items.length })
   }
   if (!items.length) return null
-  return { items, total: items.length, done: items.filter((i) => i.checked).length }
+  return { items, total: items.length, done: items.filter((i) => i.checked).length, date }
+}
+
+/** Tick or untick the `index`th checklist item of the `## Manual tests` section (file order), nothing else. */
+export function toggleManualTest(raw: string, index: number, checked: boolean): string {
+  const lines = raw.split("\n")
+  const range = sectionRange(lines)
+  if (!range) throw new RangeError("This task has no manual tests")
+  let n = 0
+  for (let i = range[0] + 1; i < range[1]; i++) {
+    if (!ITEM.test(lines[i])) continue
+    if (n++ === index) {
+      lines[i] = lines[i].replace(/\[( |x|X)\]/, checked ? "[x]" : "[ ]")
+      return lines.join("\n")
+    }
+  }
+  throw new RangeError(`No manual test item ${index} (the task has ${n})`)
 }

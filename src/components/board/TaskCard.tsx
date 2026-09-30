@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
+import Link from "next/link"
 
 const STATUS_COLORS: Record<string, string> = {
   todo: "text-muted border-border2",
@@ -84,15 +85,17 @@ export function TaskCard({ task, onMove, onOpen }: TaskCardProps) {
 
       {/* Manual test report (R043): what the human should click through */}
       {task.manualTests && (
-        <p
+        <Link
+          href={`/manual-tests#${task.id}`}
+          draggable={false}
           title={`Manual tests: ${task.manualTests.done} of ${task.manualTests.total} ticked`}
           className={cn(
-            "mb-2 inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px]",
+            "mb-2 inline-flex w-fit items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
             task.manualTests.done === task.manualTests.total ? "border-teal/30 bg-teal/5 text-teal" : "border-border text-muted",
           )}
         >
           🧪 {task.manualTests.done}/{task.manualTests.total}
-        </p>
+        </Link>
       )}
 
       {/* Actions */}

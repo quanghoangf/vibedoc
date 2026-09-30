@@ -1,6 +1,6 @@
 // Self-check for manual test reports. Run: node src/lib/manual-tests.check.mts
 import assert from 'node:assert/strict'
-import { normalizeReport, parseManualTests, setManualTests } from './manual-tests.ts'
+import { normalizeReport, parseManualTests, setManualTests, toggleManualTest } from './manual-tests.ts'
 
 const task = '# T001: First\n**Status:** 🔨 In Progress\n**Depends on:** —\n\n## Goal\nDo it.\n'
 
@@ -9,7 +9,7 @@ const one = setManualTests(task, '- [ ] Open / → board loads\n- [ ] Drag a car
 assert.ok(one.startsWith(task.trimEnd()), 'meta block and body unchanged')
 assert.ok(one.endsWith('## Manual tests\n_2026-10-01 — ai_\n### Steps\n- [ ] Open / → board loads\n- [ ] Drag a card → it moves\n'))
 assert.deepEqual(parseManualTests(one), {
-  total: 2, done: 0,
+  total: 2, done: 0, date: '2026-10-01',
   items: [
     { text: 'Open / → board loads', checked: false, group: 'steps', index: 0 },
     { text: 'Drag a card → it moves', checked: false, group: 'steps', index: 1 },
@@ -47,5 +47,20 @@ assert.equal(parseManualTests(quoted), null)
 const realAfter = setManualTests(quoted, '- [ ] real', 'ai', '2026-10-01')
 assert.ok(realAfter.includes('```md\n## Manual tests\n- [ ] example\n```'), 'quoted example kept')
 assert.deepEqual(parseManualTests(realAfter)?.items.map((i) => i.text), ['real'])
+
+// toggleManualTest: by index across both groups; only inside the section
+const body = '# T1: x\n**Status:** ✅ Done\n\n## Acceptance criteria\n- [ ] criterion stays\n'
+const both = setManualTests(body, '### Steps\n- [ ] s0\n- [ ] s1\n### Regression risk\n- [ ] r2', 'ai', '2026-10-01')
+const t2 = toggleManualTest(both, 2, true)
+assert.match(t2, /- \[x\] r2/)
+assert.match(t2, /- \[ \] criterion stays/, 'acceptance criteria untouched')
+assert.equal(parseManualTests(t2)?.done, 1)
+const t0 = toggleManualTest(t2, 0, true)
+assert.deepEqual(parseManualTests(t0)?.items.map((i) => i.checked), [true, false, true])
+assert.deepEqual(parseManualTests(toggleManualTest(t0, 2, false))?.items.map((i) => i.checked), [true, false, false])
+assert.equal(toggleManualTest(t0, 0, true), t0, 'ticking a ticked item changes nothing')
+assert.ok(toggleManualTest(t0, 0, true).includes('**Status:** ✅ Done'), 'status untouched')
+assert.throws(() => toggleManualTest(both, 3, true), RangeError)
+assert.throws(() => toggleManualTest(body, 0, true), RangeError)
 
 console.log('manual-tests: ok')

@@ -12,7 +12,7 @@ import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraf
 import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS } from './sessions'
-import { parseManualTests, setManualTests } from './manual-tests'
+import { parseManualTests, setManualTests, toggleManualTest } from './manual-tests'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -419,6 +419,14 @@ export async function saveManualTests(taskId: string, report: string, root: stri
   const task = await getTask(taskId, root)
   const content = setManualTests(task.raw ?? '', report, actor, new Date().toISOString().slice(0, 10))
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
+  return parseTaskFile(task.file, content)
+}
+
+/** Tick or untick one manual test item (index in file order). Never changes the task status. Throws RangeError for a bad index. */
+export async function setManualTestChecked(taskId: string, index: number, checked: boolean, root: string): Promise<Task> {
+  const task = await getTask(taskId, root)
+  const content = toggleManualTest(task.raw ?? '', index, checked)
+  if (content !== task.raw) await fs.writeFile(path.join(root, task.file), content, 'utf8')
   return parseTaskFile(task.file, content)
 }
 
