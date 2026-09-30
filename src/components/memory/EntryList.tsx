@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { Plus, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
+import { OwnerChip } from "@/components/shared/OwnerChip"
 import { ENTRY_TYPES, type Entry, type EntryType } from "@/lib/entries"
 import { filterEntries, tokenize } from "@/lib/recall"
 
@@ -96,7 +97,10 @@ export function EntryList({ entries, selectedId, onOpen, onNew }: {
                   <span>{e.id}</span>
                   <span>·</span>
                   <span>{e.type}</span>
-                  <span className="ml-auto">{e.updatedAt}</span>
+                  <span className="ml-auto flex items-center gap-2">
+                    <OwnerChip owner={e.by} className="font-sans" />
+                    {e.updatedAt}
+                  </span>
                 </span>
                 <span className="text-sm text-txt">{e.summary}</span>
               </button>

@@ -947,8 +947,11 @@ export async function getEntry(id: string, root: string): Promise<Entry | null> 
   return (await listEntries(root)).find(e => e.id === norm) ?? null
 }
 
-/** Create (no id) or update (id) one entry. Throws with the validation message on bad input or an unknown id. */
-export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human' = 'human'): Promise<Entry> {
+/**
+ * Create (no id) or update (id) one entry. Throws with the validation message on bad input or an unknown id.
+ * Stamps `**By:**`: "human", or "ai:<agent>" for an agent save (R047).
+ */
+export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human' = 'human', agent?: string): Promise<Entry> {
   const error = validateEntryInput(input)
   if (error) return Promise.reject(new Error(error))
   return withEntryLock(async () => {
@@ -965,7 +968,8 @@ export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human'
     const summary = input.summary.trim()
     const entry: Entry = {
       id, type: input.type as EntryType, summary, body: (input.body ?? '').trim(),
-      updatedAt: localToday(), file: path.join(ENTRIES_DIR, `${id}-${entrySlug(summary)}.md`),
+      updatedAt: localToday(), by: actor === 'human' ? 'human' : parseOwner(`ai:${agent || 'agent'}`) ?? 'ai:agent',
+      file: path.join(ENTRIES_DIR, `${id}-${entrySlug(summary)}.md`),
     }
     await fs.mkdir(path.join(root, ENTRIES_DIR), { recursive: true })
     await fs.writeFile(path.join(root, entry.file), formatEntry(entry), 'utf8')

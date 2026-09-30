@@ -47,7 +47,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **Kanban board** — tasks live in `plans/tasks/*.md`, rendered as draggable cards
 - **Docs viewer** — browse and edit every markdown file in `docs/`
 - **Live activity feed** — every AI action appears instantly via SSE, no polling
-- **Memory tab** — persistent `MEMORY.md` for session handoffs between AI agents
+- **Memory tab** — the `MEMORY.md` session handoff, plus a browser for knowledge entries: search (ranked like `vibedoc_recall`), filter by type, open, edit, add, and delete with Undo. Each entry shows who changed it last (a person or a named agent)
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
 - **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
 - **Plan from the chat** — ask the agent sidebar to plan a roadmap or break an epic into tasks; it asks questions, shows the plan, and writes nothing until you accept
@@ -232,7 +232,9 @@ your-project/
 │   ├── T001-scaffold.md          ← **Status:** 📋 Ready
 │   └── T002-auth.md
 └── memory/
-    └── MEMORY.md
+    ├── MEMORY.md                 ← session handoff
+    └── entries/
+        └── E001-only-core-ts-touches-fs.md   ← one long-lived fact (**Type:**, **Updated:**, **By:**)
 ```
 
 ---

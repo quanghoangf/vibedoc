@@ -46,6 +46,26 @@ sequenceDiagram
     Note over UI: renders markdown in doc viewer panel
 ```
 
+### Human fixes a knowledge entry (Memory tab)
+```mermaid
+sequenceDiagram
+    participant Browser as /memory page
+    participant API as /api/memory/entries/*
+    participant Core as core.ts
+    participant SSE as SSE Bus
+
+    Browser->>API: GET /api/memory/entries
+    API->>Core: listEntries(root)
+    Note over Browser: search + type filter run client-side<br/>(filterEntries in recall.ts, same ranking as vibedoc_recall)
+    Browser->>API: POST /save {id, type, summary, body}
+    API->>Core: saveEntry(input, root, "human")
+    Note over Core: rewrites memory/entries/E012-<slug>.md<br/>**Updated:** today, **By:** human
+    API->>SSE: emitUpdate("memory_updated")
+    Browser->>API: POST /delete {id} → {file, raw}
+    Note over Browser: Undo → POST /restore {file, raw}<br/>(never over an id that exists)
+    Note over Core: next vibedoc_read_memory lists the fixed entry
+```
+
 ### AI starts a session
 ```mermaid
 sequenceDiagram

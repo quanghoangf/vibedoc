@@ -23,7 +23,7 @@ assert.ok(entrySlug('a'.repeat(30) + ' ' + 'b'.repeat(30)).length <= 40)
 assert.ok(!entrySlug('x'.repeat(39) + ' yyy').endsWith('-'))
 
 // parse → format round trip
-const e = { id: 'E001', type: 'convention' as const, summary: 'Only core.ts touches fs', body: 'API routes import from core.\n\nWhy: one place.', updatedAt: '2026-09-30' }
+const e = { id: 'E001', type: 'convention' as const, summary: 'Only core.ts touches fs', body: 'API routes import from core.\n\nWhy: one place.', updatedAt: '2026-09-30', by: null }
 const raw = formatEntry(e)
 assert.equal(raw, '# E001: Only core.ts touches fs\n**Type:** convention\n**Updated:** 2026-09-30\n\nAPI routes import from core.\n\nWhy: one place.\n')
 assert.deepEqual(parseEntry(raw, 'memory/entries/E001-x.md'), { ...e, file: 'memory/entries/E001-x.md' })
@@ -32,6 +32,13 @@ assert.deepEqual(parseEntry(raw, 'memory/entries/E001-x.md'), { ...e, file: 'mem
 const noBody = formatEntry({ ...e, body: '' })
 assert.equal(noBody, '# E001: Only core.ts touches fs\n**Type:** convention\n**Updated:** 2026-09-30\n')
 assert.equal(parseEntry(noBody, 'f')?.body, '')
+
+// **By:** round trip (R047): written after **Updated:**, read back; missing → null
+const byAi = formatEntry({ ...e, by: 'ai:claude' })
+assert.equal(byAi, '# E001: Only core.ts touches fs\n**Type:** convention\n**Updated:** 2026-09-30\n**By:** ai:claude\n\nAPI routes import from core.\n\nWhy: one place.\n')
+assert.equal(parseEntry(byAi, 'f')?.by, 'ai:claude')
+assert.equal(parseEntry(formatEntry({ ...e, body: '', by: 'human' }), 'f')?.by, 'human')
+assert.equal(parseEntry(raw, 'f')?.by, null)
 
 // parse: meta block stops at the first non-meta line; ids normalized; CRLF ok
 assert.equal(parseEntry('# e2: S\r\n**Type:** gotcha\r\n\r\n**Type:** decision', 'f')?.type, 'gotcha')

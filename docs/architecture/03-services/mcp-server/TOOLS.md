@@ -93,7 +93,7 @@ Write a new ADR. Auto-numbered, updates `_INDEX.md`.
 ```
 
 ### `vibedoc_save_entry` ⚡ triggers real-time UI update
-Save one long-lived fact as its own file, `memory/entries/E001-<slug>.md`. Omit `id` to create; pass `id` to update (a new summary renames the file, the id stays). `type` is one of `convention`, `gotcha`, `decision`, `preference`; `summary` is one line, at most 120 characters.
+Save one long-lived fact as its own file, `memory/entries/E001-<slug>.md`. Omit `id` to create; pass `id` to update (a new summary renames the file, the id stays). `type` is one of `convention`, `gotcha`, `decision`, `preference`; `summary` is one line, at most 120 characters. Each save writes `**By:** ai:<agent>` (the `agent` argument, else the MCP client name); a save from the Memory tab writes `**By:** human`.
 **Entry or handoff?** A fact that should still be true next week goes in an entry. What happened this session goes in the handoff.
 ```json
 { "name": "vibedoc_save_entry", "arguments": { "type": "convention", "summary": "Only core.ts touches the file system", "body": "API routes import from core, never fs." } }

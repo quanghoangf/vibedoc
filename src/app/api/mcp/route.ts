@@ -871,7 +871,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     }
 
     case "vibedoc_save_entry": {
-      const entry = await saveEntry(args as unknown as EntryInput, root, "ai");
+      const entry = await saveEntry(args as unknown as EntryInput, root, "ai", agent);
       emitUpdate("memory_updated", { root, entryId: entry.id });
       return `🧠 Saved **${entry.id}** · ${entry.type} · ${entry.summary}\n${entry.file}`;
     }

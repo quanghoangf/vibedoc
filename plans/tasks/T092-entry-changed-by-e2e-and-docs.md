@@ -1,8 +1,12 @@
 # T092: "Changed by" on entries + e2e for the Memory browser + docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R047 — Memory browser
 **Size:** M (2–3 hrs)
 **Depends on:** T091
+**Owner:** ai:claude-code
+**Due:** 2026-10-03
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 Each entry shows who changed it last, a person or a named agent, so a user can tell a hand-fixed fact from one an agent wrote. A browser test proves the epic's Done-when end to end, and the docs describe the Memory browser.
@@ -55,3 +59,13 @@ node src/lib/entries.check.mts
 pnpm typecheck && pnpm build && pnpm lint   # no new lint errors beyond the 14 pre-existing ones
 PW_DIR=<dir with node_modules/playwright> node e2e/memory-browser.mjs   # with pnpm dev running
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Have an agent save an entry with vibedoc_save_entry → on /memory its row and its panel show a bot chip with the agent's name, and the file has "**By:** ai:<agent>"
+- [ ] Edit that entry on /memory and Save → the chip changes to a person ("Human") and the file says "**By:** human"
+- [ ] Open an entry file written before this change (no **By:** line) → no chip, nothing broken
+- [ ] Read the README "Memory tab" bullet and the memory/ tree → they describe entries and the **By:** line
+### Regression risk
+- [ ] vibedoc_read_memory and vibedoc_recall output is unchanged (no author in it), and task owners on /board still show their chips

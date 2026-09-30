@@ -4,8 +4,11 @@
 export const ENTRY_TYPES = ['convention', 'gotcha', 'decision', 'preference'] as const
 export type EntryType = typeof ENTRY_TYPES[number]
 
-/** updatedAt = the `**Updated:**` date (YYYY-MM-DD); file = path relative to root. */
-export type Entry = { id: string; type: EntryType; summary: string; body: string; updatedAt: string; file: string }
+/**
+ * updatedAt = the `**Updated:**` date (YYYY-MM-DD); by = `**By:**` who saved it last ("human" | "ai:<agent>",
+ * null in files from before R047); file = path relative to root.
+ */
+export type Entry = { id: string; type: EntryType; summary: string; body: string; updatedAt: string; by: string | null; file: string }
 export type EntryInput = { id?: string; type: string; summary: string; body?: string }
 
 export const SUMMARY_MAX = 120
@@ -46,11 +49,11 @@ export function parseEntry(raw: string, file: string): Entry | null {
   }
   const type = meta.type ?? ''
   if (!isEntryType(type)) return null
-  return { id, type, summary: h1[2], body: lines.slice(i).join('\n').trim(), updatedAt: meta.updated ?? '', file }
+  return { id, type, summary: h1[2], body: lines.slice(i).join('\n').trim(), updatedAt: meta.updated ?? '', by: meta.by || null, file }
 }
 
 export function formatEntry(e: Omit<Entry, 'file'>): string {
-  const head = `# ${e.id}: ${e.summary}\n**Type:** ${e.type}\n**Updated:** ${e.updatedAt}\n`
+  const head = `# ${e.id}: ${e.summary}\n**Type:** ${e.type}\n**Updated:** ${e.updatedAt}\n${e.by ? `**By:** ${e.by}\n` : ''}`
   return e.body.trim() ? `${head}\n${e.body.trim()}\n` : head
 }
 

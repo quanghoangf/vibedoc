@@ -5,6 +5,7 @@ import { Pencil, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
+import { OwnerChip } from "@/components/shared/OwnerChip"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { ENTRY_TYPES, validateEntryInput, type Entry, type EntryType } from "@/lib/entries"
 
@@ -149,6 +150,7 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
         properties={[
           { label: "Type", value: entry.type },
           { label: "Updated", value: entry.updatedAt || null },
+          { label: "Changed by", value: entry.by ? <OwnerChip owner={entry.by} className="text-xs text-txt" /> : null },
           { label: "File", value: <span className="truncate font-mono text-[11px] text-muted">{entry.file}</span> },
         ]}
       />
