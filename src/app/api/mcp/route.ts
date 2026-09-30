@@ -27,6 +27,7 @@ import {
   listTasks,
   getTask,
   updateTaskStatus,
+  saveManualTests,
   claimNextTask,
   logDecision,
   readMemory,
@@ -178,7 +179,9 @@ const TOOLS = [
   {
     name: "vibedoc_update_task",
     description:
-      "Update task status. Call when starting, finishing, or blocking a task. UI updates in real time.",
+      "Update task status. Call when starting, finishing, or blocking a task. UI updates in real time. " +
+      "When moving a task to done, include manualTests: a checklist of what a human should click through to trust it, " +
+      "written from what you actually changed (optional, never blocks the move).",
     inputSchema: {
       type: "object",
       properties: {
@@ -186,6 +189,13 @@ const TOOLS = [
         status: {
           type: "string",
           enum: ["todo", "in-progress", "done", "blocked", "cancelled"],
+        },
+        manualTests: {
+          type: "string",
+          description:
+            "Optional manual test report, saved as the task's `## Manual tests` section (replaces an older one). Markdown checklist: " +
+            "`### Steps` items as `- [ ] <what to do> → <what you should see>`, then `### Regression risk` items for existing features worth re-checking. " +
+            "Plain lines become unticked steps.",
         },
       },
       required: ["taskId", "status"],
@@ -706,6 +716,8 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     }
 
     case "vibedoc_update_task": {
+      const report = typeof args.manualTests === "string" && args.manualTests.trim() ? args.manualTests : null;
+      if (report) await saveManualTests(String(args.taskId), report, root, "ai");
       const result = await updateTaskStatus(
         String(args.taskId),
         args.status as TaskStatus,
@@ -718,7 +730,9 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         previousStatus: result.previousStatus,
         task: result.task,
       });
+      const tests = result.task.manualTests;
       return `✅ **${result.task.id}** → **${result.task.status}**\n(was: ${result.previousStatus})` +
+        (tests ? `\n🧪 Manual tests: ${tests.done}/${tests.total} ticked` : "") +
         (await roadmapHint(root, result.task.id));
     }
 

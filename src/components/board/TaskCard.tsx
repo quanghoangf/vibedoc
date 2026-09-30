@@ -82,6 +82,19 @@ export function TaskCard({ task, onMove, onOpen }: TaskCardProps) {
       {/* Phase */}
       {task.phase && <p className="text-xs text-muted mb-2">{task.phase}</p>}
 
+      {/* Manual test report (R043): what the human should click through */}
+      {task.manualTests && (
+        <p
+          title={`Manual tests: ${task.manualTests.done} of ${task.manualTests.total} ticked`}
+          className={cn(
+            "mb-2 inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px]",
+            task.manualTests.done === task.manualTests.total ? "border-teal/30 bg-teal/5 text-teal" : "border-border text-muted",
+          )}
+        >
+          🧪 {task.manualTests.done}/{task.manualTests.total}
+        </p>
+      )}
+
       {/* Actions */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <Button

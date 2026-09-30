@@ -1,5 +1,5 @@
 # T060: Manual test report on the task + card badge
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R043 — Task verification & review
 **Size:** M
 **Depends on:** —
@@ -61,3 +61,14 @@ call vibedoc_update_task '{"taskId":"T001","status":"done","manualTests":"- [ ] 
 cat $FX/plans/tasks/T001-first.md   # ## Manual tests with 2 items
 call vibedoc_update_task '{"taskId":"T002","status":"done"}'   # works, no badge
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] With the dev server running, call vibedoc_update_task on a fixture task with status done and a manualTests checklist → the task file ends with a ## Manual tests section (date — ai, ### Steps items)
+- [ ] Open /board for that project → the card shows a muted 🧪 0/N badge without a reload
+- [ ] Call it again with a different checklist → the section is replaced, not duplicated
+- [ ] Tick every item by hand in the file and reload /board → the badge turns green (N/N)
+### Regression risk
+- [ ] Tasks without a report (T001–T059) show no badge and still move between columns
+- [ ] vibedoc_update_task without manualTests still moves a task to done

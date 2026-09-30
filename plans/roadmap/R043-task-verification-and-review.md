@@ -1,6 +1,6 @@
 # R043: Task verification & review
 **Parent:** R003
-**Status:** planned
+**Status:** in-progress
 **Order:** 40
 **Tasks:** T060, T061, T062, T063, T064
 

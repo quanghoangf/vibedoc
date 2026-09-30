@@ -12,6 +12,7 @@ import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraf
 import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS } from './sessions'
+import { parseManualTests, setManualTests } from './manual-tests'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,8 @@ export interface Task {
   dependsOn: string
   /** Optional `**Due:** YYYY-MM-DD` (local calendar date, compare as string). */
   due: string | null
+  /** The `## Manual tests` checklist (R043), counted; null when the task has none */
+  manualTests: { total: number; done: number } | null
   file: string
   raw?: string
 }
@@ -345,7 +348,9 @@ function parseTaskFile(filePath: string, content: string): Task {
   const idM = filename.match(/^(T\d+)/i)
   const id = idM ? idM[1].toUpperCase() : filename.toUpperCase()
 
-  return { id, title, status, size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', due: parseDue(meta['due'] || ''), file: filePath, raw: content }
+  const tests = parseManualTests(content)
+  const manualTests = tests && { total: tests.total, done: tests.done }
+  return { id, title, status, size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', due: parseDue(meta['due'] || ''), manualTests, file: filePath, raw: content }
 }
 
 export async function listTasks(root: string): Promise<{ tasks: Task[]; board: TaskBoard }> {
@@ -407,6 +412,14 @@ export async function updateTaskStatus(
   })
 
   return { task: { ...task, status: newStatus, raw: content }, previousStatus }
+}
+
+/** Write (or replace) the task's `## Manual tests` checklist. `report` is a markdown checklist; plain lines become items. */
+export async function saveManualTests(taskId: string, report: string, root: string, actor: 'ai' | 'human' = 'ai'): Promise<Task> {
+  const task = await getTask(taskId, root)
+  const content = setManualTests(task.raw ?? '', report, actor, new Date().toISOString().slice(0, 10))
+  await fs.writeFile(path.join(root, task.file), content, 'utf8')
+  return parseTaskFile(task.file, content)
 }
 
 // ponytail: in-process mutex so two agents never claim the same task; separate from the roadmap lock.
