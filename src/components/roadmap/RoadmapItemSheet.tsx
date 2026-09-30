@@ -16,6 +16,7 @@ import { pickNextTask } from "@/lib/work-queue"
 import { ItemActionsMenu, type ItemActions } from "./ItemActionsMenu"
 import { useItemCommands } from "@/components/shared/item-commands"
 import { OwnerChip } from "@/components/shared/OwnerChip"
+import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
 import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
 import type { RoadmapItem, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 
@@ -81,28 +82,33 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
 
   return (
     <div className="flex min-h-full flex-col">
-      <header className={cn("border-b border-border px-6 pb-5 pt-6", item.status === "in-progress" && "bg-[linear-gradient(180deg,rgb(var(--rgb-accent)/0.08),transparent)]")}>
-        <SheetDescription asChild>
-          <div className="flex items-center gap-1 pr-8 font-mono text-[11px] text-muted">
-            {parent && (
-              <>
-                <button type="button" onClick={() => onSelect(parent.id)} className="truncate hover:text-txt">{parent.title}</button>
-                <ChevronRight className="h-3 w-3 shrink-0" />
-              </>
-            )}
-            <span className="shrink-0">{item.id} · {isHorizon ? "horizon" : "epic"}</span>
-          </div>
-        </SheetDescription>
-        <SheetTitle className="mt-2 text-xl font-semibold leading-tight text-txt">{item.title}</SheetTitle>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <StatusPill status={item.status} />
-          <OwnerChip owner={item.owner} />
-          <AgentMark attach={{ kind: "epic", id: item.id }} />
-          <DueChip due={item.due} state={dueState(item.due, item.status, today)} />
-          <ItemActionsMenu item={item} items={items} actions={actions} className="ml-auto" open={menuOpen} onOpenChange={setMenuOpen} />
-        </div>
+      <ItemPanelHeader
+        className={cn("px-6", item.status === "in-progress" && "bg-[linear-gradient(180deg,rgb(var(--rgb-accent)/0.08),transparent)]")}
+        kicker={
+          <SheetDescription asChild>
+            <div className="flex min-w-0 items-center gap-1">
+              {parent && (
+                <>
+                  <button type="button" onClick={() => onSelect(parent.id)} className="truncate hover:text-txt">{parent.title}</button>
+                  <ChevronRight className="h-3 w-3 shrink-0" />
+                </>
+              )}
+              <span className="shrink-0">{item.id} · {isHorizon ? "horizon" : "epic"}</span>
+              <AgentMark attach={{ kind: "epic", id: item.id }} />
+            </div>
+          </SheetDescription>
+        }
+        title={<SheetTitle className="text-xl font-semibold leading-tight text-txt">{item.title}</SheetTitle>}
+        menu={<ItemActionsMenu item={item} items={items} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} />}
+        properties={[
+          { label: "Status", value: <StatusPill status={item.status} /> },
+          { label: "Owner", value: item.owner ? <OwnerChip owner={item.owner} className="text-xs" /> : <span className="text-muted">—</span> },
+          { label: "Due", value: item.due && <DueChip due={item.due} state={dueState(item.due, item.status, today)} /> },
+          { label: isHorizon ? "Epics" : "Tasks", value: <span className="font-mono">{isHorizon ? epics.length : item.tasks.length}</span> },
+        ]}
+      >
         {progress && (
-          <div className="mt-5 flex items-end gap-4">
+          <div className="mt-2 flex items-end gap-4">
             <p className="font-mono text-3xl font-semibold leading-none tabular-nums text-txt">
               {Math.round((progress.done / progress.total) * 100)}<span className="text-base text-muted">%</span>
             </p>
@@ -118,7 +124,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
             </div>
           </div>
         )}
-      </header>
+      </ItemPanelHeader>
 
       <div className="flex flex-1 flex-col gap-6 px-6 py-5">
         {!isHorizon && item.tasks.length > 0 && <LinkedTasks item={item} tasksById={tasksById} onOpen={onEditRaw} />}

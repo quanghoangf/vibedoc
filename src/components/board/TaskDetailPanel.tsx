@@ -13,6 +13,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
 import { OwnerChip } from "@/components/shared/OwnerChip"
+import { ItemPanelHeader, type ItemProperty } from "@/components/shared/ItemPanelHeader"
+import { epicOf, sizeOf } from "@/lib/board-views"
+import { localToday, dueState } from "@/lib/roadmap-health"
+import { DueChip } from "@/components/roadmap/RoadmapNodes"
 import { itemKeyLabel, useItemCommands } from "@/components/shared/item-commands"
 import { deleteTaskWithUndo, updateTask } from "./task-api"
 import type { TaskMetaPatch } from "@/types"
@@ -89,39 +93,36 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
       <SheetContent side="right" aria-describedby={undefined} className="p-0 gap-0 sm:max-w-[420px] border-border flex flex-col">
         {task && (
           <>
-            {/* Header */}
-            <div className="flex flex-col gap-1 min-w-0 pl-5 pr-12 py-4 border-b border-border shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs text-muted">{task.id}</span>
-                <StatusChip status={displayStatus(task)} />
-                <OwnerChip owner={task.owner} />
-                <AgentMark attach={{ kind: "task", id: task.id }} />
-                <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                  <DropdownMenuTrigger asChild>
-                    <button type="button" aria-label={`Actions for ${task.id}`} className="ml-auto grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
-                      <MoreHorizontal className="size-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44">
-                    <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> Edit<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger><StatusIcon status={displayStatus(task)} /> Status<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        {statusDefs.map((d) => (
-                          <DropdownMenuItem key={d.id} disabled={d.id === displayStatus(task)} onSelect={() => onMove(task.id, d.id)}>
-                            <StatusIcon status={d.id} /> {d.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                    <DropdownMenuItem onSelect={chatAbout}><MessageSquare /> Chat about task<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> Delete<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              <SheetTitle className="font-medium text-txt text-sm leading-snug">{task.title}</SheetTitle>
-            </div>
+            <ItemPanelHeader
+              kicker={<><span>{task.id}</span><span>· task</span><AgentMark attach={{ kind: "task", id: task.id }} /></>}
+              title={<SheetTitle className="text-base font-semibold leading-snug text-txt">{task.title}</SheetTitle>}
+              menu={
+                  <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <button type="button" aria-label={`Actions for ${task.id}`} className="ml-auto grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
+                        <MoreHorizontal className="size-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> Edit<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger><StatusIcon status={displayStatus(task)} /> Status<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          {statusDefs.map((d) => (
+                            <DropdownMenuItem key={d.id} disabled={d.id === displayStatus(task)} onSelect={() => onMove(task.id, d.id)}>
+                              <StatusIcon status={d.id} /> {d.label}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                      <DropdownMenuItem onSelect={chatAbout}><MessageSquare /> Chat about task<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> Delete<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+              }
+              properties={taskProperties(task)}
+            />
 
             {error && <p role="alert" className="px-5 py-2 text-xs text-danger border-b border-border">{error}</p>}
 
@@ -148,38 +149,62 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
 
             {task.status === "review" && <ReviewActions key={`review-${task.id}`} taskId={task.id} onDone={onClose} />}
 
-            {task.manualTests && (
-              <Link
-                href={`/manual-tests#${task.id}`}
-                onClick={onClose}
-                className="group flex items-center gap-2 px-5 py-2.5 border-b border-border shrink-0 text-xs text-muted hover:bg-surface2 hover:text-txt transition-colors"
-              >
-                <FlaskConical className="size-3.5" />
-                <span className={cn("font-mono", task.manualTests.done === task.manualTests.total && "text-teal")}>
-                  {task.manualTests.done}/{task.manualTests.total}
-                </span>
-                manual tests ticked
-                <span className="ml-auto text-accent opacity-0 transition-opacity group-hover:opacity-100">Open checklist →</span>
-              </Link>
-            )}
+            {/* Body, then activity: one scroll area */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="px-5 py-4">
+                {task.raw ? (
+                  <MarkdownRenderer content={bodyOf(task.raw)} />
+                ) : (
+                  <p className="text-sm text-muted">No content available.</p>
+                )}
+              </div>
+              <section aria-label="Activity" className="border-t border-border">
+                {task.manualTests && (
+                  <Link
+                    href={`/manual-tests#${task.id}`}
+                    onClick={onClose}
+                    className="group flex items-center gap-2 px-5 py-2.5 border-b border-border shrink-0 text-xs text-muted hover:bg-surface2 hover:text-txt transition-colors"
+                  >
+                    <FlaskConical className="size-3.5" />
+                    <span className={cn("font-mono", task.manualTests.done === task.manualTests.total && "text-teal")}>
+                      {task.manualTests.done}/{task.manualTests.total}
+                    </span>
+                    manual tests ticked
+                    <span className="ml-auto text-accent opacity-0 transition-opacity group-hover:opacity-100">Open checklist →</span>
+                  </Link>
+                )}
 
-            <ReviewHistory entries={reviewHistory(task.raw ?? "")} />
+                <ReviewHistory entries={reviewHistory(task.raw ?? "")} />
 
-            <TaskSessions key={task.id} taskId={task.id} onNavigate={onClose} />
-
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {task.raw ? (
-                <MarkdownRenderer content={task.raw} />
-              ) : (
-                <p className="text-sm text-muted">No content available.</p>
-              )}
+                <TaskSessions key={task.id} taskId={task.id} onNavigate={onClose} />
+              </section>
             </div>
           </>
         )}
       </SheetContent>
     </Sheet>
   )
+}
+
+/** The file without its H1 and **Key:** block: the header already shows those. */
+function bodyOf(raw: string): string {
+  const lines = raw.split("\n")
+  let i = lines.findIndex((l) => l.startsWith("# "))
+  i = i < 0 ? 0 : i + 1
+  while (i < lines.length && (lines[i].trim() === "" || /^\*\*[^*]+:\*\*/.test(lines[i]))) i++
+  return lines.slice(i).join("\n")
+}
+
+/** Status · owner · due · size · epic, in the shared header grid. */
+function taskProperties(task: Task): ItemProperty[] {
+  const epic = task.phase && task.phase !== "—" ? epicOf(task.phase) : null
+  return [
+    { label: "Status", value: <StatusChip status={displayStatus(task)} /> },
+    { label: "Owner", value: task.owner ? <OwnerChip owner={task.owner} className="text-xs" /> : <span className="text-muted">—</span> },
+    { label: "Due", value: task.due ? <DueChip due={task.due} state={dueState(task.due, task.status === "done" ? "done" : "planned", localToday())} /> : null },
+    { label: "Size", value: sizeOf(task) && <span className="font-mono">{sizeOf(task)}</span> },
+    { label: "Epic", value: epic && <span className="flex min-w-0 items-center gap-1.5">{epic.id && <span className="font-mono text-[11px] text-muted">{epic.id}</span>}<span className="truncate">{epic.title}</span></span> },
+  ]
 }
 
 const FIELD = "w-full rounded-md border border-border bg-bg px-2.5 py-1.5 text-sm text-txt focus:border-accent/60 focus:outline-hidden"

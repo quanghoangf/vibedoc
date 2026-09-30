@@ -7,6 +7,7 @@ import { BacklinksPanel } from "./BacklinksPanel"
 import { DocActionsMenu, type DocActions } from "./DocActionsMenu"
 import { useItemCommands } from "@/components/shared/item-commands"
 import { timeAgo } from "@/components/activity/ActivityEventRow"
+import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
 import { Bot, User } from "lucide-react"
 
 interface DocViewerProps {
@@ -47,28 +48,45 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions }: D
     setSelectedDoc({ ...doc!, content, lastEdit: { actor: "human", at: new Date().toISOString() } })
   }
 
+  const slash = doc.path.lastIndexOf("/")
+  const lastEdit = doc.lastEdit
   return (
     <div className="flex flex-col h-full">
-      <MarkdownEditor
-        docPath={doc.path}
-        initialContent={doc.content}
-        onSave={handleSave}
-        onDirtyChange={onDirtyChange}
-        onContentChange={onContentChange}
-        wordWrap={editorSettings.wordWrap}
-        lineNumbers={editorSettings.lineNumbers}
-        headerActions={
-          <>
-            {doc.lastEdit && (
-              <span title={`Last edited ${new Date(doc.lastEdit.at).toLocaleString()}`} className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted">
-                {doc.lastEdit.actor === "ai" ? <Bot className="size-3.5 text-accent" aria-hidden /> : <User className="size-3.5" aria-hidden />}
-                {doc.lastEdit.actor === "ai" ? "AI" : "Human"} · {timeAgo(doc.lastEdit.at)}
+      <ItemPanelHeader
+        kicker={<><span className="truncate">{slash > 0 ? doc.path.slice(0, slash) : "project root"}</span><span className="shrink-0">· doc</span></>}
+        title={<h1>{doc.path.slice(slash + 1).replace(/\.md$/, "")}</h1>}
+        menu={docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
+        properties={[
+          {
+            label: "Owner",
+            value: lastEdit ? (
+              <span className="inline-flex items-center gap-1 text-xs text-muted">
+                {lastEdit.actor === "ai" ? <Bot className="size-3.5 text-accent" aria-hidden /> : <User className="size-3.5" aria-hidden />}
+                {lastEdit.actor === "ai" ? "AI" : "Human"}
               </span>
-            )}
-            {docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
-          </>
-        }
+            ) : <span className="text-muted">—</span>,
+          },
+          {
+            label: "Edited",
+            value: lastEdit && (
+              <span title={`Last edited ${new Date(lastEdit.at).toLocaleString()}`} className="text-xs text-muted">
+                {lastEdit.actor === "ai" ? "AI" : "Human"} · {timeAgo(lastEdit.at)}
+              </span>
+            ),
+          },
+        ]}
       />
+      <div className="min-h-0 flex-1">
+        <MarkdownEditor
+          docPath={doc.path}
+          initialContent={doc.content}
+          onSave={handleSave}
+          onDirtyChange={onDirtyChange}
+          onContentChange={onContentChange}
+          wordWrap={editorSettings.wordWrap}
+          lineNumbers={editorSettings.lineNumbers}
+        />
+      </div>
       <BacklinksPanel
         docPath={doc.path}
         rootParam={rootParam}
