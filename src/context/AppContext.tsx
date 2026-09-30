@@ -7,6 +7,9 @@ import type { Task, TaskBoard, ActivityEvent, Project } from "@/lib/core"
 import type { Summary, SelectedDoc } from "@/types"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings"
 
+/** The SSE link to /api/events. EventSource retries on its own, so "disconnected" means "retrying". */
+export type Connection = "connecting" | "live" | "disconnected"
+
 interface AppContextValue {
   projects: Project[]
   activeProject: string
@@ -14,6 +17,7 @@ interface AppContextValue {
   board: TaskBoard | null
   activity: ActivityEvent[]
   liveIndicator: boolean
+  connection: Connection
   loading: boolean
   selectedDoc: SelectedDoc | null
   setSelectedDoc: (doc: SelectedDoc | null) => void
@@ -45,12 +49,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activity, setActivity] = useState<ActivityEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [liveIndicator, setLiveIndicator] = useState(false)
+  const [connection, setConnection] = useState<Connection>("connecting")
   const [selectedDoc, setSelectedDoc] = useState<SelectedDoc | null>(null)
   const [editorSettings, setEditorSettings] = useState<AppSettings["editor"]>(DEFAULT_SETTINGS.editor)
   const [autoRefreshSeconds, setAutoRefreshSeconds] = useState(0)
   const sseRef = useRef<EventSource | null>(null)
 
-  const rootParam = activeProject ? `?root=${encodeURIComponent(activeProject)}` : ""
+  // Always a query string, so callers can append `&key=…` even before a project loads ("?&read=x" is valid)
+  const rootParam = activeProject ? `?root=${encodeURIComponent(activeProject)}` : "?"
 
   const refresh = useCallback(async (root?: string) => {
     const r = root || activeProject
@@ -73,7 +79,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         cancelled: rawBoard.cancelled ?? [],
       } : null)
       setActivity(Array.isArray(actRes) ? actRes : [])
-    } catch {}
+    } catch (e) {
+      // Keep the last good state on screen; the next SSE event or refresh retries
+      console.error("[vibedoc] refresh failed:", e)
+    }
     setLoading(false)
   }, [activeProject])
 
@@ -90,7 +99,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           setLoading(false)
         }
       })
-      .catch(() => setLoading(false))
+      .catch((e) => {
+        console.error("[vibedoc] could not load projects:", e)
+        setLoading(false)
+      })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -99,6 +111,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!activeProject) return
     const es = new EventSource("/api/events")
     sseRef.current = es
+    es.onopen = () => setConnection("live")
+    es.onerror = () => setConnection("disconnected")
 
     es.onmessage = (e) => {
       try {
@@ -115,7 +129,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } catch {}
     }
 
-    return () => { es.close() }
+    // The next EventSource (project switch) starts unconfirmed: don't keep showing the old "live"
+    return () => { es.close(); setConnection("connecting") }
   }, [activeProject, refresh])
 
   const moveTask = useCallback(async (taskId: string, status: string) => {
@@ -176,6 +191,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       board,
       activity,
       liveIndicator,
+      connection,
       loading,
       selectedDoc,
       setSelectedDoc,

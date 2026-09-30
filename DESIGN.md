@@ -1,0 +1,289 @@
+---
+name: VibeDoc
+description: Local-first project intelligence for AI-assisted development.
+colors:
+  lab-violet: "rgb(124 106 247)"
+  reagent-teal: "#4fd8b4"
+  burner-amber: "#f7a26a"
+  signal-red: "#f76a6a"
+  ink-black: "rgb(10 10 15)"
+  carbon: "rgb(17 17 24)"
+  graphite: "rgb(22 22 31)"
+  rule-line: "rgb(34 34 46)"
+  rule-line-strong: "rgb(45 45 61)"
+  page-white-text: "rgb(232 232 240)"
+  pencil-grey: "rgb(140 140 160)"
+  accent-ink: "rgb(10 10 15)"
+  paper: "rgb(255 255 255)"
+  paper-tint: "rgb(248 248 252)"
+  paper-tint-deep: "rgb(240 240 248)"
+  paper-rule: "rgb(224 224 238)"
+  paper-rule-strong: "rgb(208 208 228)"
+  paper-ink: "rgb(26 26 46)"
+  paper-pencil: "rgb(107 107 128)"
+typography:
+  display:
+    fontFamily: "Geist, system-ui, sans-serif"
+    fontSize: "1.6rem"
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: "-0.02em"
+  headline:
+    fontFamily: "Geist, system-ui, sans-serif"
+    fontSize: "1.1rem"
+    fontWeight: 600
+    lineHeight: 1.3
+  title:
+    fontFamily: "Geist, system-ui, sans-serif"
+    fontSize: "13px"
+    fontWeight: 500
+    lineHeight: 1.375
+  body:
+    fontFamily: "Geist, system-ui, sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: 1.7
+  label:
+    fontFamily: "Geist Mono, ui-monospace, monospace"
+    fontSize: "11px"
+    fontWeight: 400
+    lineHeight: 1
+  label-caps:
+    fontFamily: "Geist Mono, ui-monospace, monospace"
+    fontSize: "10px"
+    fontWeight: 500
+    lineHeight: 1
+    letterSpacing: "0.06em"
+rounded:
+  xs: "2px"
+  sm: "4px"
+  md: "6px"
+  lg: "8px"
+  xl: "12px"
+  full: "9999px"
+spacing:
+  hairline: "4px"
+  xs: "6px"
+  sm: "8px"
+  md: "12px"
+  lg: "16px"
+  header: "48px"
+  sidebar: "16rem"
+components:
+  button-primary:
+    backgroundColor: "{colors.lab-violet}"
+    textColor: "{colors.accent-ink}"
+    rounded: "{rounded.md}"
+    padding: "8px 16px"
+    height: "40px"
+  button-outline:
+    backgroundColor: "{colors.ink-black}"
+    textColor: "{colors.page-white-text}"
+    rounded: "{rounded.md}"
+    padding: "8px 16px"
+    height: "40px"
+  button-ghost-hover:
+    backgroundColor: "{colors.graphite}"
+    textColor: "{colors.page-white-text}"
+    rounded: "{rounded.md}"
+  input:
+    backgroundColor: "{colors.ink-black}"
+    textColor: "{colors.page-white-text}"
+    rounded: "{rounded.md}"
+    padding: "8px 12px"
+    height: "40px"
+  search-trigger:
+    backgroundColor: "{colors.ink-black}"
+    textColor: "{colors.pencil-grey}"
+    rounded: "{rounded.md}"
+    padding: "0 10px"
+    height: "32px"
+    width: "192px"
+  task-card:
+    backgroundColor: "{colors.carbon}"
+    textColor: "{colors.page-white-text}"
+    rounded: "{rounded.lg}"
+    padding: "10px 12px"
+  status-chip:
+    textColor: "{colors.burner-amber}"
+    typography: "{typography.label}"
+    rounded: "{rounded.sm}"
+    padding: "2px 6px"
+  app-header:
+    backgroundColor: "{colors.carbon}"
+    height: "48px"
+    padding: "0 16px"
+  agent-status:
+    textColor: "{colors.pencil-grey}"
+    typography: "{typography.label}"
+    rounded: "{rounded.md}"
+    padding: "0 6px"
+    height: "32px"
+---
+
+# Design System: VibeDoc
+
+## Overview
+
+**Creative North Star: "The Lab Notebook"**
+
+VibeDoc is a notebook kept beside the bench, not a dashboard bolted onto it. Every screen renders plain files: tasks, docs, roadmap items, chat logs. The design makes those files legible without pretending they're something else. IDs are set in mono like entry numbers. Surfaces are ruled with 1px lines rather than floated on shadows. Colour is used the way a careful experimenter uses a highlighter: sparingly, and only to mark state.
+
+The notebook is dark by default (indigo-black ink on carbon pages), dense, and small-set. Body copy sits around 13–14px, metadata at 10–11px mono, and a whole working day of tasks fits on one board. Density is earned by rhythm, not crammed. Every row keeps the same small gaps, and nothing grows larger than its content needs. Controls are tactile and quick. Hover, focus and drag all answer within 120–180ms, and the keyboard reaches everything (⌘K, `c`, Enter on a card).
+
+The user can re-tint the notebook without changing its structure. Settings → Appearance swaps the accent (violet default, purple, green, orange), the sans/mono pairing, the base size (13/14/16px root) and light/dark. The system must hold up under every combination, which is why every colour flows through tokens.
+
+**Key Characteristics:**
+- Dark, indigo-tinted neutrals; light theme is a first-class mirror.
+- One accent (Lab Violet) for selection, focus and links; four status hues for task state, and nothing else.
+- Mono for identifiers and metadata (`T055`, `R043`, `3/5`, `⌘K`), sans for everything a person reads.
+- Flat, ruled surfaces. Depth comes from tone steps and hairlines; shadows only float or signal.
+- Fast, soft motion (`cubic-bezier(0.22, 1, 0.36, 1)`), fully disabled under reduced motion.
+
+## Colors
+
+A near-monochrome indigo-grey notebook with one violet highlighter and a fixed set of status inks.
+
+### Primary
+- **Lab Violet** (`lab-violet`): the only accent. Used for focus rings, the selected nav item, links, the Review status, primary buttons, markdown `h3` and blockquote rules, and the "flash" when a card updates live. Anything set on an accent fill takes **Accent Ink** (`accent-ink`, `--rgb-accent-fg` → `text-accent-fg`), near-black in both themes: white fails 4.5:1 on all four accents, the ink passes on all four. It is stored as an RGB triplet (`--rgb-accent`) so every use can take opacity (`/5`, `/15`, `/30`), and Settings can swap it for purple, green or orange.
+
+### Secondary
+- **Reagent Teal** (`reagent-teal`): Done and inline `code` in prose. It means "settled / healthy". In light mode it is mixed 55% toward text for legibility.
+
+### Tertiary
+- **Burner Amber** (`burner-amber`): In progress, "changes requested", and warning or at-risk markers. It means "active, watch this". Light mode swaps in a darker ink (170 80 10) that clears 4.5:1 on paper and paper-tint-deep.
+- **Signal Red** (`signal-red`): Blocked, destructive actions and errors. It means "stopped". Light mode swaps in a darker ink (185 28 28), and text on a filled red button or badge turns white there (6.47:1); dark keeps Ink Black on red.
+
+### Neutral
+- **Ink Black** (`ink-black`): the dark page background, inputs and outline-button fills.
+- **Carbon** (`carbon`): the first surface (cards, sidebar, header at 80% with backdrop blur).
+- **Graphite** (`graphite`): the second surface (hover fills, secondary buttons, inline code, size pills).
+- **Rule Line** (`rule-line`) / **Rule Line Strong** (`rule-line-strong`): the default border and the hover/emphasis border. These are the notebook's ruling.
+- **Page-White Text** (`page-white-text`): primary text. Prose body is mixed 55% toward Pencil Grey for a softer read.
+- **Pencil Grey** (`pencil-grey`): muted text, metadata, placeholders, todo/cancelled status. Lifted to 140 140 160 on dark so it clears 4.5:1 on every dark surface; light keeps `paper-pencil` (107 107 128).
+- **Light theme:** `paper`, `paper-tint`, `paper-tint-deep`, `paper-rule`, `paper-rule-strong`, `paper-ink` and `paper-pencil` fill the same seven roles.
+
+### Named Rules
+**The Highlighter Rule.** Colour marks state, never decoration. If a hue on screen doesn't mean *selected, live, done, active, blocked* or *review*, it shouldn't be there. The shell goes further: it only colours what you can act on now. An errored chat raises red for 24 hours or until dismissed, the Manual tests count stays Pencil Grey, and "all is well" is a small Pencil Grey connection dot, not a colour.
+
+**The One Status Language Rule.** Task status has exactly one look everywhere: the `STATUS_META` icon + hue (Circle/muted, CircleDot/amber, Eye/violet, CircleSlash/red, CircleCheck/teal, CircleX/muted). The task files keep their emoji; the UI never shows them.
+
+**The Triplet Rule.** Theme and accent colours are defined as RGB triplets on `:root` / `.dark` / `html[data-accent]`, and consumed only through Tailwind tokens (`bg-accent/20`, `border-border2`). Never hard-code a hex in a component.
+
+## Typography
+
+**Display Font:** Geist (with system-ui). Swappable to Inter, IBM Plex Sans, Atkinson Hyperlegible, DM Sans or system.
+**Body Font:** Geist (same family, all roles).
+**Label/Mono Font:** Geist Mono (with ui-monospace). Swappable to JetBrains Mono, IBM Plex Mono, DM Mono or system.
+
+**Character:** A neutral grotesk for reading paired with a mono for anything that is an identifier. It reads as an engineer's notebook: labels you could grep for, sitting next to prose you'd want to read.
+
+### Hierarchy
+- **Display** (600, 1.6rem, -0.02em): the doc `h1` only. VibeDoc has no hero type.
+- **Headline** (600, 1.1rem): doc `h2`, tinted 75% toward the accent, with a hairline underline.
+- **Title** (500, 13px, snug): card titles, list rows and panel headings; 2-line clamp on cards.
+- **Body** (400, 0.875rem, 1.7): prose paragraphs and list items. UI body text is `text-sm` / 13px at tighter leading.
+- **Label** (mono 400, 11px): task/epic IDs, due dates, counts, keyboard hints.
+- **Label Caps** (mono 500, 10px, 0.06em, uppercase): table headers and section labels.
+
+Sizes are rem-based and follow the user's root size (13/14/16px). Arbitrary pixel sizes (`text-[10px]`, `text-[11px]`, `text-[13px]`) are the established small-type steps. Use those rather than inventing new ones.
+
+### Named Rules
+**The Grep Rule.** If a string is an ID, a path, a count, a date or a shortcut, set it in mono. If a person reads it as language, set it in sans.
+
+## Layout
+
+App shell: a collapsible left sidebar (16rem, 3rem icon rail, 18rem sheet on mobile), a sticky 48px header (project / page breadcrumb on the left; agent status strip, ⌘K search, Connect and Chats on the right), and a full-bleed content area. Pages own their own layout: board columns, a docs list + editor + outline, the roadmap canvas, and chat list · conversation · context rail.
+
+Spacing runs on Tailwind's 4px grid, with the dense steps doing most of the work: 4px, 6px, 8px, 10px and 12px inside components, and 16px at page gutters (12px under `sm`). Cards pad 10px × 12px, and rows gap 6px. The header collapses secondary labels (`hidden sm:inline`) instead of wrapping.
+
+## Elevation & Depth
+
+Flat by default, with tonal layering. Depth reads as Ink Black → Carbon → Graphite plus 1px rules. Hover raises a surface one tone step and strengthens its border rather than lifting it. Shadows appear in only two cases: floating layers (dialogs, sheets, dropdowns, the command palette) and state signals rendered as coloured glows.
+
+### Shadow Vocabulary
+- **Float** (`shadow-lg` / `shadow-xl`, with `shadow-black/20` on dark): dialogs, sheets, menus and the palette.
+- **Focus halo** (`0 0 0 3px rgb(var(--rgb-accent) / 0.15)`): keyboard focus on cards and custom controls, paired with an accent/60 border.
+- **Update flash** (`flash` keyframe, 3px accent ring fading over 1.2s): a card or row that just changed via SSE.
+- **Selected edge** (`inset 2px 0 0 rgb(var(--rgb-accent))`): the active item in a vertical list.
+
+### Named Rules
+**The Flat-At-Rest Rule.** Nothing on the page casts a shadow unless it floats above the page or is reporting a state change right now.
+
+## Shapes
+
+Gently rounded, never pill-shaped except for dots and avatars. Cards and panels use 8px (`rounded-lg`). Buttons, inputs and the search trigger use 6px (`rounded-md`). Chips, pills and `kbd` hints use 4px (`rounded-sm`). Fully round shapes are reserved for status dots, the live indicator and progress counters. Borders are always 1px in Rule Line; emphasis changes the border's tone, not its width. Scrollbars are 4px hairlines with 2px ends.
+
+## Components
+
+### Buttons
+Tactile and quick: colour shifts in 120ms, a focus ring on keyboard only.
+- **Shape:** gently curved (6px); 40px default, 36px small, 44px large, 40px square icon.
+- **Primary:** Lab Violet fill, Accent Ink 14px/500 text, 90% opacity on hover.
+- **Outline:** Ink Black fill, 1px Rule Line border, Graphite on hover.
+- **Ghost:** transparent; Graphite fill on hover. This is the default for toolbar and header actions, usually icon-only in Pencil Grey that brightens to text on hover.
+- **Destructive:** Signal Red fill, white text.
+- **Focus:** 2px accent ring with a 2px offset in the background colour. Disabled is 50% opacity with no pointer events.
+
+### Chips
+- **Status chip:** icon + label, 11px, 4px radius, 1px border in the status hue at 30% over a 5% tint of the same hue (e.g. amber/30 on amber/5).
+- **Metadata chips:** mono 10px (size `M`, `🧪 3/5` manual tests, "changes requested"). Neutral chips use a Rule Line border or a Graphite fill; once complete they take the teal status treatment.
+
+### Cards / Containers
+- **Corner Style:** 8px.
+- **Background:** Carbon; on hover, Graphite at 50% with a Rule Line Strong border.
+- **Shadow Strategy:** none at rest (see Flat-At-Rest). Focus uses the accent halo.
+- **Border:** 1px Rule Line.
+- **Internal Padding:** 10px × 12px.
+
+### Inputs / Fields
+- **Style:** Ink Black fill, 1px Rule Line border, 6px radius, 40px height, Pencil Grey placeholder.
+- **Focus:** the same 2px accent ring + offset as buttons.
+- **Disabled:** 50% opacity, not-allowed cursor.
+
+### Navigation
+- **Header:** 48px, Carbon at 80% with backdrop blur, sticky, hairline bottom border. It holds the breadcrumb (project switcher / page title, `/` separator in Pencil Grey at 60%). Status leads the right side: the agent status strip, then search, Connect and the Chats button (`c`), a small outline button with a speech-bubble icon and the word "Chats" from `sm` up. Connect is a menu: copy the endpoint, copy the wrapping `claude mcp add …` command (the menu stays open so the tick shows) and a Settings → MCP link, all reachable with the arrow keys; below `md` the button is icon-only.
+- **Agent status strip:** a 32px ghost button (`#agent-status`, with its own skip link) in mono 11px reading `● 2 agents working · 1 running · 1 need you · 1 error`; zero counts drop out and nothing separates the dot from the first count. Agents lead: terminal Claude Code / MCP sessions from the activity log get a Bot glyph in accent that pulses only when motion is allowed, and their count in Paper White. In-app chats follow. "Agents" means terminal sessions only; in-app conversations are always "Chats". Errors count only chats that failed in the last 24h and weren't dismissed. The connection is a small neutral dot: Pencil Grey while connected ("Connected" for screen readers, briefly Paper White when an update arrives), a hollow ring while connecting, amber with "Reconnecting…" when down; the word "live" is never shown. Need-you (amber dot) and error (red dot) counts read in Paper White because you can act on them; running stays Pencil Grey behind an accent spinner. Below `sm` it collapses to the dot, "2 agents" and the need-you and error counts, with the words kept for screen readers. Click opens the head of the attention queue, otherwise `/chat`.
+- **Attention queue:** one queue for the whole shell: chats that need you, then actionable errors (under 24h, not dismissed). `c`, the Chats button, a click on the status strip and ⌘K's top rows all open its head; pressing `c` again while the modal shows a queued chat moves to the next one, and past the end closes the modal. An empty queue falls back to the running chat, then the newest. The tab title's `(n)` counts the whole queue.
+- **Sidebar:** Carbon, Link-based items, agents first. The logo is a flat Lab Violet tile with an Accent Ink hexagon (no gradient). The "Chats" section sits at the top and orders chats by *needs you → errors → running → recent* (errored rows are always listed; only recent rows are capped at 4); an errored row offers Dismiss while its error is still actionable, and a stale error reads as idle. The `/chat` page adds the same "Errors" section. Pages follow in two labelled groups, "Plan & supervise" (Board, Roadmap, Manual tests, Activity) and "Reference" (Docs, Memory, Explorer); Shortcuts (`?`) and Settings live in the footer. Each link, the Chats links and Settings included, shows its key in a mono 10px `kbd` on hover or focus. The `?` help sheet sets keys the same neutral way: Paper White on Graphite with a 1px rule, never accent. The active item gets a Graphite fill and accent text or edge.
+- **Search trigger:** 32px, 192px wide on `sm+`, Ink Black at 60%, with a mono `⌘K` hint. It collapses to an icon on mobile.
+
+### Task Card (signature)
+A notebook entry, and the unit the whole product revolves around. The top row is mono 11px Pencil Grey: ID, agent dot, a spacer, the due date (MM-DD) and a size pill. Below it sits the 13px/500 title, clamped to 2 lines (muted once done). The footer holds the epic (mono ID + truncated title) and optional amber "changes requested" and 🧪 manual-test chips. The column already names the status, so the card never repeats it. It is draggable (50% opacity while dragging), opens on click or Enter, and animates between columns with View Transitions.
+
+### Agent Marks (signature)
+Small status dots (`AgentDot`) / marks (`AgentMark`) attached to any task, epic or roadmap node that has a chat. Both render `StatusMarker`, where each state differs in shape or motion, not only colour: running is a spinner, needs-you a pulsing amber dot, review a pulsing accent diamond, error a solid red dot, idle a hollow dot. Every marker carries `role="img"` and a label. They link straight to that chat.
+
+### Manual Test Report (signature)
+The `/manual-tests` page reads as a lab procedure sheet. The header states what's left as a headline ("31 checks left across 5 tasks", counts in mono). Epics head their group with the `R*` ID in mono and the name at headline size. Each task card opens with its ID, the title at 15px semibold, the status chip and a mono `done/total` tally. Below that sits a segmented ruling with one 4px mark per checklist item: teal once ticked, Rule Line Strong while open, amber at 25% for an open regression check. A step splits on its first ` → ` into the action (Paper White) and the expected result on its own line (Pencil Grey, after an arrow icon). Steps carry mono sequence numbers `01`, `02`…; regression checks don't, because they aren't a sequence. Paths, commands, files, `T*`/`R*`/`ADR-*` IDs and `vibedoc_*` tool names inside a step are set in mono (the Grep rule). Checkboxes are native inputs drawn as 16px 4px-radius boxes (Pencil Grey border on Ink Black, so the box clears 3:1, teal fill with an Accent Ink check when ticked, accent focus outline). A fully ticked card's border turns teal at 30%. When every report is checked and hidden, a teal-ruled note says so and points to Show fully tested, which uses the same drawn checkbox.
+
+### Activity Timeline
+`/activity` shares the Manual tests page frame: centred `max-w-4xl`, a 1.6rem title, then the last 24h as a headline ("5 tasks done · 1 ADR logged · 4 sessions in the last 24h", counts in mono, zero counts dropped, "Quiet for the last 24 hours" when empty). There is no stat-tile box and no "live" word; the shell's status strip owns the connection. Days are sticky 13px semibold headings with a hairline running out to the right. Both views sit on one clock gutter (mono `HH:MM`, 2.75rem) plus a 1.5rem marker column. Sessions with work are flat Carbon cards (hover strengthens the border and never lifts). Each card shows a Bot/User glyph, a 15px semibold headline, one 4px mark per task in that task's status hue, and chips that carry the `StatusIcon` plus ID. A session that only connected reads "Connected, nothing changed" on one muted line. "All events" is one dense line per event: clock, the type's lucide icon (a task move shows its new status icon), title, muted detail. Only human events get a "you" tag, because agents write nearly everything. No emoji anywhere.
+
+### Board Views
+`/board` is one shell over four lenses on the same task files: Board, Table, By epic and Timeline, plus saved custom views. The header matches Manual tests (1.6rem title, 1.1rem semibold summary "3 open · 1 in progress · 60 done" with mono counts, done muted) but runs full width (`px-4 sm:px-8`), with the accent "New task" button and its `n` kbd. Under it: the **views bar** (flat 13px tabs, 2px accent underline on the active one, `aria-current="page"`; built-ins first with their lucide icon, saved views with a bookmark icon and a chevron menu for Rename / Delete; `v` next view, `1`–`4` the built-ins), then the **toolbar** (search `#board-search`, focused by `/`; Filter `f`, Sort, Group, Properties). Filter and Sort are flat popovers of rule rows ("Show tasks where status is not Done"); they take focus on open, and Esc closes them and returns focus to the trigger. Active rules show as a mono count on the button. When the state differs from the saved view, the toolbar shows "Unsaved changes" with Reset, "Save as new view" and "Save view".
+- **Board:** the five status columns. Done collapses to a 140px rail of the newest IDs. Swimlanes by epic or size, and fully done lanes fold away.
+- **Table:** one dense row per task. Click a header to sort, Shift-click to add a sort. Groups are collapsible `<tbody>`s with 4px status marks and a done/total count.
+- **By epic:** epics as sections with tasks nested under their first in-epic dependency, plus an "Up next" rail of ready tasks.
+- **Timeline:** one lane per epic, with bars from the first move to in-progress up to done (or now). The default **Active time** scale folds idle gaps out of the axis, so a week of agent bursts reads as work, not white space. Day and Week show real time. Tasks that have not started sit as planned chips after the lane's last bar.
+Persistence: the live view state lives in the URL (`v` = saved view id, then `view g sg s f q p sc`, defaults left out), so a link reproduces the view. Saved views live in `.vibedoc/views.json`, via `GET/POST /api/views`. There is no `localStorage`.
+
+## Do's and Don'ts
+
+**Board motion.** Switching views runs `document.startViewTransition` (BoardTab `select`). The one underline (`view-transition-name: board-view-tab`) glides to the new tab in 260ms. The old view fades out in 120ms, and the new one settles in over 260ms with a 6px lift (`board-view-body`). Swimlanes open and close by animating grid rows 0fr↔1fr; their content stays mounted but `inert`. Timeline bars draw in from their start once, when the view opens (`animate-grow-x`, 40ms per lane, capped at 240ms). The Filter and Sort popovers zoom in from 98% out of their trigger. Reduced motion turns all of it off through the global rule, which also covers view-transition pseudo-elements.
+
+### Do:
+- **Do** route every colour through the triplet tokens (`bg-accent/15`, `text-muted`, `border-border2`) so theme, accent and light/dark all keep working.
+- **Do** use `StatusIcon` / `StatusChip` / `STATUS_META` for any task status. Never draw a new one.
+- **Do** set IDs, paths, counts, dates and shortcuts in mono at 10–11px.
+- **Do** show hover as one tone step up plus a stronger border, and focus as the accent ring or halo.
+- **Do** use the motion tokens (`--duration-fast` 120ms, `--duration-base` 180ms, `--duration-slow` 260ms, `--ease-out-soft`) and let the global reduced-motion rule turn them off.
+- **Do** keep every frequent action reachable from the keyboard, and show its shortcut in a mono `kbd`.
+
+### Don't:
+- **Don't** hard-code hex or `rgb()` values in components; the Settings accent and theme swaps depend on tokens.
+- **Don't** add shadows to cards or panels at rest.
+- **Don't** introduce a second accent or decorative colour. The four status hues are already the full vocabulary.
+- **Don't** show the task files' status emoji in the UI.
+- **Don't** add new arbitrary type sizes beyond 10/11/13px and the rem scale.
+- **Don't** use CSS-in-JS or `localStorage` for theme state. Tailwind + `data-*` attributes on `<html>` only.

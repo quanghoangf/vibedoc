@@ -14,6 +14,7 @@ import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS } from './sessions'
 import { parseManualTests, setManualTests, toggleManualTest } from './manual-tests'
 import { appendReviewEntry, type ReviewOutcome } from './review'
+import type { SavedView } from './board-views'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1654,4 +1655,35 @@ export async function saveChat(chat: unknown, root: string): Promise<void> {
 
 export async function deleteChat(id: string, root: string): Promise<void> {
   await fs.rm(chatFile(id, root), { force: true })
+}
+
+// ─── Saved board views (.vibedoc/views.json) ─────────────────────────────────
+
+const VIEWS_FILE = path.join('.vibedoc', 'views.json')
+
+/** null when the file is missing or unreadable (caller falls back to the built-ins). */
+export async function readViews(root: string): Promise<SavedView[] | null> {
+  let raw: string
+  try {
+    raw = await fs.readFile(path.join(root, VIEWS_FILE), 'utf-8')
+  } catch {
+    return null
+  }
+  try {
+    const views = (JSON.parse(raw) as { views?: unknown })?.views
+    if (!Array.isArray(views)) throw new Error('"views" is not an array')
+    return views as SavedView[]
+  } catch (e) {
+    console.warn(`[vibedoc] ignoring unreadable ${VIEWS_FILE}: ${(e as Error).message}`)
+    return null
+  }
+}
+
+export async function saveViews(views: SavedView[], root: string): Promise<void> {
+  const file = path.join(root, VIEWS_FILE)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  // Write-then-rename so a crash mid-write never leaves half a JSON file
+  const tmp = `${file}.tmp`
+  await fs.writeFile(tmp, JSON.stringify({ views }, null, 2) + '\n', 'utf-8')
+  await fs.rename(tmp, file)
 }

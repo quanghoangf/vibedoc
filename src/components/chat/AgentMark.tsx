@@ -4,6 +4,7 @@ import { Bot, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useChats, useItemAgent } from "@/context/ChatContext"
 import type { Attach, ItemAgent } from "@/lib/chats"
+import { StatusMarker } from "./StatusMarker"
 
 export const AGENT_LABEL: Record<ItemAgent["status"], string> = {
   running: "Agent working",
@@ -34,7 +35,7 @@ export function AgentMark({ attach, className }: { attach: Attach; className?: s
         className,
       )}
     >
-      {agent.status === "running" ? <Loader2 className="size-3 animate-spin" /> : <Bot className="size-3" />}
+      {agent.status === "running" ? <Loader2 className="size-3 animate-spin" aria-hidden /> : <Bot className="size-3" aria-hidden />}
       {label}
     </button>
   )
@@ -44,12 +45,5 @@ export function AgentMark({ attach, className }: { attach: Attach; className?: s
 export function AgentDot({ attach }: { attach: Attach }) {
   const agent = useItemAgent(attach)
   if (!agent) return null
-  const label = AGENT_LABEL[agent.status]
-  return (
-    <span title={label} aria-label={label} role="img" className="inline-flex shrink-0">
-      {agent.status === "running"
-        ? <Loader2 className="size-3 animate-spin text-accent" />
-        : <span className={cn("size-1.5 rounded-full animate-pulse-dot", agent.status === "needs-answer" ? "bg-amber" : "bg-accent")} />}
-    </span>
-  )
+  return <StatusMarker status={agent.status} label={AGENT_LABEL[agent.status]} />
 }

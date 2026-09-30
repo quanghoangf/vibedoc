@@ -140,7 +140,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
 
       <footer className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-border bg-surface px-6 py-3">
         {offerBreakdown && (
-          <Button size="sm" onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} className="bg-accent text-white hover:bg-accent/90">
+          <Button size="sm" onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} className="bg-accent text-accent-fg hover:bg-accent/90">
             <Bot /> Break down with agent
           </Button>
         )}
@@ -149,13 +149,13 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
             size="sm"
             variant={offerBreakdown ? "outline" : "default"}
             onClick={() => { onClose(); showAbout({ kind: "epic", id: item.id }) }}
-            className={cn(!offerBreakdown && "bg-accent text-white hover:bg-accent/90")}
+            className={cn(!offerBreakdown && "bg-accent text-accent-fg hover:bg-accent/90")}
           >
             <MessageSquare /> {chat ? "Open chat" : "Chat"}
           </Button>
         )}
         {isHorizon && (
-          <Button size="sm" onClick={() => onAddFeature(item.id)} className="bg-accent text-white hover:bg-accent/90">
+          <Button size="sm" onClick={() => onAddFeature(item.id)} className="bg-accent text-accent-fg hover:bg-accent/90">
             <Plus /> Add epic
           </Button>
         )}
@@ -311,7 +311,7 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
       </div>
 
       <footer className="sticky bottom-0 flex items-center gap-2 border-t border-border bg-surface px-6 py-3">
-        <Button size="sm" onClick={save} disabled={busy} className="bg-accent text-white hover:bg-accent/90">
+        <Button size="sm" onClick={save} disabled={busy} className="bg-accent text-accent-fg hover:bg-accent/90">
           Save
         </Button>
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy} className="text-txt">

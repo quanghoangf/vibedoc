@@ -5,6 +5,7 @@ import { PanelLeft } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
+import { inTextField } from "@/lib/shortcuts"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
@@ -103,9 +104,12 @@ const SidebarProvider = React.forwardRef<
     // Adds a keyboard shortcut to toggle the sidebar.
     React.useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
+        // ⌘B inside an editor or field means bold, not the sidebar
         if (
           event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
-          (event.metaKey || event.ctrlKey)
+          (event.metaKey || event.ctrlKey) &&
+          !event.defaultPrevented &&
+          !inTextField(event.target)
         ) {
           event.preventDefault()
           toggleSidebar()
@@ -324,10 +328,11 @@ SidebarRail.displayName = "SidebarRail"
 
 const SidebarInset = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<"main">
+  React.ComponentProps<"div">
 >(({ className, ...props }, ref) => {
+  // A div, not <main>: the app's own <main id="main"> sits inside it
   return (
-    <main
+    <div
       ref={ref}
       className={cn(
         "relative flex w-full flex-1 flex-col bg-bg",

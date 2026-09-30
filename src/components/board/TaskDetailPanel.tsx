@@ -78,7 +78,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
               ))}
               <button
                 onClick={() => { onClose(); showAbout({ kind: "task", id: task.id }) }}
-                className="ml-auto inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-accent text-white transition-[filter] hover:brightness-110"
+                className="ml-auto inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110"
               >
                 <MessageSquare className="size-3.5" /> {chat ? "Open chat" : "Chat about task"}
               </button>

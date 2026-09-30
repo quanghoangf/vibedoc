@@ -40,7 +40,7 @@ export function PlanFromSpecDialog({ open, onOpenChange }: PlanFromSpecDialogPro
             <Button type="button" variant="ghost" size="sm" onClick={() => { setSpec(""); onOpenChange(false) }}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={!spec.trim()} className="bg-accent text-white hover:bg-accent/90">
+            <Button type="submit" size="sm" disabled={!spec.trim()} className="bg-accent text-accent-fg hover:bg-accent/90">
               Break down
             </Button>
           </div>

@@ -115,7 +115,7 @@ function BreakdownForm({ items, onDone }: { items: RoadmapItem[]; onDone: () => 
         <Button type="button" variant="ghost" size="sm" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" size="sm" disabled={!checked.size || over} className="bg-accent text-white hover:bg-accent/90">
+        <Button type="submit" size="sm" disabled={!checked.size || over} className="bg-accent text-accent-fg hover:bg-accent/90">
           Break down {checked.size || ""} epic{checked.size === 1 ? "" : "s"}
         </Button>
       </div>

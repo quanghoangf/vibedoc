@@ -1,22 +1,25 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { Bot, ChevronRight, FileText, Scale, User } from "lucide-react"
 import type { ActivityEvent, Session } from "@/types"
 import { cn } from "@/lib/utils"
 import { sessionDuration } from "@/lib/sessions"
+import { STATUS_META, StatusIcon } from "@/components/shared/StatusIcon"
 import { ActivityEventRow } from "./ActivityEventRow"
 
-const STATUS_DOT: Record<string, string> = {
+// One mark per task, filled with the task's status hue (the One Status Language, as a bar)
+const STATUS_BAR: Record<string, string> = {
   done: "bg-teal",
   "in-progress": "bg-amber",
   review: "bg-accent",
   blocked: "bg-danger",
-  todo: "bg-muted",
+  todo: "bg-border2",
   cancelled: "bg-border2",
 }
 
 const chip =
-  "inline-flex max-w-full items-center gap-1.5 truncate rounded-md border border-border bg-bg/40 px-2 py-1 text-xs font-mono text-txt transition-[border-color,background-color,transform] duration-(--duration-fast) ease-out-soft hover:-translate-y-px hover:border-border2 hover:bg-surface2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+  "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-sm border border-border px-2 py-1 font-mono text-[11px] text-txt transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
 
 interface SessionCardProps {
   session: Session
@@ -32,8 +35,7 @@ function EventList({ open, events }: { open: boolean; events: ActivityEvent[] })
   return (
     <div className={cn("grid transition-[grid-template-rows,opacity] duration-(--duration-slow) ease-out-soft", open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
       <div className="min-h-0 overflow-hidden" inert={!open}>
-        <div className="relative mt-4 border-t border-border pt-4">
-          <div className="absolute left-4 top-4 bottom-0 w-px bg-border" />
+        <div className="mt-3 border-t border-border pt-2">
           {events.map(e => <ActivityEventRow key={e.id} event={e} />)}
         </div>
       </div>
@@ -42,12 +44,11 @@ function EventList({ open, events }: { open: boolean; events: ActivityEvent[] })
 }
 
 function Chevron({ open }: { open: boolean }) {
-  return (
-    <span className={cn("inline-block text-muted transition-transform duration-(--duration-base) ease-out-soft", open && "rotate-90")} aria-hidden>
-      ▸
-    </span>
-  )
+  return <ChevronRight aria-hidden className={cn("size-3.5 shrink-0 text-muted transition-transform duration-(--duration-base) ease-out-soft", open && "rotate-90")} />
 }
+
+/** "1 event" says nothing: a session that only connected reads as such. */
+const quietHeadline = (s: Session) => (/^\d+ events?$/.test(s.headline) ? "Connected, nothing changed" : s.headline)
 
 export function SessionCard({ session, events, onOpenTask, onOpenDoc, focused = false, live = false }: SessionCardProps) {
   const [open, setOpen] = useState(focused)
@@ -57,18 +58,19 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, focused = 
   }, [focused])
 
   const isAgent = session.actor === "ai"
+  const Actor = isAgent ? Bot : User
   const done = session.tasks.filter(t => t.lastStatus === "done").length
   const hasLinks = session.tasks.length + session.docs.length + session.decisions.length > 0
-  const meta = `${sessionDuration(session)} · ${session.eventCount} event${session.eventCount === 1 ? "" : "s"}`
+  const count = `${session.eventCount} event${session.eventCount === 1 ? "" : "s"}`
 
   // Quiet sessions (only roadmap edits, reads, session starts) collapse to one line so real work stands out.
   if (!hasLinks) {
     return (
-      <div ref={ref} className={cn("rounded-lg px-3 py-2 transition-colors duration-(--duration-fast) hover:bg-surface/60", focused && "bg-surface animate-flash")}>
-        <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="flex w-full items-center gap-2 text-left text-sm text-muted">
-          <span>{isAgent ? "🤖" : "👤"}</span>
-          <span className="truncate">{session.headline}</span>
-          <span className="ml-auto shrink-0 font-mono text-xs text-muted/70">{meta}</span>
+      <div ref={ref} className={cn("min-w-0 rounded-md px-3 py-1.5 transition-colors duration-(--duration-fast) hover:bg-surface/60", focused && "bg-surface animate-flash")}>
+        <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="flex w-full min-w-0 items-center gap-2 text-left text-[13px] text-muted focus-visible:text-txt focus-visible:outline-none">
+          <Actor className="size-3.5 shrink-0" aria-label={isAgent ? "Agent" : "Human"} />
+          <span className="min-w-0 truncate">{quietHeadline(session)}</span>
+          <span className="ml-auto shrink-0 font-mono text-[11px]">{sessionDuration(session)}<span className="hidden sm:inline"> · {count}</span></span>
           <Chevron open={open} />
         </button>
         <EventList open={open} events={events} />
@@ -80,58 +82,65 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, focused = 
     <div
       ref={ref}
       className={cn(
-        "group rounded-xl border bg-surface p-4 transition-[border-color,transform,box-shadow] duration-(--duration-base) ease-out-soft hover:-translate-y-0.5 hover:border-border2 hover:shadow-lg hover:shadow-black/20",
+        "min-w-0 rounded-lg border bg-surface transition-colors duration-(--duration-base) hover:border-border2",
         live ? "border-accent/40" : "border-border",
         focused && "border-accent/60 animate-flash",
       )}
     >
-      <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="flex w-full items-center gap-2 text-left text-xs">
-        <span className={cn("font-medium", isAgent ? "text-accent" : "text-txt")}>{isAgent ? "🤖 Agent" : "👤 Human"}</span>
-        {live && (
-          <span className="flex items-center gap-1 rounded-full bg-accent/10 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-accent">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse-dot" />
-            live
+      <div className="px-4 pt-3.5 pb-4">
+        <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="group flex w-full min-w-0 items-center gap-2 text-left focus-visible:outline-none">
+          <Actor className="size-3.5 shrink-0 text-muted" aria-hidden />
+          <span className="text-xs text-muted">{isAgent ? "Agent" : "Human"}</span>
+          {live && (
+            <span className="flex items-center gap-1 font-mono text-[10px] text-accent">
+              <span className="size-1.5 rounded-full bg-accent animate-pulse-dot" />
+              working
+            </span>
+          )}
+          <span className="ml-auto shrink-0 font-mono text-[11px] text-muted">{sessionDuration(session)} · {count}</span>
+          <span className="flex items-center gap-1 text-[11px] text-muted group-hover:text-txt group-focus-visible:text-txt">
+            <Chevron open={open} />
           </span>
-        )}
-        <span className="ml-auto font-mono text-muted">{meta}</span>
-        <Chevron open={open} />
-      </button>
+        </button>
 
-      <p className="mt-2 text-[15px] font-medium leading-snug text-txt">{session.headline}</p>
+        <p className="mt-1.5 text-[15px] leading-snug font-semibold text-txt">{session.headline}</p>
 
-      {session.tasks.length > 0 && (
-        <div className="mt-3 flex items-center gap-2" title={`${done} of ${session.tasks.length} tasks done`}>
-          <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface2">
-            <div
-              className="h-full origin-left rounded-full bg-teal animate-grow-x transition-[width] duration-(--duration-slow) ease-out-soft"
-              style={{ width: `${(done / session.tasks.length) * 100}%` }}
-            />
+        {session.tasks.length > 0 && (
+          <div className="mt-3 flex items-center gap-3">
+            <div className="flex flex-1 gap-0.5" role="img" aria-label={`${done} of ${session.tasks.length} tasks done`}>
+              {session.tasks.map(t => <span key={t.id} className={cn("h-1 flex-1 rounded-full", STATUS_BAR[t.lastStatus] ?? "bg-border2")} />)}
+            </div>
+            <span className="font-mono text-[11px] text-muted tabular-nums"><span className="text-txt">{done}</span>/{session.tasks.length}</span>
           </div>
-          <span className="font-mono text-[11px] text-muted">{done}/{session.tasks.length}</span>
+        )}
+
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {session.tasks.map(t => (
+            <button key={t.id} onClick={() => onOpenTask(t.id)} className={chip} title={`${t.id} → ${STATUS_META[t.lastStatus]?.label ?? t.lastStatus}`}>
+              <StatusIcon status={t.lastStatus} className="size-3" />
+              {t.id}
+            </button>
+          ))}
+          {session.docs.map(d => (
+            <button key={d} onClick={() => onOpenDoc(d)} className={chip} title={d}>
+              <FileText className="size-3 shrink-0 text-muted" aria-hidden />
+              <span className="truncate">{d.split("/").pop()}</span>
+            </button>
+          ))}
+          {session.decisions.map(d => {
+            const [id, ...rest] = d.split(":")
+            return (
+              <button key={d} onClick={() => onOpenDoc(id)} className={cn(chip, "font-sans text-xs")} title={d}>
+                <Scale className="size-3 shrink-0 text-muted" aria-hidden />
+                <span className="shrink-0 font-mono text-[11px] whitespace-nowrap">{id}</span>
+                {rest.length > 0 && <span className="truncate text-muted">{rest.join(":").trim()}</span>}
+              </button>
+            )
+          })}
         </div>
-      )}
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {session.tasks.map(t => (
-          <button key={t.id} onClick={() => onOpenTask(t.id)} className={chip} title={`${t.id} → ${t.lastStatus}`}>
-            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STATUS_DOT[t.lastStatus])} />
-            {t.id}
-            <span className="text-muted">{t.lastStatus}</span>
-          </button>
-        ))}
-        {session.docs.map(d => (
-          <button key={d} onClick={() => onOpenDoc(d)} className={chip} title={d}>
-            📄 {d.split("/").pop()}
-          </button>
-        ))}
-        {session.decisions.map(d => (
-          <button key={d} onClick={() => onOpenDoc(d.split(":")[0])} className={cn(chip, "text-accent")} title={d}>
-            📝 {d}
-          </button>
-        ))}
+        <EventList open={open} events={events} />
       </div>
-
-      <EventList open={open} events={events} />
     </div>
   )
 }

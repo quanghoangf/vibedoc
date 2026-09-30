@@ -71,33 +71,41 @@ export function QuickOpen({ open, onClose, onOpenDoc, rootParam }: QuickOpenProp
         <DialogTitle className="sr-only">Go to file</DialogTitle>
         <Input
           autoFocus
+          role="combobox"
+          aria-expanded={shown.length > 0}
+          aria-controls="quick-open-list"
+          aria-autocomplete="list"
+          aria-activedescendant={shown[activeIndex] ? `quick-open-${activeIndex}` : undefined}
           value={query}
           onChange={(e) => { setQuery(e.target.value); setActiveIndex(0) }}
           onKeyDown={handleKeyDown}
           placeholder="Go to file…"
           className="h-11 rounded-none border-0 border-b border-border bg-transparent px-4 text-sm shadow-none focus-visible:ring-0 placeholder:text-muted"
         />
-        <div ref={listRef} className="max-h-80 overflow-y-auto py-1">
+        <div ref={listRef} id="quick-open-list" role="listbox" aria-label="Files" className="max-h-80 overflow-y-auto py-1">
           {shown.map((doc, i) => {
             const slash = doc.path.lastIndexOf("/")
             return (
-              <button
+              <div
                 key={doc.path}
+                id={`quick-open-${i}`}
                 data-index={i}
+                role="option"
+                aria-selected={activeIndex === i}
                 onClick={() => select(doc)}
                 onMouseMove={() => setActiveIndex(i)}
                 className={cn(
-                  "flex items-center gap-2.5 w-full px-4 py-1.5 text-left text-sm transition-colors",
+                  "flex items-center gap-2.5 w-full px-4 py-1.5 text-left text-sm cursor-pointer transition-colors",
                   activeIndex === i ? "bg-accent/10 text-txt" : "text-muted",
                 )}
               >
-                <FileText className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                <FileText aria-hidden className="h-3.5 w-3.5 shrink-0 opacity-60" />
                 <span className="truncate text-txt">{doc.path.slice(slash + 1)}</span>
                 {slash > 0 && <span className="truncate text-xs text-muted">{doc.path.slice(0, slash)}</span>}
-              </button>
+              </div>
             )
           })}
-          {shown.length === 0 && <div className="px-4 py-6 text-center text-sm text-muted">No matching files</div>}
+          {shown.length === 0 && <div role="presentation" className="px-4 py-6 text-center text-sm text-muted">No matching files</div>}
           {matches.length > MAX_RESULTS && (
             <div className="px-4 py-1.5 text-xs text-muted">{matches.length - MAX_RESULTS} more — keep typing to narrow</div>
           )}

@@ -53,7 +53,7 @@ export function NewItemDialog({ open, heading, onOpenChange, onSubmit }: NewItem
             <Button type="button" variant="ghost" size="sm" onClick={() => close(false)}>
               Cancel
             </Button>
-            <Button type="submit" size="sm" disabled={busy || !title.trim()} className="bg-accent text-white hover:bg-accent/90">
+            <Button type="submit" size="sm" disabled={busy || !title.trim()} className="bg-accent text-accent-fg hover:bg-accent/90">
               Create
             </Button>
           </div>

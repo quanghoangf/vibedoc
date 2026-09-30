@@ -179,7 +179,7 @@ export function TemplateSelector({
           className={cn(
             "px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors",
             activeTab === "recommended"
-              ? "bg-accent text-white"
+              ? "bg-accent text-accent-fg"
               : "text-muted hover:text-txt",
           )}
         >
@@ -192,7 +192,7 @@ export function TemplateSelector({
             className={cn(
               "px-3 py-1.5 text-sm rounded-md whitespace-nowrap transition-colors",
               activeTab === group.category
-                ? "bg-accent text-white"
+                ? "bg-accent text-accent-fg"
                 : "text-muted hover:text-txt",
             )}
           >

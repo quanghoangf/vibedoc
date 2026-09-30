@@ -40,7 +40,7 @@ function Handles() {
   )
 }
 
-export const STATUS_LABEL: Record<RoadmapStatus, string> = { "in-progress": "Live", done: "Done", planned: "Planned" }
+export const STATUS_LABEL: Record<RoadmapStatus, string> = { "in-progress": "Active", done: "Done", planned: "Planned" }
 
 /** Roadmap status as a dot: live = accent with a pulse, done = teal, planned = hollow. */
 export function StatusDot({ status, className }: { status: RoadmapStatus; className?: string }) {

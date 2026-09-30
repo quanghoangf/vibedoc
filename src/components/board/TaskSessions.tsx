@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { Bot, User } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { timeAgo } from "@/components/activity/ActivityEventRow"
 import type { Session } from "@/types"
@@ -33,7 +34,8 @@ export function TaskSessions({ taskId, onNavigate }: { taskId: string; onNavigat
               onClick={() => { onNavigate(); router.push(`/activity?session=${encodeURIComponent(s.id)}`) }}
               className="flex items-center gap-2 rounded-sm px-2 py-1 text-left text-xs hover:bg-surface2"
             >
-              <span>{s.actor === "ai" ? "🤖" : "👤"}</span>
+              {s.actor === "ai" ? <Bot aria-hidden className="size-3.5 shrink-0 text-muted" /> : <User aria-hidden className="size-3.5 shrink-0 text-muted" />}
+              <span className="sr-only">{s.actor === "ai" ? "Agent session" : "Human session"}</span>
               <span className="shrink-0 font-mono text-muted">{timeAgo(s.start)}</span>
               <span className="truncate text-txt">{s.headline}</span>
             </button>

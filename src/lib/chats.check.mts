@@ -1,8 +1,8 @@
 // Self-check for chats. Run: node src/lib/chats.check.mts
 import assert from 'node:assert/strict'
 import {
-  MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, ago, attachContext, chatFor, chatStatus, chatTitle, defaultChat, epicOf,
-  fromSaved, groupChats, itemAgents, newChatId, newlyWaiting, patchChat, pendingReviews, routeAsk, suggestions,
+  ERROR_ALARM_MS, MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, ago, attentionQueue, attachContext, chatFor, chatStatus, chatTitle, defaultChat, epicOf,
+  fromSaved, groupChats, isActionableError, itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, shellStatus, suggestions,
   toSaved, waitingTitle, type Attach, type Chat, type StatusMessage,
 } from './chats.ts'
 
@@ -40,6 +40,16 @@ assert.equal(chatStatus(chat('x', [ask], { busy: true })), 'running')
 assert.equal(chatStatus(chat('x', [msg({ questions: [{}], plans: [{ status: 'pending' }] })])), 'needs-answer')
 assert.equal(chatStatus(chat('x', [msg({ plans: [{ status: 'pending' }], error: 'boom' })])), 'review')
 assert.equal(pendingReviews(chat('x', [plan, edit, msg({ plans: [{ status: 'pending' }, { status: 'accepted' }] })])), 3)
+
+// isActionableError: error status, updated within 24h, not dismissed
+const at0 = Date.parse(T(0))
+assert.equal(isActionableError(chat('x', [failed]), at0 + 60_000), true)
+assert.equal(isActionableError(chat('x', [failed]), at0 + ERROR_ALARM_MS), false)       // stale
+assert.equal(isActionableError(chat('x', [failed], { dismissed: true }), at0), false)
+assert.equal(isActionableError(chat('x', [msg()]), at0), false)                        // not an error
+assert.equal(isActionableError(chat('x', [failed], { busy: true }), at0), false)       // retrying
+assert.equal(toSaved(chat('x', [failed], { dismissed: true }))?.dismissed, true)       // survives a save
+assert.equal(fromSaved<StatusMessage>({ ...chat('x', [failed]), dismissed: true })?.dismissed, true)
 
 // routeAsk
 const idle = chat('i'), busy = chat('b', [msg()], { busy: true })
@@ -99,6 +109,28 @@ const g = groupChats([
 assert.deepEqual([g.needsYou, g.running, g.recent].map((l) => l.map((c) => c.id)), [['wait2', 'wait1'], ['run'], ['idleNew', 'idleOld']])
 assert.equal(defaultChat([chat('a', [msg()], { updatedAt: T(9) }), chat('b', [ask], { updatedAt: T(1) })])?.id, 'b')
 assert.equal(defaultChat([]), undefined)
+
+// attentionQueue: needs-you, then actionable errors (newest first); walking it; shellStatus
+const qNow = Date.parse(T(10))
+const errNew = chat('errNew', [failed], { updatedAt: T(8) })
+const errOld = chat('errOld', [failed], { updatedAt: T(5) })
+const queued = [chat('idle', [msg()], { updatedAt: T(9) }), errOld, chat('wait', [ask], { updatedAt: T(1) }), errNew,
+  chat('gone', [failed], { dismissed: true }), chat('run', [msg()], { busy: true })]
+const queue = attentionQueue(queued, qNow)
+assert.deepEqual(queue.map((c) => c.id), ['wait', 'errNew', 'errOld'])
+assert.deepEqual(groupChats(queued, qNow).recent.map((c) => c.id), ['idle', 'gone'])        // dismissed error isn't queued
+assert.deepEqual(groupChats(queued).errors, [])                                             // no clock: errors stay in recent
+assert.deepEqual(attentionQueue([errOld], Date.parse(T(5)) + ERROR_ALARM_MS), [])           // stale
+assert.equal(defaultChat([chat('r', [msg()], { busy: true }), errOld], qNow)?.id, 'errOld')   // error beats running
+assert.equal(defaultChat([chat('r', [msg()], { busy: true }), chat('i')], qNow)?.id, 'r')      // empty queue: running
+assert.equal(nextInQueue(queue, null)?.id, 'wait')                                          // closed: head
+assert.equal(nextInQueue(queue, 'idle')?.id, 'wait')                                        // not queued: head
+assert.equal(nextInQueue(queue, 'wait')?.id, 'errNew')                                      // on the head: walk on
+assert.equal(nextInQueue(queue, 'errOld'), undefined)                                       // past the end
+assert.equal(shellStatus(errNew, qNow), 'error')
+assert.equal(shellStatus(errNew, Date.parse(T(8)) + ERROR_ALARM_MS), 'idle')
+assert.equal(shellStatus(chat('d', [failed], { dismissed: true }), qNow), 'idle')
+assert.equal(shellStatus(chat('b', [failed], { busy: true }), qNow), 'running')
 
 // toSaved / fromSaved
 assert.equal(toSaved(chat('e', [])), null)                                              // empty chats aren't saved

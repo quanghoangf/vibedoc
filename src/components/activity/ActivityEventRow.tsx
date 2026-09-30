@@ -1,12 +1,18 @@
+import { User, FilePen, FilePlus, FileSearch, FileText, FileX, ListChecks, Map as MapIcon, Plug, RefreshCw, Scale, Brain, type LucideIcon } from "lucide-react"
 import type { ActivityEvent } from "@/types"
+import { StatusIcon } from "@/components/shared/StatusIcon"
 
-const ACTIVITY_ICONS: Record<string, string> = {
-  task_updated: "🔨",
-  decision_logged: "📝",
-  memory_updated: "🧠",
-  doc_read: "📄",
-  session_start: "🤖",
-  roadmap_updated: "🗺️",
+const TYPE_ICON: Record<ActivityEvent["type"], LucideIcon> = {
+  task_updated: ListChecks,
+  decision_logged: Scale,
+  memory_updated: Brain,
+  doc_read: FileSearch,
+  doc_created: FilePlus,
+  doc_deleted: FileX,
+  doc_renamed: FilePen,
+  session_start: Plug,
+  registry_rebuilt: RefreshCw,
+  roadmap_updated: MapIcon,
 }
 
 export function timeAgo(ts: string): string {
@@ -17,29 +23,30 @@ export function timeAgo(ts: string): string {
   return `${Math.floor(d / 86400)}d ago`
 }
 
-interface ActivityEventRowProps {
-  event: ActivityEvent
-}
+export const clock = (ts: string) => new Date(ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
 
-export function ActivityEventRow({ event }: ActivityEventRowProps) {
+/** One line per event: clock · what kind · what happened. A task move shows its new status icon. */
+export function ActivityEventRow({ event, showActor = false }: { event: ActivityEvent; showActor?: boolean }) {
+  const Icon = TYPE_ICON[event.type] ?? FileText
   return (
-    <div className="flex gap-4 pb-4 animate-fade-in">
-      <div className="relative shrink-0 w-8 h-8 rounded-full bg-surface2 border border-border flex items-center justify-center text-sm z-10">
-        {ACTIVITY_ICONS[event.type] || "•"}
-      </div>
-      <div className="flex-1 pt-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
-          <span className="text-sm font-medium text-txt">{event.title}</span>
-          {event.actor === "ai" && (
-            <span className="text-xs px-1.5 py-0.5 rounded-sm bg-accent/10 text-accent border border-accent/20 font-mono">
-              AI
-            </span>
-          )}
-        </div>
-        {event.detail && (
-          <p className="text-xs text-muted truncate">{event.detail}</p>
+    <div className="grid grid-cols-[2.75rem_1.5rem_minmax(0,1fr)] items-start py-1.5">
+      <time dateTime={event.timestamp} title={new Date(event.timestamp).toLocaleString()} className="pt-px text-right font-mono text-[11px] leading-5 text-muted tabular-nums">
+        {clock(event.timestamp)}
+      </time>
+      <span className="flex justify-center pt-[3px]">
+        {event.type === "task_updated" && event.taskStatus
+          ? <StatusIcon status={event.taskStatus} />
+          : <Icon className="size-3.5 text-muted" aria-hidden />}
+      </span>
+      <div className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
+        <span className="min-w-0 text-sm leading-5 text-txt sm:shrink-0 sm:max-w-[60%] sm:truncate">{event.title}</span>
+        {event.detail && <span className="min-w-0 truncate text-xs leading-5 text-muted">{event.detail}</span>}
+        {/* Agents write almost everything, so only your own changes get a tag */}
+        {showActor && event.actor === "human" && (
+          <span className="flex shrink-0 items-center gap-1 font-mono text-[10px] text-muted sm:ml-auto">
+            <User className="size-3" aria-hidden />you
+          </span>
         )}
-        <p className="text-xs text-muted/60 mt-0.5 font-mono">{timeAgo(event.timestamp)}</p>
       </div>
     </div>
   )

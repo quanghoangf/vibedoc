@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { AppProvider, useApp } from "@/context/AppContext"
 import { SettingsApplier } from "@/components/shared/SettingsApplier"
@@ -14,6 +14,7 @@ import { ChatModal } from "@/components/chat/ChatModal"
 import { ChatProvider, useChats } from "@/context/ChatContext"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { CHAT_KEY, OTHER_SHORTCUTS, PAGE_SHORTCUTS, pageForKey, pageTitle, shouldHandleShortcut } from "@/lib/shortcuts"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -26,19 +27,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   )
 }
 
-const SHORTCUTS = [
-  { key: "Cmd+K", description: "Open command palette" },
-  { key: "Cmd+P", description: "Go to file" },
-  { key: "b", description: "Go to Board" },
-  { key: "d", description: "Go to Docs" },
-  { key: "a", description: "Go to Activity" },
-  { key: "m", description: "Go to Memory" },
-  { key: "e", description: "Go to Explorer" },
-  { key: "c", description: "Open agent chat" },
-  { key: "/", description: "Focus doc search" },
-  { key: "?", description: "Toggle this help" },
-  { key: "Esc", description: "Close panel / modal" },
+const SHORTCUT_SECTIONS = [
+  { title: "Go to", rows: PAGE_SHORTCUTS.map(({ key, label, help }) => ({ key, description: help ?? label })) },
+  ...(["Open", "Board", "Editing & other"] as const).map((title) => ({
+    title, rows: OTHER_SHORTCUTS.filter((s) => s.section === title).map(({ key, label }) => ({ key, description: label })),
+  })),
 ]
+
+const skipLink = "sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-1.5 focus:text-xs focus:text-txt focus:ring-2 focus:ring-ring"
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { loading, summary, projects, activeProject, liveIndicator, onProjectChange, board, openDoc, rootParam } = useApp()
@@ -48,7 +44,34 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [cmdOpen, setCmdOpen] = useState(false)
   const [quickOpen, setQuickOpen] = useState(false)
   const [newDocOpen, setNewDocOpen] = useState(false)
-  const { modalId, closeModal, showDefault } = useChats()
+  const { showDefault } = useChats()
+  const keyboardRef = useRef(false)
+  const prevPathRef = useRef(pathname)
+
+  // Route announcements: the tab title names the page, and after a keyboard navigation focus moves to
+  // #main so screen readers land on the new page. Keeps ChatContext's "(n) " waiting prefix.
+  const projectName = summary?.name
+  useEffect(() => {
+    const page = pageTitle(pathname)
+    const base = [page, projectName].filter(Boolean).join(" · ")
+    const prefix = document.title.match(/^\(\d+\) /)?.[0] ?? ""
+    document.title = `${prefix}${base ? `${base} — ` : ""}VibeDoc`
+    if (prevPathRef.current === pathname) return // initial load or project name change: don't steal focus
+    prevPathRef.current = pathname
+    if (keyboardRef.current) document.getElementById("main")?.focus({ preventScroll: true })
+  }, [pathname, projectName])
+
+  // Last input was a key (not a pointer)? Decides whether a route change moves focus.
+  useEffect(() => {
+    const onKey = () => { keyboardRef.current = true }
+    const onPointer = () => { keyboardRef.current = false }
+    window.addEventListener("keydown", onKey, true)
+    window.addEventListener("pointerdown", onPointer, true)
+    return () => {
+      window.removeEventListener("keydown", onKey, true)
+      window.removeEventListener("pointerdown", onPointer, true)
+    }
+  }, [])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -64,22 +87,21 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         setQuickOpen(v => !v)
         return
       }
-      const tag = (e.target as Element)?.tagName
-      if (tag === "INPUT" || tag === "TEXTAREA") return
+      // ⌘B (sidebar, owned by shadcn), ⌘C etc. keep their normal meaning
+      if (!shouldHandleShortcut(e)) return
+      const href = pageForKey(e.key)
+      if (href) { router.push(href); return }
       switch (e.key) {
-        case "b": router.push("/board"); break
-        case "d": router.push("/docs"); break
-        case "a": router.push("/activity"); break
-        case "m": router.push("/memory"); break
-        case "e": router.push("/explorer"); break
         // preventDefault: the modal autofocuses its composer, which would otherwise receive this "c"
-        case "c": e.preventDefault(); if (modalId) closeModal(); else showDefault(); break
+        case CHAT_KEY: e.preventDefault(); showDefault(); break
         case "?": setShowHelp((v) => !v); break
         case "Escape": setShowHelp(false); break
         case "/":
           e.preventDefault()
           if (pathname === "/docs") {
             document.getElementById("doc-search")?.focus()
+          } else if (pathname === "/board") {
+            document.getElementById("board-search")?.focus()
           } else {
             router.push("/docs")
           }
@@ -88,12 +110,15 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [router, pathname, modalId, closeModal, showDefault])
+  }, [router, pathname, showDefault])
 
   if (loading) return <LoadingScreen />
 
   return (
     <SidebarProvider>
+      {/* The sidebar precedes the header in the DOM (shadcn's peer selectors need it), so the agent strip gets its own skip link */}
+      <a href="#agent-status" className={skipLink}>Skip to agent status</a>
+      <a href="#main" className={skipLink}>Skip to content</a>
       <AppSidebar board={board} />
       <SidebarInset className="min-w-0">
         <AppHeader
@@ -102,10 +127,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           activeProject={activeProject}
           liveIndicator={liveIndicator}
           onProjectChange={onProjectChange}
-          onToggleChat={() => (modalId ? closeModal() : showDefault())}
+          onToggleChat={showDefault}
           onOpenSearch={() => setCmdOpen(true)}
         />
-        <main className="flex-1 min-h-0 overflow-y-auto">{children}</main>
+        <main id="main" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto outline-none">{children}</main>
         <ChatModal />
 
         <QuickOpen
@@ -119,6 +144,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           onClose={() => setCmdOpen(false)}
           onOpenDoc={openDoc}
           onNewDoc={() => { setCmdOpen(false); setNewDocOpen(true) }}
+          onQuickOpen={() => { setCmdOpen(false); setQuickOpen(true) }}
+          onShowHelp={() => { setCmdOpen(false); setShowHelp(true) }}
           rootParam={rootParam}
         />
         <NewDocModal
@@ -132,20 +159,23 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         <Dialog open={showHelp} onOpenChange={setShowHelp}>
           <DialogContent aria-describedby={undefined} className="block w-80 p-5 rounded-xl sm:rounded-xl shadow-2xl">
             <DialogTitle className="font-display text-sm font-semibold text-txt mb-4">Keyboard shortcuts</DialogTitle>
-            <table className="w-full text-xs">
-              <tbody>
-                {SHORTCUTS.map(({ key, description }) => (
-                  <tr key={key} className="border-t border-border first:border-0">
-                    <td className="py-1.5 pr-4">
-                      <kbd className="font-mono bg-surface2 border border-border rounded-sm px-1.5 py-0.5 text-accent">
-                        {key}
-                      </kbd>
-                    </td>
-                    <td className="py-1.5 text-muted">{description}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {SHORTCUT_SECTIONS.map(({ title, rows }) => (
+              <table key={title} className="w-full text-xs mt-3 first-of-type:mt-0">
+                <caption className="pb-1 text-left font-mono text-[10px] uppercase tracking-[0.06em] text-muted">{title}</caption>
+                <tbody>
+                  {rows.map(({ key, description }) => (
+                    <tr key={key} className="border-t border-border first:border-0">
+                      <td className="py-1.5 pr-4 w-16 whitespace-nowrap">
+                        <kbd className="font-mono bg-surface2 border border-border rounded-sm px-1.5 py-0.5 text-txt">
+                          {key}
+                        </kbd>
+                      </td>
+                      <td className="py-1.5 text-muted">{description}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ))}
           </DialogContent>
         </Dialog>
       </SidebarInset>

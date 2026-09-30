@@ -18,9 +18,10 @@
   --color-txt: rgb(var(--rgb-txt));
   --color-muted: rgb(var(--rgb-muted));
   --color-accent: rgb(var(--rgb-accent));
+  --color-accent-fg: rgb(var(--rgb-accent-fg));
   --color-teal: #4fd8b4;
-  --color-amber: #f7a26a;
-  --color-danger: #f76a6a;
+  --color-amber: rgb(var(--rgb-amber));
+  --color-danger: rgb(var(--rgb-danger));
   --color-background: rgb(var(--rgb-bg));
   --color-foreground: rgb(var(--rgb-txt));
   --color-card: rgb(var(--rgb-surface));
@@ -28,20 +29,20 @@
   --color-popover: rgb(var(--rgb-surface));
   --color-popover-foreground: rgb(var(--rgb-txt));
   --color-primary: rgb(var(--rgb-accent));
-  --color-primary-foreground: rgb(var(--rgb-txt));
+  --color-primary-foreground: rgb(var(--rgb-accent-fg));
   --color-secondary: rgb(var(--rgb-surface2));
   --color-secondary-foreground: rgb(var(--rgb-txt));
   --color-muted-foreground: rgb(var(--rgb-muted));
   --color-accent-foreground: rgb(var(--rgb-txt));
   --color-destructive: #f76a6a;
-  --color-destructive-foreground: #e8e8f0;
+  --color-destructive-foreground: rgb(var(--rgb-danger-fg));
   --color-input: rgb(var(--rgb-border));
   --color-ring: rgb(var(--rgb-accent));
 
   --color-sidebar: rgb(var(--rgb-surface));
   --color-sidebar-foreground: rgb(var(--rgb-txt));
   --color-sidebar-primary: rgb(var(--rgb-accent));
-  --color-sidebar-primary-foreground: rgb(var(--rgb-txt));
+  --color-sidebar-primary-foreground: rgb(var(--rgb-accent-fg));
   --color-sidebar-accent: rgb(var(--rgb-surface2));
   --color-sidebar-accent-foreground: rgb(var(--rgb-txt));
   --color-sidebar-border: rgb(var(--rgb-border));
@@ -95,6 +96,9 @@
 
   /* Accent color — RGB components (blue default) */
   --rgb-accent: 124 106 247;
+  /* Ink on accent fills. White misses 4.5:1 on every accent (violet 3.99, purple 3.96,
+     green 2.28, orange 2.80); this ink clears all four (4.95 / 4.99 / 8.67 / 7.05). */
+  --rgb-accent-fg: 10 10 15;
 
   /* Light theme core colors */
   --rgb-bg: 255 255 255;
@@ -104,6 +108,11 @@
   --rgb-border2: 208 208 228;
   --rgb-txt: 26 26 46;
   --rgb-muted: 107 107 128;
+  /* Status inks, darkened for light surfaces: amber 5.44 / 4.80, danger 6.47 / 5.71 on white / surface2.
+     White on the danger fill is 6.47:1. */
+  --rgb-amber: 170 80 10;
+  --rgb-danger: 185 28 28;
+  --rgb-danger-fg: 255 255 255;
 }
 
 .dark {
@@ -114,7 +123,11 @@
   --rgb-border: 34 34 46;
   --rgb-border2: 45 45 61;
   --rgb-txt: 232 232 240;
-  --rgb-muted: 107 107 128;
+  --rgb-muted: 140 140 160;
+  --rgb-amber: 247 162 106;
+  --rgb-danger: 247 106 106;
+  /* White is 2.91:1 on the danger fill; this ink is 6.4:1 */
+  --rgb-danger-fg: 10 10 15;
 }
 
 /* Accent color overrides */
@@ -211,3 +224,12 @@ html:not(.dark) .prose-dark :not(pre) > code { color: color-mix(in srgb, var(--c
 /* Mermaid diagrams */
 .mermaid { margin: 1rem 0; text-align: center; }
 .mermaid svg { max-width: 100%; height: auto; border-radius: 8px; }
+
+/* Board view switch (BoardTab → document.startViewTransition): the tab underline glides, the view settles in.
+   The reduced-motion rule above turns every view-transition pseudo-element off. */
+::view-transition-group(board-view-tab) { animation-duration: var(--duration-slow); animation-timing-function: var(--ease-out-soft); }
+::view-transition-old(board-view-body) { animation: board-view-out var(--duration-fast) ease-in both; }
+::view-transition-new(board-view-body) { animation: board-view-in var(--duration-slow) var(--ease-out-soft) both; }
+::view-transition-group(board-view-body) { animation: none; }
+@keyframes board-view-out { to { opacity: 0; } }
+@keyframes board-view-in { from { opacity: 0; transform: translateY(6px); } }

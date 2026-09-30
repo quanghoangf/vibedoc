@@ -7,7 +7,7 @@ import { useChats, type ChatTab } from "@/context/ChatContext"
 import { ChatView } from "@/components/chat/ChatView"
 import { ChatContextRail } from "@/components/chat/ChatContextRail"
 import { AttachLabel, StatusMarker } from "@/components/chat/StatusMarker"
-import { ago, chatStatus, defaultChat, groupChats, suggestions } from "@/lib/chats"
+import { ago, defaultChat, groupChats, shellStatus, suggestions } from "@/lib/chats"
 import { useMinute } from "@/hooks/use-minute"
 import { cn } from "@/lib/utils"
 
@@ -23,10 +23,10 @@ export default function ChatPage() {
 }
 
 function ChatPageInner() {
-  const { chats, loaded, create, show, send } = useChats()
+  const { chats, loaded, create, show, send, now } = useChats()
   const router = useRouter()
   const param = useSearchParams().get("id")
-  const selected = chats.find((c) => c.id === param) ?? (param ? undefined : defaultChat(chats))
+  const selected = chats.find((c) => c.id === param) ?? (param ? undefined : defaultChat(chats, now))
 
   function startWith(text?: string) {
     const id = create()
@@ -60,13 +60,14 @@ function ChatPageInner() {
 }
 
 function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () => void }) {
-  const { chats } = useChats()
+  const { chats, now } = useChats()
   const [query, setQuery] = useState("")
   const q = query.trim().toLowerCase()
   const shown = q ? chats.filter((c) => c.title.toLowerCase().includes(q) || c.attach?.id.toLowerCase().includes(q)) : chats
-  const g = groupChats(shown)
+  const g = groupChats(shown, now)
   const sections = [
     { label: "Needs you", items: g.needsYou, tone: "text-amber" },
+    { label: "Errors", items: g.errors, tone: "text-danger" },
     { label: "Running", items: g.running, tone: "text-accent" },
     { label: "Recent", items: g.recent, tone: "text-muted" },
   ]
@@ -74,11 +75,11 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
   return (
     <aside className="hidden w-72 shrink-0 flex-col border-r border-border bg-surface md:flex" aria-label="All chats">
       <div className="flex items-center gap-2 px-4 pb-3 pt-4">
-        <h1 className="flex-1 text-sm font-semibold text-txt">Agents</h1>
+        <h1 className="flex-1 text-sm font-semibold text-txt">Chats</h1>
         <button
           type="button"
           onClick={onNew}
-          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-medium text-white transition-[filter,transform] duration-(--duration-fast) hover:brightness-110 active:scale-[0.97]"
+          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-medium text-accent-fg transition-[filter,transform] duration-(--duration-fast) hover:brightness-110 active:scale-[0.97]"
         >
           <Plus className="size-3.5" /> New chat
         </button>
@@ -113,9 +114,9 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
 }
 
 function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
-  const { show, remove } = useChats()
+  const { show, remove, now: clock } = useChats()
   const now = useMinute()
-  const status = chatStatus(chat)
+  const status = shellStatus(chat, clock)
   const lastText = [...chat.messages].reverse().find((m) => m.text)?.text.replace(/\s+/g, " ").trim()
   return (
     <li className="group relative animate-slide-in">
@@ -166,7 +167,7 @@ function NoChat({ missing, onStart, onBack }: { missing: boolean; onStart: (text
         ) : (
           <>
             <div>
-              <h2 className="text-lg font-semibold text-txt">Run agents side by side</h2>
+              <h2 className="text-lg font-semibold text-txt">Run chats side by side</h2>
               <p className="mt-1 text-sm text-muted">
                 Each chat is its own Claude Code session, up to 4 at once. Start one here, or from an epic on the roadmap or a task on the board.
               </p>

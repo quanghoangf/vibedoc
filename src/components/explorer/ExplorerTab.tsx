@@ -143,7 +143,7 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
               className={cn(
                 "px-2.5 py-0.5 rounded-full text-xs whitespace-nowrap transition-colors",
                 activeSection === s
-                  ? "bg-accent text-white"
+                  ? "bg-accent text-accent-fg"
                   : "bg-surface2 text-muted hover:text-txt"
               )}
             >

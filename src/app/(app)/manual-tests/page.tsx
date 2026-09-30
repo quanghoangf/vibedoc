@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { FlaskConical } from "lucide-react"
+import { ArrowRight, Check, CircleCheck, FlaskConical } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { StatusChip } from "@/components/shared/StatusIcon"
 import { parseManualTests, type ManualTestItem, type ManualTests } from "@/lib/manual-tests"
@@ -72,24 +72,28 @@ export default function ManualTestsPage() {
       // The SSE task_updated refresh brings the new file; the pending entry stops applying once raw changes
     } catch (e) {
       setPending((p) => { const next = { ...p }; delete next[key]; return next })
-      setError(`${t.task.id}: ${(e as Error).message}`)
+      setError(`Couldn't save the tick on ${t.task.id}: ${(e as Error).message}. The box is back as it was; try again.`)
     }
   }
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-8">
-      <header className="flex flex-wrap items-end gap-4">
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold text-txt">Manual tests</h1>
-          <p className="mt-1 text-sm text-muted">
-            {open.length
-              ? `${itemsLeft} item${itemsLeft === 1 ? "" : "s"} to check across ${open.length} task${open.length === 1 ? "" : "s"}. Ticking saves to the task file; it never changes the task's status.`
-              : "Nothing left to check."}
+      <header className="flex flex-wrap items-end gap-x-6 gap-y-3 border-b border-border pb-5">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">Manual tests</h1>
+          <p className="mt-2 text-[1.1rem] leading-snug font-semibold text-txt">
+            {open.length ? (
+              <>
+                <span className="font-mono tabular-nums">{itemsLeft}</span> check{itemsLeft === 1 ? "" : "s"} left across{" "}
+                <span className="font-mono tabular-nums">{open.length}</span> task{open.length === 1 ? "" : "s"}
+              </>
+            ) : all.length ? "Everything is checked" : "Nothing to check yet"}
           </p>
+          <p className="mt-1 text-sm text-muted">Ticking saves to the task file. It never changes the task&apos;s status.</p>
         </div>
-        <label className="flex cursor-pointer items-center gap-2 text-xs text-muted select-none">
-          <input type="checkbox" checked={showTested} onChange={(e) => setShowTested(e.target.checked)} className="accent-accent" />
-          Show fully tested ({all.length - open.length})
+        <label className="flex w-full cursor-pointer items-center gap-2 text-xs text-muted select-none hover:text-txt sm:w-auto">
+          <Tick checked={showTested} onChange={setShowTested} className="mt-0" />
+          Show fully tested <span className="font-mono tabular-nums">({all.length - open.length})</span>
         </label>
       </header>
 
@@ -106,15 +110,65 @@ export default function ManualTestsPage() {
         </div>
       )}
 
+      {all.length > 0 && groups.length === 0 && (
+        <div className="flex items-center gap-2.5 rounded-lg border border-teal/30 px-4 py-3 text-sm text-txt animate-fade-in">
+          <CircleCheck className="size-4 shrink-0 text-teal" aria-hidden />
+          All {all.length} report{all.length === 1 ? " is" : "s are"} fully checked. Turn on Show fully tested to see them again.
+        </div>
+      )}
+
       {groups.map(([epic, tasks]) => (
-        <section key={epic} className="flex flex-col gap-3">
-          <h2 className="font-mono text-[10px] uppercase tracking-widest text-muted">{epic}</h2>
+        <section key={epic} className="flex flex-col gap-4">
+          <EpicHeading epic={epic} />
           {tasks.map((t) => (
             <TaskTests key={t.task.id} t={t} checkedOf={(i) => checkedOf(t, i)} onToggle={(i, c) => toggle(t, i, c)} />
           ))}
         </section>
       ))}
     </div>
+  )
+}
+
+/** "R043 — Task verification & review" → the ID in mono, the name as a headline. */
+function EpicHeading({ epic }: { epic: string }) {
+  const m = epic.match(/^(R\d+)\s*[—–-]\s*(.+)$/)
+  return (
+    <h2 className="flex items-baseline gap-3 pt-2">
+      {m && <span className="font-mono text-[11px] text-muted">{m[1]}</span>}
+      <span className="text-[1.1rem] leading-snug font-semibold text-txt">{m ? m[2] : epic}</span>
+    </h2>
+  )
+}
+
+// Paths, commands, files, IDs and tool names inside a step (the Grep rule: set them in mono)
+const CODE = /((?<=^|[\s(])\/[\w\-./#?=]+|\b[a-z][\w-]+\/[\w\-./]*\w|\b[\w-]+\.(?:md|json|tsx?|mts)\b|\b(?:[TR]\d{3}|ADR-\d{3})\b|\bvibedoc_\w+|\bmanualTests\b)/g
+
+function Inline({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(CODE).map((part, i) =>
+        i % 2 ? <code key={i} className="font-mono text-[0.9em]">{part}</code> : part,
+      )}
+    </>
+  )
+}
+
+/** A step reads "do this → see that": the action, then the expected result on its own line. */
+function StepText({ text, checked }: { text: string; checked: boolean }) {
+  const at = text.indexOf(" → ")
+  const action = at < 0 ? text : text.slice(0, at)
+  const expected = at < 0 ? null : text.slice(at + 3)
+  return (
+    <span className={cn("flex min-w-0 flex-col gap-1 transition-colors duration-(--duration-base)", checked ? "text-muted line-through" : "text-txt")}>
+      <span className="text-sm leading-snug"><Inline text={action} /></span>
+      {expected && (
+        <span className="flex items-start gap-1.5 text-[13px] leading-snug text-muted">
+          <ArrowRight className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span className="sr-only">Expected: </span>
+          <span><Inline text={expected} /></span>
+        </span>
+      )}
+    </span>
   )
 }
 
@@ -125,52 +179,78 @@ function TaskTests({ t, checkedOf, onToggle }: {
 }) {
   const done = t.tests.items.filter(checkedOf).length
   const total = t.tests.total
+  const complete = done === total
   const groups = [
     { label: "Steps", items: t.tests.items.filter((i) => i.group === "steps") },
     { label: "Regression risk", items: t.tests.items.filter((i) => i.group === "regression") },
   ].filter((g) => g.items.length)
 
   return (
-    <article id={t.task.id} className="scroll-mt-16 rounded-lg border border-border bg-surface animate-fade-in">
-      <header className="flex items-center gap-3 border-b border-border px-4 py-3">
-        <span className="font-mono text-[11px] text-muted">{t.task.id}</span>
-        <Link href={`/board?task=${t.task.id}`} className="min-w-0 flex-1 truncate text-sm font-medium text-txt hover:text-accent">
-          {t.task.title}
-        </Link>
-        <StatusChip status={t.task.status} className="shrink-0" />
-        <span className={cn("shrink-0 font-mono text-[11px] tabular-nums", done === total ? "text-teal" : "text-muted")}>{done}/{total}</span>
+    <article
+      id={t.task.id}
+      className={cn("scroll-mt-16 rounded-lg border bg-surface animate-fade-in transition-colors duration-(--duration-slow)", complete ? "border-teal/30" : "border-border")}
+    >
+      <header className="flex flex-col gap-3 px-4 pt-4 pb-3 sm:px-5">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+          <span className="font-mono text-[11px] text-muted">{t.task.id}</span>
+          <Link href={`/board?task=${t.task.id}`} className="min-w-0 flex-1 basis-60 text-[15px] leading-snug font-semibold text-txt hover:text-accent focus-visible:text-accent focus-visible:outline-none">
+            {t.task.title}
+          </Link>
+          <span className="flex items-center gap-3">
+            <StatusChip status={t.task.status} />
+            <span className="font-mono text-[11px] text-muted tabular-nums">
+              <span className="text-txt">{done}</span>/{total}
+            </span>
+          </span>
+        </div>
+        {/* One mark per item: the report's ruling, filled as you tick */}
+        <div className="flex gap-0.5" role="progressbar" aria-label={`${t.task.id} manual tests`} aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
+          {t.tests.items.map((i) => (
+            <span
+              key={i.index}
+              className={cn("h-1 flex-1 rounded-full transition-colors duration-(--duration-base)", checkedOf(i) ? "bg-teal" : i.group === "regression" ? "bg-amber/25" : "bg-border2")}
+            />
+          ))}
+        </div>
       </header>
-      <div className="h-0.5 bg-border">
-        <div className="h-full bg-teal transition-[width] duration-(--duration-slow) ease-out-soft" style={{ width: `${(done / total) * 100}%` }} />
-      </div>
-      <div className="flex flex-col gap-3 px-4 py-3">
+      <div className="flex flex-col gap-4 border-t border-border px-4 py-4 sm:px-5">
         {groups.map((g) => (
           <div key={g.label} className="flex flex-col gap-1">
             <p className={cn("font-mono text-[10px] uppercase tracking-widest", g.label === "Steps" ? "text-muted" : "text-amber")}>{g.label}</p>
-            <ul className="flex flex-col">
-              {g.items.map((item) => {
+            <ol className="flex flex-col">
+              {g.items.map((item, n) => {
                 const checked = checkedOf(item)
                 return (
                   <li key={item.index}>
-                    <label className="-mx-2 flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 hover:bg-surface2">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => onToggle(item, e.target.checked)}
-                        className="mt-0.5 accent-teal"
-                      />
-                      <span className={cn("text-sm leading-snug transition-colors duration-(--duration-base)", checked ? "text-muted line-through" : "text-txt")}>
-                        {item.text}
-                      </span>
+                    <label className="-mx-2 grid cursor-pointer grid-cols-[1rem_1.25rem_1fr] items-start gap-x-2.5 rounded-md px-2 py-2 hover:bg-surface2">
+                      <Tick checked={checked} onChange={(c) => onToggle(item, c)} />
+                      {/* Steps are a sequence; regression checks aren't */}
+                      <span className="mt-px font-mono text-[11px] leading-5 text-muted tabular-nums" aria-hidden>{g.label === "Steps" ? String(n + 1).padStart(2, "0") : ""}</span>
+                      <StepText text={item.text} checked={checked} />
                     </label>
                   </li>
                 )
               })}
-            </ul>
+            </ol>
           </div>
         ))}
         {t.tests.date && <p className="font-mono text-[10px] text-muted">Report from {t.tests.date}</p>}
       </div>
     </article>
+  )
+}
+
+/** The native checkbox, drawn in the system: pencil-grey box, teal fill with an ink check when ticked. */
+function Tick({ checked, onChange, className }: { checked: boolean; onChange: (checked: boolean) => void; className?: string }) {
+  return (
+    <span className={cn("relative mt-0.5 flex size-4 shrink-0", className)}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="peer size-4 cursor-pointer appearance-none rounded-sm border border-muted bg-bg transition-colors duration-(--duration-fast) checked:border-teal checked:bg-teal hover:border-txt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      />
+      <Check strokeWidth={3} className="pointer-events-none absolute inset-0.5 size-3 text-accent-fg opacity-0 peer-checked:opacity-100" aria-hidden />
+    </span>
   )
 }

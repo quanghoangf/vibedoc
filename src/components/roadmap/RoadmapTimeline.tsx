@@ -44,7 +44,7 @@ export function RoadmapTimeline({ items, today, onSelect, progressById }: Roadma
             <div className="absolute inset-y-0 left-0 bg-surface/50" style={{ width: tl.todayX }} />
             <div className="absolute inset-y-0 w-px bg-accent shadow-[0_0_12px_rgb(var(--rgb-accent)/0.8)]" style={{ left: tl.todayX }}>
               <span
-                className="absolute -translate-x-1/2 rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-white"
+                className="absolute -translate-x-1/2 rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent-fg"
                 style={{ top: HEADER_H + 6 }}
               >
                 Today

@@ -117,7 +117,7 @@ export function TechStackInput({ value, onChange }: TechStackInputProps) {
               className={cn(
                 "px-3 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors shrink-0",
                 activeCategory === cat.id
-                  ? "bg-accent text-white"
+                  ? "bg-accent text-accent-fg"
                   : "bg-surface2 text-muted hover:text-txt hover:bg-surface"
               )}
             >

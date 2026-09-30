@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { Suspense, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { BoardTab } from "@/components/board/BoardTab"
@@ -17,7 +17,7 @@ export default function BoardPage() {
 }
 
 function BoardPageInner() {
-  const { board, summary, moveTask, refresh, rootParam } = useApp()
+  const { board, moveTask, refresh, rootParam } = useApp()
   const router = useRouter()
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   // ?task=T055 (links from a chat) opens that task; adjusted during render so a new link re-opens it
@@ -29,21 +29,28 @@ function BoardPageInner() {
     if (found) setSelectedTask(found)
   }
   const [newTaskOpen, setNewTaskOpen] = useState(false)
+  // Drop only ?task=: the rest of the query is the live board view
+  const closeTaskParam = () => {
+    const p = new URLSearchParams(window.location.search)
+    p.delete("task")
+    router.replace(p.size ? `/board?${p}` : "/board", { scroll: false })
+  }
+
+  const tasks = useMemo(() => (board ? Object.values(board).flat() : []), [board])
 
   if (!board) return null
 
   return (
-    <div className="relative flex-1">
+    <div className="relative min-w-0 flex-1">
       <BoardTab
-        board={board}
-        summary={summary}
+        tasks={tasks}
         onMoveTask={moveTask}
         onOpenTask={setSelectedTask}
         onNewTask={() => setNewTaskOpen(true)}
       />
       <TaskDetailPanel
         task={selectedTask}
-        onClose={() => { setSelectedTask(null); if (taskParam) router.replace("/board", { scroll: false }) }}
+        onClose={() => { setSelectedTask(null); if (taskParam) closeTaskParam() }}
         onMove={moveTask}
       />
       <NewTaskModal

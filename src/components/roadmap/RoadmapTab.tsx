@@ -373,7 +373,7 @@ export function RoadmapTab() {
         <EmptyState icon="🗺️" message="No roadmap yet" subMessage="Items live in plans/roadmap/R*.md" bordered />
         <div className="mt-4 flex flex-col items-center gap-2">
           <div className="flex gap-2">
-            <Button size="sm" onClick={generate} disabled={generating} className="bg-accent text-white hover:bg-accent/90">
+            <Button size="sm" onClick={generate} disabled={generating} className="bg-accent text-accent-fg hover:bg-accent/90">
               <Sparkles /> {generating ? "Generating…" : "Generate roadmap"}
             </Button>
             <Button size="sm" variant="outline" onClick={() => askAgent("Plan a roadmap for this project.")} disabled={generating}>
@@ -429,7 +429,7 @@ export function RoadmapTab() {
               <ListTree /> Break down epics…
             </Button>
           )}
-          <Button size="sm" onClick={() => setCreateParent("")} className="bg-accent text-white hover:bg-accent/90">
+          <Button size="sm" onClick={() => setCreateParent("")} className="bg-accent text-accent-fg hover:bg-accent/90">
             <Plus /> Horizon
           </Button>
         </div>

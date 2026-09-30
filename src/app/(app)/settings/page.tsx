@@ -136,7 +136,7 @@ export default function SettingsPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto p-6">
           {saving && (
-            <div className="fixed top-4 right-4 bg-accent text-white px-3 py-1.5 rounded-lg text-sm shadow-lg">
+            <div className="fixed top-4 right-4 bg-accent text-accent-fg px-3 py-1.5 rounded-lg text-sm shadow-lg">
               Saving...
             </div>
           )}

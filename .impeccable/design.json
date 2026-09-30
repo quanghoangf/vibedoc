@@ -1,0 +1,503 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-30T02:52:33Z",
+  "title": "Design System: VibeDoc",
+  "extensions": {
+    "colorMeta": {
+      "lab-violet": {
+        "role": "primary",
+        "displayName": "Lab Violet",
+        "canonical": "rgb(124 106 247)",
+        "tonalRamp": [
+          "#0d0449",
+          "#16077e",
+          "#1f0ab3",
+          "#290ce8",
+          "#5139f4",
+          "#7f6ef7",
+          "#b2a8fa",
+          "#eae7fe"
+        ]
+      },
+      "reagent-teal": {
+        "role": "secondary",
+        "displayName": "Reagent Teal",
+        "canonical": "#4fd8b4",
+        "tonalRamp": [
+          "#0e3f32",
+          "#186d56",
+          "#229a7b",
+          "#2cc89f",
+          "#54d9b6",
+          "#82e3ca",
+          "#b4eedf",
+          "#eafaf6"
+        ]
+      },
+      "burner-amber": {
+        "role": "tertiary",
+        "displayName": "Burner Amber",
+        "canonical": "#f7a26a",
+        "tonalRamp": [
+          "#491f04",
+          "#7e3607",
+          "#b34d0a",
+          "#e8640c",
+          "#f48339",
+          "#f7a46e",
+          "#fac9a8",
+          "#fef0e7"
+        ],
+        "lightInk": "rgb(170 80 10)"
+      },
+      "signal-red": {
+        "role": "tertiary",
+        "displayName": "Signal Red",
+        "canonical": "#f76a6a",
+        "tonalRamp": [
+          "#490404",
+          "#7e0707",
+          "#b30a0a",
+          "#e80c0c",
+          "#f43939",
+          "#f76e6e",
+          "#faa8a8",
+          "#fee7e7"
+        ],
+        "lightInk": "rgb(185 28 28)"
+      },
+      "ink-black": {
+        "role": "neutral",
+        "displayName": "Ink Black",
+        "canonical": "rgb(10 10 15)",
+        "tonalRamp": [
+          "#1f1f2e",
+          "#353550",
+          "#4b4b71",
+          "#626293",
+          "#8282ab",
+          "#a3a3c2",
+          "#c8c8da",
+          "#f0f0f5"
+        ]
+      },
+      "carbon": {
+        "role": "neutral",
+        "displayName": "Carbon",
+        "canonical": "rgb(17 17 24)",
+        "tonalRamp": [
+          "#20202d",
+          "#37374e",
+          "#4e4e6e",
+          "#66668f",
+          "#8585a8",
+          "#a5a5c0",
+          "#c9c9d9",
+          "#f0f0f4"
+        ]
+      },
+      "graphite": {
+        "role": "neutral",
+        "displayName": "Graphite",
+        "canonical": "rgb(22 22 31)",
+        "tonalRamp": [
+          "#20202d",
+          "#37374e",
+          "#4e4e6e",
+          "#66668f",
+          "#8585a8",
+          "#a6a6bf",
+          "#c9c9d9",
+          "#f0f0f4"
+        ]
+      },
+      "rule-line": {
+        "role": "neutral",
+        "displayName": "Rule Line",
+        "canonical": "rgb(34 34 46)",
+        "tonalRamp": [
+          "#21212c",
+          "#38384c",
+          "#50506d",
+          "#68688d",
+          "#8787a6",
+          "#a7a7be",
+          "#cacad8",
+          "#f0f0f4"
+        ]
+      },
+      "rule-line-strong": {
+        "role": "neutral",
+        "displayName": "Rule Line Strong",
+        "canonical": "rgb(45 45 61)",
+        "tonalRamp": [
+          "#20202c",
+          "#38384c",
+          "#50506d",
+          "#68688d",
+          "#8787a6",
+          "#a7a7be",
+          "#cacad8",
+          "#f0f0f4"
+        ]
+      },
+      "page-white-text": {
+        "role": "neutral",
+        "displayName": "Page-White Text",
+        "canonical": "rgb(232 232 240)",
+        "tonalRamp": [
+          "#1e1e2e",
+          "#343450",
+          "#4a4a72",
+          "#616194",
+          "#8080ac",
+          "#a2a2c3",
+          "#c7c7db",
+          "#f0f0f5"
+        ]
+      },
+      "pencil-grey": {
+        "role": "neutral",
+        "displayName": "Pencil Grey",
+        "canonical": "rgb(140 140 160)",
+        "tonalRamp": [
+          "#23232a",
+          "#3c3c48",
+          "#565667",
+          "#6f6f85",
+          "#8d8da0",
+          "#acacb9",
+          "#cdcdd5",
+          "#f1f1f3"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper (light bg)",
+        "canonical": "rgb(255 255 255)",
+        "tonalRamp": [
+          "#262626",
+          "#424242",
+          "#5e5e5e",
+          "#7a7a7a",
+          "#969696",
+          "#b2b2b2",
+          "#d1d1d1",
+          "#f2f2f2"
+        ]
+      },
+      "paper-tint": {
+        "role": "neutral",
+        "displayName": "Paper Tint (light surface)",
+        "canonical": "rgb(248 248 252)",
+        "tonalRamp": [
+          "#171736",
+          "#28285d",
+          "#393984",
+          "#4949ab",
+          "#6d6dc0",
+          "#9494d1",
+          "#bfbfe3",
+          "#ededf7"
+        ]
+      },
+      "paper-tint-deep": {
+        "role": "neutral",
+        "displayName": "Paper Tint Deep (light surface2)",
+        "canonical": "rgb(240 240 248)",
+        "tonalRamp": [
+          "#181834",
+          "#2a2a5a",
+          "#3c3c81",
+          "#4e4ea7",
+          "#7070bc",
+          "#9797ce",
+          "#c0c0e2",
+          "#eeeef7"
+        ]
+      },
+      "paper-rule": {
+        "role": "neutral",
+        "displayName": "Paper Rule (light border)",
+        "canonical": "rgb(224 224 238)",
+        "tonalRamp": [
+          "#1b1b31",
+          "#2f2f56",
+          "#43437a",
+          "#57579e",
+          "#7878b5",
+          "#9c9cc9",
+          "#c4c4de",
+          "#efeff6"
+        ]
+      },
+      "paper-rule-strong": {
+        "role": "neutral",
+        "displayName": "Paper Rule Strong (light border2)",
+        "canonical": "rgb(208 208 228)",
+        "tonalRamp": [
+          "#1c1c31",
+          "#303054",
+          "#454578",
+          "#59599b",
+          "#7a7ab3",
+          "#9e9ec7",
+          "#c5c5de",
+          "#efeff6"
+        ]
+      },
+      "paper-ink": {
+        "role": "neutral",
+        "displayName": "Paper Ink (light text)",
+        "canonical": "rgb(26 26 46)",
+        "tonalRamp": [
+          "#1c1c31",
+          "#303055",
+          "#444479",
+          "#58589c",
+          "#7979b3",
+          "#9d9dc8",
+          "#c4c4de",
+          "#efeff6"
+        ]
+      },
+      "accent-ink": {
+        "role": "neutral",
+        "displayName": "Accent Ink (text on accent)",
+        "canonical": "rgb(10 10 15)"
+      },
+      "paper-pencil": {
+        "role": "neutral",
+        "displayName": "Paper Pencil (light muted)",
+        "canonical": "rgb(107 107 128)",
+        "tonalRamp": [
+          "#23232a",
+          "#3c3c48",
+          "#565667",
+          "#6f6f85",
+          "#8d8da0",
+          "#acacb9",
+          "#cdcdd5",
+          "#f1f1f3"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Doc h1 only; no hero type in the app."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Doc h2, tinted toward the accent, hairline underline."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card titles, list rows, panel headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Prose paragraphs and list items."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Mono IDs, dates, counts, shortcut hints."
+      },
+      "label-caps": {
+        "displayName": "Label Caps",
+        "purpose": "Uppercase mono table headers and section labels."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 10px 15px -3px rgb(0 0 0 / 0.2), 0 4px 6px -4px rgb(0 0 0 / 0.2)",
+        "purpose": "Dialogs, sheets, menus, command palette."
+      },
+      {
+        "name": "focus-halo",
+        "value": "0 0 0 3px rgb(var(--rgb-accent) / 0.15)",
+        "purpose": "Keyboard focus on cards and custom controls."
+      },
+      {
+        "name": "update-flash",
+        "value": "0 0 0 3px rgb(var(--rgb-accent) / 0.35) → 0",
+        "purpose": "Card/row that just changed via SSE (1.2s)."
+      },
+      {
+        "name": "selected-edge",
+        "value": "inset 2px 0 0 rgb(var(--rgb-accent))",
+        "purpose": "Active item in a vertical list."
+      }
+    ],
+    "motion": [
+      {
+        "name": "duration-fast",
+        "value": "120ms",
+        "purpose": "Hover, colour and border changes."
+      },
+      {
+        "name": "duration-base",
+        "value": "180ms",
+        "purpose": "Collapsible open, small layout shifts."
+      },
+      {
+        "name": "duration-slow",
+        "value": "260ms",
+        "purpose": "Fade/slide-in of panels and lists."
+      },
+      {
+        "name": "ease-out-soft",
+        "value": "cubic-bezier(0.22, 1, 0.36, 1)",
+        "purpose": "Default easing for entrances and state changes."
+      },
+      {
+        "name": "ease-in-out-soft",
+        "value": "cubic-bezier(0.65, 0, 0.35, 1)",
+        "purpose": "Collapsing / exits."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main action in a dialog or form; one per view.",
+      "html": "<button class=\"ds-btn-primary\">Accept plan</button>",
+      "css": ".ds-btn-primary{font-family:Geist,system-ui,sans-serif;display:inline-flex;align-items:center;gap:8px;height:40px;padding:8px 16px;border:0;border-radius:6px;background:rgb(124 106 247);color:rgb(10 10 15);font-size:14px;font-weight:500;cursor:pointer;transition:background-color 120ms cubic-bezier(0.22,1,0.36,1)}.ds-btn-primary:hover{background:rgb(124 106 247/0.9)}.ds-btn-primary:focus-visible{outline:none;box-shadow:0 0 0 2px rgb(10 10 15),0 0 0 4px rgb(124 106 247)}.ds-btn-primary:active{background:rgb(124 106 247/0.8)}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary action beside a primary.",
+      "html": "<button class=\"ds-btn-outline\">Send back</button>",
+      "css": ".ds-btn-outline{font-family:Geist,system-ui,sans-serif;display:inline-flex;align-items:center;height:40px;padding:8px 16px;border:1px solid rgb(34 34 46);border-radius:6px;background:rgb(10 10 15);color:rgb(232 232 240);font-size:14px;font-weight:500;cursor:pointer;transition:background-color 120ms,border-color 120ms}.ds-btn-outline:hover{background:rgb(22 22 31)}.ds-btn-outline:focus-visible{outline:none;box-shadow:0 0 0 2px rgb(10 10 15),0 0 0 4px rgb(124 106 247)}"
+    },
+    {
+      "name": "Ghost Icon Button",
+      "kind": "button",
+      "refersTo": "button-ghost-hover",
+      "description": "Toolbar and header actions; muted until hovered.",
+      "html": "<button class=\"ds-btn-ghost\" aria-label=\"Agent\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 8V4H8\"/><rect width=\"16\" height=\"12\" x=\"4\" y=\"8\" rx=\"2\"/><path d=\"M2 14h2\"/><path d=\"M20 14h2\"/><path d=\"M15 13v2\"/><path d=\"M9 13v2\"/></svg></button>",
+      "css": ".ds-btn-ghost{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border:0;border-radius:6px;background:transparent;color:rgb(140 140 160);cursor:pointer;transition:background-color 120ms,color 120ms}.ds-btn-ghost:hover{background:rgb(22 22 31);color:rgb(232 232 240)}.ds-btn-ghost:focus-visible{outline:none;box-shadow:0 0 0 2px rgb(124 106 247)}"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Single-line field in forms and dialogs.",
+      "html": "<input class=\"ds-input\" placeholder=\"Epic title…\" />",
+      "css": ".ds-input{font-family:Geist,system-ui,sans-serif;height:40px;width:260px;padding:8px 12px;border:1px solid rgb(34 34 46);border-radius:6px;background:rgb(10 10 15);color:rgb(232 232 240);font-size:14px;outline:none}.ds-input::placeholder{color:rgb(140 140 160)}.ds-input:focus-visible{box-shadow:0 0 0 2px rgb(10 10 15),0 0 0 4px rgb(124 106 247)}"
+    },
+    {
+      "name": "Search Trigger",
+      "kind": "nav",
+      "refersTo": "search-trigger",
+      "description": "Header button that opens the ⌘K command palette.",
+      "html": "<button class=\"ds-search\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg><span class=\"ds-search-label\">Search…</span><kbd class=\"ds-kbd\">⌘K</kbd></button>",
+      "css": ".ds-search{font-family:Geist,system-ui,sans-serif;display:flex;align-items:center;gap:8px;width:192px;height:32px;padding:0 10px;border:1px solid rgb(34 34 46);border-radius:6px;background:rgb(10 10 15/0.6);color:rgb(140 140 160);font-size:12px;cursor:pointer;transition:border-color 120ms,color 120ms}.ds-search:hover{border-color:rgb(45 45 61);color:rgb(232 232 240)}.ds-search:focus-visible{outline:none;box-shadow:0 0 0 2px rgb(124 106 247)}.ds-search-label{flex:1;text-align:left}.ds-kbd{font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;padding:0 4px;border:1px solid rgb(34 34 46);border-radius:4px}"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "Task status icon + label; one look per status everywhere.",
+      "html": "<span class=\"ds-chip ds-chip-progress\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/></svg>In progress</span> <span class=\"ds-chip ds-chip-done\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m9 12 2 2 4-4\"/></svg>Done</span>",
+      "css": ".ds-chip{font-family:Geist,system-ui,sans-serif;display:inline-flex;align-items:center;gap:4px;padding:2px 6px;border:1px solid;border-radius:4px;font-size:11px;line-height:1}.ds-chip-progress{color:#f7a26a;border-color:rgb(247 162 106/0.3);background:rgb(247 162 106/0.05)}.ds-chip-done{color:#4fd8b4;border-color:rgb(79 216 180/0.3);background:rgb(79 216 180/0.05)}"
+    },
+    {
+      "name": "Task Card",
+      "kind": "card",
+      "refersTo": "task-card",
+      "description": "Signature board entry: mono meta row, 2-line title, epic + chips footer.",
+      "html": "<div class=\"ds-card\" tabindex=\"0\"><div class=\"ds-card-meta\"><span>T055</span><span class=\"ds-dot\"></span><span style=\"flex:1\"></span><span>10-04</span><span class=\"ds-size\">M</span></div><p class=\"ds-card-title\">Approve / send back a task in review</p><div class=\"ds-card-foot\"><span class=\"ds-epic\"><span class=\"ds-mono10\">R043</span> Task verification &amp; review</span><span class=\"ds-mt\">3/5</span></div></div>",
+      "css": ".ds-card{font-family:Geist,system-ui,sans-serif;width:260px;padding:10px 12px;border:1px solid rgb(34 34 46);border-radius:8px;background:rgb(17 17 24);cursor:pointer;outline:none;transition:border-color 120ms,background-color 120ms,box-shadow 120ms}.ds-card:hover{border-color:rgb(45 45 61);background:rgb(22 22 31/0.5)}.ds-card:focus-visible{border-color:rgb(124 106 247/0.6);box-shadow:0 0 0 3px rgb(124 106 247/0.15)}.ds-card-meta{font-family:'Geist Mono',ui-monospace,monospace;display:flex;align-items:center;gap:6px;font-size:11px;color:rgb(140 140 160)}.ds-dot{width:6px;height:6px;border-radius:9999px;background:#f7a26a}.ds-size{font-size:10px;padding:0 4px;border-radius:4px;background:rgb(22 22 31)}.ds-card-title{margin:4px 0 0;font-size:13px;font-weight:500;line-height:1.375;color:rgb(232 232 240)}.ds-card-foot{display:flex;align-items:center;gap:6px;margin-top:8px}.ds-epic{font-size:11px;color:rgb(140 140 160);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ds-mono10{font-family:'Geist Mono',ui-monospace,monospace;font-size:10px}.ds-mt{font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;padding:2px 6px;border:1px solid rgb(34 34 46);border-radius:4px;color:rgb(140 140 160)}"
+    },
+    {
+      "name": "App Header",
+      "kind": "nav",
+      "refersTo": "app-header",
+      "description": "Sticky 48px bar: breadcrumb left; agent status strip, search, Connect and Chats right.",
+      "html": "<header class=\"ds-header\"><span class=\"ds-crumb\">vibedoc</span><span class=\"ds-sep\">/</span><span class=\"ds-page\">Board</span><span style=\"flex:1\"></span><button class=\"ds-status\"><span class=\"ds-live\"></span><span class=\"ds-bot\">▣</span><span class=\"ds-ink\">2 agents working</span><span class=\"ds-sep\">·</span><span class=\"ds-run\">◌</span>1 running<span class=\"ds-sep\">·</span><span class=\"ds-need\"></span><span class=\"ds-ink\">1 need you</span></button></header>",
+      "css": ".ds-header{font-family:Geist,system-ui,sans-serif;display:flex;align-items:center;gap:6px;height:48px;padding:0 16px;border-bottom:1px solid rgb(34 34 46);background:rgb(17 17 24/0.8);backdrop-filter:blur(4px);font-size:14px}.ds-crumb{color:rgb(232 232 240)}.ds-sep{color:rgb(140 140 160/0.6)}.ds-page{color:rgb(232 232 240);font-weight:500}.ds-status{display:flex;align-items:center;gap:6px;height:32px;padding:0 6px;border:0;border-radius:6px;background:transparent;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:rgb(140 140 160);cursor:pointer}.ds-status:hover{background:rgb(22 22 31);color:rgb(232 232 240)}.ds-run{color:rgb(124 106 247)}.ds-need{width:6px;height:6px;border-radius:9999px;background:#f7a26a}.ds-live{width:6px;height:6px;border-radius:9999px;background:rgb(140 140 160)}.ds-bot{color:rgb(124 106 247)}.ds-ink{color:rgb(232 232 240)}"
+    },
+    {
+      "name": "Agent Status Strip",
+      "kind": "nav",
+      "refersTo": "agent-status",
+      "description": "Header strip that leads the shell: neutral connection dot (Pencil Grey when connected, amber + \"Reconnecting…\" when down, no separator after it), then terminal agents working (Bot glyph, count in text ink, pulse only with motion allowed), then chats running (muted) / need you / recent errors (last 24h, not dismissed; counts in text ink); zero counts drop out. Click opens the head of the attention queue (need-you, then actionable errors), else /chat.",
+      "html": "<button class=\"ds-status\"><span class=\"ds-live\"></span><span class=\"ds-bot\">▣</span><span class=\"ds-ink\">2 agents working</span><span class=\"ds-sep\">·</span><span class=\"ds-run\">◌</span>1 running<span class=\"ds-sep\">·</span><span class=\"ds-need\"></span><span class=\"ds-ink\">1 need you</span></button>",
+      "css": ".ds-status{display:flex;align-items:center;gap:6px;height:32px;padding:0 6px;border:0;border-radius:6px;background:transparent;font-family:'Geist Mono',ui-monospace,monospace;font-size:11px;color:rgb(140 140 160);cursor:pointer;transition:background-color 120ms,color 120ms}.ds-status:hover{background:rgb(22 22 31);color:rgb(232 232 240)}.ds-status:focus-visible{outline:none;box-shadow:0 0 0 2px rgb(124 106 247)}.ds-live{width:6px;height:6px;border-radius:9999px;background:rgb(140 140 160)}.ds-bot{color:rgb(124 106 247)}.ds-ink{color:rgb(232 232 240)}.ds-run{color:rgb(124 106 247)}.ds-need{width:6px;height:6px;border-radius:9999px;background:#f7a26a}.ds-sep{color:rgb(140 140 160/0.6)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Lab Notebook",
+    "overview": "**Creative North Star: \"The Lab Notebook\"**\n\nVibeDoc is a notebook kept beside the bench, not a dashboard bolted onto it. Every screen renders plain files: tasks, docs, roadmap items, chat logs. The design makes those files legible without pretending they're something else. IDs are set in mono like entry numbers. Surfaces are ruled with 1px lines rather than floated on shadows. Colour is used the way a careful experimenter uses a highlighter: sparingly, and only to mark state.\n\nThe notebook is dark by default (indigo-black ink on carbon pages), dense, and small-set. Body copy sits around 13–14px, metadata at 10–11px mono, and a whole working day of tasks fits on one board. Density is earned by rhythm, not crammed. Every row keeps the same small gaps, and nothing grows larger than its content needs. Controls are tactile and quick. Hover, focus and drag all answer within 120–180ms, and the keyboard reaches everything (⌘K, `c`, Enter on a card).\n\nThe user can re-tint the notebook without changing its structure. Settings → Appearance swaps the accent (violet default, purple, green, orange), the sans/mono pairing, the base size (13/14/16px root) and light/dark. The system must hold up under every combination, which is why every colour flows through tokens.",
+    "keyCharacteristics": [
+      "Dark, indigo-tinted neutrals; light theme is a first-class mirror.",
+      "One accent (Lab Violet) for selection, focus and links; four status hues for task state, and nothing else.",
+      "Mono for identifiers and metadata (`T055`, `R043`, `3/5`, `⌘K`), sans for everything a person reads.",
+      "Flat, ruled surfaces. Depth comes from tone steps and hairlines; shadows only float or signal.",
+      "Fast, soft motion (`cubic-bezier(0.22, 1, 0.36, 1)`), fully disabled under reduced motion."
+    ],
+    "rules": [
+      {
+        "name": "The Highlighter Rule",
+        "body": "Colour marks state, never decoration. If a hue on screen doesn't mean *selected, live, done, active, blocked* or *review*, it shouldn't be there. The shell goes further: it only colours what you can act on now. An errored chat raises red for 24 hours or until dismissed, the Manual tests count stays Pencil Grey, and \"all is well\" is a small Pencil Grey connection dot, not a colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Status Language Rule",
+        "body": "Task status has exactly one look everywhere: the `STATUS_META` icon + hue (Circle/muted, CircleDot/amber, Eye/violet, CircleSlash/red, CircleCheck/teal, CircleX/muted). The task files keep their emoji; the UI never shows them.",
+        "section": "colors"
+      },
+      {
+        "name": "The Triplet Rule",
+        "body": "Theme and accent colours are defined as RGB triplets on `:root` / `.dark` / `html[data-accent]`, and consumed only through Tailwind tokens (`bg-accent/20`, `border-border2`). Never hard-code a hex in a component.",
+        "section": "colors"
+      },
+      {
+        "name": "The Grep Rule",
+        "body": "If a string is an ID, a path, a count, a date or a shortcut, set it in mono. If a person reads it as language, set it in sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-At-Rest Rule",
+        "body": "Nothing on the page casts a shadow unless it floats above the page or is reporting a state change right now.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** route every colour through the triplet tokens (`bg-accent/15`, `text-muted`, `border-border2`) so theme, accent and light/dark all keep working.",
+      "**Do** use `StatusIcon` / `StatusChip` / `STATUS_META` for any task status. Never draw a new one.",
+      "**Do** set IDs, paths, counts, dates and shortcuts in mono at 10–11px.",
+      "**Do** show hover as one tone step up plus a stronger border, and focus as the accent ring or halo.",
+      "**Do** use the motion tokens (`--duration-fast` 120ms, `--duration-base` 180ms, `--duration-slow` 260ms, `--ease-out-soft`) and let the global reduced-motion rule turn them off.",
+      "**Do** keep every frequent action reachable from the keyboard, and show its shortcut in a mono `kbd`."
+    ],
+    "donts": [
+      "**Don't** hard-code hex or `rgb()` values in components; the Settings accent and theme swaps depend on tokens.",
+      "**Don't** add shadows to cards or panels at rest.",
+      "**Don't** introduce a second accent or decorative colour. The four status hues are already the full vocabulary.",
+      "**Don't** show the task files' status emoji in the UI.",
+      "**Don't** add new arbitrary type sizes beyond 10/11/13px and the rem scale.",
+      "**Don't** use CSS-in-JS or `localStorage` for theme state. Tailwind + `data-*` attributes on `<html>` only."
+    ]
+  }
+}

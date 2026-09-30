@@ -1,7 +1,9 @@
 {
   "theme": "dark",
-  "accentColor": "blue",
+  "accentColor": "green",
   "fontSize": "large",
+  "fontSans": "geist",
+  "fontMono": "geist-mono",
   "editor": {
     "autoSave": 10,
     "wordWrap": true,

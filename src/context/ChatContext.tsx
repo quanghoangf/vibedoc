@@ -16,8 +16,8 @@ import { asRenderablePlan, planTarget } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
 import { ASK_AGENT_EVENT, OPEN_CHAT_EVENT, openAgentChat, type AskAgentDetail } from "@/lib/ask-agent"
 import {
-  addChat, attachContext, attachKey, chatFor, chatStatus, chatTitle, defaultChat, epicOf, fromSaved, isWaiting,
-  itemAgents, newChatId, newlyWaiting, patchChat, pendingReviews, routeAsk, toSaved, waitingTitle,
+  addChat, attachContext, attachKey, attentionQueue, chatFor, chatStatus, chatTitle, defaultChat, epicOf, fromSaved, isActionableError, isWaiting,
+  itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, toSaved, waitingTitle,
   type Attach, type Chat, type ChatStatus, type ItemAgent,
 } from "@/lib/chats"
 
@@ -45,7 +45,10 @@ interface ChatApi {
   closeModal: (opts?: { keep?: boolean }) => void
   /** Open a chat: in the modal, or selected in place when already on /chat */
   show: (chatId: string) => void
-  /** Header button / `c`: the most urgent or newest chat, else a fresh one */
+  /**
+   * Header button / `c`: walks the attention queue (the open chat's next item, else its head); past its end closes
+   * the modal; with nothing open and nothing queued, the running or newest chat, else a fresh one.
+   */
   showDefault: () => void
   /** Resume the chat attached to `a`, or start one */
   showAbout: (a: Attach) => void
@@ -53,6 +56,8 @@ interface ChatApi {
   create: (attach?: Attach | null) => string
   send: (chatId: string, text: string) => void
   stop: (chatId: string) => void
+  /** Stop counting an errored chat in the header / rail (saved; the next turn clears it) */
+  dismiss: (chatId: string) => void
   /** Delete a chat (asks first when cards are unreviewed); returns false if the user cancelled */
   remove: (chatId: string) => boolean
   resolveProposal: (chatId: string, id: string, path: string, status: ProposalStatus) => void
@@ -62,6 +67,12 @@ interface ChatApi {
   agents: Record<string, ItemAgent>
   runningCount: number
   waitingCount: number
+  /** Errored chats worth an alarm: recent and not dismissed (isActionableError) */
+  errorCount: number
+  /** Chats that need the user: waiting, then actionable errors (attentionQueue) */
+  queue: ChatTab[]
+  /** Minute clock the error counts use; pass to isActionableError for per-row checks */
+  now: number
   /** An askAgent() refused at the running-chat cap */
   notice: string | null
   dismissNotice: () => void
@@ -97,6 +108,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Chats changed since their last save; saved by the effect below once they aren't busy
   const dirtyRef = useRef(new Set<string>())
   const notifiedRef = useRef<Record<string, ChatStatus>>({})
+  // Re-read each minute so a day-old error drops out of the alarm counts without a reload
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(t)
+  }, [])
 
   const onChatPage = pathname === "/chat"
   const docPath = pathname === "/docs" ? selectedDoc?.path : undefined
@@ -151,9 +168,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [chats])
   const runningCount = chats.filter((c) => c.busy).length
   const waitingCount = chats.filter((c) => isWaiting(chatStatus(c))).length
+  const errorCount = chats.filter((c) => isActionableError(c, now)).length
+  const queue = useMemo(() => attentionQueue(chats, now), [chats, now])
 
   // "(n) VibeDoc" in the browser tab; pathname is a dep because a navigation can put Next's metadata title back
-  useEffect(() => { document.title = waitingTitle(document.title, waitingCount) }, [waitingCount, pathname])
+  useEffect(() => { document.title = waitingTitle(document.title, queue.length) }, [queue.length, pathname])
 
   // Desktop notification when a chat starts waiting while this browser tab is in the background
   useEffect(() => {
@@ -191,7 +210,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }
 
   function showDefault() {
-    const c = defaultChat(chats)
+    const next = nextInQueue(queue, modalId ?? (onChatPage ? currentId : null))
+    if (next) return show(next.id)
+    if (modalId) return closeModal()
+    const c = defaultChat(chats, now)
     show(c ? c.id : create())
   }
 
@@ -315,6 +337,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       title: c.messages.length ? c.title : chatTitle(message),
       attach: c.attach ?? attach,
       busy: true,
+      dismissed: false,
       notes: [],
       updatedAt: new Date().toISOString(),
       messages: [...c.messages, blank("user", message), blank("assistant")],
@@ -370,6 +393,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Aborting the fetch makes /api/chat kill its `claude -p` child
   function stop(chatId: string) {
     abortsRef.current.get(chatId)?.abort()
+  }
+
+  function dismiss(chatId: string) {
+    setChats((cs) => patchChat(cs, chatId, (c) => ({ ...c, dismissed: true })))
+    markDirty(chatId)
   }
 
   function remove(chatId: string) {
@@ -429,9 +457,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const api: ChatApi = {
     chats, loaded, modalId,
     closeModal,
-    show, showDefault, showAbout, create, send, stop, remove,
+    show, showDefault, showAbout, create, send, stop, dismiss, remove,
     resolveProposal, resolvePlan, answerQuestions,
-    agents, runningCount, waitingCount,
+    agents, runningCount, waitingCount, errorCount, queue, now,
     notice, dismissNotice: () => setNotice(null),
   }
   return (

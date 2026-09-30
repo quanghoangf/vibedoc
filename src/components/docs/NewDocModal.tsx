@@ -144,7 +144,7 @@ export function NewDocModal({ open, onOpenChange, rootParam, onDocCreated }: New
                 size="sm"
                 onClick={handleCreate}
                 disabled={creating || !docPath.trim()}
-                className="h-7 text-xs bg-accent hover:bg-accent/90 text-white"
+                className="h-7 text-xs bg-accent hover:bg-accent/90 text-accent-fg"
               >
                 {creating ? "Creating…" : "Create"}
               </Button>

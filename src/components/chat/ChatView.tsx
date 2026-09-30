@@ -215,7 +215,7 @@ function EmptyChat({ chat, onPick }: { chat: ChatTab; onPick: (s: string) => voi
 }
 
 function Composer({ chat, wide }: { chat: ChatTab; wide: boolean }) {
-  const { send, stop } = useChats()
+  const { send, stop, queue } = useChats()
   const { selectedDoc } = useApp()
   const pathname = usePathname()
   const [input, setInput] = useState("")
@@ -234,7 +234,8 @@ function Composer({ chat, wide }: { chat: ChatTab; wide: boolean }) {
     <div className="shrink-0 px-5 pb-4 pt-1">
       <div className={cn("mx-auto rounded-xl border border-border bg-surface2 transition-[border-color,box-shadow] duration-(--duration-base) focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_rgb(var(--rgb-accent)/0.12)]", wide ? "max-w-3xl" : "max-w-none")}>
         <textarea
-          autoFocus
+          // Not for a queued chat, so a second `c` walks the queue instead of typing into the composer
+          autoFocus={!queue.some((q) => q.id === chat.id)}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -262,7 +263,7 @@ function Composer({ chat, wide }: { chat: ChatTab; wide: boolean }) {
               onClick={submit}
               disabled={!input.trim()}
               title="Send (Enter)"
-              className="grid size-7 place-items-center rounded-full bg-accent text-white transition-[opacity,transform] duration-(--duration-fast) enabled:hover:scale-105 disabled:opacity-30"
+              className="grid size-7 place-items-center rounded-full bg-accent text-accent-fg transition-[opacity,transform] duration-(--duration-fast) enabled:hover:scale-105 disabled:opacity-30"
             >
               <ArrowUp className="size-3.5" />
               <span className="sr-only">Send</span>

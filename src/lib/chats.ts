@@ -16,6 +16,8 @@ export interface Chat<M = unknown> {
   attach: Attach | null
   createdAt: string
   updatedAt: string
+  /** The user dismissed this chat's error; cleared by the next turn */
+  dismissed?: boolean
 }
 
 export function newChatId(now: number, salt = Math.random()): string {
@@ -71,6 +73,20 @@ export function chatStatus(chat: Chat<StatusMessage>): ChatStatus {
   if (pendingReviews(chat)) return "review"
   const lastReply = chat.messages.findLast((m) => m.role === "assistant")
   return lastReply?.error ? "error" : "idle"
+}
+
+/** Errors older than this stop alarming in the shell; the chat itself still shows them. */
+export const ERROR_ALARM_MS = 24 * 60 * 60 * 1000
+
+/** An error worth a count in the header / collapsed rail: recent and not dismissed. */
+export function isActionableError(chat: Chat<StatusMessage>, now: number): boolean {
+  return !chat.dismissed && now - Date.parse(chat.updatedAt) < ERROR_ALARM_MS && chatStatus(chat) === "error"
+}
+
+/** The status the shell (sidebar, palette) shows: an error that no longer alarms reads as idle. */
+export function shellStatus(chat: Chat<StatusMessage>, now: number): ChatStatus {
+  const s = chatStatus(chat)
+  return s === "error" && !isActionableError(chat, now) ? "idle" : s
 }
 
 export const isWaiting = (s: ChatStatus): s is "needs-answer" | "review" => s === "needs-answer" || s === "review"
@@ -146,25 +162,41 @@ export function suggestions(a: Attach | null): string[] {
 
 // ─── Lists ────────────────────────────────────────────────────────────────────
 
-export interface ChatGroups<C> { needsYou: C[]; running: C[]; recent: C[] }
+export interface ChatGroups<C> { needsYou: C[]; errors: C[]; running: C[]; recent: C[] }
 
-/** Sidebar and /chat list order: waiting on you, then running, then the rest; newest first within a group. */
-export function groupChats<C extends Chat<StatusMessage>>(chats: C[]): ChatGroups<C> {
+/**
+ * Sidebar and /chat list order: waiting on you, actionable errors, running, then the rest; newest first within a group.
+ * `errors` fills only when `now` is given (actionable is time-dependent); without it errored chats stay in `recent`.
+ */
+export function groupChats<C extends Chat<StatusMessage>>(chats: C[], now?: number): ChatGroups<C> {
   const byNew = [...chats].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  const groups: ChatGroups<C> = { needsYou: [], running: [], recent: [] }
+  const groups: ChatGroups<C> = { needsYou: [], errors: [], running: [], recent: [] }
   for (const c of byNew) {
     const s = chatStatus(c)
     if (isWaiting(s)) groups.needsYou.push(c)
+    else if (now !== undefined && isActionableError(c, now)) groups.errors.push(c)
     else if (s === "running") groups.running.push(c)
     else groups.recent.push(c)
   }
   return groups
 }
 
-/** The chat the header button / `c` opens: the most urgent, else the newest, else none. */
-export function defaultChat<C extends Chat<StatusMessage>>(chats: C[]): C | undefined {
-  const g = groupChats(chats)
-  return g.needsYou[0] ?? g.running[0] ?? g.recent[0]
+/** What needs the user, in order: chats waiting on you, then actionable errors. `c`, the header strip and ⌘K open its head. */
+export function attentionQueue<C extends Chat<StatusMessage>>(chats: C[], now: number): C[] {
+  const g = groupChats(chats, now)
+  return [...g.needsYou, ...g.errors]
+}
+
+/** Where `c` goes from `currentId`: the next queue item after it, the head when it isn't queued, undefined past the end. */
+export function nextInQueue<C extends Chat>(queue: C[], currentId: string | null): C | undefined {
+  const i = queue.findIndex((c) => c.id === currentId)
+  return queue[i + 1]
+}
+
+/** The chat the header button / `c` opens: the queue head, else running, else the newest, else none. */
+export function defaultChat<C extends Chat<StatusMessage>>(chats: C[], now = Date.now()): C | undefined {
+  const g = groupChats(chats, now)
+  return g.needsYou[0] ?? g.errors[0] ?? g.running[0] ?? g.recent[0]
 }
 
 // ─── Persistence (.vibedoc/chats/<id>.json via /api/conversations) ───────────
@@ -195,7 +227,7 @@ export function newlyWaiting<C extends Chat<StatusMessage>>(prev: Record<string,
   })
 }
 
-/** "(2) VibeDoc" while 2 chats wait; the plain title otherwise. Idempotent. */
+/** "(2) VibeDoc" while 2 chats need you (the attention queue); the plain title otherwise. Idempotent. */
 export function waitingTitle(title: string, n: number): string {
   const base = title.replace(/^\(\d+\) /, "")
   return n > 0 ? `(${n}) ${base}` : base

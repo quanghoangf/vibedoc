@@ -164,7 +164,7 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
           <button
             onClick={saveEdit}
             disabled={!form.name.trim()}
-            className="flex items-center gap-2 px-3 py-1.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-3 py-1.5 bg-accent text-accent-fg rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
           >
             <Check className="w-4 h-4" />
             Save
@@ -183,7 +183,7 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
         </div>
         <button
           onClick={startNew}
-          className="flex items-center gap-2 px-3 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
+          className="flex items-center gap-2 px-3 py-2 bg-accent text-accent-fg rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
           Add Agent

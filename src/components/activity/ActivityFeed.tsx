@@ -1,19 +1,20 @@
 import type { ActivityEvent } from "@/types"
 import { ActivityEventRow } from "./ActivityEventRow"
+import { DayLabel, dayLabel } from "./SessionTimeline"
 
-interface ActivityFeedProps {
-  activity: ActivityEvent[]
-}
-
-export function ActivityFeed({ activity }: ActivityFeedProps) {
+/** Every event, newest first, grouped by day on the same clock gutter as the sessions timeline. */
+export function ActivityFeed({ activity }: { activity: ActivityEvent[] }) {
   return (
-    <div className="relative">
-      <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
-      <div className="flex flex-col gap-0">
-        {activity.map((evt) => (
-          <ActivityEventRow key={evt.id} event={evt} />
-        ))}
-      </div>
-    </div>
+    <ol className="flex flex-col">
+      {activity.map((e, i) => {
+        const label = dayLabel(e.timestamp)
+        return (
+          <li key={e.id}>
+            {(i === 0 || dayLabel(activity[i - 1].timestamp) !== label) && <DayLabel label={label} />}
+            <ActivityEventRow event={e} showActor />
+          </li>
+        )
+      })}
+    </ol>
   )
 }
