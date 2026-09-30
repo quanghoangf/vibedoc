@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { FlaskConical } from "lucide-react"
 import { useApp } from "@/context/AppContext"
-import { STATUS_ICONS } from "@/components/board/TaskCard"
+import { StatusChip } from "@/components/shared/StatusIcon"
 import { parseManualTests, type ManualTestItem, type ManualTests } from "@/lib/manual-tests"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/types"
@@ -137,7 +137,7 @@ function TaskTests({ t, checkedOf, onToggle }: {
         <Link href={`/board?task=${t.task.id}`} className="min-w-0 flex-1 truncate text-sm font-medium text-txt hover:text-accent">
           {t.task.title}
         </Link>
-        <span className="shrink-0 font-mono text-[10px] text-muted" title={t.task.status}>{STATUS_ICONS[t.task.status]} {t.task.status}</span>
+        <StatusChip status={t.task.status} className="shrink-0" />
         <span className={cn("shrink-0 font-mono text-[11px] tabular-nums", done === total ? "text-teal" : "text-muted")}>{done}/{total}</span>
       </header>
       <div className="h-0.5 bg-border">

@@ -16,6 +16,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar"
 import type { TaskBoard } from "@/types"
+import { cn } from "@/lib/utils"
 import { SidebarChats } from "./SidebarChats"
 
 const NAV_ITEMS = [
@@ -29,13 +30,6 @@ const NAV_ITEMS = [
   { href: "/settings", icon: Settings, label: "Settings" },
 ]
 
-const BOARD_STATS = [
-  { status: "in-progress", icon: CircleDot, label: "Active" },
-  { status: "review", icon: Eye, label: "Review" },
-  { status: "blocked", icon: Ban, label: "Blocked" },
-  { status: "todo", icon: ClipboardList, label: "Todo" },
-  { status: "done", icon: CheckCircle2, label: "Done" },
-]
 
 interface AppSidebarProps {
   board: TaskBoard | null
@@ -45,17 +39,21 @@ export function AppSidebar({ board }: AppSidebarProps) {
   const pathname = usePathname()
   // Unticked manual test items across all tasks (R043)
   const untested = board ? Object.values(board).flat().reduce((n, t) => n + (t.manualTests ? t.manualTests.total - t.manualTests.done : 0), 0) : 0
+  // Work in flight on the board (the counts that used to sit in a separate "Board" section and the header)
+  const active = board ? board["in-progress"].length + board.review.length : 0
+  const badge: Record<string, { n: number; label: string; tone: string }> = {
+    "/board": { n: active, label: `${active} in progress or in review`, tone: "text-muted" },
+    "/manual-tests": { n: untested, label: `${untested} unticked`, tone: "text-amber" },
+  }
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-1">
-          <div className="w-6 h-6 rounded-md bg-linear-to-br from-accent to-teal flex items-center justify-center text-xs shrink-0">
+          <div className="grid size-6 shrink-0 place-items-center rounded-md bg-linear-to-br from-accent to-teal text-xs text-white">
             ⬡
           </div>
-          <span className="font-mono text-xs text-muted tracking-widest uppercase group-data-[collapsible=icon]:hidden">
-            VibeDoc
-          </span>
+          <span className="text-sm font-semibold tracking-tight text-txt group-data-[collapsible=icon]:hidden">VibeDoc</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -68,8 +66,8 @@ export function AppSidebar({ board }: AppSidebarProps) {
                     <Link href={href}>
                       <Icon />
                       <span>{label}</span>
-                      {href === "/manual-tests" && untested > 0 && (
-                        <span className="ml-auto font-mono text-[10px] text-amber" aria-label={`${untested} unticked`}>{untested}</span>
+                      {badge[href]?.n > 0 && (
+                        <span className={cn("ml-auto font-mono text-[10px] tabular-nums", badge[href].tone)} aria-label={badge[href].label}>{badge[href].n}</span>
                       )}
                     </Link>
                   </SidebarMenuButton>
@@ -80,30 +78,6 @@ export function AppSidebar({ board }: AppSidebarProps) {
         </SidebarGroup>
         <SidebarSeparator />
         <SidebarChats />
-        {board && (
-          <>
-            <SidebarSeparator />
-            <SidebarGroup>
-              <SidebarGroupLabel>Board</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {BOARD_STATS.map(({ status, icon: Icon, label }) => {
-                    const count = board[status as keyof TaskBoard]?.length || 0
-                    return (
-                      <SidebarMenuItem key={status}>
-                        <SidebarMenuButton tooltip={`${label}: ${count}`}>
-                          <Icon />
-                          <span>{label}</span>
-                          <span className="ml-auto font-mono text-xs">{count}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    )
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </>
-        )}
       </SidebarContent>
     </Sidebar>
   )

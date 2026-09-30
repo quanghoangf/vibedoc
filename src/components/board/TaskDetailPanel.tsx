@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import type { Task } from "@/types"
-import { STATUS_ICONS } from "./TaskCard"
+import { StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
 import Link from "next/link"
 import { Check, CornerUpLeft, FlaskConical, MessageSquare } from "lucide-react"
@@ -34,14 +34,6 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: "cancel",
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  todo: "text-muted border-border2",
-  "in-progress": "text-amber border-amber/30 bg-amber/5",
-  review: "text-accent border-accent/30 bg-accent/5",
-  blocked: "text-danger border-danger/30 bg-danger/5",
-  done: "text-teal border-teal/30 bg-teal/5",
-  cancelled: "text-muted border-border",
-}
 
 interface TaskDetailPanelProps {
   task: Task | null
@@ -67,9 +59,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
             <div className="flex flex-col gap-1 min-w-0 pl-5 pr-12 py-4 border-b border-border shrink-0">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs text-muted">{task.id}</span>
-                <span className={cn("text-xs px-1.5 py-0.5 rounded-sm border font-mono", STATUS_COLORS[task.status])}>
-                  {STATUS_ICONS[task.status]} {task.status}
-                </span>
+                <StatusChip status={task.status} />
                 <AgentMark attach={{ kind: "task", id: task.id }} />
               </div>
               <SheetTitle className="font-medium text-txt text-sm leading-snug">{task.title}</SheetTitle>
@@ -81,9 +71,9 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                 <button
                   key={s}
                   onClick={() => { onMove(task.id, s); onClose() }}
-                  className="text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
                 >
-                  {STATUS_ICONS[s]} {STATUS_LABELS[s] || s}
+                  <StatusIcon status={s as Task["status"]} className="size-3" /> {STATUS_LABELS[s] || s}
                 </button>
               ))}
               <button

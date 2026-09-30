@@ -7,6 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { Project } from "@/types"
+import { ChevronsUpDown } from "lucide-react"
 
 interface ProjectSwitcherProps {
   projects: Project[]
@@ -19,11 +20,9 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface2 border border-border text-sm hover:border-border2 transition-colors">
-          <span className="text-txt font-medium truncate max-w-[200px]">
-            {currentName || "Select project"}
-          </span>
-          <span className="text-muted text-xs">▾</span>
+        <button className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-txt">
+          <span className="max-w-[160px] truncate">{currentName || "Select project"}</span>
+          <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

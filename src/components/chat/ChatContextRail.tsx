@@ -6,7 +6,7 @@ import { ArrowUpRight, Link2Off } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useChats } from "@/context/ChatContext"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
-import { STATUS_ICONS } from "@/components/board/TaskCard"
+import { StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
 import { SegmentedProgress, StatusPill } from "@/components/roadmap/RoadmapNodes"
 import { cn } from "@/lib/utils"
 import type { Attach } from "@/lib/chats"
@@ -15,13 +15,6 @@ import { attachHref } from "./StatusMarker"
 
 const KICKER = "font-mono text-[10px] uppercase tracking-widest text-muted"
 
-const TASK_STATUS_CLASS: Record<string, string> = {
-  todo: "text-muted border-border2",
-  "in-progress": "text-amber border-amber/30 bg-amber/5",
-  blocked: "text-danger border-danger/30 bg-danger/5",
-  done: "text-teal border-teal/30 bg-teal/5",
-  cancelled: "text-muted border-border",
-}
 
 /** Right column of /chat: what the chat is about (epic or task), live from the board and roadmap. */
 export function ChatContextRail({ attach }: { attach: Attach | null }) {
@@ -145,7 +138,7 @@ function TaskRow({ task }: { task: Task }) {
         title={`Chat about ${task.id}`}
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-(--duration-fast) hover:bg-surface2"
       >
-        <span aria-hidden>{STATUS_ICONS[task.status]}</span>
+        <StatusIcon status={task.status} className="size-3" />
         <span className="shrink-0 font-mono text-[10px] text-muted">{task.id}</span>
         <span className={cn("min-w-0 flex-1 truncate", task.status === "done" ? "text-muted" : "text-txt")}>{task.title}</span>
       </button>
@@ -165,9 +158,7 @@ function TaskContext({ task, id, items }: { task?: Task; id: string; items: Road
         <p className={KICKER}>Task · {task.id}</p>
         <h3 className="text-base font-semibold leading-snug text-txt">{task.title}</h3>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("rounded-sm border px-1.5 py-0.5 font-mono text-[10px]", TASK_STATUS_CLASS[task.status])}>
-            {STATUS_ICONS[task.status]} {task.status}
-          </span>
+          <StatusChip status={task.status} />
           {task.size && <span className="font-mono text-[10px] text-muted">{task.size}</span>}
           {task.due && <span className="font-mono text-[10px] text-muted">due {task.due}</span>}
         </div>

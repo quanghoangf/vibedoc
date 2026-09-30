@@ -103,6 +103,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           liveIndicator={liveIndicator}
           onProjectChange={onProjectChange}
           onToggleChat={() => (modalId ? closeModal() : showDefault())}
+          onOpenSearch={() => setCmdOpen(true)}
         />
         <main className="flex-1 min-h-0 overflow-y-auto">{children}</main>
         <ChatModal />

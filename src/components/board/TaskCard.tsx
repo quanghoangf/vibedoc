@@ -1,63 +1,43 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
+import { CornerUpLeft, FlaskConical } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
-import Link from "next/link"
 import { latestReview } from "@/lib/review"
-
-const STATUS_COLORS: Record<string, string> = {
-  todo: "text-muted border-border2",
-  "in-progress": "text-amber border-amber/30 bg-amber/5",
-  review: "text-accent border-accent/30 bg-accent/5",
-  blocked: "text-danger border-danger/30 bg-danger/5",
-  done: "text-teal border-teal/30 bg-teal/5",
-  cancelled: "text-muted border-border line-through",
-}
-
-export const STATUS_BADGE_COLORS: Record<string, string> = {
-  todo: "border-border2 text-muted",
-  "in-progress": "border-amber/40 text-amber",
-  review: "border-accent/40 text-accent",
-  blocked: "border-danger/40 text-danger",
-  done: "border-teal/40 text-teal",
-  cancelled: "border-border text-muted",
-}
-
-export const STATUS_ICONS: Record<string, string> = {
-  todo: "📋",
-  "in-progress": "🔨",
-  review: "👀",
-  blocked: "🚫",
-  done: "✅",
-  cancelled: "❌",
-}
-
-const NEXT_STATUS: Record<string, string[]> = {
-  todo: ["in-progress"],
-  "in-progress": ["done", "review", "blocked", "todo"],
-  review: ["done", "in-progress"],
-  blocked: ["in-progress", "cancelled"],
-  done: ["todo"],
-  cancelled: ["todo"],
-}
 
 interface TaskCardProps {
   task: Task
-  onMove: (id: string, status: string) => void
   onOpen: () => void
 }
 
-export function TaskCard({ task, onMove, onOpen }: TaskCardProps) {
+/** "R043 — Task verification & review" → { id: "R043", title: "Task verification & review" }; other phases as-is. */
+function epicOf(phase: string): { id: string | null; title: string } {
+  const m = phase.match(/^(R\d+)\s*[—–-]\s*(.*)$/)
+  return m ? { id: m[1], title: m[2] } : { id: null, title: phase }
+}
+
+/**
+ * A task on the board. The column already says the status, so the card doesn't repeat it.
+ * Click (or Enter) opens the task panel, where every action lives; drag moves it between columns.
+ */
+export function TaskCard({ task, onOpen }: TaskCardProps) {
   const [isDragging, setIsDragging] = useState(false)
-  const nextStatuses = NEXT_STATUS[task.status] || []
+  const epic = task.phase ? epicOf(task.phase) : null
+  const sentBack = task.status === "todo" && task.raw ? latestReview(task.raw) : null
+  const size = task.size && task.size !== "—" ? task.size.split(" ")[0] : null
+  const done = task.status === "done" || task.status === "cancelled"
 
   return (
     <div
       draggable
+      role="button"
+      tabIndex={0}
+      aria-label={`${task.id} ${task.title}`}
+      onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen() } }}
       onDragStart={(e) => {
         e.dataTransfer.setData("taskId", task.id)
         e.dataTransfer.effectAllowed = "move"
@@ -66,72 +46,55 @@ export function TaskCard({ task, onMove, onOpen }: TaskCardProps) {
       onDragEnd={() => setIsDragging(false)}
       style={{ viewTransitionName: `task-${task.file.replace(/[^a-zA-Z0-9_-]/g, "_")}` }}
       className={cn(
-        "group relative bg-surface border rounded-lg p-3 text-sm transition-[border-color,opacity] hover:border-border2",
-        STATUS_COLORS[task.status] || "border-border",
-        isDragging && "opacity-50 cursor-grabbing",
+        "group cursor-pointer rounded-lg border border-border bg-surface px-3 py-2.5 text-left outline-hidden",
+        "transition-[border-color,background-color,opacity,box-shadow] duration-(--duration-fast)",
+        "hover:border-border2 hover:bg-surface2/50 focus-visible:border-accent/60 focus-visible:shadow-[0_0_0_3px_rgb(var(--rgb-accent)/0.15)]",
+        isDragging && "cursor-grabbing opacity-50",
       )}
     >
-      {/* ID + status badge */}
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="flex items-center gap-1.5 text-xs font-mono text-muted">{task.id}<AgentDot attach={{ kind: "task", id: task.id }} /></span>
-        <Badge
-          variant="outline"
-          className={cn("text-[10px] h-4 px-1.5 font-normal", STATUS_BADGE_COLORS[task.status])}
-        >
-          {task.status === "in-progress" ? "active" : task.status}
-        </Badge>
+      <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted">
+        <span>{task.id}</span>
+        <AgentDot attach={{ kind: "task", id: task.id }} />
+        <span className="flex-1" />
+        {task.due && !done && <span title="Due">{task.due.slice(5)}</span>}
+        {size && <span title={task.size} className="rounded-sm bg-surface2 px-1 text-[10px]">{size}</span>}
       </div>
 
-      {/* Title */}
-      <p className="font-medium text-txt text-sm leading-snug mb-2">{task.title}</p>
+      <p className={cn("mt-1 line-clamp-2 text-[13px] font-medium leading-snug", done ? "text-muted" : "text-txt")}>{task.title}</p>
 
-      {/* Phase */}
-      {task.phase && <p className="text-xs text-muted mb-2">{task.phase}</p>}
-
-      {/* Sent back from Review (R043): the reviewer's note is in the task file */}
-      {task.status === "todo" && task.raw && latestReview(task.raw)?.outcome === "changes requested" && (
-        <p className="mb-2 mr-1.5 inline-flex w-fit items-center gap-1 rounded-sm border border-amber/40 bg-amber/5 px-1.5 py-0.5 font-mono text-[10px] text-amber" title={latestReview(task.raw)?.note}>
-          ↩ changes requested
-        </p>
-      )}
-
-      {/* Manual test report (R043): what the human should click through */}
-      {task.manualTests && (
-        <Link
-          href={`/manual-tests#${task.id}`}
-          draggable={false}
-          title={`Manual tests: ${task.manualTests.done} of ${task.manualTests.total} ticked`}
-          className={cn(
-            "mb-2 inline-flex w-fit items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
-            task.manualTests.done === task.manualTests.total ? "border-teal/30 bg-teal/5 text-teal" : "border-border text-muted",
+      {(epic || sentBack?.outcome === "changes requested" || task.manualTests) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {epic && (
+            <span className="inline-flex min-w-0 max-w-full items-center gap-1 text-[11px] text-muted" title={task.phase}>
+              {epic.id && <span className="font-mono text-[10px]">{epic.id}</span>}
+              <span className="truncate">{epic.title}</span>
+            </span>
           )}
-        >
-          🧪 {task.manualTests.done}/{task.manualTests.total}
-        </Link>
+          {sentBack?.outcome === "changes requested" && (
+            <span
+              title={sentBack.note}
+              className="inline-flex items-center gap-1 rounded-sm border border-amber/40 bg-amber/5 px-1.5 py-0.5 text-[10px] text-amber"
+            >
+              <CornerUpLeft className="size-3" aria-hidden /> changes requested
+            </span>
+          )}
+          {task.manualTests && (
+            <Link
+              href={`/manual-tests#${task.id}`}
+              draggable={false}
+              onClick={(e) => e.stopPropagation()}
+              title={`Manual tests: ${task.manualTests.done} of ${task.manualTests.total} ticked`}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
+                task.manualTests.done === task.manualTests.total ? "border-teal/30 bg-teal/5 text-teal" : "border-border text-muted",
+              )}
+            >
+              <FlaskConical className="size-3" aria-hidden />
+              {task.manualTests.done}/{task.manualTests.total}
+            </Link>
+          )}
+        </div>
       )}
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-6 text-xs px-2"
-          onClick={onOpen}
-        >
-          open
-        </Button>
-        {nextStatuses.map((s) => (
-          <Button
-            key={s}
-            variant="ghost"
-            size="sm"
-            className="h-6 text-xs px-2"
-            onClick={() => onMove(task.id, s)}
-          >
-            {STATUS_ICONS[s]} {s === "in-progress" ? "start" : s}
-          </Button>
-        ))}
-      </div>
     </div>
   )
 }

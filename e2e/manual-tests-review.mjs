@@ -47,7 +47,7 @@ try {
     assert.match(out, /🧪 Manual tests: 0\/2 ticked/)
   }
   await page.goto(`${BASE}/board`)
-  await page.getByText("🧪 0/2").nth(1).waitFor()
+  await page.getByTitle("Manual tests: 0 of 2 ticked").nth(1).waitFor()
   await page.goto(`${BASE}/manual-tests`)
   await page.getByText("4 items to check across 2 tasks").waitFor()
   for (const label of ["Open T001 → it works", "Open T002 → it works"]) await page.getByLabel(label).check()
@@ -56,7 +56,7 @@ try {
   for (let i = 0; i < 30 && !(file("T001").includes("- [x] Board still loads") && file("T002").includes("- [x] Board still loads")); i++) await page.waitForTimeout(100)
   for (const id of ["T001", "T002"]) assert.doesNotMatch(file(id), /- \[ \]/, `${id}: every item ticked in the file`)
   await page.goto(`${BASE}/board`)
-  await page.getByText("🧪 2/2").nth(1).waitFor()
+  await page.getByTitle("Manual tests: 2 of 2 ticked").nth(1).waitFor()
   console.log("ok  agent reports → badges → ticked on /manual-tests → files updated, badges 2/2")
 
   // 2. Review: send back from the panel → reclaimed with the note first → review again → approve
@@ -67,7 +67,7 @@ try {
   assert.equal(await panel.getByRole("button", { name: "Send back", exact: true }).isDisabled(), true)
   await panel.getByLabel("Send back note").fill("Title is cut off on mobile")
   await panel.getByRole("button", { name: "Send back", exact: true }).click()
-  await page.getByText("↩ changes requested").first().waitFor()
+  await page.getByText("changes requested", { exact: true }).first().waitFor()
   const reclaimed = await mcp("vibedoc_next_task", { epic: "R002" })
   assert.match(reclaimed, /Claimed \*\*T003\*\*[^\n]*\n\n⚠️ Changes requested \([^)]+\):\nTitle is cut off on mobile/)
   await mcp("vibedoc_update_task", { taskId: "T003", status: "review" })
@@ -84,7 +84,7 @@ try {
   await mcp("vibedoc_update_task", { taskId: "T003", status: "todo" })
   await page.goto(`${BASE}/board`)
   const card = page.locator("[draggable=true]", { hasText: "Third" })
-  await card.dragTo(page.locator("div", { hasText: /^✅done/i }).last().locator("xpath=..").locator("div.min-h-\\[60px\\]"))
+  await card.dragTo(page.locator('[data-column="done"]'))
   for (let i = 0; i < 30 && !file("T003").includes("✅ Done"); i++) await page.waitForTimeout(100)
   assert.match(file("T003"), /\*\*Status:\*\* ✅ Done/)
   console.log("ok  no gate: a task drags straight to Done")
