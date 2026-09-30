@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     // Content edits must go through vibedoc_propose_edit so the user reviews a diff first; -p can't prompt for deletes.
     // Roadmap items go through vibedoc_propose_plan for the same reason (the planning skill otherwise creates them directly).
     '--disallowedTools', 'mcp__vibedoc__vibedoc_write_doc', 'mcp__vibedoc__vibedoc_append_doc', 'mcp__vibedoc__vibedoc_delete_doc',
-    'mcp__vibedoc__vibedoc_create_roadmap_item',
+    'mcp__vibedoc__vibedoc_create_roadmap_item', 'mcp__vibedoc__vibedoc_delete_entry',
     '--setting-sources', '',
     '--disable-slash-commands',
     '--append-system-prompt', SYSTEM_PROMPT,
