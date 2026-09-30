@@ -19,6 +19,7 @@ import { StatusMarker, attachHref } from "@/components/chat/StatusMarker"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import type { RoadmapItem } from "@/types"
 import { itemKeyLabel, useCurrentItemCommands } from "@/components/shared/item-commands"
+import { displayStatus } from "@/lib/statuses"
 
 const PAGES: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/chat", label: "Chats", icon: Bot },
@@ -125,7 +126,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
     if (q) {
       const tasks = board ? Object.values(board).flat() : []
       const items = [
-        ...tasks.map((t) => ({ id: t.id, title: t.title, lead: <StatusIcon status={t.status} />, href: attachHref({ kind: "task", id: t.id }) })),
+        ...tasks.map((t) => ({ id: t.id, title: t.title, lead: <StatusIcon status={displayStatus(t)} />, href: attachHref({ kind: "task", id: t.id }) })),
         ...epics.map((e) => ({ id: e.id, title: e.title, lead: icon(Map), href: attachHref({ kind: "epic", id: e.id }) })),
       ]
       // An id prefix ("T06", "r043") beats a fuzzy title hit; shortest (exact) id first

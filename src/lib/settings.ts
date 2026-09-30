@@ -1,3 +1,5 @@
+import type { StatusDef } from "./statuses"
+
 export interface AppSettings {
   theme: 'dark' | 'light' | 'system'
   accentColor: 'blue' | 'purple' | 'green' | 'orange'
@@ -19,6 +21,8 @@ export interface AppSettings {
   }
   /** Optional: calendar days per size for automatic due dates, e.g. { "S": 1, "M": 3 } (R055) */
   tasks?: { sizeDays?: Record<string, number> }
+  /** Optional: the project's task statuses in board order (R055); unset = the seven built-ins */
+  statuses?: StatusDef[]
 }
 
 export interface Skill {

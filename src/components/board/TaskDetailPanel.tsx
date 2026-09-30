@@ -10,7 +10,8 @@ import { TaskSessions } from "./TaskSessions"
 import Link from "next/link"
 import { Check, CornerUpLeft, FlaskConical, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { STATUS_META } from "@/components/shared/StatusIcon"
+import { useStatusDefs } from "@/components/shared/status-defs"
+import { displayStatus } from "@/lib/statuses"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { itemKeyLabel, useItemCommands } from "@/components/shared/item-commands"
 import { deleteTaskWithUndo, updateTask } from "./task-api"
@@ -63,6 +64,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
   const editing = !!task && editingId === task.id
   const [error, setError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const statusDefs = useStatusDefs()
   const chatAbout = () => { if (task) { onClose(); showAbout({ kind: "task", id: task.id }) } }
   useItemCommands(openTask && task && !editing ? `${task.id} · ${task.title}` : null, task ? [
     { action: "edit", label: "Edit", run: () => setEditingId(task.id) },
@@ -91,7 +93,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
             <div className="flex flex-col gap-1 min-w-0 pl-5 pr-12 py-4 border-b border-border shrink-0">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs text-muted">{task.id}</span>
-                <StatusChip status={task.status} />
+                <StatusChip status={displayStatus(task)} />
                 <OwnerChip owner={task.owner} />
                 <AgentMark attach={{ kind: "task", id: task.id }} />
                 <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -103,11 +105,11 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                   <DropdownMenuContent align="end" className="w-44">
                     <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> Edit<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
                     <DropdownMenuSub>
-                      <DropdownMenuSubTrigger><StatusIcon status={task.status} /> Status<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
+                      <DropdownMenuSubTrigger><StatusIcon status={displayStatus(task)} /> Status<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>
-                        {(Object.keys(STATUS_META) as Task["status"][]).map((s) => (
-                          <DropdownMenuItem key={s} disabled={s === task.status} onSelect={() => onMove(task.id, s)}>
-                            <StatusIcon status={s} /> {STATUS_META[s].label}
+                        {statusDefs.map((d) => (
+                          <DropdownMenuItem key={d.id} disabled={d.id === displayStatus(task)} onSelect={() => onMove(task.id, d.id)}>
+                            <StatusIcon status={d.id} /> {d.label}
                           </DropdownMenuItem>
                         ))}
                       </DropdownMenuSubContent>

@@ -1,5 +1,6 @@
 "use client"
 
+import { displayStatus } from "@/lib/statuses"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowRight, Check, CircleCheck, FlaskConical } from "lucide-react"
@@ -197,7 +198,7 @@ function TaskTests({ t, checkedOf, onToggle }: {
             {t.task.title}
           </Link>
           <span className="flex items-center gap-3">
-            <StatusChip status={t.task.status} />
+            <StatusChip status={displayStatus(t.task)} />
             <span className="font-mono text-[11px] text-muted tabular-nums">
               <span className="text-txt">{done}</span>/{total}
             </span>

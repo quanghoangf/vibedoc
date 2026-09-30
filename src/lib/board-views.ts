@@ -129,6 +129,9 @@ function deps(t: Task): string[] {
   return [...new Set((t.dependsOn.match(/\bT\d+\b/gi) ?? []).map((d) => d.toUpperCase()))]
 }
 
+/** The status a task shows under: its custom status, else its category (statuses.ts `displayStatus`, inlined). */
+const displayOf = (t: Task): string => t.customStatus ?? t.status
+
 /** "human" | "ai" | "none" (same rule as owner.ts `ownerKind`; inlined so node can run this file). */
 function ownerKindOf(t: Task): "human" | "ai" | "none" {
   return t.owner === "human" ? "human" : t.owner?.startsWith("ai:") ? "ai" : "none"
@@ -155,7 +158,7 @@ function matches(t: Task, r: FilterRule, ctx: ViewContext, byId: Map<string, Tas
   const oneOf = (v: string) => (r.op === "is" ? any(v) : r.op === "is-not" ? !any(v) : true)
   const flag = (set: boolean) => (r.op === "is-set" ? set : r.op === "not-set" ? !set : true)
   switch (r.prop) {
-    case "status": return oneOf(t.status)
+    case "status": return oneOf(displayOf(t))
     case "epic": return oneOf(epicOf(t.phase).id ?? "none")
     case "size": return oneOf(sizeOf(t) ?? "none")
     case "due":
@@ -214,12 +217,13 @@ function nullLast(a: Task, b: Task, prop: SortProp): boolean {
 
 // ─── Grouping ─────────────────────────────────────────────────────────────────
 
-export function groupTasks(tasks: Task[], by: GroupBy): TaskGroup[] {
+/** `statuses`: the project's statuses in order (R055); status groups follow it. Omitted = the built-in order. */
+export function groupTasks(tasks: Task[], by: GroupBy, statuses?: { id: string; label: string }[]): TaskGroup[] {
   if (!tasks.length) return []
   if (by === "none") return [{ key: "all", label: "All tasks", epicId: null, tasks }]
   const buckets = new Map<string, Task[]>()
   const keyOf = (t: Task) =>
-    by === "status" ? t.status : by === "size" ? sizeOf(t) ?? "none" : by === "owner" ? t.owner ?? "none" : epicOf(t.phase).id ?? "none"
+    by === "status" ? displayOf(t) : by === "size" ? sizeOf(t) ?? "none" : by === "owner" ? t.owner ?? "none" : epicOf(t.phase).id ?? "none"
   for (const t of tasks) {
     const k = keyOf(t)
     const list = buckets.get(k)
@@ -227,7 +231,10 @@ export function groupTasks(tasks: Task[], by: GroupBy): TaskGroup[] {
     else buckets.set(k, [t])
   }
   const group = (key: string, label: string, epicId: string | null = null): TaskGroup => ({ key, label, epicId, tasks: buckets.get(key) ?? [] })
-  if (by === "status") return STATUS_ORDER.filter((s) => buckets.has(s)).map((s) => group(s, STATUS_LABEL[s]))
+  if (by === "status") {
+    if (!statuses) return STATUS_ORDER.filter((s) => buckets.has(s)).map((s) => group(s, STATUS_LABEL[s]))
+    return statuses.filter((d) => buckets.has(d.id)).map((d) => group(d.id, d.label))
+  }
   if (by === "size") return [...SIZES, "none"].filter((s) => buckets.has(s)).map((s) => group(s, s === "none" ? "No size" : s))
   if (by === "owner") {
     // human, then each agent by name, then unowned

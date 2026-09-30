@@ -5,7 +5,9 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Task, TaskStatus } from "@/types"
 import { groupTasks, type PropertyKey, type TaskGroup, type ViewState } from "@/lib/board-views"
-import { StatusIcon, STATUS_META } from "@/components/shared/StatusIcon"
+import { StatusIcon, useStatusLabel } from "@/components/shared/StatusIcon"
+import { useStatusDefs } from "@/components/shared/status-defs"
+import { displayStatus } from "@/lib/statuses"
 import { TaskCard } from "../TaskCard"
 
 export interface ViewProps {
@@ -19,12 +21,11 @@ export interface ViewProps {
   onToggleSelect?: (ids: string[], on?: boolean) => void
 }
 
-type Column = "todo" | "in-progress" | "review" | "blocked" | "paused" | "done"
+/** A column is a status key: built-in or one of the project's own (R055). */
+type Column = string
 /** Review is optional: a task can wait there for a human, but nothing has to pass through it. */
-/** Paused and Done sit collapsed at the end until opened. */
-const COLUMNS: Column[] = ["todo", "in-progress", "review", "blocked", "paused", "done"]
-/** Mobile stacks sections by urgency instead. */
-const MOBILE_ORDER: Column[] = ["in-progress", "review", "todo", "blocked", "paused", "done"]
+/** Mobile stacks sections by urgency: by category in this order, then the project's order within one. */
+const URGENCY: TaskStatus[] = ["in-progress", "review", "todo", "blocked", "paused", "done"]
 /** Newest done IDs shown in the collapsed Done column. */
 const DONE_IDS = 5
 /** Fully done lanes shown before "+ N more … all done". */
@@ -44,10 +45,16 @@ const MARK: Record<TaskStatus, string> = {
 const isDone = (t: Task) => t.status === "done" || t.status === "cancelled"
 const newestFirst = (a: Task, b: Task) => b.id.localeCompare(a.id, undefined, { numeric: true })
 /** Cancelled tasks (shown only when a status filter names them) sit in Done, matching the lane tallies. */
-const inColumn = (tasks: Task[], col: Column) => tasks.filter((t) => (col === "done" ? isDone(t) : t.status === col))
+const inColumn = (tasks: Task[], col: Column) => tasks.filter((t) => displayStatus(t) === col || (col === "done" && t.status === "cancelled"))
 
 export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onToggleSelect }: ViewProps & { onMoveTask: (id: string, status: string) => void }) {
   const [doneOpen, setDoneOpen] = useState(false)
+  const defs = useStatusDefs()
+  const label = useStatusLabel()
+  // The project's statuses in its order; cancelled shows inside Done. Paused and Done sit collapsed until opened.
+  const COLUMNS: Column[] = defs.filter((d) => d.id !== "cancelled").map((d) => d.id)
+  const MOBILE_ORDER: Column[] = [...defs.filter((d) => d.id !== "cancelled")]
+    .sort((a, b) => URGENCY.indexOf(a.category) - URGENCY.indexOf(b.category)).map((d) => d.id)
   const [pausedOpen, setPausedOpen] = useState(false)
   const [laneOpen, setLaneOpen] = useState<Record<string, boolean>>({})
   const [showAllDoneLanes, setShowAllDoneLanes] = useState(false)
@@ -88,8 +95,8 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
     if (doneWide) { setDoneOpen(false); setLaneOpen((m) => Object.fromEntries(Object.entries(m).filter(([k]) => !doneLanes.some((l) => l.key === k)))) }
     else setDoneOpen(true)
   }
-  const narrow = (wide: boolean) => (wide ? "minmax(0,1fr)" : "140px")
-  const grid = { gridTemplateColumns: `repeat(4,minmax(0,1fr)) ${narrow(pausedOpen)} ${narrow(doneWide)}` }
+  const width = (col: Column) => ((col === "done" && !doneWide) || (col === "paused" && !pausedOpen) ? "140px" : "minmax(0,1fr)")
+  const grid = { gridTemplateColumns: COLUMNS.map(width).join(" ") }
 
   const cells = (list: Task[], compact: boolean) =>
     COLUMNS.map((col) => {
@@ -119,7 +126,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
             <DropCell key={col} status={col} onMoveTask={onMoveTask} header>
             <div className="flex min-w-0 items-center gap-1.5 px-0.5 pb-2 text-xs font-semibold text-txt">
               <StatusIcon status={col} />
-              <h2 className="truncate">{STATUS_META[col].label}</h2>
+              <h2 className="truncate">{label(col)}</h2>
               <span className="font-mono font-normal text-muted tabular-nums">{inColumn(tasks, col).length}</span>
               {(col === "done" || col === "paused") && (() => {
                 const wide = col === "done" ? doneWide : pausedOpen
@@ -130,7 +137,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
                       type="button"
                       onClick={col === "done" ? toggleDone : () => setPausedOpen((v) => !v)}
                       aria-expanded={wide}
-                      aria-label={`${wide ? "Collapse" : "Expand"} ${STATUS_META[col].label}`}
+                      aria-label={`${wide ? "Collapse" : "Expand"} ${label(col)}`}
                       className="-my-1 grid size-6 place-items-center rounded-md text-muted outline-hidden transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent/60"
                     >
                       <ChevronRight className={cn("size-3.5 transition-transform duration-(--duration-base) ease-out-soft", wide && "rotate-180")} aria-hidden />
@@ -202,10 +209,10 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
           if (!colTasks.length) return null
           const collapsed = (col === "done" && !doneOpen) || (col === "paused" && !pausedOpen)
           return (
-            <section key={col} aria-label={STATUS_META[col].label}>
+            <section key={col} aria-label={label(col)}>
               <h2 className="mt-3.5 mb-2 flex items-center gap-1.5 text-xs font-semibold text-txt">
                 <StatusIcon status={col} />
-                {STATUS_META[col].label}
+                {label(col)}
                 <span className="font-mono font-normal text-muted tabular-nums">{colTasks.length}</span>
                 <span className="h-px flex-1 bg-border" />
                 {(col === "done" || col === "paused") && (

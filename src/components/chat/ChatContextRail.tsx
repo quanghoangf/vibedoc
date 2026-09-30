@@ -1,5 +1,6 @@
 "use client"
 
+import { displayStatus } from "@/lib/statuses"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowUpRight, Link2Off } from "lucide-react"
@@ -138,7 +139,7 @@ function TaskRow({ task }: { task: Task }) {
         title={`Chat about ${task.id}`}
         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-(--duration-fast) hover:bg-surface2"
       >
-        <StatusIcon status={task.status} className="size-3" />
+        <StatusIcon status={displayStatus(task)} className="size-3" />
         <span className="shrink-0 font-mono text-[10px] text-muted">{task.id}</span>
         <span className={cn("min-w-0 flex-1 truncate", task.status === "done" ? "text-muted" : "text-txt")}>{task.title}</span>
       </button>
@@ -158,7 +159,7 @@ function TaskContext({ task, id, items }: { task?: Task; id: string; items: Road
         <p className={KICKER}>Task · {task.id}</p>
         <h3 className="text-base font-semibold leading-snug text-txt">{task.title}</h3>
         <div className="flex flex-wrap items-center gap-2">
-          <StatusChip status={task.status} />
+          <StatusChip status={displayStatus(task)} />
           {task.size && <span className="font-mono text-[10px] text-muted">{task.size}</span>}
           {task.due && <span className="font-mono text-[10px] text-muted">due {task.due}</span>}
         </div>

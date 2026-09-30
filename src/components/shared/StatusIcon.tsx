@@ -1,6 +1,8 @@
 import { Circle, CircleCheck, CircleDot, CirclePause, CircleSlash, CircleX, Eye, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { TaskStatus } from "@/types"
+import type { StatusColor } from "@/lib/statuses"
+import { statusDefIn, useStatusDefs } from "./status-defs"
 
 /** One look per task status, used everywhere a status is shown (the task files keep their emoji; the UI doesn't). */
 export const STATUS_META: Record<TaskStatus, { label: string; icon: LucideIcon; text: string; chip: string }> = {
@@ -13,15 +15,41 @@ export const STATUS_META: Record<TaskStatus, { label: string; icon: LucideIcon; 
   cancelled:     { label: "Cancelled",   icon: CircleX,     text: "text-muted",  chip: "border-border text-muted" },
 }
 
-export function StatusIcon({ status, className }: { status: TaskStatus; className?: string }) {
-  const meta = STATUS_META[status] ?? STATUS_META.todo
+/** Literal classes per palette color (Tailwind only generates classes it can see). */
+export const STATUS_COLOR_CLASS: Record<StatusColor, { text: string; chip: string; bg: string }> = {
+  gray:   { text: "text-muted",      chip: "border-border2 text-muted",                       bg: "bg-border2" },
+  amber:  { text: "text-amber",      chip: "border-amber/30 bg-amber/5 text-amber",           bg: "bg-amber" },
+  accent: { text: "text-accent",     chip: "border-accent/30 bg-accent/5 text-accent",        bg: "bg-accent" },
+  red:    { text: "text-danger",     chip: "border-danger/30 bg-danger/5 text-danger",        bg: "bg-danger" },
+  slate:  { text: "text-muted",      chip: "border-border2 bg-surface2 text-muted",           bg: "bg-muted/60" },
+  teal:   { text: "text-teal",       chip: "border-teal/30 bg-teal/5 text-teal",              bg: "bg-teal" },
+  blue:   { text: "text-blue-400",   chip: "border-blue-400/30 bg-blue-400/5 text-blue-400",  bg: "bg-blue-400" },
+  pink:   { text: "text-pink-400",   chip: "border-pink-400/30 bg-pink-400/5 text-pink-400",  bg: "bg-pink-400" },
+  green:  { text: "text-green-400",  chip: "border-green-400/30 bg-green-400/5 text-green-400", bg: "bg-green-400" },
+  orange: { text: "text-orange-400", chip: "border-orange-400/30 bg-orange-400/5 text-orange-400", bg: "bg-orange-400" },
+}
+
+/** Label, icon (from the category) and color classes for any status key, built-in or custom. */
+export function useStatusMeta(key: string) {
+  const def = statusDefIn(useStatusDefs(), key)
+  return { def, label: def.label, icon: STATUS_META[def.category].icon, ...STATUS_COLOR_CLASS[def.color] }
+}
+
+/** A status key's label (for strings: titles, aria labels). */
+export function useStatusLabel(): (key: string) => string {
+  const list = useStatusDefs()
+  return (key) => statusDefIn(list, key).label
+}
+
+export function StatusIcon({ status, className }: { status: string; className?: string }) {
+  const meta = useStatusMeta(status)
   const Icon = meta.icon
   return <Icon aria-label={meta.label} className={cn("size-3.5 shrink-0", meta.text, className)} />
 }
 
 /** Icon + label in a small bordered chip (task panel header, lists). */
-export function StatusChip({ status, className }: { status: TaskStatus; className?: string }) {
-  const meta = STATUS_META[status] ?? STATUS_META.todo
+export function StatusChip({ status, className }: { status: string; className?: string }) {
+  const meta = useStatusMeta(status)
   const Icon = meta.icon
   return (
     <span className={cn("inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] leading-none", meta.chip, className)}>

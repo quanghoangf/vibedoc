@@ -9,13 +9,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { STATUS_META, StatusIcon } from "@/components/shared/StatusIcon"
+import { StatusIcon } from "@/components/shared/StatusIcon"
+import { useStatusDefs } from "@/components/shared/status-defs"
 import { toast, undoToast } from "@/components/ui/toast"
 import { useApp } from "@/context/AppContext"
-import type { RoadmapItem, Task, TaskStatus } from "@/types"
+import type { RoadmapItem, Task } from "@/types"
 import { useItemCommands } from "@/components/shared/item-commands"
 
-const STATUSES = Object.keys(STATUS_META) as TaskStatus[]
 
 async function post<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
@@ -32,6 +32,7 @@ export function BulkBar({ ids, onClear }: { ids: string[]; onClear: () => void }
   const [epics, setEpics] = useState<RoadmapItem[]>([])
   const [busy, setBusy] = useState(false)
   const [statusOpen, setStatusOpen] = useState(false)
+  const defs = useStatusDefs()
 
   useEffect(() => {
     fetch(`/api/roadmap${rootParam}`)
@@ -79,9 +80,9 @@ export function BulkBar({ ids, onClear }: { ids: string[]; onClear: () => void }
           <button type="button" disabled={busy} className={pill}>Status <ChevronUp className="size-3.5 text-muted" /></button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" className="w-44">
-          {STATUSES.map((s) => (
-            <DropdownMenuItem key={s} onSelect={() => run({ status: s })}>
-              <StatusIcon status={s} /> {STATUS_META[s].label}
+          {defs.map((d) => (
+            <DropdownMenuItem key={d.id} onSelect={() => run({ status: d.id })}>
+              <StatusIcon status={d.id} /> {d.label}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

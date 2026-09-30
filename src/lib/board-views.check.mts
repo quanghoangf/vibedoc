@@ -152,4 +152,13 @@ assert.deepEqual(fromParams(new URLSearchParams('view=nope&g=bad&sc=year&f=zzz:i
   assert.deepEqual(back.filters, st.filters)
 }
 
+// custom statuses (R055): filter and group by the custom id, in the project's order
+{
+  const ts = [task('T1', { status: 'review', customStatus: 'qa' }), task('T2', { status: 'review' }), task('T3')]
+  assert.deepEqual(ids(applyView(ts, view({ filters: [{ prop: 'status', op: 'is', value: ['qa'] }] }), ctx)), ['T1'])
+  const order = [{ id: 'todo', label: 'Backlog' }, { id: 'qa', label: 'QA' }, { id: 'review', label: 'Review' }]
+  assert.deepEqual(groupTasks(ts, 'status', order).map((g) => [g.key, g.label]), [['todo', 'Backlog'], ['qa', 'QA'], ['review', 'Review']])
+  assert.deepEqual(groupTasks([task('T2', { status: 'review' })], 'status').map((g) => g.key), ['review'], 'no custom statuses: as before')
+}
+
 console.log('board-views: ok')

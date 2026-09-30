@@ -33,6 +33,7 @@ import {
   readMemory,
   updateMemory,
   noteDocEdit,
+  readProjectSettings,
   logSessionStart,
   readActivity,
   findBacklinks,
@@ -55,6 +56,7 @@ import {
 } from "@/lib/core";
 import type { TextEdit } from "@/lib/diff";
 import { agentFromUserAgent } from "@/lib/owner";
+import type { StatusDef } from "@/lib/statuses";
 import { planTarget, validatePlan, type Plan } from "@/lib/plan";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
@@ -992,6 +994,23 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
   }
 }
 
+function withProjectStatuses(statuses: StatusDef[]) {
+  const custom = statuses.filter((d) => d.id !== d.category);
+  if (!custom.length) return TOOLS;
+  return TOOLS.map((t) => {
+    if (t.name !== "vibedoc_update_task") return t;
+    return {
+      ...t,
+      description: t.description + " This project also has its own statuses: " +
+        custom.map((d) => `"${d.id}" (${d.label}, works like ${d.category})`).join(", ") + ".",
+      inputSchema: {
+        ...t.inputSchema,
+        properties: { ...t.inputSchema.properties, status: { type: "string", enum: statuses.map((d) => d.id) } },
+      },
+    };
+  });
+}
+
 export async function POST(req: NextRequest) {
   let body: JsonRpcRequest;
   try {
@@ -1011,9 +1030,10 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // tools/list
+  // tools/list: vibedoc_update_task's status enum follows the project's statuses (R055)
   if (method === "tools/list") {
-    return ok(id, { tools: TOOLS });
+    const root = req.nextUrl.searchParams.get("root") || getConfiguredRoot();
+    return ok(id, { tools: withProjectStatuses((await readProjectSettings(root)).statuses) });
   }
 
   // tools/call

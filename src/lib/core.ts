@@ -17,6 +17,7 @@ import { appendReviewEntry, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
 import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
+import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,6 +31,8 @@ export interface Task {
   size: string
   phase: string
   dependsOn: string
+  /** A project status (R055) this task is in; `status` then holds its category. Unset for built-ins. */
+  customStatus?: string
   /** `**Owner:**` "human" | "ai:<agent>", null when unset (R055) */
   owner: string | null
   /** Optional `**Due:** YYYY-MM-DD` (local calendar date, compare as string). */
@@ -106,29 +109,9 @@ export interface Project {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-export const STATUS_ICONS: Record<TaskStatus, string> = {
-  'todo': '📋',
-  'in-progress': '🔨',
-  'review': '👀',
-  'blocked': '🚫',
-  'paused': '⏸️',
-  'done': '✅',
-  'cancelled': '❌',
-}
-
-const STATUS_ALIASES: Record<string, TaskStatus> = {
-  ready: 'todo', planned: 'todo', 'not started': 'todo',
-  wip: 'in-progress', doing: 'in-progress', active: 'in-progress', start: 'in-progress', started: 'in-progress',
-  complete: 'done', completed: 'done', finished: 'done', finish: 'done',
-  block: 'blocked',
-  'on hold': 'paused', 'on-hold': 'paused', pause: 'paused', hold: 'paused',
-  'in review': 'review', reviewing: 'review', 'needs review': 'review',
-  cancel: 'cancelled', skip: 'cancelled',
-}
-
+/** Loose status text ("Ready", "🔨 In-progress", "on hold") → built-in category. Custom ids need the project's defs (resolveStatus). */
 export function normalizeStatus(raw: string): TaskStatus {
-  const s = raw.toLowerCase().trim().replace(/[📋🔨👀✅🚫❌⏸\uFE0F\s]+$/, '').trim()
-  return (STATUS_ALIASES[s] || s) as TaskStatus
+  return resolveStatus(raw).status
 }
 
 // ─── Project detection ────────────────────────────────────────────────────────
@@ -348,7 +331,7 @@ export async function searchDocs(query: string, root: string): Promise<SearchRes
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
 
-function parseTaskFile(filePath: string, content: string): Task {
+function parseTaskFile(filePath: string, content: string, defs: StatusDef[]): Task {
   const lines = content.split('\n')
   const filename = path.basename(filePath, '.md')
   const titleLine = lines.find(l => l.startsWith('# '))
@@ -361,17 +344,19 @@ function parseTaskFile(filePath: string, content: string): Task {
     if (m) meta[m[1].toLowerCase().trim()] = m[2].trim()
   }
 
-  const rawStatus = (meta['status'] || 'todo').replace(/[📋🔨👀✅🚫❌⏸\uFE0F]/g, '').trim()
-  const status = normalizeStatus(rawStatus)
+  const resolved = resolveStatus(meta['status'] || 'todo', defs)
+  if (resolved.unknown) console.warn(`[vibedoc] ${filePath}: unknown status "${meta['status']}", shown as todo`)
+  const { status, customStatus } = resolved
   const idM = filename.match(/^(T\d+)/i)
   const id = idM ? idM[1].toUpperCase() : filename.toUpperCase()
 
   const tests = parseManualTests(content)
   const manualTests = tests && { total: tests.total, done: tests.done }
-  return { id, title, status, size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, file: filePath, raw: content }
+  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, file: filePath, raw: content }
 }
 
 export async function listTasks(root: string): Promise<{ tasks: Task[]; board: TaskBoard }> {
+  const { statuses } = await readProjectSettings(root)
   let files = await glob('plans/tasks/T*.md', { cwd: root, nodir: true })
   if (files.length === 0) files = await glob('plans/T*.md', { cwd: root, nodir: true })
 
@@ -379,7 +364,7 @@ export async function listTasks(root: string): Promise<{ tasks: Task[]; board: T
   for (const f of files.sort()) {
     try {
       const content = await fs.readFile(path.join(root, f), 'utf8')
-      tasks.push(parseTaskFile(f, content))
+      tasks.push(parseTaskFile(f, content, statuses))
     } catch {}
   }
 
@@ -392,12 +377,13 @@ export async function listTasks(root: string): Promise<{ tasks: Task[]; board: T
 }
 
 export async function getTask(taskId: string, root: string): Promise<Task> {
+  const { statuses } = await readProjectSettings(root)
   const id = taskId.toUpperCase().startsWith('T') ? taskId.toUpperCase() : `T${taskId}`
   for (const pattern of [`plans/tasks/${id}*.md`, `plans/${id}*.md`]) {
     const matches = await glob(pattern, { cwd: root, nodir: true })
     if (matches.length > 0) {
       const content = await fs.readFile(path.join(root, matches[0]), 'utf8')
-      return parseTaskFile(matches[0], content)
+      return parseTaskFile(matches[0], content, statuses)
     }
   }
   throw new Error(`Task not found: ${taskId}`)
@@ -413,14 +399,14 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
   return current ?? 'human'
 }
 
-/** Days of work per size for automatic due dates: `tasks.sizeDays` in .vibedoc/settings.json over the defaults. */
-async function readSizeDays(root: string): Promise<SizeDays> {
-  try {
-    const s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8'))
-    return { ...DEFAULT_SIZE_DAYS, ...(s?.tasks?.sizeDays ?? {}) }
-  } catch {
-    return DEFAULT_SIZE_DAYS
-  }
+/**
+ * The task settings from .vibedoc/settings.json (R055): `tasks.sizeDays` over the defaults (automatic due dates)
+ * and `statuses` (custom statuses; the built-ins when unset).
+ */
+export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[] }> {
+  let s: { tasks?: { sizeDays?: SizeDays }; statuses?: unknown } | null = null
+  try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
+  return { sizeDays: { ...DEFAULT_SIZE_DAYS, ...(s?.tasks?.sizeDays ?? {}) }, statuses: statusDefs(s?.statuses) }
 }
 
 /** Replace-or-insert (or remove, for '' / null) one `**Label:**` line inside the head meta block. */
@@ -435,26 +421,31 @@ function withMetaLine(content: string, label: string, value: string | null): str
 }
 
 export async function updateTaskStatus(
-  taskId: string, newStatus: TaskStatus, root: string, actor: 'ai' | 'human' = 'human',
+  /** A built-in status, an alias, or one of the project's custom status ids */
+  taskId: string, statusKey: string, root: string, actor: 'ai' | 'human' = 'human',
   /** Set by a board move or an agent claim / update; drives the owner (see ownerAfterMove) */
   mover?: { actor: 'ai' | 'human'; agent?: string },
 ): Promise<{ task: Task; previousStatus: TaskStatus }> {
   const task = await getTask(taskId, root)
   const previousStatus = task.status
-  const icon = STATUS_ICONS[newStatus]
+  const { statuses, sizeDays } = await readProjectSettings(root)
+  const resolved = resolveStatus(statusKey, statuses)
+  if (resolved.unknown) throw new RoadmapError(`Unknown status "${statusKey}" (expected ${statuses.map(d => d.id).join(' | ')})`)
+  const newStatus = resolved.status
+  const line = statusLine(statusKey, statuses)
 
   let content = task.raw!
   const statusPattern = /(\*\*Status:\*\*\s*).+/
   if (statusPattern.test(content)) {
-    content = content.replace(statusPattern, `$1${icon} ${capitalize(newStatus)}`)
+    content = content.replace(statusPattern, `$1${line}`)
   } else {
-    content = content.replace(/^(#[^\n]+\n)/, `$1**Status:** ${icon} ${capitalize(newStatus)}\n`)
+    content = content.replace(/^(#[^\n]+\n)/, `$1**Status:** ${line}\n`)
   }
 
   const owner = ownerAfterMove(task.owner, newStatus, mover)
   if (owner !== task.owner) content = withMetaLine(content, 'Owner', owner)
 
-  const dates = datesOnMove(newStatus, { due: task.due, started: task.started, done: task.finished }, task.size, localToday(), await readSizeDays(root))
+  const dates = datesOnMove(newStatus, { due: task.due, started: task.started, done: task.finished }, task.size, localToday(), sizeDays)
   if (dates.due !== task.due) content = withMetaLine(content, 'Due', dates.due)
   if (dates.started !== task.started) content = withMetaLine(content, 'Started', dates.started)
   if (dates.done !== task.finished) content = withMetaLine(content, 'Done', dates.done)
@@ -470,7 +461,8 @@ export async function updateTaskStatus(
     taskStatus: newStatus,
   })
 
-  return { task: { ...task, status: newStatus, owner, due: dates.due, started: dates.started, finished: dates.done, raw: content }, previousStatus }
+  const { customStatus: _old, ...rest } = task
+  return { task: { ...rest, status: newStatus, ...(resolved.customStatus && { customStatus: resolved.customStatus }), owner, due: dates.due, started: dates.started, finished: dates.done, raw: content }, previousStatus }
 }
 
 /** Write (or replace) the task's `## Manual tests` checklist. `report` is a markdown checklist; plain lines become items. */
@@ -570,7 +562,7 @@ export async function setTaskEpic(taskId: string, epicId: string | null, root: s
   return updateTaskMeta(task.id, { phase: target ? `${target.id} — ${target.title}` : '' }, root, actor)
 }
 
-export type BulkTaskAction = { status: TaskStatus } | { epic: string | null } | { delete: true }
+export type BulkTaskAction = { status: string } | { epic: string | null } | { delete: true }
 
 /** One action over many tasks. Stops at the first failure; tasks before it keep the change. */
 export async function bulkTasks(
@@ -578,7 +570,7 @@ export async function bulkTasks(
 ): Promise<{ deleted: { task: Task; links: TaskLink[] }[] }> {
   const deleted: { task: Task; links: TaskLink[] }[] = []
   for (const id of ids) {
-    if ('status' in action) await updateTaskStatus(id, normalizeStatus(action.status), root, actor, { actor })
+    if ('status' in action) await updateTaskStatus(id, action.status, root, actor, { actor })
     else if ('epic' in action) await setTaskEpic(id, action.epic, root, actor)
     else if ('delete' in action) deleted.push(await deleteTask(id, root, actor))
   }
@@ -617,7 +609,7 @@ export async function saveManualTests(taskId: string, report: string, root: stri
   const task = await getTask(taskId, root)
   const content = setManualTests(task.raw ?? '', report, actor, new Date().toISOString().slice(0, 10))
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
-  return parseTaskFile(task.file, content)
+  return getTask(task.id, root)
 }
 
 /** The task isn't in the state an action needs (e.g. approving a task that isn't in review). Routes map it to 409. */
@@ -647,7 +639,7 @@ export async function setManualTestChecked(taskId: string, index: number, checke
   const task = await getTask(taskId, root)
   const content = toggleManualTest(task.raw ?? '', index, checked)
   if (content !== task.raw) await fs.writeFile(path.join(root, task.file), content, 'utf8')
-  return parseTaskFile(task.file, content)
+  return getTask(task.id, root)
 }
 
 // ponytail: in-process mutex so two agents never claim the same task; separate from the roadmap lock.
@@ -819,7 +811,6 @@ export function applyPlan(
   })
 }
 
-function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1) }
 
 // ─── Decisions (ADRs) ─────────────────────────────────────────────────────────
 

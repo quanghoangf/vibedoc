@@ -1,5 +1,7 @@
 "use client"
 
+import { resolveStatus, statusDefs } from "@/lib/statuses"
+import { getStatusDefs, setStatusDefs } from "@/components/shared/status-defs"
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { flushSync } from "react-dom"
 import { useRouter } from "next/navigation"
@@ -63,11 +65,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!r) return
     const rp = `?root=${encodeURIComponent(r)}`
     try {
-      const [sumRes, boardRes, actRes] = await Promise.all([
+      const [sumRes, boardRes, actRes, settingsRes] = await Promise.all([
         fetch(`/api/summary${rp}`).then((r) => r.json()),
         fetch(`/api/tasks${rp}`).then((r) => r.json()),
         fetch(`/api/activity${rp}&limit=30`).then((r) => r.json()),
+        fetch(`/api/settings${rp}&type=settings`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ])
+      setStatusDefs(statusDefs(settingsRes?.statuses))
       setSummary(sumRes)
       const rawBoard = boardRes?.board
       setBoard(rawBoard && typeof rawBoard === 'object' ? {
@@ -143,11 +147,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       for (const col of Object.keys(next) as (keyof TaskBoard)[]) {
         const idx = next[col].findIndex(t => t.id === taskId)
         if (idx !== -1) {
-          movedTask = { ...next[col][idx], status: status as Task["status"] }
+          movedTask = { ...next[col][idx] }
           next[col] = next[col].filter(t => t.id !== taskId)
         }
       }
-      const target = status as keyof TaskBoard
+      // A custom status lands in its category's bucket, remembering the custom id
+      const resolved = resolveStatus(status, getStatusDefs())
+      const target = resolved.status as keyof TaskBoard
+      if (movedTask) movedTask = { ...movedTask, status: resolved.status, customStatus: resolved.customStatus }
       // Insert in server order (core.listTasks sorts by file path) so refresh() doesn't reshuffle
       if (movedTask && next[target]) {
         next[target] = [...next[target], movedTask].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0))

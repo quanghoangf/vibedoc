@@ -4,8 +4,8 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronDown, ListFilter, Plus, Rows3, Search, SlidersHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { FilterProp, FilterRule, GroupBy, PropertyKey, SortProp, SortRule, ViewState } from "@/lib/board-views"
-import type { TaskStatus } from "@/types"
-import { STATUS_META, StatusIcon } from "@/components/shared/StatusIcon"
+import { StatusIcon, useStatusLabel } from "@/components/shared/StatusIcon"
+import { useStatusDefs } from "@/components/shared/status-defs"
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
@@ -36,7 +36,6 @@ const OPS: Record<FilterProp, Partial<Record<Op, string>>> = {
 }
 const LIST_PROPS: FilterProp[] = ["status", "epic", "size", "owner"]
 const OWNER_LABEL: Record<string, string> = { human: "Human", ai: "AI agent", none: "No owner" }
-const STATUSES = Object.keys(STATUS_META) as TaskStatus[]
 const SIZES = ["XS", "S", "M", "L", "XL"]
 
 const SORT_PROPS: { prop: SortProp; label: string }[] = [
@@ -336,8 +335,8 @@ export function ViewToolbar({
 
 // ── chips ─────────────────────────────────────────────────────────────────────
 
-function valueText(rule: FilterRule): { text: string; mono: boolean } {
-  if (rule.prop === "status") return { text: rule.value.map(v => STATUS_META[v as TaskStatus]?.label ?? v).join(", "), mono: false }
+function valueText(rule: FilterRule, label: (key: string) => string): { text: string; mono: boolean } {
+  if (rule.prop === "status") return { text: rule.value.map(label).join(", "), mono: false }
   if (rule.prop === "epic") return { text: rule.value.map(v => (v === "none" ? "No epic" : v)).join(", "), mono: !rule.value.includes("none") }
   if (rule.prop === "owner") return { text: rule.value.map(v => OWNER_LABEL[v] ?? v).join(", "), mono: false }
   return { text: rule.value.join(", "), mono: true }
@@ -350,7 +349,7 @@ function opText(rule: FilterRule): string {
 
 function FilterChip({ rule, onRemove }: { rule: FilterRule; onRemove: () => void }) {
   const hasValue = !(rule.op === "is-set" || rule.op === "not-set")
-  const v = valueText(rule)
+  const v = valueText(rule, useStatusLabel())
   const text = `${PROP_LABEL[rule.prop]} ${opText(rule)}${hasValue ? ` ${v.text}` : ""}`
   return (
     <span className="inline-flex h-6.5 max-w-full items-center gap-1.5 rounded-sm border border-border2 bg-surface pl-2.25 pr-1 text-xs text-txt">
@@ -483,9 +482,11 @@ function ValueControl({ rule, n, epics, onChange }: { rule: FilterRule; n: numbe
 
 function MultiSelect({ rule, n, epics, onChange }: { rule: FilterRule; n: number; epics: EpicOption[]; onChange: (v: string[]) => void }) {
   const [open, setOpen] = useState(false)
+  const defs = useStatusDefs()
+  const label = useStatusLabel()
   const options: { value: string; node: ReactNode }[] =
     rule.prop === "status"
-      ? STATUSES.map(s => ({ value: s, node: <><StatusIcon status={s} />{STATUS_META[s].label}</> }))
+      ? defs.map(d => ({ value: d.id, node: <><StatusIcon status={d.id} />{d.label}</> }))
       : rule.prop === "epic"
         ? [
             { value: "none", node: <span className="text-muted">No epic</span> },
@@ -497,7 +498,7 @@ function MultiSelect({ rule, n, epics, onChange }: { rule: FilterRule; n: number
   const first = rule.value[0]
   const summary =
     !first ? <span className="text-muted">Choose…</span>
-    : rule.prop === "status" ? <><StatusIcon status={first as TaskStatus} /><span className="truncate">{STATUS_META[first as TaskStatus]?.label ?? first}</span></>
+    : rule.prop === "status" ? <><StatusIcon status={first} /><span className="truncate">{label(first)}</span></>
     : rule.prop === "owner" ? <span className="truncate">{OWNER_LABEL[first] ?? first}</span>
     : rule.prop === "epic" && first !== "none" ? <><span className="font-mono text-[11px] text-muted">{first}</span><span className="truncate">{epics.find(e => e.id === first)?.title ?? ""}</span></>
     : <span className={cn("truncate", rule.prop === "size" && "font-mono")}>{first === "none" ? "No epic" : first}</span>

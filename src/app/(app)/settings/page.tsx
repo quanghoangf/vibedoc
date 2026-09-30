@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useApp } from "@/context/AppContext"
-import { Palette, Type, FolderCog, Plug, Zap, Bot, Settings } from "lucide-react"
+import { Palette, Type, FolderCog, Plug, Zap, Bot, Settings, Columns3 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeSettings } from "@/components/settings/ThemeSettings"
 import { EditorSettings } from "@/components/settings/EditorSettings"
@@ -10,6 +10,9 @@ import { ProjectSettings } from "@/components/settings/ProjectSettings"
 import { MCPSettings } from "@/components/settings/MCPSettings"
 import { SkillsSettings } from "@/components/settings/SkillsSettings"
 import { AgentsSettings } from "@/components/settings/AgentsSettings"
+import { StatusesSettings } from "@/components/settings/StatusesSettings"
+import { setStatusDefs } from "@/components/shared/status-defs"
+import { statusDefs } from "@/lib/statuses"
 import type { AppSettings, Skill, Agent } from "@/lib/settings"
 import { DEFAULT_SETTINGS, DEFAULT_SKILLS, DEFAULT_AGENTS } from "@/lib/settings"
 import { applyTheme, applyAccent, applyFontSize, applyFonts } from "@/lib/applySettings"
@@ -18,6 +21,7 @@ const TABS = [
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "editor", label: "Editor", icon: Type },
   { id: "project", label: "Project", icon: FolderCog },
+  { id: "statuses", label: "Statuses", icon: Columns3 },
   { id: "mcp", label: "MCP", icon: Plug },
   { id: "skills", label: "Skills", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
@@ -62,6 +66,7 @@ export default function SettingsPage() {
       applyFonts(newSettings)
       setEditorSettings(newSettings.editor)
       setAutoRefreshSeconds(newSettings.project?.autoRefresh ?? 0)
+      setStatusDefs(statusDefs(newSettings.statuses))
     } catch {}
     setSaving(false)
   }
@@ -149,6 +154,9 @@ export default function SettingsPage() {
           )}
           {activeTab === "project" && (
             <ProjectSettings settings={settings} onSave={saveSettings} />
+          )}
+          {activeTab === "statuses" && (
+            <StatusesSettings settings={settings} onSave={saveSettings} />
           )}
           {activeTab === "mcp" && (
             <MCPSettings settings={settings} onSave={saveSettings} />

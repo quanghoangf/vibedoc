@@ -3,7 +3,9 @@
 import { useState, type MouseEvent } from "react"
 import { ArrowDown, ArrowUp, Bot, ChevronRight, FlaskConical } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { STATUS_META, StatusIcon } from "@/components/shared/StatusIcon"
+import { StatusIcon, useStatusLabel } from "@/components/shared/StatusIcon"
+import { useStatusDefs } from "@/components/shared/status-defs"
+import { displayStatus } from "@/lib/statuses"
 import { localToday } from "@/lib/roadmap-health"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { epicOf, groupTasks, sizeOf, type PropertyKey, type SortProp, type SortRule, type TaskGroup, type ViewState } from "@/lib/board-views"
@@ -49,9 +51,11 @@ export function nextSorts(sorts: SortRule[], prop: SortProp, additive: boolean):
 }
 
 export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, selected = new Set(), onToggleSelect }: TableViewProps) {
+  const defs = useStatusDefs()
+  const label = useStatusLabel()
   const props = ORDER.filter((p) => state.properties.includes(p))
   const groups: TaskGroup[] =
-    state.group === "none" ? [{ key: "all", label: "All tasks", epicId: null, tasks }] : groupTasks(tasks, state.group)
+    state.group === "none" ? [{ key: "all", label: "All tasks", epicId: null, tasks }] : groupTasks(tasks, state.group, defs)
   // Groups whose tasks are all done start collapsed; the user's toggles override.
   const [toggled, setToggled] = useState<Record<string, boolean>>({})
   const today = localToday()
@@ -113,8 +117,8 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
         return (
           <td key={p} className={cls}>
             <span className="flex items-center gap-1.5 text-xs">
-              <StatusIcon status={task.status} />
-              <span className="truncate">{STATUS_META[task.status]?.label ?? task.status}</span>
+              <StatusIcon status={displayStatus(task)} />
+              <span className="truncate">{label(displayStatus(task))}</span>
             </span>
           </td>
         )
