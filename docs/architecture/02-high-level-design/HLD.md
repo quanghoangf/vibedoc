@@ -1,5 +1,5 @@
 # High-Level Design
-**Last updated:** 2026-09-28
+**Last updated:** 2026-09-30
 
 ## Request flows
 
@@ -61,7 +61,7 @@ sequenceDiagram
     MCP->>SSE: emitUpdate("session_start")
     SSE->>Browser: session_start event
     Note over Browser: Activity tab shows<br/>"🤖 Session started"
-    MCP-->>AI: MEMORY.md content
+    MCP-->>AI: MEMORY.md content + knowledge entry index
 
     Note over AI: Ideal workflow:
     AI->>MCP: 1. vibedoc_read_memory
@@ -73,7 +73,9 @@ sequenceDiagram
     Note over AI: ... does work ...
     AI->>MCP: 4. vibedoc_update_task T003 done
     Note over AI: repeat 3–4 until "finished" or "nothing ready"
-    AI->>MCP: 5. vibedoc_update_memory
+    AI->>MCP: 5. vibedoc_save_entry
+    Note over AI: facts that outlast the session → memory/entries/E*.md
+    AI->>MCP: 6. vibedoc_update_memory
     Note over AI: write handoff for next session
 ```
 
@@ -85,6 +87,7 @@ The only file that touches the file system. Every read/write goes through here.
 - `listDocs()` / `readDoc()` / `searchDocs()` — doc operations
 - `listTasks()` / `getTask()` / `updateTaskStatus()` — task operations
 - `readMemory()` / `updateMemory()` — session memory
+- `listEntries()` / `getEntry()` / `saveEntry()` / `deleteEntry()` — knowledge entries (`memory/entries/E*.md`, pure parsing in `src/lib/entries.ts`)
 - `logDecision()` — ADR creation
 - `readActivity()` / `appendActivity()` — activity log
 - `getProjectSummary()` — combined status (used by dashboard)

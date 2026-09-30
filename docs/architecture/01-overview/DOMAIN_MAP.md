@@ -1,5 +1,5 @@
 # Domain Map
-**Last updated:** 2025-02-28
+**Last updated:** 2026-09-30
 
 ## Bounded contexts
 
@@ -32,6 +32,7 @@ graph TB
 | Tasks | Target project | `plans/tasks/T*.md` | Markdown with frontmatter-style `**Key:** Value` |
 | Docs | Target project | `docs/**/*.md` | Markdown |
 | Memory | Target project | `memory/MEMORY.md` | Markdown |
+| Knowledge entries | Target project | `memory/entries/E*.md` | One fact per file: `# E001: summary` + `**Type:**` / `**Updated:**` block |
 | ADRs | Target project | `docs/architecture/decisions/ADR-*.md` | Markdown |
 | Activity log | Target project | `.vibedoc-activity.json` | JSON array (2000 events max) |
 | Agent chats | Target project | `.vibedoc/chats/<id>.json` | One JSON file per chat (messages, Claude session id, attached epic/task) |

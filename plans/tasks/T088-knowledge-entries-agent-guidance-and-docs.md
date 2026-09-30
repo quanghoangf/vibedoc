@@ -1,8 +1,12 @@
 # T088: Agent guidance + docs for knowledge entries
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R046 — Project knowledge entries
 **Size:** S (~1 hr)
 **Depends on:** T087
+**Owner:** ai:claude-code
+**Due:** 2026-10-01
+**Started:** 2026-09-30
+**Done:** 2026-09-30
 
 ## Goal
 Agents know when to save an entry and when to write the handoff, and the docs describe entries. Without this, agents keep putting durable facts into the handoff and the epic changes nothing in practice.
@@ -47,3 +51,13 @@ pnpm build && pnpm lint   # no new lint errors beyond the 16 pre-existing react-
 curl -s localhost:3000/api/mcp -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | grep -o 'vibedoc_save_entry[^"]*' | head
 grep -rln "vibedoc_save_entry" docs README.md CLAUDE.md src/components
 ```
+
+## Manual tests
+_2026-09-30 — ai_
+### Steps
+- [ ] Open /memory → the "Add to your CLAUDE.md" box now has a line telling agents to call vibedoc_save_entry for facts that should still hold next week
+- [ ] Open Settings → Skills and edit a skill → the tool list offers vibedoc_save_entry and vibedoc_delete_entry
+- [ ] Ask an agent in the chat to "remember that we use pnpm" → it calls vibedoc_save_entry, not vibedoc_update_memory
+- [ ] Open README.md → the MCP tools table lists vibedoc_save_entry and vibedoc_delete_entry, and says 32 tools
+### Regression risk
+- [ ] Saving a skill in Settings → Skills with the old tools still works and keeps its selected tools

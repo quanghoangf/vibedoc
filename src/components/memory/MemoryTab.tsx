@@ -34,6 +34,9 @@ export function MemoryTab({ memory }: MemoryTabProps) {
 1. Call vibedoc_read_memory
 2. Call vibedoc_get_status
 
+When you learn a fact that should still hold next week:
+- Call vibedoc_save_entry (convention, gotcha, decision, preference)
+
 At session end:
 - Call vibedoc_update_memory with full handoff`}</pre>
       </div>

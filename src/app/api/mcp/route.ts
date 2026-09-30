@@ -265,7 +265,7 @@ const TOOLS = [
   {
     name: "vibedoc_update_memory",
     description:
-      "Update MEMORY.md with session summary. Call at END of every session.",
+      "Update MEMORY.md with session summary. Call at END of every session. Durable facts (conventions, gotchas, decisions, preferences) go to vibedoc_save_entry, not the handoff.",
     inputSchema: {
       type: "object",
       properties: {
