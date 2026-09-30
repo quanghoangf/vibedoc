@@ -45,6 +45,10 @@ export function itemActionForKey(key: string): ItemAction | undefined {
   return (Object.keys(ITEM_KEYS) as ItemAction[]).find((a) => ITEM_KEYS[a].key === key)
 }
 
+/** ⌘\ (Ctrl+\) on /docs: hide or show the docs list. Works inside the editor too, like a focus mode. */
+export const DOCS_LIST_KEY = { key: "\\", label: "⌘\\" } as const
+export const TOGGLE_DOCS_LIST_EVENT = "vibedoc:toggle-docs-list"
+
 /** Everything else the help sheet lists, after the page jumps, grouped by `section`. */
 export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "Open" | "Board" | "Open item" | "Editing & other" }[] = [
   { key: "⌘K", label: "Command palette", section: "Open" },
@@ -57,6 +61,7 @@ export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "O
   { key: "⇧-click", label: "Select tasks (bulk actions)", section: "Board" },
   ...Object.values(ITEM_KEYS).map(({ label, help }) => ({ key: label, label: help, section: "Open item" as const })),
   { key: "/", label: "Focus search (docs, board)", section: "Editing & other" },
+  { key: DOCS_LIST_KEY.label, label: "Hide / show the docs list", section: "Editing & other" },
   { key: "⌘B", label: "Toggle sidebar", section: "Editing & other" },
   { key: "?", label: "Toggle this help", section: "Editing & other" },
   { key: "Esc", label: "Close panel / modal", section: "Editing & other" },

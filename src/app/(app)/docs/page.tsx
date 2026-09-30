@@ -50,7 +50,7 @@ export default function DocsPage() {
       data.results?.map((r: { file: string }) => ({
         path: r.file,
         section: "search",
-        name: r.file,
+        name: r.file.split("/").pop()?.replace(/\.md$/, "") ?? r.file,
       })) || [],
     )
   }, [rootParam, fetchDocs])

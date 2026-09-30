@@ -54,7 +54,7 @@ function ToolBtn({ icon, label, onClick }: ToolBtnProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClick}>
+        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClick} aria-label={label}>
           {icon}
         </Button>
       </TooltipTrigger>
@@ -92,7 +92,7 @@ export function EditorToolbar({ editorView }: EditorToolbarProps) {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex items-center gap-0.5 px-2 py-1 border-b border-border bg-surface shrink-0">
+      <div className="flex items-center gap-0.5 overflow-x-auto px-2 py-1 border-b border-border bg-surface shrink-0">
         <ToolBtn icon={<Bold className="h-3.5 w-3.5" />} label="Bold" onClick={bold} />
         <ToolBtn icon={<Italic className="h-3.5 w-3.5" />} label="Italic" onClick={italic} />
         <ToolBtn icon={<Strikethrough className="h-3.5 w-3.5" />} label="Strikethrough" onClick={strike} />

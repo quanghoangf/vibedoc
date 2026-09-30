@@ -54,11 +54,36 @@ function sanitize(html: string): string {
 interface MarkdownRendererProps {
   content: string
   className?: string
+  /** ms timestamp of the last agent edit; top-level blocks that change within HIGHLIGHT_WINDOW of it get marked */
+  highlightSince?: number
 }
 
-export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+// The agent's edit lands a moment after its SSE event (span apply or a fetch of the whole file)
+const HIGHLIGHT_WINDOW = 3000
+
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className, highlightSince = 0 }: MarkdownRendererProps) {
   const html = sanitize(marked.parse(content) as string)
   const containerRef = useRef<HTMLDivElement>(null)
+  const prevBlocksRef = useRef<string[] | null>(null)
+
+  // Mark blocks that weren't in the previous render (multiset match, so moved or duplicated blocks don't count).
+  // Runs before mermaid replaces its divs, so both renders are compared as raw markup.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    const blocks = Array.from(container.children)
+    const sigs = blocks.map((b) => b.outerHTML)
+    const prev = prevBlocksRef.current
+    prevBlocksRef.current = sigs
+    if (!prev || Date.now() - highlightSince > HIGHLIGHT_WINDOW) return
+    const pool = new Map<string, number>()
+    for (const s of prev) pool.set(s, (pool.get(s) ?? 0) + 1)
+    blocks.forEach((b, i) => {
+      const left = pool.get(sigs[i]) ?? 0
+      if (left > 0) pool.set(sigs[i], left - 1)
+      else b.classList.add("doc-block-changed")
+    })
+  }, [html, highlightSince])
 
   useEffect(() => {
     const container = containerRef.current
@@ -76,7 +101,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
           container.querySelectorAll<HTMLElement>(".mermaid:not([data-processed])")
         )
         if (nodes.length === 0) return
-        m.default.initialize({ startOnLoad: false, theme: "dark", darkMode: true, securityLevel: "antiscript" })
+        const dark = document.documentElement.classList.contains("dark")
+        m.default.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", darkMode: dark, securityLevel: "antiscript" })
         // Do NOT suppress errors — suppressing causes mermaid to silently revert
         // the diagram element back to showing raw source text on parse failure.
         m.default.run({ nodes }).catch((e) => { console.error("[mermaid]", e) })

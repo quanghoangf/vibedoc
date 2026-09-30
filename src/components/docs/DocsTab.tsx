@@ -1,12 +1,15 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import type { DocFile, SelectedDoc } from "@/types"
-import { extractHeadings } from "@/lib/headings"
 import { DocList } from "./DocList"
 import { DocViewer } from "./DocViewer"
-import { DocOutline } from "./DocOutline"
 import type { DocActions } from "./DocActionsMenu"
+import { cn } from "@/lib/utils"
+import { DOCS_LIST_KEY, TOGGLE_DOCS_LIST_EVENT } from "@/lib/shortcuts"
+
+// ponytail: module-level like DocList's width — survives page navigation, resets on reload (no localStorage)
+let lastListCollapsed = false
 
 interface DocsTabProps {
   docs: DocFile[]
@@ -25,11 +28,25 @@ interface DocsTabProps {
 export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSelect, onDirtyChange, onNewDocClick, onDocDeleted, onDocRenamed, rootParam, docActions }: DocsTabProps) {
   const [liveContent, setLiveContent] = useState(selectedDoc?.content ?? "")
   useEffect(() => { setLiveContent(selectedDoc?.content ?? "") }, [selectedDoc?.path])
-  const headings = useMemo(() => extractHeadings(liveContent), [liveContent])
+  const [listCollapsed, setListCollapsed] = useState(lastListCollapsed)
+
+  useEffect(() => {
+    const toggle = () => { lastListCollapsed = !lastListCollapsed; setListCollapsed(lastListCollapsed) }
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key === DOCS_LIST_KEY.key) { e.preventDefault(); toggle() }
+    }
+    window.addEventListener("keydown", onKey)
+    window.addEventListener(TOGGLE_DOCS_LIST_EVENT, toggle)
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener(TOGGLE_DOCS_LIST_EVENT, toggle) }
+  }, [])
+  // With no doc open the list is the page, so it never hides
+  const hideList = listCollapsed && !!selectedDoc
 
   return (
     <div className="flex h-full relative" style={{ minHeight: "calc(100vh - 3rem)" }}>
       <DocList
+        className={selectedDoc ? "max-md:hidden" : undefined}
+        collapsed={hideList}
         docs={docs}
         selectedDocPath={selectedDoc?.path}
         searchValue={docSearch}
@@ -39,10 +56,19 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
         rootParam={rootParam}
         docActions={docActions}
       />
-      <div className="flex-1 overflow-y-auto">
-        <DocViewer doc={selectedDoc} onDirtyChange={onDirtyChange} onContentChange={setLiveContent} docActions={docActions} />
+      <div className={cn("flex-1 min-w-0 overflow-y-auto", !selectedDoc && "max-md:hidden")}>
+        <DocViewer
+          doc={selectedDoc}
+          onDirtyChange={onDirtyChange}
+          onContentChange={setLiveContent}
+          docActions={docActions}
+          content={liveContent}
+          docCount={docSearch.trim() ? undefined : docs.length}
+          onNewDocClick={onNewDocClick}
+          listCollapsed={hideList}
+          onToggleList={() => window.dispatchEvent(new Event(TOGGLE_DOCS_LIST_EVENT))}
+        />
       </div>
-      {selectedDoc && <DocOutline headings={headings} />}
     </div>
   )
 }
