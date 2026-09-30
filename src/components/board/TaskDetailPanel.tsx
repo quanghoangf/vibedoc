@@ -5,16 +5,16 @@ import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import type { Task } from "@/types"
-import { StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
+import { StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
 import Link from "next/link"
 import { Check, CornerUpLeft, FlaskConical, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
-import { OwnerChip } from "@/components/shared/OwnerChip"
 import { ItemPanelHeader, type ItemProperty } from "@/components/shared/ItemPanelHeader"
-import { epicOf, sizeOf } from "@/lib/board-views"
+import { TaskDueField, TaskOwnerField, TaskSizeField, TaskStatusField } from "./TaskFields"
+import { epicOf } from "@/lib/board-views"
 import { localToday, dueState } from "@/lib/roadmap-health"
 import { DueChip } from "@/components/roadmap/RoadmapNodes"
 import { itemKeyLabel, useItemCommands } from "@/components/shared/item-commands"
@@ -199,10 +199,10 @@ function bodyOf(raw: string): string {
 function taskProperties(task: Task): ItemProperty[] {
   const epic = task.phase && task.phase !== "—" ? epicOf(task.phase) : null
   return [
-    { label: "Status", value: <StatusChip status={displayStatus(task)} /> },
-    { label: "Owner", value: task.owner ? <OwnerChip owner={task.owner} className="text-xs" /> : <span className="text-muted">—</span> },
-    { label: "Due", value: task.due ? <DueChip due={task.due} state={dueState(task.due, task.status === "done" ? "done" : "planned", localToday())} /> : null },
-    { label: "Size", value: sizeOf(task) && <span className="font-mono">{sizeOf(task)}</span> },
+    { label: "Status", value: <TaskStatusField task={task} chip /> },
+    { label: "Owner", value: <TaskOwnerField task={task} /> },
+    { label: "Due", value: <TaskDueField task={task}>{task.due ? <DueChip due={task.due} state={dueState(task.due, task.status === "done" ? "done" : "planned", localToday())} /> : <span className="text-muted">—</span>}</TaskDueField> },
+    { label: "Size", value: <TaskSizeField task={task} /> },
     { label: "Epic", value: epic && <span className="flex min-w-0 items-center gap-1.5">{epic.id && <span className="font-mono text-[11px] text-muted">{epic.id}</span>}<span className="truncate">{epic.title}</span></span> },
   ]
 }

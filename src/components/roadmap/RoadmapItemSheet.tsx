@@ -17,7 +17,9 @@ import { ItemActionsMenu, type ItemActions } from "./ItemActionsMenu"
 import { useItemCommands } from "@/components/shared/item-commands"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
-import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
+import { InlineDate, InlineSelect } from "@/components/shared/InlineProperty"
+import { toast } from "@/components/ui/toast"
+import { DueChip, STATUS_LABEL, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
 import type { RoadmapItem, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 
 const STATUSES: RoadmapStatus[] = ["planned", "in-progress", "paused", "done"]
@@ -62,7 +64,7 @@ function ItemPanel(props: RoadmapItemSheetProps & { item: RoadmapItem }) {
 }
 
 /** Read-first view: where it sits, how far along, what's next, and the brief. */
-function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tasksById, progressById, onEdit, actions }: RoadmapItemSheetProps & { item: RoadmapItem; onEdit: () => void }) {
+function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tasksById, progressById, onEdit, actions, onSave }: RoadmapItemSheetProps & { item: RoadmapItem; onEdit: () => void }) {
   const isHorizon = item.parent === null
   const parent = items.find((i) => i.id === item.parent)
   const epics = items.filter((i) => i.parent === item.id).sort((a, b) => a.order - b.order)
@@ -72,6 +74,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
   const chat = isHorizon ? undefined : chatFor(chats, { kind: "epic", id: item.id })
   const offerBreakdown = !isHorizon && item.tasks.length === 0 && !chat
   const [menuOpen, setMenuOpen] = useState(false)
+  const save = (patch: UpdateRoadmapItemPatch) => { onSave(item.id, patch).then((err) => { if (err) toast(err) }) }
   useItemCommands(`${item.id} · ${item.title}`, [
     { action: "edit", label: "Edit", run: onEdit },
     { action: "status", label: "Change status…", run: () => setMenuOpen(true) },
@@ -101,9 +104,36 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
         title={<SheetTitle className="text-xl font-semibold leading-tight text-txt">{item.title}</SheetTitle>}
         menu={<ItemActionsMenu item={item} items={items} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} />}
         properties={[
-          { label: "Status", value: <StatusPill status={item.status} /> },
-          { label: "Owner", value: item.owner ? <OwnerChip owner={item.owner} className="text-xs" /> : <span className="text-muted">—</span> },
-          { label: "Due", value: item.due && <DueChip due={item.due} state={dueState(item.due, item.status, today)} /> },
+          {
+            label: "Status",
+            value: (
+              <InlineSelect label={`Status of ${item.id}`} value={item.status} onChange={(v) => actions.setStatus(item.id, v as RoadmapStatus)}
+                options={STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s], node: <><StatusDot status={s} />{STATUS_LABEL[s]}</> }))}>
+                <StatusPill status={item.status} />
+              </InlineSelect>
+            ),
+          },
+          {
+            label: "Owner",
+            value: (
+              <InlineSelect label={`Owner of ${item.id}`} value={item.owner ?? ""} onChange={(v) => save({ owner: v || null })}
+                options={[
+                  { value: "human", label: "Human", node: <OwnerChip owner="human" className="text-xs" /> },
+                  ...[...new Set(["ai:claude", ...(item.owner?.startsWith("ai:") ? [item.owner] : [])])].map((a) => ({ value: a, label: a, node: <OwnerChip owner={a} className="text-xs" /> })),
+                  { value: "", label: "No owner", node: <span className="text-muted">No owner</span> },
+                ]}>
+                {item.owner ? <OwnerChip owner={item.owner} className="text-xs" /> : <span className="text-muted">—</span>}
+              </InlineSelect>
+            ),
+          },
+          {
+            label: "Due",
+            value: (
+              <InlineDate label={`Due date of ${item.id}`} value={item.due} onChange={(v) => save({ due: v })}>
+                {item.due ? <DueChip due={item.due} state={dueState(item.due, item.status, today)} /> : <span className="text-muted">—</span>}
+              </InlineDate>
+            ),
+          },
           { label: isHorizon ? "Epics" : "Tasks", value: <span className="font-mono">{isHorizon ? epics.length : item.tasks.length}</span> },
         ]}
       >

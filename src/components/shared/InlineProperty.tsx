@@ -1,0 +1,91 @@
+"use client"
+
+import { useState, type ReactNode } from "react"
+import { Check } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { cn } from "@/lib/utils"
+
+// Edit one property where it is shown (R055). Clicks and keys are stopped so a card or row underneath
+// doesn't open or drag. Keyboard: the menu takes arrows + Enter, Esc cancels; the date takes Enter / Esc.
+
+const stop = (e: React.SyntheticEvent) => e.stopPropagation()
+const trigger = "inline-flex min-w-0 items-center gap-1 rounded-sm px-1 -mx-1 text-left outline-hidden hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent/60"
+
+export interface InlineOption { value: string; label: string; node?: ReactNode }
+
+/** The shown value opens a menu of options; picking one calls onChange (the menu closes). */
+export function InlineSelect({ label, value, options, onChange, children, className }: {
+  /** What is being edited, for screen readers ("Status of T001") */
+  label: string
+  value: string
+  options: InlineOption[]
+  onChange: (value: string) => void
+  children: ReactNode
+  className?: string
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" aria-label={label} draggable={false} onClick={stop} onKeyDown={stop} onPointerDown={stop} className={cn(trigger, className)}>
+          {children}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-72 w-48 overflow-y-auto" onClick={stop} onKeyDown={stop}>
+        {options.map((o) => (
+          <DropdownMenuItem key={o.value} onSelect={() => { if (o.value !== value) onChange(o.value) }}>
+            {o.node ?? o.label}
+            {o.value === value && <Check className="ml-auto size-3.5 text-muted" aria-hidden />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/** The shown date turns into a date input: Enter saves, Esc cancels, leaving the field saves a change. */
+export function InlineDate({ label, value, onChange, children, className }: {
+  label: string
+  value: string | null
+  onChange: (value: string | null) => void
+  children: ReactNode
+  className?: string
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value ?? "")
+  const commit = () => {
+    setEditing(false)
+    if ((draft || null) !== value) onChange(draft || null)
+  }
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        draggable={false}
+        onClick={(e) => { stop(e); setDraft(value ?? ""); setEditing(true) }}
+        onKeyDown={stop}
+        className={cn(trigger, className)}
+      >
+        {children}
+      </button>
+    )
+  }
+  return (
+    <input
+      type="date"
+      autoFocus
+      aria-label={label}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onClick={stop}
+      onPointerDown={stop}
+      onKeyDown={(e) => {
+        stop(e)
+        if (e.key === "Enter") { e.preventDefault(); commit() }
+        if (e.key === "Escape") { e.preventDefault(); setEditing(false) }
+      }}
+      onBlur={commit}
+      className="h-6 rounded-sm border border-accent/60 bg-bg px-1 font-mono text-[11px] text-txt scheme-light outline-hidden dark:scheme-dark"
+    />
+  )
+}

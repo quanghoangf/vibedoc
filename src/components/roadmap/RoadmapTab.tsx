@@ -339,8 +339,10 @@ export function RoadmapTab() {
   }
 
   async function saveItem(id: string, patch: UpdateRoadmapItemPatch): Promise<string | null> {
+    // Optimistic: the patch's fields are the item's fields; a failed write reloads the files
+    applyData(items.map((i) => (i.id === id ? { ...i, ...patch } as RoadmapItem : i)), layout)
     const { data, error: err } = await api<{ item: RoadmapItem }>(`/api/roadmap/update${rootParam}`, { id, patch })
-    if (err) return err
+    if (err) { await load(); return err }
     const updated = data?.item
     if (updated) applyData(items.map((i) => (i.id === id ? updated : i)), layout)
     else await load()

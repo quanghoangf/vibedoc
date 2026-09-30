@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useApp } from "@/context/AppContext"
 import { deleteTaskWithUndo } from "./task-api"
 import { OwnerChip } from "@/components/shared/OwnerChip"
+import { TaskDueField, TaskOwnerField, TaskSizeField } from "./TaskFields"
 import { toast } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/types"
@@ -68,10 +69,12 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
       <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted">
         <span>{task.id}</span>
         {show("agent") && <AgentDot attach={{ kind: "task", id: task.id }} />}
-        {show("owner") && <OwnerChip owner={task.owner} className="text-[10px] [&_svg]:size-3" />}
+        {show("owner") && task.owner && (
+          <TaskOwnerField task={task}><OwnerChip owner={task.owner} className="text-[10px] [&_svg]:size-3" /></TaskOwnerField>
+        )}
         <span className="flex-1" />
-        {show("due") && task.due && !done && <span title="Due">{task.due.slice(5)}</span>}
-        {size && <span title={task.size} className="rounded-sm bg-surface2 px-1 text-[10px]">{size}</span>}
+        {show("due") && task.due && !done && <TaskDueField task={task}><span title="Due">{task.due.slice(5)}</span></TaskDueField>}
+        {size && <TaskSizeField task={task}><span title={task.size} className="rounded-sm bg-surface2 px-1 text-[10px]">{size}</span></TaskSizeField>}
         <CardMenu task={task} onOpen={onOpen} />
       </div>
 

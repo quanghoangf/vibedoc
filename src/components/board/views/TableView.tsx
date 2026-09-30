@@ -3,12 +3,10 @@
 import { useState, type MouseEvent } from "react"
 import { ArrowDown, ArrowUp, Bot, ChevronRight, FlaskConical } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { StatusIcon, useStatusLabel } from "@/components/shared/StatusIcon"
 import { useStatusDefs } from "@/components/shared/status-defs"
-import { displayStatus } from "@/lib/statuses"
 import { localToday } from "@/lib/roadmap-health"
-import { OwnerChip } from "@/components/shared/OwnerChip"
-import { epicOf, groupTasks, sizeOf, type PropertyKey, type SortProp, type SortRule, type TaskGroup, type ViewState } from "@/lib/board-views"
+import { TaskDueField, TaskOwnerField, TaskSizeField, TaskStatusField } from "../TaskFields"
+import { epicOf, groupTasks, type PropertyKey, type SortProp, type SortRule, type TaskGroup, type ViewState } from "@/lib/board-views"
 import type { Task, TaskStatus } from "@/types"
 
 interface ViewProps {
@@ -52,7 +50,6 @@ export function nextSorts(sorts: SortRule[], prop: SortProp, additive: boolean):
 
 export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, selected = new Set(), onToggleSelect }: TableViewProps) {
   const defs = useStatusDefs()
-  const label = useStatusLabel()
   const props = ORDER.filter((p) => state.properties.includes(p))
   const groups: TaskGroup[] =
     state.group === "none" ? [{ key: "all", label: "All tasks", epicId: null, tasks }] : groupTasks(tasks, state.group, defs)
@@ -116,10 +113,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
       case "status": {
         return (
           <td key={p} className={cls}>
-            <span className="flex items-center gap-1.5 text-xs">
-              <StatusIcon status={displayStatus(task)} />
-              <span className="truncate">{label(displayStatus(task))}</span>
-            </span>
+            <TaskStatusField task={task} />
           </td>
         )
       }
@@ -137,12 +131,16 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
         )
       }
       case "size":
-        return <td key={p} className={cn(cls, cellMono)}>{sizeOf(task) ?? "—"}</td>
+        return <td key={p} className={cn(cls, cellMono)}><TaskSizeField task={task} /></td>
       case "owner":
-        return <td key={p} className={cls}>{task.owner ? <OwnerChip owner={task.owner} /> : <span className={cellMono}>—</span>}</td>
+        return <td key={p} className={cls}><TaskOwnerField task={task} /></td>
       case "due": {
         const overdue = !!task.due && task.status !== "done" && task.status !== "cancelled" && task.due < today
-        return <td key={p} className={cn(cls, cellMono, overdue && "text-amber")}>{task.due ?? "—"}</td>
+        return (
+          <td key={p} className={cn(cls, cellMono)}>
+            <TaskDueField task={task}><span className={cn("font-mono text-[11px]", overdue ? "text-amber" : task.due ? "text-muted" : "text-muted/70")}>{task.due ?? "—"}</span></TaskDueField>
+          </td>
+        )
       }
       case "deps": {
         const ids = task.dependsOn.match(/T\d+/g)

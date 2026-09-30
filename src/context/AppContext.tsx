@@ -2,6 +2,7 @@
 
 import { resolveStatus, statusDefs } from "@/lib/statuses"
 import { getStatusDefs, setStatusDefs } from "@/components/shared/status-defs"
+import { toast } from "@/components/ui/toast"
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { flushSync } from "react-dom"
 import { useRouter } from "next/navigation"
@@ -27,6 +28,8 @@ interface AppContextValue {
   onProjectChange: (root: string) => void
   refresh: (root?: string) => Promise<void>
   moveTask: (taskId: string, status: string) => Promise<void>
+  /** Optimistic owner / due / size edit (R055); rolls back with a toast when the write fails */
+  updateTaskFields: (taskId: string, patch: { owner?: string | null; due?: string | null; size?: string }) => Promise<void>
   openDoc: (path: string) => Promise<void>
   editorSettings: AppSettings["editor"]
   setEditorSettings: (s: AppSettings["editor"]) => void
@@ -168,14 +171,37 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      await fetch(`/api/tasks${rootParam}`, {
+      const res = await fetch(`/api/tasks${rootParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ taskId, status, actor: "human" }),
       })
-      refresh()
+      if (!res.ok) toast(`Could not move ${taskId}: ${(await res.json().catch(() => null))?.error ?? res.status}`)
     } catch {
-      refresh() // revert by fetching real state on error
+      toast(`Could not move ${taskId}: the server is not reachable`)
+    }
+    refresh() // real state (also reverts a failed move)
+  }, [rootParam, refresh])
+
+  const updateTaskFields = useCallback(async (taskId: string, patch: { owner?: string | null; due?: string | null; size?: string }) => {
+    setBoard((prev) => {
+      if (!prev) return prev
+      const next = { ...prev }
+      for (const col of Object.keys(next) as (keyof TaskBoard)[]) {
+        next[col] = next[col].map((t) => (t.id === taskId ? { ...t, ...patch, size: patch.size ?? t.size } : t))
+      }
+      return next
+    })
+    try {
+      const res = await fetch(`/api/tasks/update${rootParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: taskId, patch }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`)
+    } catch (e) {
+      toast(`Could not update ${taskId}: ${(e as Error).message}`)
+      refresh() // roll back to the files
     }
   }, [rootParam, refresh])
 
@@ -207,6 +233,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       onProjectChange,
       refresh,
       moveTask,
+      updateTaskFields,
       openDoc,
       editorSettings,
       setEditorSettings,
