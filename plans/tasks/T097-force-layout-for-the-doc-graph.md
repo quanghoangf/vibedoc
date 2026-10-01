@@ -1,8 +1,9 @@
 # T097: Deterministic force layout for the doc graph
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R056 — Doc link graph
 **Size:** M (2–3 hrs)
 **Depends on:** T093
+**Done:** 2026-10-01
 
 ## Goal
 An Obsidian-style layout for /graph: linked files pull together into clusters and unrelated ones spread apart. It is deterministic, so a reload puts every node in the same place. This is the riskiest piece of the epic, so it comes before the page.
@@ -45,3 +46,14 @@ An Obsidian-style layout for /graph: linked files pull together into clusters an
 node src/components/graph/force-layout.check.mts
 pnpm build && pnpm lint
 ```
+
+## Manual tests
+_2026-10-01 — ai_
+### Steps
+- [ ] Run `node src/components/graph/force-layout.check.mts` → it prints the 300-node timing (under ~150 ms) and `force-layout ok`
+- [ ] In a node REPL, `forceLayout` two 5-node cliques joined by one edge plus 2 nodes with no edges → each clique sits in its own cluster and the two lone nodes sit on a ring outside both
+- [ ] Call `forceLayout` twice with the same nodes and edges in a different order → both results are deep-equal
+- [ ] Check the output's x and y ranges → the bounding box is centred on 0,0 and linked nodes sit about 120 px apart
+- [ ] Call `neighbourhoodIds` on a chain a-b-c-d-e from `c` with depth 1, then depth 2 → {b, c, d}, then all five ids
+### Regression risk
+- [ ] `pnpm build` still passes and the memory graph (/memory?view=graph) and roadmap map still lay out as before (they use their own layouts, untouched)
