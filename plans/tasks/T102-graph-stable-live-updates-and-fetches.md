@@ -1,8 +1,9 @@
 # T102: Graph keeps the camera on live updates; one fetch; error state
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R056 — Doc link graph
 **Size:** M (2–3 hrs)
 **Depends on:** T101
+**Done:** 2026-10-01
 
 ## Goal
 An agent moving tasks no longer yanks the graph out from under the user. Today every SSE event in LINK_EVENTS refetches, rebuilds positions and calls fitView, losing pan/zoom (critique P1, "solo dev supervising agents").
@@ -32,3 +33,15 @@ An agent moving tasks no longer yanks the graph out from under the user. Today e
 pnpm build && pnpm lint
 # Playwright: count requests per load; pan then emit an SSE-producing change and assert viewport unchanged
 ```
+
+## Manual tests
+_2026-10-01 — ai_
+### Steps
+- [ ] Open `/graph`, drag the canvas and zoom in a step, then move any task to another status from `/board` in a second tab (or `vibedoc_update_task`) → the graph refreshes but the camera stays exactly where you left it
+- [ ] With the camera moved, create a doc that links to an existing doc → the new dot appears, the camera does not jump; press the Fit control (bottom-left) → the graph fits again
+- [ ] Open DevTools Network, reload `/graph` → exactly one `/api/docs/graph` request; open a doc on `/docs` → exactly one `/api/docs/links` request
+- [ ] Select a doc on `/graph`, then turn Docs off in the kind chips → top-right reads "<doc title> is hidden by filters · Show"; click Show → Docs turns back on and the selection card returns
+- [ ] Block `/api/docs/graph` in DevTools (Network request blocking) and reload `/graph` → "Couldn't load the link graph." with the error and a Retry button; unblock and press Retry → the graph loads
+### Regression risk
+- [ ] `/docs` Linked docs panel and broken-link marks still update after editing a doc (links now come from a shared per-burst cache)
+- [ ] Search Enter / arrow-key moves on `/graph` still centre the node; a later live update must not re-fit away from it

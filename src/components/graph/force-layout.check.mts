@@ -1,6 +1,6 @@
 // node src/components/graph/force-layout.check.mts
 import assert from 'node:assert/strict'
-import { forceLayout, neighbourhoodIds, stepFocus } from './force-layout.ts'
+import { forceLayout, graphChanges, neighbourhoodIds, stepFocus } from './force-layout.ts'
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
 const nodesOf = (ids: string[]) => ids.map(id => ({ id }))
@@ -68,6 +68,13 @@ assert.equal(stepFocus('c', 'ArrowUp', sp, [], ord), 'x', 'previous by order wra
 assert.equal(stepFocus('x', 'ArrowDown', sp, [], ord), 'c', 'next by order wraps')
 assert.equal(stepFocus('gone', 'ArrowDown', sp, [], ord), 'c', 'unknown start: first')
 assert.equal(stepFocus('c', 'ArrowDown', sp, [], []), undefined)
+
+// graphChanges: first load is quiet; new / removed files, both ends of new / removed links, relabels
+const g0 = { nodes: [{ path: 'a', label: 'A' }, { path: 'b', label: 'B' }, { path: 'c', label: 'C' }], edges: [{ from: 'a', to: 'b' }] }
+assert.deepEqual([...graphChanges(null, g0)], [])
+assert.deepEqual([...graphChanges(g0, g0)], [], 'same data: nothing changed')
+const g1 = { nodes: [{ path: 'a', label: 'A' }, { path: 'b', label: 'B2' }, { path: 'd', label: 'D' }], edges: [{ from: 'd', to: 'a' }] }
+assert.deepEqual([...graphChanges(g0, g1)].sort(), ['a', 'b', 'c', 'd'])
 
 // timing: 300 nodes / 600 edges
 const t300 = Array.from({ length: 300 }, (_, i) => `t${i}`)

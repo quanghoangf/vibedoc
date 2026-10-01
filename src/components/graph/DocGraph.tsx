@@ -9,11 +9,11 @@ import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { Button } from "@/components/ui/button"
 import { KIND_ICON, useOpenNode } from "@/components/memory/EntryRelated"
-import { LINK_EVENTS } from "@/components/docs/useDocLinks"
+import { fetchLinkJson, useLinkGeneration } from "@/components/docs/useDocLinks"
 import type { DocGraph as Graph, DocNode, DocNodeKind } from "@/lib/doc-links"
-import { forceLayout, neighbourhoodIds, stepFocus, type ArrowKey } from "./force-layout"
+import { forceLayout, graphChanges, neighbourhoodIds, stepFocus, type ArrowKey } from "./force-layout"
 
-type DotData = { node: DocNode; size: number; box: number; dim: boolean; active: boolean; match: boolean; orphan: boolean }
+type DotData = { node: DocNode; size: number; box: number; dim: boolean; active: boolean; match: boolean; orphan: boolean; changed: boolean }
 type DotNode = Node<DotData, "dot">
 type GraphState = { node: string | null; focus: 0 | 1 | 2; kinds: DocNodeKind[]; q: string }
 
@@ -30,6 +30,12 @@ const FLOW_STYLE = { "--xy-background-color": "var(--color-bg)" } as React.CSSPr
 const VIRTUALIZE_OVER = 150
 // a fitted big graph is unreadable; fit no further out than this and let the user pan
 const FIT_MIN_ZOOM = 0.35
+const FIT_OPTIONS = { padding: 0.1, minZoom: FIT_MIN_ZOOM, maxZoom: 1 }
+// how long a live update marks the nodes it touched (data-changed, for the update flash)
+const CHANGED_MS = 1500
+const EMPTY_GRAPH: Graph = { nodes: [], edges: [], broken: [], targets: {} }
+const NONE = new Set<string>()
+const SEP = "\u0000"
 // below this zoom only the selected / matching labels show, once the graph is big enough to get noisy
 const LABEL_ZOOM = 0.6
 const LABEL_NODES_OVER = 40
@@ -67,10 +73,10 @@ function writeState(s: GraphState) {
 
 /** A dot sized by degree, centred on its layout point; the label hangs below and never takes clicks. */
 const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
-  const { node, size, box, dim, active, match, orphan } = data
+  const { node, size, box, dim, active, match, orphan, changed } = data
   // The React Flow wrapper (.react-flow__node) takes focus; the halo goes on the dot and the label
   return (
-    <div title={node.path} style={{ width: box, height: box }} className="flex items-center justify-center">
+    <div title={node.path} data-changed={changed || undefined} style={{ width: box, height: box }} className="flex items-center justify-center">
       <div
         style={{ width: size, height: size }}
         className={cn(
@@ -114,31 +120,43 @@ export function DocGraph() {
   const update = useCallback((patch: Partial<GraphState>) => writeState({ ...readState(new URLSearchParams(window.location.search)), ...patch }), [])
 
   const [graph, setGraph] = useState<Graph | null>(null)
-  const [tick, setTick] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [retry, setRetry] = useState(0)
+  // node paths the last live refresh touched (T105 flashes them); cleared after CHANGED_MS
+  const [changed, setChanged] = useState<Set<string>>(NONE)
+  const last = useRef<{ root: string; graph: Graph } | null>(null)
+  const gen = useLinkGeneration()
   const [rf, setRf] = useState<ReactFlowInstance<DotNode> | null>(null)
   const [far, setFar] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const isDark = useSyncExternalStore(subscribeTheme, () => document.documentElement.classList.contains("dark"), () => true)
 
-  useEffect(() => {
-    const onSse = (e: Event) => {
-      if (LINK_EVENTS.has((e as CustomEvent<{ type: string }>).detail?.type)) setTick((t) => t + 1)
-    }
-    window.addEventListener("vibedoc:sse", onSse)
-    return () => window.removeEventListener("vibedoc:sse", onSse)
-  }, [])
-
+  // One request per load / SSE burst: fetchLinkJson shares it per generation (strict mode, other link hooks)
   useEffect(() => {
     let live = true
-    fetch(`/api/docs/graph${rootParam}`)
-      .then((r) => r.json())
-      .then((g: Graph) => { if (live) setGraph(g.nodes ? g : { nodes: [], edges: [], broken: [], targets: {} }) })
+    fetchLinkJson<Graph>(`/api/docs/graph${rootParam}`)
+      .then((g) => {
+        if (!live) return
+        const next = g.nodes ? g : EMPTY_GRAPH
+        const prev = last.current?.root === rootParam ? last.current.graph : null
+        last.current = { root: rootParam, graph: next }
+        const diff = graphChanges(prev, next)
+        setGraph(next)
+        setError(null)
+        if (diff.size) setChanged(diff)
+      })
       .catch((e) => {
         console.warn("Loading the doc graph failed", e)
-        if (live) setGraph({ nodes: [], edges: [], broken: [], targets: {} })
+        if (live) setError(e instanceof Error ? e.message : String(e))
       })
     return () => { live = false }
-  }, [rootParam, tick])
+  }, [rootParam, gen, retry])
+
+  useEffect(() => {
+    if (!changed.size) return
+    const t = setTimeout(() => setChanged(NONE), CHANGED_MS)
+    return () => clearTimeout(t)
+  }, [changed])
 
   // Edges are keyed by path (a task's node id is T093, its edges use the file path), so everything here is.
   const byPath = useMemo(() => new Map((graph?.nodes ?? []).map((n) => [n.path, n])), [graph])
@@ -177,14 +195,26 @@ export function DocGraph() {
     [visible, byPath],
   )
 
-  const pos = useMemo(() => (visible ? forceLayout(visible.paths.map((id) => ({ id })), visible.edges) : {}), [visible])
+  // Layout is keyed by the sorted id and edge sets, not object identity: a refresh with the same links keeps every
+  // position (a task status change on its own never moves a dot)
+  const idsKey = useMemo(() => (visible?.paths ?? []).slice().sort().join(SEP), [visible])
+  const edgesKey = useMemo(() => (visible?.edges ?? []).map((e) => `${e.from}${SEP}${e.to}`).sort().join("\n"), [visible])
+  const pos = useMemo(() => {
+    const ids = idsKey ? idsKey.split(SEP) : []
+    const es = edgesKey ? edgesKey.split("\n").map((k) => { const [from, to] = k.split(SEP); return { from, to } }) : []
+    return forceLayout(ids.map((id) => ({ id })), es)
+  }, [idsKey, edgesKey])
 
-  // Re-fit after every re-layout (filter / focus change); fitView on the component only runs once
+  // Fit on first load, on a filter / focus change, or when the visible set grows or shrinks; never once the user
+  // has panned or zoomed (until the filter / focus changes or they press Fit)
+  const userMoved = useRef(false)
+  const viewKey = `${state.kinds.join(",")}|${focusRoot ?? ""}|${focusRoot ? state.focus : 0}`
+  useEffect(() => { userMoved.current = false }, [viewKey])
   useEffect(() => {
-    if (!rf) return
-    const id = requestAnimationFrame(() => void rf.fitView({ padding: 0.1, minZoom: FIT_MIN_ZOOM, maxZoom: 1, duration: 250 }))
+    if (!rf || userMoved.current) return
+    const id = requestAnimationFrame(() => void rf.fitView({ ...FIT_OPTIONS, duration: 250 }))
     return () => cancelAnimationFrame(id)
-  }, [rf, pos])
+  }, [rf, idsKey, viewKey])
 
   const q = state.q.trim().toLowerCase()
   const matches = useMemo(
@@ -211,7 +241,7 @@ export function DocGraph() {
         type: "dot",
         position: { x: at.x - box / 2, y: at.y - box / 2 },
         ariaLabel: `${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}`,
-        data: { node: n, size, box, dim: !!lit && !lit.has(p), active: p === selected, match: matched.has(p), orphan: d === 0 },
+        data: { node: n, size, box, dim: !!lit && !lit.has(p), active: p === selected, match: matched.has(p), orphan: d === 0, changed: changed.has(p) },
         draggable: false,
       }
     })
@@ -227,7 +257,7 @@ export function DocGraph() {
       }
     })
     return { nodes, edges }
-  }, [visible, order, adj, pos, byPath, selected, q, matches])
+  }, [visible, order, adj, pos, byPath, selected, q, matches, changed])
 
   // Esc on /graph steps back: clear the search, then the selection, then leave the graph. Capture phase, so
   // React Flow's own Escape (which blurs the node) and the global handler never see it.
@@ -256,13 +286,16 @@ export function DocGraph() {
     const el = find()
     if (el) return el.focus({ preventScroll: true })
     const at = pos[p]
-    if (rf && at) void rf.setCenter(at.x, at.y, { zoom: rf.getZoom() }).then(() => requestAnimationFrame(() => find()?.focus({ preventScroll: true })))
+    if (!rf || !at) return
+    userMoved.current = true
+    void rf.setCenter(at.x, at.y, { zoom: rf.getZoom() }).then(() => requestAnimationFrame(() => find()?.focus({ preventScroll: true })))
   }
   const pick = (p: string) => {
     select(p)
     const at = pos[p]
-    if (rf && at) void rf.setCenter(at.x, at.y, { zoom: Math.max(rf.getZoom(), 1), duration: 300 }).then(() => focusNode(p))
-    else focusNode(p)
+    if (!rf || !at) return focusNode(p)
+    userMoved.current = true
+    void rf.setCenter(at.x, at.y, { zoom: Math.max(rf.getZoom(), 1), duration: 300 }).then(() => focusNode(p))
   }
   // Keys on a focused node (React Flow's wrapper div carries data-id)
   const onNodeKey = (e: React.KeyboardEvent) => {
@@ -282,12 +315,23 @@ export function DocGraph() {
     e.preventDefault()
   }
 
+  if (error) {
+    return (
+      <div role="alert" className="m-6 max-w-xl rounded-lg border border-danger/30 bg-danger/5 p-4">
+        <p className="text-sm font-medium text-txt">Couldn&apos;t load the link graph.</p>
+        <p className="mt-1 text-xs break-words text-muted">{error}</p>
+        <Button size="sm" variant="outline" className="mt-3" onClick={() => { setError(null); setRetry((r) => r + 1) }}>Retry</Button>
+      </div>
+    )
+  }
   if (!graph) return <p className="p-6 text-sm text-muted">Loading graph…</p>
   if (!graph.edges.length) {
     return <p className="m-6 rounded-xl border border-dashed border-border p-4 text-sm text-muted">No links between docs yet. Link docs with [text](path.md) or [[name]].</p>
   }
 
   const sel = selected ? byPath.get(selected) : undefined
+  // selected in the URL but its kind is filtered out: say so instead of dropping it
+  const hidden = state.node && !selected ? byPath.get(state.node) : undefined
   const linksTo = selected ? new Set(graph.edges.filter((e) => e.from === selected && e.to !== selected).map((e) => e.to)).size : 0
   const linkedFrom = selected ? new Set(graph.edges.filter((e) => e.to === selected && e.from !== selected).map((e) => e.from)).size : 0
 
@@ -346,6 +390,7 @@ export function DocGraph() {
           edges={edges}
           nodeTypes={nodeTypes}
           onInit={setRf}
+          onMoveStart={(e) => { if (e) userMoved.current = true }}
           onMove={(_, vp) => setFar(vp.zoom < LABEL_ZOOM)}
           onNodeClick={(_, n) => select(n.id)}
           onNodeDoubleClick={(_, n) => open(n.data.node)}
@@ -357,15 +402,34 @@ export function DocGraph() {
           colorMode={isDark ? "dark" : "light"}
           onlyRenderVisibleElements={nodes.length > VIRTUALIZE_OVER}
           fitView
-          fitViewOptions={{ padding: 0.1, minZoom: FIT_MIN_ZOOM, maxZoom: 1 }}
+          fitViewOptions={FIT_OPTIONS}
           minZoom={0.1}
           style={FLOW_STYLE}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-          <Controls showInteractive={false} />
+          <Controls
+            showInteractive={false}
+            fitViewOptions={FIT_OPTIONS}
+            onZoomIn={() => { userMoved.current = true }}
+            onZoomOut={() => { userMoved.current = true }}
+            onFitView={() => { userMoved.current = false }}
+          />
         </ReactFlow>
 
         <div aria-live="polite">
+          {hidden && (
+            <p className="absolute top-3 right-3 z-10 max-w-72 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted shadow-lg">
+              {hidden.kind !== "doc" && <span className="mr-1 font-mono text-[11px]">{hidden.id}</span>}
+              <span className="text-txt">{hidden.label}</span> is hidden by filters ·{" "}
+              <button
+                type="button"
+                onClick={() => update({ kinds: [...state.kinds, hidden.kind] })}
+                className="rounded-sm text-accent underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent"
+              >
+                Show
+              </button>
+            </p>
+          )}
           {sel && (
             <aside aria-label="Selected file" className="absolute top-3 right-3 z-10 w-72 rounded-xl border border-border bg-surface p-3 shadow-lg">
               <div className="flex items-start gap-2">
