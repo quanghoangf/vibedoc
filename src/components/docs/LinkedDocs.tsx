@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Unlink } from "lucide-react"
 import { useApp } from "@/context/AppContext"
@@ -10,9 +10,18 @@ import { displayStatus } from "@/lib/statuses"
 import type { LinkRow } from "@/lib/doc-links"
 import type { NodeKind } from "@/lib/memory-graph"
 import type { DocLinksData } from "./useDocLinks"
+import { LinkPreview, type PreviewTarget } from "./LinkPreview"
 
 const NODE_KINDS = new Set<string>(GROUPS.map((g) => g.kind))
 /** Item id from the file name (T093-x.md → T093); plain docs use their path. */
+/** Rows carry data-preview-* so one delegated LinkPreview serves the whole panel. */
+function previewOf(el: Element): { anchor: Element; target: PreviewTarget } | null {
+  const row = el.closest<HTMLElement>("[data-preview-path]")
+  if (!row) return null
+  const { previewPath = "", previewKind = "doc", previewLabel = "", previewBroken } = row.dataset
+  return { anchor: row, target: previewBroken !== undefined ? { broken: previewPath } : { path: previewPath, kind: previewKind, label: previewLabel } }
+}
+
 const idOf = (r: LinkRow) => /^(T\d+|R\d+|E\d+|ADR-\d+)/.exec(r.path.split("/").pop() ?? "")?.[1] ?? r.path
 
 /**
@@ -24,8 +33,7 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
   const { board } = useApp()
   const open = useOpenNode((id) => router.push(`/memory?entry=${id}`))
   const tasks = useMemo(() => new Map(Object.values(board ?? {}).flat().map((t) => [t.id, t])), [board])
-
-  if (!links) return <p className="text-xs text-muted">Loading links…</p>
+  const ref = useRef<HTMLDivElement>(null)
 
   const row = (r: LinkRow, withLine: boolean) => {
     const kind = (NODE_KINDS.has(r.kind) ? r.kind : "doc") as NodeKind
@@ -37,7 +45,9 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
         <button
           type="button"
           onClick={() => { open({ id, kind, label: r.label, path: r.path }); onNavigate?.() }}
-          title={r.path}
+          data-preview-path={r.path}
+          data-preview-kind={kind}
+          data-preview-label={r.label}
           className="flex w-full flex-col rounded-md px-2 py-1 text-left text-sm outline-none hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
         >
           <span className="flex w-full min-w-0 items-center gap-2">
@@ -70,25 +80,31 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
   )
 
   // one row per target: a doc linking the same file twice lists it once
-  const out = [...new Map(links.out.map((r) => [r.path, r])).values()]
+  const out = links ? [...new Map(links.out.map((r) => [r.path, r])).values()] : []
+  // the wrapper is always mounted so LinkPreview's delegated listeners attach once
   return (
-    <div className="flex flex-col gap-5">
-      {section("Links to", out, "No links yet", false)}
-      {section("Linked from", links.in, "Nothing links here", true)}
-      {links.broken.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <h4 className="flex items-center text-[11px] font-semibold uppercase tracking-wider text-muted">
-            Broken<span className="ml-auto font-mono font-normal">{links.broken.length}</span>
-          </h4>
-          <ul>
-            {links.broken.map((r, i) => (
-              <li key={i} className="flex items-center gap-2 px-2 py-1 text-sm" title={r.text}>
-                <Unlink className="size-3.5 shrink-0 text-muted" aria-hidden />
-                <span className="min-w-0 truncate font-mono text-xs text-muted line-through decoration-muted/50">{r.path}</span>
-                <span className="ml-auto shrink-0 font-mono text-[11px] text-muted">L{r.line}</span>
-              </li>
-            ))}
-          </ul>
+    <div ref={ref}>
+      <LinkPreview containerRef={ref} resolve={previewOf} />
+      {!links ? <p className="text-xs text-muted">Loading links…</p> : (
+        <div className="flex flex-col gap-5">
+          {section("Links to", out, "No links yet", false)}
+          {section("Linked from", links.in, "Nothing links here", true)}
+          {links.broken.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <h4 className="flex items-center text-[11px] font-semibold uppercase tracking-wider text-muted">
+                Broken<span className="ml-auto font-mono font-normal">{links.broken.length}</span>
+              </h4>
+              <ul>
+                {links.broken.map((r, i) => (
+                  <li key={i} className="flex items-center gap-2 px-2 py-1 text-sm" data-preview-path={r.path} data-preview-broken="">
+                    <Unlink className="size-3.5 shrink-0 text-muted" aria-hidden />
+                    <span className="min-w-0 truncate font-mono text-xs text-muted line-through decoration-muted/50">{r.path}</span>
+                    <span className="ml-auto shrink-0 font-mono text-[11px] text-muted">L{r.line}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </div>

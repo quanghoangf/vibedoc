@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useEffect, useMemo, useRef, type RefObject } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, type RefObject } from "react"
 import { useRouter } from "next/navigation"
 import { marked } from "marked"
 import { cn } from "@/lib/utils"
@@ -9,6 +9,7 @@ import { useApp } from "@/context/AppContext"
 import { useOpenNode } from "@/components/memory/EntryRelated"
 import { toast } from "@/components/ui/toast"
 import { useDocLinks, type DocLinksData } from "./useDocLinks"
+import { LinkPreview } from "./LinkPreview"
 
 // Configure marked for GitHub Flavored Markdown
 marked.setOptions({
@@ -263,5 +264,15 @@ function DocLinks({ docPath, html, containerRef }: { docPath: string; html: stri
     }
   }, [links, docPath, openDoc, openNode, containerRef])
 
-  return null
+  // hover/focus card on resolved and broken doc links (not while the links data loads)
+  const resolve = useCallback((el: Element) => {
+    const a = el.closest("a")
+    const t = a && links && containerRef.current?.contains(a) ? docTarget(a) : null
+    if (!a || !t || !links) return null
+    const node = links.targets[t.raw]
+    if (node) return { anchor: a, target: { path: node.path, kind: node.kind, label: node.label } }
+    return isBroken(links, t.raw) ? { anchor: a, target: { broken: t.raw } } : null
+  }, [links, containerRef])
+
+  return <LinkPreview containerRef={containerRef} resolve={resolve} />
 }
