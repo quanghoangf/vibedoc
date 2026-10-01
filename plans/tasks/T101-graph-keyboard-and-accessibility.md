@@ -1,8 +1,9 @@
 # T101: Graph keyboard path and accessibility
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R056 — Doc link graph
 **Size:** M (2–3 hrs)
 **Depends on:** T098
+**Done:** 2026-10-01
 
 ## Goal
 /graph is fully usable from the keyboard and a screen reader. Today the critique's P0: React Flow edges are tab stops (831 at 185 nodes), nodes show no focus, and Enter does nothing.
@@ -34,3 +35,16 @@ pnpm build && pnpm lint   # no new errors vs baseline
 node src/lib/shortcuts.check.mts
 # Playwright: tab order + Enter/o/arrows/Esc on /graph at 1440 and 390 widths
 ```
+
+## Manual tests
+_2026-10-01 — ai_
+### Steps
+- [ ] On /graph click into "Find a file…", press Tab once → the first node (by label) gets an accent halo on its dot and label; keep pressing Tab → only nodes take focus, never a line
+- [ ] With a node focused press Enter → the card opens top right, the URL gets ?node=…; press Enter again → the file opens (doc in /docs, task on /board)
+- [ ] Focus a node and press o → the file opens; back on /graph press the arrow keys → focus moves to the nearest linked file in that direction (or the next file by name when none)
+- [ ] Press / anywhere on /graph → the search box is focused; type a name and press Enter → the first match is selected, centred and focused
+- [ ] Press Esc repeatedly → first the search clears, then the selection card closes, then focus leaves the graph
+- [ ] Switch to light theme (Settings → Appearance) and Tab to a node → the halo is still clearly visible
+### Regression risk
+- [ ] Mouse: click a node selects it, double-click opens it, click the empty canvas clears the selection, pan/zoom still work
+- [ ] `/` on /docs and /board still focuses their own search, and the ? help sheet lists the new Graph keys

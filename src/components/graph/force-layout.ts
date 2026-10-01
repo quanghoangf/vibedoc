@@ -145,3 +145,37 @@ export function neighbourhoodIds(edges: { from: string; to: string }[], id: stri
   }
   return seen
 }
+
+export type ArrowKey = "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
+
+/**
+ * Where an arrow key moves keyboard focus on /graph: the nearest linked node in that direction (distance along
+ * the arrow plus twice the sideways drift), else the next (→ ↓) or previous (← ↑) node in `order`, wrapping.
+ */
+export function stepFocus(
+  from: string,
+  key: ArrowKey,
+  pos: Record<string, Point>,
+  neighbours: Iterable<string>,
+  order: string[],
+): string | undefined {
+  const a = pos[from]
+  let best: string | undefined
+  let bestScore = Infinity
+  if (a) {
+    for (const id of neighbours) {
+      const b = pos[id]
+      if (!b || id === from) continue
+      const dx = b.x - a.x
+      const dy = b.y - a.y
+      const along = key === "ArrowRight" ? dx : key === "ArrowLeft" ? -dx : key === "ArrowDown" ? dy : -dy
+      if (along <= 0) continue
+      const score = along + 2 * Math.abs(key === "ArrowRight" || key === "ArrowLeft" ? dy : dx)
+      if (score < bestScore || (score === bestScore && best !== undefined && id < best)) { best = id; bestScore = score }
+    }
+  }
+  if (best || !order.length) return best
+  const i = order.indexOf(from)
+  const step = key === "ArrowRight" || key === "ArrowDown" ? 1 : -1
+  return order[(Math.max(i, step > 0 ? -1 : 0) + step + order.length) % order.length]
+}

@@ -31,6 +31,9 @@ assert.equal(pageTitle('/chat'), 'Chats')
 assert.equal(PAGE_SHORTCUTS.find((s) => s.key === 'g')?.help, 'Chats page')
 assert.equal(OTHER_SHORTCUTS.find((s) => s.key === 'c')?.label, 'Open next chat')
 assert.equal(pageTitle('/docs/some/path'), 'Docs')
+// graph node keys never shadow a page jump
+assert.equal(pageForKey('o'), undefined, 'o opens the focused graph node')
+assert.ok(OTHER_SHORTCUTS.some((s) => s.section === 'Graph' && s.key === 'Enter'))
 assert.equal(pageTitle('/boardx'), undefined)
 
 const base = { defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false }

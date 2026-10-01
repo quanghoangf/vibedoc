@@ -1,6 +1,6 @@
 // node src/components/graph/force-layout.check.mts
 import assert from 'node:assert/strict'
-import { forceLayout, neighbourhoodIds } from './force-layout.ts'
+import { forceLayout, neighbourhoodIds, stepFocus } from './force-layout.ts'
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
 const nodesOf = (ids: string[]) => ids.map(id => ({ id }))
@@ -55,6 +55,19 @@ assert.deepEqual([...neighbourhoodIds(chain, 'c', 1)].sort(), ['b', 'c', 'd'])
 assert.deepEqual([...neighbourhoodIds(chain, 'c', 2)].sort(), ['a', 'b', 'c', 'd', 'e'])
 assert.deepEqual([...neighbourhoodIds(chain, 'a', 2)].sort(), ['a', 'b', 'c'])
 assert.deepEqual([...neighbourhoodIds(chain, 'zz', 1)], ['zz'])
+
+// stepFocus: nearest linked node in the arrow's direction, else next/previous by order
+const sp = { c: { x: 0, y: 0 }, r: { x: 100, y: -10 }, far: { x: 300, y: 0 }, u: { x: 0, y: -80 }, l: { x: -50, y: 0 }, x: { x: 10, y: 0 } }
+const ord = ['c', 'far', 'l', 'r', 'u', 'x']
+assert.equal(stepFocus('c', 'ArrowRight', sp, ['r', 'far', 'u', 'l'], ord), 'r')
+assert.equal(stepFocus('c', 'ArrowUp', sp, ['r', 'far', 'u', 'l'], ord), 'u')
+assert.equal(stepFocus('c', 'ArrowLeft', sp, ['r', 'far', 'u', 'l'], ord), 'l')
+assert.equal(stepFocus('c', 'ArrowRight', sp, ['r', 'far'], ord), 'r', 'x is nearer but not linked')
+assert.equal(stepFocus('c', 'ArrowDown', sp, ['r', 'u'], ord), 'far', 'nothing linked below: next by order')
+assert.equal(stepFocus('c', 'ArrowUp', sp, [], ord), 'x', 'previous by order wraps')
+assert.equal(stepFocus('x', 'ArrowDown', sp, [], ord), 'c', 'next by order wraps')
+assert.equal(stepFocus('gone', 'ArrowDown', sp, [], ord), 'c', 'unknown start: first')
+assert.equal(stepFocus('c', 'ArrowDown', sp, [], []), undefined)
 
 // timing: 300 nodes / 600 edges
 const t300 = Array.from({ length: 300 }, (_, i) => `t${i}`)

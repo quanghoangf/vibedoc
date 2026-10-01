@@ -1,6 +1,6 @@
 "use client"
 
-import { memo, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react"
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Background, BackgroundVariant, Controls, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
@@ -11,9 +11,9 @@ import { Button } from "@/components/ui/button"
 import { KIND_ICON, useOpenNode } from "@/components/memory/EntryRelated"
 import { LINK_EVENTS } from "@/components/docs/useDocLinks"
 import type { DocGraph as Graph, DocNode, DocNodeKind } from "@/lib/doc-links"
-import { forceLayout, neighbourhoodIds } from "./force-layout"
+import { forceLayout, neighbourhoodIds, stepFocus, type ArrowKey } from "./force-layout"
 
-type DotData = { node: DocNode; size: number; dim: boolean; active: boolean; match: boolean; orphan: boolean }
+type DotData = { node: DocNode; size: number; box: number; dim: boolean; active: boolean; match: boolean; orphan: boolean }
 type DotNode = Node<DotData, "dot">
 type GraphState = { node: string | null; focus: 0 | 1 | 2; kinds: DocNodeKind[]; q: string }
 
@@ -34,6 +34,12 @@ const FIT_MIN_ZOOM = 0.35
 const LABEL_ZOOM = 0.6
 const LABEL_NODES_OVER = 40
 const CENTER = { left: "50%", top: "50%", transform: "translate(-50%, -50%)" }
+// every node is at least this big to hit (WCAG 2.5.8), however small its dot
+const HIT = 24
+const KIND_NAME: Record<DocNodeKind, string> = { doc: "Doc", adr: "ADR", task: "Task", epic: "Epic", entry: "Entry" }
+const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"])
+const HINT = "Tab moves between files. Enter selects a file; Enter again or O opens it. Arrow keys move to the nearest linked file. Escape clears the search, then the selection. Slash jumps to search."
+const ARIA_LABELS = { "node.a11yDescription.default": HINT }
 
 function subscribeTheme(cb: () => void) {
   const mo = new MutationObserver(cb)
@@ -61,24 +67,34 @@ function writeState(s: GraphState) {
 
 /** A dot sized by degree, centred on its layout point; the label hangs below and never takes clicks. */
 const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
-  const { node, size, dim, active, match, orphan } = data
+  const { node, size, box, dim, active, match, orphan } = data
+  // The React Flow wrapper (.react-flow__node) takes focus; the halo goes on the dot and the label
   return (
-    <div
-      title={node.path}
-      style={{ width: size, height: size }}
-      className={cn("relative rounded-full transition-opacity", node.kind === "doc" ? "bg-muted" : node.kind === "adr" ? "bg-accent" : "bg-border2", orphan && "opacity-50", dim && "opacity-25", (active || match) && "ring-2 ring-accent ring-offset-1 ring-offset-bg")}
-    >
-      <Handle type="source" position={Position.Top} isConnectable={false} style={CENTER} className="opacity-0" />
-      <Handle type="target" position={Position.Top} isConnectable={false} style={CENTER} className="opacity-0" />
-      <span
+    <div title={node.path} style={{ width: box, height: box }} className="flex items-center justify-center">
+      <div
+        style={{ width: size, height: size }}
         className={cn(
-          "pointer-events-none absolute top-full left-1/2 mt-1 max-w-48 -translate-x-1/2 truncate text-[11px] whitespace-nowrap",
-          active || match ? "font-medium text-txt" : "text-muted group-data-[far=true]/graph:hidden",
+          "relative rounded-full transition-opacity",
+          node.kind === "doc" ? "bg-muted" : node.kind === "adr" ? "bg-accent" : "bg-border2",
+          orphan && "opacity-50",
+          dim && "opacity-25",
+          (active || match) && "ring-2 ring-accent ring-offset-1 ring-offset-bg",
+          "in-[[data-id]:focus-visible]:opacity-100 in-[[data-id]:focus-visible]:ring-2 in-[[data-id]:focus-visible]:ring-accent/60 in-[[data-id]:focus-visible]:shadow-[0_0_0_6px_rgb(var(--rgb-accent)/0.15)]",
         )}
       >
-        {node.kind !== "doc" && <span className="mr-1 font-mono text-[10px]">{node.id}</span>}
-        {node.label}
-      </span>
+        <Handle type="source" position={Position.Top} isConnectable={false} style={CENTER} className="opacity-0" />
+        <Handle type="target" position={Position.Top} isConnectable={false} style={CENTER} className="opacity-0" />
+        <span
+          className={cn(
+            "pointer-events-none absolute top-full left-1/2 mt-1 max-w-48 -translate-x-1/2 truncate text-[11px] whitespace-nowrap",
+            active || match ? "font-medium text-txt" : "text-muted group-data-[far=true]/graph:hidden",
+            "rounded-sm in-[[data-id]:focus-visible]:block! in-[[data-id]:focus-visible]:bg-surface in-[[data-id]:focus-visible]:px-1 in-[[data-id]:focus-visible]:text-txt in-[[data-id]:focus-visible]:ring-1 in-[[data-id]:focus-visible]:ring-accent/60 in-[[data-id]:focus-visible]:shadow-[0_0_0_3px_rgb(var(--rgb-accent)/0.15)]",
+          )}
+        >
+          {node.kind !== "doc" && <span className="mr-1 font-mono text-[10px]">{node.id}</span>}
+          {node.label}
+        </span>
+      </div>
     </div>
   )
 })
@@ -101,6 +117,7 @@ export function DocGraph() {
   const [tick, setTick] = useState(0)
   const [rf, setRf] = useState<ReactFlowInstance<DotNode> | null>(null)
   const [far, setFar] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
   const isDark = useSyncExternalStore(subscribeTheme, () => document.documentElement.classList.contains("dark"), () => true)
 
   useEffect(() => {
@@ -147,6 +164,19 @@ export function DocGraph() {
     return { paths: [...kept], edges }
   }, [graph, state.kinds, focusRoot, state.focus])
 
+  // Unique linked files per visible node (arrow keys, link counts) and the tab order: by label, then path
+  const adj = useMemo(() => {
+    const m = new Map<string, Set<string>>()
+    for (const e of visible?.edges ?? []) {
+      for (const [a, b] of [[e.from, e.to], [e.to, e.from]]) m.set(a, (m.get(a) ?? new Set()).add(b))
+    }
+    return m
+  }, [visible])
+  const order = useMemo(
+    () => (visible?.paths ?? []).slice().sort((a, b) => (byPath.get(a)?.label ?? a).localeCompare(byPath.get(b)?.label ?? b) || a.localeCompare(b)),
+    [visible, byPath],
+  )
+
   const pos = useMemo(() => (visible ? forceLayout(visible.paths.map((id) => ({ id })), visible.edges) : {}), [visible])
 
   // Re-fit after every re-layout (filter / focus change); fitView on the component only runs once
@@ -168,15 +198,20 @@ export function DocGraph() {
     for (const e of visible.edges) for (const p of [e.from, e.to]) degree.set(p, (degree.get(p) ?? 0) + 1)
     const lit = selected ? neighbourhoodIds(visible.edges, selected, 1) : q ? new Set(matches) : null
     const matched = new Set(matches)
-    const nodes: DotNode[] = visible.paths.map((p) => {
+    // DOM order = tab order, so nodes go in label order
+    const nodes: DotNode[] = order.map((p) => {
       const d = degree.get(p) ?? 0
       const size = Math.round(8 + 4 * Math.sqrt(d))
+      const box = Math.max(size, HIT)
       const at = pos[p] ?? { x: 0, y: 0 }
+      const n = byPath.get(p)!
+      const links = adj.get(p)?.size ?? 0
       return {
         id: p,
         type: "dot",
-        position: { x: at.x - size / 2, y: at.y - size / 2 },
-        data: { node: byPath.get(p)!, size, dim: !!lit && !lit.has(p), active: p === selected, match: matched.has(p), orphan: d === 0 },
+        position: { x: at.x - box / 2, y: at.y - box / 2 },
+        ariaLabel: `${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}`,
+        data: { node: n, size, box, dim: !!lit && !lit.has(p), active: p === selected, match: matched.has(p), orphan: d === 0 },
         draggable: false,
       }
     })
@@ -187,17 +222,64 @@ export function DocGraph() {
         source: e.from,
         target: e.to,
         type: "straight",
+        domAttributes: { "aria-hidden": true },
         style: { stroke: hot ? "var(--color-accent)" : "var(--color-border2)", strokeWidth: hot ? 1.75 : 1, opacity: lit && !hot ? 0.15 : 1 },
       }
     })
     return { nodes, edges }
-  }, [visible, pos, byPath, selected, q, matches])
+  }, [visible, order, adj, pos, byPath, selected, q, matches])
+
+  // Esc on /graph steps back: clear the search, then the selection, then leave the graph. Capture phase, so
+  // React Flow's own Escape (which blurs the node) and the global handler never see it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || document.querySelector("[role=dialog]")) return
+      const root = rootRef.current
+      const t = e.target instanceof HTMLElement ? e.target : null
+      const inside = !!t && !!root?.contains(t)
+      if (!root || !(inside || t === document.body || t?.id === "main")) return
+      if (state.q) update({ q: "" })
+      else if (selected) update({ node: null })
+      else if (inside) t.blur()
+      else return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [state.q, selected, update])
 
   const select = (p: string | null) => update({ node: p })
+  /** Keyboard focus to a node; one that's off screen (not rendered when virtualized) is centred first. */
+  const focusNode = (p: string) => {
+    const find = () => rootRef.current?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(p)}"]`)
+    const el = find()
+    if (el) return el.focus({ preventScroll: true })
+    const at = pos[p]
+    if (rf && at) void rf.setCenter(at.x, at.y, { zoom: rf.getZoom() }).then(() => requestAnimationFrame(() => find()?.focus({ preventScroll: true })))
+  }
   const pick = (p: string) => {
     select(p)
     const at = pos[p]
-    if (rf && at) void rf.setCenter(at.x, at.y, { zoom: Math.max(rf.getZoom(), 1), duration: 300 })
+    if (rf && at) void rf.setCenter(at.x, at.y, { zoom: Math.max(rf.getZoom(), 1), duration: 300 }).then(() => focusNode(p))
+    else focusNode(p)
+  }
+  // Keys on a focused node (React Flow's wrapper div carries data-id)
+  const onNodeKey = (e: React.KeyboardEvent) => {
+    const el = e.target as HTMLElement
+    const id = el.classList.contains("react-flow__node") ? el.dataset.id : undefined
+    const n = id ? byPath.get(id) : undefined
+    if (!id || !n || e.metaKey || e.ctrlKey || e.altKey) return
+    if (e.key === "Enter") {
+      if (id === selected) open(n)
+      else select(id)
+    } else if (e.key === " ") select(id)
+    else if (e.key === "o") open(n)
+    else if (ARROWS.has(e.key)) {
+      const to = stepFocus(id, e.key as ArrowKey, pos, adj.get(id) ?? [], order)
+      if (to) focusNode(to)
+    } else return
+    e.preventDefault()
   }
 
   if (!graph) return <p className="p-6 text-sm text-muted">Loading graph…</p>
@@ -210,7 +292,7 @@ export function DocGraph() {
   const linkedFrom = selected ? new Set(graph.edges.filter((e) => e.to === selected && e.from !== selected).map((e) => e.from)).size : 0
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         {KINDS.map(({ kind, label }) => {
           const on = state.kinds.includes(kind)
@@ -238,7 +320,11 @@ export function DocGraph() {
             placeholder="Find a file…"
             aria-label="Find a file in the graph"
             onChange={(e) => update({ q: e.target.value })}
-            onKeyDown={(e) => { if (e.key === "Enter" && matches[0]) pick(matches[0]) }}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || !matches[0]) return
+              e.preventDefault()
+              pick(matches[0])
+            }}
             className="h-7 w-56 rounded-md border border-border bg-surface pr-2 pl-7 text-xs text-txt outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent"
           />
         </label>
@@ -248,8 +334,14 @@ export function DocGraph() {
         </span>
       </div>
 
-      <div aria-label="Doc link graph" data-far={far && nodes.length > LABEL_NODES_OVER} className="group/graph relative min-h-0 flex-1">
+      <div data-far={far && nodes.length > LABEL_NODES_OVER} onKeyDown={onNodeKey} className="group/graph relative min-h-0 flex-1">
+        <p id="graph-hint" className="sr-only">{HINT}</p>
         <ReactFlow<DotNode>
+          aria-label="Doc link graph"
+          aria-roledescription="link graph"
+          aria-describedby="graph-hint"
+          ariaLabelConfig={ARIA_LABELS}
+          edgesFocusable={false}
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
@@ -273,40 +365,42 @@ export function DocGraph() {
           <Controls showInteractive={false} />
         </ReactFlow>
 
-        {sel && (
-          <aside aria-label="Selected file" className="absolute top-3 right-3 z-10 w-72 rounded-xl border border-border bg-surface p-3 shadow-lg">
-            <div className="flex items-start gap-2">
-              {(() => { const Icon = KIND_ICON[sel.kind]; return <Icon className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden /> })()}
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-txt">{sel.kind !== "doc" && <span className="mr-1.5 font-mono text-[11px] text-muted">{sel.id}</span>}{sel.label}</p>
-                <p className="mt-0.5 truncate font-mono text-[11px] text-muted" title={sel.path}>{sel.path}</p>
+        <div aria-live="polite">
+          {sel && (
+            <aside aria-label="Selected file" className="absolute top-3 right-3 z-10 w-72 rounded-xl border border-border bg-surface p-3 shadow-lg">
+              <div className="flex items-start gap-2">
+                {(() => { const Icon = KIND_ICON[sel.kind]; return <Icon className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden /> })()}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-txt">{sel.kind !== "doc" && <span className="mr-1.5 font-mono text-[11px] text-muted">{sel.id}</span>}{sel.label}</p>
+                  <p className="mt-0.5 truncate font-mono text-[11px] text-muted" title={sel.path}>{sel.path}</p>
+                </div>
+                <button type="button" aria-label="Clear selection" onClick={() => select(null)} className="rounded p-0.5 text-muted outline-none hover:text-txt focus-visible:ring-2 focus-visible:ring-accent">
+                  <X className="size-3.5" />
+                </button>
               </div>
-              <button type="button" aria-label="Clear selection" onClick={() => select(null)} className="rounded p-0.5 text-muted outline-none hover:text-txt focus-visible:ring-2 focus-visible:ring-accent">
-                <X className="size-3.5" />
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-muted">
-              Links to <span className="font-mono tabular-nums text-txt">{linksTo}</span> · Linked from <span className="font-mono tabular-nums text-txt">{linkedFrom}</span>
-            </p>
-            <div className="mt-3 flex items-center gap-2">
-              <Button size="sm" onClick={() => open(sel)}>Open</Button>
-              <div role="group" aria-label="Focus" className="ml-auto flex items-center rounded-md border border-border text-xs">
-                <span className="px-2 text-muted">Focus</span>
-                {([0, 1, 2] as const).map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    aria-pressed={state.focus === f}
-                    onClick={() => update({ focus: f })}
-                    className={cn("px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-accent", state.focus === f ? "bg-accent/15 text-txt" : "text-muted hover:text-txt")}
-                  >
-                    {f === 0 ? "Off" : f}
-                  </button>
-                ))}
+              <p className="mt-2 text-xs text-muted">
+                Links to <span className="font-mono tabular-nums text-txt">{linksTo}</span> · Linked from <span className="font-mono tabular-nums text-txt">{linkedFrom}</span>
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <Button size="sm" onClick={() => open(sel)}>Open</Button>
+                <div role="group" aria-label="Focus" className="ml-auto flex items-center rounded-md border border-border text-xs">
+                  <span className="px-2 text-muted">Focus</span>
+                  {([0, 1, 2] as const).map((f) => (
+                    <button
+                      key={f}
+                      type="button"
+                      aria-pressed={state.focus === f}
+                      onClick={() => update({ focus: f })}
+                      className={cn("px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-accent", state.focus === f ? "bg-accent/15 text-txt" : "text-muted hover:text-txt")}
+                    >
+                      {f === 0 ? "Off" : f}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          </aside>
-        )}
+            </aside>
+          )}
+        </div>
       </div>
     </div>
   )
