@@ -1,8 +1,9 @@
 # T100: e2e for doc links and graph; docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R056 — Doc link graph
 **Size:** M (2–3 hrs)
 **Depends on:** T094, T095, T096, T098, T099
+**Done:** 2026-10-01
 
 ## Goal
 The epic's "done when" is checked by one browser script, and the docs tell people and agents how links work.
@@ -50,3 +51,15 @@ node src/lib/doc-links.check.mts && node src/components/graph/force-layout.check
 pnpm build && pnpm lint
 PW_DIR=<playwright dir> BASE=http://localhost:3000 node e2e/docs-links.mjs
 ```
+
+## Manual tests
+_2026-10-01 — ai_
+### Steps
+- [ ] Run `PW_DIR=<playwright dir> BASE=http://localhost:3000 node e2e/docs-links.mjs` → six `ok` lines and no assertion error
+- [ ] Open a doc in /docs that links another doc with a relative `.md` link → clicking it opens that doc, and its Linked docs panel lists the first doc under Linked from
+- [ ] In a doc with a link to a missing file → the link is grey with a dashed underline; hovering a resolved link shows a card with its title and opening text
+- [ ] Open /graph → every linked doc is a dot with lines between them; click one → its edges turn accent, unrelated edges fade, and the Selected file card shows Open
+- [ ] Click Open in the Selected file card → /docs opens that doc
+- [ ] Read README (Docs + Graph bullets, vibedoc_read_doc row), HLD (getDocGraph) and MEMORY.md (R056 bullet) → they mention /graph, [[wikilinks]] and the ## Related files footer
+### Regression risk
+- [ ] The other e2e scripts (memory-browser, manual-tests-review) still pass against the same dev server

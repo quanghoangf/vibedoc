@@ -45,7 +45,8 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 ## What you get
 
 - **Kanban board** — tasks live in `plans/tasks/*.md`, rendered as draggable cards
-- **Docs viewer** — browse and edit every markdown file in `docs/`
+- **Docs viewer** — browse and edit every markdown file in `docs/`. Relative `.md` links and `[[wikilinks]]` in the preview are clickable (broken ones are muted), hovering one shows a preview card, and the Linked docs panel lists what a doc links to, what links to it, and its broken links
+- **Graph** — `/graph` maps every link between the project's `.md` files (docs, ADRs, tasks, epics, entries) with a force layout, kind filters, search and focus; click a node to select it, Open to read it
 - **Live activity feed** — every AI action appears instantly via SSE, no polling
 - **Memory tab** — the `MEMORY.md` session handoff, plus a browser for knowledge entries: search (ranked like `vibedoc_recall`), filter by type, open, edit, add, and delete with Undo. Each entry shows who changed it last (a person or a named agent)
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
@@ -129,7 +130,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | Tool                     | Effect                                 |
 | ------------------------ | -------------------------------------- |
 | `vibedoc_list_docs`      | Discover all docs grouped by section   |
-| `vibedoc_read_doc`       | Load any doc by name + shows backlinks |
+| `vibedoc_read_doc`       | Load any doc by name; ends with a `## Related files` footer (links to, linked from, broken) |
 | `vibedoc_search_docs`    | Full-text search across all docs       |
 | `vibedoc_write_doc`      | Write or overwrite a doc file          |
 | `vibedoc_create_doc`     | Create a doc from a template           |

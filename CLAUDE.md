@@ -19,6 +19,7 @@ src/
     layout.tsx            ← Root layout
     globals.css           ← Tailwind + markdown prose styles
     (app)/roadmap/page.tsx ← Roadmap page (roadmap.sh-style, React Flow)
+    (app)/graph/page.tsx  ← Whole-repo doc link graph (React Flow, force layout)
     (app)/chat/page.tsx   ← All agent chats: list · conversation · epic/task context
     (app)/manual-tests/page.tsx ← Tasks with unticked manual test items; tick to save
     api/
