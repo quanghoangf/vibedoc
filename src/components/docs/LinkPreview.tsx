@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useId, useRef, useState, type RefObject } from "react"
+import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react"
 import { createPortal } from "react-dom"
 import { Unlink } from "lucide-react"
 import { useApp } from "@/context/AppContext"
+import { cn } from "@/lib/utils"
 import { KIND_ICON } from "@/components/memory/EntryRelated"
 import { stripFrontmatter } from "@/lib/doc-priority"
 import { displayStatus, resolveStatus } from "@/lib/statuses"
@@ -15,7 +16,8 @@ import { LINK_EVENTS } from "./useDocLinks"
 /** What a hovered link points at: a resolved file, or a broken raw target. */
 export type PreviewTarget = { path: string; kind: string; label: string } | { broken: string }
 type Preview = { title: string; text: string; status?: string; owner?: string }
-type Card = { key: string; anchor: Element; target: PreviewTarget; rect: DOMRect; data: Preview | null }
+// open false = fading out: the card stays mounted with its last content until the next one opens
+type Card = { key: string; anchor: Element; target: PreviewTarget; rect: DOMRect; data: Preview | null; open: boolean }
 
 const SHOW_DELAY = 350
 const HIDE_DELAY = 150
@@ -80,6 +82,7 @@ export function LinkPreview({ containerRef, resolve }: {
   const [card, setCard] = useState<Card | null>(null)
   // pending show/hide; shared with the card so hovering it cancels the hide
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const close = useCallback(() => setCard((c) => (c?.open ? { ...c, open: false } : c)), [])
 
   useEffect(() => {
     const onSse = (e: Event) => {
@@ -100,7 +103,7 @@ export function LinkPreview({ containerRef, resolve }: {
       clearTimeout(timer.current)
       timer.current = setTimeout(() => {
         if (current !== anchor) return
-        setCard({ key, anchor, target, rect: anchor.getBoundingClientRect(), data: cached })
+        setCard({ key, anchor, target, rect: anchor.getBoundingClientRect(), data: cached, open: true })
         if (cached || "broken" in target) return
         fetch(`/api/docs${rootParam}&read=${encodeURIComponent(target.path)}`)
           .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
@@ -118,7 +121,7 @@ export function LinkPreview({ containerRef, resolve }: {
     const hide = () => {
       clearTimeout(timer.current)
       current = null
-      setCard(null)
+      close()
     }
 
     const onOver = (e: MouseEvent) => {
@@ -132,7 +135,7 @@ export function LinkPreview({ containerRef, resolve }: {
       current = null
       clearTimeout(timer.current)
       // the card stays while the pointer moves onto it (its onMouseEnter clears this timer)
-      timer.current = setTimeout(() => setCard(null), HIDE_DELAY)
+      timer.current = setTimeout(close, HIDE_DELAY)
     }
     const onFocusIn = (e: FocusEvent) => {
       const hit = resolve(e.target as Element)
@@ -154,10 +157,10 @@ export function LinkPreview({ containerRef, resolve }: {
       container.removeEventListener("focusout", hide)
       window.removeEventListener("scroll", hide, true)
     }
-  }, [containerRef, resolve, rootParam])
+  }, [containerRef, resolve, rootParam, close])
 
   // while open: the anchor is described by the card, and Esc closes the card before any sheet/dialog sees it
-  const anchor = card?.anchor
+  const anchor = card?.open ? card.anchor : undefined
   useEffect(() => {
     if (!anchor) return
     anchor.setAttribute("aria-describedby", id)
@@ -166,17 +169,17 @@ export function LinkPreview({ containerRef, resolve }: {
       e.preventDefault()
       e.stopPropagation()
       clearTimeout(timer.current)
-      setCard(null)
+      close()
     }
     window.addEventListener("keydown", onKey, true)
     return () => {
       anchor.removeAttribute("aria-describedby")
       window.removeEventListener("keydown", onKey, true)
     }
-  }, [anchor, id])
+  }, [anchor, id, close])
 
   if (!card) return null
-  const { target, rect, data } = card
+  const { target, rect, data, open } = card
   const below = rect.bottom + CARD_H < window.innerHeight
   const left = Math.max(8, Math.min(rect.left, window.innerWidth - CARD_W - 8))
   const style = below ? { top: rect.bottom + 6, left, width: CARD_W } : { bottom: window.innerHeight - rect.top + 6, left, width: CARD_W }
@@ -190,8 +193,14 @@ export function LinkPreview({ containerRef, resolve }: {
       role="tooltip"
       style={style}
       onMouseEnter={() => clearTimeout(timer.current)}
-      onMouseLeave={() => setCard(null)}
-      className="fixed z-[60] flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-3 text-sm text-txt shadow-lg"
+      onMouseLeave={close}
+      className={cn(
+        "fixed z-[60] flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-3 text-sm text-txt shadow-lg",
+        // Filter/Sort popover vocabulary: fade + scale from 98% out of the anchor edge; the exit only fades
+        below ? "origin-top-left" : "origin-bottom-left",
+        "duration-(--duration-fast) ease-out-soft",
+        open ? "transition-[opacity,scale,visibility] starting:scale-[0.98] starting:opacity-0" : "pointer-events-none invisible scale-[0.98] opacity-0 transition-[opacity,visibility]",
+      )}
     >
       <div className="flex min-w-0 items-center gap-2">
         <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />

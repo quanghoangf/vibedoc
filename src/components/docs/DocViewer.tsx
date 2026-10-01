@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useApp } from "@/context/AppContext"
+import { cn } from "@/lib/utils"
 import type { SelectedDoc } from "@/types"
 import { MarkdownEditor } from "./MarkdownEditor"
 import { LinkedDocs } from "./LinkedDocs"
@@ -165,11 +166,20 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
             {docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
           </>
         )}
-        aside={linksColumn && (
-          <aside aria-label="Linked docs" className="w-72 shrink-0 overflow-y-auto border-l border-border px-4 py-6 max-xl:hidden">
-            <LinkedDocs links={links} />
-          </aside>
-        )}
+        aside={
+          // the column opens and closes (0 ↔ 18rem) so the prose reflow reads as one movement
+          <div
+            inert={!linksColumn}
+            className={cn(
+              "grid shrink-0 grid-rows-[minmax(0,1fr)] overflow-hidden transition-[grid-template-columns] duration-(--duration-base) ease-out-soft max-xl:hidden",
+              linksColumn ? "grid-cols-[18rem]" : "grid-cols-[0rem]",
+            )}
+          >
+            <aside aria-label="Linked docs" className="min-h-0 w-72 overflow-y-auto border-l border-border px-4 py-6">
+              <LinkedDocs links={links} />
+            </aside>
+          </div>
+        }
         titleBlock={
           <header className="mb-8 border-b border-border pb-4">
             <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-balance text-txt">{title}</h1>

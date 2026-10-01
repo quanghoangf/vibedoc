@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Background, BackgroundVariant, Controls, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react"
+import { Background, BackgroundVariant, Controls, getViewportForBounds, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { FileQuestion, Info, Search, Unlink, X } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -19,9 +19,14 @@ import { AgentDot } from "@/components/chat/AgentMark"
 import type { TaskStatus } from "@/types"
 import { forceLayout, graphChanges, hiddenLabels, neighbourhoodIds, stepFocus, type ArrowKey, type LabelBox } from "./force-layout"
 
-type DotData = { node: DocNode; size: number; box: number; dim: boolean; active: boolean; match: boolean; changed: boolean; hue: string; hideLabel: boolean }
+// delay: the selection ripple (depth-2 lights after depth-1); quick: no selection, so state changes run on fast.
+// enter / exit: a node that appears / disappears during a relayout tween.
+type DotData = { node: DocNode; size: number; box: number; dim: boolean; active: boolean; match: boolean; changed: boolean; hue: string; hideLabel: boolean; delay: number; quick: boolean; enter?: boolean; exit?: boolean }
 type DotNode = Node<DotData, "dot">
 type GraphState = { node: string | null; focus: 0 | 1 | 2; kinds: DocNodeKind[]; q: string }
+type XY = { x: number; y: number }
+/** A relayout in flight: centres it started from, where it is now, where it goes, and the nodes it removed. */
+type Tween = { from: Record<string, XY>; at: Record<string, XY>; to: Record<string, XY>; gone: DotNode[] }
 
 const KINDS: { kind: DocNodeKind; label: string }[] = [
   { kind: "doc", label: "Docs" },
@@ -65,6 +70,14 @@ const CENTER = { left: "50%", top: "50%", transform: "translate(-50%, -50%)" }
 const HIT = 24
 const KIND_NAME: Record<DocNodeKind, string> = { doc: "Doc", adr: "ADR", task: "Task", epic: "Epic", entry: "Entry" }
 const LEGEND_STATUSES: TaskStatus[] = ["in-progress", "blocked", "done"]
+// relayout: positions and camera glide together (the roadmap Arrange tween is 420ms too)
+const TWEEN_MS = 420
+// ease-out-quart, close to --ease-out-soft; dots and camera share it so they move as one
+const easeOut = (k: number) => 1 - Math.pow(1 - k, 4)
+// the selection ripple: depth-2 neighbours light this long after depth-1
+const RIPPLE_MS = 60
+const EXIT_STYLE = { pointerEvents: "none" } as const
+const still = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
 const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"])
 const HINT = "Tab moves between files. Enter selects a file; Enter again or O opens it. Arrow keys move to the nearest linked file. Escape clears the search, then the selection. Slash jumps to search."
 const ARIA_LABELS = { "node.a11yDescription.default": HINT }
@@ -122,14 +135,21 @@ function Shape({ kind, size, className }: { kind: DocNodeKind; size: number; cla
 
 /** A shape sized by degree, centred on its layout point; the label hangs below and never takes clicks. */
 const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
-  const { node, size, box, dim, active, match, changed, hue, hideLabel } = data
+  const { node, size, box, dim, active, match, changed, hue, hideLabel, delay, quick, enter, exit } = data
   // The React Flow wrapper (.react-flow__node) takes focus; the halo goes on the dot and the label
   return (
-    <div title={node.path} data-changed={changed || undefined} style={{ width: box, height: box }} className="flex items-center justify-center">
+    <div
+      title={node.path}
+      data-changed={changed || undefined}
+      style={{ width: box, height: box }}
+      className={cn("flex items-center justify-center", enter && "animate-node-in", exit && "animate-node-out")}
+    >
       <div
-        style={{ width: size, height: size }}
+        style={{ width: size, height: size, transitionDelay: `${delay}ms` }}
         className={cn(
-          "relative rounded-full transition-opacity duration-(--duration-fast)",
+          "relative rounded-full transition-[opacity,box-shadow] ease-out-soft",
+          quick ? "duration-(--duration-fast)" : "duration-(--duration-base)",
+          changed && "animate-flash",
           hue,
           dim && "opacity-25",
           (active || match) && "ring-2 ring-accent ring-offset-2 ring-offset-bg",
@@ -142,8 +162,10 @@ const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
         <span
           className={cn(
             "pointer-events-none absolute top-full left-1/2 mt-1 max-w-48 -translate-x-1/2 truncate text-[11px] whitespace-nowrap",
-            active || match ? "font-medium text-txt" : cn("text-muted group-data-[far=true]/graph:hidden", hideLabel && "hidden"),
-            "rounded-sm in-[[data-id]:focus-visible]:block! in-[[data-id]:focus-visible]:bg-surface in-[[data-id]:focus-visible]:px-1 in-[[data-id]:focus-visible]:text-txt in-[[data-id]:focus-visible]:ring-1 in-[[data-id]:focus-visible]:ring-accent/60 in-[[data-id]:focus-visible]:shadow-[0_0_0_3px_rgb(var(--rgb-accent)/0.15)]",
+            // the zoom threshold fades labels out rather than snapping them
+            "transition-opacity duration-(--duration-base) ease-out-soft",
+            active || match ? "font-medium text-txt" : cn("text-muted group-data-[far=true]/graph:opacity-0", hideLabel && "hidden"),
+            "rounded-sm in-[[data-id]:focus-visible]:block! in-[[data-id]:focus-visible]:opacity-100! in-[[data-id]:focus-visible]:bg-surface in-[[data-id]:focus-visible]:px-1 in-[[data-id]:focus-visible]:text-txt in-[[data-id]:focus-visible]:ring-1 in-[[data-id]:focus-visible]:ring-accent/60 in-[[data-id]:focus-visible]:shadow-[0_0_0_3px_rgb(var(--rgb-accent)/0.15)]",
           )}
         >
           {node.kind !== "doc" && <span className="mr-1 font-mono text-[10px]">{node.id}</span>}
@@ -179,6 +201,8 @@ export function DocGraph() {
   const [rf, setRf] = useState<ReactFlowInstance<DotNode> | null>(null)
   const [far, setFar] = useState(false)
   const [legendOpen, setLegendOpen] = useState(false)
+  // the last selected file: the card keeps showing it while it fades out
+  const [cardNode, setCardNode] = useState<DocNode | undefined>(undefined)
   const rootRef = useRef<HTMLDivElement>(null)
   const isDark = useSyncExternalStore(subscribeTheme, () => document.documentElement.classList.contains("dark"), () => true)
 
@@ -261,11 +285,21 @@ export function DocGraph() {
   const userMoved = useRef(false)
   const viewKey = `${state.kinds.join(",")}|${focusRoot ?? ""}|${focusRoot ? state.focus : 0}`
   useEffect(() => { userMoved.current = false }, [viewKey])
+  // Fits the *target* layout, so the camera glides alongside the position tween instead of after a jump
   useEffect(() => {
     if (!rf || userMoved.current) return
-    const id = requestAnimationFrame(() => void rf.fitView({ ...FIT_OPTIONS, duration: 250 }))
+    const id = requestAnimationFrame(() => {
+      const el = rootRef.current?.querySelector<HTMLElement>(".react-flow")
+      const pts = Object.values(pos)
+      if (!el || !pts.length) return
+      const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y)
+      const x = Math.min(...xs) - HIT, y = Math.min(...ys) - HIT
+      const bounds = { x, y, width: Math.max(...xs) + HIT - x, height: Math.max(...ys) + HIT - y }
+      const vp = getViewportForBounds(bounds, el.clientWidth, el.clientHeight, FIT_MIN_ZOOM, FIT_OPTIONS.maxZoom, FIT_OPTIONS.padding)
+      void rf.setViewport(vp, { duration: still() ? 0 : TWEEN_MS, ease: easeOut })
+    })
     return () => cancelAnimationFrame(id)
-  }, [rf, idsKey, viewKey])
+  }, [rf, pos, viewKey])
 
   const q = state.q.trim().toLowerCase()
   const matches = useMemo(
@@ -273,11 +307,15 @@ export function DocGraph() {
     [q, visible, byPath],
   )
 
-  const { nodes, edges } = useMemo(() => {
-    if (!visible) return { nodes: [] as DotNode[], edges: [] as Edge[] }
+  const { base, edges } = useMemo(() => {
+    if (!visible) return { base: [] as DotNode[], edges: [] as Edge[] }
     const degree = new Map<string, number>()
     for (const e of visible.edges) for (const p of [e.from, e.to]) degree.set(p, (degree.get(p) ?? 0) + 1)
-    const lit = selected ? neighbourhoodIds(visible.edges, selected, 1) : q ? new Set(matches) : null
+    // Selection ripple: depth-1 lights first; with Focus 2 the depth-2 ring lights RIPPLE_MS later
+    const near = selected ? neighbourhoodIds(visible.edges, selected, 1) : null
+    const lit = selected ? (state.focus === 2 ? neighbourhoodIds(visible.edges, selected, 2) : near) : q ? new Set(matches) : null
+    const delayOf = (p: string) => (near && lit?.has(p) && !near.has(p) ? RIPPLE_MS : 0)
+    const quick = !selected
     const matched = new Set(matches)
     // tasks are the small circles; everything grows with degree
     const sizeOf = (p: string) => Math.round((byPath.get(p)?.kind === "task" ? 0.7 : 1) * (8 + 4 * Math.sqrt(degree.get(p) ?? 0)))
@@ -306,24 +344,84 @@ export function DocGraph() {
         id: p,
         type: "dot",
         position: { x: at.x - box / 2, y: at.y - box / 2 },
+        // known size: a fresh node object (every restyle, every tween frame) keeps its handles and stays visible
+        // instead of React Flow hiding it, and its edges, until it re-measures
+        measured: { width: box, height: box },
         ariaLabel: `${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}`,
-        data: { node: n, size, box, dim: !!lit && !lit.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hideLabel: hideLabel.has(p) },
+        data: { node: n, size, box, dim: !!lit && !lit.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hideLabel: hideLabel.has(p), delay: delayOf(p), quick },
         draggable: false,
       }
     })
+    // edges share the nodes' timing (they used to snap)
+    const ms = quick ? "var(--duration-fast)" : "var(--duration-base)"
+    const transition = ["stroke", "stroke-width", "opacity"].map((pr) => `${pr} ${ms} var(--ease-out-soft)`).join(", ")
     const edges: Edge[] = visible.edges.map((e) => {
       const hot = !!selected && (e.from === selected || e.to === selected)
+      // Focus 2: an edge inside the 2-hop ring stays lit, after the ripple delay
+      const on = hot || (!!selected && state.focus === 2 && !!lit?.has(e.from) && !!lit.has(e.to))
       return {
         id: `${e.from}->${e.to}`,
         source: e.from,
         target: e.to,
         type: "straight",
         domAttributes: { "aria-hidden": true },
-        style: { stroke: hot ? "var(--color-accent)" : EDGE, strokeWidth: hot ? 1.75 : 1, opacity: lit && !hot ? 0.15 : 1 },
+        style: {
+          stroke: hot ? "var(--color-accent)" : EDGE,
+          strokeWidth: hot ? 1.75 : 1,
+          opacity: lit && !on ? 0.15 : 1,
+          transition,
+          transitionDelay: `${hot ? 0 : Math.max(delayOf(e.from), delayOf(e.to))}ms`,
+        },
       }
     })
-    return { nodes, edges }
-  }, [visible, order, adj, pos, byPath, selected, q, matches, changed, statusDefs])
+    return { base: nodes, edges }
+  }, [visible, order, adj, pos, byPath, selected, state.focus, q, matches, changed, statusDefs])
+
+  // Relayout tween (filter / focus / data change): dots glide from where they are drawn to the new layout, new ones
+  // scale in at their target, removed ones fade out. A new relayout mid-tween starts from the interpolated positions.
+  // "Previous render" bookkeeping is state, set while rendering (React's documented pattern), so nothing reads refs.
+  const [seen, setSeen] = useState({ pos, base })
+  const [tween, setTween] = useState<Tween | null>(null)
+  if (seen.base !== base) {
+    setSeen({ pos, base })
+    if (seen.pos !== pos) {
+      // ponytail: per-frame React Flow updates; above VIRTUALIZE_OVER nodes the graph jumps instead of gliding
+      const glide = seen.base.length > 0 && base.length > 0 && Math.max(seen.base.length, base.length) <= VIRTUALIZE_OVER && !still()
+      const from = tween?.to === seen.pos ? tween.at : seen.pos
+      setTween(glide ? { from, at: from, to: pos, gone: seen.base.filter((n) => !pos[n.id]) } : null)
+    }
+  }
+  const tweenFrom = tween?.from
+  const tweenTo = tween?.to
+  useEffect(() => {
+    if (!tweenFrom || !tweenTo) return
+    const t0 = performance.now()
+    let raf = 0
+    const step = (now: number) => {
+      const k = Math.min(1, (now - t0) / TWEEN_MS)
+      if (k >= 1) return setTween(null)
+      const e = easeOut(k)
+      const at: Record<string, XY> = {}
+      for (const [id, b] of Object.entries(tweenTo)) {
+        const a = tweenFrom[id] ?? b
+        at[id] = { x: a.x + (b.x - a.x) * e, y: a.y + (b.y - a.y) * e }
+      }
+      setTween((t) => (t && t.from === tweenFrom ? { ...t, at } : t))
+      raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [tweenFrom, tweenTo])
+  const nodes = useMemo(() => {
+    if (!tween) return base
+    const moved = base.map((n): DotNode => {
+      if (!tween.from[n.id]) return { ...n, data: { ...n.data, enter: true } }
+      const c = tween.at[n.id]
+      return c ? { ...n, position: { x: c.x - n.data.box / 2, y: c.y - n.data.box / 2 } } : n
+    })
+    const gone = tween.gone.map((n): DotNode => ({ ...n, focusable: false, selectable: false, style: EXIT_STYLE, data: { ...n.data, exit: true } }))
+    return [...moved, ...gone]
+  }, [base, tween])
 
   // Esc on /graph steps back: clear the search, then the selection, then leave the graph. Capture phase, so
   // React Flow's own Escape (which blurs the node) and the global handler never see it.
@@ -361,7 +459,7 @@ export function DocGraph() {
     const at = pos[p]
     if (!rf || !at) return focusNode(p)
     userMoved.current = true
-    void rf.setCenter(at.x, at.y, { zoom: Math.max(rf.getZoom(), 1), duration: 300 }).then(() => focusNode(p))
+    void rf.setCenter(at.x, at.y, { zoom: Math.max(rf.getZoom(), 1), duration: still() ? 0 : TWEEN_MS, ease: easeOut }).then(() => focusNode(p))
   }
   // Keys on a focused node (React Flow's wrapper div carries data-id)
   const onNodeKey = (e: React.KeyboardEvent) => {
@@ -396,11 +494,14 @@ export function DocGraph() {
   }
 
   const sel = selected ? byPath.get(selected) : undefined
+  if (sel && sel !== cardNode) setCardNode(sel)
+  const card = sel ?? cardNode
   // selected in the URL but its kind is filtered out: say so instead of dropping it
   const hidden = state.node && !selected ? byPath.get(state.node) : undefined
   // Card counts = the edges drawn; links to files the filters / focus hide are "+N hidden"
-  const linked = (es: { from: string; to: string }[]) => selected
-    ? { to: new Set(es.filter((e) => e.from === selected && e.to !== selected).map((e) => e.to)).size, from: new Set(es.filter((e) => e.to === selected && e.from !== selected).map((e) => e.from)).size }
+  const cp = card?.path
+  const linked = (es: { from: string; to: string }[]) => cp
+    ? { to: new Set(es.filter((e) => e.from === cp && e.to !== cp).map((e) => e.to)).size, from: new Set(es.filter((e) => e.to === cp && e.from !== cp).map((e) => e.from)).size }
     : { to: 0, from: 0 }
   const shown = linked(visible?.edges ?? [])
   const all = linked(graph.edges)
@@ -533,30 +634,41 @@ export function DocGraph() {
               </button>
             </p>
           )}
-          {sel && (
-            <aside aria-label="Selected file" className="absolute top-3 right-3 z-10 w-72 max-w-[calc(100%-1.5rem)] rounded-lg border border-border bg-surface p-3 shadow-lg shadow-black/20">
+          {card && (
+            <aside
+              aria-label="Selected file"
+              inert={!sel}
+              className={cn(
+                "absolute top-3 right-3 z-10 w-72 max-w-[calc(100%-1.5rem)] rounded-lg border border-border bg-surface p-3 shadow-lg shadow-black/20",
+                // enters with a fade and a 4px slide from the right, leaves faster; it stays mounted for the exit
+                "transition-[opacity,translate,visibility] ease-out-soft",
+                sel ? "duration-(--duration-base) starting:translate-x-1 starting:opacity-0" : "invisible translate-x-1 opacity-0 duration-(--duration-fast)",
+              )}
+            >
+              {/* reselecting crossfades the content */}
+              <div key={card.path} className="animate-[pane-in_var(--duration-fast)_var(--ease-out-soft)]">
               <div className="flex items-start gap-2">
-                {(() => { const Icon = KIND_ICON[sel.kind]; return <Icon className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden /> })()}
+                {(() => { const Icon = KIND_ICON[card.kind]; return <Icon className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden /> })()}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-txt">{sel.kind !== "doc" && <span className="mr-1.5 font-mono text-[11px] text-muted">{sel.id}</span>}{sel.label}</p>
-                  <p className="mt-0.5 truncate font-mono text-[11px] text-muted" title={sel.path}>{sel.path}</p>
+                  <p className="text-sm font-medium text-txt">{card.kind !== "doc" && <span className="mr-1.5 font-mono text-[11px] text-muted">{card.id}</span>}{card.label}</p>
+                  <p className="mt-0.5 truncate font-mono text-[11px] text-muted" title={card.path}>{card.path}</p>
                 </div>
                 <button type="button" aria-label="Clear selection" onClick={() => select(null)} className="rounded p-0.5 text-muted outline-none hover:text-txt focus-visible:ring-2 focus-visible:ring-accent">
                   <X className="size-3.5" />
                 </button>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">{KIND_NAME[sel.kind]}</span>
-                {sel.status && <StatusChip status={sel.status} />}
-                {sel.owner && <OwnerChip owner={sel.owner} />}
-                {(sel.kind === "task" || sel.kind === "epic") && <AgentDot attach={{ kind: sel.kind, id: sel.id }} />}
+                <span className="font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">{KIND_NAME[card.kind]}</span>
+                {card.status && <StatusChip status={card.status} />}
+                {card.owner && <OwnerChip owner={card.owner} />}
+                {(card.kind === "task" || card.kind === "epic") && <AgentDot attach={{ kind: card.kind, id: card.id }} />}
               </div>
               <p className="mt-2 text-xs text-muted">
                 Links to <span className="font-mono tabular-nums text-txt">{shown.to}</span> · Linked from <span className="font-mono tabular-nums text-txt">{shown.from}</span>
                 {hiddenLinks > 0 && <span className="text-muted"> · <span className="font-mono tabular-nums">+{hiddenLinks}</span> hidden by filters</span>}
               </p>
               <div className="mt-3 flex items-center gap-2">
-                <Button size="sm" onClick={() => open(sel)}>Open</Button>
+                <Button size="sm" onClick={() => open(card)}>Open</Button>
                 <div role="group" aria-label="Focus" className="ml-auto flex items-center rounded-md border border-border text-xs">
                   <span className="px-2 text-muted">Focus</span>
                   {([0, 1, 2] as const).map((f) => (
@@ -571,6 +683,7 @@ export function DocGraph() {
                     </button>
                   ))}
                 </div>
+              </div>
               </div>
             </aside>
           )}

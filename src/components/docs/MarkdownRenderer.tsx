@@ -175,7 +175,8 @@ const slug = (h: string) => {
 /** Scroll to a heading; retries while a just-opened doc renders. */
 function scrollToHeading(hash: string, tries = 15) {
   const el = document.getElementById(slug(hash))
-  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  if (el) el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" })
   else if (tries > 0) setTimeout(() => scrollToHeading(hash, tries - 1), 100)
 }
 
@@ -205,11 +206,16 @@ export function revealLink(root: ParentNode, target: string): boolean {
   if (!(el instanceof HTMLElement)) return false
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
   el.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" })
+  flashElement(el)
+  return true
+}
+
+/** The update flash (DESIGN.md) on one element; restarts if it is already running. */
+export function flashElement(el: HTMLElement) {
   el.classList.remove("animate-flash")
-  void el.offsetWidth // restart the flash on a repeat click
+  void el.offsetWidth // restart the flash on a repeat
   el.classList.add("animate-flash")
   el.addEventListener("animationend", () => el.classList.remove("animate-flash"), { once: true })
-  return true
 }
 
 /**

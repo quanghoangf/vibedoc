@@ -53,6 +53,9 @@
   --animate-pulse-dot: pulseDot 2s ease-in-out infinite;
   --animate-grow-x: growX 600ms var(--ease-out-soft) both;
   --animate-flash: flash 1.2s var(--ease-out-soft);
+  /* graph relayout: a new dot scales in at its target, a removed one fades out */
+  --animate-node-in: nodeIn var(--duration-slow) var(--ease-out-soft) both;
+  --animate-node-out: nodeOut var(--duration-fast) ease-in forwards;
 
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
@@ -69,6 +72,12 @@
   @keyframes flash {
     from { box-shadow: 0 0 0 3px rgb(var(--rgb-accent) / 0.35); }
     to   { box-shadow: 0 0 0 0 rgb(var(--rgb-accent) / 0); }
+  }
+  @keyframes nodeIn {
+    from { opacity: 0; scale: 0.6; }
+  }
+  @keyframes nodeOut {
+    to { opacity: 0; }
   }
   @keyframes pulseDot {
     0%, 100% { opacity: 0.4; transform: scale(0.8); }
@@ -259,6 +268,11 @@ html:not(.dark) .prose-dark :not(pre) > code { color: color-mix(in srgb, var(--c
   }
   /* What the agent changed must still read: no stroke, just the highlight fading out */
   .doc-block-changed { animation: doc-highlight-fade 2.4s linear !important; }
+  /* A live update still marks what changed: a static ring for 1s instead of the fading one */
+  .animate-flash { animation: flash-still 1s step-end !important; }
+}
+@keyframes flash-still {
+  from, to { box-shadow: 0 0 0 3px rgb(var(--rgb-accent) / 0.35); }
 }
 
 /* Mermaid diagrams */

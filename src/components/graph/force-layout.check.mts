@@ -75,6 +75,8 @@ assert.deepEqual([...graphChanges(null, g0)], [])
 assert.deepEqual([...graphChanges(g0, g0)], [], 'same data: nothing changed')
 const g1 = { nodes: [{ path: 'a', label: 'A' }, { path: 'b', label: 'B2' }, { path: 'd', label: 'D' }], edges: [{ from: 'd', to: 'a' }] }
 assert.deepEqual([...graphChanges(g0, g1)].sort(), ['a', 'b', 'c', 'd'])
+const g2 = { ...g0, nodes: g0.nodes.map((n) => (n.path === 'c' ? { ...n, status: 'done' } : n)) }
+assert.deepEqual([...graphChanges(g0, g2)], ['c'], 'a status change marks the node')
 
 // timing: 300 nodes / 600 edges
 const t300 = Array.from({ length: 300 }, (_, i) => `t${i}`)

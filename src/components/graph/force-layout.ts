@@ -180,18 +180,20 @@ export function stepFocus(
   return order[(Math.max(i, step > 0 ? -1 : 0) + step + order.length) % order.length]
 }
 
-type GraphLike = { nodes: { path: string; label: string }[]; edges: { from: string; to: string }[] }
+type GraphLike = { nodes: { path: string; label: string; status?: string }[]; edges: { from: string; to: string }[] }
 
 /**
- * Node paths a refresh touched: added or removed files, both ends of an added or removed link, renamed labels.
+ * Node paths a refresh touched: added or removed files, both ends of an added or removed link, renamed labels, status changes.
  * Empty on the first load (no `prev`), so only live updates flash.
  */
 export function graphChanges(prev: GraphLike | null, next: GraphLike): Set<string> {
   const out = new Set<string>()
   if (!prev) return out
-  const labels = new Map(prev.nodes.map((n) => [n.path, n.label]))
+  // a relabel or a status change (an agent moving a task) marks the node
+  const sig = (n: GraphLike["nodes"][number]) => `${n.label}\u0000${n.status ?? ""}`
+  const labels = new Map(prev.nodes.map((n) => [n.path, sig(n)]))
   const now = new Set(next.nodes.map((n) => n.path))
-  for (const n of next.nodes) if (labels.get(n.path) !== n.label) out.add(n.path)
+  for (const n of next.nodes) if (labels.get(n.path) !== sig(n)) out.add(n.path)
   for (const p of labels.keys()) if (!now.has(p)) out.add(p)
   const key = (e: { from: string; to: string }) => `${e.from}\u0000${e.to}`
   const before = new Set(prev.edges.map(key))

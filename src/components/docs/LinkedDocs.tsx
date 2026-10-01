@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { FileQuestion, Unlink } from "lucide-react"
 import { useApp } from "@/context/AppContext"
@@ -12,7 +12,7 @@ import type { LinkRow } from "@/lib/doc-links"
 import type { NodeKind } from "@/lib/memory-graph"
 import type { DocLinksData } from "./useDocLinks"
 import { LinkPreview, type PreviewTarget } from "./LinkPreview"
-import { revealLink } from "./MarkdownRenderer"
+import { flashElement, revealLink } from "./MarkdownRenderer"
 
 /** Label Caps (DESIGN.md): mono 10px/500, 0.06em, uppercase. */
 const LABEL_CAPS = "flex items-center font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted"
@@ -40,8 +40,25 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
   const open = useOpenNode((id) => router.push(`/memory?entry=${id}`))
   const tasks = useMemo(() => new Map(Object.values(board ?? {}).flat().map((t) => [t.id, t])), [board])
   const ref = useRef<HTMLDivElement>(null)
+  // What each row showed last time (data-sig), so a live update flashes only the rows it changed. Reset while the
+  // links or the board load, so opening a doc flashes nothing.
+  const seen = useRef<Map<string, string> | null>(null)
+  useEffect(() => {
+    const root = ref.current
+    if (!root || !links || !board) {
+      seen.current = null
+      return
+    }
+    const next = new Map<string, string>()
+    for (const el of root.querySelectorAll<HTMLElement>("[data-sig]")) {
+      const key = el.dataset.rowKey ?? "", sig = el.dataset.sig ?? ""
+      next.set(key, sig)
+      if (seen.current && seen.current.get(key) !== sig) flashElement(el)
+    }
+    seen.current = next
+  }, [links, board])
 
-  const row = (r: LinkRow, withLine: boolean) => {
+  const row = (r: LinkRow, withLine: boolean, section: string) => {
     const kind = (NODE_KINDS.has(r.kind) ? r.kind : "doc") as NodeKind
     const id = idOf(r)
     const task = kind === "task" ? tasks.get(id) : undefined
@@ -54,6 +71,8 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
           data-preview-path={r.path}
           data-preview-kind={kind}
           data-preview-label={r.label}
+          data-row-key={`${section}:${r.path}${withLine ? `:${r.line}` : ""}`}
+          data-sig={`${r.label}|${task ? displayStatus(task) : ""}|${withLine ? r.context ?? r.text : ""}`}
           className={cn("flex w-full flex-col", ROW)}
         >
           <span className="flex w-full min-w-0 items-center gap-2">
@@ -78,7 +97,7 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
         return (
           <div key={kind}>
             <p className="px-2 text-[11px] text-muted">{label}</p>
-            <ul>{group.map((r) => row(r, withLine))}</ul>
+            <ul>{group.map((r) => row(r, withLine, title))}</ul>
           </div>
         )
       })}
