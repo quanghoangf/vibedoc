@@ -88,7 +88,7 @@ const item = (path: string, text: string): DocItem => ({ node: docNode(path, tex
 const graph = buildDocGraph([
   item('docs/a/x.md', '[y](../b/y.md)\n[[y]] again\n[gone](missing.md)\n[[Gone]]\n[me](x.md)\nT999 is no file'),
   item('docs/b/y.md', '# Why\nBack to [x](../a/x.md), see T093'),
-  item('plans/tasks/T093-doc-links.md', '# T093: Doc links\nT093 itself, `docs/b/y.md`'),
+  item('plans/tasks/T093-doc-links.md', '# T093: Doc links\nT093 itself, `docs/b/y.md`\nMoved: `docs/old.md` and [[Gone]]'),
 ])
 assert.deepEqual(graph.edges, [
   { from: 'docs/a/x.md', to: 'docs/b/y.md', line: 1, text: 'y' },
@@ -99,7 +99,10 @@ assert.deepEqual(graph.edges, [
 assert.deepEqual(graph.broken, [
   { from: 'docs/a/x.md', target: 'missing.md', line: 3, text: 'gone', kind: 'md' },
   { from: 'docs/a/x.md', target: 'Gone', line: 4, text: 'Gone', kind: 'wiki' },
+  { from: 'plans/tasks/T093-doc-links.md', target: 'Gone', line: 3, text: 'Gone', kind: 'wiki' },
 ])
+// a backticked path to a missing file is a stale mention, never broken
+assert.deepEqual(graph.stale, [{ from: 'plans/tasks/T093-doc-links.md', target: 'docs/old.md', line: 3, text: 'docs/old.md', kind: 'code' }])
 
 // docLinks
 const y = docLinks(graph, 'docs/b/y.md')
@@ -109,6 +112,10 @@ assert.deepEqual(y?.out, [
   { path: 'plans/tasks/T093-doc-links.md', kind: 'task', label: 'Doc links', line: 2, text: 'T093' },
 ])
 assert.equal(docLinks(graph, 'docs/a/x.md')?.broken.length, 2)
+assert.deepEqual(docLinks(graph, 'docs/a/x.md')?.stale, [])
+const t = docLinks(graph, 'plans/tasks/T093-doc-links.md')
+assert.deepEqual(t?.broken.map(r => r.path), ['Gone'])
+assert.deepEqual(t?.stale, [{ path: 'docs/old.md', kind: 'code', label: 'docs/old.md', line: 3, text: 'docs/old.md' }])
 // targets: raw spelling → node, self-links included, misses absent
 assert.deepEqual(docLinks(graph, 'docs/a/x.md')?.targets, {
   '../b/y.md': { path: 'docs/b/y.md', kind: 'doc', id: 'docs/b/y.md', label: 'Why' },
@@ -135,6 +142,14 @@ assert.deepEqual(formatRelatedFiles({ out: [], in: [], broken: [row('missing.md'
   '## Related files',
   'Broken: missing.md (L8)',
   'Read with vibedoc_read_doc, or several at once with vibedoc_get_context { paths }.',
+])
+
+// Broken is md / wiki only; code mentions go to Stale paths
+assert.deepEqual(formatRelatedFiles(t).split('\n').slice(1, -1), [
+  'Links to: docs/b/y.md',
+  'Linked from: docs/b/y.md (L2)',
+  'Broken: Gone (L3)',
+  'Stale paths: docs/old.md (L3)',
 ])
 
 // backticked globs are patterns, not links

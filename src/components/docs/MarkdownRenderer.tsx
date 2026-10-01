@@ -105,8 +105,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
     const container = containerRef.current
     if (!container) return
     const blocks = Array.from(container.children)
-    // data-broken comes and goes with the links data (DocLinks), not with the content
-    const sigs = blocks.map((b) => b.outerHTML.replaceAll(' data-broken=""', ""))
+    // data-broken / data-stale come and go with the links data (DocLinks), not with the content
+    const sigs = blocks.map((b) => b.outerHTML.replace(STALE_ATTRS_RE, ""))
     const prev = prevBlocksRef.current
     prevBlocksRef.current = sigs
     if (!prev || Date.now() - highlightSince > HIGHLIGHT_WINDOW) return
@@ -162,6 +162,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
 })
 
 const EXTERNAL_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i
+const STALE_TITLE = "File not found"
+const STALE_ATTRS_RE = new RegExp(` data-broken=""| data-stale="" title="${STALE_TITLE}"`, "g")
 
 /** Same slug rule as the heading renderer above; idempotent on a slug that is already one. */
 const slug = (h: string) => {
@@ -191,10 +193,29 @@ function docTarget(a: Element): { raw: string; hash: string } | null {
 }
 
 const isBroken = (links: DocLinksData, raw: string) => !links.targets[raw] && links.broken.some((b) => b.path === raw)
+const inlineCode = (root: ParentNode) => Array.from(root.querySelectorAll(":not(pre) > code"))
+
+/**
+ * Scroll a link (or a backticked path) whose raw target is `target` into view in a rendered doc and flash it.
+ * False when the preview has no such element (edit mode, a link inside a fence).
+ */
+export function revealLink(root: ParentNode, target: string): boolean {
+  const el = Array.from(root.querySelectorAll("a")).find((a) => docTarget(a)?.raw === target)
+    ?? inlineCode(root).find((c) => c.textContent === target)
+  if (!(el instanceof HTMLElement)) return false
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  el.scrollIntoView({ block: "center", behavior: still ? "auto" : "smooth" })
+  el.classList.remove("animate-flash")
+  void el.offsetWidth // restart the flash on a repeat click
+  el.classList.add("animate-flash")
+  el.addEventListener("animationend", () => el.classList.remove("animate-flash"), { once: true })
+  return true
+}
 
 /**
  * Link handling for the docs preview (R056): one delegated click listener on the rendered doc, and
- * data-broken on links the links API lists as broken. Kept out of MarkdownRenderer so its other users
+ * data-broken on links the links API lists as broken, data-stale on backticked paths to missing files, and the
+ * `?link=` target (from /graph's broken list) scrolled into view once. Kept out of MarkdownRenderer so its other users
  * (chat, board, memory) don't need AppContext.
  */
 function DocLinks({ docPath, html, containerRef }: { docPath: string; html: string; containerRef: RefObject<HTMLDivElement | null> }) {
@@ -210,9 +231,26 @@ function DocLinks({ docPath, html, containerRef }: { docPath: string; html: stri
       const t = docTarget(a)
       return !!t && isBroken(links, t.raw)
     })
+    const stale = new Set(links.stale.map((s) => s.path))
+    const mentions = inlineCode(container).filter((c) => !links.targets[c.textContent ?? ""] && stale.has(c.textContent ?? ""))
     marked.forEach((a) => a.setAttribute("data-broken", ""))
-    return () => marked.forEach((a) => a.removeAttribute("data-broken"))
+    mentions.forEach((c) => { c.setAttribute("data-stale", ""); c.setAttribute("title", STALE_TITLE) })
+    return () => {
+      marked.forEach((a) => a.removeAttribute("data-broken"))
+      mentions.forEach((c) => { c.removeAttribute("data-stale"); c.removeAttribute("title") })
+    }
   }, [html, links, containerRef])
+
+  // ?link=<raw target> (set by openDoc from /graph): reveal it once this doc and its links have rendered
+  useEffect(() => {
+    const container = containerRef.current
+    const url = new URL(window.location.href)
+    const target = url.searchParams.get("link")
+    if (!container || !links || !target || url.searchParams.get("doc") !== docPath) return
+    url.searchParams.delete("link")
+    window.history.replaceState(window.history.state, "", url)
+    revealLink(container, target)
+  }, [html, links, docPath, containerRef])
 
   useEffect(() => {
     const container = containerRef.current

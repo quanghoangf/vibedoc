@@ -13,7 +13,8 @@ export type DocEdge = { from: string; to: string; line: number; text: string }
 export type BrokenLink = { from: string; target: string; line: number; text: string; kind: LinkKind }
 /** Raw link target as written in a file → the file it resolves to (self-links included). Keyed by source path. */
 export type ResolvedTargets = Record<string, Record<string, string>>
-export type DocGraph = { nodes: DocNode[]; edges: DocEdge[]; broken: BrokenLink[]; targets: ResolvedTargets }
+/** `broken`: md / wiki links that point nowhere. `stale`: backticked paths (`code`) to a file that doesn't exist. */
+export type DocGraph = { nodes: DocNode[]; edges: DocEdge[]; broken: BrokenLink[]; stale: BrokenLink[]; targets: ResolvedTargets }
 export type LinkRow = { path: string; kind: string; label: string; line: number; text: string }
 
 // Upper case only, whole tokens: "XT0651", "e2e" and "T0651a" don't match
@@ -178,11 +179,15 @@ export function resolveLink(target: string, fromPath: string, allPaths: readonly
     ?? [...hits].sort((a, b) => a.split('/').length - b.split('/').length || a.length - b.length || a.localeCompare(b))[0]
 }
 
-/** Resolve every item's links. One edge per from→to pair (first line wins), self-links dropped, misses → broken. */
+/**
+ * Resolve every item's links. One edge per from→to pair (first line wins), self-links dropped. Misses: md / wiki
+ * links → broken, backticked paths → stale (a mention of a moved or planned file, not a link).
+ */
 export function buildDocGraph(items: DocItem[]): DocGraph {
   const allPaths = items.map(i => i.node.path)
   const edges = new Map<string, DocEdge>()
   const broken = new Map<string, BrokenLink>()
+  const stale = new Map<string, BrokenLink>()
   const targets: ResolvedTargets = {}
   for (const { node, links } of items) {
     for (const l of links) {
@@ -193,24 +198,25 @@ export function buildDocGraph(items: DocItem[]): DocGraph {
         // an id with no file (T999, a typo) is just text, not a broken link
         if (l.kind === 'id') continue
         const key = `${node.path}\u0000${l.target}`
-        if (!broken.has(key)) broken.set(key, { from: node.path, target: l.target, line: l.line, text: l.text, kind: l.kind })
+        const misses = l.kind === 'code' ? stale : broken
+        if (!misses.has(key)) misses.set(key, { from: node.path, target: l.target, line: l.line, text: l.text, kind: l.kind })
         continue
       }
       const key = `${node.path}\u0000${to}`
       if (!edges.has(key)) edges.set(key, { from: node.path, to, line: l.line, text: l.text })
     }
   }
-  return { nodes: items.map(i => i.node), edges: [...edges.values()], broken: [...broken.values()], targets }
+  return { nodes: items.map(i => i.node), edges: [...edges.values()], broken: [...broken.values()], stale: [...stale.values()], targets }
 }
 
 export type TargetRow = { path: string; kind: DocNodeKind; id: string; label: string }
 
 /**
- * Links out of, into and broken in one file; null when the path is not in the graph.
+ * Links out of, into, broken and stale paths in one file; null when the path is not in the graph.
  * `targets` maps each raw target written in the file (`../b/y.md`, `DOMAIN_MAP`, `T093`) to its node, so a client
  * can open a clicked link without resolving paths itself. A target in both `targets` and `broken` resolved.
  */
-export function docLinks(graph: DocGraph, path: string): { out: LinkRow[]; in: LinkRow[]; broken: LinkRow[]; targets: Record<string, TargetRow> } | null {
+export function docLinks(graph: DocGraph, path: string): { out: LinkRow[]; in: LinkRow[]; broken: LinkRow[]; stale: LinkRow[]; targets: Record<string, TargetRow> } | null {
   const p = normalizePath(path) ?? path
   const byPath = new Map(graph.nodes.map(n => [n.path, n]))
   if (!byPath.has(p)) return null
@@ -218,10 +224,12 @@ export function docLinks(graph: DocGraph, path: string): { out: LinkRow[]; in: L
     const n = byPath.get(other)
     return { path: other, kind: n?.kind ?? 'doc', label: n?.label ?? baseName(other), line, text }
   }
+  const miss = (b: BrokenLink): LinkRow => ({ path: b.target, kind: b.kind, label: b.target, line: b.line, text: b.text })
   return {
     out: graph.edges.filter(e => e.from === p).map(e => row(e.to, e.line, e.text)),
     in: graph.edges.filter(e => e.to === p).map(e => row(e.from, e.line, e.text)),
-    broken: graph.broken.filter(b => b.from === p).map(b => ({ path: b.target, kind: b.kind, label: b.target, line: b.line, text: b.text })),
+    broken: graph.broken.filter(b => b.from === p).map(miss),
+    stale: graph.stale.filter(b => b.from === p).map(miss),
     targets: Object.fromEntries(Object.entries(graph.targets[p] ?? {}).map(([t, to]) => {
       const n = byPath.get(to)
       return [t, { path: to, kind: n?.kind ?? 'doc', id: n?.id ?? to, label: n?.label ?? baseName(to) }]
@@ -233,7 +241,7 @@ export function docLinks(graph: DocGraph, path: string): { out: LinkRow[]; in: L
  * Footer for vibedoc_read_doc (T096): the files a doc links to and is linked from, each named so an agent can
  * pass it straight to a tool (tasks, epics, entries, ADRs by id; docs by path). Empty string when no links.
  */
-export function formatRelatedFiles(links: { out: LinkRow[]; in: LinkRow[]; broken: LinkRow[] } | null, cap = 10): string {
+export function formatRelatedFiles(links: { out: LinkRow[]; in: LinkRow[]; broken: LinkRow[]; stale?: LinkRow[] } | null, cap = 10): string {
   if (!links) return ''
   const name = (r: LinkRow) => idOfPath(r.path) ?? r.path
   const line = (label: string, items: string[]) => {
@@ -245,6 +253,7 @@ export function formatRelatedFiles(links: { out: LinkRow[]; in: LinkRow[]; broke
     ...line('Links to', links.out.map(name)),
     ...line('Linked from', links.in.map(r => `${name(r)} (L${r.line})`)),
     ...line('Broken', links.broken.map(r => `${r.path} (L${r.line})`)),
+    ...line('Stale paths', (links.stale ?? []).map(r => `${r.path} (L${r.line})`)),
   ]
   if (!body.length) return ''
   return ['## Related files', ...body, 'Read with vibedoc_read_doc, or several at once with vibedoc_get_context { paths }.'].join('\n')

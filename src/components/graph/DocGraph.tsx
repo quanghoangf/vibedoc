@@ -4,13 +4,14 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExterna
 import { useRouter, useSearchParams } from "next/navigation"
 import { Background, BackgroundVariant, Controls, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
-import { Info, Search, X } from "lucide-react"
+import { FileQuestion, Info, Search, Unlink, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { KIND_ICON, useOpenNode } from "@/components/memory/EntryRelated"
 import { fetchLinkJson, useLinkGeneration } from "@/components/docs/useDocLinks"
-import type { DocGraph as Graph, DocNode, DocNodeKind } from "@/lib/doc-links"
+import type { BrokenLink, DocGraph as Graph, DocNode, DocNodeKind } from "@/lib/doc-links"
 import { STATUS_META, StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
 import { statusDefIn, useStatusDefs } from "@/components/shared/status-defs"
 import { OwnerChip } from "@/components/shared/OwnerChip"
@@ -53,7 +54,7 @@ const FIT_MIN_ZOOM = 0.35
 const FIT_OPTIONS = { padding: 0.1, minZoom: FIT_MIN_ZOOM, maxZoom: 1 }
 // how long a live update marks the nodes it touched (data-changed, for the update flash)
 const CHANGED_MS = 1500
-const EMPTY_GRAPH: Graph = { nodes: [], edges: [], broken: [], targets: {} }
+const EMPTY_GRAPH: Graph = { nodes: [], edges: [], broken: [], stale: [], targets: {} }
 const NONE = new Set<string>()
 const SEP = "\u0000"
 // below this zoom only the selected / matching labels show, once the graph is big enough to get noisy
@@ -448,7 +449,9 @@ export function DocGraph() {
             {LEGEND_STATUSES.map((st) => <StatusIcon key={st} status={st} className="size-3" />)}
           </span>
         </p>
-        <label className="relative ml-auto flex items-center">
+        <MissingLinks broken={graph.broken} stale={graph.stale} />
+        {/* the misses button carries ml-auto; with none, the search does */}
+        <label className={cn("relative flex items-center", !graph.broken.length && !graph.stale.length && "ml-auto")}>
           <Search className="pointer-events-none absolute left-2 size-3.5 text-muted" aria-hidden />
           <input
             id="graph-search"
@@ -463,16 +466,13 @@ export function DocGraph() {
               e.preventDefault()
               pick(matches[0])
             }}
-            className="h-7 w-48 rounded-md border border-border bg-surface pr-14 pl-7 text-xs text-txt outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-search-cancel-button]:hidden"
+            className="h-7 w-44 rounded-md border border-border bg-surface pr-14 2xl:w-48 pl-7 text-xs text-txt outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-search-cancel-button]:hidden"
           />
           {/* the count sits inside the input's reserved right padding, so it never shifts the toolbar */}
           <span id="graph-matches" className="pointer-events-none absolute right-2 font-mono text-[10px] text-muted tabular-nums">
             {q ? `${matches.length} match${matches.length === 1 ? "" : "es"}` : ""}
           </span>
         </label>
-        <span className="text-xs text-muted tabular-nums" title="Links whose target file doesn't exist">
-          <span className="font-mono">{graph.broken.length}</span> broken
-        </span>
       </div>
 
       <div data-far={far && nodes.length > LABEL_NODES_OVER} onKeyDown={onNodeKey} className="group/graph relative min-h-0 flex-1">
@@ -589,4 +589,54 @@ function dedupe<E extends { from: string; to: string }>(edges: E[]): E[] {
     seen.add(k)
     return true
   })
+}
+
+const MISS_KIND: Record<string, string> = { md: "link", wiki: "wikilink", code: "path" }
+
+/**
+ * "N broken · M stale paths" (zero parts dropped) and the list behind it, grouped by file. Broken = md / wiki links
+ * to no file; stale = backticked paths to missing files. A row opens the file at that spot (`openDoc` `?link=`).
+ */
+function MissingLinks({ broken, stale }: { broken: BrokenLink[]; stale: BrokenLink[] }) {
+  const { openDoc } = useApp()
+  if (!broken.length && !stale.length) return null
+  const byFile = (rows: BrokenLink[]) => {
+    const files = new Map<string, BrokenLink[]>()
+    for (const r of [...rows].sort((a, b) => a.from.localeCompare(b.from) || a.line - b.line)) files.set(r.from, [...(files.get(r.from) ?? []), r])
+    return [...files]
+  }
+  const section = (title: string, rows: BrokenLink[], Icon: typeof Unlink) => rows.length > 0 && (
+    <DropdownMenuGroup>
+      <DropdownMenuLabel className="flex items-center px-2 pt-2 pb-1 font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">
+        {title}<span className="ml-auto tabular-nums">{rows.length}</span>
+      </DropdownMenuLabel>
+      {byFile(rows).map(([file, items]) => (
+        <div key={file} role="group" aria-label={file}>
+          <p className="truncate px-2 pt-1.5 font-mono text-[11px] text-txt" title={file}>{file}</p>
+          {items.map((r) => (
+            <DropdownMenuItem key={`${r.target}:${r.line}`} onSelect={() => void openDoc(r.from, r.target)} className="gap-2 py-1 text-xs">
+              <Icon className="size-3.5 text-muted" aria-hidden />
+              <span className="min-w-0 truncate font-mono text-muted">{r.target}</span>
+              <span className="ml-auto shrink-0 text-[11px] text-muted">{MISS_KIND[r.kind] ?? r.kind}</span>
+              <span className="shrink-0 font-mono text-[11px] text-muted tabular-nums">L{r.line}</span>
+            </DropdownMenuItem>
+          ))}
+        </div>
+      ))}
+    </DropdownMenuGroup>
+  )
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent data-[state=open]:bg-surface2 data-[state=open]:text-txt">
+        {broken.length > 0 && <span><span className="font-mono tabular-nums">{broken.length}</span> broken</span>}
+        {broken.length > 0 && stale.length > 0 && <span>·</span>}
+        {stale.length > 0 && <span><span className="font-mono tabular-nums">{stale.length}</span> stale<span className="max-2xl:sr-only"> path{stale.length === 1 ? "" : "s"}</span></span>}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="max-h-[min(28rem,var(--radix-dropdown-menu-content-available-height))] w-[min(26rem,calc(100vw-2rem))]">
+        {section("Broken links", broken, Unlink)}
+        {broken.length > 0 && stale.length > 0 && <DropdownMenuSeparator />}
+        {section("Stale paths", stale, FileQuestion)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }

@@ -2,9 +2,12 @@
 // opening a doc shows the docs it links to and the docs that link to it, each one click away; /graph shows
 // every doc link in the repo and clicking a node opens it; vibedoc_read_doc ends with the resolved related files.
 //   1. a.md: clicking the `b` link opens b.md; b.md's Linked docs panel lists a.md under Linked from.
-//   2. a.md: the broken link is muted; hovering a link shows its preview card.
+//   2. a.md: the broken link is muted, the stale `docs/gone.md` mention is marked (not broken); hovering a link
+//      shows its preview card.
 //   3. /graph: a, b, c (and d) with edges; clicking a selects it and dims the unrelated d → c edge; Open → /docs.
-//   4. vibedoc_read_doc on a.md ends with a "## Related files" footer (b, c, T001, Broken missing.md).
+//   4. /graph: "2 broken · 1 stale path" opens a list; the far-away.md row opens long.md with the link in view.
+//   5. vibedoc_read_doc on a.md ends with a "## Related files" footer (b, c, T001, Broken missing.md,
+//      Stale paths docs/gone.md).
 // Fails on any browser console error.
 //
 //   PW_DIR=<dir with node_modules/playwright> BASE=http://localhost:3000 node e2e/docs-links.mjs
@@ -21,7 +24,9 @@ const write = (f, s) => {
   mkdirSync(path.dirname(path.join(fx, f)), { recursive: true })
   writeFileSync(path.join(fx, f), s)
 }
-write("docs/a.md", "# Alpha\n\nSee [b](sub/b.md) and [[c]].\n\nAlso [x](missing.md) and T001.\n")
+write("docs/a.md", "# Alpha\n\nSee [b](sub/b.md) and [[c]].\n\nAlso [x](missing.md) and T001. Moved: `docs/gone.md`.\n")
+// the filler puts its broken link below the fold, so step 4 proves it gets scrolled into view
+write("docs/long.md", `# Long\n\n${"Filler paragraph.\n\n".repeat(60)}At the end, [far](far-away.md).\n`)
 write("docs/sub/b.md", "# Bravo\n\nBravo body text for the preview. Back to [a](../a.md).\n")
 write("docs/c.md", "# Charlie\n\nNo links here.\n")
 // d → c is an edge that doesn't touch a, so selecting a must dim it
@@ -79,7 +84,11 @@ try {
   await card.getByText("docs/sub/b.md").waitFor()
   await page.mouse.move(5, 5)
   await card.waitFor({ state: "hidden" })
-  console.log("ok  broken link muted; hovering b shows its preview card")
+  const staleCode = doc.locator("code[data-stale]")
+  assert.equal(await staleCode.innerText(), "docs/gone.md")
+  assert.equal(await staleCode.getAttribute("title"), "File not found")
+  assert.equal(await doc.locator("code[data-stale]").count(), 1)
+  console.log("ok  broken link muted; stale path marked, not broken; hovering b shows its preview card")
 
   // 3. /graph: nodes and edges; select a dims d → c; Open goes to /docs
   await page.goto(`${BASE}/graph`)
@@ -103,7 +112,27 @@ try {
   await page.locator("h1", { hasText: "Alpha" }).first().waitFor()
   console.log("ok  Open goes to /docs with a.md")
 
-  // 4. The agent's read ends with the resolved related files
+  // 4. Broken / stale list on /graph; a row opens the file with the link in view
+  await page.goto(`${BASE}/graph`)
+  const trigger = page.getByRole("button", { name: /2 broken · 1 stale path/ })
+  await trigger.click()
+  const menu = page.getByRole("menu")
+  await menu.getByText("Broken links").waitFor()
+  await menu.getByRole("menuitem", { name: /docs\/gone\.md/ }).waitFor()
+  await menu.getByRole("menuitem", { name: /missing\.md/ }).waitFor()
+  await menu.getByRole("menuitem", { name: /far-away\.md/ }).click()
+  await page.waitForURL(/\/docs\?doc=docs%2Flong\.md/)
+  await page.locator("h1", { hasText: "Long" }).first().waitFor()
+  const brokenLink = doc.locator("a[data-broken]")
+  await brokenLink.waitFor()
+  await page.waitForFunction(() => {
+    const r = document.querySelector(".doc-preview a[data-broken]")?.getBoundingClientRect()
+    return !!r && r.top >= 0 && r.bottom <= window.innerHeight
+  })
+  await page.waitForFunction(() => !new URL(location.href).searchParams.has("link"))
+  console.log("ok  /graph lists 2 broken · 1 stale path; the far-away.md row opens long.md scrolled to the link")
+
+  // 5. The agent's read ends with the resolved related files
   const read = await mcp("vibedoc_read_doc", { query: "docs/a.md" })
   const footer = read.slice(read.indexOf("## Related files"))
   assert.ok(read.includes("## Related files"), read)
@@ -111,8 +140,9 @@ try {
   assert.match(footer, /Links to: .*docs\/c\.md/)
   assert.match(footer, /Links to: .*T001/)
   assert.match(footer, /Linked from: .*docs\/sub\/b\.md/)
-  assert.match(footer, /Broken: missing\.md/)
-  console.log("ok  vibedoc_read_doc ends with Related files: b, c, T001, Broken missing.md")
+  assert.match(footer, /Broken: missing\.md \(L\d+\)\n/)
+  assert.match(footer, /Stale paths: docs\/gone\.md/)
+  console.log("ok  vibedoc_read_doc ends with Related files: b, c, T001, Broken missing.md, Stale paths docs/gone.md")
 
   assert.deepEqual(errors, [], "no browser console errors")
   console.log("ok  no console errors")

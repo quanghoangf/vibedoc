@@ -3,7 +3,7 @@ import { getDocGraph } from '@/lib/core'
 import { docLinks } from '@/lib/doc-links'
 import { errorResponse, rootOf } from '../../roadmap/_shared'
 
-/** Links out of, into and broken in one .md file (R056): `?path=docs/x.md` → `{out, in, broken}`. */
+/** Links out of, into and broken in one .md file (R056): `?path=docs/x.md` → `{out, in, broken, stale, targets}`. */
 export async function GET(req: NextRequest) {
   try {
     const p = req.nextUrl.searchParams.get('path')

@@ -4,7 +4,7 @@ import type { DocNode } from '@/lib/doc-links'
 import { errorResponse, rootOf } from '../../roadmap/_shared'
 
 /**
- * The resolved link graph between every .md file (R056): `{nodes, edges, broken}`. Task and epic nodes carry their
+ * The resolved link graph between every .md file (R056): `{nodes, edges, broken, stale}`. Task and epic nodes carry their
  * `status` (a task's custom status id, else its built-in; an epic's roadmap status, planned = todo) and `owner`.
  */
 export async function GET(req: NextRequest) {

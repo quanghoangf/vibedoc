@@ -4,7 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react"
 import { useApp } from "@/context/AppContext"
 import type { LinkRow, TargetRow } from "@/lib/doc-links"
 
-export type DocLinksData = { out: LinkRow[]; in: LinkRow[]; broken: LinkRow[]; targets: Record<string, TargetRow> }
+export type DocLinksData = { out: LinkRow[]; in: LinkRow[]; broken: LinkRow[]; stale: LinkRow[]; targets: Record<string, TargetRow> }
 
 /** Events that can change which files exist or what they link to. */
 export const LINK_EVENTS = new Set(["doc_updated", "doc_created", "doc_deleted", "doc_renamed", "task_created", "task_updated", "roadmap_updated", "memory_updated", "decision_logged"])
@@ -73,11 +73,11 @@ export function useDocLinks(path: string | undefined): DocLinksData | null {
     let live = true
     fetchLinkJson<Partial<DocLinksData>>(`/api/docs/links${rootParam}&path=${encodeURIComponent(path)}`)
       .then((d) => {
-        if (live) setData({ path, links: { out: d.out ?? [], in: d.in ?? [], broken: d.broken ?? [], targets: d.targets ?? {} } })
+        if (live) setData({ path, links: { out: d.out ?? [], in: d.in ?? [], broken: d.broken ?? [], stale: d.stale ?? [], targets: d.targets ?? {} } })
       })
       .catch((e) => {
         console.warn("Loading doc links failed", e)
-        if (live) setData({ path, links: { out: [], in: [], broken: [], targets: {} } })
+        if (live) setData({ path, links: { out: [], in: [], broken: [], stale: [], targets: {} } })
       })
     return () => { live = false }
   }, [path, rootParam, gen])
