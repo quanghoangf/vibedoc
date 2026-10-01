@@ -1,16 +1,19 @@
 "use client"
 
+import { useState } from "react"
 import { useApp } from "@/context/AppContext"
 import type { SelectedDoc } from "@/types"
 import { MarkdownEditor } from "./MarkdownEditor"
-import { BacklinksPanel } from "./BacklinksPanel"
+import { LinkedDocs } from "./LinkedDocs"
+import { useDocLinks } from "./useDocLinks"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { DocActionsMenu, type DocActions } from "./DocActionsMenu"
 import { useItemCommands } from "@/components/shared/item-commands"
 import { timeAgo } from "@/components/activity/ActivityEventRow"
 import { DocOutline } from "./DocOutline"
 import { docStats, extractHeadings } from "@/lib/headings"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Bot, PanelLeftClose, PanelLeftOpen, Plus, User } from "lucide-react"
+import { ArrowLeft, Bot, Link2, PanelLeftClose, PanelLeftOpen, Plus, User } from "lucide-react"
 import { DOCS_LIST_KEY } from "@/lib/shortcuts"
 import { stripFrontmatter } from "@/lib/doc-priority"
 import { DocProperties } from "./DocProperties"
@@ -32,8 +35,12 @@ interface DocViewerProps {
 }
 
 export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, content, docCount, onNewDocClick, listCollapsed = false, onToggleList }: DocViewerProps) {
-  const { rootParam, setSelectedDoc, openDoc, editorSettings } = useApp()
+  const { rootParam, setSelectedDoc, editorSettings } = useApp()
   const path = doc?.path ?? ""
+  const links = useDocLinks(doc?.path)
+  // ≥xl: the linked docs column beside the preview (toggled here); below xl: the same lists in a sheet
+  const [linksColumn, setLinksColumn] = useState(true)
+  const [linksSheet, setLinksSheet] = useState(false)
   useItemCommands(doc && docActions ? path : null, docActions ? [
     { action: "edit", label: "Rename", run: () => docActions.rename(path) },
     { action: "duplicate", label: "Duplicate", run: () => docActions.duplicate(path) },
@@ -92,8 +99,22 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
   const title = stats.title ?? fileName.replace(/\.md$/, "")
   const lastEdit = doc.lastEdit
   const headings = extractHeadings(body)
+  const linkCount = links ? new Set(links.out.map((l) => l.path)).size + links.in.length : null
+  const linksButton = (onClick: () => void, className: string, pressed?: boolean) => (
+    <Button variant="ghost" size="sm" onClick={onClick} aria-pressed={pressed} aria-label="Linked docs" title="Linked docs"
+      className={`h-7 gap-1 px-1.5 text-muted hover:text-txt ${pressed ? "bg-surface2 text-txt" : ""} ${className}`}>
+      <Link2 className="h-3.5 w-3.5" aria-hidden />
+      {linkCount !== null && <span className="font-mono text-[11px]">{linkCount}</span>}
+    </Button>
+  )
   return (
     <div className="flex h-full flex-col">
+      <Sheet open={linksSheet} onOpenChange={setLinksSheet}>
+        <SheetContent side="right" aria-describedby={undefined} className="flex w-80 flex-col gap-4 overflow-y-auto border-border bg-surface p-5 text-txt sm:max-w-80">
+          <SheetTitle className="text-sm font-semibold text-txt">Linked docs</SheetTitle>
+          <LinkedDocs links={links} onNavigate={() => setLinksSheet(false)} />
+        </SheetContent>
+      </Sheet>
       <MarkdownEditor
         docPath={doc.path}
         initialContent={doc.content}
@@ -135,9 +156,15 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
           <>
             {/* Headings only exist to scroll to where the doc is rendered */}
             {mode !== "edit" && <div className="max-lg:hidden"><DocOutline headings={headings} /></div>}
-            <BacklinksPanel key={doc.path} docPath={doc.path} rootParam={rootParam} onOpenDoc={openDoc} />
+            {linksButton(() => setLinksSheet(true), "xl:hidden")}
+            {linksButton(() => setLinksColumn((v) => !v), "max-xl:hidden", linksColumn)}
             {docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
           </>
+        )}
+        aside={linksColumn && (
+          <aside aria-label="Linked docs" className="w-72 shrink-0 overflow-y-auto border-l border-border px-4 py-6 max-xl:hidden">
+            <LinkedDocs links={links} />
+          </aside>
         )}
         titleBlock={
           <header className="mb-8 border-b border-border pb-4">

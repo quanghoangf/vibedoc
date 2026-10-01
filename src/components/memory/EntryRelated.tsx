@@ -8,7 +8,7 @@ import { StatusIcon } from "@/components/shared/StatusIcon"
 import { displayStatus } from "@/lib/statuses"
 import type { GraphNode, MemoryGraph, NodeKind } from "@/lib/memory-graph"
 
-const GROUPS: { kind: NodeKind; label: string }[] = [
+export const GROUPS: { kind: NodeKind; label: string }[] = [
   { kind: "task", label: "Tasks" },
   { kind: "epic", label: "Epics" },
   { kind: "adr", label: "ADRs" },
