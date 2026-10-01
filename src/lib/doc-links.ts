@@ -94,7 +94,8 @@ export function extractLinks(raw: string, _fromPath?: string): DocLink[] {
       if (target && !EXTERNAL_RE.test(target)) links.push({ target, kind: 'wiki', line, text: (m[2] ?? target).trim() })
     }
     for (const m of l.matchAll(BACKTICK_MD_RE)) {
-      if (!EXTERNAL_RE.test(m[1])) links.push({ target: decode(m[1]), kind: 'code', line, text: m[1] })
+      // a glob (`memory/entries/E*.md`) names a pattern, not a file
+      if (!EXTERNAL_RE.test(m[1]) && !/[*?{}]/.test(m[1])) links.push({ target: decode(m[1]), kind: 'code', line, text: m[1] })
     }
     for (const m of l.matchAll(ID_RE)) {
       if (/^E0+$/.test(m[1])) continue // E0 is not an entry id

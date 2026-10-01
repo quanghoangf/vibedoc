@@ -134,4 +134,8 @@ assert.deepEqual(formatRelatedFiles({ out: [], in: [], broken: [row('missing.md'
   'Read with vibedoc_read_doc, or several at once with vibedoc_get_context { paths }.',
 ])
 
+// backticked globs are patterns, not links
+assert.deepEqual(extractLinks('see `memory/entries/E*.md` and `plans/{a,b}.md` and `docs/x.md`', 'CLAUDE.md').map(l => l.target), ['docs/x.md'])
+
+
 console.log('doc-links: ok')
