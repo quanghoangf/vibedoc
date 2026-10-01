@@ -210,7 +210,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(docPath)}`)
     const data = await res.json()
     setSelectedDoc(data)
-    router.push("/docs")
+    router.push(`/docs?doc=${encodeURIComponent(docPath)}`)
   }, [rootParam, router])
 
   function onProjectChange(root: string) {

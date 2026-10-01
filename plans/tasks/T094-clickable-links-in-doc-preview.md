@@ -1,8 +1,9 @@
 # T094: Clickable .md links and [[wikilinks]] in the doc preview
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R056 — Doc link graph
 **Size:** M (2–3 hrs)
 **Depends on:** T093
+**Done:** 2026-10-01
 
 ## Goal
 Clicking a link to another doc in the preview opens that doc inside VibeDoc. Today a relative `.md` link sends the browser to a broken URL. `[[wikilinks]]` render as links, and links that point nowhere look broken.
@@ -49,3 +50,16 @@ Clicking a link to another doc in the preview opens that doc inside VibeDoc. Tod
 pnpm build && pnpm lint
 # open http://localhost:3000/docs?doc=docs/architecture/02-high-level-design/HLD.md (preview) and click its links
 ```
+
+## Manual tests
+_2026-10-01 — ai_
+### Steps
+- [ ] Create a doc with `[HLD](architecture/02-high-level-design/HLD.md#request-flows)`, open it in Docs (preview) and click the link → HLD.md opens, the URL becomes /docs?doc=docs%2Farchitecture%2F02-high-level-design%2FHLD.md, the page does not reload and it scrolls to "Request flows"
+- [ ] Add `[[DOMAIN_MAP]]` and `[[DOMAIN_MAP|Label]]` → both render as links, the second reads "Label", and clicking either opens DOMAIN_MAP.md
+- [ ] Add `[a](missing.md)` → the link is grey with a dashed underline; clicking it stays on the doc and shows the toast "Not found: missing.md"
+- [ ] Add `[[T093]]` and a relative link to plans/tasks/T093-doc-link-model-and-links-api.md → each opens /board with T093's panel
+- [ ] Add `[jump](#some-heading)` and `[ext](https://example.com)` → the first scrolls inside the doc, the second opens a new tab; ⌘-click on a doc link does the browser's default (new tab), not an in-app open
+- [ ] Switch to Edit mode → the editor works as before; `[[...]]` stays plain text there
+### Regression risk
+- [ ] Markdown in chat, the board task panel, the roadmap sheet and the Memory page still renders (links there are not intercepted)
+- [ ] An AI edit in the open doc still highlights only the changed blocks, not blocks that contain a broken link

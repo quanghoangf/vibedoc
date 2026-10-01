@@ -394,6 +394,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
               content={previewContent}
               className={docStats(stripFrontmatter(previewContent)).title ? "doc-preview doc-preview-titled" : "doc-preview"}
               highlightSince={aiEditAt}
+              docPath={docPath}
             />
             </div>
           </div>

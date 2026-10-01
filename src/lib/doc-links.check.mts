@@ -80,6 +80,13 @@ assert.deepEqual(y?.out, [
   { path: 'plans/tasks/T093-doc-links.md', kind: 'task', label: 'Doc links', line: 2, text: 'T093' },
 ])
 assert.equal(docLinks(graph, 'docs/a/x.md')?.broken.length, 2)
+// targets: raw spelling → node, self-links included, misses absent
+assert.deepEqual(docLinks(graph, 'docs/a/x.md')?.targets, {
+  '../b/y.md': { path: 'docs/b/y.md', kind: 'doc', id: 'docs/b/y.md', label: 'Why' },
+  y: { path: 'docs/b/y.md', kind: 'doc', id: 'docs/b/y.md', label: 'Why' },
+  'x.md': { path: 'docs/a/x.md', kind: 'doc', id: 'docs/a/x.md', label: 'x' },
+})
+assert.equal(docLinks(graph, 'docs/b/y.md')?.targets.T093.kind, 'task')
 assert.equal(docLinks(graph, 'nope.md'), null)
 
 console.log('doc-links: ok')

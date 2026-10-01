@@ -10,7 +10,9 @@ export type DocLink = { target: string; kind: LinkKind; line: number; text: stri
 export type DocItem = { node: DocNode; links: DocLink[] }
 export type DocEdge = { from: string; to: string; line: number; text: string }
 export type BrokenLink = { from: string; target: string; line: number; text: string; kind: LinkKind }
-export type DocGraph = { nodes: DocNode[]; edges: DocEdge[]; broken: BrokenLink[] }
+/** Raw link target as written in a file → the file it resolves to (self-links included). Keyed by source path. */
+export type ResolvedTargets = Record<string, Record<string, string>>
+export type DocGraph = { nodes: DocNode[]; edges: DocEdge[]; broken: BrokenLink[]; targets: ResolvedTargets }
 export type LinkRow = { path: string; kind: string; label: string; line: number; text: string }
 
 // Upper case only, whole tokens: "XT0651", "e2e" and "T0651a" don't match
@@ -149,9 +151,11 @@ export function buildDocGraph(items: DocItem[]): DocGraph {
   const allPaths = items.map(i => i.node.path)
   const edges = new Map<string, DocEdge>()
   const broken = new Map<string, BrokenLink>()
+  const targets: ResolvedTargets = {}
   for (const { node, links } of items) {
     for (const l of links) {
       const to = resolveLink(l.target, node.path, allPaths, l.kind)
+      if (to !== null) (targets[node.path] ??= {})[l.target] ??= to
       if (to === node.path) continue
       if (to === null) {
         // an id with no file (T999, a typo) is just text, not a broken link
@@ -164,11 +168,17 @@ export function buildDocGraph(items: DocItem[]): DocGraph {
       if (!edges.has(key)) edges.set(key, { from: node.path, to, line: l.line, text: l.text })
     }
   }
-  return { nodes: items.map(i => i.node), edges: [...edges.values()], broken: [...broken.values()] }
+  return { nodes: items.map(i => i.node), edges: [...edges.values()], broken: [...broken.values()], targets }
 }
 
-/** Links out of, into and broken in one file; null when the path is not in the graph. */
-export function docLinks(graph: DocGraph, path: string): { out: LinkRow[]; in: LinkRow[]; broken: LinkRow[] } | null {
+export type TargetRow = { path: string; kind: DocNodeKind; id: string; label: string }
+
+/**
+ * Links out of, into and broken in one file; null when the path is not in the graph.
+ * `targets` maps each raw target written in the file (`../b/y.md`, `DOMAIN_MAP`, `T093`) to its node, so a client
+ * can open a clicked link without resolving paths itself. A target in both `targets` and `broken` resolved.
+ */
+export function docLinks(graph: DocGraph, path: string): { out: LinkRow[]; in: LinkRow[]; broken: LinkRow[]; targets: Record<string, TargetRow> } | null {
   const p = normalizePath(path) ?? path
   const byPath = new Map(graph.nodes.map(n => [n.path, n]))
   if (!byPath.has(p)) return null
@@ -180,5 +190,9 @@ export function docLinks(graph: DocGraph, path: string): { out: LinkRow[]; in: L
     out: graph.edges.filter(e => e.from === p).map(e => row(e.to, e.line, e.text)),
     in: graph.edges.filter(e => e.to === p).map(e => row(e.from, e.line, e.text)),
     broken: graph.broken.filter(b => b.from === p).map(b => ({ path: b.target, kind: b.kind, label: b.target, line: b.line, text: b.text })),
+    targets: Object.fromEntries(Object.entries(graph.targets[p] ?? {}).map(([t, to]) => {
+      const n = byPath.get(to)
+      return [t, { path: to, kind: n?.kind ?? 'doc', id: n?.id ?? to, label: n?.label ?? baseName(to) }]
+    })),
   }
 }

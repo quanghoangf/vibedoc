@@ -196,6 +196,11 @@ html:not(.dark) .prose-dark :not(pre) > code { color: color-mix(in srgb, var(--c
 .prose-dark blockquote { border-left: 2px solid var(--color-accent); padding-left: 1rem; margin: 1rem 0; color: var(--color-muted); font-style: italic; }
 .prose-dark a { color: var(--color-accent); text-decoration: none; }
 .prose-dark a:hover { text-decoration: underline; }
+.prose-dark a[data-wiki] { cursor: pointer; }
+/* A doc link that resolves to no file (R056): muted, dashed, also on hover */
+.prose-dark a[data-broken], .prose-dark a[data-broken]:hover {
+  color: var(--color-muted); text-decoration: underline dashed; text-underline-offset: 3px; cursor: not-allowed;
+}
 .prose-dark strong { color: var(--color-txt); font-weight: 600; }
 .prose-dark hr { border: none; border-top: 1px solid var(--color-border); margin: 1.5rem 0; }
 /* Docs reading pane: prose held to a reading measure, mermaid diagrams may use the full width.
