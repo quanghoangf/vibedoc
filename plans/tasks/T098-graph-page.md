@@ -1,8 +1,9 @@
 # T098: /graph page: whole-repo link graph
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R056 — Doc link graph
 **Size:** L (half a day)
 **Depends on:** T097
+**Done:** 2026-10-01
 
 ## Goal
 A `/graph` page, like Obsidian's graph view, that shows how every .md file in the project links to the others. You can filter by kind, search for a file, focus on its neighbourhood, and click any node to open it.
@@ -53,3 +54,15 @@ A `/graph` page, like Obsidian's graph view, that shows how every .md file in th
 pnpm build && pnpm lint
 # open http://localhost:3000/graph, then /graph?node=docs/architecture/02-high-level-design/HLD.md&focus=1
 ```
+
+## Manual tests
+_2026-10-01 — ai_
+### Steps
+- [ ] Click Graph in the sidebar (Reference group) or press l → /graph shows the docs and ADRs as dots with lines for links, Docs and ADRs chips on, a broken-link count in the toolbar
+- [ ] Turn on the Tasks and Epics chips → their dots and links appear, the graph is laid out again and the URL gets ?kinds=
+- [ ] Turn on all kinds and click High-Level Design (search "high-level", Enter) → it gets an accent ring, its neighbours and their edges stay bright, everything else dims, and a card shows its path with Links to / Linked from counts
+- [ ] On the card click Focus 1 → only HLD and the tasks that link to it remain; Focus 2 → their neighbours appear too; Off → the full graph comes back
+- [ ] Reload the page → the same selection, focus, kinds and positions show
+- [ ] Click Open on a doc → /docs opens it; double-click a task dot → /board opens that task
+### Regression risk
+- [ ] /memory?view=graph still renders and opens nodes, and the Docs page linked-docs panel still refreshes after a doc edit

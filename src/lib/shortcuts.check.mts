@@ -12,6 +12,8 @@ assert.equal(shortcutFor('/board'), 'b')
 assert.equal(pageForKey('t'), '/manual-tests')
 assert.equal(pageForKey('s'), '/settings')
 assert.equal(pageForKey('g'), '/chat')
+assert.equal(pageForKey('l'), '/graph')
+assert.equal(pageTitle('/graph'), 'Graph')
 assert.equal(shortcutFor('/setup'), undefined)
 // Keys the global handler already uses for something else
 for (const k of ['c', '/', '?']) assert.equal(pageForKey(k), undefined, `page key ${k} clashes`)

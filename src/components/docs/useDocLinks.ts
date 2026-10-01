@@ -7,7 +7,7 @@ import type { LinkRow, TargetRow } from "@/lib/doc-links"
 export type DocLinksData = { out: LinkRow[]; in: LinkRow[]; broken: LinkRow[]; targets: Record<string, TargetRow> }
 
 /** Events that can change which files exist or what they link to. */
-const LINK_EVENTS = new Set(["doc_updated", "doc_created", "doc_deleted", "doc_renamed", "task_created", "task_updated", "roadmap_updated", "memory_updated", "decision_logged"])
+export const LINK_EVENTS = new Set(["doc_updated", "doc_created", "doc_deleted", "doc_renamed", "task_created", "task_updated", "roadmap_updated", "memory_updated", "decision_logged"])
 
 /**
  * Resolved links of one .md file (R056), from GET /api/docs/links; null while loading, empty for an unknown file.

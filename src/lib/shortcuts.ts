@@ -18,6 +18,7 @@ export const PAGE_SHORTCUTS: readonly PageShortcut[] = [
   { href: "/activity", key: "a", label: "Activity" },
   { href: "/memory", key: "m", label: "Memory" },
   { href: "/explorer", key: "e", label: "Explorer" },
+  { href: "/graph", key: "l", label: "Graph", help: "Link graph" },
   { href: "/manual-tests", key: "t", label: "Manual tests" },
   { href: "/settings", key: "s", label: "Settings" },
   { href: "/chat", key: "g", label: "Chats", help: "Chats page" },

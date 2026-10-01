@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, BookOpen, Zap, Brain, Settings, FolderTree, Map, FlaskConical, Hexagon, Keyboard } from "lucide-react"
+import { LayoutDashboard, BookOpen, Zap, Brain, Settings, FolderTree, Map, FlaskConical, Hexagon, Keyboard, Waypoints } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -37,6 +37,7 @@ const NAV_GROUPS = [
       { href: "/docs", icon: BookOpen, label: "Docs" },
       { href: "/memory", icon: Brain, label: "Memory" },
       { href: "/explorer", icon: FolderTree, label: "Explorer" },
+      { href: "/graph", icon: Waypoints, label: "Graph" },
     ],
   },
 ]
