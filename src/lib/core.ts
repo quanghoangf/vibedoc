@@ -1560,43 +1560,12 @@ export async function updateRegistryAnnotation(
   await writeDoc(REGISTRY_PATH, newContent, root)
 }
 
-// ─── Backlinks ─────────────────────────────────────────────────────────────────
-
-export async function findBacklinks(
-  targetPath: string,
-  root: string
-): Promise<{ file: string; line: number; text: string }[]> {
-  const files = await glob('**/*.md', {
-    cwd: root,
-    ignore: ['node_modules/**', '.git/**', '.next/**'],
-    nodir: true,
-  })
-  const normalTarget = targetPath.replace(/\\/g, '/')
-  const basename = path.basename(normalTarget)
-  const results: { file: string; line: number; text: string }[] = []
-
-  for (const f of files) {
-    if (f.replace(/\\/g, '/') === normalTarget) continue
-    try {
-      const content = await fs.readFile(path.join(root, f), 'utf8')
-      const lines = content.split('\n')
-      lines.forEach((line, i) => {
-        if (/\[.*\]\(.*\)/.test(line) &&
-            (line.includes(basename) || line.includes(normalTarget))) {
-          results.push({ file: f, line: i + 1, text: line.trim().slice(0, 120) })
-        }
-      })
-    } catch { /* skip unreadable */ }
-  }
-  return results
-}
-
 /**
  * The memory link graph (R053), built on request from the files: every entry, plus the tasks, roadmap items,
  * ADRs and docs an entry mentions or that mention an entry id. Pure resolution in src/lib/memory-graph.ts.
  */
 export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
-  // ponytail: reads every .md on each call, like findBacklinks; cache by mtime if big repos make it slow
+  // ponytail: reads every .md on each call; cache by mtime if big repos make it slow
   const [entries, files] = await Promise.all([
     listEntries(root),
     glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**', 'memory/entries/**'], nodir: true }),

@@ -1,6 +1,6 @@
 // Self-check for doc-links. Run: node src/lib/doc-links.check.mts
 import assert from 'node:assert/strict'
-import { buildDocGraph, docLinks, docNode, extractLinks, resolveLink, type DocItem } from './doc-links.ts'
+import { buildDocGraph, docLinks, docNode, extractLinks, formatRelatedFiles, resolveLink, type DocItem } from './doc-links.ts'
 
 // extractLinks: every kind, line numbers, link text
 const raw = [
@@ -88,5 +88,24 @@ assert.deepEqual(docLinks(graph, 'docs/a/x.md')?.targets, {
 })
 assert.equal(docLinks(graph, 'docs/b/y.md')?.targets.T093.kind, 'task')
 assert.equal(docLinks(graph, 'nope.md'), null)
+
+// formatRelatedFiles: ids for items, paths for docs, lines on incoming + broken, cap, empty, broken only
+assert.equal(formatRelatedFiles(docLinks(graph, 'docs/b/y.md')), [
+  '## Related files',
+  'Links to: docs/a/x.md · T093',
+  'Linked from: docs/a/x.md (L1) · T093 (L2)',
+  'Read with vibedoc_read_doc, or several at once with vibedoc_get_context { paths }.',
+].join('\n'))
+const row = (path: string, line = 1) => ({ path, kind: 'doc', label: path, line, text: path })
+const many = Array.from({ length: 12 }, (_, i) => row(`docs/d${i}.md`))
+assert.equal(formatRelatedFiles({ out: many, in: [], broken: [] }, 10).split('\n')[1],
+  `Links to: ${many.slice(0, 10).map(r => r.path).join(' · ')} (+2 more)`)
+assert.equal(formatRelatedFiles({ out: [], in: [], broken: [] }), '')
+assert.equal(formatRelatedFiles(null), '')
+assert.deepEqual(formatRelatedFiles({ out: [], in: [], broken: [row('missing.md', 8)] }).split('\n'), [
+  '## Related files',
+  'Broken: missing.md (L8)',
+  'Read with vibedoc_read_doc, or several at once with vibedoc_get_context { paths }.',
+])
 
 console.log('doc-links: ok')

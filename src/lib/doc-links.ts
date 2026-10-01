@@ -196,3 +196,24 @@ export function docLinks(graph: DocGraph, path: string): { out: LinkRow[]; in: L
     })),
   }
 }
+
+/**
+ * Footer for vibedoc_read_doc (T096): the files a doc links to and is linked from, each named so an agent can
+ * pass it straight to a tool (tasks, epics, entries, ADRs by id; docs by path). Empty string when no links.
+ */
+export function formatRelatedFiles(links: { out: LinkRow[]; in: LinkRow[]; broken: LinkRow[] } | null, cap = 10): string {
+  if (!links) return ''
+  const name = (r: LinkRow) => idOfPath(r.path) ?? r.path
+  const line = (label: string, items: string[]) => {
+    if (!items.length) return []
+    const more = items.length > cap ? ` (+${items.length - cap} more)` : ''
+    return [`${label}: ${items.slice(0, cap).join(' · ')}${more}`]
+  }
+  const body = [
+    ...line('Links to', links.out.map(name)),
+    ...line('Linked from', links.in.map(r => `${name(r)} (L${r.line})`)),
+    ...line('Broken', links.broken.map(r => `${r.path} (L${r.line})`)),
+  ]
+  if (!body.length) return ''
+  return ['## Related files', ...body, 'Read with vibedoc_read_doc, or several at once with vibedoc_get_context { paths }.'].join('\n')
+}
