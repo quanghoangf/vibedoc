@@ -23,15 +23,12 @@ function onSse(e: Event) {
     subscribers.forEach((f) => f())
   }, DEBOUNCE_MS)
 }
+// Registered once for the page's life, never removed: the cache must be cleared even while no link view is mounted
+// (a change made while the user is on /board must not be served from a stale promise on the way back).
+if (typeof window !== "undefined") window.addEventListener("vibedoc:sse", onSse)
 function subscribe(cb: () => void) {
-  if (!subscribers.size) window.addEventListener("vibedoc:sse", onSse)
   subscribers.add(cb)
-  return () => {
-    subscribers.delete(cb)
-    if (subscribers.size) return
-    window.removeEventListener("vibedoc:sse", onSse)
-    clearTimeout(timer)
-  }
+  return () => { subscribers.delete(cb) }
 }
 
 /** Bumps ~250ms after the last file-changing SSE event; use it as an effect dep to refetch link data. */

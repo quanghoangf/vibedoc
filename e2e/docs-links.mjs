@@ -33,8 +33,11 @@ write("docs/long.md", `# Long\n\n${"Filler paragraph.\n\n".repeat(60)}At the end
 write("docs/sub/b.md", "# Bravo\n\nBravo body text for the preview. Back to [a](../a.md).\n")
 write("docs/c.md", "# Charlie\n\nNo links here.\n")
 // d → c is an edge that doesn't touch a, so selecting a must dim it
-write("docs/d.md", "# Delta\n\nPoints at [[c]].\n")
+write("docs/d.md", "# Delta\n\nPoints at [[c]]. Also T002.\n")
 write("plans/tasks/T001-x.md", "# T001: X\n**Status:** 📋 Todo\n\n## Goal\nX.\n")
+// a custom status with its own colour (blue) in the in-progress category: the dot must match the chip, not the category
+write(".vibedoc/settings.json", JSON.stringify({ statuses: [{ id: "qa", label: "QA", color: "blue", category: "in-progress" }] }))
+write("plans/tasks/T002-y.md", "# T002: Y\n**Status:** QA\n\n## Goal\nY.\n")
 
 async function mcp(name, args) {
   const res = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(fx)}`, {
@@ -175,6 +178,36 @@ try {
   await page.waitForTimeout(600)
   assert.equal(await camera(), before, "the camera does not move on a live update")
   console.log("ok  a live task move flashes T001 on /graph without moving the camera")
+
+  // 6b. A custom status: the graph dot and the Selected-file chip show the same colour
+  await page.goto(`${BASE}/graph?kinds=doc,task&node=${encodeURIComponent("plans/tasks/T002-y.md")}`)
+  const dotColor = (p) => node(p).locator(".rounded-full").first().evaluate((el) => getComputedStyle(el).color)
+  await node("plans/tasks/T002-y.md").waitFor()
+  const chipColor = await sel.getByText("QA", { exact: true }).evaluate((el) => getComputedStyle(el).color)
+  assert.equal(await dotColor("plans/tasks/T002-y.md"), chipColor, "custom status dot matches its chip")
+  console.log("ok  a custom QA status draws the dot in the chip's own colour")
+
+  // 6c. Changes made while the user is on another page show when they come back (no stale link cache)
+  await page.goto(`${BASE}/graph?kinds=doc,task`)
+  await node("plans/tasks/T001-x.md").waitFor()
+  const todoColor = await dotColor("plans/tasks/T001-x.md")
+  await page.locator("a[href^=\"/board\"]").first().click()
+  await page.waitForURL(/\/board/)
+  await mcp("vibedoc_update_task", { taskId: "T001", status: "done" })
+  const put = await fetch(`${BASE}/api/docs?root=${encodeURIComponent(fx)}`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ path: "docs/d.md", content: "# Delta\n\nPoints at [[c]] and [[b]]. Also T002.\n" }),
+  })
+  assert.ok(put.ok, await put.text())
+  await page.waitForTimeout(1200)
+  await page.locator("a[href^=\"/graph\"]").first().click()
+  await page.waitForURL(/\/graph/)
+  await edge("docs/d.md", "docs/sub/b.md").waitFor()
+  await page.getByRole("button", { name: "Tasks" }).click()
+  await node("plans/tasks/T001-x.md").waitFor()
+  await page.waitForFunction(([p, c]) => getComputedStyle(document.querySelector(`.react-flow__node[data-id="${p}"] .rounded-full`)).color !== c, ["plans/tasks/T001-x.md", todoColor])
+  console.log("ok  back on /graph after /board: the new d → b link and T001's done colour show without a reload")
 
   // 7. The agent's read ends with the resolved related files
   const read = await mcp("vibedoc_read_doc", { query: "docs/a.md" })

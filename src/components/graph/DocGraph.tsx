@@ -12,7 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
 import { KIND_ICON, useOpenNode } from "@/components/memory/EntryRelated"
 import { fetchLinkJson, useLinkGeneration } from "@/components/docs/useDocLinks"
 import type { BrokenLink, DocGraph as Graph, DocNode, DocNodeKind } from "@/lib/doc-links"
-import { STATUS_META, StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
+import { STATUS_COLOR_CLASS, StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
 import { statusDefIn, useStatusDefs } from "@/components/shared/status-defs"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { AgentDot } from "@/components/chat/AgentMark"
@@ -338,8 +338,8 @@ export function DocGraph() {
       const at = pos[p] ?? { x: 0, y: 0 }
       const n = byPath.get(p)!
       const links = adj.get(p)?.size ?? 0
-      // task / epic: the status hue (custom statuses through their category); every other kind neutral
-      const hue = n.status ? STATUS_META[statusDefIn(statusDefs, n.status).category].text : "text-muted"
+      // task / epic: the status's own colour, as on the board and the StatusChip; every other kind neutral
+      const hue = n.status ? STATUS_COLOR_CLASS[statusDefIn(statusDefs, n.status).color].text : "text-muted"
       return {
         id: p,
         type: "dot",
