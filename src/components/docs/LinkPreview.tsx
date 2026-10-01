@@ -6,6 +6,7 @@ import { Unlink } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { KIND_ICON } from "@/components/memory/EntryRelated"
 import { stripFrontmatter } from "@/lib/doc-priority"
+import { LINK_EVENTS } from "./useDocLinks"
 
 /** What a hovered link points at: a resolved file, or a broken raw target. */
 export type PreviewTarget = { path: string; kind: string; label: string } | { broken: string }
@@ -18,7 +19,7 @@ const CARD_W = 320
 const CARD_H = 220
 const MAX_TEXT = 400
 
-/** Session cache of fetched previews, keyed by root + path; any doc edit clears it. */
+/** Session cache of fetched previews, keyed by root + path; any file change (LINK_EVENTS) clears it. */
 const cache = new Map<string, Preview>()
 
 const meta = (raw: string, key: string) => new RegExp(`^\\*\\*${key}:\\*\\*\\s*(.+)$`, "m").exec(raw)?.[1].trim()
@@ -62,7 +63,7 @@ export function LinkPreview({ containerRef, resolve }: {
 
   useEffect(() => {
     const onSse = (e: Event) => {
-      if ((e as CustomEvent<{ type: string }>).detail?.type === "doc_updated") cache.clear()
+      if (LINK_EVENTS.has((e as CustomEvent<{ type: string }>).detail?.type)) cache.clear()
     }
     window.addEventListener("vibedoc:sse", onSse)
     return () => window.removeEventListener("vibedoc:sse", onSse)

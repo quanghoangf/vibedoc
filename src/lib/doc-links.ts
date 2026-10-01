@@ -19,7 +19,12 @@ export type LinkRow = { path: string; kind: string; label: string; line: number;
 const ID_RE = /(?<![A-Za-z0-9_-])(E\d+|T\d{3,}|R\d{3,}|ADR-\d+)(?![A-Za-z0-9_])/g
 const ID_ONLY_RE = /^(E\d+|T\d{3,}|R\d{3,}|ADR-\d+)$/
 const BACKTICK_MD_RE = /`([^`\s]+\.md)`/g
-const LINK_MD_RE = /\[([^\]]*)\]\(\s*<?([^)\s>#]+\.md)(?:#[^)\s]*)?>?\s*\)/g
+const LINK_MD_RE = /\[([^\]]*)\]\(\s*<?([^)\s>#]+\.md)(?:#[^)\s]*)?>?(?:\s+"[^"]*"|\s+'[^']*')?\s*\)/g
+const FENCE_RE = /^\s*(`{3,}|~{3,})/
+const INLINE_CODE_RE = /(`+)[^`]*?\1/g
+
+/** Targets are keyed decoded (`my%20doc.md` → `my doc.md`), as the client looks them up after marked encodes. */
+const decode = (t: string) => { try { return decodeURI(t) } catch { return t } }
 const WIKI_RE = /\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g
 const EXTERNAL_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i
 
@@ -66,23 +71,30 @@ export function docNode(relPath: string, raw: string): DocNode {
   return { id: p, kind: 'doc', label: h1 || name, path: p }
 }
 
-/** Links in `raw`, in order, with 1-based line numbers. Lines inside ``` fences and external URLs are skipped. */
+/**
+ * Links in `raw`, in order, with 1-based line numbers. Lines inside ``` / ~~~ fences and external URLs are skipped;
+ * md and wiki links inside inline code spans too. Indented code blocks are not detected (nested lists look alike).
+ */
 export function extractLinks(raw: string, _fromPath?: string): DocLink[] {
   const links: DocLink[] = []
-  let inFence = false
+  let fence = '' // the opening marker while inside a fence
   raw.replace(/\r\n/g, '\n').split('\n').forEach((l, i) => {
-    if (/^\s*```/.test(l)) { inFence = !inFence; return }
-    if (inFence) return
+    const f = FENCE_RE.exec(l)?.[1]
+    if (f && (!fence || (f[0] === fence[0] && f.length >= fence.length))) { fence = fence ? '' : f; return }
+    if (fence) return
     const line = i + 1
-    for (const m of l.matchAll(LINK_MD_RE)) {
-      if (!EXTERNAL_RE.test(m[2])) links.push({ target: m[2], kind: 'md', line, text: m[1] || m[2] })
+    const prose = l.replace(INLINE_CODE_RE, m => ' '.repeat(m.length))
+    for (const m of prose.matchAll(LINK_MD_RE)) {
+      // text from the original line (same offsets): [`code`](x.md) keeps its label
+      const text = l.slice(m.index + 1, m.index + 1 + m[1].length)
+      if (!EXTERNAL_RE.test(m[2])) links.push({ target: decode(m[2]), kind: 'md', line, text: text || m[2] })
     }
-    for (const m of l.matchAll(WIKI_RE)) {
-      const target = m[1].trim()
+    for (const m of prose.matchAll(WIKI_RE)) {
+      const target = decode(m[1].trim())
       if (target && !EXTERNAL_RE.test(target)) links.push({ target, kind: 'wiki', line, text: (m[2] ?? target).trim() })
     }
     for (const m of l.matchAll(BACKTICK_MD_RE)) {
-      if (!EXTERNAL_RE.test(m[1])) links.push({ target: m[1], kind: 'code', line, text: m[1] })
+      if (!EXTERNAL_RE.test(m[1])) links.push({ target: decode(m[1]), kind: 'code', line, text: m[1] })
     }
     for (const m of l.matchAll(ID_RE)) {
       if (/^E0+$/.test(m[1])) continue // E0 is not an entry id
@@ -111,7 +123,9 @@ function indexOf(allPaths: readonly string[]): PathIndex {
 
 /**
  * The file a link points at, or null (broken). Paths: relative to the source folder, then root-relative.
- * Wikilinks: by basename without `.md`, same folder first, then the shortest path. Ids: the item's file.
+ * An explicit `./` or `../` never falls back to the root. Wikilinks: by basename without `.md`, same folder first,
+ * then the shortest path; [[T093]] / [[E1]] go to the item's file first. Ids: the item's file.
+ * `target` is taken as written, already decoded (extractLinks decodes).
  * `kind` is inferred when left out: an id token → id, no `.md` → wiki, else a path.
  */
 export function resolveLink(target: string, fromPath: string, allPaths: readonly string[], kind?: LinkKind): string | null {
@@ -119,14 +133,19 @@ export function resolveLink(target: string, fromPath: string, allPaths: readonly
   const k = kind ?? (ID_ONLY_RE.test(target) ? 'id' : /\.md$/i.test(target) ? 'md' : 'wiki')
   if (k === 'id') return idx.byId.get(normalizeId(target)) ?? null
 
-  let t = target
-  try { t = decodeURI(target) } catch { /* keep the raw target */ }
+  if (k === 'wiki' && ID_ONLY_RE.test(target)) {
+    const byId = idx.byId.get(normalizeId(target))
+    if (byId) return byId
+  }
+  const t = target
+  const explicitRel = /^\.\.?\//.test(t)
   const from = normalizePath(fromPath) ?? fromPath
   const tryPath = (p: string) => {
     const cands = [p, /\.md$/i.test(p) ? null : `${p}.md`].filter((c): c is string => !!c)
     for (const c of cands) {
       const rel = t.startsWith('/') ? null : normalizePath(`${dirOf(from)}/${c}`)
       if (rel !== null && idx.set.has(rel)) return rel
+      if (explicitRel) continue
       const abs = normalizePath(c)
       if (abs !== null && idx.set.has(abs)) return abs
     }

@@ -48,6 +48,32 @@ assert.equal(resolveLink('R056', 'README.md', all, 'id'), 'plans/roadmap/R056-gr
 assert.equal(resolveLink('E12', 'README.md', all, 'id'), 'memory/entries/E012-thing.md')
 assert.equal(resolveLink('ADR-4', 'README.md', all, 'id'), 'docs/architecture/decisions/ADR-004-mcp.md')
 assert.equal(resolveLink('T999', 'README.md', all), null)
+// wikilink to an item id → the item's file (not a basename miss)
+assert.equal(resolveLink('T093', 'README.md', all, 'wiki'), 'plans/tasks/T093-doc-links.md')
+assert.equal(resolveLink('E12', 'README.md', all, 'wiki'), 'memory/entries/E012-thing.md')
+// explicit ./ or ../ never falls back to the root: no docs/a/README.md, root README.md exists
+assert.equal(resolveLink('./README.md', 'docs/a/x.md', all), null)
+assert.equal(resolveLink('../README.md', 'docs/a/x.md', all), null)
+assert.equal(resolveLink('README.md', 'docs/a/x.md', all), 'README.md') // bare name still does
+
+// titles, percent-encoding, ~~~ fences, inline code
+assert.deepEqual(extractLinks([
+  '[t](b.md "Title") [u](c.md \'T\') [sp](my%20doc.md) [`code`](d.md)',
+  '~~~',
+  '[[ghost]] ```',
+  '~~~',
+  '`[[ghost3]]` `[x](gone.md)` [[real]]',
+  '````',
+  '```',
+  '[[inner]]',
+  '````',
+].join('\n'), 'docs/a.md'), [
+  { target: 'b.md', kind: 'md', line: 1, text: 't' },
+  { target: 'c.md', kind: 'md', line: 1, text: 'u' },
+  { target: 'my doc.md', kind: 'md', line: 1, text: 'sp' },
+  { target: 'd.md', kind: 'md', line: 1, text: '`code`' },
+  { target: 'real', kind: 'wiki', line: 5, text: 'real' },
+])
 
 // docNode: kinds + labels
 assert.deepEqual(docNode('memory/entries/E012-thing.md', '# E012: A thing\n'), { id: 'E012', kind: 'entry', label: 'A thing', path: 'memory/entries/E012-thing.md' })
