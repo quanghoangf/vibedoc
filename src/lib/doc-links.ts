@@ -6,16 +6,17 @@ export type DocNodeKind = 'doc' | 'adr' | 'task' | 'epic' | 'entry'
 /** `status` / `owner` are set on task and epic nodes by GET /api/docs/graph, never by docNode(). */
 export type DocNode = { id: string; kind: DocNodeKind; label: string; path: string; status?: string; owner?: string | null }
 export type LinkKind = 'md' | 'wiki' | 'code' | 'id'
-export type DocLink = { target: string; kind: LinkKind; line: number; text: string }
+/** `context`: the sentence around the link (or the heading above it), set only when the link text is just the target. */
+export type DocLink = { target: string; kind: LinkKind; line: number; text: string; context?: string }
 /** One file as the graph needs it: its node and its raw (unresolved) links. core.ts caches this per file. */
 export type DocItem = { node: DocNode; links: DocLink[] }
-export type DocEdge = { from: string; to: string; line: number; text: string }
+export type DocEdge = { from: string; to: string; line: number; text: string; context?: string }
 export type BrokenLink = { from: string; target: string; line: number; text: string; kind: LinkKind }
 /** Raw link target as written in a file → the file it resolves to (self-links included). Keyed by source path. */
 export type ResolvedTargets = Record<string, Record<string, string>>
 /** `broken`: md / wiki links that point nowhere. `stale`: backticked paths (`code`) to a file that doesn't exist. */
 export type DocGraph = { nodes: DocNode[]; edges: DocEdge[]; broken: BrokenLink[]; stale: BrokenLink[]; targets: ResolvedTargets }
-export type LinkRow = { path: string; kind: string; label: string; line: number; text: string }
+export type LinkRow = { path: string; kind: string; label: string; line: number; text: string; context?: string }
 
 // Upper case only, whole tokens: "XT0651", "e2e" and "T0651a" don't match
 const ID_RE = /(?<![A-Za-z0-9_-])(E\d+|T\d{3,}|R\d{3,}|ADR-\d+)(?![A-Za-z0-9_])/g
@@ -27,6 +28,21 @@ const INLINE_CODE_RE = /(`+)[^`]*?\1/g
 
 /** Targets are keyed decoded (`my%20doc.md` → `my doc.md`), as the client looks them up after marked encodes. */
 const decode = (t: string) => { try { return decodeURI(t) } catch { return t } }
+/** A source line as plain prose: list / heading / checkbox markers, link syntax, code ticks and emphasis removed. */
+const plainLine = (l: string) => l
+  .replace(/^\s*(?:#{1,6}|>|[-*+]|\d+\.)\s+(?:\[[ xX]\]\s+)?/, '')
+  .replace(/\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g, (_, a, b) => b ?? a)
+  .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+  .replace(/`|\*\*|__/g, '')
+  .trim()
+
+/** The sentence of `line` that holds `text`, minus a leading `text:`; the heading above when the line is only the link. */
+function linkContext(line: string, text: string, heading: string): string {
+  const sentence = plainLine(line).split(/(?<=[.!?])\s+/).find(s => s.includes(text)) ?? ''
+  const rest = (sentence.startsWith(text) ? sentence.slice(text.length).replace(/^[\s:,;–—-]+/, '') : sentence).trim()
+  return (/[A-Za-z]{3}/.test(rest.replace(text, '')) ? rest : heading).slice(0, 200)
+}
+
 const WIKI_RE = /\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g
 const EXTERNAL_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i
 
@@ -91,11 +107,13 @@ export function docNode(relPath: string, raw: string): DocNode {
 export function extractLinks(raw: string, _fromPath?: string): DocLink[] {
   const links: DocLink[] = []
   let fence = '' // the opening marker while inside a fence
+  let heading = ''
   raw.replace(/\r\n/g, '\n').split('\n').forEach((l, i) => {
     const f = FENCE_RE.exec(l)?.[1]
     if (f && (!fence || (f[0] === fence[0] && f.length >= fence.length))) { fence = fence ? '' : f; return }
     if (fence) return
     const line = i + 1
+    const from = links.length
     const prose = l.replace(INLINE_CODE_RE, m => ' '.repeat(m.length))
     for (const m of prose.matchAll(LINK_MD_RE)) {
       // text from the original line (same offsets): [`code`](x.md) keeps its label
@@ -114,6 +132,12 @@ export function extractLinks(raw: string, _fromPath?: string): DocLink[] {
       if (/^E0+$/.test(m[1])) continue // E0 is not an entry id
       links.push({ target: normalizeId(m[1]), kind: 'id', line, text: m[1] })
     }
+    // a bare link (text = target) says nothing by itself: carry the sentence it sits in
+    for (const k of links.slice(from)) if (k.text === k.target) {
+      const context = linkContext(l, k.text, heading)
+      if (context) k.context = context
+    }
+    if (/^#{1,6}\s/.test(l)) heading = plainLine(l)
   })
   return links
 }
@@ -203,7 +227,7 @@ export function buildDocGraph(items: DocItem[]): DocGraph {
         continue
       }
       const key = `${node.path}\u0000${to}`
-      if (!edges.has(key)) edges.set(key, { from: node.path, to, line: l.line, text: l.text })
+      if (!edges.has(key)) edges.set(key, { from: node.path, to, line: l.line, text: l.text, ...(l.context && { context: l.context }) })
     }
   }
   return { nodes: items.map(i => i.node), edges: [...edges.values()], broken: [...broken.values()], stale: [...stale.values()], targets }
@@ -220,14 +244,14 @@ export function docLinks(graph: DocGraph, path: string): { out: LinkRow[]; in: L
   const p = normalizePath(path) ?? path
   const byPath = new Map(graph.nodes.map(n => [n.path, n]))
   if (!byPath.has(p)) return null
-  const row = (other: string, line: number, text: string): LinkRow => {
+  const row = (other: string, e: DocEdge): LinkRow => {
     const n = byPath.get(other)
-    return { path: other, kind: n?.kind ?? 'doc', label: n?.label ?? baseName(other), line, text }
+    return { path: other, kind: n?.kind ?? 'doc', label: n?.label ?? baseName(other), line: e.line, text: e.text, ...(e.context && { context: e.context }) }
   }
   const miss = (b: BrokenLink): LinkRow => ({ path: b.target, kind: b.kind, label: b.target, line: b.line, text: b.text })
   return {
-    out: graph.edges.filter(e => e.from === p).map(e => row(e.to, e.line, e.text)),
-    in: graph.edges.filter(e => e.to === p).map(e => row(e.from, e.line, e.text)),
+    out: graph.edges.filter(e => e.from === p).map(e => row(e.to, e)),
+    in: graph.edges.filter(e => e.to === p).map(e => row(e.from, e)),
     broken: graph.broken.filter(b => b.from === p).map(miss),
     stale: graph.stale.filter(b => b.from === p).map(miss),
     targets: Object.fromEntries(Object.entries(graph.targets[p] ?? {}).map(([t, to]) => {

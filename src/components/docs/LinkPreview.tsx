@@ -1,17 +1,21 @@
 "use client"
 
-import { useEffect, useRef, useState, type RefObject } from "react"
+import { useEffect, useId, useRef, useState, type RefObject } from "react"
 import { createPortal } from "react-dom"
 import { Unlink } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { KIND_ICON } from "@/components/memory/EntryRelated"
 import { stripFrontmatter } from "@/lib/doc-priority"
+import { displayStatus, resolveStatus } from "@/lib/statuses"
+import { StatusChip } from "@/components/shared/StatusIcon"
+import { useStatusDefs } from "@/components/shared/status-defs"
+import { OwnerChip } from "@/components/shared/OwnerChip"
 import { LINK_EVENTS } from "./useDocLinks"
 
 /** What a hovered link points at: a resolved file, or a broken raw target. */
 export type PreviewTarget = { path: string; kind: string; label: string } | { broken: string }
 type Preview = { title: string; text: string; status?: string; owner?: string }
-type Card = { key: string; target: PreviewTarget; rect: DOMRect; data: Preview | null }
+type Card = { key: string; anchor: Element; target: PreviewTarget; rect: DOMRect; data: Preview | null }
 
 const SHOW_DELAY = 350
 const HIDE_DELAY = 150
@@ -24,25 +28,39 @@ const cache = new Map<string, Preview>()
 
 const meta = (raw: string, key: string) => new RegExp(`^\\*\\*${key}:\\*\\*\\s*(.+)$`, "m").exec(raw)?.[1].trim()
 
-/** Title, owner/status meta and the opening ~400 chars as plain text. A rough strip, not a render. */
+/** Paired emphasis only (`**x**`, `__x__`, `*x*`, `_x_` at word edges): `vibedoc_next_task` keeps its underscores. */
+const unemphasize = (s: string) => s
+  .replace(/(\*\*|__)(?=\S)([^\n]*?\S)\1/g, "$2")
+  .replace(/(^|[^\w*])\*(?=\S)([^*\n]*?\S)\*(?![\w*])/g, "$1$2")
+  .replace(/(^|[^\w])_(?=\S)([^_\n]*?\S)_(?!\w)/g, "$1$2")
+
+/** Title, owner/status meta and the opening ~400 chars as plain text, `inline code` ticks kept. A rough strip, not a render. */
 function toPreview(raw: string, fallbackTitle: string): Preview {
   const body = stripFrontmatter(raw)
   const h1 = /^#\s+(.+)$/m.exec(body)?.[1].trim()
-  const text = body
+  let text = body
     .replace(/^#\s+.+$/m, "")
     .replace(/^\*\*[^*\n]+:\*\*.*$/gm, "") // task/epic meta lines
-    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/(`{3,}|~{3,})[\s\S]*?\1/g, " ")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
     .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b ?? a)
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/<[^>]+>/g, "")
+    .replace(/^\s*(?:[-*+]|\d+\.)\s+\[[ xX]\]\s*/gm, "") // task-list boxes
     .replace(/^\s*(?:#{1,6}|>|[-*+]|\d+\.|\|)\s*/gm, "")
-    .replace(/[*_`|]/g, "")
+    .split(/(`[^`\n]*`)/)
+    .map((part, i) => (i % 2 ? part : unemphasize(part).replace(/\|/g, " ")))
+    .join("")
     .replace(/\s+/g, " ")
     .trim()
+  if (text.length > MAX_TEXT) {
+    text = text.slice(0, MAX_TEXT).trimEnd()
+    if ((text.match(/`/g)?.length ?? 0) % 2) text = text.replace(/`(?=[^`]*$)/, "")
+    text += "…"
+  }
   return {
     title: h1 ?? fallbackTitle,
-    text: text.length > MAX_TEXT ? `${text.slice(0, MAX_TEXT).trimEnd()}…` : text,
+    text,
     status: meta(raw, "Status"),
     owner: meta(raw, "Owner"),
   }
@@ -57,6 +75,8 @@ export function LinkPreview({ containerRef, resolve }: {
   resolve: (el: Element) => { anchor: Element; target: PreviewTarget } | null
 }) {
   const { rootParam } = useApp()
+  const statusDefs = useStatusDefs()
+  const id = useId()
   const [card, setCard] = useState<Card | null>(null)
   // pending show/hide; shared with the card so hovering it cancels the hide
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -80,7 +100,7 @@ export function LinkPreview({ containerRef, resolve }: {
       clearTimeout(timer.current)
       timer.current = setTimeout(() => {
         if (current !== anchor) return
-        setCard({ key, target, rect: anchor.getBoundingClientRect(), data: cached })
+        setCard({ key, anchor, target, rect: anchor.getBoundingClientRect(), data: cached })
         if (cached || "broken" in target) return
         fetch(`/api/docs${rootParam}&read=${encodeURIComponent(target.path)}`)
           .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
@@ -116,7 +136,8 @@ export function LinkPreview({ containerRef, resolve }: {
     }
     const onFocusIn = (e: FocusEvent) => {
       const hit = resolve(e.target as Element)
-      if (!hit) return
+      // keyboard focus only: a sheet's autofocus after a tap or click must not pop a card
+      if (!hit || !hit.anchor.matches(":focus-visible")) return
       current = hit.anchor
       show(hit.anchor, hit.target, 0)
     }
@@ -135,6 +156,25 @@ export function LinkPreview({ containerRef, resolve }: {
     }
   }, [containerRef, resolve, rootParam])
 
+  // while open: the anchor is described by the card, and Esc closes the card before any sheet/dialog sees it
+  const anchor = card?.anchor
+  useEffect(() => {
+    if (!anchor) return
+    anchor.setAttribute("aria-describedby", id)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      e.preventDefault()
+      e.stopPropagation()
+      clearTimeout(timer.current)
+      setCard(null)
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => {
+      anchor.removeAttribute("aria-describedby")
+      window.removeEventListener("keydown", onKey, true)
+    }
+  }, [anchor, id])
+
   if (!card) return null
   const { target, rect, data } = card
   const below = rect.bottom + CARD_H < window.innerHeight
@@ -142,9 +182,11 @@ export function LinkPreview({ containerRef, resolve }: {
   const style = below ? { top: rect.bottom + 6, left, width: CARD_W } : { bottom: window.innerHeight - rect.top + 6, left, width: CARD_W }
   const broken = "broken" in target
   const Icon = broken ? Unlink : KIND_ICON[target.kind as keyof typeof KIND_ICON] ?? KIND_ICON.doc
+  const status = !broken && data?.status ? displayStatus(resolveStatus(data.status, statusDefs)) : null
 
   return createPortal(
     <div
+      id={id}
       role="tooltip"
       style={style}
       onMouseEnter={() => clearTimeout(timer.current)}
@@ -156,10 +198,19 @@ export function LinkPreview({ containerRef, resolve }: {
         <span className="min-w-0 truncate font-medium">{broken ? "Not found" : data?.title ?? target.label}</span>
       </div>
       <span className="truncate font-mono text-[11px] text-muted">{broken ? target.broken : target.path}</span>
-      {!broken && (data?.status || data?.owner) && (
-        <span className="text-xs text-muted">{[data.status, data.owner && `Owner: ${data.owner}`].filter(Boolean).join(" · ")}</span>
+      {(status || (!broken && data?.owner)) && (
+        <span className="flex items-center gap-2">
+          {status && <StatusChip status={status} />}
+          {!broken && <OwnerChip owner={data?.owner ?? null} />}
+        </span>
       )}
-      {!broken && <p className="line-clamp-6 text-xs leading-relaxed text-muted">{data ? data.text || "Empty file" : "Loading…"}</p>}
+      {!broken && (
+        <p className="line-clamp-6 text-xs leading-relaxed text-muted">
+          {!data ? "Loading…" : !data.text ? "Empty file" : data.text.split(/`([^`]+)`/).map((part, i) => (i % 2
+            ? <code key={i} className="rounded-sm bg-surface2 px-1 font-mono text-[11px] text-txt">{part}</code>
+            : part))}
+        </p>
+      )}
     </div>,
     document.body,
   )

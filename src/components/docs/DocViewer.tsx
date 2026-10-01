@@ -99,12 +99,16 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
   const title = stats.title ?? fileName.replace(/\.md$/, "")
   const lastEdit = doc.lastEdit
   const headings = extractHeadings(body)
-  const linkCount = links ? new Set(links.out.map((l) => l.path)).size + links.in.length : null
+  // unique files either way (a file both linked to and from counts once); broken links count apart
+  const linkCount = links ? new Set([...links.out, ...links.in].map((l) => l.path)).size : null
+  const brokenCount = links?.broken.length ?? 0
   const linksButton = (onClick: () => void, className: string, pressed?: boolean) => (
-    <Button variant="ghost" size="sm" onClick={onClick} aria-pressed={pressed} aria-label="Linked docs" title="Linked docs"
+    <Button variant="ghost" size="sm" onClick={onClick} aria-pressed={pressed}
+      aria-label={`Linked docs${linkCount !== null ? `: ${linkCount} files` : ""}${brokenCount ? `, ${brokenCount} broken` : ""}`} title="Linked docs"
       className={`h-7 gap-1 px-1.5 text-muted hover:text-txt ${pressed ? "bg-surface2 text-txt" : ""} ${className}`}>
       <Link2 className="h-3.5 w-3.5" aria-hidden />
       {linkCount !== null && <span className="font-mono text-[11px]">{linkCount}</span>}
+      {brokenCount > 0 && <span className="font-mono text-[11px] text-danger">{brokenCount}</span>}
     </Button>
   )
   return (

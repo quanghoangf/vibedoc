@@ -14,13 +14,17 @@ const raw = [
 ].join('\n')
 assert.deepEqual(extractLinks(raw, 'docs/a/x.md'), [
   { target: '../b/y.md', kind: 'md', line: 2, text: 'y' },
-  { target: 'HLD', kind: 'wiki', line: 2, text: 'HLD' },
+  { target: 'HLD', kind: 'wiki', line: 2, text: 'HLD', context: 'See y and HLD, the design and docs/x.md.' },
   { target: 'HLD', kind: 'wiki', line: 2, text: 'the design' },
-  { target: 'docs/x.md', kind: 'code', line: 2, text: 'docs/x.md' },
-  { target: 'T093', kind: 'id', line: 3, text: 'T093' },
-  { target: 'R056', kind: 'id', line: 3, text: 'R056' },
+  { target: 'docs/x.md', kind: 'code', line: 2, text: 'docs/x.md', context: 'See y and HLD, the design and docs/x.md.' },
+  { target: 'T093', kind: 'id', line: 3, text: 'T093', context: 'Ids: T093, R056, ADR-4, E12; not XT0651, e2e, E0.' },
+  { target: 'R056', kind: 'id', line: 3, text: 'R056', context: 'Ids: T093, R056, ADR-4, E12; not XT0651, e2e, E0.' },
   { target: 'ADR-004', kind: 'id', line: 3, text: 'ADR-4' },
   { target: 'E012', kind: 'id', line: 3, text: 'E12' },
+])
+// context: a leading `path:` drops, a line that is only the link takes the heading above
+assert.deepEqual(extractLinks('## Docs to update\n- [ ] `docs/h.md`: add **the** tool. Then more.\n- `docs/i.md`').map(l => l.context), [
+  'add the tool.', 'Docs to update',
 ])
 
 // resolveLink
@@ -72,7 +76,7 @@ assert.deepEqual(extractLinks([
   { target: 'c.md', kind: 'md', line: 1, text: 'u' },
   { target: 'my doc.md', kind: 'md', line: 1, text: 'sp' },
   { target: 'd.md', kind: 'md', line: 1, text: '`code`' },
-  { target: 'real', kind: 'wiki', line: 5, text: 'real' },
+  { target: 'real', kind: 'wiki', line: 5, text: 'real', context: 'ghost3 x real' },
 ])
 
 // docNode: kinds + labels
@@ -93,8 +97,8 @@ const graph = buildDocGraph([
 assert.deepEqual(graph.edges, [
   { from: 'docs/a/x.md', to: 'docs/b/y.md', line: 1, text: 'y' },
   { from: 'docs/b/y.md', to: 'docs/a/x.md', line: 2, text: 'x' },
-  { from: 'docs/b/y.md', to: 'plans/tasks/T093-doc-links.md', line: 2, text: 'T093' },
-  { from: 'plans/tasks/T093-doc-links.md', to: 'docs/b/y.md', line: 2, text: 'docs/b/y.md' },
+  { from: 'docs/b/y.md', to: 'plans/tasks/T093-doc-links.md', line: 2, text: 'T093', context: 'Back to x, see T093' },
+  { from: 'plans/tasks/T093-doc-links.md', to: 'docs/b/y.md', line: 2, text: 'docs/b/y.md', context: 'T093 itself, docs/b/y.md' },
 ])
 assert.deepEqual(graph.broken, [
   { from: 'docs/a/x.md', target: 'missing.md', line: 3, text: 'gone', kind: 'md' },
@@ -109,7 +113,7 @@ const y = docLinks(graph, 'docs/b/y.md')
 assert.deepEqual(y?.in.map(r => r.path), ['docs/a/x.md', 'plans/tasks/T093-doc-links.md'])
 assert.deepEqual(y?.out, [
   { path: 'docs/a/x.md', kind: 'doc', label: 'x', line: 2, text: 'x' },
-  { path: 'plans/tasks/T093-doc-links.md', kind: 'task', label: 'Doc links', line: 2, text: 'T093' },
+  { path: 'plans/tasks/T093-doc-links.md', kind: 'task', label: 'Doc links', line: 2, text: 'T093', context: 'Back to x, see T093' },
 ])
 assert.equal(docLinks(graph, 'docs/a/x.md')?.broken.length, 2)
 assert.deepEqual(docLinks(graph, 'docs/a/x.md')?.stale, [])

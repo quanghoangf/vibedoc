@@ -14,6 +14,10 @@ import type { DocLinksData } from "./useDocLinks"
 import { LinkPreview, type PreviewTarget } from "./LinkPreview"
 import { revealLink } from "./MarkdownRenderer"
 
+/** Label Caps (DESIGN.md): mono 10px/500, 0.06em, uppercase. */
+const LABEL_CAPS = "flex items-center font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted"
+const ROW = "rounded-md px-2 py-1 text-left text-sm outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
+
 const NODE_KINDS = new Set<string>(GROUPS.map((g) => g.kind))
 /** Item id from the file name (T093-x.md → T093); plain docs use their path. */
 /** Rows carry data-preview-* so one delegated LinkPreview serves the whole panel. */
@@ -50,14 +54,14 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
           data-preview-path={r.path}
           data-preview-kind={kind}
           data-preview-label={r.label}
-          className="flex w-full flex-col rounded-md px-2 py-1 text-left text-sm outline-none hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
+          className={cn("flex w-full flex-col", ROW)}
         >
           <span className="flex w-full min-w-0 items-center gap-2">
             {task ? <StatusIcon status={displayStatus(task)} className="size-3.5 shrink-0" /> : <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />}
             {kind !== "doc" && <span className="shrink-0 font-mono text-[11px] text-muted">{id}</span>}
             <span className="min-w-0 truncate text-txt">{r.label}</span>
           </span>
-          {withLine && <span className="w-full truncate pl-5.5 text-[11px] text-muted">L{r.line} · {r.text}</span>}
+          {withLine && <span className="w-full truncate pl-5.5 text-[11px] text-muted"><span className="font-mono">L{r.line}</span> · {r.context ?? r.text}</span>}
         </button>
       </li>
     )
@@ -65,8 +69,8 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
 
   const section = (title: string, rows: LinkRow[], empty: string, withLine: boolean) => (
     <div className="flex flex-col gap-1.5">
-      <h4 className="flex items-center text-[11px] font-semibold uppercase tracking-wider text-muted">
-        {title}<span className="ml-auto font-mono font-normal">{rows.length}</span>
+      <h4 className={LABEL_CAPS}>
+        {title}<span className="ml-auto">{rows.length}</span>
       </h4>
       {!rows.length ? <p className="px-2 text-xs text-muted">{empty}</p> : GROUPS.map(({ kind, label }) => {
         const group = rows.filter((r) => (NODE_KINDS.has(r.kind) ? r.kind : "doc") === kind)
@@ -84,8 +88,8 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
   // Broken links and stale path mentions: each row scrolls the preview to the spot and flashes it
   const missSection = (title: string, rows: LinkRow[], broken: boolean) => rows.length > 0 && (
     <div className="flex flex-col gap-1.5">
-      <h4 className="flex items-center text-[11px] font-semibold uppercase tracking-wider text-muted">
-        {title}<span className="ml-auto font-mono font-normal">{rows.length}</span>
+      <h4 className={LABEL_CAPS}>
+        {title}<span className="ml-auto">{rows.length}</span>
       </h4>
       <ul>
         {rows.map((r, i) => (
@@ -94,7 +98,7 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
               type="button"
               onClick={() => { onNavigate?.(); const p = document.querySelector(".doc-preview"); if (p) revealLink(p, r.path) }}
               {...(broken ? { "data-preview-path": r.path, "data-preview-broken": "" } : { title: "File not found" })}
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-none hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
+              className={cn("flex w-full items-center gap-2", ROW)}
             >
               {broken ? <Unlink className="size-3.5 shrink-0 text-muted" aria-hidden /> : <FileQuestion className="size-3.5 shrink-0 text-muted" aria-hidden />}
               <span className={cn("min-w-0 truncate font-mono text-xs text-muted", broken && "line-through decoration-muted/50")}>{r.path}</span>
