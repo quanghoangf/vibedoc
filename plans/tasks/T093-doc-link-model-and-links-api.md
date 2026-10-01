@@ -1,8 +1,9 @@
 # T093: Doc link model: resolved links between .md files + API
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R056 — Doc link graph
 **Size:** M (2–3 hrs)
 **Depends on:** —
+**Done:** 2026-10-01
 
 ## Goal
 One shared, resolved link graph between every .md file in the project. Each later task builds on it: the preview, the panel, MCP and /graph. It also fixes today's false backlinks, where `findBacklinks` matches the basename as a substring.
@@ -60,3 +61,15 @@ pnpm build && pnpm lint
 curl -s 'localhost:3000/api/docs/links?path=docs/architecture/02-high-level-design/HLD.md' | head -c 600
 curl -s 'localhost:3000/api/docs/graph' | head -c 300
 ```
+
+## Manual tests
+_2026-10-01 — ai_
+### Steps
+- [ ] Open http://localhost:3000/api/docs/links?path=docs/architecture/02-high-level-design/HLD.md → JSON with out/in/broken; "in" lists task files that mention the HLD path, each with path, kind, label, line and text
+- [ ] Add `[y](../b/y.md)` to a doc in docs/a/ that points at an existing docs/b/y.md, reload /api/docs/links for it → docs/b/y.md shows under "out"
+- [ ] Add `[[HLD]]` to any doc → /api/docs/links lists docs/architecture/02-high-level-design/HLD.md under "out"
+- [ ] Add `[gone](missing.md)` to a doc → it shows under "broken", not under "out"
+- [ ] Put a link inside a ``` fence, and add https://example.com/x.md → neither shows up anywhere
+- [ ] Open /api/docs/links?path=nope.md → 404; open /api/docs/graph twice → the dev server log prints "doc graph: read N of M files" only the first time
+### Regression risk
+- [ ] /memory Graph view (getMemoryGraph) and the doc backlinks panel still work unchanged

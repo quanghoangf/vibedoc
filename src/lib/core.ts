@@ -24,6 +24,7 @@ import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
 import { buildGraph, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
+import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1613,6 +1614,39 @@ export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
     entries.map(e => ({ id: e.id, kind: 'entry', label: e.summary, path: e.file.replace(/\\/g, '/'), text: `${e.summary}\n${e.body}` })),
     others.filter((o): o is GraphItem => !!o),
   )
+}
+
+// ponytail: in-process cache only; a second VibeDoc process keeps its own. On globalThis so dev HMR keeps it.
+const docGraphCache: Map<string, { mtimeMs: number; item: DocItem }> =
+  ((globalThis as { __vibedocDocGraphCache?: Map<string, { mtimeMs: number; item: DocItem }> }).__vibedocDocGraphCache ??= new Map())
+
+/** Resolved links between every .md file (R056). Only files whose mtime changed since the last call are re-read. */
+export async function getDocGraph(root: string): Promise<DocGraph> {
+  const files = (await glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**'], nodir: true }))
+    .map(f => f.replace(/\\/g, '/')).sort()
+  const keyOf = (f: string) => `${root}\u0000${f}`
+  let reread = 0
+  const items = await Promise.all(files.map(async (f): Promise<DocItem | null> => {
+    const key = keyOf(f)
+    try {
+      const { mtimeMs } = await fs.stat(path.join(root, f))
+      const hit = docGraphCache.get(key)
+      if (hit && hit.mtimeMs === mtimeMs) return hit.item
+      const raw = await fs.readFile(path.join(root, f), 'utf8')
+      reread++
+      const item = { node: docNode(f, raw), links: extractLinks(raw, f) }
+      docGraphCache.set(key, { mtimeMs, item })
+      return item
+    } catch (e) {
+      docGraphCache.delete(key)
+      console.warn(`doc graph: skipped ${f}`, e)
+      return null
+    }
+  }))
+  const live = new Set(files.map(keyOf))
+  for (const key of docGraphCache.keys()) if (key.startsWith(`${root}\u0000`) && !live.has(key)) docGraphCache.delete(key)
+  if (reread) console.log(`doc graph: read ${reread} of ${files.length} files`)
+  return buildDocGraph(items.filter((i): i is DocItem => !!i))
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────
