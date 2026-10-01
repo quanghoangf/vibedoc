@@ -268,6 +268,17 @@ The `/manual-tests` page reads as a lab procedure sheet. The header states what'
 - **Timeline:** one lane per epic, with bars from the first move to in-progress up to done (or now). The default **Active time** scale folds idle gaps out of the axis, so a week of agent bursts reads as work, not white space. Day and Week show real time. Tasks that have not started sit as planned chips after the lane's last bar.
 Persistence: the live view state lives in the URL (`v` = saved view id, then `view g sg s f q p sc`, defaults left out), so a link reproduces the view. Saved views live in `.vibedoc/views.json`, via `GET/POST /api/views`. There is no `localStorage`.
 
+### Doc Link Graph
+`/graph` maps every link between the project's `.md` files; `/docs` shows one file's links in the **Linked docs** column (an 18rem column from `xl`, a sheet below it, opened by the mono link-count button) and a hover/focus **preview card**. Links are derived from text, never stored.
+- **Shapes name the kind, never colour:** doc = circle, ADR = square, epic = diamond, task = small circle (70%), entry = ring. Size grows with degree. Kind chips and the legend draw the same shapes.
+- **Colour is status only:** tasks and epics take their `STATUS_META` hue (custom statuses through their category); docs, ADRs and entries stay Pencil Grey. Edges are Pencil Grey mixed 80% into the page so they clear 3:1 in both themes.
+- **Accent = selection:** the selected node, search matches and keyboard focus get the accent ring or halo; the selected node's edges turn accent. Everything outside the lit set dims to 25% (nodes) / 15% (edges). Focus 1 / 2 cuts the canvas to that neighbourhood.
+- **Counts are what's drawn:** the selected card counts unique visible files ("Links to 6 · Linked from 1 · +17 hidden by filters"); a hidden selection says so with a Show action instead of vanishing. Load failure is an error card with Retry, never the empty state.
+- **Broken vs stale:** a broken link (md / wiki link to no file) is a dashed muted underline; a stale path (backticked path to a missing file) is a dotted underline with "File not found". The toolbar's "N broken · M stale" menu and the panel's Broken / Stale paths sections list both, each row opening the file scrolled to that line.
+- **Motion thesis — the map keeps your place.** A live update never moves the camera; it flashes the nodes it touched (`animate-flash`). A filter / focus / link change glides dots and camera together over 420ms (ease-out-quart); new dots scale in, removed ones fade. Selection ripples (depth 2 lights 60ms after depth 1). Labels fade, not snap, below 0.6 zoom on graphs over 40 nodes. Above 150 nodes, and under reduced motion, it jumps instead of gliding.
+- **Keyboard:** `/` focuses search (Enter picks the first match), Tab walks the nodes in label order (edges are never tab stops), Enter or Space selects, Enter again or `O` opens, arrows move to the nearest linked file, Esc clears the search, then the selection. Every node has a name ("Task T093 Doc link model, 4 links").
+- **Preview card:** 320px Float layer, 350ms hover delay (instant on keyboard focus, never on a sheet's autofocus), fades and scales from 98%, Esc closes it. It shows the title, mono path, `StatusChip` + `OwnerChip`, and ~400 chars of plain text; status emoji and checkboxes are stripped.
+
 ## Do's and Don'ts
 
 **Board motion.** Switching views runs `document.startViewTransition` (BoardTab `select`). The one underline (`view-transition-name: board-view-tab`) glides to the new tab in 260ms. The old view fades out in 120ms, and the new one settles in over 260ms with a 6px lift (`board-view-body`). Swimlanes open and close by animating grid rows 0fr↔1fr; their content stays mounted but `inert`. Timeline bars draw in from their start once, when the view opens (`animate-grow-x`, 40ms per lane, capped at 240ms). The Filter and Sort popovers zoom in from 98% out of their trigger. Reduced motion turns all of it off through the global rule, which also covers view-transition pseudo-elements.
@@ -279,6 +290,7 @@ Persistence: the live view state lives in the URL (`v` = saved view id, then `vi
 - **Do** show hover as one tone step up plus a stronger border, and focus as the accent ring or halo.
 - **Do** use the motion tokens (`--duration-fast` 120ms, `--duration-base` 180ms, `--duration-slow` 260ms, `--ease-out-soft`) and let the global reduced-motion rule turn them off.
 - **Do** keep every frequent action reachable from the keyboard, and show its shortcut in a mono `kbd`.
+- **Do** treat link UI as one language: mono paths and line numbers (`L42`), counts of unique files, broken = dashed muted, stale = dotted muted, and a live change marked by the update flash, never by moving what the user is looking at.
 
 ### Don't:
 - **Don't** hard-code hex or `rgb()` values in components; the Settings accent and theme swaps depend on tokens.

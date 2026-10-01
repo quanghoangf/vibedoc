@@ -6,7 +6,10 @@
 //      shows its preview card.
 //   3. /graph: a, b, c (and d) with edges; clicking a selects it and dims the unrelated d → c edge; Open → /docs.
 //   4. /graph: "2 broken · 1 stale path" opens a list; the far-away.md row opens long.md with the link in view.
-//   5. vibedoc_read_doc on a.md ends with a "## Related files" footer (b, c, T001, Broken missing.md,
+//   5. /graph from the keyboard: `/` focuses search, Tab reaches a node, Enter selects it, Enter again opens it;
+//      Esc clears the selection.
+//   6. /graph after a pan: an agent moving T001 flashes its node and leaves the camera where the user put it.
+//   7. vibedoc_read_doc on a.md ends with a "## Related files" footer (b, c, T001, Broken missing.md,
 //      Stale paths docs/gone.md).
 // Fails on any browser console error.
 //
@@ -88,7 +91,9 @@ try {
   assert.equal(await staleCode.innerText(), "docs/gone.md")
   assert.equal(await staleCode.getAttribute("title"), "File not found")
   assert.equal(await doc.locator("code[data-stale]").count(), 1)
-  console.log("ok  broken link muted; stale path marked, not broken; hovering b shows its preview card")
+  const stalePaths = panel.locator("div:has(> h4:text-is('Stale paths'))")
+  await stalePaths.getByRole("button", { name: /docs\/gone\.md/ }).waitFor()
+  console.log("ok  broken link muted; stale path marked, not broken, and listed under Stale paths; hovering b shows its preview card")
 
   // 3. /graph: nodes and edges; select a dims d → c; Open goes to /docs
   await page.goto(`${BASE}/graph`)
@@ -104,7 +109,8 @@ try {
   await page.waitForURL(/node=docs%2Fa\.md|node=docs\/a\.md/)
   const sel = page.locator('aside[aria-label="Selected file"]')
   await sel.getByText("docs/a.md").waitFor()
-  assert.ok((await opacity(edge("docs/d.md", "docs/c.md"))) < 0.5, "d → c is dimmed")
+  // the dim fades over --duration-base, so wait for it to settle
+  await edge("docs/d.md", "docs/c.md").evaluate((el) => new Promise((r) => { const t = () => (Number(getComputedStyle(el).opacity) < 0.5 ? r() : requestAnimationFrame(t)); t() }))
   assert.equal(await opacity(edge("docs/a.md", "docs/c.md")), 1, "a → c stays lit")
   console.log("ok  /graph shows a, b, c with edges; clicking a selects it and dims the unrelated d → c edge")
   await sel.getByRole("button", { name: "Open" }).click()
@@ -132,7 +138,45 @@ try {
   await page.waitForFunction(() => !new URL(location.href).searchParams.has("link"))
   console.log("ok  /graph lists 2 broken · 1 stale path; the far-away.md row opens long.md scrolled to the link")
 
-  // 5. The agent's read ends with the resolved related files
+  // 5. Keyboard path on /graph: / → search, Tab → first node (label order: Alpha, named with its 2 visible links), Enter selects, Esc clears,
+  //    Enter twice opens
+  await page.goto(`${BASE}/graph`)
+  await node("docs/a.md").waitFor()
+  await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } }) // focus off the URL bar, nothing selected
+  await page.keyboard.press("/")
+  await page.waitForFunction(() => document.activeElement?.id === "graph-search")
+  await page.keyboard.press("Tab")
+  await page.waitForFunction(() => document.activeElement?.classList.contains("react-flow__node"))
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-id")), "docs/a.md")
+  assert.match(await page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? ""), /^Doc Alpha, 2 links$/)
+  await page.keyboard.press("Enter")
+  await page.waitForURL(/node=docs%2Fa\.md/)
+  await sel.getByText("docs/a.md").waitFor()
+  await page.keyboard.press("Escape")
+  await page.waitForURL((u) => !u.searchParams.has("node"))
+  await node("docs/a.md").focus()
+  await page.keyboard.press("Enter")
+  await page.waitForURL(/node=docs%2Fa\.md/)
+  await page.keyboard.press("Enter")
+  await page.waitForURL(/\/docs/)
+  await page.locator("h1", { hasText: "Alpha" }).first().waitFor()
+  console.log("ok  /graph by keyboard: / focuses search, Tab reaches Alpha, Enter selects, Esc clears, Enter twice opens")
+
+  // 6. A live change after the user zoomed: the changed node flashes, the camera stays put
+  await page.goto(`${BASE}/graph?kinds=doc,task`)
+  await node("plans/tasks/T001-x.md").waitFor()
+  await page.waitForTimeout(800) // first fit glides in
+  await page.getByRole("button", { name: /zoom in/i }).click()
+  await page.waitForTimeout(800)
+  const camera = () => page.locator(".react-flow__viewport").evaluate((el) => el.style.transform)
+  const before = await camera()
+  await mcp("vibedoc_update_task", { taskId: "T001", status: "in-progress" })
+  await node("plans/tasks/T001-x.md").locator("[data-changed]").waitFor()
+  await page.waitForTimeout(600)
+  assert.equal(await camera(), before, "the camera does not move on a live update")
+  console.log("ok  a live task move flashes T001 on /graph without moving the camera")
+
+  // 7. The agent's read ends with the resolved related files
   const read = await mcp("vibedoc_read_doc", { query: "docs/a.md" })
   const footer = read.slice(read.indexOf("## Related files"))
   assert.ok(read.includes("## Related files"), read)

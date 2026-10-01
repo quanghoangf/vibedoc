@@ -352,9 +352,10 @@ export function DocGraph() {
         draggable: false,
       }
     })
-    // edges share the nodes' timing (they used to snap)
+    // edges share the nodes' timing (they used to snap); the ripple delay goes in the shorthand, since React
+    // warns when `transition` and `transitionDelay` are mixed on one element
     const ms = quick ? "var(--duration-fast)" : "var(--duration-base)"
-    const transition = ["stroke", "stroke-width", "opacity"].map((pr) => `${pr} ${ms} var(--ease-out-soft)`).join(", ")
+    const transition = (delay: number) => ["stroke", "stroke-width", "opacity"].map((pr) => `${pr} ${ms} var(--ease-out-soft) ${delay}ms`).join(", ")
     const edges: Edge[] = visible.edges.map((e) => {
       const hot = !!selected && (e.from === selected || e.to === selected)
       // Focus 2: an edge inside the 2-hop ring stays lit, after the ripple delay
@@ -369,8 +370,7 @@ export function DocGraph() {
           stroke: hot ? "var(--color-accent)" : EDGE,
           strokeWidth: hot ? 1.75 : 1,
           opacity: lit && !on ? 0.15 : 1,
-          transition,
-          transitionDelay: `${hot ? 0 : Math.max(delayOf(e.from), delayOf(e.to))}ms`,
+          transition: transition(hot ? 0 : Math.max(delayOf(e.from), delayOf(e.to))),
         },
       }
     })
@@ -490,7 +490,7 @@ export function DocGraph() {
   }
   if (!graph) return <p className="p-6 text-sm text-muted">Loading graph…</p>
   if (!graph.edges.length) {
-    return <p className="m-6 rounded-xl border border-dashed border-border p-4 text-sm text-muted">No links between docs yet. Link docs with [text](path.md) or [[name]].</p>
+    return <p className="m-6 rounded-lg border border-dashed border-border p-4 text-sm text-muted">No links between docs yet. Link docs with [text](path.md) or [[name]].</p>
   }
 
   const sel = selected ? byPath.get(selected) : undefined
@@ -697,7 +697,7 @@ export function DocGraph() {
 function dedupe<E extends { from: string; to: string }>(edges: E[]): E[] {
   const seen = new Set<string>()
   return edges.filter((e) => {
-    const k = `${e.from}\u0000${e.to}`
+    const k = `${e.from}${SEP}${e.to}`
     if (seen.has(k)) return false
     seen.add(k)
     return true

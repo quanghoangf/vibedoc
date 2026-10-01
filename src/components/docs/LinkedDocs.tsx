@@ -19,7 +19,6 @@ const LABEL_CAPS = "flex items-center font-mono text-[10px] font-medium uppercas
 const ROW = "rounded-md px-2 py-1 text-left text-sm outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
 
 const NODE_KINDS = new Set<string>(GROUPS.map((g) => g.kind))
-/** Item id from the file name (T093-x.md → T093); plain docs use their path. */
 /** Rows carry data-preview-* so one delegated LinkPreview serves the whole panel. */
 function previewOf(el: Element): { anchor: Element; target: PreviewTarget } | null {
   const row = el.closest<HTMLElement>("[data-preview-path]")
@@ -28,6 +27,7 @@ function previewOf(el: Element): { anchor: Element; target: PreviewTarget } | nu
   return { anchor: row, target: previewBroken !== undefined ? { broken: previewPath } : { path: previewPath, kind: previewKind, label: previewLabel } }
 }
 
+/** Item id from the file name (T093-x.md → T093); plain docs use their path. */
 const idOf = (r: LinkRow) => /^(T\d+|R\d+|E\d+|ADR-\d+)/.exec(r.path.split("/").pop() ?? "")?.[1] ?? r.path
 
 /**

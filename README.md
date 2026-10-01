@@ -45,8 +45,8 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 ## What you get
 
 - **Kanban board** — tasks live in `plans/tasks/*.md`, rendered as draggable cards
-- **Docs viewer** — browse and edit every markdown file in `docs/`. Relative `.md` links and `[[wikilinks]]` in the preview are clickable (broken ones are muted), hovering one shows a preview card, and the Linked docs panel lists what a doc links to, what links to it, and its broken links
-- **Graph** — `/graph` maps every link between the project's `.md` files (docs, ADRs, tasks, epics, entries) with a force layout, kind filters, search and focus; click a node to select it, Open to read it
+- **Docs viewer** — browse and edit every markdown file in `docs/`. Relative `.md` links and `[[wikilinks]]` in the preview are clickable (broken ones are muted), hovering one shows a preview card, and the Linked docs panel lists what a doc links to, what links to it, its broken links and stale path mentions (backticked paths to files that no longer exist)
+- **Graph** — `/graph` maps every link between the project's `.md` files (docs, ADRs, tasks, epics, entries) with a force layout, kind filters, search and focus. Shape shows the kind, colour the task/epic status; live agent changes flash in place without moving the camera, and a menu lists broken links and stale paths. Fully keyboard-driven: `/` to search, Tab through files, Enter to select, Enter again to open, arrows to follow links, Esc to clear
 - **Live activity feed** — every AI action appears instantly via SSE, no polling
 - **Memory tab** — the `MEMORY.md` session handoff, plus a browser for knowledge entries: search (ranked like `vibedoc_recall`), filter by type, open, edit, add, and delete with Undo. Each entry shows who changed it last (a person or a named agent)
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
