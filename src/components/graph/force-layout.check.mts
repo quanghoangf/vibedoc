@@ -1,6 +1,6 @@
 // node src/components/graph/force-layout.check.mts
 import assert from 'node:assert/strict'
-import { forceLayout, graphChanges, neighbourhoodIds, stepFocus } from './force-layout.ts'
+import { forceLayout, graphChanges, hiddenLabels, neighbourhoodIds, stepFocus } from './force-layout.ts'
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
 const nodesOf = (ids: string[]) => ids.map(id => ({ id }))
@@ -86,3 +86,8 @@ const ms = performance.now() - t0
 console.log(`300 nodes / 600 edges: ${ms.toFixed(1)} ms`)
 assert.ok(ms < 150, `too slow: ${ms} ms`)
 console.log('force-layout ok')
+
+// hiddenLabels: earlier (higher priority) labels win; kept ids always show; touching edges don't count
+const box = (id: string, x: number, y: number) => ({ id, x, y, w: 50, h: 14 })
+assert.deepEqual([...hiddenLabels([box('hub', 0, 0), box('leaf', 20, 5), box('far', 200, 0), box('edge', 50, 0)])], ['leaf'])
+assert.deepEqual([...hiddenLabels([box('hub', 0, 0), box('sel', 10, 0)], new Set(['sel']))], [])

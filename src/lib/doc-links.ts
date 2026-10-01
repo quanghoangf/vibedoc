@@ -3,7 +3,8 @@
 // never import values from each other), but here relative `./` and `../` targets are resolved.
 
 export type DocNodeKind = 'doc' | 'adr' | 'task' | 'epic' | 'entry'
-export type DocNode = { id: string; kind: DocNodeKind; label: string; path: string }
+/** `status` / `owner` are set on task and epic nodes by GET /api/docs/graph, never by docNode(). */
+export type DocNode = { id: string; kind: DocNodeKind; label: string; path: string; status?: string; owner?: string | null }
 export type LinkKind = 'md' | 'wiki' | 'code' | 'id'
 export type DocLink = { target: string; kind: LinkKind; line: number; text: string }
 /** One file as the graph needs it: its node and its raw (unresolved) links. core.ts caches this per file. */
@@ -57,11 +58,22 @@ function idOfPath(p: string): string | null {
   return m ? normalizeId(m[1]) : null
 }
 
+/** Inline markdown → plain text for a label: images and links keep their text, emphasis / code marks go. */
+function plainText(md: string): string {
+  return md
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, t: string, alias?: string) => alias ?? t)
+    .replace(/(\*\*|\*|~~|`)(\S(?:.*?\S)?)\1/g, '$2')
+    .replace(/(^|\W)(__|_)(\S(?:.*?\S)?)\2(?=\W|$)/g, '$1$3') // _em_, never snake_case
+    .replace(/<[^>]+>/g, '')
+    .trim()
+}
+
 /** Classify a markdown file by path. Label = its H1 without the "ID: " prefix, else the file name. */
 export function docNode(relPath: string, raw: string): DocNode {
   const p = normalizePath(relPath) ?? relPath
   const name = baseName(p)
-  const h1 = /^#\s+(.+?)\s*$/m.exec(raw)?.[1] ?? ''
+  const h1 = plainText(/^#\s+(.+?)\s*$/m.exec(raw)?.[1] ?? '')
   const label = (id: string) => h1.replace(new RegExp(`^${id}\\s*[:—–-]\\s*`), '') || name
   let m: RegExpExecArray | null
   if ((m = /^plans\/tasks\/(T\d{3,})[^/]*\.md$/.exec(p))) return { id: m[1], kind: 'task', label: label(m[1]), path: p }

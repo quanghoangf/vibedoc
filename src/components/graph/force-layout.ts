@@ -200,3 +200,21 @@ export function graphChanges(prev: GraphLike | null, next: GraphLike): Set<strin
   for (const e of prev.edges) if (!after.has(key(e))) out.add(e.from).add(e.to)
   return out
 }
+
+export type LabelBox = { id: string; x: number; y: number; w: number; h: number }
+
+/**
+ * Greedy label collision pass: boxes come in priority order (selected, matches, then by degree); a label that
+ * overlaps one already placed is hidden. `keep` ids are always placed. Flow coordinates, so it holds at any zoom.
+ * ponytail: O(n²) over visible labels (~200 here); a grid bucket if graphs reach thousands of labels.
+ */
+export function hiddenLabels(boxes: LabelBox[], keep: Set<string> = new Set()): Set<string> {
+  const placed: LabelBox[] = []
+  const hidden = new Set<string>()
+  const hit = (a: LabelBox, b: LabelBox) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+  for (const b of boxes) {
+    if (!keep.has(b.id) && placed.some((p) => hit(p, b))) hidden.add(b.id)
+    else placed.push(b)
+  }
+  return hidden
+}

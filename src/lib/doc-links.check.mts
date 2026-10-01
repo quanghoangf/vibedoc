@@ -78,6 +78,9 @@ assert.deepEqual(extractLinks([
 // docNode: kinds + labels
 assert.deepEqual(docNode('memory/entries/E012-thing.md', '# E012: A thing\n'), { id: 'E012', kind: 'entry', label: 'A thing', path: 'memory/entries/E012-thing.md' })
 assert.deepEqual(docNode('plans/tasks/T093-x.md', '# T093: Doc links\n'), { id: 'T093', kind: 'task', label: 'Doc links', path: 'plans/tasks/T093-x.md' })
+// labels are plain text: no link, emphasis or code syntax from the H1
+assert.equal(docNode('CHANGELOG.md', '# [1.10.0](https://github.com/x/y/compare/v1.9.0...v1.10.0) (2026-09-30)\n').label, '1.10.0 (2026-09-30)')
+assert.equal(docNode('docs/a.md', '# The **bold** `code` and _em_ [[HLD|design]] snake_case_name\n').label, 'The bold code and em design snake_case_name')
 assert.deepEqual(docNode('docs/HLD.md', 'no heading'), { id: 'docs/HLD.md', kind: 'doc', label: 'HLD', path: 'docs/HLD.md' })
 
 // buildDocGraph: edges, dedupe (first line wins), self-links, broken

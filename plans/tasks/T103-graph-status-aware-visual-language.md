@@ -1,8 +1,12 @@
 # T103: Status-aware visual language for the graph
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R056 — Doc link graph
 **Size:** L (half a day)
 **Depends on:** T102
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-01
+**Done:** 2026-10-01
 
 ## Goal
 The graph reads as VibeDoc's lab notebook, not a generic Obsidian clone: kinds by shape, task/epic state in the one status language, accent only for selection and search, contrast that passes. Decision: keep the whole-repo graph and add supervision signals.
@@ -38,3 +42,16 @@ node src/lib/doc-links.check.mts
 pnpm build && pnpm lint
 # screenshots: /graph default, all kinds, selected, light theme, 390px
 ```
+
+## Manual tests
+_2026-10-01 — ai_
+### Steps
+- [ ] Open `/graph?kinds=doc,adr,task,epic,entry` → in-progress tasks/epics are amber, done teal, blocked red; docs are grey circles, ADRs grey squares, epics diamonds, tasks small circles
+- [ ] Settings → Appearance → accent green, then violet → no dot or edge takes the accent until you select a node or search
+- [ ] Click a task (e.g. T103) → card shows TASK, its status chip, the owner glyph and an agent dot if a chat is on it; Links to / Linked from match the highlighted edges
+- [ ] Select `docs/architecture/02-high-level-design/HLD.md` with default kinds → card shows "+N hidden by filters"; turn Tasks on → the hidden links become drawn edges
+- [ ] Turn every kind chip off → "Turn on a kind to see files." instead of a blank canvas; the Entries chip is disabled when there are 0 entries
+- [ ] At 390px width → toolbar is two rows, chips show shape + count, the ⓘ button opens the legend line
+### Regression risk
+- [ ] Keyboard path on /graph (Tab to nodes, Enter select/open, arrows, `/`, Esc) still works and a focused node shows its label even when collision hides it
+- [ ] Search match count appears inside the box without moving the toolbar; Enter jumps to the first match
