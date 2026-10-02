@@ -1,6 +1,6 @@
 // node src/components/graph/force-layout.check.mts
 import assert from 'node:assert/strict'
-import { forceLayout, graphChanges, hiddenLabels, neighbourhoodIds, stepFocus } from './force-layout.ts'
+import { forceLayout, forceLayoutFrames, graphChanges, hiddenLabels, neighbourhoodIds, SPRING, springStep, stepFocus, type SpringWorld } from './force-layout.ts'
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
 const nodesOf = (ids: string[]) => ids.map(id => ({ id }))
@@ -87,9 +87,53 @@ forceLayout(nodesOf(t300), tEdges)
 const ms = performance.now() - t0
 console.log(`300 nodes / 600 edges: ${ms.toFixed(1)} ms`)
 assert.ok(ms < 150, `too slow: ${ms} ms`)
-console.log('force-layout ok')
 
 // hiddenLabels: earlier (higher priority) labels win; kept ids always show; touching edges don't count
 const box = (id: string, x: number, y: number) => ({ id, x, y, w: 50, h: 14 })
 assert.deepEqual([...hiddenLabels([box('hub', 0, 0), box('leaf', 20, 5), box('far', 200, 0), box('edge', 50, 0)])], ['leaf'])
 assert.deepEqual([...hiddenLabels([box('hub', 0, 0), box('sel', 10, 0)], new Set(['sel']))], [])
+
+// forceLayoutFrames: deterministic, the last frame is exactly the plain layout, the first is the seeded start
+{
+  const fr = forceLayoutFrames(nodes, edges, 24)
+  assert.equal(fr.length, 24)
+  assert.deepEqual(fr[fr.length - 1], pos, 'last frame === forceLayout')
+  assert.deepEqual(forceLayoutFrames(shuffle(nodes), shuffle(edges), 24), fr, 'frames are deterministic')
+  assert.notDeepEqual(fr[0], pos, 'frame 0 is the seeded start, not the result')
+  assert.deepEqual(forceLayoutFrames(nodesOf(big), bigEdges, 3)[2], bp)
+  const t0 = performance.now()
+  forceLayoutFrames(nodesOf(big), bigEdges, 24)
+  console.log(`forceLayoutFrames 200 nodes × 24 frames: ${(performance.now() - t0).toFixed(0)}ms`)
+}
+
+// springStep: a displaced body springs home with a small overshoot, snaps exactly and is dropped; the loop idles
+{
+  const w: SpringWorld = { bodies: new Map([['a', { x: 100, y: 0, vx: 0, vy: 0 }]]), layout: { a: { x: 0, y: 0 }, b: { x: 100, y: 0 } }, shift: {}, drag: null, links: [] }
+  let minX = Infinity, frames = 0
+  while (springStep(w, 1 / 60)) { minX = Math.min(minX, w.bodies.get('a')?.x ?? 0); frames++; assert.ok(frames < 120, 'at rest within 2s') }
+  assert.ok(minX < 0 && minX > -8, `slight overshoot ${minX}`)
+  assert.equal(w.bodies.size, 0, 'home again: dropped')
+  // a drag pulls a linked neighbour along; release returns it to its layout point
+  w.bodies.set('b', { x: 100, y: 0, vx: 0, vy: 0 }).set('a', { x: 0, y: 0, vx: 0, vy: 0 })
+  w.links = [{ a: 'a', b: 'b', len: 100, k: SPRING.link }]
+  w.drag = { id: 'a', x: -150, y: 0 }
+  for (let i = 0; i < 60; i++) assert.equal(springStep(w, 1 / 60), true, 'held: always moving')
+  assert.ok(w.bodies.get('b')!.x < 20, `neighbour follows ${w.bodies.get('b')!.x}`)
+  w.drag = null
+  for (let i = 0; i < 180 && springStep(w, 1 / 60); i++);
+  assert.equal(w.bodies.size, 0, 'both back on the layout')
+  // magnet: a shifted body rests displaced and the loop goes idle; clearing the shift brings it home
+  w.bodies.set('b', { x: 100, y: 0, vx: 0, vy: 0 })
+  w.shift = { b: { x: 92, y: 0 } }
+  for (let i = 0; i < 180 && springStep(w, 1 / 60); i++);
+  assert.deepEqual(w.bodies.get('b'), { x: 92, y: 0, vx: 0, vy: 0 })
+  assert.equal(springStep(w, 1 / 60), false, 'displaced but idle')
+  w.shift = {}
+  for (let i = 0; i < 180 && springStep(w, 1 / 60); i++);
+  assert.equal(w.bodies.size, 0)
+  // a huge dt (tab was hidden) is clamped
+  w.bodies.set('b', { x: 200, y: 0, vx: 0, vy: 0 })
+  springStep(w, 5)
+  assert.ok(Math.abs(w.bodies.get('b')!.x - 100) < 100, 'no fly-off')
+}
+console.log('force-layout ok')

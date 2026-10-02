@@ -31,6 +31,29 @@ export function forceLayout(
   edges: { from: string; to: string }[],
   opts: ForceLayoutOptions = {},
 ): Record<string, Point> {
+  return simulate(nodes, edges, opts, 1)[0]
+}
+
+/**
+ * The same simulation sampled `frames` times (≥ 2): frame 0 is the seeded start, the last frame is exactly
+ * `forceLayout(nodes, edges, opts)`, the rest sample the iterations, densest early where the layout moves most. Each frame is normalized like the result
+ * (edge length, min distance, orphan ring, centred), so playing them back shows the real layout settling (/graph).
+ */
+export function forceLayoutFrames(
+  nodes: { id: string }[],
+  edges: { from: string; to: string }[],
+  frames: number,
+  opts: ForceLayoutOptions = {},
+): Record<string, Point>[] {
+  return simulate(nodes, edges, opts, Math.max(2, Math.floor(frames)))
+}
+
+function simulate(
+  nodes: { id: string }[],
+  edges: { from: string; to: string }[],
+  opts: ForceLayoutOptions,
+  frames: number,
+): Record<string, Point>[] {
   const { iterations = 300, edgeLength = 120, minDistance = 48 } = opts
   const ids = [...new Set(nodes.map(n => n.id))].sort()
   const index = new Map(ids.map((id, i) => [id, i]))
@@ -61,7 +84,13 @@ export function forceLayout(
   // ponytail: O(n²) repulsion per step, fine to ~500 nodes; Barnes-Hut (quadtree) if graphs get bigger.
   const dx = new Float64Array(ids.length), dy = new Float64Array(ids.length)
   const gravity = 0.05
+  const out: Record<string, Point>[] = []
+  // frame f of `frames` is taken before iteration round(iterations * (f / (frames - 1))²), the last after the loop:
+  // the layout moves most in its first iterations, so they get most of the frames
+  const sampleAt = (f: number) => Math.round(iterations * (f / (frames - 1)) ** 2)
+  let next = 0
   for (let step = 0; step < iterations; step++) {
+    while (next < frames - 1 && sampleAt(next) === step) { out.push(normalize(xs.slice(), ys.slice(), 4)); next++ }
     const temp = spread * 0.1 * (1 - step / iterations) + 0.001
     dx.fill(0); dy.fill(0)
     for (let a = 0; a < n; a++) {
@@ -87,47 +116,56 @@ export function forceLayout(
     }
   }
 
-  // Scale to the average edge length, then push apart any pair still closer than minDistance.
-  const avg = links.reduce((s, [i, j]) => s + Math.hypot(xs[i] - xs[j], ys[i] - ys[j]), 0) / (links.length || 1)
-  const scale = avg > 0 ? edgeLength / avg : 1
-  for (const i of linked) { xs[i] *= scale; ys[i] *= scale }
-  for (let pass = 0; pass < 50; pass++) {
-    let moved = false
-    for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
-      const i = linked[a], j = linked[b]
-      let ex = xs[j] - xs[i], ey = ys[j] - ys[i]
-      let d = Math.hypot(ex, ey)
-      if (d >= minDistance) continue
-      if (d < 1e-6) { ex = 1; ey = 0; d = 1 }
-      const push = (minDistance - d) / 2 + 0.5
-      xs[i] -= (ex / d) * push; ys[i] -= (ey / d) * push
-      xs[j] += (ex / d) * push; ys[j] += (ey / d) * push
-      moved = true
-    }
-    if (!moved) break
-  }
-
-  // Orphans: an even ring outside the linked nodes' bounding circle, in id order.
-  const cx = n ? linked.reduce((s, i) => s + xs[i], 0) / n : 0
-  const cy = n ? linked.reduce((s, i) => s + ys[i], 0) / n : 0
-  const inner = linked.reduce((r, i) => Math.max(r, Math.hypot(xs[i] - cx, ys[i] - cy)), 0)
-  const orphans = ids.map((_, i) => i).filter(i => degree[i] === 0)
-  if (orphans.length) {
-    const fit = orphans.length > 1 ? minDistance / (2 * Math.sin(Math.PI / orphans.length)) : 0
-    const r = Math.max(n ? inner + edgeLength : 0, fit)
-    orphans.forEach((i, k) => {
-      const t = (2 * Math.PI * k) / orphans.length - Math.PI / 2
-      xs[i] = cx + r * Math.cos(t); ys[i] = cy + r * Math.sin(t)
-    })
-  }
-
-  // Centre the bounding box on 0,0.
-  const all = ids.map((_, i) => i)
-  const midX = all.length ? (Math.min(...all.map(i => xs[i])) + Math.max(...all.map(i => xs[i]))) / 2 : 0
-  const midY = all.length ? (Math.min(...all.map(i => ys[i])) + Math.max(...all.map(i => ys[i]))) / 2 : 0
-  const out: Record<string, Point> = {}
-  ids.forEach((id, i) => { out[id] = { x: Math.round((xs[i] - midX) * 100) / 100, y: Math.round((ys[i] - midY) * 100) / 100 } })
+  out.push(normalize(xs, ys, 50))
   return out
+
+  /**
+   * Scale to the average edge length, push apart pairs closer than minDistance, ring the orphans, centre. Mutates.
+   * ponytail: in-between frames get 4 push passes, not 50 (early ones are a scatter and 50 cost ~100ms on 200 nodes); they're in motion anyway.
+   */
+  function normalize(xs: number[], ys: number[], passes: number): Record<string, Point> {
+    // Scale to the average edge length, then push apart any pair still closer than minDistance.
+    const avg = links.reduce((s, [i, j]) => s + Math.hypot(xs[i] - xs[j], ys[i] - ys[j]), 0) / (links.length || 1)
+    const scale = avg > 0 ? edgeLength / avg : 1
+    for (const i of linked) { xs[i] *= scale; ys[i] *= scale }
+    for (let pass = 0; pass < passes; pass++) {
+      let moved = false
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+        const i = linked[a], j = linked[b]
+        let ex = xs[j] - xs[i], ey = ys[j] - ys[i]
+        let d = Math.hypot(ex, ey)
+        if (d >= minDistance) continue
+        if (d < 1e-6) { ex = 1; ey = 0; d = 1 }
+        const push = (minDistance - d) / 2 + 0.5
+        xs[i] -= (ex / d) * push; ys[i] -= (ey / d) * push
+        xs[j] += (ex / d) * push; ys[j] += (ey / d) * push
+        moved = true
+      }
+      if (!moved) break
+    }
+
+    // Orphans: an even ring outside the linked nodes' bounding circle, in id order.
+    const cx = n ? linked.reduce((s, i) => s + xs[i], 0) / n : 0
+    const cy = n ? linked.reduce((s, i) => s + ys[i], 0) / n : 0
+    const inner = linked.reduce((r, i) => Math.max(r, Math.hypot(xs[i] - cx, ys[i] - cy)), 0)
+    const orphans = ids.map((_, i) => i).filter(i => degree[i] === 0)
+    if (orphans.length) {
+      const fit = orphans.length > 1 ? minDistance / (2 * Math.sin(Math.PI / orphans.length)) : 0
+      const r = Math.max(n ? inner + edgeLength : 0, fit)
+      orphans.forEach((i, k) => {
+        const t = (2 * Math.PI * k) / orphans.length - Math.PI / 2
+        xs[i] = cx + r * Math.cos(t); ys[i] = cy + r * Math.sin(t)
+      })
+    }
+
+    // Centre the bounding box on 0,0.
+    const all = ids.map((_, i) => i)
+    const midX = all.length ? (Math.min(...all.map(i => xs[i])) + Math.max(...all.map(i => xs[i]))) / 2 : 0
+    const midY = all.length ? (Math.min(...all.map(i => ys[i])) + Math.max(...all.map(i => ys[i]))) / 2 : 0
+    const res: Record<string, Point> = {}
+    ids.forEach((id, i) => { res[id] = { x: Math.round((xs[i] - midX) * 100) / 100, y: Math.round((ys[i] - midY) * 100) / 100 } })
+    return res
+  }
 }
 
 /** The ids within `depth` hops of `id`, either edge direction, including `id` itself. Used by Focus on /graph. */
@@ -219,4 +257,78 @@ export function hiddenLabels(boxes: LabelBox[], keep: Set<string> = new Set()): 
     else placed.push(b)
   }
   return hidden
+}
+
+/** A node the spring sim is moving on /graph: position and velocity, in flow px and px/s. */
+export type Body = { x: number; y: number; vx: number; vy: number }
+/**
+ * Live drag / hover physics on /graph. Only `bodies` move; everything else stays at its `layout` point. Positions are
+ * never saved: a body at rest on its layout point is dropped, so the graph always comes back to the layout.
+ */
+export type SpringWorld = {
+  bodies: Map<string, Body>
+  /** The layout: where every node rests, and the fixed anchor for links to nodes that aren't simulated. */
+  layout: Record<string, Point>
+  /** Rest point overrides (the hover magnet's nudge); a body without one rests on its layout point. */
+  shift: Record<string, Point>
+  /** The node under the pointer: pinned there; its links pull the others while it's held. */
+  drag: { id: string; x: number; y: number } | null
+  /** Edges among the dragged node's neighbourhood: natural length `len` (the layout distance) and strength `k`. */
+  links: { a: string; b: string; len: number; k: number }[]
+}
+
+// Return / magnet spring: ω = √170 ≈ 13/s, ζ 0.72 (≈ 4% overshoot, at rest in ~0.6s). While a drag holds the
+// neighbourhood, the pull home drops to a light tether so the edge springs lead; a light push keeps dots apart.
+export const SPRING = { stiffness: 170, damping: 0.72, tether: 32, link: 90, repel: 2600, repelRadius: 70 }
+const REST_PX = 0.05
+const REST_V = 0.5
+
+/** Advances the world by `dt` seconds (clamped, substepped). True while anything still moves or is held. */
+export function springStep(w: SpringWorld, dt: number): boolean {
+  // a tab that was hidden comes back with a huge dt; an unclamped spring would fly off
+  const total = Math.min(Math.max(dt, 0), 1 / 30)
+  const subs = Math.max(1, Math.ceil(total * 240))
+  const h = total / subs
+  const c = 2 * SPRING.damping * Math.sqrt(SPRING.stiffness)
+  const posOf = (id: string) => (w.drag?.id === id ? w.drag : w.bodies.get(id) ?? w.layout[id])
+  for (let s = 0; s < subs; s++) {
+    for (const [id, b] of w.bodies) {
+      if (w.drag?.id === id) { b.x = w.drag.x; b.y = w.drag.y; b.vx = 0; b.vy = 0; continue }
+      const rest = w.shift[id] ?? w.layout[id]
+      if (!rest) continue
+      const k = w.drag ? SPRING.tether : SPRING.stiffness
+      let fx = k * (rest.x - b.x) - c * b.vx
+      let fy = k * (rest.y - b.y) - c * b.vy
+      if (w.drag) {
+        for (const l of w.links) {
+          const other = l.a === id ? l.b : l.b === id ? l.a : null
+          const o = other === null ? undefined : posOf(other)
+          if (!o) continue
+          const ex = o.x - b.x, ey = o.y - b.y
+          const d = Math.hypot(ex, ey) || 1
+          const f = l.k * (d - l.len) / d
+          fx += ex * f; fy += ey * f
+        }
+        const ex = b.x - w.drag.x, ey = b.y - w.drag.y
+        const d = Math.hypot(ex, ey)
+        if (d > 0 && d < SPRING.repelRadius) {
+          const f = (SPRING.repel * (1 - d / SPRING.repelRadius)) / d
+          fx += ex * f; fy += ey * f
+        }
+      }
+      b.vx += fx * h; b.vy += fy * h
+      b.x += b.vx * h; b.y += b.vy * h
+    }
+  }
+  if (w.drag) return true
+  let moving = false
+  for (const [id, b] of w.bodies) {
+    const rest = w.shift[id] ?? w.layout[id]
+    if (!rest || (Math.hypot(rest.x - b.x, rest.y - b.y) < REST_PX && Math.hypot(b.vx, b.vy) < REST_V)) {
+      // at rest: snap exactly; a body home on its layout point is done
+      if (!rest || !w.shift[id]) w.bodies.delete(id)
+      else { b.x = rest.x; b.y = rest.y; b.vx = 0; b.vy = 0 }
+    } else moving = true
+  }
+  return moving
 }

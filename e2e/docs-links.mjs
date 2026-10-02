@@ -5,10 +5,12 @@
 //   2. a.md: the broken link is muted, the stale `docs/gone.md` mention is marked (not broken); hovering a link
 //      shows its preview card.
 //   3. /graph: a, b, c (and d) with edges; clicking a selects it and dims the unrelated d → c edge; Open → /docs.
+//      Motion: a's lit edges carry the flow; dragging d moves it, release springs it back to its layout point and
+//      the drag doesn't select it.
 //   4. /graph: "2 broken · 1 stale path" opens a list; the far-away.md row opens long.md with the link in view.
 //   5. /graph from the keyboard: `/` focuses search, Tab reaches a node, Enter selects it, Enter again opens it;
 //      Esc clears the selection.
-//   6. /graph after a pan: an agent moving T001 flashes its node and leaves the camera where the user put it.
+//   6. /graph after a pan: an agent moving T001 pings its node and leaves the camera where the user put it.
 //   7. vibedoc_read_doc on a.md ends with a "## Related files" footer (b, c, T001, Broken missing.md,
 //      Stale paths docs/gone.md).
 // Fails on any browser console error.
@@ -107,6 +109,8 @@ try {
     await edge(f, t).waitFor()
   }
   const opacity = (loc) => loc.evaluate((el) => Number(getComputedStyle(el).opacity))
+  // the settle entrance draws edges in; read them once it's over
+  await page.waitForFunction(() => { const rf = document.querySelector(".react-flow"); return rf && !rf.classList.contains("opacity-0") && !document.querySelector(".graph-edge-in") })
   assert.equal(await opacity(edge("docs/d.md", "docs/c.md")), 1)
   await node("docs/a.md").click()
   await page.waitForURL(/node=docs%2Fa\.md|node=docs\/a\.md/)
@@ -116,6 +120,25 @@ try {
   await edge("docs/d.md", "docs/c.md").evaluate((el) => new Promise((r) => { const t = () => (Number(getComputedStyle(el).opacity) < 0.5 ? r() : requestAnimationFrame(t)); t() }))
   assert.equal(await opacity(edge("docs/a.md", "docs/c.md")), 1, "a → c stays lit")
   console.log("ok  /graph shows a, b, c with edges; clicking a selects it and dims the unrelated d → c edge")
+
+  // 3b. Motion: a's lit edges flow (and only those); a dragged dot springs back to its layout point, unselected
+  const edgeG = (from, to) => page.locator(`.react-flow__edge[data-id="${from}->${to}"]`)
+  for (const [f, t] of [["docs/a.md", "docs/sub/b.md"], ["docs/a.md", "docs/c.md"], ["docs/sub/b.md", "docs/a.md"]]) {
+    assert.match(await edgeG(f, t).getAttribute("class"), /\bgraph-flow\b/, `${f} → ${t} flows`)
+  }
+  assert.doesNotMatch(await edgeG("docs/d.md", "docs/c.md").getAttribute("class"), /\bgraph-flow\b/, "an unlit edge doesn't flow")
+  const dNode = node("docs/d.md")
+  const at = () => dNode.evaluate((el) => el.style.transform)
+  const home = await at()
+  const db = await dNode.boundingBox()
+  await page.mouse.move(db.x + db.width / 2, db.y + db.height / 2)
+  await page.mouse.down()
+  for (let i = 1; i <= 8; i++) await page.mouse.move(db.x + db.width / 2 + i * 12, db.y + db.height / 2 + i * 6)
+  await page.waitForFunction(([p, h]) => document.querySelector(`.react-flow__node[data-id="${p}"]`).style.transform !== h, ["docs/d.md", home])
+  await page.mouse.up()
+  await page.waitForFunction(([p, h]) => document.querySelector(`.react-flow__node[data-id="${p}"]`).style.transform === h, ["docs/d.md", home], { timeout: 3000 })
+  assert.match(page.url(), /node=docs%2Fa\.md/, "a drag is not a click: a stays selected")
+  console.log("ok  /graph: a's lit edges flow; dragging d springs it back to its layout point without selecting it")
   await sel.getByRole("button", { name: "Open" }).click()
   await page.waitForURL(/\/docs/)
   await page.locator("h1", { hasText: "Alpha" }).first().waitFor()
@@ -174,10 +197,10 @@ try {
   const camera = () => page.locator(".react-flow__viewport").evaluate((el) => el.style.transform)
   const before = await camera()
   await mcp("vibedoc_update_task", { taskId: "T001", status: "in-progress" })
-  await node("plans/tasks/T001-x.md").locator("[data-changed]").waitFor()
+  await node("plans/tasks/T001-x.md").locator("[data-changed] .graph-ping").first().waitFor()
   await page.waitForTimeout(600)
   assert.equal(await camera(), before, "the camera does not move on a live update")
-  console.log("ok  a live task move flashes T001 on /graph without moving the camera")
+  console.log("ok  a live task move pings T001 on /graph without moving the camera")
 
   // 6b. A custom status: the graph dot and the Selected-file chip show the same colour
   await page.goto(`${BASE}/graph?kinds=doc,task&node=${encodeURIComponent("plans/tasks/T002-y.md")}`)
