@@ -398,12 +398,14 @@ export function DocGraph() {
     const matched = new Set(matches)
     // tasks are the small circles; everything grows with degree
     const sizeOf = (p: string) => Math.round((byPath.get(p)?.kind === "task" ? 0.7 : 1) * (8 + 4 * Math.sqrt(degree.get(p) ?? 0)))
-    // Labels: selected, matches, the lit neighbourhood, then by degree; a lower one that overlaps is hidden
-    const keep = new Set([...(selected ? [selected] : []), ...matches])
-    const rank = (p: string) => (keep.has(p) ? 2 : lit?.has(p) ? 1 : 0)
+    // Labels: the selected file, then its direct neighbours, matches, the rest of the lit set, then by degree; a lower one
+    // that overlaps is hidden. The selection always shows; zoomed out its neighbours do too, on opaque chips (plain
+    // text at full zoom would print over each other, so there they yield). Matches yield: forcing them all stacks chips.
+    const far = labelK > 1
+    const keep = new Set(selected ? [selected, ...(far ? near ?? [] : [])] : [])
+    const rank = (p: string) => (p === selected ? 4 : near?.has(p) ? 3 : matched.has(p) ? 2 : lit?.has(p) ? 1 : 0)
     const measure = typeof document === "undefined" ? null : labelMeasurer()
     // zoomed out, only the always-shown labels compete, at their chip's size; other dots are obstacles too
-    const far = labelK > 1
     const boxes: LabelBox[] = measure
       ? flowOrder.filter((p) => !far || rank(p) > 0).sort((a, b) => rank(b) - rank(a) || (degree.get(b) ?? 0) - (degree.get(a) ?? 0)).map((p) => {
           const at = pos[p]
@@ -667,8 +669,11 @@ export function DocGraph() {
     void rf.setCenter(at.x, at.y, { zoom: Math.max(rf.getZoom(), 1), duration: still() ? 0 : TWEEN_MS, ease: easeOut }).then(() => { if (focus) focusNode(p) })
   }
   // Search Enter: the first frames every match, the next ones step through them (Shift+Enter back). i -1 = framed.
-  const [cursor, setCursor] = useState<{ q: string; i: number } | null>(null)
-  const step = cursor?.q === q ? cursor.i : null
+  // The cursor is keyed on the query and the match list, so a filter change or a refresh that changes the matches
+  // starts over instead of leaving a stale "98 of 0".
+  const matchKey = q + SEP + matches.join(SEP)
+  const [cursor, setCursor] = useState<{ key: string; i: number } | null>(null)
+  const step = cursor?.key === matchKey ? cursor.i : null
   /** Camera to the bounds of every match on the map; when none is on the map, the first shelf match takes focus. */
   const frame = (ps: string[]) => {
     const pts = ps.flatMap((p) => (pos[p] ? [pos[p]] : []))
@@ -680,7 +685,7 @@ export function DocGraph() {
     const x = Math.min(...xs) - MATCH_PAD_X, y = Math.min(...ys) - HIT
     const bounds = { x, y, width: Math.max(...xs) + MATCH_PAD_X - x, height: Math.max(...ys) + HIT + LABEL_H - y }
     userMoved.current = true
-    void rf.setViewport(getViewportForBounds(bounds, el.clientWidth, el.clientHeight, 0.1, FIT_OPTIONS.maxZoom, FIT_OPTIONS.padding), { duration: still() ? 0 : TWEEN_MS, ease: easeOut })
+    void rf.setViewport(getViewportForBounds(bounds, el.clientWidth, el.clientHeight, FIT_MIN_ZOOM, FIT_OPTIONS.maxZoom, FIT_OPTIONS.padding), { duration: still() ? 0 : TWEEN_MS, ease: easeOut })
   }
   const onSearchKey = (e: React.KeyboardEvent) => {
     if (e.key !== "Enter" || !matches.length) return
@@ -688,11 +693,11 @@ export function DocGraph() {
     // one match: select it and move there, as before
     if (matches.length === 1) return pick(matches[0])
     if (step === null) {
-      setCursor({ q, i: -1 })
+      setCursor({ key: matchKey, i: -1 })
       return frame(matches)
     }
     const i = e.shiftKey ? (step <= 0 ? matches.length - 1 : step - 1) : (step + 1) % matches.length
-    setCursor({ q, i })
+    setCursor({ key: matchKey, i })
     pick(matches[i], false)
   }
   // Keys on a focused node (React Flow's wrapper div carries data-id)

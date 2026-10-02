@@ -220,7 +220,17 @@ try {
   await page.waitForURL(/node=docs%2Fa\.md/)
   await count.getByText("1 of 5").waitFor()
   assert.equal(await page.evaluate(() => document.activeElement?.id), "graph-search")
-  console.log("ok  /graph: long.md on the Unlinked shelf; search Enter frames, then steps 1 of 5 → 2 of 5 → back; hit pads ≥ 24px")
+  // a filter change that empties the matches restarts the cursor: "0 matches", never a stale "1 of 0"
+  await page.goto(`${BASE}/graph?kinds=doc,task`)
+  await node("plans/tasks/T001-x.md").waitFor()
+  await page.fill("#graph-search", "t00")
+  await count.getByText("2 matches").waitFor()
+  await page.press("#graph-search", "Enter")
+  await page.press("#graph-search", "Enter")
+  await count.getByText("1 of 2").waitFor()
+  await page.getByRole("button", { name: /^Tasks/, pressed: true }).click()
+  await count.getByText("0 matches").waitFor()
+  console.log("ok  /graph: long.md on the Unlinked shelf; search Enter frames, then steps 1 of 5 → 2 of 5 → back; a kind filter resets the cursor; hit pads ≥ 24px")
 
   // 6. A live change after the user zoomed: the changed node flashes, the camera stays put
   await page.goto(`${BASE}/graph?kinds=doc,task`)

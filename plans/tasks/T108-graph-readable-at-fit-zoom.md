@@ -40,7 +40,7 @@ _2026-10-02 — ai_
 ### Steps
 - [ ] Open /graph at a desktop width (≥1440) → the map opens at full size with every label readable (11px), no ring of unlinked files around it
 - [ ] Look at the bottom edge of the canvas → an "UNLINKED N" row lists the files with no link; click one → it is selected and the card shows it; click it again → it opens in /docs
-- [ ] Narrow the window to phone width (~390) → the linked core fits, labels are hidden until you zoom in; select a file → its label and its neighbours' labels show on small surface chips, still readable
+- [ ] Narrow the window to phone width (~390) → the linked core fits, labels are hidden until you zoom in; select a file → its label and its direct neighbours' labels show on small surface chips, still readable (other matches show unless they collide)
 - [ ] Type "doc" in Find a file… and press Enter → the camera frames every match; Enter again → "1 of N" and the first match is selected; Enter → "2 of N"; Shift+Enter → back to "1 of N"; focus stays in the search box
 - [ ] Zoom out to the minimum fit and click a tiny task dot near its edge → it still selects (hit area ≥ 24px)
 - [ ] Tab from the search box → focus walks the map's dots, then the Unlinked shelf buttons

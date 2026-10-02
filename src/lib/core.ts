@@ -1586,8 +1586,14 @@ export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
 }
 
 // ponytail: in-process cache only; a second VibeDoc process keeps its own. On globalThis so dev HMR keeps it.
-const docGraphCache: Map<string, { mtimeMs: number; item: DocItem }> =
-  ((globalThis as { __vibedocDocGraphCache?: Map<string, { mtimeMs: number; item: DocItem }> }).__vibedocDocGraphCache ??= new Map())
+// Entries are keyed by mtime only, so bump DOC_GRAPH_CACHE_VERSION whenever docNode / extractLinks change what they
+// return: an HMR'd dev server would otherwise keep serving nodes built by the old code.
+const DOC_GRAPH_CACHE_VERSION = 2
+const docGraphCache: Map<string, { mtimeMs: number; item: DocItem }> = (() => {
+  const g = globalThis as { __vibedocDocGraphCache?: { v: number; map: Map<string, { mtimeMs: number; item: DocItem }> } }
+  if (g.__vibedocDocGraphCache?.v !== DOC_GRAPH_CACHE_VERSION) g.__vibedocDocGraphCache = { v: DOC_GRAPH_CACHE_VERSION, map: new Map() }
+  return g.__vibedocDocGraphCache.map
+})()
 
 /** Resolved links between every .md file (R056). Only files whose mtime changed since the last call are re-read. */
 export async function getDocGraph(root: string): Promise<DocGraph> {
