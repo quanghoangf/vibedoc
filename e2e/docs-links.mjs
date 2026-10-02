@@ -14,8 +14,9 @@
 //   5b. /graph: a file with no links sits on the Unlinked shelf (click selects it, Tab reaches it after the map); search
 //       Enter frames the matches, Enter / Shift+Enter step through them ("1 of 5"); every dot has a ≥ 24px hit pad;
 //       every label that shows renders ≥ 9px, at the fit and zoomed out; Fit keeps the mount camera (T112).
+//       Search matches labels and ids first: "docs" finds Charlie docs, not the docs/ folder; "docs/" matches paths.
 //   6. /graph after a pan: an agent moving T001 pings its node and leaves the camera where the user put it.
-//      Done draws hollow; the Recent chip lights what changed in the last 24h (T110).
+//      Done draws hollow; the Recent chip lights what changed in the last 24h (T110) and names at least one of them.
 //   8. T111: Show in graph (header and Linked docs) opens /graph on that doc with Focus 1; the card shows its keys,
 //      the ? sheet a Graph section, the node is named selected; Tab to a below-the-fold link shows its preview;
 //      a focused menu item's edge clears 3:1 for every accent × theme; a memory entry's Related list draws epics
@@ -45,7 +46,8 @@ write("docs/a.md", "# Alpha\n\nSee [b](sub/b.md) and [[c]].\n\nAlso [x](missing.
 write("docs/long.md", `# Long\n\n${"Filler paragraph.\n\n".repeat(60)}At the end, [far](far-away.md). Also [guide](user-name.md), [[name]] and [skill](../.claude/skills/s/SKILL.md).\n`)
 write(".claude/skills/s/SKILL.md", "# Skill\n")
 write("docs/sub/b.md", "# Bravo\n\nBravo body text for the preview. Back to [a](../a.md).\n")
-write("docs/c.md", "# Charlie\n\nNo links here.\n")
+// "docs" is in Charlie's title and in every doc's folder: search matches the title, not the folder
+write("docs/c.md", "# Charlie docs\n\nNo links here.\n")
 // d → c is an edge that doesn't touch a, so selecting a must dim it
 write("docs/d.md", "# Delta\n\nPoints at [[c]]. Also T002.\n")
 write("plans/tasks/T001-x.md", "# T001: X\n**Status:** 📋 Todo\n\n## Goal\nX.\n")
@@ -256,8 +258,11 @@ try {
   await sel.getByText("docs/long.md").waitFor()
   await page.keyboard.press("Escape")
   await page.waitForURL((u) => !u.searchParams.has("node"))
-  await page.fill("#graph-search", "docs/")
   const count = page.locator("#graph-matches")
+  // label and id first: a folder word matches the file named for it, not the folder; "/" or "." widens it to paths
+  await page.fill("#graph-search", "docs")
+  await count.getByText("1 match").waitFor()
+  await page.fill("#graph-search", "docs/")
   await count.getByText("5 matches").waitFor()
   await page.press("#graph-search", "Enter")
   await page.waitForTimeout(500)
@@ -282,7 +287,7 @@ try {
   await count.getByText("1 of 2").waitFor()
   await page.getByRole("button", { name: /^Tasks/, pressed: true }).click()
   await count.getByText("0 matches").waitFor()
-  console.log("ok  /graph: long.md on the Unlinked shelf; search Enter frames, then steps 1 of 5 → 2 of 5 → back; a kind filter resets the cursor; hit pads ≥ 24px; Tab reaches the shelf; Fit keeps the mount camera; every shown label ≥ 9px at the fit and zoomed out")
+  console.log("ok  /graph: long.md on the Unlinked shelf; \"docs\" matches Charlie docs by title, not the docs/ folder; search Enter frames, then steps 1 of 5 → 2 of 5 → back; a kind filter resets the cursor; hit pads ≥ 24px; Tab reaches the shelf; Fit keeps the mount camera; every shown label ≥ 9px at the fit and zoomed out")
 
   // 6. A live change after the user zoomed: the changed node flashes, the camera stays put
   await page.goto(`${BASE}/graph?kinds=doc,task`)
@@ -342,7 +347,14 @@ try {
   assert.equal(await dimmed("plans/tasks/T001-x.md"), false, "Recent keeps a changed file lit")
   assert.equal(await dimmed("docs/d.md"), false, "Recent keeps an edited doc lit")
   assert.equal(await dimmed(fresh), false, "Recent keeps a newly created task lit")
-  console.log("ok  T110: done T001 draws hollow; Recent lights T001, d.md and a new task and dims untouched c.md")
+  // Recent names what it lights: at least one changed file's label is on screen
+  await page.waitForTimeout(600) // Recent frames the changed files
+  const recentLabels = await page.evaluate(() => [...document.querySelectorAll(".react-flow__node [data-label]")].filter((el) => {
+    const r = el.getBoundingClientRect()
+    return Number(getComputedStyle(el).opacity) > 0.5 && r.height >= 9 && !el.closest(".react-flow__node").querySelector(".opacity-25")
+  }).length)
+  assert.ok(recentLabels >= 1, `Recent shows a label (${recentLabels})`)
+  console.log("ok  T110: done T001 draws hollow; Recent lights T001, d.md and a new task, dims untouched c.md and shows a label")
   console.log("ok  back on /graph after /board: the new d → b link and T001's done colour show without a reload")
 
   // 8. T111: Show in graph from a doc → /graph selected on it with Focus 1 (d is 2 hops away, so it's cut)

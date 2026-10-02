@@ -30,6 +30,8 @@ const TAB_DELAY = 200
 const FOCUS_SCROLL_MS = 150
 const CARD_W = 320
 const CARD_H = 220
+// the card's distance from a column it sits beside, and from the viewport edge
+const CARD_GAP = 8
 const MAX_TEXT = 400
 
 /** Session cache of fetched previews, keyed by root + path; any file change (LINK_EVENTS) clears it. */
@@ -199,11 +201,16 @@ export function LinkPreview({ containerRef, resolve }: {
 
   if (!card) return null
   const { target, rect, bounds, data, open } = card
-  const below = rect.bottom + CARD_H < window.innerHeight
-  // in a column: no wider than it, on its left edge; elsewhere 320px from the link, kept on screen
-  const width = bounds ? Math.min(CARD_W, bounds.width) : CARD_W
-  const left = Math.max(8, Math.min(bounds ? bounds.left : rect.left, window.innerWidth - width - 8))
-  const style = below ? { top: rect.bottom + 6, left, width } : { bottom: window.innerHeight - rect.top + 6, left, width }
+  // In a column (Linked docs): to its left, top on the row, so it never covers the sibling rows. No room there (the
+  // phone sheet): no wider than the column, on its left edge, above the row when it fits, else below. Elsewhere 320px
+  // from the link, below it when it fits, kept on screen.
+  const side = !!bounds && bounds.left - CARD_GAP - CARD_W >= CARD_GAP
+  const below = bounds ? rect.top - CARD_H - 6 < CARD_GAP : rect.bottom + CARD_H < window.innerHeight
+  const width = bounds && !side ? Math.min(CARD_W, bounds.width) : CARD_W
+  const left = side ? bounds.left - CARD_GAP - CARD_W : Math.max(CARD_GAP, Math.min(bounds ? bounds.left : rect.left, window.innerWidth - width - CARD_GAP))
+  const style = side
+    ? { top: Math.max(CARD_GAP, Math.min(rect.top, window.innerHeight - CARD_H - CARD_GAP)), left, width }
+    : below ? { top: rect.bottom + 6, left, width } : { bottom: window.innerHeight - rect.top + 6, left, width }
   const broken = "broken" in target
   const Icon = broken ? Unlink : KIND_ICON[target.kind as keyof typeof KIND_ICON] ?? KIND_ICON.doc
   const status = !broken && data?.status ? displayStatus(resolveStatus(data.status, statusDefs)) : null
@@ -218,7 +225,7 @@ export function LinkPreview({ containerRef, resolve }: {
       className={cn(
         "fixed z-[60] flex flex-col gap-1.5 rounded-lg border border-border bg-surface p-3 text-sm text-txt shadow-lg",
         // Filter/Sort popover vocabulary: fade + scale from 98% out of the anchor edge; the exit only fades
-        below ? "origin-top-left" : "origin-bottom-left",
+        side ? "origin-top-right" : below ? "origin-top-left" : "origin-bottom-left",
         "duration-(--duration-fast) ease-out-soft",
         open ? "transition-[opacity,scale,visibility] starting:scale-[0.98] starting:opacity-0" : "pointer-events-none invisible scale-[0.98] opacity-0 transition-[opacity,visibility]",
       )}

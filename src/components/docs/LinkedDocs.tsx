@@ -124,7 +124,7 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
               className={cn("flex w-full items-center gap-2", ROW)}
             >
               {broken ? <Unlink className="size-3.5 shrink-0 text-muted" aria-hidden /> : <FileQuestion className="size-3.5 shrink-0 text-muted" aria-hidden />}
-              <span className={cn("min-w-0 truncate font-mono text-xs text-muted", broken && "line-through decoration-muted/50")}>{r.path}</span>
+              <span className={cn("min-w-0 truncate font-mono text-xs text-muted", broken && "underline decoration-muted decoration-dashed underline-offset-3")}>{r.path}</span>
               <span className="ml-auto shrink-0 font-mono text-[11px] text-muted">L{r.line}</span>
             </button>
           </li>
