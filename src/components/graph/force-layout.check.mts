@@ -1,6 +1,6 @@
 // node src/components/graph/force-layout.check.mts
 import assert from 'node:assert/strict'
-import { forceLayout, forceLayoutFrames, graphChanges, hiddenLabels, neighbourhoodIds, SPRING, springStep, stepFocus, type SpringWorld } from './force-layout.ts'
+import { forceLayout, graphChanges, hiddenLabels, neighbourhoodIds, SPRING, springStep, stepFocus, type SpringWorld } from './force-layout.ts'
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
 const nodesOf = (ids: string[]) => ids.map(id => ({ id }))
@@ -92,19 +92,6 @@ assert.ok(ms < 150, `too slow: ${ms} ms`)
 const box = (id: string, x: number, y: number) => ({ id, x, y, w: 50, h: 14 })
 assert.deepEqual([...hiddenLabels([box('hub', 0, 0), box('leaf', 20, 5), box('far', 200, 0), box('edge', 50, 0)])], ['leaf'])
 assert.deepEqual([...hiddenLabels([box('hub', 0, 0), box('sel', 10, 0)], new Set(['sel']))], [])
-
-// forceLayoutFrames: deterministic, the last frame is exactly the plain layout, the first is the seeded start
-{
-  const fr = forceLayoutFrames(nodes, edges, 24)
-  assert.equal(fr.length, 24)
-  assert.deepEqual(fr[fr.length - 1], pos, 'last frame === forceLayout')
-  assert.deepEqual(forceLayoutFrames(shuffle(nodes), shuffle(edges), 24), fr, 'frames are deterministic')
-  assert.notDeepEqual(fr[0], pos, 'frame 0 is the seeded start, not the result')
-  assert.deepEqual(forceLayoutFrames(nodesOf(big), bigEdges, 3)[2], bp)
-  const t0 = performance.now()
-  forceLayoutFrames(nodesOf(big), bigEdges, 24)
-  console.log(`forceLayoutFrames 200 nodes × 24 frames: ${(performance.now() - t0).toFixed(0)}ms`)
-}
 
 // springStep: a displaced body springs home with a small overshoot, snaps exactly and is dropped; the loop idles
 {

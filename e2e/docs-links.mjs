@@ -5,7 +5,7 @@
 //   2. a.md: the broken link is muted, the stale `docs/gone.md` mention is marked (not broken); hovering a link
 //      shows its preview card.
 //   3. /graph: a, b, c (and d) with edges; clicking a selects it and dims the unrelated d → c edge; Open → /docs.
-//      Motion: a's lit edges carry the flow; dragging d moves it, release springs it back to its layout point and
+//      Motion: a's lit edges are one solid line (no travelling glow); dragging d moves it, release springs it back to its layout point and
 //      the drag doesn't select it.
 //   4. /graph: "2 broken · 1 stale path" opens a list; the far-away.md row opens long.md with the link in view.
 //   5. /graph from the keyboard: `/` focuses search, Tab reaches a node, Enter selects it, Enter again opens it;
@@ -110,7 +110,7 @@ try {
   }
   const opacity = (loc) => loc.evaluate((el) => Number(getComputedStyle(el).opacity))
   // the settle entrance draws edges in; read them once it's over
-  await page.waitForFunction(() => { const rf = document.querySelector(".react-flow"); return rf && !rf.classList.contains("opacity-0") && !document.querySelector(".graph-edge-in") })
+  await page.waitForFunction(() => { const rf = document.querySelector(".react-flow"); return rf && !rf.classList.contains("opacity-0") && !document.querySelector(".graph-edge-in, .graph-node-unfold") })
   assert.equal(await opacity(edge("docs/d.md", "docs/c.md")), 1)
   await node("docs/a.md").click()
   await page.waitForURL(/node=docs%2Fa\.md|node=docs\/a\.md/)
@@ -121,12 +121,9 @@ try {
   assert.equal(await opacity(edge("docs/a.md", "docs/c.md")), 1, "a → c stays lit")
   console.log("ok  /graph shows a, b, c with edges; clicking a selects it and dims the unrelated d → c edge")
 
-  // 3b. Motion: a's lit edges flow (and only those); a dragged dot springs back to its layout point, unselected
-  const edgeG = (from, to) => page.locator(`.react-flow__edge[data-id="${from}->${to}"]`)
-  for (const [f, t] of [["docs/a.md", "docs/sub/b.md"], ["docs/a.md", "docs/c.md"], ["docs/sub/b.md", "docs/a.md"]]) {
-    assert.match(await edgeG(f, t).getAttribute("class"), /\bgraph-flow\b/, `${f} → ${t} flows`)
-  }
-  assert.doesNotMatch(await edgeG("docs/d.md", "docs/c.md").getAttribute("class"), /\bgraph-flow\b/, "an unlit edge doesn't flow")
+  // 3b. Motion: a's lit edges are one solid accent line (no glow overlay); a dragged dot springs back, unselected
+  assert.equal(await page.locator(".react-flow__edge path:not(.react-flow__edge-path):not(.react-flow__edge-interaction)").count(), 0, "no overlay path on any edge")
+  assert.equal(await edge("docs/a.md", "docs/c.md").evaluate((el) => getComputedStyle(el).strokeDasharray), "none", "a lit edge is a solid line")
   const dNode = node("docs/d.md")
   const at = () => dNode.evaluate((el) => el.style.transform)
   const home = await at()
@@ -138,7 +135,7 @@ try {
   await page.mouse.up()
   await page.waitForFunction(([p, h]) => document.querySelector(`.react-flow__node[data-id="${p}"]`).style.transform === h, ["docs/d.md", home], { timeout: 3000 })
   assert.match(page.url(), /node=docs%2Fa\.md/, "a drag is not a click: a stays selected")
-  console.log("ok  /graph: a's lit edges flow; dragging d springs it back to its layout point without selecting it")
+  console.log("ok  /graph: a's lit edges are solid lines; dragging d springs it back to its layout point without selecting it")
   await sel.getByRole("button", { name: "Open" }).click()
   await page.waitForURL(/\/docs/)
   await page.locator("h1", { hasText: "Alpha" }).first().waitFor()

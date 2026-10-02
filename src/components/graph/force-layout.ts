@@ -34,20 +34,6 @@ export function forceLayout(
   return simulate(nodes, edges, opts, 1)[0]
 }
 
-/**
- * The same simulation sampled `frames` times (≥ 2): frame 0 is the seeded start, the last frame is exactly
- * `forceLayout(nodes, edges, opts)`, the rest sample the iterations, densest early where the layout moves most. Each frame is normalized like the result
- * (edge length, min distance, orphan ring, centred), so playing them back shows the real layout settling (/graph).
- */
-export function forceLayoutFrames(
-  nodes: { id: string }[],
-  edges: { from: string; to: string }[],
-  frames: number,
-  opts: ForceLayoutOptions = {},
-): Record<string, Point>[] {
-  return simulate(nodes, edges, opts, Math.max(2, Math.floor(frames)))
-}
-
 function simulate(
   nodes: { id: string }[],
   edges: { from: string; to: string }[],

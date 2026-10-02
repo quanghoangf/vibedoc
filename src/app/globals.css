@@ -254,26 +254,13 @@ html:not(.dark) .prose-dark :not(pre) > code { color: color-mix(in srgb, var(--c
 .animate-collapsible-down { animation: collapsible-down var(--duration-base) var(--ease-out-soft); }
 .animate-collapsible-up   { animation: collapsible-up   var(--duration-fast) var(--ease-in-out-soft); }
 
-/* /graph motion (DocGraph). Entrance: each edge fades in after its hop delay (inline animation-delay); backwards
-   fill only, so the dim / lit opacity from the inline style takes over once it ends. */
+/* /graph motion (DocGraph). Entrance: each dot unfolds from near the centre (--ux/--uy, its offset back towards it)
+   to its layout point, after its hop delay (inline animation-delay); edges fade in as the dots land. Backwards fill
+   only, so the dim / lit opacity from the inline styles takes over once they end. */
+.graph-node-unfold { animation: graph-node-unfold 900ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+@keyframes graph-node-unfold { from { translate: var(--ux) var(--uy); scale: 0.35; opacity: 0; } }
 .graph-edge-in .react-flow__edge-path { animation: graph-edge-in 520ms var(--ease-out-soft) backwards; }
 @keyframes graph-edge-in { from { opacity: 0; } }
-/* Flow: a glow travels each lit edge source → target once per cycle (pathLength 100: dash 14, gap 86) */
-.graph-edge-flow {
-  fill: none;
-  stroke: color-mix(in srgb, var(--color-accent) 50%, var(--color-txt));
-  /* screen px, so the glow still reads on a zoomed-out map */
-  stroke-width: 3.5;
-  vector-effect: non-scaling-stroke;
-  stroke-linecap: round;
-  stroke-dasharray: 14 86;
-  animation: graph-edge-flow 1.4s linear infinite;
-  pointer-events: none;
-}
-@keyframes graph-edge-flow { from { stroke-dashoffset: 14; } to { stroke-dashoffset: -86; } }
-[data-hidden] .graph-edge-flow { animation-play-state: paused; }
-/* the static direction mark, shown only under reduced motion */
-.graph-edge-arrow { display: none; fill: none; stroke: var(--color-accent); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 /* Live ping: rings spread from a dot a live update touched (accent, low alpha: a live signal) */
 .graph-ping {
   position: absolute;
@@ -307,9 +294,7 @@ html:not(.dark) .prose-dark :not(pre) > code { color: color-mix(in srgb, var(--c
   .doc-block-changed { animation: doc-highlight-fade 2.4s linear !important; }
   /* A live update still marks what changed: a static ring for 1s instead of the fading one */
   .animate-flash { animation: flash-still 1s step-end !important; }
-  /* /graph: no travelling glow, a chevron mid-edge says the direction; the ping is one still ring for 1s */
-  .graph-edge-flow { display: none; }
-  .graph-edge-arrow { display: inline; }
+  /* /graph: the ping is one still ring for 1s */
   .graph-ping { animation: graph-ping-still 1s step-end !important; }
   .graph-ping-2 { display: none; }
 }

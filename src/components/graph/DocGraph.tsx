@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Background, BackgroundVariant, BaseEdge, Controls, getStraightPath, getViewportForBounds, Handle, Position, ReactFlow, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react"
+import { Background, BackgroundVariant, Controls, getViewportForBounds, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { FileQuestion, Info, Search, Unlink, X } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -17,21 +17,18 @@ import { statusDefIn, useStatusDefs } from "@/components/shared/status-defs"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { AgentDot } from "@/components/chat/AgentMark"
 import type { TaskStatus } from "@/types"
-import { forceLayout, forceLayoutFrames, graphChanges, hiddenLabels, neighbourhoodIds, SPRING, springStep, stepFocus, type ArrowKey, type LabelBox, type SpringWorld } from "./force-layout"
+import { forceLayout, graphChanges, hiddenLabels, neighbourhoodIds, SPRING, springStep, stepFocus, type ArrowKey, type LabelBox, type SpringWorld } from "./force-layout"
 
 // delay: the selection ripple (depth-2 lights after depth-1); quick: no selection, so state changes run on fast.
-// enter / exit: a node that appears / disappears during a relayout tween.
-type DotData = { node: DocNode; size: number; box: number; dim: boolean; active: boolean; match: boolean; changed: boolean; hue: string; hideLabel: boolean; delay: number; quick: boolean; enter?: boolean; exit?: boolean }
+// enter / exit: a node that appears / disappears during a relayout tween. unfold: the entrance offset (dot starts
+// there, relative to its layout point) and its start delay.
+type DotData = { node: DocNode; size: number; box: number; dim: boolean; active: boolean; match: boolean; changed: boolean; hue: string; hideLabel: boolean; delay: number; quick: boolean; enter?: boolean; exit?: boolean; unfold?: { x: number; y: number; wait: number } }
 type DotNode = Node<DotData, "dot">
-// flow: 1 = an edge of the selected node, 2 = a Focus 2 depth-2 edge (fainter); 0 / absent = no flow
-type FlowData = { flow?: 0 | 1 | 2 }
-type FlowEdgeType = Edge<FlowData, "flow">
+type LinkEdge = Edge
 type GraphState = { node: string | null; focus: 0 | 1 | 2; kinds: DocNodeKind[]; q: string }
 type XY = { x: number; y: number }
 /** A relayout in flight: centres it started from, where it is now, where it goes, and the nodes it removed. */
 type Tween = { from: Record<string, XY>; at: Record<string, XY>; to: Record<string, XY>; gone: DotNode[] }
-/** The settle entrance: sampled layout iterations (last = the layout) and where playback has the dots now. */
-type Settle = { frames: Record<string, XY>[]; at: Record<string, XY> }
 
 const KINDS: { kind: DocNodeKind; label: string }[] = [
   { kind: "doc", label: "Docs" },
@@ -82,36 +79,28 @@ const easeOut = (k: number) => 1 - Math.pow(1 - k, 4)
 // the selection ripple: depth-2 neighbours light this long after depth-1
 const RIPPLE_MS = 60
 const EXIT_STYLE = { pointerEvents: "none" } as const
-// Settle entrance (mount and Fit): the layout's own iterations, sampled and played back so the physics reads.
-// Edges draw in by hops from the best-linked file, capped so the last one starts while the dots still move.
-const SETTLE_MS = 900
-const SETTLE_FRAMES = 24
-// ponytail: every edge re-renders per frame, so big maps skip the entrance (they land settled). Prod build, dev Mac:
-// 85 files / 122 edges p95 17ms; 143 / 379 had 50–54ms frames; 192 / 687 had 55–80ms. Raise if edges render outside React.
-const SETTLE_MAX_NODES = VIRTUALIZE_OVER
-const SETTLE_MAX_EDGES = 250
-const EDGE_STAGGER_MS = 70
-const EDGE_STAGGER_CAP = 420
-// frames are already decelerating (the layout cools, and early iterations are sampled densest), so a gentle ease-out
-// on top (power 1.5, between linear and quad): measured, mean distance to the layout falls smoothly over the 900ms
-const easeOutSettle = (k: number) => 1 - Math.pow(1 - k, 1.5)
+// Entrance (mount and Fit): every dot unfolds from near the centre to its layout point, the best-linked file's
+// neighbourhood first, and the edges fade in as the dots land. Pure CSS on the compositor (graph-node-unfold), so no
+// React render per frame: the old frame-by-frame playback re-rendered every node and edge 60 times a second and stuttered.
+const UNFOLD_FROM = 0.85 // a dot starts this share of the way back towards the centre
+const UNFOLD_STAGGER_MS = 30
+const UNFOLD_STAGGER_CAP = 240
+const EDGE_IN_AFTER_MS = 420
+// a file with no path to the hub waits like one 8 hops out
+const waitOf = (h: number | undefined) => Math.min((h ?? 8) * UNFOLD_STAGGER_MS, UNFOLD_STAGGER_CAP)
+const UNFOLD_MS = 900 + UNFOLD_STAGGER_CAP + 520 // dots + stagger + edge fade; then the classes come off
+// ponytail: transforms only, measured smooth at 192 dots / 687 edges; skip above this if low-end machines stutter
+const UNFOLD_MAX_NODES = 400
 // hover / keyboard focus: linked dots lean this far toward the one under the pointer
 const MAGNET_PX = 8
 // a wiggle under this many px is still a click; more is a drag
 const DRAG_PX = 4
 // a hovered file's edges: one step brighter than EDGE, still neutral (accent stays for selection)
 const EDGE_HOVER = "var(--color-muted)"
-// ponytail: flowing edges repaint every frame; a hub in Focus 2 could light hundreds, so at most this many flow
-const FLOW_MAX = 80
 const still = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
 const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"])
 const HINT = "Tab moves between files. Enter selects a file; Enter again or O opens it. Arrow keys move to the nearest linked file. Escape clears the search, then the selection. Slash jumps to search."
 const ARIA_LABELS = { "node.a11yDescription.default": HINT }
-
-function subscribeVisibility(cb: () => void) {
-  document.addEventListener("visibilitychange", cb)
-  return () => document.removeEventListener("visibilitychange", cb)
-}
 
 function subscribeTheme(cb: () => void) {
   const mo = new MutationObserver(cb)
@@ -166,14 +155,14 @@ function Shape({ kind, size, className }: { kind: DocNodeKind; size: number; cla
 
 /** A shape sized by degree, centred on its layout point; the label hangs below and never takes clicks. */
 const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
-  const { node, size, box, dim, active, match, changed, hue, hideLabel, delay, quick, enter, exit } = data
+  const { node, size, box, dim, active, match, changed, hue, hideLabel, delay, quick, enter, exit, unfold } = data
   // The React Flow wrapper (.react-flow__node) takes focus; the halo goes on the dot and the label
   return (
     <div
       title={node.path}
       data-changed={changed || undefined}
-      style={{ width: box, height: box }}
-      className={cn("relative flex items-center justify-center", enter && "animate-node-in", exit && "animate-node-out")}
+      style={{ width: box, height: box, ...(unfold && ({ "--ux": `${unfold.x}px`, "--uy": `${unfold.y}px`, animationDelay: `${unfold.wait}ms` } as React.CSSProperties)) }}
+      className={cn("relative flex items-center justify-center", enter && "animate-node-in", exit && "animate-node-out", unfold && "graph-node-unfold")}
     >
       {/* live ping: two rings spread from a dot an update touched (outside the dot, so dimming doesn't eat them) */}
       {changed && [0, 1].map((i) => <span key={i} aria-hidden style={{ width: size, height: size }} className={cn("graph-ping", i && "graph-ping-2")} />)}
@@ -209,28 +198,6 @@ const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
 })
 const nodeTypes = { dot: DotView }
 
-/**
- * A straight edge; a lit one (data.flow) carries a glow that travels in the link's direction, source → target, once
- * per cycle whatever its length (pathLength 100). Under reduced motion the glow hides and a mid-edge chevron shows.
- */
-// the reduced-motion chevron sits past the middle, so a → b and b → a don't stack into an ×
-const ARROW_AT = 0.6
-const FlowEdge = memo(function FlowEdge({ sourceX, sourceY, targetX, targetY, style, data }: EdgeProps<FlowEdgeType>) {
-  const [path] = getStraightPath({ sourceX, sourceY, targetX, targetY })
-  const flow = data?.flow
-  return (
-    <>
-      <BaseEdge path={path} style={style} />
-      {flow ? (
-        <g className={flow === 2 ? "opacity-45" : undefined}>
-          <path d={path} pathLength={100} className="graph-edge-flow" />
-          <path d="M-3.5 -3.5 1.5 0-3.5 3.5" transform={`translate(${sourceX + (targetX - sourceX) * ARROW_AT} ${sourceY + (targetY - sourceY) * ARROW_AT}) rotate(${(Math.atan2(targetY - sourceY, targetX - sourceX) * 180) / Math.PI})`} className="graph-edge-arrow" />
-        </g>
-      ) : null}
-    </>
-  )
-})
-const edgeTypes = { flow: FlowEdge }
 
 /**
  * Every .md file in the project and the links between them (R056), like Obsidian's graph view. Deterministic
@@ -253,15 +220,13 @@ export function DocGraph() {
   const [changed, setChanged] = useState<Set<string>>(NONE)
   const last = useRef<{ root: string; graph: Graph } | null>(null)
   const gen = useLinkGeneration()
-  const [rf, setRf] = useState<ReactFlowInstance<DotNode, FlowEdgeType> | null>(null)
+  const [rf, setRf] = useState<ReactFlowInstance<DotNode, LinkEdge> | null>(null)
   const [far, setFar] = useState(false)
   const [legendOpen, setLegendOpen] = useState(false)
   // the last selected file: the card keeps showing it while it fades out
   const [cardNode, setCardNode] = useState<DocNode | undefined>(undefined)
   const rootRef = useRef<HTMLDivElement>(null)
   const isDark = useSyncExternalStore(subscribeTheme, () => document.documentElement.classList.contains("dark"), () => true)
-  // edge flow pauses while the tab is hidden
-  const tabHidden = useSyncExternalStore(subscribeVisibility, () => document.hidden, () => false)
 
   // One request per load / SSE burst: fetchLinkJson shares it per generation (strict mode, other link hooks)
   useEffect(() => {
@@ -337,9 +302,26 @@ export function DocGraph() {
   }), [idsKey, edgesKey])
   const pos = useMemo(() => forceLayout(layoutInput.nodes, layoutInput.edges), [layoutInput])
 
+  // Entrance on mount and on Fit (never on a live refresh): a run id while the unfold classes are on, null after.
+  const [unfolding, setUnfolding] = useState<number | null>(null)
+  const unfold = useCallback(() => {
+    if (still() || layoutInput.nodes.length > UNFOLD_MAX_NODES) return
+    setUnfolding((r) => (r ?? 0) + 1)
+  }, [layoutInput])
+  useEffect(() => {
+    if (unfolding === null) return
+    // taking the classes off re-renders every edge (~100ms on a 700-edge map), so do it once the page is idle
+    let idle = 0
+    const t = setTimeout(() => { idle = requestIdleCallback(() => setUnfolding(null), { timeout: 2000 }) }, UNFOLD_MS)
+    return () => { clearTimeout(t); cancelIdleCallback(idle) }
+  }, [unfolding])
+
   // Fit on first load, on a filter / focus change, or when the visible set grows or shrinks; never once the user
   // has panned or zoomed (until the filter / focus changes or they press Fit)
   const userMoved = useRef(false)
+  // the canvas stays invisible until the first fit lands, so the unfold starts from the final camera, not a jump
+  const [veiled, setVeiled] = useState(true)
+  const firstFit = useRef(true)
   const viewKey = `${state.kinds.join(",")}|${focusRoot ?? ""}|${focusRoot ? state.focus : 0}`
   useEffect(() => { userMoved.current = false }, [viewKey])
   // Fits the *target* layout, so the camera glides alongside the position tween instead of after a jump
@@ -348,15 +330,21 @@ export function DocGraph() {
     const id = requestAnimationFrame(() => {
       const el = rootRef.current?.querySelector<HTMLElement>(".react-flow")
       const pts = Object.values(pos)
-      if (!el || !pts.length) return
+      if (!el || !pts.length) return setVeiled(false)
       const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y)
       const x = Math.min(...xs) - HIT, y = Math.min(...ys) - HIT
       const bounds = { x, y, width: Math.max(...xs) + HIT - x, height: Math.max(...ys) + HIT - y }
       const vp = getViewportForBounds(bounds, el.clientWidth, el.clientHeight, FIT_MIN_ZOOM, FIT_OPTIONS.maxZoom, FIT_OPTIONS.padding)
-      void rf.setViewport(vp, { duration: still() ? 0 : TWEEN_MS, ease: easeOut })
+      const first = firstFit.current
+      firstFit.current = false
+      void rf.setViewport(vp, { duration: first || still() ? 0 : TWEEN_MS, ease: easeOut })
+      if (first) {
+        setVeiled(false)
+        unfold()
+      }
     })
     return () => cancelAnimationFrame(id)
-  }, [rf, pos, viewKey])
+  }, [rf, pos, viewKey, unfold])
 
   const q = state.q.trim().toLowerCase()
   const matches = useMemo(
@@ -365,7 +353,7 @@ export function DocGraph() {
   )
 
   const { base, edges } = useMemo(() => {
-    if (!visible) return { base: [] as DotNode[], edges: [] as FlowEdgeType[] }
+    if (!visible) return { base: [] as DotNode[], edges: [] as LinkEdge[] }
     const degree = new Map<string, number>()
     for (const e of visible.edges) for (const p of [e.from, e.to]) degree.set(p, (degree.get(p) ?? 0) + 1)
     // Selection ripple: depth-1 lights first; with Focus 2 the depth-2 ring lights RIPPLE_MS later
@@ -413,27 +401,15 @@ export function DocGraph() {
     // warns when `transition` and `transitionDelay` are mixed on one element
     const ms = quick ? "var(--duration-fast)" : "var(--duration-base)"
     const transition = (delay: number) => ["stroke", "stroke-width", "opacity"].map((pr) => `${pr} ${ms} var(--ease-out-soft) ${delay}ms`).join(", ")
-    let flows = 0
-    // the selected file's own edges claim the flow budget first, then the Focus 2 ring
-    const flowOf = (hot: boolean, on: boolean): 0 | 1 | 2 => (!on || flows >= FLOW_MAX ? 0 : (flows++, hot ? 1 : 2))
-    const hotFirst = selected ? [...visible.edges].sort((a, b) => Number(b.from === selected || b.to === selected) - Number(a.from === selected || a.to === selected)) : visible.edges
-    const flowBy = new Map<string, 0 | 1 | 2>()
-    for (const e of hotFirst) {
-      const hot = !!selected && (e.from === selected || e.to === selected)
-      flowBy.set(`${e.from}->${e.to}`, flowOf(hot, hot || (!!selected && state.focus === 2 && !!lit?.has(e.from) && !!lit.has(e.to))))
-    }
-    const edges: FlowEdgeType[] = visible.edges.map((e) => {
+    const edges: LinkEdge[] = visible.edges.map((e) => {
       const hot = !!selected && (e.from === selected || e.to === selected)
       // Focus 2: an edge inside the 2-hop ring stays lit, after the ripple delay
       const on = hot || (!!selected && state.focus === 2 && !!lit?.has(e.from) && !!lit.has(e.to))
-      const flow = flowBy.get(`${e.from}->${e.to}`) ?? 0
       return {
         id: `${e.from}->${e.to}`,
         source: e.from,
         target: e.to,
-        type: "flow",
-        data: { flow },
-        className: flow ? "graph-flow" : undefined,
+        type: "straight",
         domAttributes: { "aria-hidden": true },
         style: {
           stroke: hot ? "var(--color-accent)" : EDGE,
@@ -451,57 +427,16 @@ export function DocGraph() {
   // "Previous render" bookkeeping is state, set while rendering (React's documented pattern), so nothing reads refs.
   const [seen, setSeen] = useState({ pos, base })
   const [tween, setTween] = useState<Tween | null>(null)
-  const [settle, setSettle] = useState<Settle | null>(null)
   if (seen.base !== base) {
     setSeen({ pos, base })
     if (seen.pos !== pos) {
       // ponytail: per-frame React Flow updates; above VIRTUALIZE_OVER nodes the graph jumps instead of gliding
       const glide = seen.base.length > 0 && base.length > 0 && Math.max(seen.base.length, base.length) <= VIRTUALIZE_OVER && !still()
-      // a relayout mid-entrance takes over from where the entrance has the dots
-      const from = settle?.at ?? (tween?.to === seen.pos ? tween.at : seen.pos)
-      if (settle) setSettle(null)
+      const from = tween?.to === seen.pos ? tween.at : seen.pos
       setTween(glide ? { from, at: from, to: pos, gone: seen.base.filter((n) => !pos[n.id]) } : null)
     }
   }
 
-  // Settle entrance on mount and on Fit (never on a live refresh). "mount" keeps the canvas invisible for the frame
-  // or two before playback starts, so the finished layout never flashes first.
-  const [pendingSettle, setPendingSettle] = useState<"mount" | "fit" | null>("mount")
-  useEffect(() => {
-    if (!pendingSettle || !graph) return
-    const id = requestAnimationFrame(() => {
-      setPendingSettle(null)
-      if (!layoutInput.nodes.length || still() || layoutInput.nodes.length > SETTLE_MAX_NODES || layoutInput.edges.length > SETTLE_MAX_EDGES) return
-      const frames = forceLayoutFrames(layoutInput.nodes, layoutInput.edges, SETTLE_FRAMES)
-      setSettle({ frames, at: frames[0] })
-    })
-    return () => cancelAnimationFrame(id)
-  }, [pendingSettle, graph, layoutInput])
-  const settleFrames = settle?.frames
-  useEffect(() => {
-    if (!settleFrames) return
-    const t0 = performance.now()
-    const last = settleFrames.length - 1
-    let raf = 0
-    const step = (now: number) => {
-      // a rAF timestamp can predate t0 (it's the frame's start), so clamp at 0 too
-      const k = Math.min(1, Math.max(0, (now - t0) / SETTLE_MS))
-      if (k >= 1) return setSettle(null)
-      const f = easeOutSettle(k) * last
-      const i = Math.min(Math.floor(f), last - 1)
-      const u = f - i
-      const a = settleFrames[i], b = settleFrames[i + 1]
-      const at: Record<string, XY> = {}
-      for (const [id, q] of Object.entries(b)) {
-        const p = a[id] ?? q
-        at[id] = { x: p.x + (q.x - p.x) * u, y: p.y + (q.y - p.y) * u }
-      }
-      setSettle((s) => (s?.frames === settleFrames ? { frames: settleFrames, at } : s))
-      raf = requestAnimationFrame(step)
-    }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
-  }, [settleFrames])
 
   // Live physics (drag, hover magnet): a small spring sim over the touched neighbourhood only, on rAF while anything
   // moves; idle (no loop) once every dot rests. rAF doesn't run in a hidden tab, and springStep clamps the gap after.
@@ -535,7 +470,7 @@ export function DocGraph() {
     setHovered(id)
     const w = sim.current
     // no lean while the entrance plays or a drag holds the neighbourhood
-    if (still() || w.drag || settle) return
+    if (still() || w.drag || unfolding !== null) return
     const shift: Record<string, XY> = {}
     const h = id ? pos[id] : undefined
     for (const p of (id && h && adj.get(id)) || []) {
@@ -551,7 +486,7 @@ export function DocGraph() {
   const centreOf = (n: DotNode) => ({ x: n.position.x + n.data.box / 2, y: n.position.y + n.data.box / 2 })
   /** Drag: the dot follows the pointer, its ≤2-hop neighbourhood (1-hop on big graphs) follows on springs. */
   const onDragStart = (n: DotNode) => {
-    if (settle) setSettle(null)
+    if (unfolding !== null) setUnfolding(null)
     const w = sim.current
     w.shift = {}
     const at = centreOf(n)
@@ -610,44 +545,49 @@ export function DocGraph() {
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
   }, [tweenFrom, tweenTo])
-  // Drawn centre: live physics, else the relayout tween, else the settle entrance, else the layout
-  const settleAt = settle?.at
+  // Hops from the best-linked file: the entrance order for dots and edges
+  const hops = useMemo(() => {
+    if (unfolding === null) return null
+    const hub = [...adj].reduce<[string, number] | null>((best, [p, s]) => (!best || s.size > best[1] ? [p, s.size] : best), null)?.[0]
+    const out = new Map<string, number>(hub ? [[hub, 0]] : [])
+    for (let frontier = hub ? [hub] : [], d = 1; frontier.length; d++) {
+      const next: string[] = []
+      for (const p of frontier) for (const q of adj.get(p) ?? []) if (!out.has(q)) { out.set(q, d); next.push(q) }
+      frontier = next
+    }
+    return out
+  }, [unfolding, adj])
+
+  // Drawn centre: live physics, else the relayout tween, else the layout (the entrance only offsets the dot in CSS)
   const nodes = useMemo(() => {
-    if (!tween && !settleAt && !live) return base
+    if (!tween && !live && !hops) return base
     const moved = base.map((n): DotNode => {
       if (tween && !tween.from[n.id]) return { ...n, data: { ...n.data, enter: true } }
-      const c = live?.[n.id] ?? tween?.at[n.id] ?? settleAt?.[n.id]
-      return c ? { ...n, position: { x: c.x - n.data.box / 2, y: c.y - n.data.box / 2 } } : n
+      const c = live?.[n.id] ?? tween?.at[n.id]
+      if (c) return { ...n, position: { x: c.x - n.data.box / 2, y: c.y - n.data.box / 2 } }
+      const at = hops && pos[n.id]
+      // the layout is centred on 0,0, so -at points back at the centre
+      return at ? { ...n, data: { ...n.data, unfold: { x: -at.x * UNFOLD_FROM, y: -at.y * UNFOLD_FROM, wait: waitOf(hops.get(n.id)) } } } : n
     })
     const gone = (tween?.gone ?? []).map((n): DotNode => ({ ...n, focusable: false, selectable: false, draggable: false, style: EXIT_STYLE, data: { ...n.data, exit: true } }))
     return [...moved, ...gone]
-  }, [base, tween, settleAt, live])
+  }, [base, tween, live, hops, pos])
 
-  // Edges as drawn: a hovered file's edges one step brighter; during the entrance each draws in by its hops from the
-  // best-linked file. Kept out of `base`, which measures every label.
-  const settling = !!settle
+  // Edges as drawn: a hovered file's edges one step brighter (the selected file's stay accent); during the entrance each
+  // fades in as its nearer dot lands. Kept out of `base`, which measures every label.
   const shownEdges = useMemo(() => {
-    let hops: Map<string, number> | null = null
-    if (settling) {
-      const hub = [...adj].reduce<[string, number] | null>((best, [p, s]) => (!best || s.size > best[1] ? [p, s.size] : best), null)?.[0]
-      hops = new Map(hub ? [[hub, 0]] : [])
-      for (let frontier = hub ? [hub] : [], d = 1; frontier.length; d++) {
-        const next: string[] = []
-        for (const p of frontier) for (const q of adj.get(p) ?? []) if (!hops.has(q)) { hops.set(q, d); next.push(q) }
-        frontier = next
-      }
-    }
     if (!hovered && !hops) return edges
-    return edges.map((e): FlowEdgeType => {
+    return edges.map((e): LinkEdge => {
       let out = e
-      if (hovered && !e.data?.flow && (e.source === hovered || e.target === hovered)) out = { ...out, style: { ...out.style, stroke: EDGE_HOVER, strokeWidth: 1.5 } }
+      const hot = !!selected && (e.source === selected || e.target === selected)
+      if (hovered && !hot && (e.source === hovered || e.target === hovered)) out = { ...out, style: { ...out.style, stroke: EDGE_HOVER, strokeWidth: 1.5 } }
       if (hops) {
         const h = Math.min(hops.get(e.source) ?? Infinity, hops.get(e.target) ?? Infinity)
-        out = { ...out, className: cn(out.className, "graph-edge-in"), style: { ...out.style, animationDelay: `${Math.min(h * EDGE_STAGGER_MS, EDGE_STAGGER_CAP)}ms` } }
+        out = { ...out, className: "graph-edge-in", style: { ...out.style, animationDelay: `${EDGE_IN_AFTER_MS + waitOf(Number.isFinite(h) ? h : undefined)}ms` } }
       }
       return out
     })
-  }, [edges, hovered, settling, adj])
+  }, [edges, hovered, hops, selected])
 
   // Esc on /graph steps back: clear the search, then the selection, then leave the graph. Capture phase, so
   // React Flow's own Escape (which blurs the node) and the global handler never see it.
@@ -804,7 +744,6 @@ export function DocGraph() {
 
       <div
         data-far={far && nodes.length > LABEL_NODES_OVER}
-        data-hidden={tabHidden || undefined}
         onKeyDown={onNodeKey}
         // keyboard focus pulls like hover (a click also focuses the node, so only :focus-visible counts)
         onFocus={(e) => { const t = e.target as HTMLElement; if (t.classList.contains("react-flow__node") && t.matches(":focus-visible")) magnet(t.dataset.id ?? null) }}
@@ -815,7 +754,7 @@ export function DocGraph() {
         {!state.kinds.length ? (
           <p className="m-6 text-sm text-muted">Turn on a kind to see files.</p>
         ) : (
-          <ReactFlow<DotNode, FlowEdgeType>
+          <ReactFlow<DotNode, LinkEdge>
             aria-label="Doc link graph"
             aria-roledescription="link graph"
             aria-describedby="graph-hint"
@@ -824,8 +763,7 @@ export function DocGraph() {
             nodes={nodes}
             edges={shownEdges}
             nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            className={cn(pendingSettle === "mount" && "opacity-0")}
+            className={cn(veiled && "opacity-0")}
             onInit={setRf}
             onMoveStart={(e) => { if (e) userMoved.current = true }}
             onMove={(_, vp) => setFar(vp.zoom < LABEL_ZOOM)}
@@ -858,7 +796,7 @@ export function DocGraph() {
               fitViewOptions={FIT_OPTIONS}
               onZoomIn={() => { userMoved.current = true }}
               onZoomOut={() => { userMoved.current = true }}
-              onFitView={() => { userMoved.current = false; setPendingSettle("fit") }}
+              onFitView={() => { userMoved.current = false; unfold() }}
               className="gap-0.5 rounded-md border border-border bg-surface p-0.5 [&_button]:size-7 [&_button]:rounded-md [&_button]:transition-colors [&_button]:duration-(--duration-fast) [&_button]:outline-none [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-accent [&_svg]:max-h-3 [&_svg]:max-w-3"
             />
           </ReactFlow>
