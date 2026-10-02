@@ -14,7 +14,8 @@ const clique = (xs: string[]) => xs.flatMap((x, i) => xs.slice(i + 1).map(y => (
 const edges = [...clique(A), ...clique(B), { from: 'a1', to: 'b1' }]
 const nodes = nodesOf([...A, ...B, ...O])
 const pos = forceLayout(nodes, edges)
-assert.equal(Object.keys(pos).length, nodes.length)
+// orphans get no position (the Unlinked shelf lists them), so they never stretch the fit
+assert.deepEqual(Object.keys(pos).sort(), [...A, ...B].sort())
 
 // shuffled input order gives identical positions
 const shuffle = <T,>(xs: T[]) => xs.map(x => [rnd(), x] as const).sort((p, q) => p[0] - q[0]).map(p => p[1])
@@ -31,23 +32,23 @@ assert.ok(Math.abs(avgEdge - 120) < 20, `avg edge ${avgEdge}`)
 const xs = Object.values(pos).map(p => p.x), ys = Object.values(pos).map(p => p.y)
 assert.ok(Math.abs(Math.min(...xs) + Math.max(...xs)) < 0.1 && Math.abs(Math.min(...ys) + Math.max(...ys)) < 0.1)
 
-// orphans sit outside the bounding circle of the linked nodes
-const linked = [...A, ...B], c = centroid(linked)
-const inner = Math.max(...linked.map(id => dist(pos[id], c)))
-for (const o of O) assert.ok(dist(pos[o], c) > inner, `${o} inside`)
+// adding orphans doesn't move a linked node
+assert.deepEqual(forceLayout(nodesOf([...A, ...B]), edges), pos)
 
 // 200 random-ish nodes: no two closer than the minimum distance
 const big = Array.from({ length: 200 }, (_, i) => `n${String(i).padStart(3, '0')}`)
 const bigEdges = big.flatMap((id, i) => (i % 9 === 8 ? [] : [{ from: id, to: big[Math.floor(rnd() * 200)] }]))
 const bp = forceLayout(nodesOf(big), bigEdges)
 let closest = Infinity
-for (let i = 0; i < big.length; i++) for (let j = i + 1; j < big.length; j++) closest = Math.min(closest, dist(bp[big[i]], bp[big[j]]))
+const placed = Object.values(bp)
+for (let i = 0; i < placed.length; i++) for (let j = i + 1; j < placed.length; j++) closest = Math.min(closest, dist(placed[i], placed[j]))
 assert.ok(closest >= 47.9, `closest pair ${closest}`)
 
 // edge cases
 assert.deepEqual(forceLayout([], []), {})
-assert.deepEqual(forceLayout([{ id: 'x' }], []), { x: { x: 0, y: 0 } })
-assert.deepEqual(Object.keys(forceLayout(nodesOf(['x', 'y']), [{ from: 'x', to: 'x' }, { from: 'x', to: 'zz' }])).sort(), ['x', 'y'])
+assert.deepEqual(forceLayout([{ id: 'x' }], []), {})
+assert.deepEqual(forceLayout(nodesOf(['x', 'y']), [{ from: 'x', to: 'x' }, { from: 'x', to: 'zz' }]), {})
+assert.deepEqual(Object.keys(forceLayout(nodesOf(['x', 'y', 'z']), [{ from: 'x', to: 'y' }])).sort(), ['x', 'y'])
 
 // neighbourhoodIds on a chain a-b-c-d-e (edges in mixed directions)
 const chain = [{ from: 'a', to: 'b' }, { from: 'c', to: 'b' }, { from: 'c', to: 'd' }, { from: 'e', to: 'd' }]
@@ -92,6 +93,11 @@ assert.ok(ms < 150, `too slow: ${ms} ms`)
 const box = (id: string, x: number, y: number) => ({ id, x, y, w: 50, h: 14 })
 assert.deepEqual([...hiddenLabels([box('hub', 0, 0), box('leaf', 20, 5), box('far', 200, 0), box('edge', 50, 0)])], ['leaf'])
 assert.deepEqual([...hiddenLabels([box('hub', 0, 0), box('sel', 10, 0)], new Set(['sel']))], [])
+// a label over another node's dot hides (its own dot never counts); a kept one still shows
+const dot = (id: string, x: number, y: number) => ({ id, x, y, w: 10, h: 10 })
+assert.deepEqual([...hiddenLabels([box('a', 0, 0)], new Set(), [dot('b', 20, 5)])], ['a'])
+assert.deepEqual([...hiddenLabels([box('a', 0, 0)], new Set(), [dot('a', 20, 5), dot('far', 300, 0)])], [])
+assert.deepEqual([...hiddenLabels([box('a', 0, 0)], new Set(['a']), [dot('b', 20, 5)])], [])
 
 // springStep: a displaced body springs home with a small overshoot, snaps exactly and is dropped; the loop idles
 {

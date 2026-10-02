@@ -22,7 +22,7 @@ import { forceLayout, graphChanges, hiddenLabels, neighbourhoodIds, SPRING, spri
 // delay: the selection ripple (depth-2 lights after depth-1); quick: no selection, so state changes run on fast.
 // enter / exit: a node that appears / disappears during a relayout tween. unfold: the entrance offset (dot starts
 // there, relative to its layout point) and its start delay.
-type DotData = { node: DocNode; size: number; box: number; dim: boolean; active: boolean; match: boolean; changed: boolean; hue: string; hideLabel: boolean; delay: number; quick: boolean; enter?: boolean; exit?: boolean; unfold?: { x: number; y: number; wait: number } }
+type DotData = { node: DocNode; size: number; box: number; dim: boolean; lit: boolean; active: boolean; match: boolean; changed: boolean; hue: string; hideLabel: boolean; delay: number; quick: boolean; enter?: boolean; exit?: boolean; unfold?: { x: number; y: number; wait: number } }
 type DotNode = Node<DotData, "dot">
 type LinkEdge = Edge
 type GraphState = { node: string | null; focus: 0 | 1 | 2; kinds: DocNodeKind[]; q: string }
@@ -56,20 +56,32 @@ const LABEL_H = 17
 const LABEL_GAP = 4
 // ponytail: above this many nodes only the ones on screen render (same knob as MemoryGraph)
 const VIRTUALIZE_OVER = 150
-// a fitted big graph is unreadable; fit no further out than this and let the user pan
-const FIT_MIN_ZOOM = 0.35
+// a fitted big graph is unreadable; fit no further out than this and let the user pan. 0.5 is also the floor that keeps
+// every hit area ≥ 24 screen px (HIT / zoom, capped at HIT_MAX)
+const FIT_MIN_ZOOM = 0.5
 const FIT_OPTIONS = { padding: 0.1, minZoom: FIT_MIN_ZOOM, maxZoom: 1 }
 // how long a live update marks the nodes it touched (data-changed, for the update flash)
 const CHANGED_MS = 1500
 const EMPTY_GRAPH: Graph = { nodes: [], edges: [], broken: [], stale: [], targets: {} }
 const NONE = new Set<string>()
 const SEP = "\u0000"
-// below this zoom only the selected / matching labels show, once the graph is big enough to get noisy
-const LABEL_ZOOM = 0.6
-const LABEL_NODES_OVER = 40
+// A label shows only while it renders ≥ LABEL_PX on screen (11px × zoom). Below that only the selected file, search
+// matches and the lit neighbourhood keep theirs, counter-scaled back to LABEL_PX on a surface chip.
+const LABEL_FONT = 11
+const LABEL_PX = 9
+const LABEL_MIN_ZOOM = LABEL_PX / LABEL_FONT
+// the chip's scale for the collision pass, in quarter steps so a zoom gesture re-runs it only a few times
+const labelScaleOf = (zoom: number) => (zoom >= LABEL_MIN_ZOOM ? 1 : Math.ceil((LABEL_MIN_ZOOM / zoom) * 4) / 4)
+// a chip's px-1 on both sides
+const CHIP_PAD = 8
 const CENTER = { left: "50%", top: "50%", transform: "translate(-50%, -50%)" }
-// every node is at least this big to hit (WCAG 2.5.8), however small its dot
+// every node is at least this big to hit (WCAG 2.5.8) in *screen* px, however small its dot or the zoom: an invisible
+// pad of HIT / zoom flow px, capped at the layout's minimum node distance so neighbours never steal each other's clicks
 const HIT = 24
+const HIT_MAX = 48
+// search framing: half a typical label's width beside the outermost matches
+const MATCH_PAD_X = 72
+const HIT_PAD = `min(${HIT_MAX}px, max(100%, calc(${HIT}px / var(--graph-zoom, 1))))`
 const KIND_NAME: Record<DocNodeKind, string> = { doc: "Doc", adr: "ADR", task: "Task", epic: "Epic", entry: "Entry" }
 const LEGEND_STATUSES: TaskStatus[] = ["in-progress", "blocked", "done"]
 // relayout: positions and camera glide together (the roadmap Arrange tween is 420ms too)
@@ -99,7 +111,7 @@ const DRAG_PX = 4
 const EDGE_HOVER = "var(--color-muted)"
 const still = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
 const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"])
-const HINT = "Tab moves between files. Enter selects a file; Enter again or O opens it. Arrow keys move to the nearest linked file. Escape clears the search, then the selection. Slash jumps to search."
+const HINT = "Tab moves between files, then the unlinked ones below the map. Enter selects a file; Enter again or O opens it. Arrow keys move to the nearest linked file. Escape clears the search, then the selection. Slash jumps to search; Enter there frames every match, then steps through them (Shift+Enter goes back)."
 const ARIA_LABELS = { "node.a11yDescription.default": HINT }
 
 function subscribeTheme(cb: () => void) {
@@ -155,7 +167,7 @@ function Shape({ kind, size, className }: { kind: DocNodeKind; size: number; cla
 
 /** A shape sized by degree, centred on its layout point; the label hangs below and never takes clicks. */
 const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
-  const { node, size, box, dim, active, match, changed, hue, hideLabel, delay, quick, enter, exit, unfold } = data
+  const { node, size, box, dim, lit, active, match, changed, hue, hideLabel, delay, quick, enter, exit, unfold } = data
   // The React Flow wrapper (.react-flow__node) takes focus; the halo goes on the dot and the label
   return (
     <div
@@ -164,6 +176,8 @@ const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
       style={{ width: box, height: box, ...(unfold && ({ "--ux": `${unfold.x}px`, "--uy": `${unfold.y}px`, animationDelay: `${unfold.wait}ms` } as React.CSSProperties)) }}
       className={cn("relative flex items-center justify-center", enter && "animate-node-in", exit && "animate-node-out", unfold && "graph-node-unfold")}
     >
+      {/* the hit pad: ≥ HIT screen px at any zoom ≥ FIT_MIN_ZOOM; clicks on it bubble to the node */}
+      <span data-hit aria-hidden style={{ width: HIT_PAD, height: HIT_PAD }} className="absolute top-1/2 left-1/2 -translate-1/2" />
       {/* live ping: two rings spread from a dot an update touched (outside the dot, so dimming doesn't eat them) */}
       {changed && [0, 1].map((i) => <span key={i} aria-hidden style={{ width: size, height: size }} className={cn("graph-ping", i && "graph-ping-2")} />)}
       <div
@@ -182,11 +196,19 @@ const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
         <Handle type="target" position={Position.Top} isConnectable={false} style={CENTER} className="opacity-0" />
         <span
           className={cn(
-            "pointer-events-none absolute top-full left-1/2 mt-1 max-w-48 -translate-x-1/2 truncate text-[11px] whitespace-nowrap",
-            // the zoom threshold fades labels out rather than snapping them
-            "transition-opacity duration-(--duration-base) ease-out-soft",
-            active || match ? "font-medium text-txt" : cn("text-muted group-data-[far=true]/graph:opacity-0", hideLabel && "hidden"),
-            "rounded-sm in-[[data-id]:focus-visible]:block! in-[[data-id]:focus-visible]:opacity-100! in-[[data-id]:focus-visible]:bg-surface in-[[data-id]:focus-visible]:px-1 in-[[data-id]:focus-visible]:text-txt in-[[data-id]:focus-visible]:ring-1 in-[[data-id]:focus-visible]:ring-accent/60 in-[[data-id]:focus-visible]:shadow-[0_0_0_3px_rgb(var(--rgb-accent)/0.15)]",
+            "pointer-events-none absolute top-full left-1/2 mt-1 max-w-48 origin-top -translate-x-1/2 truncate rounded-sm text-[11px] whitespace-nowrap",
+            // the zoom threshold and collisions fade labels rather than snapping them
+            "transition-[opacity,background-color] duration-(--duration-base) ease-out-soft",
+            active || match ? "font-medium text-txt" : "text-muted",
+            // below the readable zoom only the selected file, matches and the lit neighbourhood keep a label: scaled back
+            // up to LABEL_PX on a surface chip
+            active || match || lit
+              ? "group-data-[far=true]/graph:scale-(--label-k) group-data-[far=true]/graph:bg-surface group-data-[far=true]/graph:px-1"
+              : "group-data-[far=true]/graph:opacity-0",
+            hideLabel && "opacity-0",
+            // a keyboard-focused file's label shows too, readable at any zoom
+            "group-data-[far=true]/graph:in-[[data-id]:focus-visible]:scale-(--label-k)",
+            "in-[[data-id]:focus-visible]:opacity-100! in-[[data-id]:focus-visible]:bg-surface in-[[data-id]:focus-visible]:px-1 in-[[data-id]:focus-visible]:text-txt in-[[data-id]:focus-visible]:ring-1 in-[[data-id]:focus-visible]:ring-accent/60 in-[[data-id]:focus-visible]:shadow-[0_0_0_3px_rgb(var(--rgb-accent)/0.15)]",
           )}
         >
           {node.kind !== "doc" && <span className="mr-1 font-mono text-[10px]">{node.id}</span>}
@@ -221,7 +243,8 @@ export function DocGraph() {
   const last = useRef<{ root: string; graph: Graph } | null>(null)
   const gen = useLinkGeneration()
   const [rf, setRf] = useState<ReactFlowInstance<DotNode, LinkEdge> | null>(null)
-  const [far, setFar] = useState(false)
+  // the label chip scale bucket (1 = labels readable as drawn); the exact zoom goes to CSS vars, never to React state
+  const [labelK, setLabelK] = useState(1)
   const [legendOpen, setLegendOpen] = useState(false)
   // the last selected file: the card keeps showing it while it fades out
   const [cardNode, setCardNode] = useState<DocNode | undefined>(undefined)
@@ -300,7 +323,10 @@ export function DocGraph() {
     nodes: idsKey ? idsKey.split(SEP).map((id) => ({ id })) : [],
     edges: edgesKey ? edgesKey.split("\n").map((k) => { const [from, to] = k.split(SEP); return { from, to } }) : [],
   }), [idsKey, edgesKey])
+  // only linked files get a position; the rest (no visible link) sit on the Unlinked shelf, so they never stretch the fit
   const pos = useMemo(() => forceLayout(layoutInput.nodes, layoutInput.edges), [layoutInput])
+  const flowOrder = useMemo(() => order.filter((p) => pos[p]), [order, pos])
+  const unlinked = useMemo(() => order.filter((p) => !pos[p]), [order, pos])
 
   // Entrance on mount and on Fit (never on a live refresh): a run id while the unfold classes are on, null after.
   const [unfolding, setUnfolding] = useState<number | null>(null)
@@ -319,6 +345,13 @@ export function DocGraph() {
   // Fit on first load, on a filter / focus change, or when the visible set grows or shrinks; never once the user
   // has panned or zoomed (until the filter / focus changes or they press Fit)
   const userMoved = useRef(false)
+  /** The exact zoom to CSS (hit pads, label chips); the coarse label bucket to state, for the collision pass. */
+  const applyZoom = useCallback((zoom: number) => {
+    const el = rootRef.current
+    el?.style.setProperty("--graph-zoom", String(zoom))
+    el?.style.setProperty("--label-k", String(Math.max(1, LABEL_MIN_ZOOM / zoom)))
+    setLabelK(labelScaleOf(zoom))
+  }, [])
   // the canvas stays invisible until the first fit lands, so the unfold starts from the final camera, not a jump
   const [veiled, setVeiled] = useState(true)
   const firstFit = useRef(true)
@@ -337,6 +370,7 @@ export function DocGraph() {
       const vp = getViewportForBounds(bounds, el.clientWidth, el.clientHeight, FIT_MIN_ZOOM, FIT_OPTIONS.maxZoom, FIT_OPTIONS.padding)
       const first = firstFit.current
       firstFit.current = false
+      applyZoom(vp.zoom)
       void rf.setViewport(vp, { duration: first || still() ? 0 : TWEEN_MS, ease: easeOut })
       if (first) {
         setVeiled(false)
@@ -344,12 +378,12 @@ export function DocGraph() {
       }
     })
     return () => cancelAnimationFrame(id)
-  }, [rf, pos, viewKey, unfold])
+  }, [rf, pos, viewKey, unfold, applyZoom])
 
   const q = state.q.trim().toLowerCase()
   const matches = useMemo(
-    () => (q && visible ? visible.paths.filter((p) => { const n = byPath.get(p); return !!n && (n.label.toLowerCase().includes(q) || n.path.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)) }) : []),
-    [q, visible, byPath],
+    () => (q ? order.filter((p) => { const n = byPath.get(p); return !!n && (n.label.toLowerCase().includes(q) || n.path.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)) }) : []),
+    [q, order, byPath],
   )
 
   const { base, edges } = useMemo(() => {
@@ -368,16 +402,19 @@ export function DocGraph() {
     const keep = new Set([...(selected ? [selected] : []), ...matches])
     const rank = (p: string) => (keep.has(p) ? 2 : lit?.has(p) ? 1 : 0)
     const measure = typeof document === "undefined" ? null : labelMeasurer()
+    // zoomed out, only the always-shown labels compete, at their chip's size; other dots are obstacles too
+    const far = labelK > 1
     const boxes: LabelBox[] = measure
-      ? order.slice().sort((a, b) => rank(b) - rank(a) || (degree.get(b) ?? 0) - (degree.get(a) ?? 0)).map((p) => {
-          const at = pos[p] ?? { x: 0, y: 0 }
-          const w = measure(byPath.get(p)!)
-          return { id: p, x: at.x - w / 2, y: at.y + sizeOf(p) / 2 + LABEL_GAP, w, h: LABEL_H }
+      ? flowOrder.filter((p) => !far || rank(p) > 0).sort((a, b) => rank(b) - rank(a) || (degree.get(b) ?? 0) - (degree.get(a) ?? 0)).map((p) => {
+          const at = pos[p]
+          const w = (measure(byPath.get(p)!) + (far ? CHIP_PAD : 0)) * labelK
+          return { id: p, x: at.x - w / 2, y: at.y + sizeOf(p) / 2 + LABEL_GAP, w, h: LABEL_H * labelK }
         })
       : []
-    const hideLabel = hiddenLabels(boxes, keep)
+    const dots: LabelBox[] = flowOrder.map((p) => { const r = sizeOf(p) / 2; return { id: p, x: pos[p].x - r, y: pos[p].y - r, w: 2 * r, h: 2 * r } })
+    const hideLabel = hiddenLabels(boxes, keep, dots)
     // DOM order = tab order, so nodes go in label order
-    const nodes: DotNode[] = order.map((p) => {
+    const nodes: DotNode[] = flowOrder.map((p) => {
       const size = sizeOf(p)
       const box = Math.max(size, HIT)
       const at = pos[p] ?? { x: 0, y: 0 }
@@ -393,7 +430,7 @@ export function DocGraph() {
         // instead of React Flow hiding it, and its edges, until it re-measures
         measured: { width: box, height: box },
         ariaLabel: `${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}`,
-        data: { node: n, size, box, dim: !!lit && !lit.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hideLabel: hideLabel.has(p), delay: delayOf(p), quick },
+        data: { node: n, size, box, dim: !!lit && !lit.has(p), lit: !!lit?.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hideLabel: hideLabel.has(p), delay: delayOf(p), quick },
         draggable: true,
       }
     })
@@ -420,7 +457,7 @@ export function DocGraph() {
       }
     })
     return { base: nodes, edges }
-  }, [visible, order, adj, pos, byPath, selected, state.focus, q, matches, changed, statusDefs])
+  }, [visible, flowOrder, adj, pos, byPath, selected, state.focus, q, matches, changed, statusDefs, labelK])
 
   // Relayout tween (filter / focus / data change): dots glide from where they are drawn to the new layout, new ones
   // scale in at their target, removed ones fade out. A new relayout mid-tween starts from the interpolated positions.
@@ -610,22 +647,53 @@ export function DocGraph() {
   }, [state.q, selected, update])
 
   const select = (p: string | null) => update({ node: p })
-  /** Keyboard focus to a node; one that's off screen (not rendered when virtualized) is centred first. */
+  const shelfItem = (p: string) => rootRef.current?.querySelector<HTMLElement>(`[data-shelf] [data-path="${CSS.escape(p)}"]`)
+  /** Keyboard focus to a node; one that's off screen (not rendered when virtualized) is centred first; an unlinked one is on the shelf. */
   const focusNode = (p: string) => {
     const find = () => rootRef.current?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(p)}"]`)
-    const el = find()
-    if (el) return el.focus({ preventScroll: true })
+    const el = find() ?? shelfItem(p)
+    if (el) return el.focus({ preventScroll: !!pos[p] })
     const at = pos[p]
     if (!rf || !at) return
     userMoved.current = true
     void rf.setCenter(at.x, at.y, { zoom: rf.getZoom() }).then(() => requestAnimationFrame(() => find()?.focus({ preventScroll: true })))
   }
-  const pick = (p: string) => {
+  /** Select and centre a file; `focus` moves keyboard focus to it (search cycling keeps it in the search box). */
+  const pick = (p: string, focus = true) => {
     select(p)
     const at = pos[p]
-    if (!rf || !at) return focusNode(p)
+    if (!rf || !at) return focus ? focusNode(p) : shelfItem(p)?.scrollIntoView({ block: "nearest", inline: "nearest" })
     userMoved.current = true
-    void rf.setCenter(at.x, at.y, { zoom: Math.max(rf.getZoom(), 1), duration: still() ? 0 : TWEEN_MS, ease: easeOut }).then(() => focusNode(p))
+    void rf.setCenter(at.x, at.y, { zoom: Math.max(rf.getZoom(), 1), duration: still() ? 0 : TWEEN_MS, ease: easeOut }).then(() => { if (focus) focusNode(p) })
+  }
+  // Search Enter: the first frames every match, the next ones step through them (Shift+Enter back). i -1 = framed.
+  const [cursor, setCursor] = useState<{ q: string; i: number } | null>(null)
+  const step = cursor?.q === q ? cursor.i : null
+  /** Camera to the bounds of every match on the map; when none is on the map, the first shelf match takes focus. */
+  const frame = (ps: string[]) => {
+    const pts = ps.flatMap((p) => (pos[p] ? [pos[p]] : []))
+    const el = rootRef.current?.querySelector<HTMLElement>(".react-flow")
+    if (!pts.length) return shelfItem(ps[0])?.scrollIntoView({ block: "nearest", inline: "nearest" })
+    if (!rf || !el) return
+    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y)
+    // room for the labels: half a typical one beside the outer dots, one line under the lowest
+    const x = Math.min(...xs) - MATCH_PAD_X, y = Math.min(...ys) - HIT
+    const bounds = { x, y, width: Math.max(...xs) + MATCH_PAD_X - x, height: Math.max(...ys) + HIT + LABEL_H - y }
+    userMoved.current = true
+    void rf.setViewport(getViewportForBounds(bounds, el.clientWidth, el.clientHeight, 0.1, FIT_OPTIONS.maxZoom, FIT_OPTIONS.padding), { duration: still() ? 0 : TWEEN_MS, ease: easeOut })
+  }
+  const onSearchKey = (e: React.KeyboardEvent) => {
+    if (e.key !== "Enter" || !matches.length) return
+    e.preventDefault()
+    // one match: select it and move there, as before
+    if (matches.length === 1) return pick(matches[0])
+    if (step === null) {
+      setCursor({ q, i: -1 })
+      return frame(matches)
+    }
+    const i = e.shiftKey ? (step <= 0 ? matches.length - 1 : step - 1) : (step + 1) % matches.length
+    setCursor({ q, i })
+    pick(matches[i], false)
   }
   // Keys on a focused node (React Flow's wrapper div carries data-id)
   const onNodeKey = (e: React.KeyboardEvent) => {
@@ -639,7 +707,7 @@ export function DocGraph() {
     } else if (e.key === " ") select(id)
     else if (e.key === "o") open(n)
     else if (ARROWS.has(e.key)) {
-      const to = stepFocus(id, e.key as ArrowKey, pos, adj.get(id) ?? [], order)
+      const to = stepFocus(id, e.key as ArrowKey, pos, adj.get(id) ?? [], flowOrder)
       if (to) focusNode(to)
     } else return
     e.preventDefault()
@@ -728,22 +796,18 @@ export function DocGraph() {
             aria-label="Find a file in the graph"
             aria-describedby="graph-matches"
             onChange={(e) => update({ q: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key !== "Enter" || !matches[0]) return
-              e.preventDefault()
-              pick(matches[0])
-            }}
-            className="h-7 w-44 rounded-md border border-border bg-surface pr-14 2xl:w-48 pl-7 text-xs text-txt outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-search-cancel-button]:hidden"
+            onKeyDown={onSearchKey}
+            className="h-7 w-44 rounded-md border border-border bg-surface pr-16 2xl:w-48 pl-7 text-xs text-txt outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-search-cancel-button]:hidden"
           />
           {/* the count sits inside the input's reserved right padding, so it never shifts the toolbar */}
           <span id="graph-matches" className="pointer-events-none absolute right-2 font-mono text-[10px] text-muted tabular-nums">
-            {q ? `${matches.length} match${matches.length === 1 ? "" : "es"}` : ""}
+            {!q ? "" : step !== null && step >= 0 ? `${step + 1} of ${matches.length}` : `${matches.length} match${matches.length === 1 ? "" : "es"}`}
           </span>
         </label>
       </div>
 
       <div
-        data-far={far && nodes.length > LABEL_NODES_OVER}
+        data-far={labelK > 1}
         onKeyDown={onNodeKey}
         // keyboard focus pulls like hover (a click also focuses the node, so only :focus-visible counts)
         onFocus={(e) => { const t = e.target as HTMLElement; if (t.classList.contains("react-flow__node") && t.matches(":focus-visible")) magnet(t.dataset.id ?? null) }}
@@ -766,7 +830,7 @@ export function DocGraph() {
             className={cn(veiled && "opacity-0")}
             onInit={setRf}
             onMoveStart={(e) => { if (e) userMoved.current = true }}
-            onMove={(_, vp) => setFar(vp.zoom < LABEL_ZOOM)}
+            onMove={(_, vp) => applyZoom(vp.zoom)}
             onNodeClick={(_, n) => select(n.id)}
             onNodeDoubleClick={(_, n) => open(n.data.node)}
             onNodeMouseEnter={(_, n) => { if (!n.data.exit) magnet(n.id) }}
@@ -800,6 +864,48 @@ export function DocGraph() {
               className="gap-0.5 rounded-md border border-border bg-surface p-0.5 [&_button]:size-7 [&_button]:rounded-md [&_button]:transition-colors [&_button]:duration-(--duration-fast) [&_button]:outline-none [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-accent [&_svg]:max-h-3 [&_svg]:max-w-3"
             />
           </ReactFlow>
+        )}
+
+        {/* Unlinked shelf: files with no visible link, off the map so they never stretch the fit; after the map in tab order */}
+        {state.kinds.length > 0 && unlinked.length > 0 && (
+          <div
+            data-shelf
+            role="group"
+            aria-labelledby="graph-unlinked"
+            className="absolute right-3 bottom-3 left-14 z-10 flex items-center gap-1 overflow-x-auto rounded-md border border-border bg-surface p-1 md:left-auto md:max-w-[min(44rem,calc(100%-4.5rem))] md:flex-wrap md:overflow-x-visible md:max-h-17 md:overflow-y-auto"
+          >
+            <span id="graph-unlinked" className="sticky left-0 shrink-0 bg-surface px-1.5 font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">
+              Unlinked <span className="tabular-nums">{unlinked.length}</span>
+            </span>
+            {unlinked.map((p) => {
+              const n = byPath.get(p)!
+              const on = p === selected
+              const match = q ? matches.includes(p) : false
+              const dim = selected ? !on : !!q && !match
+              const hue = n.status ? STATUS_COLOR_CLASS[statusDefIn(statusDefs, n.status).color].text : "text-muted"
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  data-path={p}
+                  title={n.path}
+                  aria-pressed={on}
+                  aria-label={`${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, 0 links`}
+                  onClick={() => (on ? open(n) : select(p))}
+                  className={cn(
+                    "inline-flex h-6 max-w-48 shrink-0 items-center gap-1.5 rounded-sm px-1.5 text-[11px] outline-none",
+                    "transition-[opacity,background-color,color] duration-(--duration-fast) ease-out-soft hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent",
+                    on || match ? "font-medium text-txt ring-1 ring-accent" : "text-muted",
+                    dim && "opacity-25",
+                  )}
+                >
+                  <Shape kind={n.kind} size={n.kind === "task" ? 6 : 8} className={hue} />
+                  {n.kind !== "doc" && <span className="font-mono text-[10px]">{n.id}</span>}
+                  <span className="truncate">{n.label}</span>
+                </button>
+              )
+            })}
+          </div>
         )}
 
         <div aria-live="polite">

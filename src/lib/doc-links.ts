@@ -86,11 +86,15 @@ function plainText(md: string): string {
     .trim()
 }
 
-/** Classify a markdown file by path. Label = its H1 without the "ID: " prefix, else the file name. */
+/**
+ * Classify a markdown file by path. Label = its H1 without the "ID: " prefix, else the file name. An H1 that reads as
+ * a sentence (ends in . or !, like AGENTS.md's "See CLAUDE.md — this file mirrors it…") is prose, not a title.
+ */
 export function docNode(relPath: string, raw: string): DocNode {
   const p = normalizePath(relPath) ?? relPath
   const name = baseName(p)
-  const h1 = plainText(/^#\s+(.+?)\s*$/m.exec(raw)?.[1] ?? '')
+  const heading = plainText(/^#\s+(.+?)\s*$/m.exec(raw)?.[1] ?? '')
+  const h1 = /[^.][.!]$/.test(heading) ? '' : heading
   const label = (id: string) => h1.replace(new RegExp(`^${id}\\s*[:—–-]\\s*`), '') || name
   let m: RegExpExecArray | null
   if ((m = /^plans\/tasks\/(T\d{3,})[^/]*\.md$/.exec(p))) return { id: m[1], kind: 'task', label: label(m[1]), path: p }

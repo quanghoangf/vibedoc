@@ -23,8 +23,8 @@ function hash01(s: string): number {
 
 /**
  * Positions keyed by node id. Linked nodes pull together, everything repels, a weak pull to the centre keeps
- * disconnected components close, and nodes without edges form a ring outside the rest (Obsidian orphans).
- * The bounding box is centred on 0,0 and the average edge is ~`edgeLength` px; React Flow's fitView does the rest.
+ * disconnected components close. Nodes without edges get no position: /graph lists them on its Unlinked shelf, so
+ * they never stretch the fit. The bounding box is centred on 0,0 and the average edge is ~`edgeLength` px.
  */
 export function forceLayout(
   nodes: { id: string }[],
@@ -106,7 +106,7 @@ function simulate(
   return out
 
   /**
-   * Scale to the average edge length, push apart pairs closer than minDistance, ring the orphans, centre. Mutates.
+   * Scale to the average edge length, push apart pairs closer than minDistance, centre. Mutates.
    * ponytail: in-between frames get 4 push passes, not 50 (early ones are a scatter and 50 cost ~100ms on 200 nodes); they're in motion anyway.
    */
   function normalize(xs: number[], ys: number[], passes: number): Record<string, Point> {
@@ -130,26 +130,11 @@ function simulate(
       if (!moved) break
     }
 
-    // Orphans: an even ring outside the linked nodes' bounding circle, in id order.
-    const cx = n ? linked.reduce((s, i) => s + xs[i], 0) / n : 0
-    const cy = n ? linked.reduce((s, i) => s + ys[i], 0) / n : 0
-    const inner = linked.reduce((r, i) => Math.max(r, Math.hypot(xs[i] - cx, ys[i] - cy)), 0)
-    const orphans = ids.map((_, i) => i).filter(i => degree[i] === 0)
-    if (orphans.length) {
-      const fit = orphans.length > 1 ? minDistance / (2 * Math.sin(Math.PI / orphans.length)) : 0
-      const r = Math.max(n ? inner + edgeLength : 0, fit)
-      orphans.forEach((i, k) => {
-        const t = (2 * Math.PI * k) / orphans.length - Math.PI / 2
-        xs[i] = cx + r * Math.cos(t); ys[i] = cy + r * Math.sin(t)
-      })
-    }
-
     // Centre the bounding box on 0,0.
-    const all = ids.map((_, i) => i)
-    const midX = all.length ? (Math.min(...all.map(i => xs[i])) + Math.max(...all.map(i => xs[i]))) / 2 : 0
-    const midY = all.length ? (Math.min(...all.map(i => ys[i])) + Math.max(...all.map(i => ys[i]))) / 2 : 0
+    const midX = n ? (Math.min(...linked.map(i => xs[i])) + Math.max(...linked.map(i => xs[i]))) / 2 : 0
+    const midY = n ? (Math.min(...linked.map(i => ys[i])) + Math.max(...linked.map(i => ys[i]))) / 2 : 0
     const res: Record<string, Point> = {}
-    ids.forEach((id, i) => { res[id] = { x: Math.round((xs[i] - midX) * 100) / 100, y: Math.round((ys[i] - midY) * 100) / 100 } })
+    for (const i of linked) res[ids[i]] = { x: Math.round((xs[i] - midX) * 100) / 100, y: Math.round((ys[i] - midY) * 100) / 100 }
     return res
   }
 }
@@ -231,15 +216,16 @@ export type LabelBox = { id: string; x: number; y: number; w: number; h: number 
 
 /**
  * Greedy label collision pass: boxes come in priority order (selected, matches, then by degree); a label that
- * overlaps one already placed is hidden. `keep` ids are always placed. Flow coordinates, so it holds at any zoom.
+ * overlaps one already placed, or another node's dot (`dots`, keyed by node id), is hidden. `keep` ids are always
+ * placed. Flow coordinates, so it holds at any zoom.
  * ponytail: O(n²) over visible labels (~200 here); a grid bucket if graphs reach thousands of labels.
  */
-export function hiddenLabels(boxes: LabelBox[], keep: Set<string> = new Set()): Set<string> {
+export function hiddenLabels(boxes: LabelBox[], keep: Set<string> = new Set(), dots: LabelBox[] = []): Set<string> {
   const placed: LabelBox[] = []
   const hidden = new Set<string>()
   const hit = (a: LabelBox, b: LabelBox) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
   for (const b of boxes) {
-    if (!keep.has(b.id) && placed.some((p) => hit(p, b))) hidden.add(b.id)
+    if (!keep.has(b.id) && (placed.some((p) => hit(p, b)) || dots.some((d) => d.id !== b.id && hit(d, b)))) hidden.add(b.id)
     else placed.push(b)
   }
   return hidden

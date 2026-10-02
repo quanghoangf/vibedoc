@@ -10,6 +10,8 @@
 //   4. /graph: "2 broken · 1 stale path" opens a list; the far-away.md row opens long.md with the link in view.
 //   5. /graph from the keyboard: `/` focuses search, Tab reaches a node, Enter selects it, Enter again opens it;
 //      Esc clears the selection.
+//   5b. /graph: a file with no links sits on the Unlinked shelf (click selects it); search Enter frames the matches,
+//       Enter / Shift+Enter step through them ("1 of 5"); every dot has a ≥ 24px hit pad.
 //   6. /graph after a pan: an agent moving T001 pings its node and leaves the camera where the user put it.
 //   7. vibedoc_read_doc on a.md ends with a "## Related files" footer (b, c, T001, Broken missing.md,
 //      Stale paths docs/gone.md).
@@ -184,6 +186,41 @@ try {
   await page.waitForURL(/\/docs/)
   await page.locator("h1", { hasText: "Alpha" }).first().waitFor()
   console.log("ok  /graph by keyboard: / focuses search, Tab reaches Alpha, Enter selects, Esc clears, Enter twice opens")
+
+  // 5b. Unlinked shelf, search cycling and hit pads: long.md (no doc links) sits on the shelf, not the map; search Enter
+  //     frames every match, Enter again steps through them in label order (Shift+Enter back) and keeps focus in search
+  await page.goto(`${BASE}/graph`)
+  await node("docs/a.md").waitFor()
+  const shelf = page.locator("[data-shelf]")
+  await shelf.getByText("Unlinked 1").waitFor()
+  assert.equal(await node("docs/long.md").count(), 0, "an unlinked file is not on the map")
+  await page.waitForFunction(() => !document.querySelector(".graph-node-unfold")) // the entrance scales dots
+  for (const p of ["docs/a.md", "docs/c.md"]) {
+    const hit = await node(p).locator("[data-hit]").boundingBox()
+    assert.ok(hit.width >= 23.9 && hit.height >= 23.9, `${p} hit pad ${hit.width}×${hit.height}`)
+  }
+  await shelf.getByRole("button", { name: "Doc Long, 0 links" }).click()
+  await page.waitForURL(/node=docs%2Flong\.md/)
+  await sel.getByText("docs/long.md").waitFor()
+  await page.keyboard.press("Escape")
+  await page.waitForURL((u) => !u.searchParams.has("node"))
+  await page.fill("#graph-search", "docs/")
+  const count = page.locator("#graph-matches")
+  await count.getByText("5 matches").waitFor()
+  await page.press("#graph-search", "Enter")
+  await page.waitForTimeout(500)
+  assert.equal(await count.innerText(), "5 matches", "the first Enter frames, it doesn't select")
+  await page.press("#graph-search", "Enter")
+  await page.waitForURL(/node=docs%2Fa\.md/)
+  await count.getByText("1 of 5").waitFor()
+  await page.press("#graph-search", "Enter")
+  await page.waitForURL(/node=docs%2Fsub%2Fb\.md/)
+  await count.getByText("2 of 5").waitFor()
+  await page.press("#graph-search", "Shift+Enter")
+  await page.waitForURL(/node=docs%2Fa\.md/)
+  await count.getByText("1 of 5").waitFor()
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "graph-search")
+  console.log("ok  /graph: long.md on the Unlinked shelf; search Enter frames, then steps 1 of 5 → 2 of 5 → back; hit pads ≥ 24px")
 
   // 6. A live change after the user zoomed: the changed node flashes, the camera stays put
   await page.goto(`${BASE}/graph?kinds=doc,task`)

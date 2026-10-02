@@ -86,6 +86,13 @@ assert.deepEqual(docNode('plans/tasks/T093-x.md', '# T093: Doc links\n'), { id: 
 assert.equal(docNode('CHANGELOG.md', '# [1.10.0](https://github.com/x/y/compare/v1.9.0...v1.10.0) (2026-09-30)\n').label, '1.10.0 (2026-09-30)')
 assert.equal(docNode('docs/a.md', '# The **bold** `code` and _em_ [[HLD|design]] snake_case_name\n').label, 'The bold code and em design snake_case_name')
 assert.deepEqual(docNode('docs/HLD.md', 'no heading'), { id: 'docs/HLD.md', kind: 'doc', label: 'HLD', path: 'docs/HLD.md' })
+// a sentence H1 is prose, not a title: the file name instead; a question, a dash or a trailing ellipsis stays a title
+assert.equal(docNode('AGENTS.md', '# See CLAUDE.md — this file mirrors it for cross-tool compatibility (Cursor, Windsurf, Copilot Workspace).\n').label, 'AGENTS')
+assert.equal(docNode('docs/q.md', '# Why not a database?\n').label, 'Why not a database?')
+assert.equal(docNode('plans/tasks/T001-x.md', '# T001: Fix it now!\n').label, 'T001-x')
+assert.equal(docNode('CLAUDE.md', '# VibeDoc — Agent Instructions\n').label, 'VibeDoc — Agent Instructions')
+assert.equal(docNode('docs/w.md', '# Wait...\n').label, 'Wait...')
+assert.equal(docNode('docs/v.md', '# v1.2\n').label, 'v1.2')
 
 // buildDocGraph: edges, dedupe (first line wins), self-links, broken
 const item = (path: string, text: string): DocItem => ({ node: docNode(path, text), links: extractLinks(text, path) })
