@@ -43,6 +43,22 @@ function linkContext(line: string, text: string, heading: string): string {
   return (/[A-Za-z]{3}/.test(rest.replace(text, '')) ? rest : heading).slice(0, 200)
 }
 
+/**
+ * A target written as a template, never a file: `<slug>`, `{id}`, globs, `…` / `...`, and `T00N` / `NNN` / `XXX` /
+ * `YYYY` tokens (`plans/tasks/T<NNN>-<slug>.md`, `docs/meetings/YYYY-MM-DD.md`). Skipped at extraction.
+ */
+const PLACEHOLDER_RE = /[<>{}*?…]|\.\.\.|(?:^|[^A-Za-z0-9])(?:[A-Z]?0+N|N{2,}|X{3,}|YYYY)(?![A-Za-z0-9])/
+/**
+ * Names that teach link syntax in specs (`[text](path.md)`, `[[name]]`, `[[wikilinks]]`, `docs/a/x.md`, `T001-x.md`):
+ * the file name, or its last `-` part, is one of these. Only ever drops a miss, so a real `x.md` still links.
+ * `missing` is deliberately not here: e2e fixtures use it for a real broken link.
+ */
+const EXAMPLE_NAMES = new Set(['a', 'b', 'c', 'x', 'y', 'z', 'path', 'name', 'slug', 'title', 'foo', 'bar', 'wikilinks', 'example'])
+export function isExampleTarget(target: string): boolean {
+  const name = (target.split('/').pop() ?? '').replace(/\.md$/i, '').toLowerCase()
+  return EXAMPLE_NAMES.has(name) || EXAMPLE_NAMES.has(name.split('-').pop() ?? '')
+}
+
 const WIKI_RE = /\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g
 const EXTERNAL_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i
 
@@ -122,15 +138,15 @@ export function extractLinks(raw: string, _fromPath?: string): DocLink[] {
     for (const m of prose.matchAll(LINK_MD_RE)) {
       // text from the original line (same offsets): [`code`](x.md) keeps its label
       const text = l.slice(m.index + 1, m.index + 1 + m[1].length)
-      if (!EXTERNAL_RE.test(m[2])) links.push({ target: decode(m[2]), kind: 'md', line, text: text || m[2] })
+      if (!EXTERNAL_RE.test(m[2]) && !PLACEHOLDER_RE.test(m[2])) links.push({ target: decode(m[2]), kind: 'md', line, text: text || m[2] })
     }
     for (const m of prose.matchAll(WIKI_RE)) {
       const target = decode(m[1].trim())
-      if (target && !EXTERNAL_RE.test(target)) links.push({ target, kind: 'wiki', line, text: (m[2] ?? target).trim() })
+      if (target && !EXTERNAL_RE.test(target) && !PLACEHOLDER_RE.test(target)) links.push({ target, kind: 'wiki', line, text: (m[2] ?? target).trim() })
     }
     for (const m of l.matchAll(BACKTICK_MD_RE)) {
-      // a glob (`memory/entries/E*.md`) names a pattern, not a file
-      if (!EXTERNAL_RE.test(m[1]) && !/[*?{}]/.test(m[1])) links.push({ target: decode(m[1]), kind: 'code', line, text: m[1] })
+      // a glob (`memory/entries/E*.md`) or a template (`E001-<slug>.md`) names a pattern, not a file
+      if (!EXTERNAL_RE.test(m[1]) && !PLACEHOLDER_RE.test(m[1])) links.push({ target: decode(m[1]), kind: 'code', line, text: m[1] })
     }
     for (const m of l.matchAll(ID_RE)) {
       if (/^E0+$/.test(m[1])) continue // E0 is not an entry id
@@ -163,12 +179,20 @@ function indexOf(allPaths: readonly string[]): PathIndex {
   return idx
 }
 
+/** Files named exactly `t` (case-insensitive, `.md` added when missing), anywhere in the repo. */
+function bareHits(t: string, idx: PathIndex): string[] {
+  const file = (/\.md$/i.test(t) ? t : `${t}.md`).toLowerCase()
+  return (idx.byBase.get(baseName(file)) ?? []).filter(p => (p.split('/').pop() ?? '').toLowerCase() === file)
+}
+
 /**
  * The file a link points at, or null (broken). Paths: relative to the source folder, then root-relative.
  * An explicit `./` or `../` never falls back to the root. Wikilinks: by basename without `.md`, same folder first,
  * then the shortest path; [[T093]] / [[E1]] go to the item's file first. Ids: the item's file.
  * `target` is taken as written, already decoded (extractLinks decodes).
  * `kind` is inferred when left out: an id token → id, no `.md` → wiki, else a path.
+ * Paths: a leading `@` (Claude include, `@docs/HLD.md`) is dropped. A backticked bare name (`MEMORY.md`) that is in
+ * neither folder resolves when exactly one file in the repo has that name; an md link never does.
  */
 export function resolveLink(target: string, fromPath: string, allPaths: readonly string[], kind?: LinkKind): string | null {
   const idx = indexOf(allPaths)
@@ -179,7 +203,7 @@ export function resolveLink(target: string, fromPath: string, allPaths: readonly
     const byId = idx.byId.get(normalizeId(target))
     if (byId) return byId
   }
-  const t = target
+  const t = k === 'wiki' ? target : target.replace(/^@(?=[^/@])/, '')
   const explicitRel = /^\.\.?\//.test(t)
   const from = normalizePath(fromPath) ?? fromPath
   const tryPath = (p: string) => {
@@ -193,7 +217,11 @@ export function resolveLink(target: string, fromPath: string, allPaths: readonly
     }
     return null
   }
-  if (k !== 'wiki') return tryPath(t)
+  if (k !== 'wiki') {
+    // a link must work as written (it does on GitHub too); a backticked mention only has to name the file
+    const hits = k !== 'code' || t.includes('/') ? [] : bareHits(t, idx)
+    return tryPath(t) ?? (hits.length === 1 ? hits[0] : null)
+  }
 
   // wikilink: an exact path first ([[docs/HLD]]), then by basename
   const exact = t.includes('/') ? tryPath(t) : null
@@ -210,9 +238,14 @@ export function resolveLink(target: string, fromPath: string, allPaths: readonly
 /**
  * Resolve every item's links. One edge per from→to pair (first line wins), self-links dropped. Misses: md / wiki
  * links → broken, backticked paths → stale (a mention of a moved or planned file, not a link).
+ * Not misses: a target that exists among `otherPaths` (files outside the graph, e.g. `.claude/**`; no node, no edge),
+ * a backticked bare name several files share (it exists, just not one file), and a syntax example (`isExampleTarget`).
  */
-export function buildDocGraph(items: DocItem[]): DocGraph {
+export function buildDocGraph(items: DocItem[], otherPaths: readonly string[] = []): DocGraph {
   const allPaths = items.map(i => i.node.path)
+  const known = [...allPaths, ...otherPaths]
+  const exists = (l: DocLink, from: string) => resolveLink(l.target, from, known, l.kind) !== null
+    || (l.kind === 'code' && !l.target.includes('/') && bareHits(l.target, indexOf(known)).length > 0)
   const edges = new Map<string, DocEdge>()
   const broken = new Map<string, BrokenLink>()
   const stale = new Map<string, BrokenLink>()
@@ -224,7 +257,7 @@ export function buildDocGraph(items: DocItem[]): DocGraph {
       if (to === node.path) continue
       if (to === null) {
         // an id with no file (T999, a typo) is just text, not a broken link
-        if (l.kind === 'id') continue
+        if (l.kind === 'id' || isExampleTarget(l.target) || exists(l, node.path)) continue
         const key = `${node.path}\u0000${l.target}`
         const misses = l.kind === 'code' ? stale : broken
         if (!misses.has(key)) misses.set(key, { from: node.path, target: l.target, line: l.line, text: l.text, kind: l.kind })

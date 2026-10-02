@@ -4,11 +4,11 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExterna
 import { useRouter, useSearchParams } from "next/navigation"
 import { Background, BackgroundVariant, Controls, getViewportForBounds, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
-import { FileQuestion, Info, Search, Unlink, X } from "lucide-react"
+import { Info, Search, Unlink, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { KIND_ICON, useOpenNode } from "@/components/memory/EntryRelated"
 import { fetchLinkJson, useLinkGeneration } from "@/components/docs/useDocLinks"
 import type { BrokenLink, DocGraph as Graph, DocNode, DocNodeKind } from "@/lib/doc-links"
@@ -789,9 +789,9 @@ export function DocGraph() {
             {LEGEND_STATUSES.map((st) => <StatusIcon key={st} status={st} className="size-3" />)}
           </span>
         </p>
-        <MissingLinks broken={graph.broken} stale={graph.stale} />
-        {/* the misses button carries ml-auto; with none, the search does */}
-        <label className={cn("relative flex items-center", !graph.broken.length && !graph.stale.length && "ml-auto")}>
+        <MissingLinks broken={graph.broken} />
+        {/* the broken-links button carries ml-auto; with none, the search does */}
+        <label className={cn("relative flex items-center", !graph.broken.length && "ml-auto")}>
           <Search className="pointer-events-none absolute left-2 size-3.5 text-muted" aria-hidden />
           <input
             id="graph-search"
@@ -997,51 +997,55 @@ function dedupe<E extends { from: string; to: string }>(edges: E[]): E[] {
   })
 }
 
-const MISS_KIND: Record<string, string> = { md: "link", wiki: "wikilink", code: "path" }
+const MISS_KIND: Record<string, string> = { md: "link", wiki: "wikilink" }
+const MISS_FILES_SHOWN = 5
 
 /**
- * "N broken · M stale paths" (zero parts dropped) and the list behind it, grouped by file. Broken = md / wiki links
- * to no file; stale = backticked paths to missing files. A row opens the file at that spot (`openDoc` `?link=`).
+ * "N broken links" (hidden at 0) and the list behind it: md / wiki links to no file, grouped by file, most first; the
+ * first 5 files open, "Show all N files" for the rest. A row opens the file at that spot (`openDoc` `?link=`).
+ * Stale paths (backticked mentions) are a per-doc lint: /docs Linked docs and the MCP footer list them, not here.
  */
-function MissingLinks({ broken, stale }: { broken: BrokenLink[]; stale: BrokenLink[] }) {
+function MissingLinks({ broken }: { broken: BrokenLink[] }) {
   const { openDoc } = useApp()
-  if (!broken.length && !stale.length) return null
-  const byFile = (rows: BrokenLink[]) => {
-    const files = new Map<string, BrokenLink[]>()
-    for (const r of [...rows].sort((a, b) => a.from.localeCompare(b.from) || a.line - b.line)) files.set(r.from, [...(files.get(r.from) ?? []), r])
-    return [...files]
-  }
-  const section = (title: string, rows: BrokenLink[], Icon: typeof Unlink) => rows.length > 0 && (
-    <DropdownMenuGroup>
-      <DropdownMenuLabel className="flex items-center px-2 pt-2 pb-1 font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">
-        {title}<span className="ml-auto tabular-nums">{rows.length}</span>
-      </DropdownMenuLabel>
-      {byFile(rows).map(([file, items]) => (
-        <div key={file} role="group" aria-label={file}>
-          <p className="truncate px-2 pt-1.5 font-mono text-[11px] text-txt" title={file}>{file}</p>
-          {items.map((r) => (
-            <DropdownMenuItem key={`${r.target}:${r.line}`} onSelect={() => void openDoc(r.from, r.target)} className="gap-2 py-1 text-xs">
-              <Icon className="size-3.5 text-muted" aria-hidden />
-              <span className="min-w-0 truncate font-mono text-muted">{r.target}</span>
-              <span className="ml-auto shrink-0 text-[11px] text-muted">{MISS_KIND[r.kind] ?? r.kind}</span>
-              <span className="shrink-0 font-mono text-[11px] text-muted tabular-nums">L{r.line}</span>
-            </DropdownMenuItem>
-          ))}
-        </div>
-      ))}
-    </DropdownMenuGroup>
-  )
+  const [all, setAll] = useState(false)
+  if (!broken.length) return null
+  const byFile = new Map<string, BrokenLink[]>()
+  for (const r of [...broken].sort((a, b) => a.line - b.line)) byFile.set(r.from, [...(byFile.get(r.from) ?? []), r])
+  const files = [...byFile].sort(([a, ra], [b, rb]) => rb.length - ra.length || a.localeCompare(b))
+  const shown = all ? files : files.slice(0, MISS_FILES_SHOWN)
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => { if (!open) setAll(false) }}>
       <DropdownMenuTrigger className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent data-[state=open]:bg-surface2 data-[state=open]:text-txt">
-        {broken.length > 0 && <span><span className="font-mono tabular-nums">{broken.length}</span> broken</span>}
-        {broken.length > 0 && stale.length > 0 && <span>·</span>}
-        {stale.length > 0 && <span><span className="font-mono tabular-nums">{stale.length}</span> stale<span className="max-2xl:sr-only"> path{stale.length === 1 ? "" : "s"}</span></span>}
+        <span className="font-mono tabular-nums">{broken.length}</span> broken<span className="max-2xl:sr-only"> link{broken.length === 1 ? "" : "s"}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-[min(28rem,var(--radix-dropdown-menu-content-available-height))] w-[min(26rem,calc(100vw-2rem))]">
-        {section("Broken links", broken, Unlink)}
-        {broken.length > 0 && stale.length > 0 && <DropdownMenuSeparator />}
-        {section("Stale paths", stale, FileQuestion)}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="flex items-center px-2 pt-2 pb-1 font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">
+            Broken links<span className="ml-auto tabular-nums">{broken.length}</span>
+          </DropdownMenuLabel>
+          {shown.map(([file, items]) => (
+            <div key={file} role="group" aria-label={`${file}, ${items.length} broken`}>
+              <p className="flex items-baseline gap-2 px-2 pt-1.5 font-mono text-[11px] text-txt" title={file}>
+                <span className="min-w-0 truncate">{file}</span>
+                <span className="ml-auto shrink-0 text-muted tabular-nums">{items.length}</span>
+              </p>
+              {items.map((r) => (
+                <DropdownMenuItem key={`${r.target}:${r.line}`} onSelect={() => void openDoc(r.from, r.target)} className="gap-2 py-1 text-xs">
+                  <Unlink className="size-3.5 text-muted" aria-hidden />
+                  <span className="min-w-0 truncate font-mono text-muted">{r.target}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-muted">{MISS_KIND[r.kind] ?? r.kind}</span>
+                  <span className="shrink-0 font-mono text-[11px] text-muted tabular-nums">L{r.line}</span>
+                </DropdownMenuItem>
+              ))}
+            </div>
+          ))}
+          {/* an item, so arrow keys reach it; preventDefault keeps the menu open while it grows */}
+          {shown.length < files.length && (
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setAll(true) }} className="mt-1 py-1 text-xs text-muted">
+              Show all <span className="font-mono tabular-nums">{files.length}</span> files
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

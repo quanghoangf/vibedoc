@@ -193,7 +193,8 @@ function docTarget(a: Element): { raw: string; hash: string } | null {
   return { raw, hash: i < 0 ? "" : href.slice(i + 1) }
 }
 
-const isBroken = (links: DocLinksData, raw: string) => !links.targets[raw] && links.broken.some((b) => b.path === raw)
+// any doc link that resolves nowhere reads as broken here, including the syntax examples (`[[name]]`) the counts skip
+const isBroken = (links: DocLinksData, raw: string) => !links.targets[raw]
 const inlineCode = (root: ParentNode) => Array.from(root.querySelectorAll(":not(pre) > code"))
 
 /**

@@ -1588,7 +1588,7 @@ export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
 // ponytail: in-process cache only; a second VibeDoc process keeps its own. On globalThis so dev HMR keeps it.
 // Entries are keyed by mtime only, so bump DOC_GRAPH_CACHE_VERSION whenever docNode / extractLinks change what they
 // return: an HMR'd dev server would otherwise keep serving nodes built by the old code.
-const DOC_GRAPH_CACHE_VERSION = 2
+const DOC_GRAPH_CACHE_VERSION = 3
 const docGraphCache: Map<string, { mtimeMs: number; item: DocItem }> = (() => {
   const g = globalThis as { __vibedocDocGraphCache?: { v: number; map: Map<string, { mtimeMs: number; item: DocItem }> } }
   if (g.__vibedocDocGraphCache?.v !== DOC_GRAPH_CACHE_VERSION) g.__vibedocDocGraphCache = { v: DOC_GRAPH_CACHE_VERSION, map: new Map() }
@@ -1621,7 +1621,10 @@ export async function getDocGraph(root: string): Promise<DocGraph> {
   const live = new Set(files.map(keyOf))
   for (const key of docGraphCache.keys()) if (key.startsWith(`${root}\u0000`) && !live.has(key)) docGraphCache.delete(key)
   if (reread) console.log(`doc graph: read ${reread} of ${files.length} files`)
-  return buildDocGraph(items.filter((i): i is DocItem => !!i))
+  // .md files in dot folders (.claude/skills, .impeccable): not graph nodes, but a mention of one isn't stale
+  const hidden = (await glob('.*/**/*.md', { cwd: root, dot: true, ignore: ['.git/**', '.next/**', '**/node_modules/**'], nodir: true }))
+    .map(f => f.replace(/\\/g, '/'))
+  return buildDocGraph(items.filter((i): i is DocItem => !!i), hidden)
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────

@@ -7,7 +7,8 @@
 //   3. /graph: a, b, c (and d) with edges; clicking a selects it and dims the unrelated d → c edge; Open → /docs.
 //      Motion: a's lit edges are one solid line (no travelling glow); dragging d moves it, release springs it back to its layout point and
 //      the drag doesn't select it.
-//   4. /graph: "2 broken · 1 stale path" opens a list; the far-away.md row opens long.md with the link in view.
+//   4. /graph: "2 broken links" (no stale count: stale paths are a per-doc lint) opens a list grouped by file;
+//      the far-away.md row opens long.md with the link in view.
 //   5. /graph from the keyboard: `/` focuses search, Tab reaches a node, Enter selects it, Enter again opens it;
 //      Esc clears the selection.
 //   5b. /graph: a file with no links sits on the Unlinked shelf (click selects it); search Enter frames the matches,
@@ -145,12 +146,12 @@ try {
 
   // 4. Broken / stale list on /graph; a row opens the file with the link in view
   await page.goto(`${BASE}/graph`)
-  const trigger = page.getByRole("button", { name: /2 broken · 1 stale path/ })
+  const trigger = page.getByRole("button", { name: /^2 broken links$/ })
   await trigger.click()
   const menu = page.getByRole("menu")
   await menu.getByText("Broken links").waitFor()
-  await menu.getByRole("menuitem", { name: /docs\/gone\.md/ }).waitFor()
   await menu.getByRole("menuitem", { name: /missing\.md/ }).waitFor()
+  assert.equal(await menu.getByText(/stale|gone\.md/i).count(), 0, "no stale paths on /graph")
   await menu.getByRole("menuitem", { name: /far-away\.md/ }).click()
   await page.waitForURL(/\/docs\?doc=docs%2Flong\.md/)
   await page.locator("h1", { hasText: "Long" }).first().waitFor()
@@ -161,7 +162,7 @@ try {
     return !!r && r.top >= 0 && r.bottom <= window.innerHeight
   })
   await page.waitForFunction(() => !new URL(location.href).searchParams.has("link"))
-  console.log("ok  /graph lists 2 broken · 1 stale path; the far-away.md row opens long.md scrolled to the link")
+  console.log("ok  /graph lists 2 broken links, no stale paths; the far-away.md row opens long.md scrolled to the link")
 
   // 5. Keyboard path on /graph: / → search, Tab → first node (label order: Alpha, named with its 2 visible links), Enter selects, Esc clears,
   //    Enter twice opens
