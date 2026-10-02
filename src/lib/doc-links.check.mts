@@ -1,6 +1,6 @@
 // Self-check for doc-links. Run: node src/lib/doc-links.check.mts
 import assert from 'node:assert/strict'
-import { buildDocGraph, docLinks, docNode, extractLinks, formatRelatedFiles, resolveLink, type DocItem } from './doc-links.ts'
+import { buildDocGraph, docLinks, docNode, extractLinks, formatRelatedFiles, isExampleTarget, resolveLink, type DocItem } from './doc-links.ts'
 
 // extractLinks: every kind, line numbers, link text
 const raw = [
@@ -166,5 +166,50 @@ assert.deepEqual(formatRelatedFiles(t).split('\n').slice(1, -1), [
 // backticked globs are patterns, not links
 assert.deepEqual(extractLinks('see `memory/entries/E*.md` and `plans/{a,b}.md` and `docs/x.md`', 'CLAUDE.md').map(l => l.target), ['docs/x.md'])
 
+// T109: placeholders are templates, never files (all link kinds)
+assert.deepEqual(extractLinks([
+  '`memory/entries/E001-<slug>.md` `plans/tasks/T00N-slug.md` `skills/T<NNN>-x.md` `docs/meetings/YYYY-MM-DD.md`',
+  '`docs/.../mcp-tools.md` `docs/…/a.md` `plans/NNN.md` `XXX.md` [p](<name>-copy.md) [[{id}]]',
+  '`docs/NOTES.md` `docs/Xylophone.md` `plans/T001-real.md`',
+].join('\n')).filter(l => l.kind !== 'id').map(l => l.target), ['docs/NOTES.md', 'docs/Xylophone.md', 'plans/T001-real.md'])
+
+{
+  const paths = ['README.md', 'memory/MEMORY.md', 'docs/arch/HLD.md', 'docs/dup/a/same.md', 'docs/dup/b/same.md']
+  // @include: the @ is dropped, the rest resolves as a path (raw target kept as written)
+  assert.equal(resolveLink('@docs/arch/HLD.md', 'notes/n.md', paths, 'code'), 'docs/arch/HLD.md')
+  assert.equal(resolveLink('@docs/HLD.md', 'notes/n.md', paths, 'code'), null)
+  // a backticked bare name resolves to the one file with that name; same folder still wins first
+  assert.equal(resolveLink('MEMORY.md', 'README.md', paths, 'code'), 'memory/MEMORY.md')
+  assert.equal(resolveLink('MEMORY.md', 'README.md', paths, 'md'), null) // a link must work as written
+  assert.equal(resolveLink('same.md', 'docs/dup/a/other.md', paths, 'code'), 'docs/dup/a/same.md')
+  // shared by two files: no edge to either
+  assert.equal(resolveLink('same.md', 'README.md', paths, 'code'), null)
+  // a slash means a path: no basename fallback
+  assert.equal(resolveLink('nope/MEMORY.md', 'README.md', paths, 'code'), null)
+  // syntax examples: the name (or its last `-` part) is a placeholder word
+  for (const t of ['path.md', 'x.md', 'name', 'wikilinks', 'docs/a/x.md', '../a.md', 'plans/tasks/T001-x.md', 'docs/ADR-001-title.md'])
+    assert.equal(isExampleTarget(t), true, t)
+  for (const t of ['missing.md', 'docs/gone.md', 'far-away.md', 'R004-billing.md', 'docs/xray.md'])
+    assert.equal(isExampleTarget(t), false, t)
+
+  const item = (path: string, raw: string): DocItem => ({ node: docNode(path, raw), links: extractLinks(raw, path) })
+  const g = buildDocGraph([
+    item('README.md', [
+      '# R', '[[wikilinks]] and [text](path.md) or [[name]]; `x.md`', // syntax examples: no miss
+      '[x](missing.md) and `docs/gone.md`', // real misses stay
+      '`MEMORY.md` `@docs/arch/HLD.md` `same.md` `@docs/HLD.md`', // bare unique, @include, shared name, real stale
+      '`.claude/skills/r/craft-floor.md` `craft-floor.md` [s](.claude/skills/r/s.md)', // exist outside the graph
+    ].join('\n')),
+    ...paths.slice(1).map(p => item(p, '# P')),
+  ], ['.claude/skills/r/craft-floor.md', '.claude/skills/r/s.md'])
+  assert.deepEqual(g.broken.map(b => b.target), ['missing.md'])
+  assert.deepEqual(g.stale.map(b => b.target), ['docs/gone.md', '@docs/HLD.md'])
+  // resolved edges; files outside the graph get no edge and no target (the UI can't open them)
+  assert.deepEqual(g.edges.filter(e => e.from === 'README.md').map(e => e.to), ['memory/MEMORY.md', 'docs/arch/HLD.md'])
+  assert.equal(g.targets['README.md']['@docs/arch/HLD.md'], 'docs/arch/HLD.md')
+  assert.equal(g.targets['README.md']['craft-floor.md'], undefined)
+  // a real file named like an example still links
+  assert.deepEqual(buildDocGraph([item('a.md', '[[x]]'), item('x.md', '# X')]).edges.map(e => e.to), ['x.md'])
+}
 
 console.log('doc-links: ok')
