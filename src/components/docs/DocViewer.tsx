@@ -30,8 +30,8 @@ interface DocViewerProps {
   docActions?: DocActions
   /** Live editor content (debounced) so the title and stats follow typing */
   content?: string
-  /** Docs in the project; undefined while searching */
-  docCount?: number
+  /** Markdown files in the project and how many are docs (not tasks, epics, entries or ADRs; as /graph counts them); undefined while searching */
+  docCount?: { files: number; docs: number }
   onNewDocClick?: () => void
   listCollapsed?: boolean
   onToggleList?: () => void
@@ -55,12 +55,14 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
     return (
       <div className="mx-auto flex max-w-xl flex-col gap-4 px-6 pt-[18vh] pb-12">
         <h2 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-balance text-txt">
-          {docCount === undefined ? "Pick a doc to read" : docCount === 0 ? "No docs yet" : (
-            <><span className="font-mono">{docCount}</span> docs in this project</>
+          {docCount === undefined ? "Pick a doc to read" : docCount.files === 0 ? "No docs yet" : docCount.files === docCount.docs ? (
+            <><span className="font-mono">{docCount.files}</span> docs in this project</>
+          ) : (
+            <><span className="font-mono">{docCount.files}</span> files · <span className="font-mono">{docCount.docs}</span> docs</>
           )}
         </h2>
         <p className="text-sm leading-relaxed text-muted">
-          {docCount === 0
+          {docCount?.files === 0
             ? "Docs are plain markdown files in your repo. Your agent reads and edits the same files."
             : "Choose one from the list. Your agent reads and edits the same files, and its changes show up here live."}
         </p>

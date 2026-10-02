@@ -263,12 +263,18 @@ body {
 .animate-collapsible-up   { animation: collapsible-up   var(--duration-fast) var(--ease-in-out-soft); }
 
 /* /graph motion (DocGraph). Entrance: each dot unfolds from near the centre (--ux/--uy, its offset back towards it)
-   to its layout point, after its hop delay (inline animation-delay); edges fade in as the dots land. Backwards fill
-   only, so the dim / lit opacity from the inline styles takes over once they end. */
-.graph-node-unfold { animation: graph-node-unfold 900ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
-@keyframes graph-node-unfold { from { translate: var(--ux) var(--uy); scale: 0.35; opacity: 0; } }
-.graph-edge-in .react-flow__edge-path { animation: graph-edge-in 520ms var(--ease-out-soft) backwards; }
-@keyframes graph-edge-in { from { opacity: 0; } }
+   to its layout point, after its hop delay (inline animation-delay); edges fade in as the dots land. The per-node
+   classes stay on for good and are inert at rest: only the wrapper's data-unfold runs them, so starting or ending an
+   entrance is one attribute, never a re-render of every node and edge. a / b alternate (same keyframes, new name) so
+   Fit restarts it. Backwards fill only, so the dim / lit opacity from the inline styles takes over once they end. */
+[data-unfold=a] .graph-node-unfold { animation: graph-node-unfold-a 900ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+[data-unfold=b] .graph-node-unfold { animation: graph-node-unfold-b 900ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+@keyframes graph-node-unfold-a { from { translate: var(--ux) var(--uy); scale: 0.35; opacity: 0; } }
+@keyframes graph-node-unfold-b { from { translate: var(--ux) var(--uy); scale: 0.35; opacity: 0; } }
+[data-unfold=a] .graph-edge-in .react-flow__edge-path { animation: graph-edge-in-a 520ms var(--ease-out-soft) backwards; }
+[data-unfold=b] .graph-edge-in .react-flow__edge-path { animation: graph-edge-in-b 520ms var(--ease-out-soft) backwards; }
+@keyframes graph-edge-in-a { from { opacity: 0; } }
+@keyframes graph-edge-in-b { from { opacity: 0; } }
 /* Live ping: rings spread from a dot a live update touched (accent, low alpha: a live signal) */
 .graph-ping {
   position: absolute;

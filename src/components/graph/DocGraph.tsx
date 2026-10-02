@@ -116,7 +116,7 @@ const UNFOLD_STAGGER_CAP = 240
 const EDGE_IN_AFTER_MS = 420
 // a file with no path to the hub waits like one 8 hops out
 const waitOf = (h: number | undefined) => Math.min((h ?? 8) * UNFOLD_STAGGER_MS, UNFOLD_STAGGER_CAP)
-const UNFOLD_MS = 900 + UNFOLD_STAGGER_CAP + 520 // dots + stagger + edge fade; then the classes come off
+const UNFOLD_MS = 900 + UNFOLD_STAGGER_CAP + 520 // dots + stagger + edge fade; then data-unfold comes off the wrapper
 // ponytail: transforms only, measured smooth at 192 dots / 687 edges; skip above this if low-end machines stutter
 const UNFOLD_MAX_NODES = 400
 // hover / keyboard focus: linked dots lean this far toward the one under the pointer
@@ -193,7 +193,9 @@ function Shape({ kind, size, hollow, className }: { kind: DocNodeKind; size: num
 
 /** A shape sized by degree, centred on its layout point; the label hangs below and never takes clicks. */
 const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
-  const { node, size, box, dim, lit, active, match, changed, hue, hollow, recent, hideLabel, delay, quick, enter, exit, unfold } = data
+  const { node, size, box, dim, lit, active, match, changed, hue, hollow, recent, hideLabel, delay, quick, enter, exit } = data
+  // a dot entering or leaving in a relayout runs node-in / node-out, without the entrance's delay
+  const unfold = enter || exit ? undefined : data.unfold
   // The React Flow wrapper (.react-flow__node) takes focus; the halo goes on the dot and the label
   return (
     <div
@@ -364,6 +366,17 @@ export function DocGraph() {
     }
     return m
   }, [visible])
+  // Hops from the best-linked file: the entrance order for dots and edges
+  const hops = useMemo(() => {
+    const hub = [...adj].reduce<[string, number] | null>((best, [p, s]) => (!best || s.size > best[1] ? [p, s.size] : best), null)?.[0]
+    const out = new Map<string, number>(hub ? [[hub, 0]] : [])
+    for (let frontier = hub ? [hub] : [], d = 1; frontier.length; d++) {
+      const next: string[] = []
+      for (const p of frontier) for (const q of adj.get(p) ?? []) if (!out.has(q)) { out.set(q, d); next.push(q) }
+      frontier = next
+    }
+    return out
+  }, [adj])
   const order = useMemo(
     () => (visible?.paths ?? []).slice().sort((a, b) => (byPath.get(a)?.label ?? a).localeCompare(byPath.get(b)?.label ?? b) || a.localeCompare(b)),
     [visible, byPath],
@@ -382,19 +395,25 @@ export function DocGraph() {
   const flowOrder = useMemo(() => order.filter((p) => pos[p]), [order, pos])
   const unlinked = useMemo(() => order.filter((p) => !pos[p]), [order, pos])
 
-  // Entrance on mount and on Fit (never on a live refresh): a run id while the unfold classes are on, null after.
-  const [unfolding, setUnfolding] = useState<number | null>(null)
+  // Entrance on mount and on Fit (never on a live refresh). Every node and edge always carries its unfold offset and
+  // delay (inert CSS); a run is only data-unfold on the wrapper, set and cleared through the DOM. Toggling the classes
+  // through React re-rendered all 687 edges at the end (a 115ms task on all kinds). a / b alternate so Fit restarts it.
+  const unfoldRun = useRef({ timer: 0, b: false })
+  const endUnfold = useCallback(() => {
+    clearTimeout(unfoldRun.current.timer)
+    rootRef.current?.removeAttribute("data-unfold")
+  }, [])
+  const unfolding = () => !!rootRef.current?.hasAttribute("data-unfold")
   const unfold = useCallback(() => {
     if (still() || layoutInput.nodes.length > UNFOLD_MAX_NODES) return
-    setUnfolding((r) => (r ?? 0) + 1)
-  }, [layoutInput])
-  useEffect(() => {
-    if (unfolding === null) return
-    // taking the classes off re-renders every edge (~100ms on a 700-edge map), so do it once the page is idle
-    let idle = 0
-    const t = setTimeout(() => { idle = requestIdleCallback(() => setUnfolding(null), { timeout: 2000 }) }, UNFOLD_MS)
-    return () => { clearTimeout(t); cancelIdleCallback(idle) }
-  }, [unfolding])
+    const run = unfoldRun.current
+    run.b = !run.b
+    clearTimeout(run.timer)
+    rootRef.current?.setAttribute("data-unfold", run.b ? "b" : "a")
+    // off once it's over, so dots React Flow mounts later (virtualized pans, relayout enters) don't replay it
+    run.timer = window.setTimeout(endUnfold, UNFOLD_MS)
+  }, [layoutInput, endUnfold])
+  useEffect(() => endUnfold, [endUnfold])
 
   // Fit on first load, on a filter / focus change, or when the visible set grows or shrinks; never once the user
   // has panned or zoomed (until the filter / focus changes or they press Fit)
@@ -426,10 +445,9 @@ export function DocGraph() {
       firstFit.current = false
       applyZoom(vp.zoom)
       void rf.setViewport(vp, { duration: first || still() ? 0 : TWEEN_MS, ease: easeOut })
-      if (first) {
-        setVeiled(false)
-        unfold()
-      }
+      // the label pass for the fitted zoom renders in this frame; the veil and the entrance start in a later one, so
+      // neither long task stacks on the other
+      if (first) setTimeout(() => { setVeiled(false); unfold() }, 0)
     })
     return () => cancelAnimationFrame(id)
   }, [rf, pos, viewKey, unfold, applyZoom])
@@ -487,7 +505,8 @@ export function DocGraph() {
         // instead of React Flow hiding it, and its edges, until it re-measures
         measured: { width: box, height: box },
         ariaLabel: `${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}${touched.has(p) ? ", changed in the last 24 hours" : ""}${p === selected ? ", selected" : ""}`,
-        data: { node: n, size, box, dim: !!lit && !lit.has(p), lit: !!lit?.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hollow, recent: touched.has(p), hideLabel: hideLabel.has(p), delay: delayOf(p), quick },
+        // the entrance offset: the layout is centred on 0,0, so -at points back at the centre (inert until data-unfold)
+        data: { node: n, size, box, dim: !!lit && !lit.has(p), lit: !!lit?.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hollow, recent: touched.has(p), hideLabel: hideLabel.has(p), delay: delayOf(p), quick, unfold: { x: -at.x * UNFOLD_FROM, y: -at.y * UNFOLD_FROM, wait: waitOf(hops.get(p)) } },
         draggable: true,
       }
     })
@@ -499,22 +518,26 @@ export function DocGraph() {
       const hot = !!selected && (e.from === selected || e.to === selected)
       // Focus 2: an edge inside the 2-hop ring stays lit, after the ripple delay
       const on = hot || (!!selected && state.focus === 2 && !!lit?.has(e.from) && !!lit.has(e.to))
+      // entrance: fades in as its nearer dot lands (inert until data-unfold)
+      const h = Math.min(hops.get(e.from) ?? Infinity, hops.get(e.to) ?? Infinity)
       return {
         id: `${e.from}->${e.to}`,
         source: e.from,
         target: e.to,
         type: "straight",
+        className: "graph-edge-in",
         domAttributes: { "aria-hidden": true },
         style: {
           stroke: hot ? "var(--color-accent)" : EDGE,
           strokeWidth: hot ? 1.75 : 1,
           opacity: lit && !on ? 0.15 : 1,
           transition: transition(hot ? 0 : Math.max(delayOf(e.from), delayOf(e.to))),
+          animationDelay: `${EDGE_IN_AFTER_MS + waitOf(Number.isFinite(h) ? h : undefined)}ms`,
         },
       }
     })
     return { base: nodes, edges }
-  }, [visible, flowOrder, adj, pos, byPath, selected, state.focus, state.recent, touched, q, matches, changed, statusDefs, labelK])
+  }, [visible, flowOrder, adj, hops, pos, byPath, selected, state.focus, state.recent, touched, q, matches, changed, statusDefs, labelK])
 
   // Relayout tween (filter / focus / data change): dots glide from where they are drawn to the new layout, new ones
   // scale in at their target, removed ones fade out. A new relayout mid-tween starts from the interpolated positions.
@@ -564,7 +587,7 @@ export function DocGraph() {
     setHovered(id)
     const w = sim.current
     // no lean while the entrance plays or a drag holds the neighbourhood
-    if (still() || w.drag || unfolding !== null) return
+    if (still() || w.drag || unfolding()) return
     const shift: Record<string, XY> = {}
     const h = id ? pos[id] : undefined
     for (const p of (id && h && adj.get(id)) || []) {
@@ -577,10 +600,11 @@ export function DocGraph() {
     w.shift = shift
     kick()
   }
+  const keyFocused = () => !!rootRef.current?.querySelector(".react-flow__node:focus-visible")
   const centreOf = (n: DotNode) => ({ x: n.position.x + n.data.box / 2, y: n.position.y + n.data.box / 2 })
   /** Drag: the dot follows the pointer, its ≤2-hop neighbourhood (1-hop on big graphs) follows on springs. */
   const onDragStart = (n: DotNode) => {
-    if (unfolding !== null) setUnfolding(null)
+    endUnfold()
     const w = sim.current
     w.shift = {}
     const at = centreOf(n)
@@ -639,49 +663,28 @@ export function DocGraph() {
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
   }, [tweenFrom, tweenTo])
-  // Hops from the best-linked file: the entrance order for dots and edges
-  const hops = useMemo(() => {
-    if (unfolding === null) return null
-    const hub = [...adj].reduce<[string, number] | null>((best, [p, s]) => (!best || s.size > best[1] ? [p, s.size] : best), null)?.[0]
-    const out = new Map<string, number>(hub ? [[hub, 0]] : [])
-    for (let frontier = hub ? [hub] : [], d = 1; frontier.length; d++) {
-      const next: string[] = []
-      for (const p of frontier) for (const q of adj.get(p) ?? []) if (!out.has(q)) { out.set(q, d); next.push(q) }
-      frontier = next
-    }
-    return out
-  }, [unfolding, adj])
 
   // Drawn centre: live physics, else the relayout tween, else the layout (the entrance only offsets the dot in CSS)
   const nodes = useMemo(() => {
-    if (!tween && !live && !hops) return base
+    if (!tween && !live) return base
     const moved = base.map((n): DotNode => {
       if (tween && !tween.from[n.id]) return { ...n, data: { ...n.data, enter: true } }
       const c = live?.[n.id] ?? tween?.at[n.id]
-      if (c) return { ...n, position: { x: c.x - n.data.box / 2, y: c.y - n.data.box / 2 } }
-      const at = hops && pos[n.id]
-      // the layout is centred on 0,0, so -at points back at the centre
-      return at ? { ...n, data: { ...n.data, unfold: { x: -at.x * UNFOLD_FROM, y: -at.y * UNFOLD_FROM, wait: waitOf(hops.get(n.id)) } } } : n
+      return c ? { ...n, position: { x: c.x - n.data.box / 2, y: c.y - n.data.box / 2 } } : n
     })
     const gone = (tween?.gone ?? []).map((n): DotNode => ({ ...n, focusable: false, selectable: false, draggable: false, style: EXIT_STYLE, data: { ...n.data, exit: true } }))
     return [...moved, ...gone]
-  }, [base, tween, live, hops, pos])
+  }, [base, tween, live])
 
-  // Edges as drawn: a hovered file's edges one step brighter (the selected file's stay accent); during the entrance each
-  // fades in as its nearer dot lands. Kept out of `base`, which measures every label.
+  // Edges as drawn: a hovered file's edges one step brighter (the selected file's stay accent). Kept out of `base`,
+  // which measures every label.
   const shownEdges = useMemo(() => {
-    if (!hovered && !hops) return edges
+    if (!hovered) return edges
     return edges.map((e): LinkEdge => {
-      let out = e
       const hot = !!selected && (e.source === selected || e.target === selected)
-      if (hovered && !hot && (e.source === hovered || e.target === hovered)) out = { ...out, style: { ...out.style, stroke: EDGE_HOVER, strokeWidth: 1.5 } }
-      if (hops) {
-        const h = Math.min(hops.get(e.source) ?? Infinity, hops.get(e.target) ?? Infinity)
-        out = { ...out, className: "graph-edge-in", style: { ...out.style, animationDelay: `${EDGE_IN_AFTER_MS + waitOf(Number.isFinite(h) ? h : undefined)}ms` } }
-      }
-      return out
+      return !hot && (e.source === hovered || e.target === hovered) ? { ...e, style: { ...e.style, stroke: EDGE_HOVER, strokeWidth: 1.5 } } : e
     })
-  }, [edges, hovered, hops, selected])
+  }, [edges, hovered, selected])
 
   // Esc on /graph steps back: clear the search, then the selection, then leave the graph. Capture phase, so
   // React Flow's own Escape (which blurs the node) and the global handler never see it.
@@ -922,8 +925,9 @@ export function DocGraph() {
             onMove={(_, vp) => applyZoom(vp.zoom)}
             onNodeClick={(_, n) => select(n.id)}
             onNodeDoubleClick={(_, n) => open(n.data.node)}
-            onNodeMouseEnter={(_, n) => { if (!n.data.exit) magnet(n.id) }}
-            onNodeMouseLeave={(_, n) => { if (n.id === hovered) magnet(null) }}
+            // hover yields to keyboard focus: while a node has the focus halo, the pointer doesn't move the lean
+            onNodeMouseEnter={(_, n) => { if (!n.data.exit && !keyFocused()) magnet(n.id) }}
+            onNodeMouseLeave={(_, n) => { if (n.id === hovered && !keyFocused()) magnet(null) }}
             onNodeDragStart={(_, n) => onDragStart(n)}
             onNodeDrag={(_, n) => onDrag(n)}
             onNodeDragStop={onDragStop}
@@ -1020,9 +1024,16 @@ export function DocGraph() {
               inert={!sel}
               className={cn(
                 "absolute top-3 right-3 z-10 w-72 max-w-[calc(100%-1.5rem)] rounded-lg border border-border bg-surface p-3 shadow-lg shadow-black/20",
-                // enters with a fade and a 4px slide from the right, leaves faster; it stays mounted for the exit
+                // phones: a bottom sheet beside the zoom controls (left-14) and above the Unlinked shelf, so the map's
+                // top stays clear
+                "max-sm:top-auto max-sm:left-14 max-sm:w-auto max-sm:max-w-none",
+                unlinked.length > 0 ? "max-sm:bottom-14" : "max-sm:bottom-3",
+                // enters with a fade and a 4px slide (from the right; from below on phones), leaves faster; it stays
+                // mounted for the exit
                 "transition-[opacity,translate,visibility] ease-out-soft",
-                sel ? "duration-(--duration-base) starting:translate-x-1 starting:opacity-0" : "invisible translate-x-1 opacity-0 duration-(--duration-fast)",
+                sel
+                  ? "duration-(--duration-base) starting:opacity-0 sm:starting:translate-x-1 max-sm:starting:translate-y-1"
+                  : "invisible opacity-0 duration-(--duration-fast) sm:translate-x-1 max-sm:translate-y-1",
               )}
             >
               {/* reselecting crossfades the content */}

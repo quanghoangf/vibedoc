@@ -7,6 +7,7 @@ import { DocViewer } from "./DocViewer"
 import type { DocActions } from "./DocActionsMenu"
 import { cn } from "@/lib/utils"
 import { DOCS_LIST_KEY, TOGGLE_DOCS_LIST_EVENT } from "@/lib/shortcuts"
+import { docNode } from "@/lib/doc-links"
 
 // ponytail: module-level like DocList's width — survives page navigation, resets on reload (no localStorage)
 let lastListCollapsed = false
@@ -63,7 +64,7 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
           onContentChange={setLiveContent}
           docActions={docActions}
           content={liveContent}
-          docCount={docSearch.trim() ? undefined : docs.length}
+          docCount={docSearch.trim() ? undefined : { files: docs.length, docs: docs.filter((d) => docNode(d.path, "").kind === "doc").length }}
           onNewDocClick={onNewDocClick}
           listCollapsed={hideList}
           onToggleList={() => window.dispatchEvent(new Event(TOGGLE_DOCS_LIST_EVENT))}

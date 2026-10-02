@@ -11,8 +11,9 @@
 //      the far-away.md row opens long.md with the link in view.
 //   5. /graph from the keyboard: `/` focuses search, Tab reaches a node, Enter selects it, Enter again opens it;
 //      Esc clears the selection.
-//   5b. /graph: a file with no links sits on the Unlinked shelf (click selects it); search Enter frames the matches,
-//       Enter / Shift+Enter step through them ("1 of 5"); every dot has a ≥ 24px hit pad.
+//   5b. /graph: a file with no links sits on the Unlinked shelf (click selects it, Tab reaches it after the map); search
+//       Enter frames the matches, Enter / Shift+Enter step through them ("1 of 5"); every dot has a ≥ 24px hit pad;
+//       every label that shows renders ≥ 9px, at the fit and zoomed out (T112).
 //   6. /graph after a pan: an agent moving T001 pings its node and leaves the camera where the user put it.
 //      Done draws hollow; the Recent chip lights what changed in the last 24h (T110).
 //   8. T111: Show in graph (header and Linked docs) opens /graph on that doc with Focus 1; the card shows its keys,
@@ -121,7 +122,7 @@ try {
   }
   const opacity = (loc) => loc.evaluate((el) => Number(getComputedStyle(el).opacity))
   // the settle entrance draws edges in; read them once it's over
-  await page.waitForFunction(() => { const rf = document.querySelector(".react-flow"); return rf && !rf.classList.contains("opacity-0") && !document.querySelector(".graph-edge-in, .graph-node-unfold") })
+  await page.waitForFunction(() => { const rf = document.querySelector(".react-flow"); return rf && !rf.classList.contains("opacity-0") && !document.querySelector("[data-unfold]") })
   assert.equal(await opacity(edge("docs/d.md", "docs/c.md")), 1)
   await node("docs/a.md").click()
   await page.waitForURL(/node=docs%2Fa\.md|node=docs\/a\.md/)
@@ -208,11 +209,35 @@ try {
   const shelf = page.locator("[data-shelf]")
   await shelf.getByText("Unlinked 1").waitFor()
   assert.equal(await node("docs/long.md").count(), 0, "an unlinked file is not on the map")
-  await page.waitForFunction(() => !document.querySelector(".graph-node-unfold")) // the entrance scales dots
+  await page.waitForFunction(() => !document.querySelector("[data-unfold]")) // the entrance scales dots
   for (const p of ["docs/a.md", "docs/c.md"]) {
     const hit = await node(p).locator("[data-hit]").boundingBox()
     assert.ok(hit.width >= 23.9 && hit.height >= 23.9, `${p} hit pad ${hit.width}×${hit.height}`)
   }
+  // T112: the shelf is reachable by keyboard: Tab from the last map node (label order) passes the zoom controls into it
+  await node("docs/d.md").focus()
+  for (let i = 0; i < 6 && !(await page.evaluate(() => !!document.activeElement?.closest("[data-shelf]"))); i++) await page.keyboard.press("Tab")
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("data-path")), "docs/long.md", "Tab reaches the Unlinked shelf after the map")
+  // T112: every label that shows renders ≥ 9px, at the fit and zoomed out past the readable zoom (others fade out)
+  const labelPx = () => page.evaluate(() => [...document.querySelectorAll(".react-flow__node span.truncate")].flatMap((el) => {
+    let o = 1
+    for (let e = el; e && e !== document.body; e = e.parentElement) o *= Number(getComputedStyle(e).opacity)
+    if (o < 0.01) return []
+    const r = el.getBoundingClientRect()
+    // computed height, not offsetHeight: that rounds the 16.5px line box
+    return [{ id: el.closest("[data-id]")?.getAttribute("data-id"), px: (11 * r.height) / parseFloat(getComputedStyle(el).height) }]
+  }))
+  for (const l of await labelPx()) assert.ok(l.px >= 8.95, `${l.id} label ${l.px.toFixed(2)}px at the fit`)
+  await node("docs/a.md").click()
+  await page.waitForURL(/node=docs%2Fa\.md/)
+  for (let i = 0; i < 4; i++) await page.getByRole("button", { name: /zoom out/i }).click()
+  await page.waitForFunction(() => document.querySelector("[data-far=true]"))
+  await page.waitForTimeout(400) // labels fade across the threshold
+  const zoomedOut = await labelPx()
+  assert.ok(zoomedOut.some((l) => l.id === "docs/a.md"), "the selected file keeps its label zoomed out")
+  for (const l of zoomedOut) assert.ok(l.px >= 8.95, `${l.id} label ${l.px.toFixed(2)}px zoomed out`)
+  await page.keyboard.press("Escape")
+  await page.waitForURL((u) => !u.searchParams.has("node"))
   await shelf.getByRole("button", { name: "Doc Long, 0 links" }).click()
   await page.waitForURL(/node=docs%2Flong\.md/)
   await sel.getByText("docs/long.md").waitFor()
@@ -244,7 +269,7 @@ try {
   await count.getByText("1 of 2").waitFor()
   await page.getByRole("button", { name: /^Tasks/, pressed: true }).click()
   await count.getByText("0 matches").waitFor()
-  console.log("ok  /graph: long.md on the Unlinked shelf; search Enter frames, then steps 1 of 5 → 2 of 5 → back; a kind filter resets the cursor; hit pads ≥ 24px")
+  console.log("ok  /graph: long.md on the Unlinked shelf; search Enter frames, then steps 1 of 5 → 2 of 5 → back; a kind filter resets the cursor; hit pads ≥ 24px; Tab reaches the shelf; every shown label ≥ 9px at the fit and zoomed out")
 
   // 6. A live change after the user zoomed: the changed node flashes, the camera stays put
   await page.goto(`${BASE}/graph?kinds=doc,task`)
