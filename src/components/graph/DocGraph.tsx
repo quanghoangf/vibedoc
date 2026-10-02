@@ -814,7 +814,8 @@ export function DocGraph() {
             >
               <Shape kind={kind} size={kind === "task" ? 7 : 9} className="text-muted" />
               <span className="sr-only md:not-sr-only">{label}</span>
-              <span className="font-mono tabular-nums text-muted">{count}</span>
+              {/* a failed load has no counts: "–", not a 0 that claims the project is empty */}
+              <span className="font-mono tabular-nums text-muted">{error ? "–" : count}</span>
             </button>
           )
         })}
@@ -832,7 +833,7 @@ export function DocGraph() {
         >
           <span aria-hidden className="size-1.5 rounded-full bg-accent" />
           Recent
-          <span className="font-mono tabular-nums text-muted">{touched.size}</span>
+          <span className="font-mono tabular-nums text-muted">{error ? "–" : touched.size}</span>
         </button>
         <button
           type="button"

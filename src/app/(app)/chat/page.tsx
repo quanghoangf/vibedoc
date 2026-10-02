@@ -126,7 +126,7 @@ function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
         aria-current={active ? "true" : undefined}
         className={cn(
           "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors duration-(--duration-fast)",
-          active ? "bg-surface2 shadow-[inset_2px_0_0_rgb(var(--rgb-accent))]" : "hover:bg-surface2/60",
+          active ? "bg-surface2 shadow-[inset_2px_0_0_var(--color-accent-edge)]" : "hover:bg-surface2/60",
         )}
       >
         <span className="flex items-center gap-2 pr-5">

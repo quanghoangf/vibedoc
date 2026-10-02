@@ -205,7 +205,7 @@ Flat by default, with tonal layering. Depth reads as Ink Black → Carbon → Gr
 - **Float** (`shadow-lg` / `shadow-xl`, with `shadow-black/20` on dark): dialogs, sheets, menus and the palette.
 - **Focus halo** (`0 0 0 3px rgb(var(--rgb-accent) / 0.15)`): keyboard focus on cards and custom controls, paired with an accent/60 border.
 - **Update flash** (`flash` keyframe, 3px accent ring fading over 1.2s): a card or row that just changed via SSE.
-- **Selected edge** (`inset 2px 0 0 rgb(var(--rgb-accent))`): the active item in a vertical list, and the keyboard-focused item in a dropdown menu (over the Graphite fill, which alone is 1.05:1).
+- **Selected edge** (`inset 2px 0 0 var(--color-accent-edge)`): the active item in a vertical list, and the keyboard-focused item in a dropdown menu (over the Graphite fill, which alone is 1.05:1). `accent-edge` is the accent, except green and orange in light, which miss 3:1 on Graphite (2.01 / 2.47) and take a darker ink (4.42 / 4.57); every accent × theme clears 3:1.
 
 ### Named Rules
 **The Flat-At-Rest Rule.** Nothing on the page casts a shadow unless it floats above the page or is reporting a state change right now.

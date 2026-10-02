@@ -17,7 +17,8 @@
 //      Done draws hollow; the Recent chip lights what changed in the last 24h (T110).
 //   8. T111: Show in graph (header and Linked docs) opens /graph on that doc with Focus 1; the card shows its keys,
 //      the ? sheet a Graph section, the node is named selected; Tab to a below-the-fold link shows its preview;
-//      a focused menu item's accent edge clears 3:1.
+//      a focused menu item's edge clears 3:1 for every accent × theme; a memory entry's Related list draws epics
+//      with their StatusIcon; a failed graph load shows – on the chips, not 0.
 //   7. vibedoc_read_doc on a.md ends with a "## Related files" footer (b, c, T001, Broken missing.md,
 //      Stale paths docs/gone.md).
 // Fails on any browser console error.
@@ -343,20 +344,60 @@ try {
   await page.getByRole("button", { name: /^3 broken links$/ }).focus()
   await page.keyboard.press("Enter")
   await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "menuitem")
-  const ratio = await page.evaluate(() => {
+  // every accent × theme (DESIGN.md: the system holds up under every combination); the fixture's own is violet dark
+  const ratios = await page.evaluate(() => {
     const el = document.activeElement
-    const cs = getComputedStyle(el)
+    const html = document.documentElement
+    const was = { dark: html.classList.contains("dark"), accent: html.getAttribute("data-accent") }
     const rgb = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number)
     const lum = ([r, g, b]) => [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0)
-    // Tailwind composes the shadow from several layers; the edge is the one that isn't transparent
-    const edge = cs.boxShadow.match(/rgba?\([^)]+\)/g)?.find((c) => !/,\s*0\)$/.test(c))
-    if (!edge) return 0
-    const [a, b] = [lum(rgb(edge)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x)
-    return (a + 0.05) / (b + 0.05)
+    // transition-colors would otherwise hand back a fill still fading in (transparent reads as black: a false 5.26)
+    el.style.transition = "none"
+    const out = {}
+    for (const dark of [true, false]) {
+      for (const accent of ["violet", "purple", "green", "orange"]) {
+        html.classList.toggle("dark", dark)
+        html.setAttribute("data-accent", accent)
+        const cs = getComputedStyle(el)
+        // Tailwind composes the shadow from several layers; the edge is the one that isn't transparent
+        const edge = cs.boxShadow.match(/rgba?\([^)]+\)/g)?.find((c) => !/,\s*0\)$/.test(c))
+        if (!/^rgb\(/.test(cs.backgroundColor)) return { [`${accent} ${dark ? "dark" : "light"} fill`]: 0, fill: cs.backgroundColor }
+        const [a, b] = edge ? [lum(rgb(edge)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x) : [0, 0]
+        out[`${accent} ${dark ? "dark" : "light"}`] = edge ? (a + 0.05) / (b + 0.05) : 0
+      }
+    }
+    el.style.transition = ""
+    html.classList.toggle("dark", was.dark)
+    if (was.accent === null) html.removeAttribute("data-accent")
+    else html.setAttribute("data-accent", was.accent)
+    return out
   })
-  assert.ok(ratio >= 3, `menu item focus edge ${ratio.toFixed(2)}:1`)
+  for (const [k, r] of Object.entries(ratios)) assert.ok(r >= 3, `menu item focus edge ${k} ${r.toFixed(2)}:1`)
   await page.keyboard.press("Escape")
-  console.log(`ok  T111: a focused menu item's accent edge is ${ratio.toFixed(2)}:1 against its fill`)
+  console.log(`ok  T111: a focused menu item's edge clears 3:1 on its fill for every accent × theme (${Object.entries(ratios).map(([k, r]) => `${k} ${r.toFixed(2)}`).join(", ")})`)
+
+  // 8d. A memory entry's Related list draws an epic with its StatusIcon (R002 is planned = Todo), not a flag
+  write("memory/entries/E001-epic-note.md", "# E001: Epic note\n**Type:** convention\n**Updated:** 2026-10-02\n\nSee R002 and T001.\n")
+  await page.goto(`${BASE}/memory?entry=E001`)
+  const related = page.locator('section[aria-label="Related"]')
+  const epicRow = related.getByRole("button", { name: /R002/ })
+  await epicRow.waitFor()
+  assert.equal(await epicRow.locator('svg[aria-label="Todo"]').count(), 1, "the epic row carries the Todo StatusIcon")
+  assert.equal(await epicRow.locator("svg.lucide-flag").count(), 0, "no flag on the epic row")
+  console.log("ok  T111: a memory entry's Related list draws the epic with its StatusIcon, like tasks")
+
+  // 8e. A failed graph load keeps the toolbar, but the kind and Recent chips show "–", not 0
+  await page.route("**/api/docs/graph**", (r) => r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "boom" }) }))
+  await page.goto(`${BASE}/graph`)
+  await page.getByRole("alert").getByText("Couldn't load the link graph.").waitFor()
+  for (const name of ["Docs", "Tasks", "Epics", "Recent"]) {
+    const chip = page.getByRole("button", { name: new RegExp(`^${name}`) })
+    assert.match(await chip.innerText(), /–$/, `${name} chip shows – on a failed load`)
+  }
+  await page.unroute("**/api/docs/graph**")
+  // the stubbed 500 is the console error this step asked for
+  for (let i = errors.length - 1; i >= 0; i--) if (/status of 500/.test(errors[i])) errors.splice(i, 1)
+  console.log("ok  T111: a failed graph load shows – on the kind and Recent chips, not 0")
 
   // 7. The agent's read ends with the resolved related files
   const read = await mcp("vibedoc_read_doc", { query: "docs/a.md" })

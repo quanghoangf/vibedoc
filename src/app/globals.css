@@ -19,6 +19,7 @@
   --color-muted: rgb(var(--rgb-muted));
   --color-accent: rgb(var(--rgb-accent));
   --color-accent-fg: rgb(var(--rgb-accent-fg));
+  --color-accent-edge: rgb(var(--rgb-accent-edge));
   --color-teal: rgb(var(--rgb-teal));
   --color-amber: rgb(var(--rgb-amber));
   --color-danger: rgb(var(--rgb-danger));
@@ -145,6 +146,13 @@
 html[data-accent="purple"] { --rgb-accent: 168 85 247; }
 html[data-accent="green"]  { --rgb-accent: 34 197 94; }
 html[data-accent="orange"] { --rgb-accent: 249 115 22; }
+
+/* Selected edge (a 2px accent bar, e.g. a focused menu item) on the Graphite fill: the accent itself, except where
+   it misses 3:1 in light (green 2.01, orange 2.47 on surface2) and takes a darker ink (4.42 / 4.57).
+   Violet 3.52 / 4.50 and purple 3.49 / 4.54 in light / dark; dark green 7.89, orange 6.41. */
+html { --rgb-accent-edge: var(--rgb-accent); }
+html[data-accent="green"]:not(.dark)  { --rgb-accent-edge: 21 128 61; }
+html[data-accent="orange"]:not(.dark) { --rgb-accent-edge: 194 65 12; }
 
 /* Font family — set by Settings → Appearance (data-font-* on <html>); vars come from next/font in app/layout.tsx */
 html[data-font-sans="geist"]          { --app-font-sans: var(--font-geist); }
