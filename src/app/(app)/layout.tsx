@@ -163,7 +163,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
         {/* Keyboard shortcuts help modal */}
         <Dialog open={showHelp} onOpenChange={setShowHelp}>
-          <DialogContent aria-describedby={undefined} className="block w-80 p-5 rounded-xl sm:rounded-xl shadow-2xl">
+          <DialogContent aria-describedby={undefined} className="block max-h-[calc(100dvh-2rem)] w-80 overflow-y-auto overscroll-contain p-5 rounded-xl sm:rounded-xl shadow-2xl">
             <DialogTitle className="font-display text-sm font-semibold text-txt mb-4">Keyboard shortcuts</DialogTitle>
             {SHORTCUT_SECTIONS.map(({ title, rows }) => (
               <table key={title} className="w-full text-xs mt-3 first-of-type:mt-0">

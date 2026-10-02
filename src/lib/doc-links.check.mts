@@ -1,6 +1,6 @@
 // Self-check for doc-links. Run: node src/lib/doc-links.check.mts
 import assert from 'node:assert/strict'
-import { buildDocGraph, docLinks, docNode, extractLinks, formatRelatedFiles, isExampleTarget, resolveLink, touchedPaths, type DocItem } from './doc-links.ts'
+import { buildDocGraph, docLinks, docNode, extractLinks, graphHref, formatRelatedFiles, isExampleTarget, resolveLink, touchedPaths, type DocItem } from './doc-links.ts'
 
 // extractLinks: every kind, line numbers, link text
 const raw = [
@@ -239,5 +239,10 @@ assert.deepEqual(extractLinks([
   ], nodes, Date.UTC(2026, 9, 2, 2))
   assert.deepEqual([...got].sort(), ['docs/architecture/decisions/ADR-003-d.md', 'docs/new.md', 'docs/x.md', 'memory/MEMORY.md', 'memory/entries/E004-c.md', 'plans/roadmap/R002-b.md', 'plans/tasks/T001-a.md', 'plans/tasks/T005-new.md'])
 }
+
+// graphHref: Show in graph selects the file with Focus 1, turning on a kind the default hides
+assert.equal(graphHref('docs/a b.md'), '/graph?node=docs%2Fa+b.md&focus=1')
+assert.equal(graphHref('docs/architecture/decisions/ADR-001-x.md'), '/graph?node=docs%2Farchitecture%2Fdecisions%2FADR-001-x.md&focus=1')
+assert.equal(graphHref('plans/tasks/T001-x.md'), '/graph?node=plans%2Ftasks%2FT001-x.md&focus=1&kinds=doc%2Cadr%2Ctask')
 
 console.log('doc-links: ok')

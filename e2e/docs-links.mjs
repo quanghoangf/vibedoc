@@ -15,6 +15,9 @@
 //       Enter / Shift+Enter step through them ("1 of 5"); every dot has a ≥ 24px hit pad.
 //   6. /graph after a pan: an agent moving T001 pings its node and leaves the camera where the user put it.
 //      Done draws hollow; the Recent chip lights what changed in the last 24h (T110).
+//   8. T111: Show in graph (header and Linked docs) opens /graph on that doc with Focus 1; the card shows its keys,
+//      the ? sheet a Graph section, the node is named selected; Tab to a below-the-fold link shows its preview;
+//      a focused menu item's accent edge clears 3:1.
 //   7. vibedoc_read_doc on a.md ends with a "## Related files" footer (b, c, T001, Broken missing.md,
 //      Stale paths docs/gone.md).
 // Fails on any browser console error.
@@ -77,7 +80,7 @@ try {
   await panel.getByText("Charlie").waitFor() // links data loaded
   await doc.getByRole("link", { name: "b", exact: true }).click()
   await page.locator("h1", { hasText: "Bravo" }).first().waitFor()
-  const linkedFrom = panel.locator("div:has(> h4:text-is('Linked from'))")
+  const linkedFrom = panel.locator("div:has(> h3:text-is('Linked from'))")
   await linkedFrom.getByRole("button", { name: /Alpha/ }).waitFor()
   console.log("ok  clicking the b link opens b.md; its panel lists a.md under Linked from")
 
@@ -103,7 +106,7 @@ try {
   assert.equal(await staleCode.innerText(), "docs/gone.md")
   assert.equal(await staleCode.getAttribute("title"), "File not found")
   assert.equal(await doc.locator("code[data-stale]").count(), 1)
-  const stalePaths = panel.locator("div:has(> h4:text-is('Stale paths'))")
+  const stalePaths = panel.locator("div:has(> h3:text-is('Stale paths'))")
   await stalePaths.getByRole("button", { name: /docs\/gone\.md/ }).waitFor()
   console.log("ok  broken link muted; stale path marked, not broken, and listed under Stale paths; hovering b shows its preview card")
 
@@ -302,6 +305,58 @@ try {
   assert.equal(await dimmed(fresh), false, "Recent keeps a newly created task lit")
   console.log("ok  T110: done T001 draws hollow; Recent lights T001, d.md and a new task and dims untouched c.md")
   console.log("ok  back on /graph after /board: the new d → b link and T001's done colour show without a reload")
+
+  // 8. T111: Show in graph from a doc → /graph selected on it with Focus 1 (d is 2 hops away, so it's cut)
+  await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/a.md")}`)
+  await panel.getByText("Charlie").waitFor()
+  assert.equal(await panel.getByRole("link", { name: "Show in graph" }).getAttribute("href"), "/graph?node=docs%2Fa.md&focus=1")
+  await page.getByRole("link", { name: "Show in graph" }).first().click()
+  await page.waitForURL(/\/graph\?node=docs%2Fa\.md&focus=1/)
+  await sel.getByText("docs/a.md").waitFor()
+  await node("docs/sub/b.md").waitFor()
+  assert.equal(await node("docs/d.md").count(), 0, "Focus 1 cuts d (two hops from a)")
+  assert.match(await node("docs/a.md").getAttribute("aria-label"), /, selected$/, "the selected node is named selected")
+  assert.match(await sel.innerText(), /↵\s*o\s*open\s*·\s*←→\s*linked\s*·\s*Esc\s*clear/, "the card shows the graph keys")
+  await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } })
+  await page.keyboard.press("?")
+  const help = page.getByRole("dialog", { name: "Keyboard shortcuts" })
+  const graphKeys = help.locator("table", { has: page.locator("caption", { hasText: /^Graph$/ }) })
+  for (const k of ["/", "Tab", "↵", "o", "←→↑↓", "Esc", "↵ ⇧↵"]) await graphKeys.locator("kbd", { hasText: new RegExp(`^${k.replace(/[/?]/g, "\\$&")}$`) }).waitFor()
+  await page.keyboard.press("Escape")
+  console.log("ok  T111: Show in graph opens /graph on a.md with Focus 1; the card shows its keys, the ? sheet a Graph section; the node is named selected")
+
+  // 8b. Tab to a link below the fold: the browser scrolls it in, and the preview still opens (and stays)
+  await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/long.md")}`)
+  await doc.locator("a[data-broken]").first().waitFor()
+  const far = doc.locator("a[data-broken]").first()
+  assert.ok(await far.evaluate((el) => el.getBoundingClientRect().top > window.innerHeight), "far link starts below the fold")
+  await doc.locator("p").first().evaluate((el) => { el.tabIndex = -1; el.focus() })
+  await page.keyboard.press("Tab")
+  await page.waitForFunction(() => document.activeElement?.matches(".doc-preview a[data-broken]"))
+  await card.getByText("far-away.md").waitFor()
+  await page.waitForTimeout(400)
+  assert.ok(await card.isVisible(), "the preview stays open after the focus scroll")
+  console.log("ok  T111: Tab to a below-the-fold link scrolls it in and shows its preview")
+
+  // 8c. The broken-links menu: a keyboard-focused item's accent edge clears 3:1 against the item's fill
+  await page.goto(`${BASE}/graph`)
+  await page.getByRole("button", { name: /^3 broken links$/ }).focus()
+  await page.keyboard.press("Enter")
+  await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "menuitem")
+  const ratio = await page.evaluate(() => {
+    const el = document.activeElement
+    const cs = getComputedStyle(el)
+    const rgb = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number)
+    const lum = ([r, g, b]) => [r, g, b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }).reduce((a, v, i) => a + v * [0.2126, 0.7152, 0.0722][i], 0)
+    // Tailwind composes the shadow from several layers; the edge is the one that isn't transparent
+    const edge = cs.boxShadow.match(/rgba?\([^)]+\)/g)?.find((c) => !/,\s*0\)$/.test(c))
+    if (!edge) return 0
+    const [a, b] = [lum(rgb(edge)), lum(rgb(cs.backgroundColor))].sort((x, y) => y - x)
+    return (a + 0.05) / (b + 0.05)
+  })
+  assert.ok(ratio >= 3, `menu item focus edge ${ratio.toFixed(2)}:1`)
+  await page.keyboard.press("Escape")
+  console.log(`ok  T111: a focused menu item's accent edge is ${ratio.toFixed(2)}:1 against its fill`)
 
   // 7. The agent's read ends with the resolved related files
   const read = await mcp("vibedoc_read_doc", { query: "docs/a.md" })

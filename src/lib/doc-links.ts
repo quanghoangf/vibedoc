@@ -16,7 +16,8 @@ export type BrokenLink = { from: string; target: string; line: number; text: str
 export type ResolvedTargets = Record<string, Record<string, string>>
 /** `broken`: md / wiki links that point nowhere. `stale`: backticked paths (`code`) to a file that doesn't exist. */
 export type DocGraph = { nodes: DocNode[]; edges: DocEdge[]; broken: BrokenLink[]; stale: BrokenLink[]; targets: ResolvedTargets }
-export type LinkRow = { path: string; kind: string; label: string; line: number; text: string; context?: string }
+/** `status`: a linked task's or epic's status, set by GET /api/docs/links (as on graph nodes), never by docLinks(). */
+export type LinkRow = { path: string; kind: string; label: string; line: number; text: string; context?: string; status?: string }
 
 // Upper case only, whole tokens: "XT0651", "e2e" and "T0651a" don't match
 const ID_RE = /(?<![A-Za-z0-9_-])(E\d+|T\d{3,}|R\d{3,}|ADR-\d+)(?![A-Za-z0-9_])/g
@@ -269,6 +270,17 @@ export function buildDocGraph(items: DocItem[], otherPaths: readonly string[] = 
     }
   }
   return { nodes: items.map(i => i.node), edges: [...edges.values()], broken: [...broken.values()], stale: [...stale.values()], targets }
+}
+
+/** The kinds /graph shows when its URL names none. */
+export const GRAPH_DEFAULT_KINDS: readonly DocNodeKind[] = ['doc', 'adr']
+
+/** /graph selected on one file with Focus 1 ("Show in graph"); a task, epic or entry also turns its kind on. */
+export function graphHref(path: string): string {
+  const p = new URLSearchParams({ node: path, focus: '1' })
+  const kind = docNode(path, '').kind
+  if (!GRAPH_DEFAULT_KINDS.includes(kind)) p.set('kinds', [...GRAPH_DEFAULT_KINDS, kind].join(','))
+  return `/graph?${p}`
 }
 
 export type TargetRow = { path: string; kind: DocNodeKind; id: string; label: string }

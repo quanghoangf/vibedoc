@@ -16,11 +16,18 @@ import { LINK_EVENTS } from "./useDocLinks"
 /** What a hovered link points at: a resolved file, or a broken raw target. */
 export type PreviewTarget = { path: string; kind: string; label: string } | { broken: string }
 type Preview = { title: string; text: string; status?: string; owner?: string }
-// open false = fading out: the card stays mounted with its last content until the next one opens
-type Card = { key: string; anchor: Element; target: PreviewTarget; rect: DOMRect; data: Preview | null; open: boolean }
+// open false = fading out: the card stays mounted with its last content until the next one opens. `bounds`: the
+// [data-preview-bounds] column the anchor sits in (Linked docs), whose width and left edge the card keeps.
+type Card = { key: string; anchor: Element; target: PreviewTarget; rect: DOMRect; bounds?: DOMRect; data: Preview | null; open: boolean }
 
 const SHOW_DELAY = 350
 const HIDE_DELAY = 150
+// Tabbing through rows: a focus this soon after the last one waits TAB_DELAY, so the card doesn't flicker past every
+// row; a single deliberate focus shows at once
+const TAB_THROUGH_MS = 500
+const TAB_DELAY = 200
+// the browser scrolls a newly focused link into view; scroll events this soon after a focus move the card, never hide it
+const FOCUS_SCROLL_MS = 150
 const CARD_W = 320
 const CARD_H = 220
 const MAX_TEXT = 400
@@ -96,14 +103,17 @@ export function LinkPreview({ containerRef, resolve }: {
     const container = containerRef.current
     if (!container) return
     let current: Element | null = null
+    let focusAt = -Infinity
+    const measure = (anchor: Element) => ({ rect: anchor.getBoundingClientRect(), bounds: anchor.closest("[data-preview-bounds]")?.getBoundingClientRect() })
 
-    const show = (anchor: Element, target: PreviewTarget, delay: number) => {
+    // `delay` applies even to a cached preview when `always` (tabbing through rows); a hover on a cached one is instant
+    const show = (anchor: Element, target: PreviewTarget, delay: number, always = false) => {
       const key = "broken" in target ? `!${target.broken}` : `${rootParam}|${target.path}`
       const cached = cache.get(key) ?? null
       clearTimeout(timer.current)
       timer.current = setTimeout(() => {
         if (current !== anchor) return
-        setCard({ key, anchor, target, rect: anchor.getBoundingClientRect(), data: cached, open: true })
+        setCard({ key, anchor, target, ...measure(anchor), data: cached, open: true })
         if (cached || "broken" in target) return
         fetch(`/api/docs${rootParam}&read=${encodeURIComponent(target.path)}`)
           .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
@@ -116,7 +126,7 @@ export function LinkPreview({ containerRef, resolve }: {
             console.warn("Link preview failed", e)
             setCard((c) => (c?.key === key ? { ...c, data: { title: target.label, text: "Preview unavailable" } } : c))
           })
-      }, cached ? 0 : delay)
+      }, cached && !always ? 0 : delay)
     }
     const hide = () => {
       clearTimeout(timer.current)
@@ -141,21 +151,30 @@ export function LinkPreview({ containerRef, resolve }: {
       const hit = resolve(e.target as Element)
       // keyboard focus only: a sheet's autofocus after a tap or click must not pop a card
       if (!hit || !hit.anchor.matches(":focus-visible")) return
+      const now = performance.now()
+      const through = now - focusAt < TAB_THROUGH_MS
+      focusAt = now
       current = hit.anchor
-      show(hit.anchor, hit.target, 0)
+      show(hit.anchor, hit.target, through ? TAB_DELAY : 0, through)
+    }
+    // A scroll right after a focus is the browser bringing the link into view: follow it. Any other scroll hides the card.
+    const onScroll = () => {
+      const anchor = current
+      if (!anchor || performance.now() - focusAt > FOCUS_SCROLL_MS) return hide()
+      setCard((c) => (c?.anchor === anchor ? { ...c, ...measure(anchor) } : c))
     }
     container.addEventListener("mouseover", onOver)
     container.addEventListener("mouseout", onOut)
     container.addEventListener("focusin", onFocusIn)
     container.addEventListener("focusout", hide)
-    window.addEventListener("scroll", hide, true)
+    window.addEventListener("scroll", onScroll, true)
     return () => {
       clearTimeout(timer.current)
       container.removeEventListener("mouseover", onOver)
       container.removeEventListener("mouseout", onOut)
       container.removeEventListener("focusin", onFocusIn)
       container.removeEventListener("focusout", hide)
-      window.removeEventListener("scroll", hide, true)
+      window.removeEventListener("scroll", onScroll, true)
     }
   }, [containerRef, resolve, rootParam, close])
 
@@ -179,10 +198,12 @@ export function LinkPreview({ containerRef, resolve }: {
   }, [anchor, id, close])
 
   if (!card) return null
-  const { target, rect, data, open } = card
+  const { target, rect, bounds, data, open } = card
   const below = rect.bottom + CARD_H < window.innerHeight
-  const left = Math.max(8, Math.min(rect.left, window.innerWidth - CARD_W - 8))
-  const style = below ? { top: rect.bottom + 6, left, width: CARD_W } : { bottom: window.innerHeight - rect.top + 6, left, width: CARD_W }
+  // in a column: no wider than it, on its left edge; elsewhere 320px from the link, kept on screen
+  const width = bounds ? Math.min(CARD_W, bounds.width) : CARD_W
+  const left = Math.max(8, Math.min(bounds ? bounds.left : rect.left, window.innerWidth - width - 8))
+  const style = below ? { top: rect.bottom + 6, left, width } : { bottom: window.innerHeight - rect.top + 6, left, width }
   const broken = "broken" in target
   const Icon = broken ? Unlink : KIND_ICON[target.kind as keyof typeof KIND_ICON] ?? KIND_ICON.doc
   const status = !broken && data?.status ? displayStatus(resolveStatus(data.status, statusDefs)) : null

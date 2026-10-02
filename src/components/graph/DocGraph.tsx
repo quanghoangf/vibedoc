@@ -11,12 +11,13 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { KIND_ICON, useOpenNode } from "@/components/memory/EntryRelated"
 import { fetchLinkJson, useLinkGeneration } from "@/components/docs/useDocLinks"
-import { touchedPaths, type BrokenLink, type DocGraph as Graph, type DocNode, type DocNodeKind, type TouchEvent } from "@/lib/doc-links"
+import { GRAPH_DEFAULT_KINDS, touchedPaths, type BrokenLink, type DocGraph as Graph, type DocNode, type DocNodeKind, type TouchEvent } from "@/lib/doc-links"
 import { STATUS_COLOR_CLASS, StatusChip } from "@/components/shared/StatusIcon"
 import { statusDefIn, useStatusDefs } from "@/components/shared/status-defs"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { AgentDot } from "@/components/chat/AgentMark"
 import type { StatusDef } from "@/lib/statuses"
+import { GRAPH_KEYS } from "@/lib/shortcuts"
 import { forceLayout, graphChanges, hiddenLabels, neighbourhoodIds, SPRING, springStep, stepFocus, type ArrowKey, type LabelBox, type SpringWorld } from "./force-layout"
 
 // delay: the selection ripple (depth-2 lights after depth-1); quick: no selection, so state changes run on fast.
@@ -37,7 +38,7 @@ const KINDS: { kind: DocNodeKind; label: string }[] = [
   { kind: "epic", label: "Epics" },
   { kind: "entry", label: "Entries" },
 ]
-const DEFAULT_KINDS: DocNodeKind[] = ["doc", "adr"]
+const DEFAULT_KINDS: DocNodeKind[] = [...GRAPH_DEFAULT_KINDS]
 // React Flow chrome in the app's tokens: Controls read as ghost icon buttons
 const FLOW_STYLE = {
   "--xy-background-color": "var(--color-bg)",
@@ -128,6 +129,8 @@ const still = () => typeof window !== "undefined" && window.matchMedia("(prefers
 const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"])
 const HINT = "Tab moves between files, then the unlinked ones below the map. Enter selects a file; Enter again or O opens it. Arrow keys move to the nearest linked file. Escape clears the search, then the selection. Slash jumps to search; Enter there frames every match, then steps through them (Shift+Enter goes back)."
 const ARIA_LABELS = { "node.a11yDescription.default": HINT }
+// keyboard hints, neutral like the ? sheet (never accent)
+const KBD = "rounded-sm border border-border2 bg-surface2 px-1 py-0.5 font-mono text-[10px] leading-none text-txt"
 
 function subscribeTheme(cb: () => void) {
   const mo = new MutationObserver(cb)
@@ -483,7 +486,7 @@ export function DocGraph() {
         // known size: a fresh node object (every restyle, every tween frame) keeps its handles and stays visible
         // instead of React Flow hiding it, and its edges, until it re-measures
         measured: { width: box, height: box },
-        ariaLabel: `${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}${touched.has(p) ? ", changed in the last 24 hours" : ""}`,
+        ariaLabel: `${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}${touched.has(p) ? ", changed in the last 24 hours" : ""}${p === selected ? ", selected" : ""}`,
         data: { node: n, size, box, dim: !!lit && !lit.has(p), lit: !!lit?.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hollow, recent: touched.has(p), hideLabel: hideLabel.has(p), delay: delayOf(p), quick },
         draggable: true,
       }
@@ -770,19 +773,12 @@ export function DocGraph() {
     e.preventDefault()
   }
 
-  if (error) {
-    return (
-      <div role="alert" className="m-6 max-w-xl rounded-lg border border-danger/30 bg-danger/5 p-4">
-        <p className="text-sm font-medium text-txt">Couldn&apos;t load the link graph.</p>
-        <p className="mt-1 text-xs break-words text-muted">{error}</p>
-        <Button size="sm" variant="outline" className="mt-3" onClick={() => { setError(null); setRetry((r) => r + 1) }}>Retry</Button>
-      </div>
-    )
-  }
-  if (!graph) return <p className="p-6 text-sm text-muted">Loading graph…</p>
-  if (!graph.edges.length) {
+  if (!graph && !error) return <p className="p-6 text-sm text-muted">Loading graph…</p>
+  if (graph && !graph.edges.length && !error) {
     return <p className="m-6 rounded-lg border border-dashed border-border p-4 text-sm text-muted">No links between docs yet. Link docs with [text](path.md) or [[name]].</p>
   }
+  // a load failure keeps the toolbar (filters, search) and says what to do; the raw error is a details line
+  const g = graph ?? EMPTY_GRAPH
 
   const sel = selected ? byPath.get(selected) : undefined
   if (sel && sel !== cardNode) setCardNode(sel)
@@ -795,7 +791,7 @@ export function DocGraph() {
     ? { to: new Set(es.filter((e) => e.from === cp && e.to !== cp).map((e) => e.to)).size, from: new Set(es.filter((e) => e.to === cp && e.from !== cp).map((e) => e.from)).size }
     : { to: 0, from: 0 }
   const shown = linked(visible?.edges ?? [])
-  const all = linked(graph.edges)
+  const all = linked(g.edges)
   const hiddenLinks = all.to + all.from - shown.to - shown.from
 
   return (
@@ -864,9 +860,9 @@ export function DocGraph() {
           )}
           <span className="inline-flex items-center gap-1"><span aria-hidden className="size-1.5 rounded-full bg-accent" />changed in 24h</span>
         </p>
-        <MissingLinks broken={graph.broken} />
+        <MissingLinks broken={g.broken} />
         {/* the broken-links button carries ml-auto; with none, the search does */}
-        <label className={cn("relative flex items-center", !graph.broken.length && "ml-auto")}>
+        <label className={cn("relative flex items-center", !g.broken.length && "ml-auto")}>
           <Search className="pointer-events-none absolute left-2 size-3.5 text-muted" aria-hidden />
           <input
             id="graph-search"
@@ -883,6 +879,8 @@ export function DocGraph() {
           <span id="graph-matches" className="pointer-events-none absolute right-2 font-mono text-[10px] text-muted tabular-nums">
             {!q ? "" : step !== null && step >= 0 ? `${step + 1} of ${matches.length}` : `${matches.length} match${matches.length === 1 ? "" : "es"}`}
           </span>
+          {/* the / hint, as on /board, until there's a count to show */}
+          {!q && <kbd aria-hidden className={cn(KBD, "pointer-events-none absolute right-1.5 max-sm:hidden")}>{GRAPH_KEYS.search.key}</kbd>}
         </label>
       </div>
 
@@ -895,8 +893,18 @@ export function DocGraph() {
         className="group/graph relative min-h-0 flex-1"
       >
         <p id="graph-hint" className="sr-only">{HINT}</p>
-        {!state.kinds.length ? (
-          <p className="m-6 text-sm text-muted">Turn on a kind to see files.</p>
+        {error ? (
+          <div role="alert" className="m-6 max-w-xl rounded-lg border border-danger/30 bg-danger/5 p-4">
+            <p className="text-sm font-medium text-txt">Couldn&apos;t load the link graph.</p>
+            <p className="mt-1 text-xs text-muted">Check that VibeDoc is still running, then try again. Your files are untouched.</p>
+            <p className="mt-1 font-mono text-[11px] break-words text-muted">Details: {error}</p>
+            <Button size="sm" variant="outline" className="mt-3" onClick={() => { setError(null); setRetry((r) => r + 1) }}>Retry</Button>
+          </div>
+        ) : !state.kinds.length ? (
+          <div className="m-6 flex flex-wrap items-center gap-3">
+            <p className="text-sm text-muted">Every kind is off, so no files are drawn.</p>
+            <Button size="sm" variant="outline" onClick={() => update({ kinds: DEFAULT_KINDS })}>Show docs</Button>
+          </div>
         ) : (
           <ReactFlow<DotNode, LinkEdge>
             aria-label="Doc link graph"
@@ -947,7 +955,7 @@ export function DocGraph() {
         )}
 
         {/* Unlinked shelf: files with no visible link, off the map so they never stretch the fit; after the map in tab order */}
-        {state.kinds.length > 0 && unlinked.length > 0 && (
+        {!error && state.kinds.length > 0 && unlinked.length > 0 && (
           <div
             data-shelf
             role="group"
@@ -1037,6 +1045,14 @@ export function DocGraph() {
               <p className="mt-2 text-xs text-muted">
                 Links to <span className="font-mono tabular-nums text-txt">{shown.to}</span> · Linked from <span className="font-mono tabular-nums text-txt">{shown.from}</span>
                 {hiddenLinks > 0 && <span className="text-muted"> · <span className="font-mono tabular-nums">+{hiddenLinks}</span> hidden by filters</span>}
+              </p>
+              {/* the keys that drive the map, for sighted keyboard users (screen readers get #graph-hint) */}
+              <p aria-hidden className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px] text-muted max-sm:hidden">
+                <kbd className={KBD}>{GRAPH_KEYS.select.key}</kbd><kbd className={KBD}>{GRAPH_KEYS.open.key}</kbd> open
+                <span aria-hidden>·</span>
+                <kbd className={KBD}>←→</kbd> linked
+                <span aria-hidden>·</span>
+                <kbd className={KBD}>{GRAPH_KEYS.clear.key}</kbd> clear
               </p>
               <div className="mt-3 flex items-center gap-2">
                 <Button size="sm" onClick={() => open(card)}>Open</Button>

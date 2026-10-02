@@ -1,14 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useRef } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FileQuestion, Unlink } from "lucide-react"
+import { FileQuestion, Unlink, Waypoints } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { cn } from "@/lib/utils"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { GROUPS, KIND_ICON, useOpenNode } from "@/components/memory/EntryRelated"
 import { displayStatus } from "@/lib/statuses"
-import type { LinkRow } from "@/lib/doc-links"
+import { graphHref, type LinkRow } from "@/lib/doc-links"
 import type { NodeKind } from "@/lib/memory-graph"
 import type { DocLinksData } from "./useDocLinks"
 import { LinkPreview, type PreviewTarget } from "./LinkPreview"
@@ -33,8 +34,9 @@ const idOf = (r: LinkRow) => /^(T\d+|R\d+|E\d+|ADR-\d+)/.exec(r.path.split("/").
 /**
  * What a doc links to, what links to it, its broken links and stale path mentions (R056), from GET /api/docs/links via `useDocLinks`.
  * Same grouping and rows as the Memory page's `EntryRelated`. `onNavigate` runs after a row opens (closes a sheet).
+ * `path` (the open doc) adds a Show in graph link.
  */
-export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; onNavigate?: () => void }) {
+export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | null; path?: string; onNavigate?: () => void }) {
   const router = useRouter()
   const { board } = useApp()
   const open = useOpenNode((id) => router.push(`/memory?entry=${id}`))
@@ -62,6 +64,8 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
     const kind = (NODE_KINDS.has(r.kind) ? r.kind : "doc") as NodeKind
     const id = idOf(r)
     const task = kind === "task" ? tasks.get(id) : undefined
+    // tasks from the live board, epics from the row (their roadmap status): one StatusIcon for both
+    const status = task ? displayStatus(task) : kind === "epic" ? r.status : undefined
     const Icon = KIND_ICON[kind]
     return (
       <li key={`${r.path}:${r.line}`}>
@@ -72,11 +76,11 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
           data-preview-kind={kind}
           data-preview-label={r.label}
           data-row-key={`${section}:${r.path}${withLine ? `:${r.line}` : ""}`}
-          data-sig={`${r.label}|${task ? displayStatus(task) : ""}|${withLine ? r.context ?? r.text : ""}`}
+          data-sig={`${r.label}|${status ?? ""}|${withLine ? r.context ?? r.text : ""}`}
           className={cn("flex w-full flex-col", ROW)}
         >
           <span className="flex w-full min-w-0 items-center gap-2">
-            {task ? <StatusIcon status={displayStatus(task)} className="size-3.5 shrink-0" /> : <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />}
+            {status ? <StatusIcon status={status} className="size-3.5 shrink-0" /> : <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />}
             {kind !== "doc" && <span className="shrink-0 font-mono text-[11px] text-muted">{id}</span>}
             <span className="min-w-0 truncate text-txt">{r.label}</span>
           </span>
@@ -88,9 +92,9 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
 
   const section = (title: string, rows: LinkRow[], empty: string, withLine: boolean) => (
     <div className="flex flex-col gap-1.5">
-      <h4 className={LABEL_CAPS}>
+      <h3 className={LABEL_CAPS}>
         {title}<span className="ml-auto">{rows.length}</span>
-      </h4>
+      </h3>
       {!rows.length ? <p className="px-2 text-xs text-muted">{empty}</p> : GROUPS.map(({ kind, label }) => {
         const group = rows.filter((r) => (NODE_KINDS.has(r.kind) ? r.kind : "doc") === kind)
         if (!group.length) return null
@@ -107,9 +111,9 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
   // Broken links and stale path mentions: each row scrolls the preview to the spot and flashes it
   const missSection = (title: string, rows: LinkRow[], broken: boolean) => rows.length > 0 && (
     <div className="flex flex-col gap-1.5">
-      <h4 className={LABEL_CAPS}>
+      <h3 className={LABEL_CAPS}>
         {title}<span className="ml-auto">{rows.length}</span>
-      </h4>
+      </h3>
       <ul>
         {rows.map((r, i) => (
           <li key={i}>
@@ -133,7 +137,7 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
   const out = links ? [...new Map(links.out.map((r) => [r.path, r])).values()] : []
   // the wrapper is always mounted so LinkPreview's delegated listeners attach once
   return (
-    <div ref={ref}>
+    <div ref={ref} data-preview-bounds>
       <LinkPreview containerRef={ref} resolve={previewOf} />
       {!links ? <p className="text-xs text-muted">Loading links…</p> : (
         <div className="flex flex-col gap-5">
@@ -141,6 +145,12 @@ export function LinkedDocs({ links, onNavigate }: { links: DocLinksData | null; 
           {section("Linked from", links.in, "Nothing links here", true)}
           {missSection("Broken", links.broken, true)}
           {missSection("Stale paths", links.stale, false)}
+          {path && (
+            <Link href={graphHref(path)} onClick={onNavigate} className={cn("flex items-center gap-2 text-muted hover:text-txt", ROW)}>
+              <Waypoints className="size-3.5 shrink-0" aria-hidden />
+              Show in graph
+            </Link>
+          )}
         </div>
       )}
     </div>

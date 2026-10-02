@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { useApp } from "@/context/AppContext"
 import { cn } from "@/lib/utils"
 import type { SelectedDoc } from "@/types"
@@ -14,10 +15,11 @@ import { timeAgo } from "@/components/activity/ActivityEventRow"
 import { DocOutline } from "./DocOutline"
 import { docStats, extractHeadings } from "@/lib/headings"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Bot, Link2, PanelLeftClose, PanelLeftOpen, Plus, User } from "lucide-react"
+import { ArrowLeft, Bot, Link2, PanelLeftClose, PanelLeftOpen, Plus, Unlink, User, Waypoints } from "lucide-react"
 import { DOCS_LIST_KEY } from "@/lib/shortcuts"
 import { stripFrontmatter } from "@/lib/doc-priority"
 import { DocProperties } from "./DocProperties"
+import { graphHref } from "@/lib/doc-links"
 
 const kbdClass = "rounded-sm border border-border bg-surface2 px-1 font-mono text-[10px] leading-4 text-txt"
 
@@ -109,7 +111,8 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
       className={`h-7 gap-1 px-1.5 text-muted hover:text-txt ${pressed ? "bg-surface2 text-txt" : ""} ${className}`}>
       <Link2 className="h-3.5 w-3.5" aria-hidden />
       {linkCount !== null && <span className="font-mono text-[11px]">{linkCount}</span>}
-      {brokenCount > 0 && <span className="font-mono text-[11px] text-danger">{brokenCount}</span>}
+      {/* muted like /graph's "N broken": a count to look at, not an error (Highlighter Rule) */}
+      {brokenCount > 0 && <span className="ml-0.5 inline-flex items-center gap-0.5 font-mono text-[11px]"><Unlink className="size-3" aria-hidden />{brokenCount}</span>}
     </Button>
   )
   return (
@@ -117,7 +120,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
       <Sheet open={linksSheet} onOpenChange={setLinksSheet}>
         <SheetContent side="right" aria-describedby={undefined} className="flex w-80 flex-col gap-4 overflow-y-auto border-border bg-surface p-5 text-txt sm:max-w-80">
           <SheetTitle className="text-sm font-semibold text-txt">Linked docs</SheetTitle>
-          <LinkedDocs links={links} onNavigate={() => setLinksSheet(false)} />
+          <LinkedDocs links={links} path={doc.path} onNavigate={() => setLinksSheet(false)} />
         </SheetContent>
       </Sheet>
       <MarkdownEditor
@@ -161,6 +164,11 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
           <>
             {/* Headings only exist to scroll to where the doc is rendered */}
             {mode !== "edit" && <div className="max-lg:hidden"><DocOutline headings={headings} /></div>}
+            <Button variant="ghost" size="sm" asChild className="h-7 px-1.5 text-muted hover:text-txt">
+              <Link href={graphHref(doc.path)} aria-label="Show in graph" title="Show in graph">
+                <Waypoints className="size-3.5" aria-hidden />
+              </Link>
+            </Button>
             {linksButton(() => setLinksSheet(true), "xl:hidden")}
             {linksButton(() => setLinksColumn((v) => !v), "max-xl:hidden", linksColumn)}
             {docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
@@ -176,7 +184,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
             )}
           >
             <aside aria-label="Linked docs" className="min-h-0 w-72 overflow-y-auto border-l border-border px-4 py-6">
-              <LinkedDocs links={links} />
+              <LinkedDocs links={links} path={doc.path} />
             </aside>
           </div>
         }
