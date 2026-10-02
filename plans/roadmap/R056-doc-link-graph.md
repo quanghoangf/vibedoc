@@ -1,8 +1,8 @@
 # R056: Doc link graph
 **Parent:** R003
-**Status:** done
+**Status:** in-progress
 **Order:** 80
-**Tasks:** T093, T094, T095, T096, T097, T098, T099, T100, T101, T102, T103, T104, T105, T106, T107
+**Tasks:** T093, T094, T095, T096, T097, T098, T099, T100, T101, T102, T103, T104, T105, T106, T107, T108, T109, T110, T111, T112
 
 People and agents can follow how docs link to each other. Readers click through to linked docs, see what links in and out, and browse the whole link map. Agents learn which related files to read next. Inspired by Obsidian's graph view and codegraph tools.
 
