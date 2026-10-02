@@ -13,7 +13,7 @@
 //      Esc clears the selection.
 //   5b. /graph: a file with no links sits on the Unlinked shelf (click selects it, Tab reaches it after the map); search
 //       Enter frames the matches, Enter / Shift+Enter step through them ("1 of 5"); every dot has a ≥ 24px hit pad;
-//       every label that shows renders ≥ 9px, at the fit and zoomed out (T112).
+//       every label that shows renders ≥ 9px, at the fit and zoomed out; Fit keeps the mount camera (T112).
 //   6. /graph after a pan: an agent moving T001 pings its node and leaves the camera where the user put it.
 //      Done draws hollow; the Recent chip lights what changed in the last 24h (T110).
 //   8. T111: Show in graph (header and Linked docs) opens /graph on that doc with Focus 1; the card shows its keys,
@@ -214,6 +214,19 @@ try {
     const hit = await node(p).locator("[data-hit]").boundingBox()
     assert.ok(hit.width >= 23.9 && hit.height >= 23.9, `${p} hit pad ${hit.width}×${hit.height}`)
   }
+  // T112: Fit right after load keeps the mount camera (one fit for both), so it replays the entrance without a zoom
+  //       change, and so without a label pass under it; Fit after a zoom returns to that same camera
+  const view = () => page.locator(".react-flow__viewport").evaluate((el) => el.style.transform)
+  const mounted = await view()
+  await page.getByRole("button", { name: /fit view/i }).click()
+  await page.waitForSelector("[data-unfold]")
+  assert.equal(await view(), mounted, "Fit after load keeps the mount fit's camera")
+  await page.getByRole("button", { name: /zoom in/i }).click()
+  await page.waitForTimeout(400)
+  await page.getByRole("button", { name: /fit view/i }).click()
+  await page.waitForTimeout(50)
+  assert.equal(await view(), mounted, "Fit after a zoom returns to the mount fit's camera")
+  await page.waitForFunction(() => !document.querySelector("[data-unfold]"))
   // T112: the shelf is reachable by keyboard: Tab from the last map node (label order) passes the zoom controls into it
   await node("docs/d.md").focus()
   for (let i = 0; i < 6 && !(await page.evaluate(() => !!document.activeElement?.closest("[data-shelf]"))); i++) await page.keyboard.press("Tab")
@@ -269,7 +282,7 @@ try {
   await count.getByText("1 of 2").waitFor()
   await page.getByRole("button", { name: /^Tasks/, pressed: true }).click()
   await count.getByText("0 matches").waitFor()
-  console.log("ok  /graph: long.md on the Unlinked shelf; search Enter frames, then steps 1 of 5 → 2 of 5 → back; a kind filter resets the cursor; hit pads ≥ 24px; Tab reaches the shelf; every shown label ≥ 9px at the fit and zoomed out")
+  console.log("ok  /graph: long.md on the Unlinked shelf; search Enter frames, then steps 1 of 5 → 2 of 5 → back; a kind filter resets the cursor; hit pads ≥ 24px; Tab reaches the shelf; Fit keeps the mount camera; every shown label ≥ 9px at the fit and zoomed out")
 
   // 6. A live change after the user zoomed: the changed node flashes, the camera stays put
   await page.goto(`${BASE}/graph?kinds=doc,task`)

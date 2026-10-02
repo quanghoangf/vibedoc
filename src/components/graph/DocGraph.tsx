@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Background, BackgroundVariant, Controls, getViewportForBounds, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react"
+import { Background, BackgroundVariant, ControlButton, Controls, getViewportForBounds, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
 import { Info, Search, Unlink, X } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -61,6 +61,8 @@ const VIRTUALIZE_OVER = 150
 // every hit area ≥ 24 screen px (HIT / zoom, capped at HIT_MAX)
 const FIT_MIN_ZOOM = 0.5
 const FIT_OPTIONS = { padding: 0.1, minZoom: FIT_MIN_ZOOM, maxZoom: 1 }
+// React Flow's fit-view glyph (not exported), for our own Fit button
+const FIT_ICON = "M3.692 4.63c0-.53.4-.938.939-.938h5.215V0H4.708C2.13 0 0 2.054 0 4.63v5.216h3.692V4.631zM27.354 0h-5.2v3.692h5.17c.53 0 .984.4.984.939v5.215H32V4.631A4.624 4.624 0 0027.354 0zm.954 24.83c0 .532-.4.94-.939.94h-5.215v3.768h5.215c2.577 0 4.631-2.13 4.631-4.707v-5.139h-3.692v5.139zm-23.677.94c-.531 0-.939-.4-.939-.94v-5.138H0v5.139c0 2.577 2.13 4.707 4.708 4.707h5.138V25.77H4.631z"
 // how long a live update marks the nodes it touched (data-changed, for the update flash)
 const CHANGED_MS = 1500
 const EMPTY_GRAPH: Graph = { nodes: [], edges: [], broken: [], stale: [], targets: {} }
@@ -430,17 +432,33 @@ export function DocGraph() {
   const firstFit = useRef(true)
   const viewKey = `${state.kinds.join(",")}|${focusRoot ?? ""}|${focusRoot ? state.focus : 0}`
   useEffect(() => { userMoved.current = false }, [viewKey])
+  /** The camera that fits the layout points. The mount fit and the Fit button share it: React Flow's own fitView
+   *  frames the node boxes, a slightly different zoom, so the first Fit re-ran the label pass during the entrance. */
+  const layoutViewport = useCallback(() => {
+    const el = rootRef.current?.querySelector<HTMLElement>(".react-flow")
+    const pts = Object.values(pos)
+    if (!el || !pts.length) return null
+    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y)
+    const x = Math.min(...xs) - HIT, y = Math.min(...ys) - HIT
+    const bounds = { x, y, width: Math.max(...xs) + HIT - x, height: Math.max(...ys) + HIT - y }
+    return getViewportForBounds(bounds, el.clientWidth, el.clientHeight, FIT_MIN_ZOOM, FIT_OPTIONS.maxZoom, FIT_OPTIONS.padding)
+  }, [pos])
+  // Fit: the same camera as the mount fit, set at once; the entrance starts a task later, after any label pass a
+  // zoom change renders (the user had zoomed), so the two long tasks never stack
+  const fit = () => {
+    userMoved.current = false
+    const vp = layoutViewport()
+    if (!rf || !vp) return
+    applyZoom(vp.zoom)
+    void rf.setViewport(vp, { duration: 0 })
+    setTimeout(unfold, 0)
+  }
   // Fits the *target* layout, so the camera glides alongside the position tween instead of after a jump
   useEffect(() => {
     if (!rf || userMoved.current) return
     const id = requestAnimationFrame(() => {
-      const el = rootRef.current?.querySelector<HTMLElement>(".react-flow")
-      const pts = Object.values(pos)
-      if (!el || !pts.length) return setVeiled(false)
-      const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y)
-      const x = Math.min(...xs) - HIT, y = Math.min(...ys) - HIT
-      const bounds = { x, y, width: Math.max(...xs) + HIT - x, height: Math.max(...ys) + HIT - y }
-      const vp = getViewportForBounds(bounds, el.clientWidth, el.clientHeight, FIT_MIN_ZOOM, FIT_OPTIONS.maxZoom, FIT_OPTIONS.padding)
+      const vp = layoutViewport()
+      if (!vp) return setVeiled(false)
       const first = firstFit.current
       firstFit.current = false
       applyZoom(vp.zoom)
@@ -450,7 +468,7 @@ export function DocGraph() {
       if (first) setTimeout(() => { setVeiled(false); unfold() }, 0)
     })
     return () => cancelAnimationFrame(id)
-  }, [rf, pos, viewKey, unfold, applyZoom])
+  }, [rf, viewKey, layoutViewport, unfold, applyZoom])
 
   const q = state.q.trim().toLowerCase()
   const matches = useMemo(
@@ -950,12 +968,15 @@ export function DocGraph() {
             <Background variant={BackgroundVariant.Lines} gap={24} lineWidth={1} color="var(--color-surface2)" />
             <Controls
               showInteractive={false}
-              fitViewOptions={FIT_OPTIONS}
+              showFitView={false}
               onZoomIn={() => { userMoved.current = true }}
               onZoomOut={() => { userMoved.current = true }}
-              onFitView={() => { userMoved.current = false; unfold() }}
               className="gap-0.5 rounded-md border border-border bg-surface p-0.5 [&_button]:size-7 [&_button]:rounded-md [&_button]:transition-colors [&_button]:duration-(--duration-fast) [&_button]:outline-none [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-accent [&_svg]:max-h-3 [&_svg]:max-w-3"
-            />
+            >
+              <ControlButton onClick={fit} className="react-flow__controls-fitview" title="Fit View" aria-label="Fit View">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 30" aria-hidden="true"><path d={FIT_ICON} /></svg>
+              </ControlButton>
+            </Controls>
           </ReactFlow>
         )}
 
