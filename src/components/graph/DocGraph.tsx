@@ -11,21 +11,21 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { KIND_ICON, useOpenNode } from "@/components/memory/EntryRelated"
 import { fetchLinkJson, useLinkGeneration } from "@/components/docs/useDocLinks"
-import type { BrokenLink, DocGraph as Graph, DocNode, DocNodeKind } from "@/lib/doc-links"
-import { STATUS_COLOR_CLASS, StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
+import { touchedPaths, type BrokenLink, type DocGraph as Graph, type DocNode, type DocNodeKind, type TouchEvent } from "@/lib/doc-links"
+import { STATUS_COLOR_CLASS, StatusChip } from "@/components/shared/StatusIcon"
 import { statusDefIn, useStatusDefs } from "@/components/shared/status-defs"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { AgentDot } from "@/components/chat/AgentMark"
-import type { TaskStatus } from "@/types"
+import type { StatusDef } from "@/lib/statuses"
 import { forceLayout, graphChanges, hiddenLabels, neighbourhoodIds, SPRING, springStep, stepFocus, type ArrowKey, type LabelBox, type SpringWorld } from "./force-layout"
 
 // delay: the selection ripple (depth-2 lights after depth-1); quick: no selection, so state changes run on fast.
 // enter / exit: a node that appears / disappears during a relayout tween. unfold: the entrance offset (dot starts
 // there, relative to its layout point) and its start delay.
-type DotData = { node: DocNode; size: number; box: number; dim: boolean; lit: boolean; active: boolean; match: boolean; changed: boolean; hue: string; hideLabel: boolean; delay: number; quick: boolean; enter?: boolean; exit?: boolean; unfold?: { x: number; y: number; wait: number } }
+type DotData = { node: DocNode; size: number; box: number; dim: boolean; lit: boolean; active: boolean; match: boolean; changed: boolean; hue: string; hollow: boolean; recent: boolean; hideLabel: boolean; delay: number; quick: boolean; enter?: boolean; exit?: boolean; unfold?: { x: number; y: number; wait: number } }
 type DotNode = Node<DotData, "dot">
 type LinkEdge = Edge
-type GraphState = { node: string | null; focus: 0 | 1 | 2; kinds: DocNodeKind[]; q: string }
+type GraphState = { node: string | null; focus: 0 | 1 | 2; kinds: DocNodeKind[]; q: string; recent: boolean }
 type XY = { x: number; y: number }
 /** A relayout in flight: centres it started from, where it is now, where it goes, and the nodes it removed. */
 type Tween = { from: Record<string, XY>; at: Record<string, XY>; to: Record<string, XY>; gone: DotNode[] }
@@ -83,7 +83,22 @@ const HIT_MAX = 48
 const MATCH_PAD_X = 72
 const HIT_PAD = `min(${HIT_MAX}px, max(100%, calc(${HIT}px / var(--graph-zoom, 1))))`
 const KIND_NAME: Record<DocNodeKind, string> = { doc: "Doc", adr: "ADR", task: "Task", epic: "Epic", entry: "Entry" }
-const LEGEND_STATUSES: TaskStatus[] = ["in-progress", "blocked", "done"]
+// "Recent": files the activity log says an agent or a human changed in this window (T110)
+const RECENT_MS = 24 * 60 * 60 * 1000
+// ponytail: the newest 1000 events cover a day of agent work here; page the log if a busy day outgrows it
+const ACTIVITY_LIMIT = 1000
+// the selection reads without hue (the accent can match a status): accent ring, a bg gap, then a hairline in text colour
+const SELECTED_RING = "ring-2 ring-accent ring-offset-2 ring-offset-bg shadow-[0_0_0_5px_var(--color-bg),0_0_0_6px_var(--color-txt)]"
+// a search match: a dashed accent ring, so a match never reads as the selection
+const MATCH_RING = "outline-1 outline-offset-2 outline-dashed outline-accent"
+
+/** Settled (done / cancelled, custom ones too) draws hollow Pencil Grey; active statuses keep their hue; no status = grey. */
+function dotStyle(defs: StatusDef[], status: string | undefined): { hue: string; hollow: boolean } {
+  if (!status) return { hue: "text-muted", hollow: false }
+  const def = statusDefIn(defs, status)
+  const hollow = def.category === "done" || def.category === "cancelled"
+  return { hue: hollow ? "text-muted" : STATUS_COLOR_CLASS[def.color].text, hollow }
+}
 // relayout: positions and camera glide together (the roadmap Arrange tween is 420ms too)
 const TWEEN_MS = 420
 // ease-out-quart, close to --ease-out-soft; dots and camera share it so they move as one
@@ -123,7 +138,7 @@ function subscribeTheme(cb: () => void) {
 function readState(p: URLSearchParams): GraphState {
   const f = p.get("focus")
   const kinds = p.get("kinds")?.split(",").filter((k): k is DocNodeKind => KINDS.some((x) => x.kind === k))
-  return { node: p.get("node"), focus: f === "1" ? 1 : f === "2" ? 2 : 0, kinds: kinds ?? DEFAULT_KINDS, q: p.get("q") ?? "" }
+  return { node: p.get("node"), focus: f === "1" ? 1 : f === "2" ? 2 : 0, kinds: kinds ?? DEFAULT_KINDS, q: p.get("q") ?? "", recent: p.get("recent") === "1" }
 }
 
 /** Native replaceState syncs useSearchParams without a server round trip (as on /board). */
@@ -135,6 +150,7 @@ function writeState(s: GraphState) {
   const kinds = KINDS.map((k) => k.kind).filter((k) => s.kinds.includes(k))
   set("kinds", kinds.join(",") === DEFAULT_KINDS.join(",") ? null : kinds.join(",") || "none")
   set("q", s.q || null)
+  set("recent", s.recent ? "1" : null)
   window.history.replaceState(null, "", p.size ? `${window.location.pathname}?${p}` : window.location.pathname)
 }
 
@@ -153,21 +169,28 @@ function labelMeasurer(): (n: DocNode) => number {
   return (n) => Math.min(max, width(n.label, sans) + (n.kind === "doc" ? 0 : width(n.id, mono) + 4))
 }
 
-/** Kind by shape, drawn in currentColor: doc circle, ADR square, epic diamond, task (small) circle, entry ring. */
-function Shape({ kind, size, className }: { kind: DocNodeKind; size: number; className?: string }) {
+/**
+ * Kind by shape, drawn in currentColor: doc circle, ADR square, epic diamond, task (small) circle, entry ring.
+ * `hollow` (done / cancelled) draws the same shape as an outline, inset so the stroke stays inside the box.
+ */
+function Shape({ kind, size, hollow, className }: { kind: DocNodeKind; size: number; hollow?: boolean; className?: string }) {
+  // the stroke stays ≥ 1.25 screen px on the smallest dot (a 6px task)
+  const w = Math.max(1.6, 12.5 / size)
+  const paint = hollow ? { fill: "none", stroke: "currentColor", strokeWidth: w } : { fill: "currentColor" }
+  const i = hollow ? w / 2 : 0
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" aria-hidden className={cn("shrink-0", className)}>
-      {kind === "adr" ? <rect x="0.75" y="0.75" width="8.5" height="8.5" rx="1" fill="currentColor" />
-        : kind === "epic" ? <path d="M5 0 10 5 5 10 0 5Z" fill="currentColor" />
+      {kind === "adr" ? <rect x={0.75 + i} y={0.75 + i} width={8.5 - 2 * i} height={8.5 - 2 * i} rx="1" {...paint} />
+        : kind === "epic" ? <path d={hollow ? `M5 ${i * 1.42}L${10 - i * 1.42} 5 5 ${10 - i * 1.42}${i * 1.42} 5Z` : "M5 0 10 5 5 10 0 5Z"} strokeLinejoin="round" {...paint} />
         : kind === "entry" ? <circle cx="5" cy="5" r="3.9" fill="none" stroke="currentColor" strokeWidth="2.2" />
-        : <circle cx="5" cy="5" r="5" fill="currentColor" />}
+        : <circle cx="5" cy="5" r={5 - i} {...paint} />}
     </svg>
   )
 }
 
 /** A shape sized by degree, centred on its layout point; the label hangs below and never takes clicks. */
 const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
-  const { node, size, box, dim, lit, active, match, changed, hue, hideLabel, delay, quick, enter, exit, unfold } = data
+  const { node, size, box, dim, lit, active, match, changed, hue, hollow, recent, hideLabel, delay, quick, enter, exit, unfold } = data
   // The React Flow wrapper (.react-flow__node) takes focus; the halo goes on the dot and the label
   return (
     <div
@@ -183,15 +206,17 @@ const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
       <div
         style={{ width: size, height: size, transitionDelay: `${delay}ms` }}
         className={cn(
-          "relative rounded-full transition-[opacity,box-shadow] ease-out-soft",
+          "relative rounded-full transition-[opacity,box-shadow,outline-color] ease-out-soft",
           quick ? "duration-(--duration-fast)" : "duration-(--duration-base)",
           hue,
           dim && "opacity-25",
-          (active || match) && "ring-2 ring-accent ring-offset-2 ring-offset-bg",
+          active ? SELECTED_RING : match && MATCH_RING,
           "in-[[data-id]:focus-visible]:opacity-100 in-[[data-id]:focus-visible]:ring-2 in-[[data-id]:focus-visible]:ring-accent/60 in-[[data-id]:focus-visible]:shadow-[0_0_0_6px_rgb(var(--rgb-accent)/0.15)]",
         )}
       >
-        <Shape kind={node.kind} size={size} className="block" />
+        <Shape kind={node.kind} size={size} hollow={hollow} className="block" />
+        {/* changed in the last 24h: a small accent notch on the dot's shoulder, cut out of the dot by a bg ring */}
+        {recent && <span aria-hidden className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-accent ring-1 ring-bg" />}
         <Handle type="source" position={Position.Top} isConnectable={false} style={CENTER} className="opacity-0" />
         <Handle type="target" position={Position.Top} isConnectable={false} style={CENTER} className="opacity-0" />
         <span
@@ -272,6 +297,16 @@ export function DocGraph() {
     return () => { live = false }
   }, [rootParam, gen, retry])
 
+  // The activity log, for "Recent": refetched with the graph (task moves and doc edits bump the same generation)
+  const [activity, setActivity] = useState<{ events: TouchEvent[]; at: number } | null>(null)
+  useEffect(() => {
+    let live = true
+    fetchLinkJson<TouchEvent[]>(`/api/activity${rootParam}&limit=${ACTIVITY_LIMIT}`)
+      .then((events) => { if (live) setActivity({ events: Array.isArray(events) ? events : [], at: Date.now() }) })
+      .catch((e) => console.warn("Loading the activity log for Recent failed", e))
+    return () => { live = false }
+  }, [rootParam, gen])
+
   useEffect(() => {
     if (!changed.size) return
     const t = setTimeout(() => setChanged(NONE), CHANGED_MS)
@@ -280,6 +315,17 @@ export function DocGraph() {
 
   // Edges are keyed by path (a task's node id is T093, its edges use the file path), so everything here is.
   const byPath = useMemo(() => new Map((graph?.nodes ?? []).map((n) => [n.path, n])), [graph])
+  // files an agent or a human changed in the last 24h (every kind, so the chip can turn their kinds on)
+  const touched = useMemo(
+    () => (graph && activity ? touchedPaths(activity.events, graph.nodes, activity.at - RECENT_MS) : NONE),
+    [graph, activity],
+  )
+  // the legend's statuses: the ones on screen, in the project's order
+  const legendStatuses = useMemo(() => {
+    const ids = new Set<string>()
+    for (const n of graph?.nodes ?? []) if (n.status && state.kinds.includes(n.kind)) ids.add(statusDefIn(statusDefs, n.status).id)
+    return statusDefs.filter((d) => ids.has(d.id))
+  }, [graph, state.kinds, statusDefs])
   const counts = useMemo(() => {
     const c: Partial<Record<DocNodeKind, number>> = {}
     for (const n of graph?.nodes ?? []) c[n.kind] = (c[n.kind] ?? 0) + 1
@@ -392,7 +438,8 @@ export function DocGraph() {
     for (const e of visible.edges) for (const p of [e.from, e.to]) degree.set(p, (degree.get(p) ?? 0) + 1)
     // Selection ripple: depth-1 lights first; with Focus 2 the depth-2 ring lights RIPPLE_MS later
     const near = selected ? neighbourhoodIds(visible.edges, selected, 1) : null
-    const lit = selected ? (state.focus === 2 ? neighbourhoodIds(visible.edges, selected, 2) : near) : q ? new Set(matches) : null
+    // Recent on (and nothing selected or searched): everything the last 24h didn't touch dims
+    const lit = selected ? (state.focus === 2 ? neighbourhoodIds(visible.edges, selected, 2) : near) : q ? new Set(matches) : state.recent ? touched : null
     const delayOf = (p: string) => (near && lit?.has(p) && !near.has(p) ? RIPPLE_MS : 0)
     const quick = !selected
     const matched = new Set(matches)
@@ -422,8 +469,8 @@ export function DocGraph() {
       const at = pos[p] ?? { x: 0, y: 0 }
       const n = byPath.get(p)!
       const links = adj.get(p)?.size ?? 0
-      // task / epic: the status's own colour, as on the board and the StatusChip; every other kind neutral
-      const hue = n.status ? STATUS_COLOR_CLASS[statusDefIn(statusDefs, n.status).color].text : "text-muted"
+      // task / epic: an active status's own colour, as on the board and the StatusChip; settled ones hollow grey
+      const { hue, hollow } = dotStyle(statusDefs, n.status)
       return {
         id: p,
         type: "dot",
@@ -431,8 +478,8 @@ export function DocGraph() {
         // known size: a fresh node object (every restyle, every tween frame) keeps its handles and stays visible
         // instead of React Flow hiding it, and its edges, until it re-measures
         measured: { width: box, height: box },
-        ariaLabel: `${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}`,
-        data: { node: n, size, box, dim: !!lit && !lit.has(p), lit: !!lit?.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hideLabel: hideLabel.has(p), delay: delayOf(p), quick },
+        ariaLabel: `${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}${touched.has(p) ? ", changed in the last 24 hours" : ""}`,
+        data: { node: n, size, box, dim: !!lit && !lit.has(p), lit: !!lit?.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hollow, recent: touched.has(p), hideLabel: hideLabel.has(p), delay: delayOf(p), quick },
         draggable: true,
       }
     })
@@ -459,7 +506,7 @@ export function DocGraph() {
       }
     })
     return { base: nodes, edges }
-  }, [visible, flowOrder, adj, pos, byPath, selected, state.focus, q, matches, changed, statusDefs, labelK])
+  }, [visible, flowOrder, adj, pos, byPath, selected, state.focus, state.recent, touched, q, matches, changed, statusDefs, labelK])
 
   // Relayout tween (filter / focus / data change): dots glide from where they are drawn to the new layout, new ones
   // scale in at their target, removed ones fade out. A new relayout mid-tween starts from the interpolated positions.
@@ -772,6 +819,22 @@ export function DocGraph() {
         })}
         <button
           type="button"
+          aria-pressed={state.recent}
+          disabled={!touched.size && !state.recent}
+          title="Files an agent or you changed in the last 24 hours"
+          // on: dim everything else, and turn on the kinds the changed files belong to
+          onClick={() => update(state.recent ? { recent: false } : { recent: true, kinds: KINDS.map((k) => k.kind).filter((k) => state.kinds.includes(k) || [...touched].some((p) => byPath.get(p)?.kind === k)) })}
+          className={cn(
+            "inline-flex h-7 items-center gap-1.5 rounded-sm border px-2 text-xs outline-none transition-colors duration-(--duration-fast) focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50",
+            state.recent ? "border-border2 bg-surface2 text-txt" : "border-border text-muted hover:border-border2 hover:text-txt",
+          )}
+        >
+          <span aria-hidden className="size-1.5 rounded-full bg-accent" />
+          Recent
+          <span className="font-mono tabular-nums text-muted">{touched.size}</span>
+        </button>
+        <button
+          type="button"
           aria-expanded={legendOpen}
           aria-controls="graph-legend"
           aria-label="Legend"
@@ -784,10 +847,17 @@ export function DocGraph() {
           {KINDS.map(({ kind }) => (
             <span key={kind} className="inline-flex items-center gap-1"><Shape kind={kind} size={kind === "task" ? 6 : 8} />{KIND_NAME[kind].toLowerCase()}</span>
           ))}
-          <span className="inline-flex items-center gap-1.5">
-            colour = status
-            {LEGEND_STATUSES.map((st) => <StatusIcon key={st} status={st} className="size-3" />)}
-          </span>
+          {legendStatuses.length > 0 && (
+            <>
+              <span>colour = status</span>
+              {legendStatuses.map((d) => {
+                const { hue, hollow } = dotStyle(statusDefs, d.id)
+                return <span key={d.id} className="inline-flex items-center gap-1"><Shape kind="doc" size={7} hollow={hollow} className={hue} />{d.label.toLowerCase()}</span>
+              })}
+              <span>hollow = done</span>
+            </>
+          )}
+          <span className="inline-flex items-center gap-1"><span aria-hidden className="size-1.5 rounded-full bg-accent" />changed in 24h</span>
         </p>
         <MissingLinks broken={graph.broken} />
         {/* the broken-links button carries ml-auto; with none, the search does */}
@@ -886,8 +956,8 @@ export function DocGraph() {
               const n = byPath.get(p)!
               const on = p === selected
               const match = q ? matches.includes(p) : false
-              const dim = selected ? !on : !!q && !match
-              const hue = n.status ? STATUS_COLOR_CLASS[statusDefIn(statusDefs, n.status).color].text : "text-muted"
+              const dim = selected ? !on : q ? !match : state.recent && !touched.has(p)
+              const { hue, hollow } = dotStyle(statusDefs, n.status)
               return (
                 <button
                   key={p}
@@ -895,16 +965,19 @@ export function DocGraph() {
                   data-path={p}
                   title={n.path}
                   aria-pressed={on}
-                  aria-label={`${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, 0 links`}
+                  aria-label={`${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, 0 links${touched.has(p) ? ", changed in the last 24 hours" : ""}`}
                   onClick={() => (on ? open(n) : select(p))}
                   className={cn(
                     "inline-flex h-6 max-w-48 shrink-0 items-center gap-1.5 rounded-sm px-1.5 text-[11px] outline-none",
                     "transition-[opacity,background-color,color] duration-(--duration-fast) ease-out-soft hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent",
-                    on || match ? "font-medium text-txt ring-1 ring-accent" : "text-muted",
+                    on ? "font-medium text-txt ring-1 ring-accent" : match ? "font-medium text-txt outline-1 -outline-offset-1 outline-dashed outline-accent" : "text-muted",
                     dim && "opacity-25",
                   )}
                 >
-                  <Shape kind={n.kind} size={n.kind === "task" ? 6 : 8} className={hue} />
+                  <span className="relative inline-flex">
+                    <Shape kind={n.kind} size={n.kind === "task" ? 6 : 8} hollow={hollow} className={hue} />
+                    {touched.has(p) && <span aria-hidden className="absolute -top-0.5 -right-0.5 size-1 rounded-full bg-accent ring-1 ring-surface" />}
+                  </span>
                   {n.kind !== "doc" && <span className="font-mono text-[10px]">{n.id}</span>}
                   <span className="truncate">{n.label}</span>
                 </button>

@@ -320,3 +320,31 @@ export function formatRelatedFiles(links: { out: LinkRow[]; in: LinkRow[]; broke
   if (!body.length) return ''
   return ['## Related files', ...body, 'Read with vibedoc_read_doc, or several at once with vibedoc_get_context { paths }.'].join('\n')
 }
+
+/** The parts of an activity event (core's ActivityEvent) that say which file it touched. */
+export type TouchEvent = { timestamp: string; type: string; title: string; detail?: string; taskId?: string }
+const TOUCH_ID_RE = /^(?:Entry )?(E\d+|T\d{3,}|R\d{3,}|ADR-\d+)\b/
+const DOC_EVENTS = new Set(['doc_updated', 'doc_created'])
+
+/**
+ * Paths of the files an agent or a human changed since `since` (ms), from the activity log (T110 "Recent"): task
+ * moves and edits (taskId), epics / entries / ADRs (the id leading the title), doc edits and creates (detail = path),
+ * a rename's new path and the session handoff (memory/MEMORY.md). Events for files that no longer exist drop out.
+ */
+export function touchedPaths(events: readonly TouchEvent[], nodes: readonly DocNode[], since: number): Set<string> {
+  const byKey = new Map<string, string>()
+  for (const n of nodes) { byKey.set(n.id, n.path); byKey.set(n.path, n.path) }
+  const out = new Set<string>()
+  for (const e of events) {
+    if (!(Date.parse(e.timestamp) >= since)) continue
+    const keys = [e.taskId, TOUCH_ID_RE.exec(e.title)?.[1]]
+    if (DOC_EVENTS.has(e.type)) keys.push(e.detail)
+    if (e.type === 'doc_renamed') keys.push(e.title.split(' → ')[1])
+    if (e.type === 'memory_updated' && !e.title.startsWith('Entry ')) keys.push('memory/MEMORY.md')
+    for (const k of keys) {
+      const p = k ? byKey.get(k.trim()) : undefined
+      if (p) out.add(p)
+    }
+  }
+  return out
+}

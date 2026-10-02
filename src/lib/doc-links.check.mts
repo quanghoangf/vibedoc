@@ -1,6 +1,6 @@
 // Self-check for doc-links. Run: node src/lib/doc-links.check.mts
 import assert from 'node:assert/strict'
-import { buildDocGraph, docLinks, docNode, extractLinks, formatRelatedFiles, isExampleTarget, resolveLink, type DocItem } from './doc-links.ts'
+import { buildDocGraph, docLinks, docNode, extractLinks, formatRelatedFiles, isExampleTarget, resolveLink, touchedPaths, type DocItem } from './doc-links.ts'
 
 // extractLinks: every kind, line numbers, link text
 const raw = [
@@ -213,6 +213,29 @@ assert.deepEqual(extractLinks([
   assert.equal(g.targets['README.md']['craft-floor.md'], undefined)
   // a real file named like an example still links
   assert.deepEqual(buildDocGraph([item('a.md', '[[x]]'), item('x.md', '# X')]).edges.map(e => e.to), ['x.md'])
+}
+
+// touchedPaths: which files the activity log says changed since a cutoff (T110 Recent)
+{
+  const nodes = [
+    docNode('plans/tasks/T001-a.md', '# T001: A\n**Status:** done'), docNode('plans/roadmap/R002-b.md', '# R002: B'),
+    docNode('docs/x.md', '# X'), docNode('docs/new.md', '# N'), docNode('memory/MEMORY.md', '# M'),
+    docNode('memory/entries/E004-c.md', '# E004: C'), docNode('docs/architecture/decisions/ADR-003-d.md', '# ADR-003: D'), docNode('docs/old.md', '# O'),
+  ]
+  const at = (h: number) => new Date(Date.UTC(2026, 9, 2, h)).toISOString()
+  const ev = (h: number, type: string, title: string, more: object = {}) => ({ timestamp: at(h), type, title, ...more })
+  const got = touchedPaths([
+    ev(10, 'task_updated', 'T001 moved to done', { taskId: 'T001', detail: 'docs/old.md' }), // a task title is not a path
+    ev(9, 'roadmap_updated', 'R002 updated', { detail: 'B' }),
+    ev(9, 'doc_updated', 'Edited docs/x.md', { detail: 'docs/x.md' }),
+    ev(8, 'doc_renamed', 'Renamed docs/gone.md → docs/new.md'),
+    ev(8, 'memory_updated', 'Session memory updated', { detail: 'handoff' }),
+    ev(8, 'memory_updated', 'Entry E004 saved', { detail: 'C' }),
+    ev(8, 'decision_logged', 'ADR-003: D', { detail: 'why' }),
+    ev(8, 'task_updated', 'T999 deleted', { taskId: 'T999' }), // no such file any more
+    ev(1, 'doc_updated', 'Edited docs/old.md', { detail: 'docs/old.md' }), // before the cutoff
+  ], nodes, Date.UTC(2026, 9, 2, 2))
+  assert.deepEqual([...got].sort(), ['docs/architecture/decisions/ADR-003-d.md', 'docs/new.md', 'docs/x.md', 'memory/MEMORY.md', 'memory/entries/E004-c.md', 'plans/roadmap/R002-b.md', 'plans/tasks/T001-a.md'])
 }
 
 console.log('doc-links: ok')

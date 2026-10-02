@@ -14,6 +14,7 @@
 //   5b. /graph: a file with no links sits on the Unlinked shelf (click selects it); search Enter frames the matches,
 //       Enter / Shift+Enter step through them ("1 of 5"); every dot has a ≥ 24px hit pad.
 //   6. /graph after a pan: an agent moving T001 pings its node and leaves the camera where the user put it.
+//      Done draws hollow; the Recent chip lights what changed in the last 24h (T110).
 //   7. vibedoc_read_doc on a.md ends with a "## Related files" footer (b, c, T001, Broken missing.md,
 //      Stale paths docs/gone.md).
 // Fails on any browser console error.
@@ -280,6 +281,16 @@ try {
   await page.getByRole("button", { name: "Tasks" }).click()
   await node("plans/tasks/T001-x.md").waitFor()
   await page.waitForFunction(([p, c]) => getComputedStyle(document.querySelector(`.react-flow__node[data-id="${p}"] .rounded-full`)).color !== c, ["plans/tasks/T001-x.md", todoColor])
+  // T110: a done task is a hollow Pencil Grey shape; T001 and d.md changed in this run, so they carry the Recent notch
+  assert.equal(await node("plans/tasks/T001-x.md").locator("svg circle").first().getAttribute("fill"), "none", "a done task draws hollow")
+  await node("plans/tasks/T001-x.md").locator("span.bg-accent").waitFor()
+  const dimmed = (p) => node(p).locator(".rounded-full").first().evaluate((el) => el.classList.contains("opacity-25"))
+  await page.getByRole("button", { name: /^Recent/ }).click()
+  await page.waitForURL(/recent=1/)
+  await page.waitForFunction(() => document.querySelector('.react-flow__node[data-id="docs/c.md"] .rounded-full')?.classList.contains("opacity-25"))
+  assert.equal(await dimmed("plans/tasks/T001-x.md"), false, "Recent keeps a changed file lit")
+  assert.equal(await dimmed("docs/d.md"), false, "Recent keeps an edited doc lit")
+  console.log("ok  T110: done T001 draws hollow; Recent lights T001 and d.md and dims untouched c.md")
   console.log("ok  back on /graph after /board: the new d → b link and T001's done colour show without a reload")
 
   // 7. The agent's read ends with the resolved related files

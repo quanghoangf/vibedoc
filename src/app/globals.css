@@ -19,7 +19,7 @@
   --color-muted: rgb(var(--rgb-muted));
   --color-accent: rgb(var(--rgb-accent));
   --color-accent-fg: rgb(var(--rgb-accent-fg));
-  --color-teal: #4fd8b4;
+  --color-teal: rgb(var(--rgb-teal));
   --color-amber: rgb(var(--rgb-amber));
   --color-danger: rgb(var(--rgb-danger));
   --color-background: rgb(var(--rgb-bg));
@@ -117,9 +117,10 @@
   --rgb-border2: 208 208 228;
   --rgb-txt: 26 26 46;
   --rgb-muted: 107 107 128;
-  /* Status inks, darkened for light surfaces: amber 5.44 / 4.80, danger 6.47 / 5.71 on white / surface2.
-     White on the danger fill is 6.47:1. */
+  /* Status inks, darkened for light surfaces: amber 5.44 / 4.80, danger 6.47 / 5.71, teal 5.55 / 4.90 on
+     white / surface2 (the dark teal was 1.78:1 on white). White on the danger fill is 6.47:1. */
   --rgb-amber: 170 80 10;
+  --rgb-teal: 15 118 96;
   --rgb-danger: 185 28 28;
   --rgb-danger-fg: 255 255 255;
 }
@@ -134,6 +135,7 @@
   --rgb-txt: 232 232 240;
   --rgb-muted: 140 140 160;
   --rgb-amber: 247 162 106;
+  --rgb-teal: 79 216 180;
   --rgb-danger: 247 106 106;
   /* White is 2.91:1 on the danger fill; this ink is 6.4:1 */
   --rgb-danger-fg: 10 10 15;
@@ -195,8 +197,6 @@ body {
 .prose-dark.prose-compact p { margin-bottom: 0.5rem; }
 .prose-dark li { font-size: 0.875rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.7; margin-bottom: 0.2rem; }
 .prose-dark code { font-family: var(--font-mono); font-size: 0.8rem; background: var(--color-surface2); border: 1px solid var(--color-border); padding: 1px 5px; border-radius: 4px; color: var(--color-teal); }
-/* Teal on a light surface is unreadable; darken it toward the text color in light mode only. */
-html:not(.dark) .prose-dark :not(pre) > code { color: color-mix(in srgb, var(--color-teal) 55%, var(--color-txt)); }
 .prose-dark pre { background: color-mix(in srgb, var(--color-bg) 50%, var(--color-surface)); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; }
 .prose-dark pre code { background: none; border: none; padding: 0; color: color-mix(in srgb, var(--color-txt) 85%, var(--color-accent)); font-size: 0.8rem; }
 .prose-dark table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.8rem; }
