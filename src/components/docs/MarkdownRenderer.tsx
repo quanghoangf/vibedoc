@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { marked } from "marked"
 import { cn } from "@/lib/utils"
 import { stripFrontmatter } from "@/lib/doc-priority"
+import { isExampleTarget } from "@/lib/doc-links"
 import { useApp } from "@/context/AppContext"
 import { useOpenNode } from "@/components/memory/EntryRelated"
 import { toast } from "@/components/ui/toast"
@@ -193,8 +194,9 @@ function docTarget(a: Element): { raw: string; hash: string } | null {
   return { raw, hash: i < 0 ? "" : href.slice(i + 1) }
 }
 
-// any doc link that resolves nowhere reads as broken here, including the syntax examples (`[[name]]`) the counts skip
-const isBroken = (links: DocLinksData, raw: string) => !links.targets[raw]
+// a reported broken link, or a syntax example (`[[name]]`) the counts skip; a file outside the graph (.claude/…) is neither
+const isBroken = (links: DocLinksData, raw: string) =>
+  !links.targets[raw] && (isExampleTarget(raw) || links.broken.some((b) => b.path === raw))
 const inlineCode = (root: ParentNode) => Array.from(root.querySelectorAll(":not(pre) > code"))
 
 /**

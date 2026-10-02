@@ -186,10 +186,12 @@ assert.deepEqual(extractLinks([
   assert.equal(resolveLink('same.md', 'README.md', paths, 'code'), null)
   // a slash means a path: no basename fallback
   assert.equal(resolveLink('nope/MEMORY.md', 'README.md', paths, 'code'), null)
-  // syntax examples: the name (or its last `-` part) is a placeholder word
+  // syntax examples: the whole name (or the rest after an item id) is a placeholder word
   for (const t of ['path.md', 'x.md', 'name', 'wikilinks', 'docs/a/x.md', '../a.md', 'plans/tasks/T001-x.md', 'docs/ADR-001-title.md'])
     assert.equal(isExampleTarget(t), true, t)
-  for (const t of ['missing.md', 'docs/gone.md', 'far-away.md', 'R004-billing.md', 'docs/xray.md'])
+  // a placeholder word as one `-` part of a longer name is a real file name
+  for (const t of ['missing.md', 'docs/gone.md', 'far-away.md', 'R004-billing.md', 'docs/xray.md', 'docs/user-name.md',
+    'plans/plan-b.md', 'docs/page-title.md', 'api-name', 'docs/old-name.md', 'docs/feature-flag-a.md', 'getting-started-example', 'docs/api-path.md'])
     assert.equal(isExampleTarget(t), false, t)
 
   const item = (path: string, raw: string): DocItem => ({ node: docNode(path, raw), links: extractLinks(raw, path) })
@@ -197,13 +199,14 @@ assert.deepEqual(extractLinks([
     item('README.md', [
       '# R', '[[wikilinks]] and [text](path.md) or [[name]]; `x.md`', // syntax examples: no miss
       '[x](missing.md) and `docs/gone.md`', // real misses stay
+      '[G](docs/user-name.md) [P](plans/plan-b.md) [[api-name]] `docs/old-name.md`', // a placeholder word inside a name: real
       '`MEMORY.md` `@docs/arch/HLD.md` `same.md` `@docs/HLD.md`', // bare unique, @include, shared name, real stale
       '`.claude/skills/r/craft-floor.md` `craft-floor.md` [s](.claude/skills/r/s.md)', // exist outside the graph
     ].join('\n')),
     ...paths.slice(1).map(p => item(p, '# P')),
   ], ['.claude/skills/r/craft-floor.md', '.claude/skills/r/s.md'])
-  assert.deepEqual(g.broken.map(b => b.target), ['missing.md'])
-  assert.deepEqual(g.stale.map(b => b.target), ['docs/gone.md', '@docs/HLD.md'])
+  assert.deepEqual(g.broken.map(b => b.target), ['missing.md', 'docs/user-name.md', 'plans/plan-b.md', 'api-name'])
+  assert.deepEqual(g.stale.map(b => b.target), ['docs/gone.md', 'docs/old-name.md', '@docs/HLD.md'])
   // resolved edges; files outside the graph get no edge and no target (the UI can't open them)
   assert.deepEqual(g.edges.filter(e => e.from === 'README.md').map(e => e.to), ['memory/MEMORY.md', 'docs/arch/HLD.md'])
   assert.equal(g.targets['README.md']['@docs/arch/HLD.md'], 'docs/arch/HLD.md')

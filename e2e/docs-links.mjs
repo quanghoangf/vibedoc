@@ -7,7 +7,7 @@
 //   3. /graph: a, b, c (and d) with edges; clicking a selects it and dims the unrelated d → c edge; Open → /docs.
 //      Motion: a's lit edges are one solid line (no travelling glow); dragging d moves it, release springs it back to its layout point and
 //      the drag doesn't select it.
-//   4. /graph: "2 broken links" (no stale count: stale paths are a per-doc lint) opens a list grouped by file;
+//   4. /graph: "3 broken links" (no stale count: stale paths are a per-doc lint) opens a list grouped by file;
 //      the far-away.md row opens long.md with the link in view.
 //   5. /graph from the keyboard: `/` focuses search, Tab reaches a node, Enter selects it, Enter again opens it;
 //      Esc clears the selection.
@@ -34,7 +34,10 @@ const write = (f, s) => {
 }
 write("docs/a.md", "# Alpha\n\nSee [b](sub/b.md) and [[c]].\n\nAlso [x](missing.md) and T001. Moved: `docs/gone.md`.\n")
 // the filler puts its broken link below the fold, so step 4 proves it gets scrolled into view
-write("docs/long.md", `# Long\n\n${"Filler paragraph.\n\n".repeat(60)}At the end, [far](far-away.md).\n`)
+// after it: a placeholder word inside a real name (user-name.md) is a real miss, [[name]] is a syntax example (drawn
+// broken, not counted), and a file in a dot folder exists (neither drawn nor counted)
+write("docs/long.md", `# Long\n\n${"Filler paragraph.\n\n".repeat(60)}At the end, [far](far-away.md). Also [guide](user-name.md), [[name]] and [skill](../.claude/skills/s/SKILL.md).\n`)
+write(".claude/skills/s/SKILL.md", "# Skill\n")
 write("docs/sub/b.md", "# Bravo\n\nBravo body text for the preview. Back to [a](../a.md).\n")
 write("docs/c.md", "# Charlie\n\nNo links here.\n")
 // d → c is an edge that doesn't touch a, so selecting a must dim it
@@ -146,7 +149,7 @@ try {
 
   // 4. Broken / stale list on /graph; a row opens the file with the link in view
   await page.goto(`${BASE}/graph`)
-  const trigger = page.getByRole("button", { name: /^2 broken links$/ })
+  const trigger = page.getByRole("button", { name: /^3 broken links$/ })
   await trigger.click()
   const menu = page.getByRole("menu")
   await menu.getByText("Broken links").waitFor()
@@ -155,14 +158,16 @@ try {
   await menu.getByRole("menuitem", { name: /far-away\.md/ }).click()
   await page.waitForURL(/\/docs\?doc=docs%2Flong\.md/)
   await page.locator("h1", { hasText: "Long" }).first().waitFor()
-  const brokenLink = doc.locator("a[data-broken]")
+  const brokenLink = doc.locator("a[data-broken]").first()
   await brokenLink.waitFor()
   await page.waitForFunction(() => {
     const r = document.querySelector(".doc-preview a[data-broken]")?.getBoundingClientRect()
     return !!r && r.top >= 0 && r.bottom <= window.innerHeight
   })
   await page.waitForFunction(() => !new URL(location.href).searchParams.has("link"))
-  console.log("ok  /graph lists 2 broken links, no stale paths; the far-away.md row opens long.md scrolled to the link")
+  assert.deepEqual(await doc.locator("a[data-broken]").allInnerTexts(), ["far", "guide", "name"], "user-name.md is real, [[name]] an example")
+  assert.equal(await doc.getByRole("link", { name: "skill", exact: true }).getAttribute("data-broken"), null, "a dot-folder file is not a dead link")
+  console.log("ok  /graph lists 3 broken links (user-name.md counts, [[name]] doesn't), no stale paths; the far-away.md row opens long.md scrolled to the link; the dot-folder link isn't drawn broken")
 
   // 5. Keyboard path on /graph: / → search, Tab → first node (label order: Alpha, named with its 2 visible links), Enter selects, Esc clears,
   //    Enter twice opens

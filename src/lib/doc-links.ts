@@ -49,14 +49,15 @@ function linkContext(line: string, text: string, heading: string): string {
  */
 const PLACEHOLDER_RE = /[<>{}*?…]|\.\.\.|(?:^|[^A-Za-z0-9])(?:[A-Z]?0+N|N{2,}|X{3,}|YYYY)(?![A-Za-z0-9])/
 /**
- * Names that teach link syntax in specs (`[text](path.md)`, `[[name]]`, `[[wikilinks]]`, `docs/a/x.md`, `T001-x.md`):
- * the file name, or its last `-` part, is one of these. Only ever drops a miss, so a real `x.md` still links.
+ * Names that teach link syntax in specs (`[text](path.md)`, `[[name]]`, `[[wikilinks]]`, `docs/a/x.md`): the whole
+ * file name is one of these, or the rest after an item id (`T001-x.md`, `ADR-001-title.md`). Only ever drops a miss,
+ * so a real `x.md` still links. Never a `-` part of a longer name: `user-name.md` and `plan-b.md` are real misses.
  * `missing` is deliberately not here: e2e fixtures use it for a real broken link.
  */
 const EXAMPLE_NAMES = new Set(['a', 'b', 'c', 'x', 'y', 'z', 'path', 'name', 'slug', 'title', 'foo', 'bar', 'wikilinks', 'example'])
 export function isExampleTarget(target: string): boolean {
-  const name = (target.split('/').pop() ?? '').replace(/\.md$/i, '').toLowerCase()
-  return EXAMPLE_NAMES.has(name) || EXAMPLE_NAMES.has(name.split('-').pop() ?? '')
+  const name = (target.split('/').pop() ?? '').replace(/\.md$/i, '').replace(/^(?:ADR-\d+|[TRE]\d+)-/, '')
+  return EXAMPLE_NAMES.has(name.toLowerCase())
 }
 
 const WIKI_RE = /\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]+))?\]\]/g

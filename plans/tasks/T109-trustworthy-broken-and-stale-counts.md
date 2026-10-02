@@ -43,9 +43,9 @@ What dropped out, by rule (all in `src/lib/doc-links.ts`, each with a case in `d
 - A leading `@` is dropped before resolving (Claude includes).
 - A backticked bare name resolves when exactly one file has it (`MEMORY.md` → memory/MEMORY.md, `mcp-tools.md`, `_INDEX.md`); a bare name several files share (`craft-floor.md` in .claude/ and .github/) is not stale either, it just gets no edge. An md link still has to work as written, so it never falls back to a basename.
 - Files in dot folders (.claude/skills, .impeccable/critique, .github) are passed to `buildDocGraph` as `otherPaths`: a mention of one is not a miss, but it gets no node, edge or target (the docs viewer can't open it).
-- Syntax examples: a miss whose file name, or its last `-` part, is a teaching word (a/b/c/x/y/z, path, name, slug, title, foo, bar, wikilinks, example) is dropped. This covers all 4 old broken links (`[[wikilinks]]` in the T094 title and T100, `[text](path.md)` and `[[name]]` in T098) and the fixture paths in T093 / T100 specs. Target-based only, never the link text, so the e2e fixture's `[x](missing.md)` stays broken.
+- Syntax examples: a miss whose whole file name is a teaching word (a/b/c/x/y/z, path, name, slug, title, foo, bar, wikilinks, example), or the rest after an item id (`T001-x.md`, `ADR-001-title.md`), is dropped. Never one `-` part of a longer name: user-name.md, plan-b.md, an api-name wikilink, docs/old-name.md stay broken / stale (negative check cases + the e2e fixture's user-name.md link). This covers all 4 old broken links (`[[wikilinks]]` in the T094 title and T100, `[text](path.md)` and `[[name]]` in T098) and the fixture paths in T093 / T100 specs. Target-based only, never the link text, so the e2e fixture's `[x](missing.md)` stays broken.
 
-The docs preview now marks any doc link that resolves nowhere as broken (dashed muted), so a skipped example still reads as a dead link there; only the counts skip it.
+The docs preview draws a link as dead (dashed muted) when it is a reported broken link or a skipped syntax example; a link to a dot-folder file (`.claude/skills/…`) is neither, since the file exists. "Show all N files" moves focus to the first newly shown row.
 
 Remaining stale paths, each a path that does not exist here:
 ```

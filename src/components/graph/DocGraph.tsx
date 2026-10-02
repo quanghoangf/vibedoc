@@ -1008,6 +1008,11 @@ const MISS_FILES_SHOWN = 5
 function MissingLinks({ broken }: { broken: BrokenLink[] }) {
   const { openDoc } = useApp()
   const [all, setAll] = useState(false)
+  // "Show all" → focus the first newly shown row, so a keyboard user carries on where the list grew
+  const firstNew = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (all) firstNew.current?.focus()
+  }, [all])
   if (!broken.length) return null
   const byFile = new Map<string, BrokenLink[]>()
   for (const r of [...broken].sort((a, b) => a.line - b.line)) byFile.set(r.from, [...(byFile.get(r.from) ?? []), r])
@@ -1016,21 +1021,21 @@ function MissingLinks({ broken }: { broken: BrokenLink[] }) {
   return (
     <DropdownMenu onOpenChange={(open) => { if (!open) setAll(false) }}>
       <DropdownMenuTrigger className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent data-[state=open]:bg-surface2 data-[state=open]:text-txt">
-        <span className="font-mono tabular-nums">{broken.length}</span> broken<span className="max-2xl:sr-only"> link{broken.length === 1 ? "" : "s"}</span>
+        <span className="font-mono tabular-nums">{broken.length}</span> broken<span className="max-lg:sr-only"> link{broken.length === 1 ? "" : "s"}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-[min(28rem,var(--radix-dropdown-menu-content-available-height))] w-[min(26rem,calc(100vw-2rem))]">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="flex items-center px-2 pt-2 pb-1 font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">
             Broken links<span className="ml-auto tabular-nums">{broken.length}</span>
           </DropdownMenuLabel>
-          {shown.map(([file, items]) => (
+          {shown.map(([file, items], fi) => (
             <div key={file} role="group" aria-label={`${file}, ${items.length} broken`}>
               <p className="flex items-baseline gap-2 px-2 pt-1.5 font-mono text-[11px] text-txt" title={file}>
                 <span className="min-w-0 truncate">{file}</span>
                 <span className="ml-auto shrink-0 text-muted tabular-nums">{items.length}</span>
               </p>
-              {items.map((r) => (
-                <DropdownMenuItem key={`${r.target}:${r.line}`} onSelect={() => void openDoc(r.from, r.target)} className="gap-2 py-1 text-xs">
+              {items.map((r, ri) => (
+                <DropdownMenuItem key={`${r.target}:${r.line}`} ref={fi === MISS_FILES_SHOWN && ri === 0 ? firstNew : undefined} onSelect={() => void openDoc(r.from, r.target)} className="gap-2 py-1 text-xs">
                   <Unlink className="size-3.5 text-muted" aria-hidden />
                   <span className="min-w-0 truncate font-mono text-muted">{r.target}</span>
                   <span className="ml-auto shrink-0 text-[11px] text-muted">{MISS_KIND[r.kind] ?? r.kind}</span>
@@ -1042,7 +1047,7 @@ function MissingLinks({ broken }: { broken: BrokenLink[] }) {
           {/* an item, so arrow keys reach it; preventDefault keeps the menu open while it grows */}
           {shown.length < files.length && (
             <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setAll(true) }} className="mt-1 py-1 text-xs text-muted">
-              Show all <span className="font-mono tabular-nums">{files.length}</span> files
+              <span>Show all <span className="font-mono tabular-nums">{files.length}</span> files</span>
             </DropdownMenuItem>
           )}
         </DropdownMenuGroup>
