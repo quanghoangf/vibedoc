@@ -211,7 +211,12 @@ const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
           hue,
           dim && "opacity-25",
           active ? SELECTED_RING : match && MATCH_RING,
-          "in-[[data-id]:focus-visible]:opacity-100 in-[[data-id]:focus-visible]:ring-2 in-[[data-id]:focus-visible]:ring-accent/60 in-[[data-id]:focus-visible]:shadow-[0_0_0_6px_rgb(var(--rgb-accent)/0.15)]",
+          "in-[[data-id]:focus-visible]:opacity-100",
+          // focus halo; on the selected node it goes outside the double ring so the text-colour hairline survives
+          // (Enter selects the focused node: the keyboard path must keep selection hue-independent)
+          active
+            ? "in-[[data-id]:focus-visible]:shadow-[0_0_0_5px_var(--color-bg),0_0_0_6px_var(--color-txt),0_0_0_9px_rgb(var(--rgb-accent)/0.2)]"
+            : "in-[[data-id]:focus-visible]:ring-2 in-[[data-id]:focus-visible]:ring-accent/60 in-[[data-id]:focus-visible]:shadow-[0_0_0_6px_rgb(var(--rgb-accent)/0.15)]",
         )}
       >
         <Shape kind={node.kind} size={size} hollow={hollow} className="block" />

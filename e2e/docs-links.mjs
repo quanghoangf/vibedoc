@@ -184,6 +184,9 @@ try {
   await page.keyboard.press("Enter")
   await page.waitForURL(/node=docs%2Fa\.md/)
   await sel.getByText("docs/a.md").waitFor()
+  // T110: selected by keyboard (focused + selected) still keeps the text-colour hairline, so it reads under any accent
+  const txt = await page.evaluate(() => { const e = document.createElement("i"); e.style.color = "var(--color-txt)"; document.body.append(e); const c = getComputedStyle(e).color; e.remove(); return c })
+  await page.waitForFunction(([c]) => getComputedStyle(document.querySelector('.react-flow__node[data-id="docs/a.md"] .rounded-full')).boxShadow.includes(`${c} 0px 0px 0px 6px`), [txt])
   await page.keyboard.press("Escape")
   await page.waitForURL((u) => !u.searchParams.has("node"))
   await node("docs/a.md").focus()
@@ -192,7 +195,7 @@ try {
   await page.keyboard.press("Enter")
   await page.waitForURL(/\/docs/)
   await page.locator("h1", { hasText: "Alpha" }).first().waitFor()
-  console.log("ok  /graph by keyboard: / focuses search, Tab reaches Alpha, Enter selects, Esc clears, Enter twice opens")
+  console.log("ok  /graph by keyboard: / focuses search, Tab reaches Alpha, Enter selects (hairline kept under focus), Esc clears, Enter twice opens")
 
   // 5b. Unlinked shelf, search cycling and hit pads: long.md (no doc links) sits on the shelf, not the map; search Enter
   //     frames every match, Enter again steps through them in label order (Shift+Enter back) and keeps focus in search
@@ -274,6 +277,12 @@ try {
     body: JSON.stringify({ path: "docs/d.md", content: "# Delta\n\nPoints at [[c]] and [[b]]. Also T002.\n" }),
   })
   assert.ok(put.ok, await put.text())
+  // a task made with New task logs activity, so it shows in Recent too
+  const made = await fetch(`${BASE}/api/tasks/create?root=${encodeURIComponent(fx)}`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Fresh one", body: "Follows T001." }), // linked, so it sits on the map, not the shelf
+  })
+  assert.ok(made.ok, await made.clone().text())
+  const fresh = (await made.json()).task.file
   await page.waitForTimeout(1200)
   await page.locator("a[href^=\"/graph\"]").first().click()
   await page.waitForURL(/\/graph/)
@@ -290,7 +299,8 @@ try {
   await page.waitForFunction(() => document.querySelector('.react-flow__node[data-id="docs/c.md"] .rounded-full')?.classList.contains("opacity-25"))
   assert.equal(await dimmed("plans/tasks/T001-x.md"), false, "Recent keeps a changed file lit")
   assert.equal(await dimmed("docs/d.md"), false, "Recent keeps an edited doc lit")
-  console.log("ok  T110: done T001 draws hollow; Recent lights T001 and d.md and dims untouched c.md")
+  assert.equal(await dimmed(fresh), false, "Recent keeps a newly created task lit")
+  console.log("ok  T110: done T001 draws hollow; Recent lights T001, d.md and a new task and dims untouched c.md")
   console.log("ok  back on /graph after /board: the new d → b link and T001's done colour show without a reload")
 
   // 7. The agent's read ends with the resolved related files

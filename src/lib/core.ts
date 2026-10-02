@@ -718,12 +718,12 @@ export interface CreateTaskParams {
 }
 
 /** Serialized with next_task claims and plan applies, so concurrent creates never pick the same id. */
-export function createTask(params: CreateTaskParams, root: string): Promise<Task> {
-  return withTaskClaimLock(() => createTaskUnlocked(params, root))
+export function createTask(params: CreateTaskParams, root: string, actor: 'ai' | 'human' = 'human'): Promise<Task> {
+  return withTaskClaimLock(() => createTaskUnlocked(params, root, actor))
 }
 
 /** Caller must hold withTaskClaimLock (applyPlan does). */
-async function createTaskUnlocked(params: CreateTaskParams, root: string): Promise<Task> {
+async function createTaskUnlocked(params: CreateTaskParams, root: string, actor: 'ai' | 'human'): Promise<Task> {
   const { tasks } = await listTasks(root)
   // One line only: a newline in the title would inject **Key:** lines into the meta block
   const title = params.title.replace(/\s+/g, ' ').trim()
@@ -772,6 +772,8 @@ ${params.description || '—'}
 `
 
   await fs.writeFile(filePath, content, { flag: 'wx', encoding: 'utf8' })
+  // logged so the graph's Recent (touchedPaths) and the activity feed see new tasks
+  await appendActivity(root, { type: 'task_updated', actor, title: `${id} created`, detail: title, taskId: id })
   return getTask(id, root)
 }
 
@@ -840,7 +842,7 @@ export function applyPlan(
         dependsOn: deps.join(', ') || undefined,
         due: t.due,
         body: t.body,
-      }, root)
+      }, root, actor)
       ids.set(t.key.trim(), task.id)
       created.push({ key: t.key, id: task.id, file: task.file })
     }

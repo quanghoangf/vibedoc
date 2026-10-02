@@ -221,6 +221,7 @@ assert.deepEqual(extractLinks([
     docNode('plans/tasks/T001-a.md', '# T001: A\n**Status:** done'), docNode('plans/roadmap/R002-b.md', '# R002: B'),
     docNode('docs/x.md', '# X'), docNode('docs/new.md', '# N'), docNode('memory/MEMORY.md', '# M'),
     docNode('memory/entries/E004-c.md', '# E004: C'), docNode('docs/architecture/decisions/ADR-003-d.md', '# ADR-003: D'), docNode('docs/old.md', '# O'),
+    docNode('plans/tasks/T005-new.md', '# T005: New'),
   ]
   const at = (h: number) => new Date(Date.UTC(2026, 9, 2, h)).toISOString()
   const ev = (h: number, type: string, title: string, more: object = {}) => ({ timestamp: at(h), type, title, ...more })
@@ -232,10 +233,11 @@ assert.deepEqual(extractLinks([
     ev(8, 'memory_updated', 'Session memory updated', { detail: 'handoff' }),
     ev(8, 'memory_updated', 'Entry E004 saved', { detail: 'C' }),
     ev(8, 'decision_logged', 'ADR-003: D', { detail: 'why' }),
+    ev(8, 'task_updated', 'T005 created', { taskId: 'T005', detail: 'New' }), // createTask / applyPlan log this
     ev(8, 'task_updated', 'T999 deleted', { taskId: 'T999' }), // no such file any more
     ev(1, 'doc_updated', 'Edited docs/old.md', { detail: 'docs/old.md' }), // before the cutoff
   ], nodes, Date.UTC(2026, 9, 2, 2))
-  assert.deepEqual([...got].sort(), ['docs/architecture/decisions/ADR-003-d.md', 'docs/new.md', 'docs/x.md', 'memory/MEMORY.md', 'memory/entries/E004-c.md', 'plans/roadmap/R002-b.md', 'plans/tasks/T001-a.md'])
+  assert.deepEqual([...got].sort(), ['docs/architecture/decisions/ADR-003-d.md', 'docs/new.md', 'docs/x.md', 'memory/MEMORY.md', 'memory/entries/E004-c.md', 'plans/roadmap/R002-b.md', 'plans/tasks/T001-a.md', 'plans/tasks/T005-new.md'])
 }
 
 console.log('doc-links: ok')
