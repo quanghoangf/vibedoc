@@ -16,6 +16,9 @@ const msgs = (f: HealthFlag[]) => f.map(x => x.message)
 // splitSections
 assert.deepEqual(splitSections('intro\n## A\none\n## B two\nb\n').map(s => s.heading), ['', 'A', 'B two'])
 assert.equal(splitSections('## A\nx\ny\n## B\n')[1].body, 'x\ny\n')
+// a `##` inside a ``` fence is an example, not a section
+assert.deepEqual(splitSections('## A\n```md\n## B\n```\n## C\n').map(s => s.heading), ['', 'A', 'C'])
+assert.deepEqual(check('## Current state\n```md\n## Working on now\nT001 example\n```\n## Up next\n1. T002\n'), [])
 
 // matching handoff → no flags, no block
 const clean = check(memo({ working: 'T002 and R011', next: '1. T004', done: '- T001' }))

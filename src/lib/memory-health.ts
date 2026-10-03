@@ -27,8 +27,11 @@ const isBoardId = (id: string) => /^[TR]\d/.test(id)
 /** `## Heading` → body, in file order. Text before the first `##` is keyed ''. */
 export function splitSections(markdown: string): { heading: string; body: string }[] {
   const out: { heading: string; body: string }[] = [{ heading: '', body: '' }]
+  let inFence = false
   for (const line of markdown.split('\n')) {
-    const h = /^##\s+(.+?)\s*$/.exec(line)
+    // a `##` inside a ``` fence is an example, not a section (same rule as manual-tests.ts / review.ts)
+    if (/^\s*```/.test(line)) inFence = !inFence
+    const h = inFence ? null : /^##\s+(.+?)\s*$/.exec(line)
     if (h) out.push({ heading: h[1], body: '' })
     else out[out.length - 1].body += line + '\n'
   }
