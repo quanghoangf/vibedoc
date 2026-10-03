@@ -60,6 +60,7 @@ export function MemoryHistory({ versions, current, rootParam, selectedId, onSele
   const hunks = useMemo(() => (version && "content" in version ? visibleHunks(lineDiff(current, version.content)) : []), [version, current])
   const added = hunks.filter((h) => typeof h !== "number" && h.op === "+").length
   const removed = hunks.filter((h) => typeof h !== "number" && h.op === "-").length
+  const changed = added + removed > 0
 
   const restore = async () => {
     if (!selected) return
@@ -121,7 +122,7 @@ export function MemoryHistory({ versions, current, rootParam, selectedId, onSele
           <div className="max-h-96 overflow-auto font-mono text-[11px] leading-5">
             {!version && <div className="px-3 py-1 text-muted">Loading diff…</div>}
             {version && "error" in version && <div role="alert" className="px-3 py-1 text-danger">{version.error}</div>}
-            {version && "content" in version && hunks.length === 0 && <div className="px-3 py-1 text-muted">Same as the current file.</div>}
+            {version && "content" in version && !changed && <div className="px-3 py-1 text-muted">Same as the current file.</div>}
             {hunks.map((h, i) =>
               typeof h === "number" ? (
                 <div key={i} className="bg-surface2/50 px-3 text-muted">⋯ {h} unchanged line{h > 1 ? "s" : ""}</div>
@@ -143,7 +144,7 @@ export function MemoryHistory({ versions, current, rootParam, selectedId, onSele
             <button
               type="button"
               onClick={restore}
-              disabled={restoring || !version || "error" in version || hunks.length === 0}
+              disabled={restoring || !version || "error" in version || !changed}
               className="h-7 shrink-0 whitespace-nowrap rounded-md bg-accent px-2.5 text-xs font-medium text-accent-fg outline-none hover:bg-accent/90 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg disabled:opacity-50"
             >
               {restoring ? "Restoring…" : "Restore this version"}
