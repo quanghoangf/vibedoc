@@ -958,16 +958,17 @@ const snapshotAt = (id: string) => id.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)
  * Copies the current MEMORY.md (if any) to .vibedoc/memory-history/<stamp>-<actor>.md, keeping the 20 newest.
  * ponytail: no lock — two concurrent writes can both snapshot the same base; add withMemoryLock if that matters.
  */
-async function snapshotMemory(root: string, actor: 'ai' | 'human', reason: 'update' | 'restore'): Promise<void> {
+async function snapshotMemory(root: string, actor: 'ai' | 'human', reason: 'update' | 'restore'): Promise<string | null> {
   const current = await fs.readFile(path.join(root, 'memory', 'MEMORY.md'), 'utf8').catch(() => null)
-  if (current === null) return
+  if (current === null) return null
   const dir = path.join(root, MEMORY_HISTORY_DIR)
   await fs.mkdir(dir, { recursive: true })
   const who = actor === 'ai' ? 'ai' : 'human'
   const body = `<!-- vibedoc-snapshot actor=${who} reason=${reason} -->\n${current}`
   // same-millisecond writes: step the stamp forward instead of overwriting a snapshot
+  let id = ''
   for (let t = Date.now(); ; t++) {
-    const id = `${new Date(t).toISOString().replace(/[-:.]/g, '')}-${who}`
+    id = `${new Date(t).toISOString().replace(/[-:.]/g, '')}-${who}`
     try {
       await fs.writeFile(path.join(dir, `${id}.md`), body, { encoding: 'utf8', flag: 'wx' })
       break
@@ -976,7 +977,8 @@ async function snapshotMemory(root: string, actor: 'ai' | 'human', reason: 'upda
     }
   }
   const ids = await snapshotIds(root)
-  await Promise.all(ids.slice(MEMORY_HISTORY_KEEP).map(id => fs.rm(path.join(dir, `${id}.md`), { force: true })))
+  await Promise.all(ids.slice(MEMORY_HISTORY_KEEP).map(old => fs.rm(path.join(dir, `${old}.md`), { force: true })))
+  return id
 }
 
 /** Snapshot ids, newest first (the stamp prefix sorts by time). */
@@ -1012,15 +1014,15 @@ export async function getMemoryVersion(id: string, root: string): Promise<string
 }
 
 /** Writes a saved version back to MEMORY.md, snapshotting the current file first (reason=restore) so it can be undone. */
-export async function restoreMemoryVersion(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<{ restoredFrom: string }> {
+export async function restoreMemoryVersion(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<{ restoredFrom: string; newId: string | null }> {
   const content = await getMemoryVersion(id, root)
   if (content === null) throw new RoadmapError(`Version ${id} not found`, 404)
-  await snapshotMemory(root, actor, 'restore')
+  const newId = await snapshotMemory(root, actor, 'restore')
   await fs.mkdir(path.join(root, 'memory'), { recursive: true })
   await fs.writeFile(path.join(root, 'memory', 'MEMORY.md'), content, 'utf8')
   const at = snapshotAt(id)
   await appendActivity(root, { type: 'memory_updated', actor, title: `Restored MEMORY.md from ${at}` })
-  return { restoredFrom: at }
+  return { restoredFrom: at, newId }
 }
 
 // ─── Knowledge entries (R046) ─────────────────────────────────────────────────
