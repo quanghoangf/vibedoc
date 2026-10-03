@@ -1,8 +1,9 @@
 # T120: Approve a merge → one entry (with Undo)
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R051 — Memory cleanup & staleness
 **Size:** L
 **Depends on:** T119
+**Done:** 2026-10-03
 
 ## Goal
 From a duplicate suggestion, a person opens "Merge…", picks the entry to keep, edits the merged type, summary and body, and approves. Afterwards one entry remains and the others are gone, and Undo brings everything back. This covers the epic's second Done-when criterion: "approving a suggested merge leaves one entry".
@@ -49,3 +50,16 @@ curl -s -X POST localhost:3000/api/memory/entries/merge -H 'content-type: applic
 ls memory/entries
 # pnpm dev → /memory → Cleanup → Merge… → Approve → Undo
 ```
+
+## Manual tests
+_2026-10-03 — ai_
+### Steps
+- [ ] In a project with two near-identical entries (e.g. E004 and E011), open `/memory` → Cleanup → the "Possible duplicates" row shows an enabled `Merge…` button
+- [ ] Click `Merge…` → a dialog shows both entries side by side, the lowest id is selected as Keep, and the details field holds both bodies separated by `---`
+- [ ] Pick the other radio → the type, summary and details reset to that entry's text; pick E004 again
+- [ ] Edit the merged summary and details, press ⌘↵ → toast "Merged into E004", the E004 entry opens with the edited text, `memory/entries` has one `E004-*.md` and no `E011-*.md`, and another entry that said E011 now says E004
+- [ ] Click Undo in the toast → E004, E011 and the rewritten entry are back with the same file names and text, and the duplicate flag shows again in Cleanup
+- [ ] Open the dialog, clear the summary → the Merge button is disabled; Esc closes the dialog without changing any file
+### Regression risk
+- [ ] Deleting an entry from its detail pane still offers Undo and restores it (shared `post` helper on the Memory page)
+- [ ] Dismiss on a Cleanup flag still hides it and survives a reload

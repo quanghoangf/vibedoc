@@ -26,7 +26,7 @@ import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelate
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { findContradictions, findDuplicates, formatHealthWarnings, type HealthFlag } from './memory-health'
-import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
+import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1200,6 +1200,89 @@ export function restoreEntry(file: unknown, raw: unknown, root: string, actor: '
     await fs.writeFile(path.join(root, file), raw, { flag: 'wx', encoding: 'utf8' })
     await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${id} restored`, detail: entry.summary })
     return entry
+  })
+}
+
+/** A file as it was before a merge; `dropped` = the merge deleted it (undo re-creates it, never over a taken id). */
+export type MergeBefore = { file: string; raw: string; dropped?: boolean }
+
+/**
+ * Approve a duplicate merge (R051): rewrite the kept entry, delete the dropped ones, and point other entries'
+ * mentions of a dropped id at the kept id. Validates everything before the first write. `before` feeds undoMerge.
+ */
+export function mergeEntries(
+  input: { keepId: unknown; dropIds: unknown; type: unknown; summary: unknown; body?: unknown },
+  root: string, actor: 'ai' | 'human' = 'human',
+): Promise<{ entry: Entry; before: MergeBefore[] }> {
+  const keepId = normalizeEntryId(String(input.keepId ?? ''))
+  if (!keepId) return Promise.reject(new RoadmapError(`Invalid keepId "${input.keepId}"`))
+  if (!Array.isArray(input.dropIds) || !input.dropIds.length) return Promise.reject(new RoadmapError('dropIds must be a non-empty list'))
+  const dropIds = input.dropIds.map(d => normalizeEntryId(String(d)))
+  if (dropIds.some(d => !d)) return Promise.reject(new RoadmapError(`Invalid dropIds: ${input.dropIds.join(', ')}`))
+  if (new Set(dropIds).size !== dropIds.length || dropIds.includes(keepId)) return Promise.reject(new RoadmapError('dropIds must be distinct and not include keepId'))
+  const fields = { id: keepId, type: String(input.type ?? ''), summary: String(input.summary ?? ''), body: input.body as string | undefined }
+  const error = validateEntryInput(fields)
+  if (error) return Promise.reject(new RoadmapError(error))
+  const drops = dropIds as string[]
+  return withEntryLock(async () => {
+    const entries = await listEntries(root)
+    const byId = new Map(entries.map(e => [e.id, e]))
+    const missing = [keepId, ...drops].filter(id => !byId.has(id))
+    if (missing.length) throw new RoadmapError(`Entry ${missing.join(', ')} not found`)
+    const read = (e: Entry) => fs.readFile(path.join(root, e.file), 'utf8')
+    const old = byId.get(keepId) as Entry
+    const summary = fields.summary.trim()
+    // the merged text shouldn't point at an id that is about to disappear either
+    const entry: Entry = {
+      id: keepId, type: fields.type as EntryType, summary, body: replaceEntryRefs((fields.body ?? '').trim(), drops, keepId),
+      updatedAt: localToday(), by: actor === 'human' ? 'human' : 'ai:agent',
+      file: path.join(ENTRIES_DIR, `${keepId}-${entrySlug(summary)}.md`),
+    }
+    const before: MergeBefore[] = [{ file: old.file, raw: await read(old) }]
+    for (const id of drops) { const e = byId.get(id) as Entry; before.push({ file: e.file, raw: await read(e), dropped: true }) }
+    const rewrites: { file: string; raw: string }[] = []
+    for (const e of entries) {
+      if (e.id === keepId || drops.includes(e.id)) continue
+      const raw = await read(e)
+      const next = replaceEntryRefs(raw, drops, keepId)
+      if (next !== raw) { before.push({ file: e.file, raw }); rewrites.push({ file: e.file, raw: next }) }
+    }
+    // all checks passed: write
+    await fs.writeFile(path.join(root, entry.file), formatEntry(entry), 'utf8')
+    if (old.file !== entry.file) await fs.rm(path.join(root, old.file), { force: true })
+    for (const b of before) if (b.dropped) await fs.rm(path.join(root, b.file), { force: true })
+    for (const r of rewrites) await fs.writeFile(path.join(root, r.file), r.raw, 'utf8')
+    await appendActivity(root, { type: 'memory_updated', actor, title: `Entries merged into ${keepId}`, detail: `${drops.join(', ')} merged` })
+    return { entry, before }
+  })
+}
+
+/**
+ * Undo for mergeEntries: write every `before` file back byte-for-byte (the kept entry under its old name).
+ * Same path guard as restoreEntry; refuses (400) when a dropped id has been re-created since.
+ */
+export function undoMerge(before: unknown, root: string, actor: 'ai' | 'human' = 'human'): Promise<Entry[]> {
+  return withEntryLock(async () => {
+    if (!Array.isArray(before) || !before.length) throw new RoadmapError('Invalid merge to undo')
+    const items = before.map((b: Partial<MergeBefore>) => {
+      const { file, raw } = b ?? {}
+      if (!isFileIn(file, 'memory/entries', /^E\d+[^/]*\.md$/) || typeof raw !== 'string') throw new RoadmapError('Invalid merge to undo')
+      const entry = parseEntry(raw, file)
+      if (!entry || entry.id !== normalizeEntryId(path.basename(file).match(/^(E\d+)/i)?.[1] ?? '')) throw new RoadmapError('Invalid merge to undo')
+      return { file, raw, entry, dropped: b.dropped === true }
+    })
+    const current = new Map((await listEntries(root)).map(e => [e.id, e]))
+    const taken = items.filter(i => i.dropped && current.has(i.entry.id)).map(i => i.entry.id)
+    if (taken.length) throw new RoadmapError(`${taken.join(', ')} already exists`)
+    await fs.mkdir(path.join(root, ENTRIES_DIR), { recursive: true })
+    for (const i of items) {
+      const now = current.get(i.entry.id)
+      await fs.writeFile(path.join(root, i.file), i.raw, { flag: i.dropped ? 'wx' : 'w', encoding: 'utf8' })
+      if (now && now.file !== i.file) await fs.rm(path.join(root, now.file), { force: true })
+    }
+    const keep = items.find(i => !i.dropped)?.entry.id ?? ''
+    await appendActivity(root, { type: 'memory_updated', actor, title: `Merge into ${keep} undone`, detail: `${items.filter(i => i.dropped).map(i => i.entry.id).join(', ')} restored` })
+    return items.map(i => i.entry)
   })
 }
 

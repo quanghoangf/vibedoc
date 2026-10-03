@@ -7,6 +7,7 @@ import { MemoryTab } from "@/components/memory/MemoryTab"
 import { toast, undoToast } from "@/components/ui/toast"
 import type { Entry } from "@/lib/entries"
 import type { CleanupFlag } from "@/lib/core"
+import type { MergeInput } from "@/components/memory/MergeDialog"
 
 export default function MemoryPage() {
   return (
@@ -88,14 +89,15 @@ function MemoryPageInner() {
     go(id, view)
   }, [go, view])
 
+  const post = useCallback(async (url: string, body: object) => {
+    const res = await fetch(`${url}${rootParam}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`)
+    return data
+  }, [rootParam])
+
   // No confirm: delete now, offer Undo (restores the same file), like tasks and docs
   const remove = useCallback(async (entry: Entry) => {
-    const post = async (url: string, body: object) => {
-      const res = await fetch(`${url}${rootParam}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`)
-      return data
-    }
     try {
       const { file, raw } = await post("/api/memory/entries/delete", { id: entry.id })
       setEntries((list) => (list ?? []).filter((e) => e.id !== entry.id))
@@ -108,7 +110,24 @@ function MemoryPageInner() {
     } catch (e) {
       toast(`Delete failed: ${e instanceof Error ? e.message : String(e)}`)
     }
-  }, [rootParam, select, load])
+  }, [post, select, load])
+
+  // The dialog is the approval; Undo writes every touched file back
+  const merge = useCallback(async (input: MergeInput): Promise<string | null> => {
+    try {
+      const { entry, before } = await post("/api/memory/entries/merge", input)
+      setEntries((list) => [...(list ?? []).filter((e) => e.id !== entry.id && !input.dropIds.includes(e.id)), entry])
+      select(entry.id)
+      undoToast(`Merged into ${entry.id}`, async () => {
+        await post("/api/memory/entries/merge/undo", { before })
+        load()
+        select(entry.id)
+      })
+      return null
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+  }, [post, select, load])
 
   return (
     <MemoryTab
@@ -127,6 +146,7 @@ function MemoryPageInner() {
       cleanup={cleanup && !creating && !selectedId}
       onCleanup={(open) => { setCreating(false); go(open ? null : selectedId, view, open) }}
       onDismiss={dismiss}
+      onMerge={merge}
       onSaved={(entry) => {
         // show the saved text now; the SSE refetch confirms it
         setEntries((list) => [...(list ?? []).filter((e) => e.id !== entry.id), entry])

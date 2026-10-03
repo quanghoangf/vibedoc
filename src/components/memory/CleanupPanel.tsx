@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import type { CleanupFlag } from "@/lib/core"
 import type { HealthKind } from "@/lib/memory-health"
 import type { Entry } from "@/lib/entries"
+import { MergeDialog, type MergeInput } from "./MergeDialog"
 
 const GROUPS: { kind: HealthKind; label: string }[] = [
   { kind: "contradiction", label: "Contradicts the board" },
@@ -19,21 +20,25 @@ const GROUPS: { kind: HealthKind; label: string }[] = [
 ]
 
 /** Memory health flags (R051), grouped by kind. Dismiss hides a flag until its id changes (memory/.cleanup.json). */
-export function CleanupPanel({ flags, entries, onDismiss, onOpenEntry, onClose }: {
+export function CleanupPanel({ flags, entries, onDismiss, onMerge, onOpenEntry, onClose }: {
   /** null while loading; includes dismissed flags (marked `dismissed`) */
   flags: CleanupFlag[] | null
   /** for entry summaries next to their ids */
   entries: Entry[] | null
   onDismiss: (flag: CleanupFlag) => void
+  /** Approve a suggested merge; returns an error message, or null on success */
+  onMerge: (input: MergeInput) => Promise<string | null>
   onOpenEntry: (id: string) => void
   onClose: () => void
 }) {
   const router = useRouter()
   const { board } = useApp()
   const [showDismissed, setShowDismissed] = useState(false)
+  const [merging, setMerging] = useState<string[] | null>(null)
   const tasks = useMemo(() => new Map(Object.values(board ?? {}).flat().map((t) => [t.id, t])), [board])
   const summaries = useMemo(() => new Map((entries ?? []).map((e) => [e.id, e.summary])), [entries])
   const shown = (flags ?? []).filter((f) => showDismissed || !f.dismissed)
+  const mergeGroup = merging && (entries ?? []).filter((e) => merging.includes(e.id))
   const dismissedCount = (flags ?? []).filter((f) => f.dismissed).length
 
   // open a referenced item where it lives, like the Related panel
@@ -74,8 +79,11 @@ export function CleanupPanel({ flags, entries, onDismiss, onOpenEntry, onClose }
           )}
         </div>
         {f.suggestion?.action === "merge" && !f.dismissed && (
-          // placeholder: the merge flow lands in the next task
-          <button type="button" disabled className="h-6 shrink-0 cursor-not-allowed rounded-md border border-border px-2 text-xs text-muted opacity-50">
+          <button
+            type="button"
+            onClick={() => setMerging(f.suggestion?.ids ?? null)}
+            className="h-6 shrink-0 rounded-md border border-border px-2 text-xs text-txt outline-none transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
+          >
             Merge…
           </button>
         )}
@@ -134,6 +142,9 @@ export function CleanupPanel({ flags, entries, onDismiss, onOpenEntry, onClose }
             )
           })}
         </div>
+      )}
+      {mergeGroup && mergeGroup.length > 1 && (
+        <MergeDialog key={mergeGroup.map((e) => e.id).join("+")} group={mergeGroup} onClose={() => setMerging(null)} onApprove={onMerge} />
       )}
     </section>
   )
