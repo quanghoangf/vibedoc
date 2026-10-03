@@ -136,6 +136,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
             </p>
             <pre className="text-xs font-mono text-accent/80 whitespace-pre-wrap leading-relaxed">{`At session start:
 1. Call vibedoc_read_memory
+   If it shows ⚠ Memory warnings, fix the handoff with vibedoc_update_memory first
 2. Call vibedoc_get_status
 
 When you learn a fact that should still hold next week:
