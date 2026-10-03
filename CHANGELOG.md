@@ -1,3 +1,21 @@
+# [1.12.0](https://github.com/quanghoangf/vibedoc/compare/v1.11.0...v1.12.0) (2026-10-03)
+
+
+### Bug Fixes
+
+* **memory:** CRLF-safe section insert, case-insensitive handoff excerpt, issues schema accepts objects; tool count docs ([e4e91d1](https://github.com/quanghoangf/vibedoc/commit/e4e91d112954c08044a944bce7379fef923bbcae))
+* **memory:** demote headings in passed values, CRLF-safe merge, fence-aware stamp ([6dd3f10](https://github.com/quanghoangf/vibedoc/commit/6dd3f105e6bfed862b3850c70a0fd6b16936d713))
+* **memory:** detect identical history version from diff lines, not hunk count ([5f894bd](https://github.com/quanghoangf/vibedoc/commit/5f894bdbd0bfa3edf1f5ea4b9ba048ae31061774))
+* **memory:** normalize actor to ai|human before snapshotting MEMORY.md ([14dc6ff](https://github.com/quanghoangf/vibedoc/commit/14dc6ffca20075896e22a9ab92c84585573146df))
+
+
+### Features
+
+* **mcp:** vibedoc_memory_history lists, reads and restores MEMORY.md versions ([f370339](https://github.com/quanghoangf/vibedoc/commit/f37033924eb6aef7e89cf3a28b127c69b9edb340))
+* **memory:** MEMORY.md version history with diff, restore and undo on /memory ([8f27583](https://github.com/quanghoangf/vibedoc/commit/8f275836d4bfcca62de4b6596db246c470e6b6d7))
+* **memory:** merge sections in vibedoc_update_memory instead of rewriting MEMORY.md ([b63f776](https://github.com/quanghoangf/vibedoc/commit/b63f77665e81733f0894ab15fb9d6daf646b708e))
+* **memory:** snapshot MEMORY.md before each write and restore saved versions ([da0878f](https://github.com/quanghoangf/vibedoc/commit/da0878f9695e0546e4d35355ee3509517eef1986))
+
 # [1.11.0](https://github.com/quanghoangf/vibedoc/compare/v1.10.0...v1.11.0) (2026-10-03)
 
 
