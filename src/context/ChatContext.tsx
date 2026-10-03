@@ -358,7 +358,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const res = await fetch(`/api/chat${rootParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: outgoing, sessionId: chat?.sessionId ?? null, docPath }),
+        body: JSON.stringify({ message: outgoing, sessionId: chat?.sessionId ?? null, docPath, conversationId: chatId }),
         signal: ac.signal,
       })
       if (!res.ok || !res.body) {

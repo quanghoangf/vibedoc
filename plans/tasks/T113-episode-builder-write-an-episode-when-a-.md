@@ -1,8 +1,9 @@
 # T113: Episode builder + write an episode when a chat turn ends without a handoff
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R050 — Automatic session episodes
 **Size:** M
 **Depends on:** —
+**Done:** 2026-10-03
 
 ## Goal
 When an agent chat turn finishes and its session never called `vibedoc_update_memory`, VibeDoc writes `.vibedoc/episodes/<sessionId>.md`: a readable summary + handoff built from the session's activity and the chat's last assistant message. This is the thin end-to-end path of the epic.
@@ -78,3 +79,16 @@ pnpm build && pnpm lint
 # pnpm dev → in the chat sidebar ask the agent to move a task to in-progress (no memory update)
 ls .vibedoc/episodes && cat .vibedoc/episodes/*.md
 ```
+
+## Manual tests
+_2026-10-03 — ai_
+### Steps
+- [ ] Open a chat (Agent button), ask it to move a todo task to in-progress and not update memory → the card moves; `.vibedoc/episodes/ses_*.md` appears with `**Source:** chat c-…`
+- [ ] Open that episode file → H1 headline, Session/Actor/Start/End/Source meta, "What happened" lists the task, "Where it stopped" quotes the agent's last reply, "Open" lists the task
+- [ ] In the same chat, ask it to move the task to done → the same file is rewritten (no second file), headline says "(1 done)", no Open section
+- [ ] Ask it to save a knowledge entry and move a task (no memory update) → an episode is still written
+- [ ] Ask it to call vibedoc_update_memory in a turn → no episode file changes for that session
+- [ ] Ask a pure question (no tool writes) in a fresh session → no new episode file
+### Regression risk
+- [ ] Chat streaming, Stop, and resume still work (route now also parses stdout lines)
+- [ ] Saved chats in `.vibedoc/chats/` still load after reload

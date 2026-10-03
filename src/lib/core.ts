@@ -23,6 +23,7 @@ import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuse
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
+import { parseEpisode, type Episode } from './episodes'
 import { buildGraph, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
@@ -2175,6 +2176,43 @@ export async function saveChat(chat: unknown, root: string): Promise<void> {
 
 export async function deleteChat(id: string, root: string): Promise<void> {
   await fs.rm(chatFile(id, root), { force: true })
+}
+
+// ─── Episodes ─────────────────────────────────────────────────────────────────
+// `.vibedoc/episodes/<sessionId>.md` (R050): auto summary + handoff for a session with no MEMORY.md write.
+
+export const EPISODES_DIR = path.join('.vibedoc', 'episodes')
+const EPISODE_ID = /^[A-Za-z0-9_-]{1,80}$/
+
+/** Overwrites the session's own file (idempotent per session). Returns the project-relative path. */
+export async function writeEpisode(ep: { sessionId: string; markdown: string }, root: string): Promise<string> {
+  if (!EPISODE_ID.test(ep.sessionId)) throw new Error(`Invalid session id "${ep.sessionId}"`)
+  const rel = path.join(EPISODES_DIR, `${ep.sessionId}.md`)
+  const file = path.join(root, rel)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  const tmp = `${file}.tmp`
+  await fs.writeFile(tmp, ep.markdown, 'utf8')
+  await fs.rename(tmp, file)
+  return rel
+}
+
+/** Every episode, newest `end` first; a missing folder is []. */
+export async function listEpisodes(root: string): Promise<Episode[]> {
+  const files = await fs.readdir(path.join(root, EPISODES_DIR)).catch(() => [] as string[])
+  const eps = await Promise.all(files.filter(f => f.endsWith('.md')).map(async f => {
+    const rel = path.join(EPISODES_DIR, f)
+    try {
+      return parseEpisode(await fs.readFile(path.join(root, rel), 'utf8'), rel)
+    } catch (e) {
+      console.warn(`[vibedoc] skipping unreadable episode ${f}: ${(e as Error).message}`)
+      return null
+    }
+  }))
+  return eps.filter((e): e is Episode => !!e).sort((a, b) => b.end.localeCompare(a.end))
+}
+
+export async function getLatestEpisode(root: string): Promise<Episode | null> {
+  return (await listEpisodes(root))[0] ?? null
 }
 
 // ─── Saved board views (.vibedoc/views.json) ─────────────────────────────────
