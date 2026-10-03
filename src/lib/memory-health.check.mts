@@ -123,6 +123,10 @@ const big = Array.from({ length: 200 }, (_, i) => ent(`E${i + 1}`, `${pick(4)} c
 assert.deepEqual(dups(big), [])
 // …and a real duplicate hidden in it is still found
 assert.deepEqual(dups([...big, ent('E900', big[7].summary, big[7].body, big[7].type)]).map(f => f.id), ['duplicate:E8+E900'])
+// cost: each entry is tokenized twice (summary, summary+body), not once per pair
+let calls = 0
+findDuplicates(big, s => (calls++, tokenize(s)))
+assert.equal(calls, 2 * big.length)
 // info severity: never a warning in vibedoc_read_memory
 assert.equal(formatHealthWarnings(pair), 'ℹ 1 memory cleanup suggestion on /memory')
 

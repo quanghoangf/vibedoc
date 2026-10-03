@@ -119,11 +119,19 @@ const jaccard = (a: Set<string>, b: Set<string>) => {
 }
 const byId = (a: string, b: string) => a.localeCompare(b, 'en', { numeric: true })
 
+type DupSets = { type: string; summary: Set<string>; all: Set<string> }
+const dupSets = (e: DupEntry, tokenize: Tokenize): DupSets => {
+  const set = (s: string) => new Set(tokenize(s).map(stem).filter(t => !FILLER.has(t)))
+  return { type: e.type, summary: set(e.summary), all: set(`${e.summary}\n${e.body}`) }
+}
+const scoreSets = (a: DupSets, b: DupSets) => {
+  const score = 0.6 * jaccard(a.summary, b.summary) + 0.4 * jaccard(a.all, b.all)
+  return a.type === b.type ? score : score - TYPE_PENALTY
+}
+
 /** 0.6·J(summary) + 0.4·J(summary + body), minus 0.1 when the types differ. */
 export function duplicateScore(a: DupEntry, b: DupEntry, tokenize: Tokenize): number {
-  const set = (s: string) => new Set(tokenize(s).map(stem).filter(t => !FILLER.has(t)))
-  const score = 0.6 * jaccard(set(a.summary), set(b.summary)) + 0.4 * jaccard(set(`${a.summary}\n${a.body}`), set(`${b.summary}\n${b.body}`))
-  return a.type === b.type ? score : score - TYPE_PENALTY
+  return scoreSets(dupSets(a, tokenize), dupSets(b, tokenize))
 }
 
 /** Entries that say the same thing, grouped transitively (E1~E2, E2~E3 → one flag). Score shown = the strongest pair. */
@@ -132,10 +140,11 @@ export function findDuplicates(entries: DupEntry[], tokenize: Tokenize, opts: { 
   const parent = entries.map((_, i) => i)
   const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])))
   const best = new Map<number, number>()
+  const sets = entries.map(e => dupSets(e, tokenize))   // tokenize each entry once, not once per pair
   // ponytail: O(n²) pairs, fine up to a few hundred entries; bucket by shared summary token if memory grows past that
   for (let i = 0; i < entries.length; i++) {
     for (let j = i + 1; j < entries.length; j++) {
-      const s = duplicateScore(entries[i], entries[j], tokenize)
+      const s = scoreSets(sets[i], sets[j])
       if (s < threshold) continue
       parent[find(j)] = find(i)
       best.set(i, Math.max(best.get(i) ?? 0, s))
