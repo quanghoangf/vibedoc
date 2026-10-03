@@ -64,6 +64,8 @@ File format (meta block without blank lines, like task files):
 - A session with zero events (pure Q&A turn) writes nothing.
 - The last assistant message comes from the saved conversation (`.vibedoc/chats/<id>.json`); read it via the existing conversations helper in core.
 - `openTasks`: tasks from the session whose last status is not done/cancelled.
+- The episode headline says `entries saved` where `groupSessions()` says `memory updated`: an episode only exists without a handoff, so that part can only be entry saves.
+- **Known ceiling:** sessions are per root+actor (`stampSession`), so chats in one 30-min window share a session and its episode. `**Source:**` lists every chat that wrote into it (`mergeSources`), "Where it stopped" is the last turn's reply, and an external `ai` MCP agent in the same window still folds in under `ai:claude-code`. Upgrade path: stamp chat MCP calls with their own session id.
 
 ## Acceptance criteria
 - [ ] A chat turn that moves a task and never calls `vibedoc_update_memory` leaves `.vibedoc/episodes/<sessionId>.md` in the format above

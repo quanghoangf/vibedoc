@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import type { ActivityEvent } from './core'
 import { groupSessions } from './sessions.ts'
-import { EPISODE_BODY_CAP, buildEpisode, isHandoffWritten, parseEpisode, turnSessions } from './episodes.ts'
+import { EPISODE_BODY_CAP, buildEpisode, isHandoffWritten, mergeSources, parseEpisode, turnSessions } from './episodes.ts'
 
 let n = 0
 const at = (min: number) => new Date(Date.UTC(2026, 9, 3, 9, 0) + min * 60_000).toISOString()
@@ -45,6 +45,10 @@ const entry = [...events, ev(5, 'memory_updated', { title: 'Entry E001 saved' })
 const [se] = groupSessions(entry)
 assert.equal(se.memoryUpdated, true)
 assert.equal(isHandoffWritten(se, entry), false)
+// …and its episode headline doesn't claim a memory update
+const seMd = buildEpisode(se, opts)
+assert.match(seMd, /^# Episode ses_1: .* · entries saved\n/)
+assert.doesNotMatch(seMd, /memory updated/)
 const handoff = [...entry, ev(6, 'memory_updated', { title: 'Session memory updated' })]
 assert.equal(isHandoffWritten(groupSessions(handoff)[0], handoff), true)
 // …but only one inside this session
@@ -76,5 +80,11 @@ const all = [...events, human, ...reads]
 const ss = groupSessions(all)
 assert.deepEqual(turnSessions(ss, all, at(1)).map(x => x.id), ['ses_1'])
 assert.deepEqual(turnSessions(ss, all, at(10)).map(x => x.id), [])
+
+// Source: a session shared by two chats lists both; a later turn of the same chat changes nothing
+assert.equal(mergeSources(undefined, 'chat c-1'), 'chat c-1')
+assert.equal(mergeSources('chat c-1', 'chat c-2'), 'chat c-1, chat c-2')
+assert.equal(mergeSources('chat c-1, chat c-2', 'chat c-2'), 'chat c-1, chat c-2')
+assert.equal(mergeSources('chat c-1, chat c-2', 'chat c-1'), 'chat c-1, chat c-2')
 
 console.log('episodes: ok')

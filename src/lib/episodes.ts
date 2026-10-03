@@ -46,11 +46,15 @@ function renderBody(s: Session, opts: EpisodeOpts, cap: number, msgMax: number):
   return parts.join('\n\n')
 }
 
-/** Markdown for `.vibedoc/episodes/<id>.md`; '' for a session with no events. Body ≤ EPISODE_BODY_CAP. */
+/**
+ * Markdown for `.vibedoc/episodes/<id>.md`; '' for a session with no events. Body ≤ EPISODE_BODY_CAP.
+ * Only for sessions without a handoff (isHandoffWritten false), so the headline's "memory updated" can only be entry saves.
+ */
 export function buildEpisode(s: Session, opts: EpisodeOpts): string {
   if (!s.eventCount) return ''
   const actor = opts.agent ? `ai:${opts.agent}` : s.actor
-  const head = `# Episode ${s.id}: ${s.headline}\n**Session:** ${s.id}\n**Actor:** ${actor}\n**Start:** ${s.start}\n**End:** ${s.end}\n**Source:** ${opts.source}\n\n`
+  const headline = s.headline.replace('memory updated', 'entries saved')
+  const head = `# Episode ${s.id}: ${headline}\n**Session:** ${s.id}\n**Actor:** ${actor}\n**Start:** ${s.start}\n**End:** ${s.end}\n**Source:** ${opts.source}\n\n`
   const msgLen = (opts.lastMessage ?? '').trim().length
   let body = ''
   // Trim the last message first, then shorten the lists
@@ -76,6 +80,12 @@ export function parseEpisode(raw: string, file: string): Episode | null {
     sessionId, actor: meta('Actor'), start, end, source: meta('Source'),
     headline: h1[2].trim(), body: bodyAt < 0 ? '' : raw.slice(bodyAt).trim(), file,
   }
+}
+
+/** Source line for a rewrite of a session's episode: every chat that wrote into the session, in order. */
+export function mergeSources(prev: string | undefined, next: string): string {
+  const all = (prev ?? '').split(', ').filter(Boolean)
+  return all.includes(next) ? all.join(', ') : [...all, next].join(', ')
 }
 
 /** A MEMORY.md write in this session. Entry saves reuse `memory_updated` ("Entry E001 saved") and don't count. */

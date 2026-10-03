@@ -9,10 +9,10 @@
 
 import { NextRequest } from 'next/server'
 import { spawn } from 'child_process'
-import { getConfiguredRoot, listTasks, readActivity, writeEpisode } from '@/lib/core'
+import { getConfiguredRoot, listEpisodes, listTasks, readActivity, writeEpisode } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { groupSessions } from '@/lib/sessions'
-import { buildEpisode, isHandoffWritten, turnSessions } from '@/lib/episodes'
+import { buildEpisode, isHandoffWritten, mergeSources, turnSessions } from '@/lib/episodes'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -42,17 +42,21 @@ function assistantText(line: string): string | null {
  * R050: each agent session this turn touched that has no MEMORY.md handoff gets `.vibedoc/episodes/<id>.md`.
  * The reply comes from the stream, not the saved chat: the browser saves the chat only after this stream ends.
  */
-// ponytail: agent sessions are per root+actor, so parallel chats share one; the last turn to end writes its reply
+// ponytail: agent sessions are per root+actor (stampSession), so chats in one 30-min window share a session and its episode:
+// Source lists every chat that wrote into it, the last turn to end writes its reply, and external `ai` agents still fold in.
+// Upgrade path: stamp chat MCP calls with their own session id.
 async function writeTurnEpisodes(root: string, since: string, conversationId: string | null, lastMessage: string | undefined) {
   const events = await readActivity(root, EPISODE_LOOKBACK)
   const sessions = turnSessions(groupSessions(events), events, since).filter(s => !isHandoffWritten(s, events))
   if (!sessions.length) return
   const { tasks } = await listTasks(root)
+  const prev = await listEpisodes(root)
+  const source = conversationId ? `chat ${conversationId}` : 'chat'
   for (const s of sessions) {
     const openTasks = s.tasks
       .filter(t => t.lastStatus !== 'done' && t.lastStatus !== 'cancelled')
       .map(t => ({ id: t.id, title: tasks.find(x => x.id === t.id)?.title ?? '', status: t.lastStatus }))
-    const markdown = buildEpisode(s, { source: conversationId ? `chat ${conversationId}` : 'chat', agent: 'claude-code', lastMessage, openTasks })
+    const markdown = buildEpisode(s, { source: mergeSources(prev.find(e => e.sessionId === s.id)?.source, source), agent: 'claude-code', lastMessage, openTasks })
     if (!markdown) continue
     const file = await writeEpisode({ sessionId: s.id, markdown }, root)
     emitUpdate('episode_saved', { sessionId: s.id, file })
