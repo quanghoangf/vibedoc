@@ -1045,11 +1045,49 @@ export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>
 
 // ─── Memory health ────────────────────────────────────────────────────────────
 
-/** Handoff/board contradictions and dangling ids in MEMORY.md and the entries (R051). Pure rules in src/lib/memory-health.ts. */
-export async function getMemoryHealth(root: string): Promise<HealthFlag[]> {
-  const [memory, entries, { tasks }, { items }] = await Promise.all([readMemory(root), listEntries(root), listTasks(root), listRoadmap(root)])
+/** A flag as the Cleanup panel sees it: `dismissed` is the YYYY-MM-DD it was dismissed on. */
+export type CleanupFlag = HealthFlag & { dismissed?: string }
+
+/**
+ * Handoff/board contradictions and dangling ids in MEMORY.md and the entries (R051). Pure rules in src/lib/memory-health.ts.
+ * Dismissed flags are left out unless `includeDismissed` (the panel's "Show dismissed").
+ */
+export async function getMemoryHealth(root: string, opts: { includeDismissed?: boolean } = {}): Promise<CleanupFlag[]> {
+  const [memory, entries, { tasks }, { items }, { dismissed }] = await Promise.all([
+    readMemory(root), listEntries(root), listTasks(root), listRoadmap(root), readCleanupState(root),
+  ])
   const board = [...tasks, ...items].map(({ id, status }) => ({ id, status }))
-  return findContradictions(memory.exists ? memory.content : '', entries, board, t => extractRefs(t).ids)
+  const flags = findContradictions(memory.exists ? memory.content : '', entries, board, t => extractRefs(t).ids)
+  return opts.includeDismissed
+    ? flags.map(f => (dismissed[f.id] ? { ...f, dismissed: dismissed[f.id] } : f))
+    : flags.filter(f => !dismissed[f.id])
+}
+
+const CLEANUP_FILE = path.join('memory', '.cleanup.json')
+
+/** `memory/.cleanup.json`; a missing or invalid file is an empty state. */
+export async function readCleanupState(root: string): Promise<{ dismissed: Record<string, string> }> {
+  try {
+    const d = (JSON.parse(await fs.readFile(path.join(root, CLEANUP_FILE), 'utf-8')) as { dismissed?: unknown })?.dismissed
+    if (d && typeof d === 'object' && !Array.isArray(d)) {
+      return { dismissed: Object.fromEntries(Object.entries(d).filter((kv): kv is [string, string] => typeof kv[1] === 'string')) }
+    }
+  } catch { /* missing or unreadable → nothing dismissed */ }
+  return { dismissed: {} }
+}
+
+/** Hide a health flag for as long as its id stays the same. Throws when no current flag has that id. */
+export async function dismissHealthFlag(flagId: string, root: string, actor: 'human' | 'ai' = 'human'): Promise<CleanupFlag> {
+  const flag = (await getMemoryHealth(root, { includeDismissed: true })).find(f => f.id === flagId)
+  if (!flag) throw new RoadmapError(`Flag "${flagId}" not found`, 404)
+  const { dismissed } = await readCleanupState(root)
+  dismissed[flagId] = localToday()
+  const sorted = Object.fromEntries(Object.entries(dismissed).sort(([a], [b]) => a.localeCompare(b)))
+  const file = path.join(root, CLEANUP_FILE)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, JSON.stringify({ dismissed: sorted }, null, 2) + '\n', 'utf-8')
+  await appendActivity(root, { type: 'memory_updated', actor, title: 'Cleanup flag dismissed', detail: flag.message })
+  return { ...flag, dismissed: dismissed[flagId] }
 }
 
 // ─── File history from git (R053) ─────────────────────────────────────────────
