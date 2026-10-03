@@ -37,6 +37,9 @@ import {
   saveEntry,
   deleteEntry,
   sessionStartMemory,
+  backfillEpisodes,
+  currentSessionId,
+  writeRunEpisode,
   recallEntries,
   relatedEntries,
   getEntriesByIds,
@@ -843,6 +846,13 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const epicId = String(args.epic ?? "").trim();
       if (!epicId) throw new Error("epic is required");
       const { result, task, previousStatus } = await claimNextTask(epicId, root, agent);
+      // R050: nothing ready = the run is over; leave an episode unless the session wrote a handoff
+      const runEnd = async () => {
+        const ep = await writeRunEpisode(root, `epic ${epicId.toUpperCase()}`, agent);
+        if (!ep) return "";
+        emitUpdate("episode_saved", ep);
+        return `\n\nEpisode saved → ${ep.file}`;
+      };
       if (result.kind === "finished") {
         const { items } = await listRoadmap(root);
         const statuses = await taskInfoMap(root);
@@ -852,11 +862,13 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         const nudge = roadmapHealth(items, statuses, localToday()).drift
           .find((d) => d.id === id && d.suggestedStatus === "done");
         return `✅ Epic ${id} is finished — all ${n} tasks done or cancelled. Stop here.` +
-          (nudge ? `\n\n🗺️ ${nudge.message} → vibedoc_update_roadmap_item { "id": "${id}", "status": "done" }` : "");
+          (nudge ? `\n\n🗺️ ${nudge.message} → vibedoc_update_roadmap_item { "id": "${id}", "status": "done" }` : "") +
+          (await runEnd());
       }
       if (result.kind === "waiting") {
         return `⏳ Nothing ready in ${epicId.toUpperCase()}.\n` + result.waiting.map((w) => `- ${w.reason}`).join("\n") +
-          (result.needsHuman ? "\n\nNeeds a human: approve, send back or unblock one of the tasks above." : "");
+          (result.needsHuman ? "\n\nNeeds a human: approve, send back or unblock one of the tasks above." : "") +
+          (await runEnd());
       }
       if (!task) throw new Error(`claim of ${epicId.toUpperCase()} returned no task`);
       emitUpdate("task_updated", {
@@ -887,6 +899,10 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     case "vibedoc_read_memory": {
       await logSessionStart(root, "ai");
       emitUpdate("session_start", { root });
+      // R050: ended sessions with no handoff get an `inferred` episode first, so the response below can show it
+      for (const ep of await backfillEpisodes(root, { excludeSessionId: currentSessionId(root) })) {
+        emitUpdate("episode_saved", ep);
+      }
       return sessionStartMemory(root);
     }
 

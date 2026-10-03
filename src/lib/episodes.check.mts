@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict'
 import type { ActivityEvent } from './core'
 import { groupSessions } from './sessions.ts'
-import { EPISODE_BODY_CAP, buildEpisode, isHandoffWritten, mergeSources, parseEpisode, turnSessions } from './episodes.ts'
+import { SESSION_GAP_MS } from './sessions.ts'
+import { EPISODE_BODY_CAP, buildEpisode, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, turnSessions } from './episodes.ts'
 
 let n = 0
 const at = (min: number) => new Date(Date.UTC(2026, 9, 3, 9, 0) + min * 60_000).toISOString()
@@ -86,5 +87,30 @@ assert.equal(mergeSources(undefined, 'chat c-1'), 'chat c-1')
 assert.equal(mergeSources('chat c-1', 'chat c-2'), 'chat c-1, chat c-2')
 assert.equal(mergeSources('chat c-1, chat c-2', 'chat c-2'), 'chat c-1, chat c-2')
 assert.equal(mergeSources('chat c-1, chat c-2', 'chat c-1'), 'chat c-1, chat c-2')
+
+// Backfill: which ended sessions get an `inferred` episode
+const bf = [
+  ev(0, 'task_updated', { taskId: 'T1', taskStatus: 'done', title: 'T1 → done', sessionId: 'old' }), // ended: idle > 30 min
+  ev(5, 'task_updated', { taskId: 'T2', taskStatus: 'done', sessionId: 'handoff' }),
+  ev(6, 'memory_updated', { title: 'Session memory updated', sessionId: 'handoff' }),
+  ev(7, 'task_updated', { taskId: 'T3', taskStatus: 'done', sessionId: 'has_ep' }),
+  ev(8, 'session_start', { sessionId: 'reads' }),
+  ev(9, 'doc_read', { sessionId: 'reads' }),
+  ev(10, 'task_updated', { actor: 'human', taskId: 'T4', taskStatus: 'done', sessionId: 'human' }),
+  ev(50, 'task_updated', { taskId: 'T5', taskStatus: 'in-progress', sessionId: 'superseded' }), // recent, but a later session exists
+  ev(52, 'task_updated', { taskId: 'T6', taskStatus: 'in-progress', sessionId: 'cur' }), // the caller's, still running
+]
+const bss = groupSessions(bf)
+const pick = (o: Partial<Parameters<typeof sessionsNeedingEpisode>[4]> = {}, cur: string | null = 'cur', existing = ['has_ep']) =>
+  sessionsNeedingEpisode(bss, bf, new Set(existing), cur, { now: Date.parse(at(55)), gapMs: SESSION_GAP_MS, ...o }).map(x => x.id)
+assert.deepEqual(pick(), ['superseded', 'old']) // newest first; handoff, existing episode, read-only and human skipped
+assert.deepEqual(pick({ limit: 1 }), ['superseded'])
+assert.deepEqual(pick({}, 'superseded'), ['old']) // the caller's session is never backfilled
+assert.deepEqual(pick({}, null), ['superseded', 'old']) // 'cur' is the newest and idle < 30 min → not ended
+assert.deepEqual(pick({ now: Date.parse(at(90)) }, null), ['cur', 'superseded', 'old']) // …until it goes idle
+assert.deepEqual(pick({ since: Date.parse(at(20)) }), ['superseded']) // ended before the last MEMORY.md write
+assert.deepEqual(pick({}, 'cur', ['has_ep', 'old', 'superseded']), [])
+assert.equal(lastEventTitle(bss.find(x => x.id === 'old')!, bf), 'T1 → done')
+assert.equal(lastEventTitle(bss.find(x => x.id === 'reads')!, bf), undefined)
 
 console.log('episodes: ok')

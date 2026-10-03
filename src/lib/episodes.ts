@@ -99,3 +99,44 @@ export function turnSessions(sessions: Session[], events: ActivityEvent[], since
   const touched = new Set(events.filter(e => e.timestamp >= since && !READ_ONLY.includes(e.type)).map(e => e.id))
   return sessions.filter(s => s.actor === actor && s.eventIds.some(id => touched.has(id)))
 }
+
+/** The session changed something (not only session_start / doc_read): only then is an episode worth writing. */
+export function hasWork(s: Session, events: ActivityEvent[]): boolean {
+  const ids = new Set(s.eventIds)
+  return events.some(e => ids.has(e.id) && !READ_ONLY.includes(e.type))
+}
+
+/** "Where it stopped" for a session with no transcript (external agents): the title of its last non-read event. */
+export function lastEventTitle(s: Session, events: ActivityEvent[]): string | undefined {
+  const ids = new Set(s.eventIds)
+  return events
+    .filter(e => ids.has(e.id) && !READ_ONLY.includes(e.type))
+    .sort((a, b) => b.timestamp.localeCompare(a.timestamp))[0]?.title
+}
+
+export interface BackfillOpts {
+  now: number
+  /** Idle gap that ends a session; pass SESSION_GAP_MS (sessions.ts) */
+  gapMs: number
+  /** Epoch ms of the last MEMORY.md write: sessions that ended before it are covered by that handoff */
+  since?: number
+  limit?: number
+}
+
+/**
+ * R050 backfill: ended agent sessions with work, no handoff and no episode file yet, newest first, at most `limit` (5).
+ * Ended = idle longer than `gapMs`, or a later session by the same actor exists. `sessions` come newest first (groupSessions).
+ */
+export function sessionsNeedingEpisode(
+  sessions: Session[], events: ActivityEvent[], existingIds: Set<string>, currentSessionId: string | null, opts: BackfillOpts,
+): Session[] {
+  const since = opts.since ?? -Infinity
+  return sessions
+    .filter(s => {
+      if (s.actor !== 'ai' || s.id === currentSessionId || existingIds.has(s.id)) return false
+      const end = Date.parse(s.end)
+      const ended = opts.now - end > opts.gapMs || sessions.some(o => o.actor === s.actor && o.start > s.start)
+      return ended && end > since && hasWork(s, events) && !isHandoffWritten(s, events)
+    })
+    .slice(0, opts.limit ?? 5)
+}

@@ -13,7 +13,7 @@ import { applyEdits, type TextEdit } from './diff'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
-import { SESSION_GAP_MS } from './sessions'
+import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
 import { parseManualTests, setManualTests, toggleManualTest } from './manual-tests'
 import { appendReviewEntry, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
@@ -23,7 +23,7 @@ import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuse
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
-import { parseEpisode, type Episode } from './episodes'
+import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
@@ -1282,6 +1282,12 @@ function stampSession(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp
   return cur.id
 }
 
+/** The actor's running session id (T046 stamping), or null when there is none or it went idle. */
+export function currentSessionId(root: string, actor: ActivityEvent['actor'] = 'ai'): string | null {
+  const cur = currentSessions.get(`${root}\0${actor}`)
+  return cur && Date.now() - cur.lastAt <= SESSION_GAP_MS ? cur.id : null
+}
+
 async function appendActivity(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp'>): Promise<void> {
   const now = Date.now()
   const full: ActivityEvent = {
@@ -2229,6 +2235,57 @@ export async function episodesSinceHandoff(root: string): Promise<Episode[]> {
   ])
   const since = stat?.mtimeMs ?? -Infinity
   return eps.filter(e => Date.parse(e.end) > since)
+}
+
+function sessionEpisode(s: Session, events: ActivityEvent[], tasks: Task[], source: string, agent?: string): string {
+  const openTasks = s.tasks
+    .filter(t => t.lastStatus !== 'done' && t.lastStatus !== 'cancelled')
+    .map(t => ({ id: t.id, title: tasks.find(x => x.id === t.id)?.title ?? '', status: t.lastStatus }))
+  // No transcript outside the chat: "Where it stopped" is the last event's title
+  return buildEpisode(s, { source, agent, openTasks, lastMessage: lastEventTitle(s, events) })
+}
+
+/**
+ * R050 lazy backfill (at vibedoc_read_memory): an `inferred` episode for each ended agent session since the last
+ * MEMORY.md write that has no handoff and no episode file, newest first. Never rewrites an existing episode.
+ */
+export async function backfillEpisodes(
+  root: string, { excludeSessionId = null, limit = 5 }: { excludeSessionId?: string | null; limit?: number } = {},
+): Promise<{ sessionId: string; file: string }[]> {
+  const [events, files, memStat] = await Promise.all([
+    readActivity(root, ACTIVITY_CAP),
+    fs.readdir(path.join(root, EPISODES_DIR)).catch(() => [] as string[]),
+    fs.stat(path.join(root, 'memory', 'MEMORY.md')).catch(() => null),
+  ])
+  const existing = new Set(files.filter(f => f.endsWith('.md')).map(f => f.slice(0, -3)))
+  const picks = sessionsNeedingEpisode(groupSessions(events), events, existing, excludeSessionId, {
+    now: Date.now(), gapMs: SESSION_GAP_MS, since: memStat?.mtimeMs, limit,
+  })
+  if (!picks.length) return []
+  const { tasks } = await listTasks(root)
+  const written: { sessionId: string; file: string }[] = []
+  for (const s of picks) {
+    const markdown = sessionEpisode(s, events, tasks, 'inferred')
+    if (markdown) written.push({ sessionId: s.id, file: await writeEpisode({ sessionId: s.id, markdown }, root) })
+  }
+  return written
+}
+
+/**
+ * R050: episode for the caller's current agent session when an epic run ends (vibedoc_next_task has nothing ready).
+ * null when there is no running session, it wrote a handoff, or it changed nothing. Rewrites keep earlier sources.
+ */
+export async function writeRunEpisode(root: string, source: string, agent?: string): Promise<{ sessionId: string; file: string } | null> {
+  const id = currentSessionId(root)
+  if (!id) return null
+  const events = await readActivity(root, ACTIVITY_CAP)
+  const s = groupSessions(events).find(x => x.id === id)
+  if (!s || !hasWork(s, events) || isHandoffWritten(s, events)) return null
+  const rel = path.join(EPISODES_DIR, `${id}.md`)
+  const prev = await fs.readFile(path.join(root, rel), 'utf8').then(raw => parseEpisode(raw, rel)).catch(() => null)
+  const { tasks } = await listTasks(root)
+  const markdown = sessionEpisode(s, events, tasks, mergeSources(prev?.source, source), agent)
+  return markdown ? { sessionId: id, file: await writeEpisode({ sessionId: id, markdown }, root) } : null
 }
 
 // ─── Saved board views (.vibedoc/views.json) ─────────────────────────────────
