@@ -32,13 +32,15 @@ interface Props {
   lineNumbers?: boolean
   /** Left end of the doc bar (back button, path) */
   barStart?: ReactNode
-  /** Right end of the doc bar, after the built-in tools (outline, backlinks, ⋯ menu); gets the mode */
+  /** Right end of the doc bar, after the built-in tools (outline, linked docs, ⋯ menu); gets the mode */
   barEnd?: (mode: ViewMode) => ReactNode
   /** Title + meta, set at the top of the reading column */
   titleBlock?: ReactNode
+  /** Right column beside the editor/preview area, below the doc bar (linked docs) */
+  aside?: ReactNode
 }
 
-export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, barStart, barEnd, titleBlock }: Props) {
+export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, barStart, barEnd, titleBlock, aside }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
   const { rootParam } = useApp()
   const ytextRef = useRef<import("yjs").Text | null>(null)
@@ -348,9 +350,10 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         </div>
       )}
 
-      {/* Editor / Preview area */}
+      {/* Editor / Preview area, then the optional right column */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
       <div
-        className={`flex-1 overflow-hidden ${
+        className={`min-w-0 flex-1 overflow-hidden ${
           showEditor && showPreview ? "grid grid-cols-2 divide-x divide-border max-md:grid-cols-1" : "flex"
         }`}
       >
@@ -394,10 +397,13 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
               content={previewContent}
               className={docStats(stripFrontmatter(previewContent)).title ? "doc-preview doc-preview-titled" : "doc-preview"}
               highlightSince={aiEditAt}
+              docPath={docPath}
             />
             </div>
           </div>
         )}
+      </div>
+      {aside}
       </div>
     </div>
     </TooltipProvider>

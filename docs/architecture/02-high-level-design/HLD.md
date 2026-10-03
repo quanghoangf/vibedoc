@@ -108,6 +108,7 @@ The only file that touches the file system. Every read/write goes through here.
 - `listTasks()` / `getTask()` / `updateTaskStatus()` — task operations
 - `readMemory()` / `updateMemory()` — session memory
 - `listEntries()` / `getEntry()` / `saveEntry()` / `deleteEntry()` — knowledge entries (`memory/entries/E*.md`, pure parsing in `src/lib/entries.ts`)
+- `getDocGraph()` — resolved links between every `.md` file (R056; pure parsing/resolution in `src/lib/doc-links.ts`, per-file mtime cache). Feeds `/api/docs/links`, `/api/docs/graph` and the `vibedoc_read_doc` footer
 - `logDecision()` — ADR creation
 - `readActivity()` / `appendActivity()` — activity log
 - `getProjectSummary()` — combined status (used by dashboard)

@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
 import { formatCompactLine, tokenize } from "@/lib/recall";
 import { formatEntryLinks } from "@/lib/memory-graph";
+import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
 import {
   getConfiguredRoot,
   listDocs,
@@ -50,7 +51,7 @@ import {
   readProjectSettings,
   logSessionStart,
   readActivity,
-  findBacklinks,
+  getDocGraph,
   appendDoc,
   renameDoc,
   deleteDoc,
@@ -124,7 +125,7 @@ const TOOLS = [
   {
     name: "vibedoc_read_doc",
     description:
-      'Read a doc file by name. Use: "CLAUDE", "HLD", "EVENT_CATALOG", "MEMORY", "user-service/API", "ADR-001".',
+      'Read a doc file by name. Use: "CLAUDE", "HLD", "EVENT_CATALOG", "MEMORY", "user-service/API", "ADR-001". Ends with a "## Related files" footer when the doc has links: what it links to, what links to it (docs by path; tasks, epics, entries, ADRs by id) broken links ([x](y.md) / [[y]] to no file) and stale paths (backticked paths to missing files), so you know what to read next.',
     inputSchema: {
       type: "object",
       properties: {
@@ -736,15 +737,8 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         root,
       );
       emitUpdate("doc_read", { path: docPath });
-      const backlinks = await findBacklinks(docPath, root);
-      let result = `## ${docPath}\n\n${content}`;
-      if (backlinks.length > 0) {
-        result += "\n\n---\n\n## Referenced by\n";
-        backlinks.forEach((b) => {
-          result += `- ${b.file} (line ${b.line}): ${b.text}\n`;
-        });
-      }
-      return result;
+      const related = formatRelatedFiles(docLinks(await getDocGraph(root), docPath));
+      return `## ${docPath}\n\n${content}` + (related ? `\n\n---\n\n${related}` : "");
     }
 
     case "vibedoc_list_docs": {

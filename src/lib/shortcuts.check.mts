@@ -1,10 +1,16 @@
 // Self-check for keyboard shortcuts. Run: node src/lib/shortcuts.check.mts
 import assert from 'node:assert/strict'
-import { ITEM_KEYS, OTHER_SHORTCUTS, PAGE_SHORTCUTS, inTextField, itemActionForKey, pageForKey, pageTitle, shortcutFor, shouldHandleShortcut } from './shortcuts.ts'
+import { GRAPH_KEYS, ITEM_KEYS, OTHER_SHORTCUTS, PAGE_SHORTCUTS, inTextField, itemActionForKey, pageForKey, pageTitle, shortcutFor, shouldHandleShortcut } from './shortcuts.ts'
 
-// Keys are unique across page jumps and the rest, so one key never means two things
-const keys = [...PAGE_SHORTCUTS.map((s) => s.key), ...OTHER_SHORTCUTS.map((s) => s.key)]
-assert.equal(new Set(keys).size, keys.length, 'duplicate shortcut key')
+// A page-jump key never means anything else, and a key appears once per help-sheet section (the Graph section
+// repeats / and Esc on purpose: on /graph they do graph things)
+const pageKeys = PAGE_SHORTCUTS.map((s) => s.key)
+assert.equal(new Set(pageKeys).size, pageKeys.length, 'duplicate page key')
+for (const s of OTHER_SHORTCUTS) assert.ok(!pageKeys.includes(s.key), `${s.key} is a page jump`)
+for (const section of new Set(OTHER_SHORTCUTS.map((s) => s.section))) {
+  const keys = OTHER_SHORTCUTS.filter((s) => s.section === section).map((s) => s.key)
+  assert.equal(new Set(keys).size, keys.length, `duplicate key in ${section}`)
+}
 
 assert.equal(pageForKey('r'), '/roadmap')
 assert.equal(pageForKey('z'), undefined)
@@ -12,6 +18,8 @@ assert.equal(shortcutFor('/board'), 'b')
 assert.equal(pageForKey('t'), '/manual-tests')
 assert.equal(pageForKey('s'), '/settings')
 assert.equal(pageForKey('g'), '/chat')
+assert.equal(pageForKey('l'), '/graph')
+assert.equal(pageTitle('/graph'), 'Graph')
 assert.equal(shortcutFor('/setup'), undefined)
 // Keys the global handler already uses for something else
 for (const k of ['c', '/', '?']) assert.equal(pageForKey(k), undefined, `page key ${k} clashes`)
@@ -29,6 +37,13 @@ assert.equal(pageTitle('/chat'), 'Chats')
 assert.equal(PAGE_SHORTCUTS.find((s) => s.key === 'g')?.help, 'Chats page')
 assert.equal(OTHER_SHORTCUTS.find((s) => s.key === 'c')?.label, 'Open next chat')
 assert.equal(pageTitle('/docs/some/path'), 'Docs')
+// graph node keys never shadow a page jump
+assert.equal(pageForKey('o'), undefined, 'o opens the focused graph node')
+// the help sheet's Graph section lists every graph key, from the same list as the selected-file card
+const graphRows = OTHER_SHORTCUTS.filter((s) => s.section === 'Graph')
+assert.deepEqual(graphRows.map((s) => s.key), Object.values(GRAPH_KEYS).map((k) => k.key))
+for (const k of ['/', 'Tab', '↵', 'o', '←→↑↓', 'Esc', '↵ ⇧↵']) assert.ok(graphRows.some((s) => s.key === k), `Graph section lists ${k}`)
+assert.equal(pageForKey(GRAPH_KEYS.open.key), undefined, 'o is not a page jump')
 assert.equal(pageTitle('/boardx'), undefined)
 
 const base = { defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false }

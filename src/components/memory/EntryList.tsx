@@ -90,7 +90,7 @@ export function EntryList({ entries, selectedId, onOpen, onNew }: {
                 aria-current={e.id === selectedId ? "true" : undefined}
                 className={cn(
                   "flex w-full flex-col gap-0.5 px-3 py-2 text-left outline-none transition-colors hover:bg-surface2 focus-visible:bg-surface2",
-                  e.id === selectedId && "bg-surface2 shadow-[inset_2px_0_0_var(--color-accent)]",
+                  e.id === selectedId && "bg-surface2 shadow-[inset_2px_0_0_var(--color-accent-edge)]",
                 )}
               >
                 <span className="flex items-center gap-2 font-mono text-[11px] text-muted">

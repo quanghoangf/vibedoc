@@ -1,19 +1,25 @@
 "use client"
 
+import { useState } from "react"
+import Link from "next/link"
 import { useApp } from "@/context/AppContext"
+import { cn } from "@/lib/utils"
 import type { SelectedDoc } from "@/types"
 import { MarkdownEditor } from "./MarkdownEditor"
-import { BacklinksPanel } from "./BacklinksPanel"
+import { LinkedDocs } from "./LinkedDocs"
+import { useDocLinks } from "./useDocLinks"
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { DocActionsMenu, type DocActions } from "./DocActionsMenu"
 import { useItemCommands } from "@/components/shared/item-commands"
 import { timeAgo } from "@/components/activity/ActivityEventRow"
 import { DocOutline } from "./DocOutline"
 import { docStats, extractHeadings } from "@/lib/headings"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Bot, PanelLeftClose, PanelLeftOpen, Plus, User } from "lucide-react"
+import { ArrowLeft, Bot, Link2, PanelLeftClose, PanelLeftOpen, Plus, Unlink, User, Waypoints } from "lucide-react"
 import { DOCS_LIST_KEY } from "@/lib/shortcuts"
 import { stripFrontmatter } from "@/lib/doc-priority"
 import { DocProperties } from "./DocProperties"
+import { graphHref } from "@/lib/doc-links"
 
 const kbdClass = "rounded-sm border border-border bg-surface2 px-1 font-mono text-[10px] leading-4 text-txt"
 
@@ -24,16 +30,20 @@ interface DocViewerProps {
   docActions?: DocActions
   /** Live editor content (debounced) so the title and stats follow typing */
   content?: string
-  /** Docs in the project; undefined while searching */
-  docCount?: number
+  /** Markdown files in the project and how many are docs (not tasks, epics, entries or ADRs; as /graph counts them); undefined while searching */
+  docCount?: { files: number; docs: number }
   onNewDocClick?: () => void
   listCollapsed?: boolean
   onToggleList?: () => void
 }
 
 export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, content, docCount, onNewDocClick, listCollapsed = false, onToggleList }: DocViewerProps) {
-  const { rootParam, setSelectedDoc, openDoc, editorSettings } = useApp()
+  const { rootParam, setSelectedDoc, editorSettings } = useApp()
   const path = doc?.path ?? ""
+  const links = useDocLinks(doc?.path)
+  // ≥xl: the linked docs column beside the preview (toggled here); below xl: the same lists in a sheet
+  const [linksColumn, setLinksColumn] = useState(true)
+  const [linksSheet, setLinksSheet] = useState(false)
   useItemCommands(doc && docActions ? path : null, docActions ? [
     { action: "edit", label: "Rename", run: () => docActions.rename(path) },
     { action: "duplicate", label: "Duplicate", run: () => docActions.duplicate(path) },
@@ -45,12 +55,14 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
     return (
       <div className="mx-auto flex max-w-xl flex-col gap-4 px-6 pt-[18vh] pb-12">
         <h2 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-balance text-txt">
-          {docCount === undefined ? "Pick a doc to read" : docCount === 0 ? "No docs yet" : (
-            <><span className="font-mono">{docCount}</span> docs in this project</>
+          {docCount === undefined ? "Pick a doc to read" : docCount.files === 0 ? "No docs yet" : docCount.files === docCount.docs ? (
+            <><span className="font-mono">{docCount.files}</span> docs in this project</>
+          ) : (
+            <><span className="font-mono">{docCount.files}</span> files · <span className="font-mono">{docCount.docs}</span> docs</>
           )}
         </h2>
         <p className="text-sm leading-relaxed text-muted">
-          {docCount === 0
+          {docCount?.files === 0
             ? "Docs are plain markdown files in your repo. Your agent reads and edits the same files."
             : "Choose one from the list. Your agent reads and edits the same files, and its changes show up here live."}
         </p>
@@ -92,8 +104,27 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
   const title = stats.title ?? fileName.replace(/\.md$/, "")
   const lastEdit = doc.lastEdit
   const headings = extractHeadings(body)
+  // unique files either way (a file both linked to and from counts once); broken links count apart
+  const linkCount = links ? new Set([...links.out, ...links.in].map((l) => l.path)).size : null
+  const brokenCount = links?.broken.length ?? 0
+  const linksButton = (onClick: () => void, className: string, pressed?: boolean) => (
+    <Button variant="ghost" size="sm" onClick={onClick} aria-pressed={pressed}
+      aria-label={`Linked docs${linkCount !== null ? `: ${linkCount} files` : ""}${brokenCount ? `, ${brokenCount} broken` : ""}`} title="Linked docs"
+      className={`h-7 gap-1 px-1.5 text-muted hover:text-txt ${pressed ? "bg-surface2 text-txt" : ""} ${className}`}>
+      <Link2 className="h-3.5 w-3.5" aria-hidden />
+      {linkCount !== null && <span className="font-mono text-[11px]">{linkCount}</span>}
+      {/* muted like /graph's "N broken": a count to look at, not an error (Highlighter Rule) */}
+      {brokenCount > 0 && <span className="ml-0.5 inline-flex items-center gap-0.5 font-mono text-[11px]"><Unlink className="size-3" aria-hidden />{brokenCount}</span>}
+    </Button>
+  )
   return (
     <div className="flex h-full flex-col">
+      <Sheet open={linksSheet} onOpenChange={setLinksSheet}>
+        <SheetContent side="right" aria-describedby={undefined} className="flex w-80 flex-col gap-4 overflow-y-auto border-border bg-surface p-5 text-txt sm:max-w-80">
+          <SheetTitle className="text-sm font-semibold text-txt">Linked docs</SheetTitle>
+          <LinkedDocs links={links} path={doc.path} onNavigate={() => setLinksSheet(false)} />
+        </SheetContent>
+      </Sheet>
       <MarkdownEditor
         docPath={doc.path}
         initialContent={doc.content}
@@ -135,10 +166,30 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
           <>
             {/* Headings only exist to scroll to where the doc is rendered */}
             {mode !== "edit" && <div className="max-lg:hidden"><DocOutline headings={headings} /></div>}
-            <BacklinksPanel key={doc.path} docPath={doc.path} rootParam={rootParam} onOpenDoc={openDoc} />
+            <Button variant="ghost" size="sm" asChild className="h-7 px-1.5 text-muted hover:text-txt">
+              <Link href={graphHref(doc.path)} aria-label="Show in graph" title="Show in graph">
+                <Waypoints className="size-3.5" aria-hidden />
+              </Link>
+            </Button>
+            {linksButton(() => setLinksSheet(true), "xl:hidden")}
+            {linksButton(() => setLinksColumn((v) => !v), "max-xl:hidden", linksColumn)}
             {docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
           </>
         )}
+        aside={
+          // the column opens and closes (0 ↔ 18rem) so the prose reflow reads as one movement
+          <div
+            inert={!linksColumn}
+            className={cn(
+              "grid shrink-0 grid-rows-[minmax(0,1fr)] overflow-hidden transition-[grid-template-columns] duration-(--duration-base) ease-out-soft max-xl:hidden",
+              linksColumn ? "grid-cols-[18rem]" : "grid-cols-[0rem]",
+            )}
+          >
+            <aside aria-label="Linked docs" className="min-h-0 w-72 overflow-y-auto border-l border-border px-4 py-6">
+              <LinkedDocs links={links} path={doc.path} />
+            </aside>
+          </div>
+        }
         titleBlock={
           <header className="mb-8 border-b border-border pb-4">
             <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-balance text-txt">{title}</h1>

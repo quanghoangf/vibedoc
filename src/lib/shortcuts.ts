@@ -18,6 +18,7 @@ export const PAGE_SHORTCUTS: readonly PageShortcut[] = [
   { href: "/activity", key: "a", label: "Activity" },
   { href: "/memory", key: "m", label: "Memory" },
   { href: "/explorer", key: "e", label: "Explorer" },
+  { href: "/graph", key: "l", label: "Graph", help: "Link graph" },
   { href: "/manual-tests", key: "t", label: "Manual tests" },
   { href: "/settings", key: "s", label: "Settings" },
   { href: "/chat", key: "g", label: "Chats", help: "Chats page" },
@@ -49,8 +50,19 @@ export function itemActionForKey(key: string): ItemAction | undefined {
 export const DOCS_LIST_KEY = { key: "\\", label: "⌘\\" } as const
 export const TOGGLE_DOCS_LIST_EVENT = "vibedoc:toggle-docs-list"
 
+/** Keys on /graph: the help sheet's Graph section and the selected-file card's kbd strip read this one list. */
+export const GRAPH_KEYS = {
+  search: { key: "/", label: "Find a file" },
+  matches: { key: "↵ ⇧↵", label: "In search: frame matches, then next / previous" },
+  tab: { key: "Tab", label: "Next file, then the unlinked shelf" },
+  select: { key: "↵", label: "Select file; again to open" },
+  open: { key: "o", label: "Open the focused file" },
+  move: { key: "←→↑↓", label: "Move to a linked file" },
+  clear: { key: "Esc", label: "Clear the search, then the selection" },
+} as const
+
 /** Everything else the help sheet lists, after the page jumps, grouped by `section`. */
-export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "Open" | "Board" | "Open item" | "Editing & other" }[] = [
+export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "Open" | "Board" | "Graph" | "Open item" | "Editing & other" }[] = [
   { key: "⌘K", label: "Command palette", section: "Open" },
   { key: "⌘P", label: "Go to file", section: "Open" },
   { key: CHAT_KEY, label: "Open next chat", section: "Open" },
@@ -59,12 +71,13 @@ export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "O
   { key: "1–4", label: "Board · Table · By epic · Timeline", section: "Board" },
   { key: "f", label: "Open filters", section: "Board" },
   { key: "⇧-click", label: "Select tasks (bulk actions)", section: "Board" },
+  ...Object.values(GRAPH_KEYS).map(({ key, label }) => ({ key, label, section: "Graph" as const })),
   ...Object.values(ITEM_KEYS).map(({ label, help }) => ({ key: label, label: help, section: "Open item" as const })),
   { key: "/", label: "Focus search (docs, board)", section: "Editing & other" },
   { key: DOCS_LIST_KEY.label, label: "Hide / show the docs list", section: "Editing & other" },
   { key: "⌘B", label: "Toggle sidebar", section: "Editing & other" },
   { key: "?", label: "Toggle this help", section: "Editing & other" },
-  { key: "Esc", label: "Close panel / modal", section: "Editing & other" },
+  { key: "Esc", label: "Close panel or modal", section: "Editing & other" },
 ]
 
 export function shortcutFor(href: string): string | undefined {

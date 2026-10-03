@@ -25,6 +25,7 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallHit } from './recall'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
+import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
@@ -719,12 +720,12 @@ export interface CreateTaskParams {
 }
 
 /** Serialized with next_task claims and plan applies, so concurrent creates never pick the same id. */
-export function createTask(params: CreateTaskParams, root: string): Promise<Task> {
-  return withTaskClaimLock(() => createTaskUnlocked(params, root))
+export function createTask(params: CreateTaskParams, root: string, actor: 'ai' | 'human' = 'human'): Promise<Task> {
+  return withTaskClaimLock(() => createTaskUnlocked(params, root, actor))
 }
 
 /** Caller must hold withTaskClaimLock (applyPlan does). */
-async function createTaskUnlocked(params: CreateTaskParams, root: string): Promise<Task> {
+async function createTaskUnlocked(params: CreateTaskParams, root: string, actor: 'ai' | 'human'): Promise<Task> {
   const { tasks } = await listTasks(root)
   // One line only: a newline in the title would inject **Key:** lines into the meta block
   const title = params.title.replace(/\s+/g, ' ').trim()
@@ -773,6 +774,8 @@ ${params.description || '—'}
 `
 
   await fs.writeFile(filePath, content, { flag: 'wx', encoding: 'utf8' })
+  // logged so the graph's Recent (touchedPaths) and the activity feed see new tasks
+  await appendActivity(root, { type: 'task_updated', actor, title: `${id} created`, detail: title, taskId: id })
   return getTask(id, root)
 }
 
@@ -841,7 +844,7 @@ export function applyPlan(
         dependsOn: deps.join(', ') || undefined,
         due: t.due,
         body: t.body,
-      }, root)
+      }, root, actor)
       ids.set(t.key.trim(), task.id)
       created.push({ key: t.key, id: task.id, file: task.file })
     }
@@ -1776,37 +1779,6 @@ export async function updateRegistryAnnotation(
   await writeDoc(REGISTRY_PATH, newContent, root)
 }
 
-// ─── Backlinks ─────────────────────────────────────────────────────────────────
-
-export async function findBacklinks(
-  targetPath: string,
-  root: string
-): Promise<{ file: string; line: number; text: string }[]> {
-  const files = await glob('**/*.md', {
-    cwd: root,
-    ignore: ['node_modules/**', '.git/**', '.next/**'],
-    nodir: true,
-  })
-  const normalTarget = targetPath.replace(/\\/g, '/')
-  const basename = path.basename(normalTarget)
-  const results: { file: string; line: number; text: string }[] = []
-
-  for (const f of files) {
-    if (f.replace(/\\/g, '/') === normalTarget) continue
-    try {
-      const content = await fs.readFile(path.join(root, f), 'utf8')
-      const lines = content.split('\n')
-      lines.forEach((line, i) => {
-        if (/\[.*\]\(.*\)/.test(line) &&
-            (line.includes(basename) || line.includes(normalTarget))) {
-          results.push({ file: f, line: i + 1, text: line.trim().slice(0, 120) })
-        }
-      })
-    } catch { /* skip unreadable */ }
-  }
-  return results
-}
-
 /**
  * The memory link graph (R053), built on request from the files: every entry, plus the tasks, roadmap items,
  * ADRs and docs an entry mentions or that mention an entry id. Pure resolution in src/lib/memory-graph.ts.
@@ -1821,7 +1793,7 @@ export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
 
 /** Every non-entry .md the memory graph scans (tasks, roadmap, ADRs, docs, MEMORY.md), with its text. */
 async function memoryGraphFiles(root: string): Promise<GraphItem[]> {
-  // ponytail: reads every .md on each call, like findBacklinks; cache by mtime if big repos make it slow
+  // ponytail: reads every .md on each call; cache by mtime (as getDocGraph does) if big repos make it slow
   const files = await glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**', 'memory/entries/**'], nodir: true })
   const others = await Promise.all(files.map(async (f): Promise<GraphItem | null> => {
     try {
@@ -1833,6 +1805,48 @@ async function memoryGraphFiles(root: string): Promise<GraphItem[]> {
     }
   }))
   return others.filter((o): o is GraphItem => !!o)
+}
+
+// ponytail: in-process cache only; a second VibeDoc process keeps its own. On globalThis so dev HMR keeps it.
+// Entries are keyed by mtime only, so bump DOC_GRAPH_CACHE_VERSION whenever docNode / extractLinks change what they
+// return: an HMR'd dev server would otherwise keep serving nodes built by the old code.
+const DOC_GRAPH_CACHE_VERSION = 3
+const docGraphCache: Map<string, { mtimeMs: number; item: DocItem }> = (() => {
+  const g = globalThis as { __vibedocDocGraphCache?: { v: number; map: Map<string, { mtimeMs: number; item: DocItem }> } }
+  if (g.__vibedocDocGraphCache?.v !== DOC_GRAPH_CACHE_VERSION) g.__vibedocDocGraphCache = { v: DOC_GRAPH_CACHE_VERSION, map: new Map() }
+  return g.__vibedocDocGraphCache.map
+})()
+
+/** Resolved links between every .md file (R056). Only files whose mtime changed since the last call are re-read. */
+export async function getDocGraph(root: string): Promise<DocGraph> {
+  const files = (await glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**'], nodir: true }))
+    .map(f => f.replace(/\\/g, '/')).sort()
+  const keyOf = (f: string) => `${root}\u0000${f}`
+  let reread = 0
+  const items = await Promise.all(files.map(async (f): Promise<DocItem | null> => {
+    const key = keyOf(f)
+    try {
+      const { mtimeMs } = await fs.stat(path.join(root, f))
+      const hit = docGraphCache.get(key)
+      if (hit && hit.mtimeMs === mtimeMs) return hit.item
+      const raw = await fs.readFile(path.join(root, f), 'utf8')
+      reread++
+      const item = { node: docNode(f, raw), links: extractLinks(raw, f) }
+      docGraphCache.set(key, { mtimeMs, item })
+      return item
+    } catch (e) {
+      docGraphCache.delete(key)
+      console.warn(`doc graph: skipped ${f}`, e)
+      return null
+    }
+  }))
+  const live = new Set(files.map(keyOf))
+  for (const key of docGraphCache.keys()) if (key.startsWith(`${root}\u0000`) && !live.has(key)) docGraphCache.delete(key)
+  if (reread) console.log(`doc graph: read ${reread} of ${files.length} files`)
+  // .md files in dot folders (.claude/skills, .impeccable): not graph nodes, but a mention of one isn't stale
+  const hidden = (await glob('.*/**/*.md', { cwd: root, dot: true, ignore: ['.git/**', '.next/**', '**/node_modules/**'], nodir: true }))
+    .map(f => f.replace(/\\/g, '/'))
+  return buildDocGraph(items.filter((i): i is DocItem => !!i), hidden)
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────

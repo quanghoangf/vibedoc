@@ -8,7 +8,7 @@ import { StatusIcon } from "@/components/shared/StatusIcon"
 import { displayStatus } from "@/lib/statuses"
 import type { GraphNode, MemoryGraph, NodeKind } from "@/lib/memory-graph"
 
-const GROUPS: { kind: NodeKind; label: string }[] = [
+export const GROUPS: { kind: NodeKind; label: string }[] = [
   { kind: "task", label: "Tasks" },
   { kind: "epic", label: "Epics" },
   { kind: "adr", label: "ADRs" },
@@ -57,8 +57,10 @@ export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpen
   const linksTo = pick((graph?.edges ?? []).filter((e) => e.from === entryId).map((e) => e.to))
   const linkedFrom = pick((graph?.edges ?? []).filter((e) => e.to === entryId).map((e) => e.from))
 
-  const row = (n: GraphNode) => {
+  // tasks from the live board, epics from the node (their roadmap status): one StatusIcon for both, as in Linked docs
+  const row = (n: GraphNode & { status?: string }) => {
     const task = n.kind === "task" ? tasks.get(n.id) : undefined
+    const status = task ? displayStatus(task) : n.kind === "epic" ? n.status : undefined
     const Icon = KIND_ICON[n.kind]
     return (
       <li key={n.id}>
@@ -68,7 +70,7 @@ export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpen
           title={n.path}
           className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-none hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
         >
-          {task ? <StatusIcon status={displayStatus(task)} className="size-3.5 shrink-0" /> : <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />}
+          {status ? <StatusIcon status={status} className="size-3.5 shrink-0" /> : <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />}
           {n.kind !== "doc" && <span className="shrink-0 font-mono text-[11px] text-muted">{n.id}</span>}
           <span className="min-w-0 truncate text-txt">{n.label}</span>
         </button>

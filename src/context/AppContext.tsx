@@ -31,7 +31,8 @@ interface AppContextValue {
   moveTask: (taskId: string, status: string) => Promise<void>
   /** Optimistic owner / due / size edit (R055); rolls back with a toast when the write fails */
   updateTaskFields: (taskId: string, patch: { owner?: string | null; due?: string | null; size?: string; priority?: Priority | null }) => Promise<void>
-  openDoc: (path: string) => Promise<void>
+  /** `link`: a raw link target in the doc to scroll to and flash once it renders (`?link=`). */
+  openDoc: (path: string, link?: string) => Promise<void>
   editorSettings: AppSettings["editor"]
   setEditorSettings: (s: AppSettings["editor"]) => void
   autoRefreshSeconds: number
@@ -206,11 +207,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [rootParam, refresh])
 
-  const openDoc = useCallback(async (docPath: string) => {
+  const openDoc = useCallback(async (docPath: string, link?: string) => {
     const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(docPath)}`)
     const data = await res.json()
     setSelectedDoc(data)
-    router.push("/docs")
+    router.push(`/docs?doc=${encodeURIComponent(docPath)}${link ? `&link=${encodeURIComponent(link)}` : ""}`)
   }, [rootParam, router])
 
   function onProjectChange(root: string) {

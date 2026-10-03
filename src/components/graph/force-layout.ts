@@ -1,0 +1,306 @@
+// Pure, deterministic force layout for the doc graph (/graph). No React, no fs, no Math.random:
+// the same nodes and edges always give the same positions, whatever their input order.
+
+export type Point = { x: number; y: number }
+export type ForceLayoutOptions = {
+  /** Simulation steps; the temperature cools linearly to ~0 over them. */
+  iterations?: number
+  /** Average edge length of the output, in px. */
+  edgeLength?: number
+  /** No two nodes end up closer than this, in px. */
+  minDistance?: number
+}
+
+/** FNV-1a 32-bit, mapped to [0, 1). */
+function hash01(s: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0) / 2 ** 32
+}
+
+/**
+ * Positions keyed by node id. Linked nodes pull together, everything repels, a weak pull to the centre keeps
+ * disconnected components close. Nodes without edges get no position: /graph lists them on its Unlinked shelf, so
+ * they never stretch the fit. The bounding box is centred on 0,0 and the average edge is ~`edgeLength` px.
+ */
+export function forceLayout(
+  nodes: { id: string }[],
+  edges: { from: string; to: string }[],
+  opts: ForceLayoutOptions = {},
+): Record<string, Point> {
+  return simulate(nodes, edges, opts, 1)[0]
+}
+
+function simulate(
+  nodes: { id: string }[],
+  edges: { from: string; to: string }[],
+  opts: ForceLayoutOptions,
+  frames: number,
+): Record<string, Point>[] {
+  const { iterations = 300, edgeLength = 120, minDistance = 48 } = opts
+  const ids = [...new Set(nodes.map(n => n.id))].sort()
+  const index = new Map(ids.map((id, i) => [id, i]))
+  // undirected, deduped, sorted pairs of known distinct nodes
+  const pairKeys = new Set<string>()
+  const links: [number, number][] = []
+  for (const e of edges) {
+    const a = index.get(e.from), b = index.get(e.to)
+    if (a === undefined || b === undefined || a === b) continue
+    const [i, j] = a < b ? [a, b] : [b, a]
+    if (pairKeys.has(`${i} ${j}`)) continue
+    pairKeys.add(`${i} ${j}`)
+    links.push([i, j])
+  }
+  links.sort((p, q) => p[0] - q[0] || p[1] - q[1])
+
+  const degree = ids.map(() => 0)
+  for (const [i, j] of links) { degree[i]++; degree[j]++ }
+  const linked = ids.map((_, i) => i).filter(i => degree[i] > 0)
+  const n = linked.length
+
+  // Seeded start from each id's own hash, so adding one doc barely moves the others' start.
+  const K = 1 // ideal edge length in simulation units; rescaled at the end
+  const spread = Math.sqrt(Math.max(n, 1)) * K
+  const xs = ids.map(id => (hash01(id) - 0.5) * spread)
+  const ys = ids.map(id => (hash01(`${id}\u0000y`) - 0.5) * spread)
+
+  // ponytail: O(n²) repulsion per step, fine to ~500 nodes; Barnes-Hut (quadtree) if graphs get bigger.
+  const dx = new Float64Array(ids.length), dy = new Float64Array(ids.length)
+  const gravity = 0.05
+  const out: Record<string, Point>[] = []
+  // frame f of `frames` is taken before iteration round(iterations * (f / (frames - 1))²), the last after the loop:
+  // the layout moves most in its first iterations, so they get most of the frames
+  const sampleAt = (f: number) => Math.round(iterations * (f / (frames - 1)) ** 2)
+  let next = 0
+  for (let step = 0; step < iterations; step++) {
+    while (next < frames - 1 && sampleAt(next) === step) { out.push(normalize(xs.slice(), ys.slice(), 4)); next++ }
+    const temp = spread * 0.1 * (1 - step / iterations) + 0.001
+    dx.fill(0); dy.fill(0)
+    for (let a = 0; a < n; a++) {
+      const i = linked[a]
+      for (let b = a + 1; b < n; b++) {
+        const j = linked[b]
+        let ex = xs[i] - xs[j], ey = ys[i] - ys[j]
+        let d2 = ex * ex + ey * ey
+        if (d2 < 1e-9) { ex = (i - j) * 1e-3; ey = 1e-3; d2 = ex * ex + ey * ey } // coincident: split by index
+        const f = (K * K) / d2 // repulsion K²/d, as a factor on the (ex, ey) vector
+        dx[i] += ex * f; dy[i] += ey * f; dx[j] -= ex * f; dy[j] -= ey * f
+      }
+    }
+    for (const [i, j] of links) {
+      const ex = xs[i] - xs[j], ey = ys[i] - ys[j]
+      const f = Math.sqrt(ex * ex + ey * ey) / K // spring d²/K
+      dx[i] -= ex * f; dy[i] -= ey * f; dx[j] += ex * f; dy[j] += ey * f
+    }
+    for (const i of linked) {
+      dx[i] -= xs[i] * gravity; dy[i] -= ys[i] * gravity
+      const len = Math.hypot(dx[i], dy[i])
+      if (len > 0) { const m = Math.min(len, temp) / len; xs[i] += dx[i] * m; ys[i] += dy[i] * m }
+    }
+  }
+
+  out.push(normalize(xs, ys, 50))
+  return out
+
+  /**
+   * Scale to the average edge length, push apart pairs closer than minDistance, centre. Mutates.
+   * ponytail: in-between frames get 4 push passes, not 50 (early ones are a scatter and 50 cost ~100ms on 200 nodes); they're in motion anyway.
+   */
+  function normalize(xs: number[], ys: number[], passes: number): Record<string, Point> {
+    // Scale to the average edge length, then push apart any pair still closer than minDistance.
+    const avg = links.reduce((s, [i, j]) => s + Math.hypot(xs[i] - xs[j], ys[i] - ys[j]), 0) / (links.length || 1)
+    const scale = avg > 0 ? edgeLength / avg : 1
+    for (const i of linked) { xs[i] *= scale; ys[i] *= scale }
+    for (let pass = 0; pass < passes; pass++) {
+      let moved = false
+      for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+        const i = linked[a], j = linked[b]
+        let ex = xs[j] - xs[i], ey = ys[j] - ys[i]
+        let d = Math.hypot(ex, ey)
+        if (d >= minDistance) continue
+        if (d < 1e-6) { ex = 1; ey = 0; d = 1 }
+        const push = (minDistance - d) / 2 + 0.5
+        xs[i] -= (ex / d) * push; ys[i] -= (ey / d) * push
+        xs[j] += (ex / d) * push; ys[j] += (ey / d) * push
+        moved = true
+      }
+      if (!moved) break
+    }
+
+    // Centre the bounding box on 0,0.
+    const midX = n ? (Math.min(...linked.map(i => xs[i])) + Math.max(...linked.map(i => xs[i]))) / 2 : 0
+    const midY = n ? (Math.min(...linked.map(i => ys[i])) + Math.max(...linked.map(i => ys[i]))) / 2 : 0
+    const res: Record<string, Point> = {}
+    for (const i of linked) res[ids[i]] = { x: Math.round((xs[i] - midX) * 100) / 100, y: Math.round((ys[i] - midY) * 100) / 100 }
+    return res
+  }
+}
+
+/** The ids within `depth` hops of `id`, either edge direction, including `id` itself. Used by Focus on /graph. */
+export function neighbourhoodIds(edges: { from: string; to: string }[], id: string, depth: 1 | 2): Set<string> {
+  const seen = new Set([id])
+  let frontier = [id]
+  for (let d = 0; d < depth; d++) {
+    const next: string[] = []
+    for (const e of edges) {
+      for (const [a, b] of [[e.from, e.to], [e.to, e.from]]) {
+        if (frontier.includes(a) && !seen.has(b)) { seen.add(b); next.push(b) }
+      }
+    }
+    frontier = next
+  }
+  return seen
+}
+
+export type ArrowKey = "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
+
+/**
+ * Where an arrow key moves keyboard focus on /graph: the nearest linked node in that direction (distance along
+ * the arrow plus twice the sideways drift), else the next (→ ↓) or previous (← ↑) node in `order`, wrapping.
+ */
+export function stepFocus(
+  from: string,
+  key: ArrowKey,
+  pos: Record<string, Point>,
+  neighbours: Iterable<string>,
+  order: string[],
+): string | undefined {
+  const a = pos[from]
+  let best: string | undefined
+  let bestScore = Infinity
+  if (a) {
+    for (const id of neighbours) {
+      const b = pos[id]
+      if (!b || id === from) continue
+      const dx = b.x - a.x
+      const dy = b.y - a.y
+      const along = key === "ArrowRight" ? dx : key === "ArrowLeft" ? -dx : key === "ArrowDown" ? dy : -dy
+      if (along <= 0) continue
+      const score = along + 2 * Math.abs(key === "ArrowRight" || key === "ArrowLeft" ? dy : dx)
+      if (score < bestScore || (score === bestScore && best !== undefined && id < best)) { best = id; bestScore = score }
+    }
+  }
+  if (best || !order.length) return best
+  const i = order.indexOf(from)
+  const step = key === "ArrowRight" || key === "ArrowDown" ? 1 : -1
+  return order[(Math.max(i, step > 0 ? -1 : 0) + step + order.length) % order.length]
+}
+
+type GraphLike = { nodes: { path: string; label: string; status?: string }[]; edges: { from: string; to: string }[] }
+
+/**
+ * Node paths a refresh touched: added or removed files, both ends of an added or removed link, renamed labels, status changes.
+ * Empty on the first load (no `prev`), so only live updates flash.
+ */
+export function graphChanges(prev: GraphLike | null, next: GraphLike): Set<string> {
+  const out = new Set<string>()
+  if (!prev) return out
+  // a relabel or a status change (an agent moving a task) marks the node
+  const sig = (n: GraphLike["nodes"][number]) => `${n.label}\u0000${n.status ?? ""}`
+  const labels = new Map(prev.nodes.map((n) => [n.path, sig(n)]))
+  const now = new Set(next.nodes.map((n) => n.path))
+  for (const n of next.nodes) if (labels.get(n.path) !== sig(n)) out.add(n.path)
+  for (const p of labels.keys()) if (!now.has(p)) out.add(p)
+  const key = (e: { from: string; to: string }) => `${e.from}\u0000${e.to}`
+  const before = new Set(prev.edges.map(key))
+  const after = new Set(next.edges.map(key))
+  for (const e of next.edges) if (!before.has(key(e))) out.add(e.from).add(e.to)
+  for (const e of prev.edges) if (!after.has(key(e))) out.add(e.from).add(e.to)
+  return out
+}
+
+export type LabelBox = { id: string; x: number; y: number; w: number; h: number }
+
+/**
+ * Greedy label collision pass: boxes come in priority order (selected, matches, then by degree); a label that
+ * overlaps one already placed, or another node's dot (`dots`, keyed by node id), is hidden. `keep` ids are always
+ * placed. Flow coordinates, so it holds at any zoom.
+ * ponytail: O(n²) over visible labels (~200 here); a grid bucket if graphs reach thousands of labels.
+ */
+export function hiddenLabels(boxes: LabelBox[], keep: Set<string> = new Set(), dots: LabelBox[] = []): Set<string> {
+  const placed: LabelBox[] = []
+  const hidden = new Set<string>()
+  const hit = (a: LabelBox, b: LabelBox) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+  for (const b of boxes) {
+    if (!keep.has(b.id) && (placed.some((p) => hit(p, b)) || dots.some((d) => d.id !== b.id && hit(d, b)))) hidden.add(b.id)
+    else placed.push(b)
+  }
+  return hidden
+}
+
+/** A node the spring sim is moving on /graph: position and velocity, in flow px and px/s. */
+export type Body = { x: number; y: number; vx: number; vy: number }
+/**
+ * Live drag / hover physics on /graph. Only `bodies` move; everything else stays at its `layout` point. Positions are
+ * never saved: a body at rest on its layout point is dropped, so the graph always comes back to the layout.
+ */
+export type SpringWorld = {
+  bodies: Map<string, Body>
+  /** The layout: where every node rests, and the fixed anchor for links to nodes that aren't simulated. */
+  layout: Record<string, Point>
+  /** Rest point overrides (the hover magnet's nudge); a body without one rests on its layout point. */
+  shift: Record<string, Point>
+  /** The node under the pointer: pinned there; its links pull the others while it's held. */
+  drag: { id: string; x: number; y: number } | null
+  /** Edges among the dragged node's neighbourhood: natural length `len` (the layout distance) and strength `k`. */
+  links: { a: string; b: string; len: number; k: number }[]
+}
+
+// Return / magnet spring: ω = √170 ≈ 13/s, ζ 0.72 (≈ 4% overshoot, at rest in ~0.6s). While a drag holds the
+// neighbourhood, the pull home drops to a light tether so the edge springs lead; a light push keeps dots apart.
+export const SPRING = { stiffness: 170, damping: 0.72, tether: 32, link: 90, repel: 2600, repelRadius: 70 }
+const REST_PX = 0.05
+const REST_V = 0.5
+
+/** Advances the world by `dt` seconds (clamped, substepped). True while anything still moves or is held. */
+export function springStep(w: SpringWorld, dt: number): boolean {
+  // a tab that was hidden comes back with a huge dt; an unclamped spring would fly off
+  const total = Math.min(Math.max(dt, 0), 1 / 30)
+  const subs = Math.max(1, Math.ceil(total * 240))
+  const h = total / subs
+  const c = 2 * SPRING.damping * Math.sqrt(SPRING.stiffness)
+  const posOf = (id: string) => (w.drag?.id === id ? w.drag : w.bodies.get(id) ?? w.layout[id])
+  for (let s = 0; s < subs; s++) {
+    for (const [id, b] of w.bodies) {
+      if (w.drag?.id === id) { b.x = w.drag.x; b.y = w.drag.y; b.vx = 0; b.vy = 0; continue }
+      const rest = w.shift[id] ?? w.layout[id]
+      if (!rest) continue
+      const k = w.drag ? SPRING.tether : SPRING.stiffness
+      let fx = k * (rest.x - b.x) - c * b.vx
+      let fy = k * (rest.y - b.y) - c * b.vy
+      if (w.drag) {
+        for (const l of w.links) {
+          const other = l.a === id ? l.b : l.b === id ? l.a : null
+          const o = other === null ? undefined : posOf(other)
+          if (!o) continue
+          const ex = o.x - b.x, ey = o.y - b.y
+          const d = Math.hypot(ex, ey) || 1
+          const f = l.k * (d - l.len) / d
+          fx += ex * f; fy += ey * f
+        }
+        const ex = b.x - w.drag.x, ey = b.y - w.drag.y
+        const d = Math.hypot(ex, ey)
+        if (d > 0 && d < SPRING.repelRadius) {
+          const f = (SPRING.repel * (1 - d / SPRING.repelRadius)) / d
+          fx += ex * f; fy += ey * f
+        }
+      }
+      b.vx += fx * h; b.vy += fy * h
+      b.x += b.vx * h; b.y += b.vy * h
+    }
+  }
+  if (w.drag) return true
+  let moving = false
+  for (const [id, b] of w.bodies) {
+    const rest = w.shift[id] ?? w.layout[id]
+    if (!rest || (Math.hypot(rest.x - b.x, rest.y - b.y) < REST_PX && Math.hypot(b.vx, b.vy) < REST_V)) {
+      // at rest: snap exactly; a body home on its layout point is done
+      if (!rest || !w.shift[id]) w.bodies.delete(id)
+      else { b.x = rest.x; b.y = rest.y; b.vx = 0; b.vy = 0 }
+    } else moving = true
+  }
+  return moving
+}
