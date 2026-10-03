@@ -1,6 +1,6 @@
 // Self-check for memory-health. Run: node src/lib/memory-health.check.mts
 import assert from 'node:assert/strict'
-import { duplicateScore, findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, splitSections, type DupEntry, type HealthFlag } from './memory-health.ts'
+import { duplicateScore, findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, prose, pruneDismissed, splitSections, type DupEntry, type HealthFlag } from './memory-health.ts'
 import { extractRefs } from './memory-graph.ts'
 import { tokenize } from './recall.ts'
 
@@ -20,6 +20,11 @@ assert.equal(splitSections('## A\nx\ny\n## B\n')[1].body, 'x\ny\n')
 // a `##` inside a ``` fence is an example, not a section
 assert.deepEqual(splitSections('## A\n```md\n## B\n```\n## C\n').map(s => s.heading), ['', 'A', 'C'])
 assert.deepEqual(check('## Current state\n```md\n## Working on now\nT001 example\n```\n## Up next\n1. T002\n'), [])
+// ids in a fenced example (even one that repeats a section heading) or in inline code are not mentions
+assert.deepEqual(check('## Working on now\nT002 is in progress.\n\n```\n## Working on now\n- T001 shipped\n```\n'), [])
+assert.deepEqual(check(memo({ working: 'Deep links: `/board?task=T001`, `/roadmap?item=R010`', extra: 'e.g. `T999`\n```\nT998\n```' })), [])
+assert.equal(splitSections('## A\nx\n```\nT001\n```\ny')[1].body, 'x\ny\n')
+assert.equal(prose('a `T1` b\n```\nT2\n```\n## T3'), 'a  b\n## T3')
 
 // matching handoff → no flags, no block
 const clean = check(memo({ working: 'T002 and R011', next: '1. T004', done: '- T001' }))
@@ -50,6 +55,29 @@ assert.deepEqual(dang.map(f => [f.id, f.kind, f.severity, f.message]), [
 ])
 // E/ADR ids are not board ids
 assert.deepEqual(check(memo({ extra: 'E004 and ADR-5' })), [])
+
+// dangling entry ids (R051 merge/delete): only once the project has entries, so format examples in a fresh project stay quiet
+const others = [{ id: 'T002', text: 'See E011 for the rule. `E099` is an example.' }, { id: 'docs/notes.md', text: 'Read E011 and E004.' }]
+assert.deepEqual(findContradictions(memo({ extra: 'E011' }), [], board, refsOf, others), [])
+const gone = findContradictions(memo({ extra: 'E011' }), [{ id: 'E004', summary: 'x', body: 'see E011' }], board, refsOf, others)
+assert.deepEqual(gone.map(f => [f.id, f.message]), [
+  ['dangling-ref:docs/notes.md:E011', "docs/notes.md mentions E011, which doesn't exist"],
+  ['dangling-ref:E004:E011', "E004 mentions E011, which doesn't exist"],
+  ['dangling-ref:handoff:E011', "Handoff mentions E011, which doesn't exist"],
+  ['dangling-ref:T002:E011', "T002 mentions E011, which doesn't exist"],
+])
+// other files are only checked for entry ids, never board ids
+assert.deepEqual(findContradictions('', [{ id: 'E004', summary: 'x', body: '' }], board, refsOf, [{ id: 'docs/a.md', text: 'T999 R999' }]), [])
+
+// pruneDismissed: a gone entry id takes its dismissals with it, so a reused id starts clean
+const dismissed = {
+  'stale:E6': 'd', 'stale:E60': 'd', 'dangling-ref:E6:T999': 'd', 'dangling-ref:T002:E6': 'd', 'dangling-ref:docs/a:b.md:E6': 'd',
+  'dangling-ref:handoff:T9': 'd', 'duplicate:E5+E6': 'd', 'duplicate:E5+E7': 'd', 'contradiction:working-on:T001': 'd',
+}
+assert.deepEqual(Object.keys(pruneDismissed(dismissed, ['E6']) ?? {}),
+  ['stale:E60', 'dangling-ref:handoff:T9', 'duplicate:E5+E7', 'contradiction:working-on:T001'])
+assert.equal(pruneDismissed(dismissed, ['E8']), null)
+assert.equal(pruneDismissed({}, ['E6']), null)
 
 // de-duplication: one flag per (section, id)
 const dup = check(memo({ working: 'T001 T001\nT001', next: '1. T001', extra: 'T999 T999', done: '- T999' }))

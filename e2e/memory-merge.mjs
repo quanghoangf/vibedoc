@@ -5,6 +5,8 @@
 //   3. Undo → all three files are back byte-for-byte (same names, same text).
 //   1b. Esc / Cancel close the dialog and return focus to the Merge… button.
 //   4. Bad requests (unknown id, empty summary) → 400 and no file changes.
+//   5. After the merge, a task and a doc that still name E011 show as dangling-ref flags. A dismissal on a merged-away
+//      id is dropped with it, so a new entry that reuses the id shows its own flags (and .cleanup.json no longer names it).
 // Fails on any browser console error.
 //
 //   PW_DIR=<dir with node_modules/playwright> node e2e/memory-merge.mjs
@@ -27,6 +29,9 @@ const files = {
   "E012-sse-bus-is-a-singleton.md": "# E012: The SSE bus is a singleton\n**Type:** gotcha\n**Updated:** 2026-09-02\n\nRelated: E011.\n",
 }
 for (const [f, raw] of Object.entries(files)) writeFileSync(path.join(dir, f), raw)
+writeFileSync(path.join(fx, "plans/tasks/T002-b.md"), "# T002: b\n**Status:** todo\n\nSee E011 for the rule.\n")
+mkdirSync(path.join(fx, "docs"), { recursive: true })
+writeFileSync(path.join(fx, "docs/notes.md"), "# Notes\nRead E011 before touching storage. `E011` in code is an example.\n")
 const snapshot = () => Object.fromEntries(readdirSync(dir).sort().map((f) => [f, readFileSync(path.join(dir, f), "utf8")]))
 const original = snapshot()
 
@@ -102,6 +107,10 @@ try {
   assert.doesNotMatch(session, /E011/)
   const { flags } = await (await fetch(`${BASE}/api/memory/health${q}`)).json()
   assert.ok(!flags.some((f) => f.kind === "duplicate"), "duplicate flag gone")
+  assert.deepEqual(flags.filter((f) => f.kind === "dangling-ref").map((f) => f.message), [
+    "docs/notes.md mentions E011, which doesn't exist",
+    "T002 mentions E011, which doesn't exist",
+  ])
   console.log("ok  approve → one E004 file with the edited text, E011 gone, E012 points at E004, session lists only E004")
 
   // 3. Undo restores everything exactly
@@ -110,6 +119,22 @@ try {
   assert.ok((await undone).ok())
   assert.deepEqual(snapshot(), original)
   console.log("ok  Undo restores all three files byte-for-byte")
+
+  // 5. Dismissals don't survive the id they name: merge E013 away, the next save reuses E013 and shows its own flag
+  const post = async (url, body) => {
+    const res = await fetch(`${BASE}${url}${q}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+    assert.ok(res.ok, `${url} ${res.status} ${await res.clone().text()}`)
+    return res.json()
+  }
+  const health = async () => (await (await fetch(`${BASE}/api/memory/health${q}&dismissed=1`)).json()).flags
+  assert.equal((await post("/api/memory/entries/save", { type: "gotcha", summary: "Safari drops SSE connections after 60s", body: "See T999." })).entry.id, "E013")
+  await post("/api/memory/health/dismiss", { id: "dangling-ref:E013:T999" })
+  await post("/api/memory/entries/merge", { keepId: "E012", dropIds: ["E013"], type: "gotcha", summary: "The SSE bus is a singleton", body: "Related: E011." })
+  assert.equal((await post("/api/memory/entries/save", { type: "convention", summary: "Use pnpm", body: "Unrelated: T999 is planned." })).entry.id, "E013")
+  const reused = (await health()).find((f) => f.id === "dangling-ref:E013:T999")
+  assert.ok(reused && !reused.dismissed, "reused id shows its own flag")
+  assert.doesNotMatch(readFileSync(path.join(fx, "memory/.cleanup.json"), "utf8"), /E013/)
+  console.log("ok  a merged-away id takes its dismissals with it; the entry that reuses the id shows its own flags")
 
   assert.deepEqual(errors, [], "no browser console errors")
   console.log("ok  no console errors")

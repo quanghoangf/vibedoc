@@ -343,7 +343,7 @@ VibeDoc checks memory against the board on every `vibedoc_read_memory` and on th
 | Flag | Severity | When |
 |------|----------|------|
 | `contradiction` | ⚠ warn | MEMORY.md names a task or epic under **Working on now** / **Up next** that is done or cancelled, or a task under **Just completed** that isn't done |
-| `dangling-ref` | info | MEMORY.md or an entry mentions a `T…` / `R…` id that doesn't exist |
+| `dangling-ref` | info | MEMORY.md or an entry mentions a `T…` / `R…` id that doesn't exist; or (once the project has entries) MEMORY.md, an entry, a task, roadmap item or doc mentions an `E…` id that doesn't exist, e.g. after a merge or delete. Ids in code fences and `inline code` are examples and don't count |
 | `duplicate` | info | Two or more entries say the same thing (keyword overlap ≥ 50%, grouped); the row offers **Merge…** |
 | `stale` | info | No agent fetched the entry with `vibedoc_get_entries` for more than 60 days (or never, counted from `**Updated:**`); the row offers **Delete** with Undo |
 
@@ -364,7 +364,7 @@ With only info flags it shows one line instead: `ℹ 3 memory cleanup suggestion
 
 | File | Holds |
 |------|-------|
-| `memory/.cleanup.json` | `{ "dismissed": { "<flag id>": "YYYY-MM-DD" } }` — a dismissed flag stays hidden while its id stays the same |
+| `memory/.cleanup.json` | `{ "dismissed": { "<flag id>": "YYYY-MM-DD" } }` — a dismissed flag stays hidden while its id stays the same; deleting or merging away an entry drops the dismissals that name it, so an entry that reuses the id starts clean |
 | `memory/.recall-log.json` | `{ "E004": "YYYY-MM-DD" }` — last `vibedoc_get_entries` fetch per entry, written at most once per id per day |
 
 **Routes** (UI): `GET /api/memory/health[?dismissed=1]` → `{ flags }` · `POST /api/memory/health/dismiss { id }` · `POST /api/memory/entries/merge { keepId, dropIds, type, summary, body }` → `{ entry, before }` · `POST /api/memory/entries/merge/undo { before }`. Each mutation emits `memory_updated`.

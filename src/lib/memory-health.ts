@@ -23,19 +23,30 @@ const SECTION_RE: [Section, RegExp][] = [
 ]
 const CLOSED = new Set(['done', 'cancelled'])
 const isBoardId = (id: string) => /^[TR]\d/.test(id)
+const isEntryId = (id: string) => /^E\d/.test(id)
 
-/** `## Heading` → body, in file order. Text before the first `##` is keyed ''. */
+/** `## Heading` → body, in file order. Text before the first `##` is keyed ''. ``` fenced blocks are left out of every body. */
 export function splitSections(markdown: string): { heading: string; body: string }[] {
   const out: { heading: string; body: string }[] = [{ heading: '', body: '' }]
   let inFence = false
   for (const line of markdown.split('\n')) {
-    // a `##` inside a ``` fence is an example, not a section (same rule as manual-tests.ts / review.ts)
-    if (/^\s*```/.test(line)) inFence = !inFence
-    const h = inFence ? null : /^##\s+(.+?)\s*$/.exec(line)
+    // a fenced block is an example: neither its `##` lines (same rule as manual-tests.ts / review.ts) nor its ids count
+    if (/^\s*```/.test(line)) { inFence = !inFence; continue }
+    if (inFence) continue
+    const h = /^##\s+(.+?)\s*$/.exec(line)
     if (h) out.push({ heading: h[1], body: '' })
     else out[out.length - 1].body += line + '\n'
   }
   return out
+}
+
+/** Text without ``` fenced blocks and `inline code`: ids in code are examples (`/board?task=T055`), not mentions. */
+export function prose(text: string): string {
+  let inFence = false
+  return text.split('\n').filter(line => {
+    if (/^\s*```/.test(line)) { inFence = !inFence; return false }
+    return !inFence
+  }).join('\n').replace(/`[^`\n]*`/g, '')
 }
 
 const sectionOf = (heading: string): Section | undefined => SECTION_RE.find(([, re]) => re.test(heading))?.[0]
@@ -45,21 +56,26 @@ export function findContradictions(
   entries: { id: string; body: string; summary: string }[],
   board: BoardStatus[],
   refsOf: RefsOf,
+  others: { id: string; text: string }[] = [],
 ): HealthFlag[] {
   const status = new Map(board.map(b => [b.id, b.status]))
+  const entryIds = new Set(entries.map(e => e.id))
   const flags = new Map<string, HealthFlag>()
   const add = (f: HealthFlag) => { if (!flags.has(f.id)) flags.set(f.id, f) }
-  const dangling = (source: string, who: string, text: string) => {
-    for (const id of refsOf(text).filter(isBoardId)) {
-      if (!status.has(id)) add({ id: `dangling-ref:${source}:${id}`, kind: 'dangling-ref', severity: 'info', message: `${who} mentions ${id}, which doesn't exist`, refs: [id] })
+  const dangling = (source: string, who: string, text: string, kinds: { board: boolean; entry: boolean }) => {
+    for (const id of refsOf(prose(text))) {
+      const missing = (kinds.board && isBoardId(id) && !status.has(id)) || (kinds.entry && isEntryId(id) && !entryIds.has(id))
+      if (missing) add({ id: `dangling-ref:${source}:${id}`, kind: 'dangling-ref', severity: 'info', message: `${who} mentions ${id}, which doesn't exist`, refs: [id] })
     }
   }
+  // a project without entries has no merged/deleted ids to point at; its E-ids are format examples, so skip them
+  const entryRefs = entryIds.size > 0
 
   for (const { heading, body } of splitSections(handoff)) {
-    dangling('handoff', 'Handoff', body)
+    dangling('handoff', 'Handoff', body, { board: true, entry: entryRefs })
     const section = sectionOf(heading)
     if (!section) continue
-    for (const id of refsOf(body).filter(isBoardId)) {
+    for (const id of refsOf(prose(body)).filter(isBoardId)) {
       const s = status.get(id)
       if (s === undefined) continue
       if (section === 'just-completed') {
@@ -74,7 +90,9 @@ export function findContradictions(
     }
   }
   // done tasks in entries are fine (long-lived facts); only missing ids are flagged
-  for (const e of entries) dangling(e.id, e.id, `${e.summary}\n${e.body}`)
+  for (const e of entries) dangling(e.id, e.id, `${e.summary}\n${e.body}`, { board: true, entry: true })
+  // tasks, roadmap items and docs that still name a merged or deleted entry (R051): those links now point nowhere
+  if (entryRefs) for (const o of others) dangling(o.id, o.id, o.text, { board: false, entry: true })
 
   return [...flags.values()].sort((a, b) =>
     (a.severity === b.severity ? 0 : a.severity === 'warn' ? -1 : 1) ||
@@ -207,6 +225,24 @@ export function findStale(
 export function markRecalled(log: RecallLog, ids: string[], today: string): RecallLog | null {
   if (ids.every(id => log[id] === today)) return null
   return sortedLog({ ...log, ...Object.fromEntries(ids.map(id => [id, today])) })
+}
+
+/**
+ * Dismissals without the flags that name an entry id that is gone (deleted or merged away), so a later entry that
+ * reuses the id doesn't inherit them. Null when nothing changes. Flag ids: stale:E1, dangling-ref:E1:T9, duplicate:E1+E2.
+ */
+export function pruneDismissed(dismissed: Record<string, string>, goneIds: string[]): Record<string, string> | null {
+  const gone = new Set(goneIds)
+  const names = (flagId: string): string[] => {
+    const i = flagId.indexOf(':')
+    const kind = flagId.slice(0, i), rest = flagId.slice(i + 1)
+    if (kind === 'stale') return [rest]
+    if (kind === 'duplicate') return rest.split('+')
+    if (kind === 'dangling-ref') return [rest.slice(0, rest.lastIndexOf(':')), rest.slice(rest.lastIndexOf(':') + 1)]
+    return []
+  }
+  const kept = Object.entries(dismissed).filter(([f]) => !names(f).some(id => gone.has(id)))
+  return kept.length === Object.keys(dismissed).length ? null : Object.fromEntries(kept)
 }
 
 export const sortedLog = (log: RecallLog): RecallLog =>

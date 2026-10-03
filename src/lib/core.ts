@@ -25,7 +25,7 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallHit } from './recall'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
-import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
+import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1094,8 +1094,12 @@ export async function getMemoryHealth(root: string, opts: { includeDismissed?: b
     readMemory(root), listEntries(root), listTasks(root), listRoadmap(root), readCleanupState(root), readRecallLog(root),
   ])
   const board = [...tasks, ...items].map(({ id, status }) => ({ id, status }))
+  // files that may still name a merged or deleted entry; MEMORY.md is checked as the handoff
+  const others = entries.length
+    ? (await memoryGraphFiles(root)).filter(f => f.path !== 'memory/MEMORY.md').map(f => ({ id: f.id, text: f.text }))
+    : []
   const flags = [
-    ...findContradictions(memory.exists ? memory.content : '', entries, board, t => extractRefs(t).ids),
+    ...findContradictions(memory.exists ? memory.content : '', entries, board, t => extractRefs(t).ids, others),
     ...findDuplicates(entries, tokenize),
     ...findStale(entries, recallLog, localToday()),
   ]
@@ -1125,6 +1129,19 @@ function withCleanupLock<T>(fn: () => Promise<T>): Promise<T> {
   return run
 }
 
+const writeCleanupState = async (root: string, dismissed: Record<string, string>) => {
+  const sorted = Object.fromEntries(Object.entries(dismissed).sort(([a], [b]) => a.localeCompare(b)))
+  const file = path.join(root, CLEANUP_FILE)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, JSON.stringify({ dismissed: sorted }, null, 2) + '\n', 'utf-8')
+}
+
+/** Drop dismissals that name deleted ids, so an entry that later reuses the id starts with its own flags visible. */
+const dropFromCleanupState = (root: string, ids: string[]) => withCleanupLock(async () => {
+  const next = pruneDismissed((await readCleanupState(root)).dismissed, ids)
+  if (next) await writeCleanupState(root, next)
+})
+
 /** Hide a health flag for as long as its id stays the same. Throws when no current flag has that id. */
 export async function dismissHealthFlag(flagId: string, root: string, actor: 'human' | 'ai' = 'human'): Promise<CleanupFlag> {
   const flag = (await getMemoryHealth(root, { includeDismissed: true })).find(f => f.id === flagId)
@@ -1132,10 +1149,7 @@ export async function dismissHealthFlag(flagId: string, root: string, actor: 'hu
   const date = await withCleanupLock(async () => {
     const { dismissed } = await readCleanupState(root)
     dismissed[flagId] = localToday()
-    const sorted = Object.fromEntries(Object.entries(dismissed).sort(([a], [b]) => a.localeCompare(b)))
-    const file = path.join(root, CLEANUP_FILE)
-    await fs.mkdir(path.dirname(file), { recursive: true })
-    await fs.writeFile(file, JSON.stringify({ dismissed: sorted }, null, 2) + '\n', 'utf-8')
+    await writeCleanupState(root, dismissed)
     return dismissed[flagId]
   })
   await appendActivity(root, { type: 'memory_updated', actor, title: 'Cleanup flag dismissed', detail: flag.message })
@@ -1221,6 +1235,7 @@ export function deleteEntry(id: string, root: string, actor: 'ai' | 'human' = 'h
     const raw = await fs.readFile(path.join(root, entry.file), 'utf8')
     await fs.rm(path.join(root, entry.file))
     await dropFromRecallLog(root, [norm])
+    await dropFromCleanupState(root, [norm])
     await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${norm} deleted`, detail: entry.summary })
     return { ...entry, raw }
   })
@@ -1292,6 +1307,7 @@ export function mergeEntries(
     for (const b of before) if (b.dropped) await fs.rm(path.join(root, b.file), { force: true })
     for (const r of rewrites) await fs.writeFile(path.join(root, r.file), r.raw, 'utf8')
     await dropFromRecallLog(root, drops)
+    await dropFromCleanupState(root, drops)
     await appendActivity(root, { type: 'memory_updated', actor, title: `Entries merged into ${keepId}`, detail: `${drops.join(', ')} merged` })
     return { entry, before }
   })
@@ -1796,11 +1812,17 @@ export async function findBacklinks(
  * ADRs and docs an entry mentions or that mention an entry id. Pure resolution in src/lib/memory-graph.ts.
  */
 export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
+  const [entries, others] = await Promise.all([listEntries(root), memoryGraphFiles(root)])
+  return buildGraph(
+    entries.map(e => ({ id: e.id, kind: 'entry', label: e.summary, path: e.file.replace(/\\/g, '/'), text: `${e.summary}\n${e.body}` })),
+    others,
+  )
+}
+
+/** Every non-entry .md the memory graph scans (tasks, roadmap, ADRs, docs, MEMORY.md), with its text. */
+async function memoryGraphFiles(root: string): Promise<GraphItem[]> {
   // ponytail: reads every .md on each call, like findBacklinks; cache by mtime if big repos make it slow
-  const [entries, files] = await Promise.all([
-    listEntries(root),
-    glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**', 'memory/entries/**'], nodir: true }),
-  ])
+  const files = await glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**', 'memory/entries/**'], nodir: true })
   const others = await Promise.all(files.map(async (f): Promise<GraphItem | null> => {
     try {
       const raw = await fs.readFile(path.join(root, f), 'utf8')
@@ -1810,10 +1832,7 @@ export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
       return null
     }
   }))
-  return buildGraph(
-    entries.map(e => ({ id: e.id, kind: 'entry', label: e.summary, path: e.file.replace(/\\/g, '/'), text: `${e.summary}\n${e.body}` })),
-    others.filter((o): o is GraphItem => !!o),
-  )
+  return others.filter((o): o is GraphItem => !!o)
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────
