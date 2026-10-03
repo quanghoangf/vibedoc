@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
   const { actor, ...params } = await req.json()
   try {
-    await updateMemory(params, root, actor || 'human')
+    await updateMemory(params, root, actor === 'ai' ? 'ai' : 'human')
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     if (message.startsWith('Nothing to update')) return NextResponse.json({ error: message }, { status: 400 })

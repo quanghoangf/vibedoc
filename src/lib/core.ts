@@ -958,12 +958,12 @@ const snapshotAt = (id: string) => id.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)
  * Copies the current MEMORY.md (if any) to .vibedoc/memory-history/<stamp>-<actor>.md, keeping the 20 newest.
  * ponytail: no lock — two concurrent writes can both snapshot the same base; add withMemoryLock if that matters.
  */
-async function snapshotMemory(root: string, actor: string, reason: 'update' | 'restore'): Promise<void> {
+async function snapshotMemory(root: string, actor: 'ai' | 'human', reason: 'update' | 'restore'): Promise<void> {
   const current = await fs.readFile(path.join(root, 'memory', 'MEMORY.md'), 'utf8').catch(() => null)
   if (current === null) return
   const dir = path.join(root, MEMORY_HISTORY_DIR)
   await fs.mkdir(dir, { recursive: true })
-  const who = actor.replace(/[^\w:-]/g, '') || 'unknown'
+  const who = actor === 'ai' ? 'ai' : 'human'
   const body = `<!-- vibedoc-snapshot actor=${who} reason=${reason} -->\n${current}`
   // same-millisecond writes: step the stamp forward instead of overwriting a snapshot
   for (let t = Date.now(); ; t++) {
