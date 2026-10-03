@@ -48,4 +48,20 @@ assert.equal(mergeMemory('# Mem\n\n## Handoff for next session\nh\n', { handoff:
 assert.throws(() => mergeMemory(md, {}, stamp), /Nothing to update: pass at least one of currentState/)
 assert.throws(() => mergeMemory(md, { bogus: 1 } as never, stamp), /Nothing to update/)
 
+// a value with its own `## ` line is demoted, so the next update replaces all of it (fenced lines kept)
+const m1 = mergeMemory('# M\n\n## Handoff for next session\nold\n\n## Notes\nkeep\n', { handoff: 'line\n## Up next\nfoo\n```\n## kept\n```' }, stamp)
+assert.ok(m1.includes('line\n### Up next\nfoo\n```\n## kept\n```\n\n## Notes'))
+assert.deepEqual(parseMemory(m1).sections.map(s => s.heading), ['Handoff for next session', 'Notes'])
+assert.equal(mergeMemory(m1, { handoff: 'new' }, stamp), `# M\n**Last updated:** ${stamp}\n\n## Handoff for next session\nnew\n\n## Notes\nkeep\n`)
+
+// CRLF: the blank line before the next heading survives
+assert.equal(mergeMemory('## Up next\r\n1. a\r\n\r\n## Notes\r\n', { upNext: ['b', 'c'] }, stamp), `**Last updated:** ${stamp}\n## Up next\r\n1. b\r\n2. c\r\n\r\n## Notes\r\n`)
+
+// stamp never lands inside a fence; closing hashes are not part of the heading
+assert.equal(mergeMemory('```sh\n# comment\n```\n# Real\n\n## Up next ##\n1. a\n', { upNext: ['b'] }, stamp),
+  `\`\`\`sh\n# comment\n\`\`\`\n# Real\n**Last updated:** ${stamp}\n\n## Up next ##\n1. b\n`)
+
+// fences close only on the same char, at least as long; ~~~ fences count
+assert.deepEqual(parseMemory('## A\n````md\n```\n## Up next\n````\n## B\n~~~\n## C\n~~~\n').sections.map(s => s.heading), ['A', 'B'])
+
 console.log('memory-sections: ok')

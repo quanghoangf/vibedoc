@@ -40,19 +40,40 @@ const EMPTY: Record<string, unknown> = { justCompleted: [], upNext: [], issues: 
 export type MemorySection = { heading: string; line: string; body: string }
 export type ParsedMemory = { preamble: string; sections: MemorySection[] }
 
-/** Lossless: `joinMemory(parseMemory(md)) === md`. `## ` lines inside ``` fences are not headings. */
+/** Per line: inside a fenced block (fence lines included)? Closes only on the same char (` or ~), at least as long. */
+function fenceFlags(lines: string[]): boolean[] {
+  let fence = ''
+  return lines.map(line => {
+    const m = /^\s*(`{3,}|~{3,})(.*?)\r?\n?$/.exec(line)
+    if (!fence) {
+      if (m) fence = m[1]
+      return !!m
+    }
+    if (m && m[1][0] === fence[0] && m[1].length >= fence.length && !m[2].trim()) fence = ''
+    return true
+  })
+}
+
+/** Lossless: `joinMemory(parseMemory(md)) === md`. `## ` lines inside fences are not headings. */
 export function parseMemory(md: string): ParsedMemory {
   const out: ParsedMemory = { preamble: '', sections: [] }
-  let inFence = false
-  for (const line of md.split(/(?<=\n)/)) {
+  const lines = md.split(/(?<=\n)/)
+  const fenced = fenceFlags(lines)
+  lines.forEach((line, i) => {
     const text = line.replace(/\r?\n$/, '')
-    if (/^\s*```/.test(text)) inFence = !inFence
-    const h = !inFence && /^##\s+(.+?)\s*$/.exec(text)
+    const h = !fenced[i] && /^##\s+(.+?)(?:\s+#+)?\s*$/.exec(text)
     if (h) out.sections.push({ heading: h[1], line: text, body: line.slice(text.length) })
     else if (out.sections.length) out.sections[out.sections.length - 1].body += line
     else out.preamble += line
-  }
+  })
   return out
+}
+
+/** A passed value must not open a section of its own: `## ` lines outside fences become `### `. */
+function demoteHeadings(text: string): string {
+  const lines = text.split(/(?<=\n)/)
+  const fenced = fenceFlags(lines)
+  return lines.map((l, i) => fenced[i] ? l : l.replace(/^##(?=\s)/, '###')).join('')
 }
 
 export const joinMemory = (p: ParsedMemory) => p.preamble + p.sections.map(s => s.line + s.body).join('')
@@ -72,18 +93,19 @@ export function mergeMemory(current: string, params: MemoryParams, stamp: string
 
   if (!current.trim()) {
     return `# Project Memory\n**Last updated:** ${stamp}\n\n` +
-      SECTIONS.map(([k, h, render]) => `## ${h}\n${render(p[k] ?? EMPTY[k])}\n`).join('\n')
+      SECTIONS.map(([k, h, render]) => `## ${h}\n${demoteHeadings(render(p[k] ?? EMPTY[k]))}\n`).join('\n')
   }
 
   const doc = parseMemory(current)
   const find = (heading: string) => doc.sections.findIndex(s => s.heading.trim().toLowerCase() === heading.toLowerCase())
   SECTIONS.forEach(([k, heading, render], order) => {
     if (p[k] == null) return
-    const content = render(p[k]).replace(/\s+$/, '')
+    const content = demoteHeadings(render(p[k])).replace(/\s+$/, '')
     const at = find(heading)
     if (at >= 0) {
       const s = doc.sections[at]
-      s.body = `\n${content}${/\n*$/.exec(s.body)?.[0] || '\n'}`
+      const eol = s.body.startsWith('\r\n') ? '\r\n' : '\n'
+      s.body = `${eol}${content.replace(/\r?\n/g, eol)}${/(\r?\n)*$/.exec(s.body)?.[0] || eol}`
       return
     }
     // after the last template section before it; else before the first one after it; else at the end
@@ -98,9 +120,15 @@ export function mergeMemory(current: string, params: MemoryParams, stamp: string
     doc.sections.splice(idx, 0, { heading, line: `## ${heading}`, body: `\n${content}\n${last ? '' : '\n'}` })
   })
 
+  // stamp: replace **Last updated:**, else insert under the H1, else on top — never inside a fence
   const stampLine = `**Last updated:** ${stamp}`
-  if (/^\*\*Last updated:\*\*.*$/m.test(doc.preamble)) doc.preamble = doc.preamble.replace(/^\*\*Last updated:\*\*.*$/m, stampLine)
-  else if (/^# .*$/m.test(doc.preamble)) doc.preamble = doc.preamble.replace(/^# .*$/m, m => `${m}\n${stampLine}`)
-  else doc.preamble = `${stampLine}\n${doc.preamble}`
+  const pre = doc.preamble.split(/(?<=\n)/)
+  const fenced = fenceFlags(pre)
+  const at = (re: RegExp) => pre.findIndex((l, i) => !fenced[i] && re.test(l))
+  const last = at(/^\*\*Last updated:\*\*/), h1 = at(/^# /)
+  if (last >= 0) pre[last] = stampLine + (/\r?\n$/.exec(pre[last])?.[0] ?? '')
+  else if (h1 >= 0) pre[h1] = pre[h1].replace(/(\r?\n)?$/, eol => `${eol || '\n'}${stampLine}${eol}`)
+  else pre.unshift(`${stampLine}\n`)
+  doc.preamble = pre.join('')
   return joinMemory(doc)
 }
