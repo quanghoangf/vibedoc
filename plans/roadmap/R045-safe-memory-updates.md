@@ -1,6 +1,6 @@
 # R045: Safe memory updates
 **Parent:** R002
-**Status:** planned
+**Status:** done
 **Order:** 120
 **Tasks:** T123, T124, T125, T126, T127
 
