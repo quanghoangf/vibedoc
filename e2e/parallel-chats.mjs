@@ -55,7 +55,7 @@ try {
   for (let i = 0; i < 50 && inFlight < 3; i++) await page.waitForTimeout(100)
   assert.equal(inFlight, 3, "3 /api/chat requests in flight before any is released")
   // DOM queries: a dialog aria-hides the rest of the page. The 3 chats run in the background (no modal)
-  const SIDEBAR = '[aria-label="Agent chats"]'
+  const SIDEBAR = '[aria-label="Chats"]'
   await page.waitForFunction((s) => document.querySelectorAll(`${s} li button[title]`).length === 3, SIDEBAR)
   await page.waitForFunction((s) => document.querySelectorAll(`${s} [title="Running"]`).length === 3, SIDEBAR)
   await dialog.waitFor({ state: "hidden" })
@@ -124,20 +124,20 @@ try {
   // 5. /chat lists all 3; deleting one removes only that chat, here and in the sidebar, and its saved file
   await page.locator(`${SIDEBAR} a`, { hasText: "All chats" }).click()
   const list = page.getByRole("complementary", { name: "All chats" })
-  await list.getByRole("button", { name: /^Break down R003/ }).waitFor()
+  await list.getByRole("button", { name: /Break down R003/ }).first().waitFor()
   const savedBefore = readdirSync(path.join(fx, ".vibedoc/chats")).length
   assert.equal(savedBefore, 3, "each chat is saved to .vibedoc/chats")
   await list.getByRole("button", { name: "Close Break down R003" }).click()
   await page.waitForFunction((s) => document.querySelectorAll(`${s} li button[title]`).length === 2, SIDEBAR)
-  assert.equal(await list.getByRole("button", { name: /^Break down R003/ }).count(), 0)
-  await list.getByRole("button", { name: /^Break down R002/ }).waitFor()
+  assert.equal(await list.getByRole("button", { name: /Break down R003/ }).first().count(), 0)
+  await list.getByRole("button", { name: /Break down R002/ }).first().waitFor()
   for (let i = 0; i < 20 && readdirSync(path.join(fx, ".vibedoc/chats")).length !== 2; i++) await page.waitForTimeout(100)
   assert.equal(readdirSync(path.join(fx, ".vibedoc/chats")).length, 2, "the deleted chat's file is gone")
   console.log("ok  /chat lists every chat; deleting one removes it everywhere, file included")
 
   // 6. Reload: chats come back from .vibedoc/chats with their plans resolved
   await page.reload()
-  await page.getByRole("complementary", { name: "All chats" }).getByRole("button", { name: /^Break down R004/ }).waitFor()
+  await page.getByRole("complementary", { name: "All chats" }).getByRole("button", { name: /Break down R004/ }).first().waitFor()
   assert.equal(await page.locator(`${SIDEBAR} li button[title]`).count(), 2)
   console.log("ok  chats survive a reload")
   console.log(`fixture: ${fx}`)

@@ -20,7 +20,7 @@
 
 ### `vibedoc_read_memory`
 **Call at:** start of every session
-Reads `memory/MEMORY.md`, then appends the knowledge entry index: `## Knowledge entries (N)` and one `E001 · type · summary (~N tok)` line per entry, newest first, no bodies. The whole reply is capped at `memory.sessionBudgetTokens` in `.vibedoc/settings.json` (default 2000, estimated as chars / 4); lines that don't fit become `+N more entries — use vibedoc_recall { query }`. The handoff is never cut. Also logs a `session_start` event to the activity feed.
+Reads `memory/MEMORY.md`, then appends the knowledge entry index: `## Knowledge entries (N)` and one `E001 · type · summary (~N tok)` line per entry, newest first, no bodies. The whole reply is capped at `memory.sessionBudgetTokens` in `.vibedoc/settings.json` (default 2000, estimated as chars / 4); lines that don't fit become `+N more entries — use vibedoc_recall { query }`. The handoff is never cut. When the handoff contradicts the board, a `## ⚠ Memory warnings` block sits right under it — fix the handoff with `vibedoc_update_memory` before starting work ([Memory cleanup](../../mcp-tools.md#memory-cleanup)). Also logs a `session_start` event to the activity feed.
 ```json
 { "name": "vibedoc_read_memory", "arguments": {} }
 ```
@@ -97,6 +97,12 @@ Save one long-lived fact as its own file, `memory/entries/E001-<slug>.md`. Omit 
 **Entry or handoff?** A fact that should still be true next week goes in an entry. What happened this session goes in the handoff.
 ```json
 { "name": "vibedoc_save_entry", "arguments": { "type": "convention", "summary": "Only core.ts touches the file system", "body": "API routes import from core, never fs." } }
+```
+
+### `vibedoc_get_entries`
+Fetch full entries by id (max 20). Also records today's date per id in `memory/.recall-log.json`, which the Cleanup panel's "not recalled lately" flag reads.
+```json
+{ "name": "vibedoc_get_entries", "arguments": { "ids": ["E004", "E012"] } }
 ```
 
 ### `vibedoc_delete_entry` ⚡ triggers real-time UI update

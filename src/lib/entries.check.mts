@@ -1,6 +1,6 @@
 // Self-check for entries. Run: node src/lib/entries.check.mts
 import assert from 'node:assert/strict'
-import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput } from './entries.ts'
+import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput } from './entries.ts'
 
 // normalizeEntryId: case, padding, junk
 assert.equal(normalizeEntryId('e1'), 'E001')
@@ -59,5 +59,11 @@ assert.match(validateEntryInput({ type: 'convention', summary: 'a\nb' }) ?? '', 
 assert.match(validateEntryInput({ type: 'convention', summary: 'x'.repeat(121) }) ?? '', /120/)
 assert.match(validateEntryInput({ id: 'T1', type: 'convention', summary: 'x' }) ?? '', /Invalid id/)
 assert.match(validateEntryInput({ type: 'convention', summary: 'x', body: 5 as unknown as string }) ?? '', /body/)
+
+
+// replaceEntryRefs: any padding, whole tokens only
+assert.equal(replaceEntryRefs('See E011, E11 and `E0011`.', ['E011'], 'E004'), 'See E004, E004 and `E004`.')
+assert.equal(replaceEntryRefs('XE011 E011a E0110 E012', ['E011'], 'E004'), 'XE011 E011a E0110 E012')
+assert.equal(replaceEntryRefs('E011 then E012', ['e11', 'E12'], 'E004'), 'E004 then E004')
 
 console.log('entries: ok')

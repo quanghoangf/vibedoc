@@ -25,6 +25,7 @@ Add the same `url` entry to your MCP server config.
 
 ```
 1. vibedoc_read_memory             ← what happened last session? (ends with the knowledge entry index)
+   vibedoc_update_memory           ← only if it showed "⚠ Memory warnings": fix the handoff first
    vibedoc_get_sessions            ← (optional) what other agents did since
 2. vibedoc_next_task { epic }      ← claim the next ready task (returns its full spec, now in-progress)
 3. vibedoc_search_docs             ← find relevant docs before writing
@@ -34,6 +35,8 @@ Add the same `url` entry to your MCP server config.
 7. vibedoc_save_entry             ← save facts that outlast the session (conventions, gotchas, …)
    vibedoc_update_memory           ← write handoff for next session
 ```
+
+Forgot step 7? VibeDoc leaves an [automatic episode](#automatic-session-episodes) and the next `vibedoc_read_memory` shows it — but the handoff you write is better, so still call `vibedoc_update_memory`.
 
 For a task outside an epic, pick it by hand: `vibedoc_get_status` → `vibedoc_get_task <id>` → `vibedoc_update_task <id> in-progress` → work → `vibedoc_update_task <id> done`.
 
@@ -77,7 +80,11 @@ Read `MEMORY.md` — the session handoff file written by the previous agent sess
 
 **Parameters:** none
 
-**Returns:** full content of `memory/MEMORY.md`, then `## Knowledge entries (N)` with one `E001 · type · summary (~N tok)` line per entry, newest first, capped at `memory.sessionBudgetTokens` (`.vibedoc/settings.json`, default 2000 tokens; the rest → `+N more entries`, use `vibedoc_recall`)
+**Returns:** full content of `memory/MEMORY.md`, then — when a [session episode](#automatic-session-episodes) ended after MEMORY.md was last written — `## Since the last handoff (auto, YYYY-MM-DD)` with the newest one (`+N older episodes in .vibedoc/episodes/` when there are more), then `## Knowledge entries (N)` with one `E001 · type · summary (~N tok)` line per entry, newest first, capped at `memory.sessionBudgetTokens` (`.vibedoc/settings.json`, default 2000 tokens; the handoff and the episode are never cut, index lines drop first → `+N more entries`, use `vibedoc_recall`)
+
+Directly under the handoff (never cut by the budget) comes the [memory warnings block](#memory-cleanup) when the handoff contradicts the board — fix the handoff with `vibedoc_update_memory` before starting work.
+
+Before answering it backfills an `inferred` episode for up to 5 ended agent sessions since the last MEMORY.md write that have no handoff and no episode (never the session still running), so the reply can show them.
 
 ---
 
@@ -195,6 +202,8 @@ Needs a human: unblock one of the tasks above.
 🗺️ R010 "Login": all tasks done but status is planned → vibedoc_update_roadmap_item { "id": "R010", "status": "done" }
 ```
 
+**Episode at run end:** on *Nothing ready* and *Finished*, if the caller's session moved something and wrote no `vibedoc_update_memory` handoff, VibeDoc writes its [episode](#automatic-session-episodes) (`**Source:** epic R010`) and the reply ends with `Episode saved → .vibedoc/episodes/<sessionId>.md`. Still call `vibedoc_update_memory` — the episode is the safety net.
+
 ---
 
 ### `vibedoc_get_roadmap`
@@ -288,6 +297,77 @@ Write a new Architecture Decision Record (ADR) when making a significant technic
 | `consequences` | string | | Trade-offs and follow-ups |
 
 **Returns:** ADR number and file path (written to `docs/architecture/decisions/ADR-NNN-*.md`)
+
+---
+
+## Automatic session episodes
+
+`vibedoc_update_memory` is still the way to hand off: an agent writes what matters and what to do next. An **episode** is the safety net for a session that ended without it — a short summary VibeDoc builds from the session's activity (R050). Episodes never touch `MEMORY.md`.
+
+**Where:** `.vibedoc/episodes/<sessionId>.md`, one per agent session (`src/lib/episodes.ts` builds it, pure; `core.ts` writes it).
+
+**When it is written** — only for a session that changed something (doc reads and session starts alone don't count) and has no MEMORY.md write; saving entries is not a handoff:
+| Trigger | Source line |
+|---|---|
+| A chat turn from the UI ends (`/api/chat`, after `claude -p` exits) | `chat <conversationId>` (a session shared by several chats lists each) |
+| `vibedoc_next_task` returns *Nothing ready* or *Finished* | `epic R0xx` |
+| `vibedoc_read_memory` finds an ended agent session (up to 5, since the last MEMORY.md write) with no episode | `inferred` |
+
+**Format** (body ≤ 1600 characters, ≈ 400 tokens; the last message is trimmed first, then the lists):
+```
+# Episode ses_1790587370058_tzmkg: 1 task moved
+**Session:** ses_1790587370058_tzmkg
+**Actor:** ai:claude-code
+**Start:** 2026-10-03T13:01:12.000Z
+**End:** 2026-10-03T13:04:40.000Z
+**Source:** chat c_abc123
+
+## What happened
+- T001 → in-progress
+
+## Where it stopped
+> Moved T001 to in-progress; the form validation is next.
+
+## Open
+- T001 Form (in-progress)
+```
+
+**How the next session sees it:** `vibedoc_read_memory` shows the newest episode whose `**End:**` is later than MEMORY.md's last write, under `## Since the last handoff (auto, <date>)`, right after the handoff. Once an agent calls `vibedoc_update_memory`, older episodes stop showing. Each write emits the SSE event `episode_saved`.
+
+---
+
+## Memory cleanup
+
+VibeDoc checks memory against the board on every `vibedoc_read_memory` and on the Memory tab (`/memory`, **Cleanup (N)** button → `?cleanup=1`). Flags are derived on each read, never stored (pure rules in `src/lib/memory-health.ts`, `getMemoryHealth()` in core):
+
+| Flag | Severity | When |
+|------|----------|------|
+| `contradiction` | ⚠ warn | MEMORY.md names a task or epic under **Working on now** / **Up next** that is done or cancelled, or a task under **Just completed** that isn't done |
+| `dangling-ref` | info | MEMORY.md or an entry mentions a `T…` / `R…` id that doesn't exist; or (once the project has entries) MEMORY.md, an entry, a task, roadmap item or doc mentions an `E…` id that doesn't exist, e.g. after a merge or delete. Ids in code fences and `inline code` are examples and don't count |
+| `duplicate` | info | Two or more entries say the same thing (keyword overlap ≥ 50%, grouped); the row offers **Merge…** |
+| `stale` | info | No agent fetched the entry with `vibedoc_get_entries` for more than 60 days (or never, counted from `**Updated:**`); the row offers **Delete** with Undo |
+
+**Warning block.** When there are `warn` flags, `vibedoc_read_memory` puts this right under the handoff (max 5 lines, the rest → `…and N more on /memory`):
+
+```
+## ⚠ Memory warnings
+- ⚠ Handoff says T055 is in progress, but it is done
+```
+
+With only info flags it shows one line instead: `ℹ 3 memory cleanup suggestions on /memory`. **Agents: when you see the warning block, fix the handoff with `vibedoc_update_memory` before starting work.**
+
+**Recall log.** `vibedoc_get_entries` records today's date per fetched id in `memory/.recall-log.json` — that is what "recalled" means for the `stale` flag (`vibedoc_recall` lists and the session index don't count). Deleting or merging an entry drops its id from the log.
+
+**Merge.** **Merge…** opens a dialog (keep the oldest id by default, edit the merged summary and body). Approving rewrites the kept entry, deletes the others and points `E…` references in other entries at the kept id. Undo writes every touched file back byte-for-byte.
+
+**Sidecar files** (both small JSON with sorted keys, so they diff cleanly; committing them is the project's choice):
+
+| File | Holds |
+|------|-------|
+| `memory/.cleanup.json` | `{ "dismissed": { "<flag id>": "YYYY-MM-DD" } }` — a dismissed flag stays hidden while its id stays the same; deleting or merging away an entry drops the dismissals that name it, so an entry that reuses the id starts clean |
+| `memory/.recall-log.json` | `{ "E004": "YYYY-MM-DD" }` — last `vibedoc_get_entries` fetch per entry, written at most once per id per day |
+
+**Routes** (UI): `GET /api/memory/health[?dismissed=1]` → `{ flags }` · `POST /api/memory/health/dismiss { id }` · `POST /api/memory/entries/merge { keepId, dropIds, type, summary, body }` → `{ entry, before }` · `POST /api/memory/entries/merge/undo { before }`. Each mutation emits `memory_updated`.
 
 ---
 

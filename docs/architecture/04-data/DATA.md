@@ -20,6 +20,9 @@ VibeDoc reads and writes your actual project files. No sync, no import, no datab
 | `docs/architecture/decisions/ADR-*.md` | `logDecision()` | Creates new file |
 | `docs/architecture/decisions/_INDEX.md` | `logDecision()` | Appends row |
 | `.vibedoc-activity.json` | `appendActivity()` | JSON array, prepend, max 2000 |
+| `.vibedoc/episodes/<sessionId>.md` | `writeEpisode()` | Session episode (R050), full overwrite per session |
+| `memory/.cleanup.json` | `dismissHealthFlag()` | `{ "dismissed": { "<flag id>": "YYYY-MM-DD" } }`, sorted keys (R051) |
+| `memory/.recall-log.json` | `markEntriesRecalled()`, `deleteEntry()` | `{ "E004": "YYYY-MM-DD" }`: last `vibedoc_get_entries` fetch per entry, sorted keys, written at most once per id per day (R051) |
 
 ## Activity log schema
 ```json
@@ -46,6 +49,9 @@ Sessions are derived when read, never stored (`src/lib/sessions.ts`, pure).
 - **Legacy events** (no `sessionId`) are grouped per actor: a `session_start` or a gap of more than 30 minutes starts a new session.
 - Each session summarizes tasks moved (last status per task), docs changed (`doc_created` / `doc_deleted` / `doc_renamed`; `doc_read` is not a change), ADRs (`decision_logged`), roadmap edits, and whether memory was updated, into a `headline`.
 - Served by `GET /api/sessions?taskId=&limit=` and the MCP tool `vibedoc_get_sessions`.
+
+## Session episodes
+An agent session that changed something and ended without a MEMORY.md handoff gets `.vibedoc/episodes/<sessionId>.md`: H1 `# Episode <id>: <headline>`, a `**Session:** / **Actor:** / **Start:** / **End:** / **Source:**` block, then `## What happened`, `## Where it stopped` (the last reply, quoted) and `## Open`. Written at chat turn end, at an epic run's end (`vibedoc_next_task`) and by lazy backfill in `vibedoc_read_memory`; read back by `vibedoc_read_memory` when newer than MEMORY.md. Never touches MEMORY.md. Details: [mcp-tools.md](../mcp-tools.md#automatic-session-episodes).
 
 ## Task file parsing rules
 - Title: first `# ` line, strips `T001: ` prefix

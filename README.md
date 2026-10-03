@@ -47,7 +47,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **Kanban board** — tasks live in `plans/tasks/*.md`, rendered as draggable cards
 - **Docs viewer** — browse and edit every markdown file in `docs/`
 - **Live activity feed** — every AI action appears instantly via SSE, no polling
-- **Memory tab** — the `MEMORY.md` session handoff, plus a browser for knowledge entries: search (ranked like `vibedoc_recall`), filter by type, open, edit, add, and delete with Undo. Each entry shows who changed it last (a person or a named agent)
+- **Memory tab** — the `MEMORY.md` session handoff, plus a browser for knowledge entries: search (ranked like `vibedoc_recall`), filter by type, open, edit, add, and delete with Undo. Each entry shows who changed it last (a person or a named agent). **Cleanup** flags a handoff that contradicts the board, ids that don't exist, duplicate entries (merge with Undo) and entries no agent recalled in 60 days
 - **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
 - **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
 - **Plan from the chat** — ask the agent sidebar to plan a roadmap or break an epic into tasks; it asks questions, shows the plan, and writes nothing until you accept
@@ -106,12 +106,12 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 | Tool                    | Effect                                                           |
 | ----------------------- | ---------------------------------------------------------------- |
-| `vibedoc_read_memory`   | Read `MEMORY.md` — triggers "session start" in the activity feed |
+| `vibedoc_read_memory`   | Read `MEMORY.md` (+ the latest auto episode newer than it) — triggers "session start" in the activity feed |
 | `vibedoc_update_memory` | Write end-of-session summary and handoff note                    |
 | `vibedoc_save_entry`    | Save a long-lived fact as `memory/entries/E001-*.md` (listed at session start) |
 | `vibedoc_delete_entry`  | Delete a knowledge entry that is no longer true                  |
 | `vibedoc_recall`        | Search entries by keyword → compact list (id, type, summary)     |
-| `vibedoc_get_entries`   | Fetch full entries by id (max 20)                                |
+| `vibedoc_get_entries`   | Fetch full entries by id (max 20); updates `memory/.recall-log.json` |
 | `vibedoc_get_status`    | Board snapshot — active tasks, blockers, doc count               |
 | `vibedoc_get_sessions`  | Recent sessions: who, when, tasks moved, docs changed, ADRs      |
 
@@ -186,7 +186,7 @@ Add this to your project's `CLAUDE.md` to guide your AI agent:
 
 **Start of session:**
 
-1. Call `vibedoc_read_memory` — read handoff from last session
+1. Call `vibedoc_read_memory` — read handoff from last session. If it shows `⚠ Memory warnings`, fix the handoff with `vibedoc_update_memory` before starting work
 2. Call `vibedoc_get_status` — check what's active and blocked
 
 **Before working on a task:**
@@ -204,6 +204,7 @@ Add this to your project's `CLAUDE.md` to guide your AI agent:
 - Call `vibedoc_update_task` for each task touched
 - Call `vibedoc_save_entry` for each fact that should outlast the session (convention, gotcha, decision, preference)
 - Call `vibedoc_update_memory` with full summary and handoff note
+- (If a session ends without it, VibeDoc saves an automatic episode in `.vibedoc/episodes/` and the next `vibedoc_read_memory` shows it. It is a safety net, not a replacement.)
 ```
 
 ---
@@ -233,6 +234,8 @@ your-project/
 │   └── T002-auth.md
 └── memory/
     ├── MEMORY.md                 ← session handoff
+    ├── .cleanup.json             ← dismissed Cleanup flags (written by VibeDoc)
+    ├── .recall-log.json          ← last vibedoc_get_entries date per entry (written by VibeDoc)
     └── entries/
         └── E001-only-core-ts-touches-fs.md   ← one long-lived fact (**Type:**, **Updated:**, **By:**)
 ```
@@ -253,6 +256,8 @@ Every AI and human action is appended to `.vibedoc-activity.json` in your projec
 The Activity tab opens on **Sessions**: one card per agent or human session with who, when, how long, a headline (`3 tasks moved (2 done) · 2 docs changed · 1 ADR`) and clickable task, doc and ADR chips. Expand a card to see its raw events; **All events** shows the flat feed. Both update live via SSE.
 
 A session is the events one actor makes without a 30-minute break, and `vibedoc_read_memory` (session start) always opens a new one. From a task's detail panel, the **Sessions** list shows every session that moved the task and jumps to that card in the Activity tab. Agents read the same timeline with `vibedoc_get_sessions`.
+
+A session that ends without a `vibedoc_update_memory` handoff still leaves a summary: VibeDoc writes `.vibedoc/episodes/<sessionId>.md` (what happened, where it stopped, what's open) when a chat turn ends, when an epic run ends, or later at the next session start, and the next `vibedoc_read_memory` shows the newest one under **Since the last handoff**. Episodes never touch `MEMORY.md`.
 
 ---
 

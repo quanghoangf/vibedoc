@@ -13,7 +13,7 @@ import { applyEdits, type TextEdit } from './diff'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
-import { SESSION_GAP_MS } from './sessions'
+import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
 import { parseManualTests, setManualTests, toggleManualTest } from './manual-tests'
 import { appendReviewEntry, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
@@ -22,9 +22,11 @@ import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
-import { DEFAULT_SESSION_BUDGET, fitToBudget, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
-import { buildGraph, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
-import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
+import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallHit } from './recall'
+import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
+import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
+import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
+import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1019,10 +1021,56 @@ export async function getEntriesByIds(ids: string[], root: string): Promise<{ fo
   return { found, missing }
 }
 
-/** What an agent reads at session start: MEMORY.md + the entry index, capped at `memory.sessionBudgetTokens` (R048). */
+const RECALL_LOG_FILE = path.join('memory', '.recall-log.json')
+
+/** `memory/.recall-log.json` (entry id → YYYY-MM-DD last fetched by vibedoc_get_entries); missing or invalid → {}. */
+export async function readRecallLog(root: string): Promise<RecallLog> {
+  try {
+    const d = JSON.parse(await fs.readFile(path.join(root, RECALL_LOG_FILE), 'utf-8')) as unknown
+    if (d && typeof d === 'object' && !Array.isArray(d)) {
+      return Object.fromEntries(Object.entries(d).filter((kv): kv is [string, string] => typeof kv[1] === 'string'))
+    }
+  } catch { /* missing or unreadable → never recalled */ }
+  return {}
+}
+
+const writeRecallLog = async (root: string, log: RecallLog) => {
+  const file = path.join(root, RECALL_LOG_FILE)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, JSON.stringify(log, null, 2) + '\n', 'utf-8')
+}
+
+/** Drop deleted ids from the recall log so it doesn't fill up with dead ids; restore/undo don't re-add them. Call inside withEntryLock. */
+const dropFromRecallLog = async (root: string, ids: string[]) => {
+  const log = await readRecallLog(root)
+  if (!ids.some(id => id in log)) return
+  for (const id of ids) delete log[id]
+  await writeRecallLog(root, sortedLog(log))
+}
+
+/** Stamp today on each id (R051). Writes only when a date changes, so at most once per id per day. Returns whether it wrote. */
+export function markEntriesRecalled(ids: string[], root: string): Promise<boolean> {
+  if (!ids.length) return Promise.resolve(false)
+  return withEntryLock(async () => {
+    const next = markRecalled(await readRecallLog(root), ids, localToday())
+    if (next) await writeRecallLog(root, next)
+    return !!next
+  })
+}
+
+/**
+ * What an agent reads at session start: MEMORY.md + the newest episode newer than it (R050) + the entry index,
+ * capped at `memory.sessionBudgetTokens` (R048).
+ */
 export async function sessionStartMemory(root: string): Promise<string> {
-  const [memory, entries, { sessionBudgetTokens }] = await Promise.all([readMemory(root), listEntries(root), readProjectSettings(root)])
-  return fitToBudget(memory.content, indexHits(entries), sessionBudgetTokens).text
+  const [memory, entries, { sessionBudgetTokens }, fresh] = await Promise.all([
+    readMemory(root), listEntries(root), readProjectSettings(root), episodesSinceHandoff(root),
+  ])
+  const episode = fresh.length ? formatEpisodeSection(fresh[0], fresh.length - 1) : ''
+  // R051: warnings sit directly under the handoff, so the budget never cuts them
+  const warnings = memory.exists ? formatHealthWarnings(await getMemoryHealth(root)) : ''
+  const handoff = warnings ? `${memory.content.trimEnd()}\n\n${warnings}\n` : memory.content
+  return fitToBudget(handoff, indexHits(entries), sessionBudgetTokens, episode).text
 }
 
 /** The "## Related memory" block for a task (up to `limit` strong keyword matches), or '' (R048). */
@@ -1030,6 +1078,82 @@ export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>
   // rank everything so the score filter in formatRelated sees all candidates before the limit
   const entries = await listEntries(root)
   return formatRelated(rankEntries(entries, taskQuery(task), { limit: entries.length }), limit)
+}
+
+// ─── Memory health ────────────────────────────────────────────────────────────
+
+/** A flag as the Cleanup panel sees it: `dismissed` is the YYYY-MM-DD it was dismissed on. */
+export type CleanupFlag = HealthFlag & { dismissed?: string }
+
+/**
+ * Handoff/board contradictions, dangling ids in MEMORY.md and the entries, duplicate entries and entries not recalled lately (R051). Pure rules in src/lib/memory-health.ts.
+ * Dismissed flags are left out unless `includeDismissed` (the panel's "Show dismissed").
+ */
+export async function getMemoryHealth(root: string, opts: { includeDismissed?: boolean } = {}): Promise<CleanupFlag[]> {
+  const [memory, entries, { tasks }, { items }, { dismissed }, recallLog] = await Promise.all([
+    readMemory(root), listEntries(root), listTasks(root), listRoadmap(root), readCleanupState(root), readRecallLog(root),
+  ])
+  const board = [...tasks, ...items].map(({ id, status }) => ({ id, status }))
+  // files that may still name a merged or deleted entry; MEMORY.md is checked as the handoff
+  const others = entries.length
+    ? (await memoryGraphFiles(root)).filter(f => f.path !== 'memory/MEMORY.md').map(f => ({ id: f.id, text: f.text }))
+    : []
+  const flags = [
+    ...findContradictions(memory.exists ? memory.content : '', entries, board, t => extractRefs(t).ids, others),
+    ...findDuplicates(entries, tokenize),
+    ...findStale(entries, recallLog, localToday()),
+  ]
+  return opts.includeDismissed
+    ? flags.map(f => (dismissed[f.id] ? { ...f, dismissed: dismissed[f.id] } : f))
+    : flags.filter(f => !dismissed[f.id])
+}
+
+const CLEANUP_FILE = path.join('memory', '.cleanup.json')
+
+/** `memory/.cleanup.json`; a missing or invalid file is an empty state. */
+export async function readCleanupState(root: string): Promise<{ dismissed: Record<string, string> }> {
+  try {
+    const d = (JSON.parse(await fs.readFile(path.join(root, CLEANUP_FILE), 'utf-8')) as { dismissed?: unknown })?.dismissed
+    if (d && typeof d === 'object' && !Array.isArray(d)) {
+      return { dismissed: Object.fromEntries(Object.entries(d).filter((kv): kv is [string, string] => typeof kv[1] === 'string')) }
+    }
+  } catch { /* missing or unreadable → nothing dismissed */ }
+  return { dismissed: {} }
+}
+
+// ponytail: in-process mutex like withEntryLock, so parallel dismisses don't drop ids; doesn't cover a second VibeDoc process.
+let cleanupLock: Promise<unknown> = Promise.resolve()
+function withCleanupLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = cleanupLock.then(fn, fn)
+  cleanupLock = run.catch(() => {})
+  return run
+}
+
+const writeCleanupState = async (root: string, dismissed: Record<string, string>) => {
+  const sorted = Object.fromEntries(Object.entries(dismissed).sort(([a], [b]) => a.localeCompare(b)))
+  const file = path.join(root, CLEANUP_FILE)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, JSON.stringify({ dismissed: sorted }, null, 2) + '\n', 'utf-8')
+}
+
+/** Drop dismissals that name deleted ids, so an entry that later reuses the id starts with its own flags visible. */
+const dropFromCleanupState = (root: string, ids: string[]) => withCleanupLock(async () => {
+  const next = pruneDismissed((await readCleanupState(root)).dismissed, ids)
+  if (next) await writeCleanupState(root, next)
+})
+
+/** Hide a health flag for as long as its id stays the same. Throws when no current flag has that id. */
+export async function dismissHealthFlag(flagId: string, root: string, actor: 'human' | 'ai' = 'human'): Promise<CleanupFlag> {
+  const flag = (await getMemoryHealth(root, { includeDismissed: true })).find(f => f.id === flagId)
+  if (!flag) throw new RoadmapError(`Flag "${flagId}" not found`, 404)
+  const date = await withCleanupLock(async () => {
+    const { dismissed } = await readCleanupState(root)
+    dismissed[flagId] = localToday()
+    await writeCleanupState(root, dismissed)
+    return dismissed[flagId]
+  })
+  await appendActivity(root, { type: 'memory_updated', actor, title: 'Cleanup flag dismissed', detail: flag.message })
+  return { ...flag, dismissed: date }
 }
 
 // ─── File history from git (R053) ─────────────────────────────────────────────
@@ -1110,6 +1234,8 @@ export function deleteEntry(id: string, root: string, actor: 'ai' | 'human' = 'h
     if (!entry) throw new Error(`Entry ${norm} not found`)
     const raw = await fs.readFile(path.join(root, entry.file), 'utf8')
     await fs.rm(path.join(root, entry.file))
+    await dropFromRecallLog(root, [norm])
+    await dropFromCleanupState(root, [norm])
     await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${norm} deleted`, detail: entry.summary })
     return { ...entry, raw }
   })
@@ -1128,6 +1254,91 @@ export function restoreEntry(file: unknown, raw: unknown, root: string, actor: '
     await fs.writeFile(path.join(root, file), raw, { flag: 'wx', encoding: 'utf8' })
     await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${id} restored`, detail: entry.summary })
     return entry
+  })
+}
+
+/** A file as it was before a merge; `dropped` = the merge deleted it (undo re-creates it, never over a taken id). */
+export type MergeBefore = { file: string; raw: string; dropped?: boolean }
+
+/**
+ * Approve a duplicate merge (R051): rewrite the kept entry, delete the dropped ones, and point other entries'
+ * mentions of a dropped id at the kept id. Validates everything before the first write. `before` feeds undoMerge.
+ */
+export function mergeEntries(
+  input: { keepId: unknown; dropIds: unknown; type: unknown; summary: unknown; body?: unknown },
+  root: string, actor: 'ai' | 'human' = 'human',
+): Promise<{ entry: Entry; before: MergeBefore[] }> {
+  const keepId = normalizeEntryId(String(input.keepId ?? ''))
+  if (!keepId) return Promise.reject(new RoadmapError(`Invalid keepId "${input.keepId}"`))
+  if (!Array.isArray(input.dropIds) || !input.dropIds.length) return Promise.reject(new RoadmapError('dropIds must be a non-empty list'))
+  const dropIds = input.dropIds.map(d => normalizeEntryId(String(d)))
+  if (dropIds.some(d => !d)) return Promise.reject(new RoadmapError(`Invalid dropIds: ${input.dropIds.join(', ')}`))
+  if (new Set(dropIds).size !== dropIds.length || dropIds.includes(keepId)) return Promise.reject(new RoadmapError('dropIds must be distinct and not include keepId'))
+  const fields = { id: keepId, type: String(input.type ?? ''), summary: String(input.summary ?? ''), body: input.body as string | undefined }
+  const error = validateEntryInput(fields)
+  if (error) return Promise.reject(new RoadmapError(error))
+  const drops = dropIds as string[]
+  return withEntryLock(async () => {
+    const entries = await listEntries(root)
+    const byId = new Map(entries.map(e => [e.id, e]))
+    const missing = [keepId, ...drops].filter(id => !byId.has(id))
+    if (missing.length) throw new RoadmapError(`Entry ${missing.join(', ')} not found`)
+    const read = (e: Entry) => fs.readFile(path.join(root, e.file), 'utf8')
+    const old = byId.get(keepId) as Entry
+    const summary = fields.summary.trim()
+    // the merged text shouldn't point at an id that is about to disappear either
+    const entry: Entry = {
+      id: keepId, type: fields.type as EntryType, summary, body: replaceEntryRefs((fields.body ?? '').trim(), drops, keepId),
+      updatedAt: localToday(), by: actor === 'human' ? 'human' : 'ai:agent',
+      file: path.join(ENTRIES_DIR, `${keepId}-${entrySlug(summary)}.md`),
+    }
+    const before: MergeBefore[] = [{ file: old.file, raw: await read(old) }]
+    for (const id of drops) { const e = byId.get(id) as Entry; before.push({ file: e.file, raw: await read(e), dropped: true }) }
+    const rewrites: { file: string; raw: string }[] = []
+    for (const e of entries) {
+      if (e.id === keepId || drops.includes(e.id)) continue
+      const raw = await read(e)
+      const next = replaceEntryRefs(raw, drops, keepId)
+      if (next !== raw) { before.push({ file: e.file, raw }); rewrites.push({ file: e.file, raw: next }) }
+    }
+    // all checks passed: write
+    await fs.writeFile(path.join(root, entry.file), formatEntry(entry), 'utf8')
+    if (old.file !== entry.file) await fs.rm(path.join(root, old.file), { force: true })
+    for (const b of before) if (b.dropped) await fs.rm(path.join(root, b.file), { force: true })
+    for (const r of rewrites) await fs.writeFile(path.join(root, r.file), r.raw, 'utf8')
+    await dropFromRecallLog(root, drops)
+    await dropFromCleanupState(root, drops)
+    await appendActivity(root, { type: 'memory_updated', actor, title: `Entries merged into ${keepId}`, detail: `${drops.join(', ')} merged` })
+    return { entry, before }
+  })
+}
+
+/**
+ * Undo for mergeEntries: write every `before` file back byte-for-byte (the kept entry under its old name).
+ * Same path guard as restoreEntry; refuses (400) when a dropped id has been re-created since.
+ */
+export function undoMerge(before: unknown, root: string, actor: 'ai' | 'human' = 'human'): Promise<Entry[]> {
+  return withEntryLock(async () => {
+    if (!Array.isArray(before) || !before.length) throw new RoadmapError('Invalid merge to undo')
+    const items = before.map((b: Partial<MergeBefore>) => {
+      const { file, raw } = b ?? {}
+      if (!isFileIn(file, 'memory/entries', /^E\d+[^/]*\.md$/) || typeof raw !== 'string') throw new RoadmapError('Invalid merge to undo')
+      const entry = parseEntry(raw, file)
+      if (!entry || entry.id !== normalizeEntryId(path.basename(file).match(/^(E\d+)/i)?.[1] ?? '')) throw new RoadmapError('Invalid merge to undo')
+      return { file, raw, entry, dropped: b.dropped === true }
+    })
+    const current = new Map((await listEntries(root)).map(e => [e.id, e]))
+    const taken = items.filter(i => i.dropped && current.has(i.entry.id)).map(i => i.entry.id)
+    if (taken.length) throw new RoadmapError(`${taken.join(', ')} already exists`)
+    await fs.mkdir(path.join(root, ENTRIES_DIR), { recursive: true })
+    for (const i of items) {
+      const now = current.get(i.entry.id)
+      await fs.writeFile(path.join(root, i.file), i.raw, { flag: i.dropped ? 'wx' : 'w', encoding: 'utf8' })
+      if (now && now.file !== i.file) await fs.rm(path.join(root, now.file), { force: true })
+    }
+    const keep = items.find(i => !i.dropped)?.entry.id ?? ''
+    await appendActivity(root, { type: 'memory_updated', actor, title: `Merge into ${keep} undone`, detail: `${items.filter(i => i.dropped).map(i => i.entry.id).join(', ')} restored` })
+    return items.map(i => i.entry)
   })
 }
 
@@ -1273,6 +1484,12 @@ function stampSession(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp
   }
   cur.lastAt = now
   return cur.id
+}
+
+/** The actor's running session id (T046 stamping), or null when there is none or it went idle. */
+export function currentSessionId(root: string, actor: ActivityEvent['actor'] = 'ai'): string | null {
+  const cur = currentSessions.get(`${root}\0${actor}`)
+  return cur && Date.now() - cur.lastAt <= SESSION_GAP_MS ? cur.id : null
 }
 
 async function appendActivity(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp'>): Promise<void> {
@@ -1595,11 +1812,17 @@ export async function findBacklinks(
  * ADRs and docs an entry mentions or that mention an entry id. Pure resolution in src/lib/memory-graph.ts.
  */
 export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
+  const [entries, others] = await Promise.all([listEntries(root), memoryGraphFiles(root)])
+  return buildGraph(
+    entries.map(e => ({ id: e.id, kind: 'entry', label: e.summary, path: e.file.replace(/\\/g, '/'), text: `${e.summary}\n${e.body}` })),
+    others,
+  )
+}
+
+/** Every non-entry .md the memory graph scans (tasks, roadmap, ADRs, docs, MEMORY.md), with its text. */
+async function memoryGraphFiles(root: string): Promise<GraphItem[]> {
   // ponytail: reads every .md on each call, like findBacklinks; cache by mtime if big repos make it slow
-  const [entries, files] = await Promise.all([
-    listEntries(root),
-    glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**', 'memory/entries/**'], nodir: true }),
-  ])
+  const files = await glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**', 'memory/entries/**'], nodir: true })
   const others = await Promise.all(files.map(async (f): Promise<GraphItem | null> => {
     try {
       const raw = await fs.readFile(path.join(root, f), 'utf8')
@@ -1609,10 +1832,7 @@ export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
       return null
     }
   }))
-  return buildGraph(
-    entries.map(e => ({ id: e.id, kind: 'entry', label: e.summary, path: e.file.replace(/\\/g, '/'), text: `${e.summary}\n${e.body}` })),
-    others.filter((o): o is GraphItem => !!o),
-  )
+  return others.filter((o): o is GraphItem => !!o)
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────
@@ -2175,6 +2395,104 @@ export async function saveChat(chat: unknown, root: string): Promise<void> {
 
 export async function deleteChat(id: string, root: string): Promise<void> {
   await fs.rm(chatFile(id, root), { force: true })
+}
+
+// ─── Episodes ─────────────────────────────────────────────────────────────────
+// `.vibedoc/episodes/<sessionId>.md` (R050): auto summary + handoff for a session with no MEMORY.md write.
+
+export const EPISODES_DIR = path.join('.vibedoc', 'episodes')
+const EPISODE_ID = /^[A-Za-z0-9_-]{1,80}$/
+
+/** Overwrites the session's own file (idempotent per session). Returns the project-relative path. */
+export async function writeEpisode(ep: { sessionId: string; markdown: string }, root: string): Promise<string> {
+  if (!EPISODE_ID.test(ep.sessionId)) throw new Error(`Invalid session id "${ep.sessionId}"`)
+  const rel = path.join(EPISODES_DIR, `${ep.sessionId}.md`)
+  const file = path.join(root, rel)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  const tmp = `${file}.tmp`
+  await fs.writeFile(tmp, ep.markdown, 'utf8')
+  await fs.rename(tmp, file)
+  return rel
+}
+
+/** Every episode, newest `end` first; a missing folder is []. */
+export async function listEpisodes(root: string): Promise<Episode[]> {
+  const files = await fs.readdir(path.join(root, EPISODES_DIR)).catch(() => [] as string[])
+  const eps = await Promise.all(files.filter(f => f.endsWith('.md')).map(async f => {
+    const rel = path.join(EPISODES_DIR, f)
+    try {
+      return parseEpisode(await fs.readFile(path.join(root, rel), 'utf8'), rel)
+    } catch (e) {
+      console.warn(`[vibedoc] skipping unreadable episode ${f}: ${(e as Error).message}`)
+      return null
+    }
+  }))
+  return eps.filter((e): e is Episode => !!e).sort((a, b) => b.end.localeCompare(a.end))
+}
+
+export async function getLatestEpisode(root: string): Promise<Episode | null> {
+  return (await listEpisodes(root))[0] ?? null
+}
+
+/** Episodes that ended after MEMORY.md was last written (by vibedoc_update_memory or by hand), newest first. */
+export async function episodesSinceHandoff(root: string): Promise<Episode[]> {
+  const [eps, stat] = await Promise.all([
+    listEpisodes(root),
+    fs.stat(path.join(root, 'memory', 'MEMORY.md')).catch(() => null),
+  ])
+  const since = stat?.mtimeMs ?? -Infinity
+  return eps.filter(e => Date.parse(e.end) > since)
+}
+
+function sessionEpisode(s: Session, events: ActivityEvent[], tasks: Task[], source: string, agent?: string): string {
+  const openTasks = s.tasks
+    .filter(t => t.lastStatus !== 'done' && t.lastStatus !== 'cancelled')
+    .map(t => ({ id: t.id, title: tasks.find(x => x.id === t.id)?.title ?? '', status: t.lastStatus }))
+  // No transcript outside the chat: "Where it stopped" is the last event's title
+  return buildEpisode(s, { source, agent, openTasks, lastMessage: lastEventTitle(s, events) })
+}
+
+/**
+ * R050 lazy backfill (at vibedoc_read_memory): an `inferred` episode for each ended agent session since the last
+ * MEMORY.md write that has no handoff and no episode file, newest first. Never rewrites an existing episode.
+ */
+export async function backfillEpisodes(
+  root: string, { excludeSessionId = null, limit = 5 }: { excludeSessionId?: string | null; limit?: number } = {},
+): Promise<{ sessionId: string; file: string }[]> {
+  const [events, files, memStat] = await Promise.all([
+    readActivity(root, ACTIVITY_CAP),
+    fs.readdir(path.join(root, EPISODES_DIR)).catch(() => [] as string[]),
+    fs.stat(path.join(root, 'memory', 'MEMORY.md')).catch(() => null),
+  ])
+  const existing = new Set(files.filter(f => f.endsWith('.md')).map(f => f.slice(0, -3)))
+  const picks = sessionsNeedingEpisode(groupSessions(events), events, existing, excludeSessionId, {
+    now: Date.now(), gapMs: SESSION_GAP_MS, since: memStat?.mtimeMs, limit,
+  })
+  if (!picks.length) return []
+  const { tasks } = await listTasks(root)
+  const written: { sessionId: string; file: string }[] = []
+  for (const s of picks) {
+    const markdown = sessionEpisode(s, events, tasks, 'inferred')
+    if (markdown) written.push({ sessionId: s.id, file: await writeEpisode({ sessionId: s.id, markdown }, root) })
+  }
+  return written
+}
+
+/**
+ * R050: episode for the caller's current agent session when an epic run ends (vibedoc_next_task has nothing ready).
+ * null when there is no running session, it wrote a handoff, or it changed nothing. Rewrites keep earlier sources.
+ */
+export async function writeRunEpisode(root: string, source: string, agent?: string): Promise<{ sessionId: string; file: string } | null> {
+  const id = currentSessionId(root)
+  if (!id) return null
+  const events = await readActivity(root, ACTIVITY_CAP)
+  const s = groupSessions(events).find(x => x.id === id)
+  if (!s || !hasWork(s, events) || isHandoffWritten(s, events)) return null
+  const rel = path.join(EPISODES_DIR, `${id}.md`)
+  const prev = await fs.readFile(path.join(root, rel), 'utf8').then(raw => parseEpisode(raw, rel)).catch(() => null)
+  const { tasks } = await listTasks(root)
+  const markdown = sessionEpisode(s, events, tasks, mergeSources(prev?.source, source), agent)
+  return markdown ? { sessionId: id, file: await writeEpisode({ sessionId: id, markdown }, root) } : null
 }
 
 // ─── Saved board views (.vibedoc/views.json) ─────────────────────────────────

@@ -37,9 +37,13 @@ import {
   saveEntry,
   deleteEntry,
   sessionStartMemory,
+  backfillEpisodes,
+  currentSessionId,
+  writeRunEpisode,
   recallEntries,
   relatedEntries,
   getEntriesByIds,
+  markEntriesRecalled,
   getMemoryGraph,
   noteDocEdit,
   setDocProperties,
@@ -282,7 +286,7 @@ const TOOLS = [
   {
     name: "vibedoc_read_memory",
     description:
-      "Read MEMORY.md — the session handoff file. Always call this at session start.",
+      "Read MEMORY.md — the session handoff file. Always call this at session start. If it shows '## ⚠ Memory warnings' (the handoff contradicts the board), fix the handoff with vibedoc_update_memory before starting work.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
@@ -843,6 +847,13 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const epicId = String(args.epic ?? "").trim();
       if (!epicId) throw new Error("epic is required");
       const { result, task, previousStatus } = await claimNextTask(epicId, root, agent);
+      // R050: nothing ready = the run is over; leave an episode unless the session wrote a handoff
+      const runEnd = async () => {
+        const ep = await writeRunEpisode(root, `epic ${epicId.toUpperCase()}`, agent);
+        if (!ep) return "";
+        emitUpdate("episode_saved", ep);
+        return `\n\nEpisode saved → ${ep.file}`;
+      };
       if (result.kind === "finished") {
         const { items } = await listRoadmap(root);
         const statuses = await taskInfoMap(root);
@@ -852,11 +863,13 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         const nudge = roadmapHealth(items, statuses, localToday()).drift
           .find((d) => d.id === id && d.suggestedStatus === "done");
         return `✅ Epic ${id} is finished — all ${n} tasks done or cancelled. Stop here.` +
-          (nudge ? `\n\n🗺️ ${nudge.message} → vibedoc_update_roadmap_item { "id": "${id}", "status": "done" }` : "");
+          (nudge ? `\n\n🗺️ ${nudge.message} → vibedoc_update_roadmap_item { "id": "${id}", "status": "done" }` : "") +
+          (await runEnd());
       }
       if (result.kind === "waiting") {
         return `⏳ Nothing ready in ${epicId.toUpperCase()}.\n` + result.waiting.map((w) => `- ${w.reason}`).join("\n") +
-          (result.needsHuman ? "\n\nNeeds a human: approve, send back or unblock one of the tasks above." : "");
+          (result.needsHuman ? "\n\nNeeds a human: approve, send back or unblock one of the tasks above." : "") +
+          (await runEnd());
       }
       if (!task) throw new Error(`claim of ${epicId.toUpperCase()} returned no task`);
       emitUpdate("task_updated", {
@@ -885,8 +898,14 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     }
 
     case "vibedoc_read_memory": {
+      // read before logSessionStart, which opens a new session: the one still running is the agent's, never backfill it
+      const running = currentSessionId(root);
       await logSessionStart(root, "ai");
       emitUpdate("session_start", { root });
+      // R050: ended sessions with no handoff get an `inferred` episode first, so the response below can show it
+      for (const ep of await backfillEpisodes(root, { excludeSessionId: running })) {
+        emitUpdate("episode_saved", ep);
+      }
       return sessionStartMemory(root);
     }
 
@@ -924,6 +943,8 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       if (!ids.length) throw new Error('ids must be a non-empty array, e.g. { "ids": ["E001"] }');
       if (ids.length > MAX_ENTRY_IDS) throw new Error(`Too many ids (${ids.length}); fetch at most ${MAX_ENTRY_IDS} per call and split the rest`);
       const [{ found, missing }, graph] = await Promise.all([getEntriesByIds(ids, root), getMemoryGraph(root)]);
+      // R051: a full-body fetch is what counts as "recalled" (not recall lists or the session index)
+      if (await markEntriesRecalled(found.map((e) => e.id), root)) emitUpdate("memory_updated", { root });
       const blocks = found.map((e) => {
         const links = formatEntryLinks(graph, e.id);
         return `## ${e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.body ? `\n\n${e.body}` : ""}` +

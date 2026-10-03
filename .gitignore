@@ -42,3 +42,4 @@ docs/REGISTRY.md
 
 # VibeDoc agent chats (conversation history, per developer)
 /.vibedoc/chats/
+/.vibedoc/episodes/

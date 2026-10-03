@@ -68,3 +68,12 @@ export function validateEntryInput(i: EntryInput): string | null {
   if (i.body !== undefined && typeof i.body !== 'string') return 'body must be a string'
   return null
 }
+
+/**
+ * Replace whole-token mentions of `fromIds` (any padding: E11, E011) with `toId`, for a merge (R051).
+ * Same token boundaries as the memory graph's ID_RE, so "XE011" and "E011a" stay.
+ */
+export function replaceEntryRefs(text: string, fromIds: string[], toId: string): string {
+  const from = new Set(fromIds.map(id => normalizeEntryId(id)))
+  return text.replace(/(?<![A-Za-z0-9_-])E\d+(?![A-Za-z0-9_])/g, m => (from.has(normalizeEntryId(m)) ? toId : m))
+}

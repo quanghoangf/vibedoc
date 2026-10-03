@@ -57,14 +57,25 @@ export function indexHits(entries: RecallEntry[]): RecallHit[] {
 export const DEFAULT_SESSION_BUDGET = 2000
 const INDEX_HINT = 'Save new facts with vibedoc_save_entry; fetch bodies with vibedoc_get_entries.'
 
+/** "## Since the last handoff (auto, 2026-10-03)" + the newest episode body, plus "+N older" when more are newer than MEMORY.md (R050). */
+export function formatEpisodeSection(ep: { end: string; body: string }, older = 0): string {
+  return [
+    `## Since the last handoff (auto, ${ep.end.slice(0, 10)})`,
+    ep.body.trim().replace(/^## /gm, '### '), // nest the episode's own sections under this one
+    ...(older > 0 ? ['', `+${older} older episode${older === 1 ? '' : 's'} in .vibedoc/episodes/`] : []),
+  ].join('\n')
+}
+
 /**
- * Session start = the whole handoff + as many index lines (in the order given) as fit `budget` tokens,
- * then "+N more" when some were left out. Header, footer and hint count toward the budget. The handoff is never cut.
+ * Session start = the whole handoff + the episode section (if any) + as many index lines (in the order given) as fit
+ * `budget` tokens, then "+N more" when some were left out. Header, footer and hint count toward the budget.
+ * The handoff and the episode are never cut.
  */
-export function fitToBudget(handoff: string, index: RecallHit[], budget: number):
+export function fitToBudget(handoff: string, index: RecallHit[], budget: number, episode = ''):
   { text: string; shown: number; omitted: number; tokens: number } {
   const render = (n: number, warning?: string) => [
     handoff.trimEnd(), '',
+    ...(episode ? [episode.trimEnd(), ''] : []),
     ...(warning ? [warning] : []),
     `## Knowledge entries (${index.length})`,
     ...index.slice(0, n).map(formatCompactLine),
@@ -75,7 +86,8 @@ export function fitToBudget(handoff: string, index: RecallHit[], budget: number)
   let text: string
   let shown = 0
   if (!fits(0)) {
-    text = render(0, `⚠️ The handoff alone is ~${estimateTokens(handoff)} tokens, over the ${budget}-token session budget: trim memory/MEMORY.md.`)
+    const what = episode ? `The handoff and the latest episode are ~${estimateTokens(`${handoff}\n${episode}`)} tokens` : `The handoff alone is ~${estimateTokens(handoff)} tokens`
+    text = render(0, `⚠️ ${what}, over the ${budget}-token session budget: trim memory/MEMORY.md.`)
   } else {
     // ponytail: re-renders per line (O(n²) chars); fine for hundreds of entries
     while (shown < index.length && fits(shown + 1)) shown++

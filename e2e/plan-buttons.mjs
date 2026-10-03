@@ -46,7 +46,7 @@ try {
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("vibedoc:ask-agent", { detail: { message: "again" } })))
     // The sidebar lists both chats; the modal switched to the new one.
     // CSS locators: while the modal is open, the page behind it is aria-hidden
-    const agents = page.locator('[aria-label="Agent chats"]')
+    const agents = page.locator('[aria-label="Chats"]')
     const chatA = agents.locator("button", { hasText: "Break down R002" })
     await agents.locator("button", { hasText: "again" }).waitFor()
     await page.getByRole("dialog", { name: "again" }).waitFor()
@@ -77,12 +77,21 @@ try {
     assert.equal(calls[2].sessionId, "sA")
     console.log("ok  follow-up in chat A resumes A's session")
 
-    // An ask while the current chat is idle goes into that chat, no new chat
+    // An untargeted ask never lands in an epic's chat, even an idle one: it starts a fresh, unattached chat …
     await page.evaluate(() => window.dispatchEvent(new CustomEvent("vibedoc:ask-agent", { detail: { message: "idle ask" } })))
-    await page.getByText("Reply A.").nth(2).waitFor()
-    assert.equal(await agents.locator("li button[title]").count(), 2)
-    assert.equal(calls[3].sessionId, "sA")
-    console.log("ok  ask while the current chat is idle reuses it")
+    await page.getByRole("dialog", { name: "idle ask" }).waitFor()
+    for (let i = 0; i < 50 && calls.length < 4; i++) await page.waitForTimeout(100)
+    await page.waitForFunction(() => !document.querySelector('[aria-label="Chats"] [title="Running"]'))
+    assert.deepEqual(await agents.locator("li button[title]").evaluateAll((bs) => bs.map((b) => b.title).sort()), ["Break down R002", "again", "idle ask"])
+    assert.equal(calls[3].message, "idle ask")
+    assert.equal(calls[3].sessionId ?? null, null, "a fresh session, not R002's")
+    // … and the next untargeted ask reuses that idle, unattached chat
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent("vibedoc:ask-agent", { detail: { message: "idle ask 2" } })))
+    for (let i = 0; i < 50 && calls.length < 5; i++) await page.waitForTimeout(100)
+    assert.equal(calls[4].message, "idle ask 2")
+    assert.equal(calls[4].sessionId, "sA", "resumes the idle ask chat's session")
+    assert.equal(await agents.locator("li button[title]").count(), 3)
+    console.log("ok  an untargeted ask skips the epic's chat; an idle unattached chat is reused")
 
     // The epic now has a chat: its sheet offers "Open chat" instead of another breakdown
     await page.keyboard.press("Escape")
@@ -118,7 +127,7 @@ try {
     await page.goto(`${BASE}/board?task=T001`)
     await page.getByRole("button", { name: "Open chat" }).click()
     await page.getByText("Reply 0.").waitFor()
-    assert.equal(await page.locator('[aria-label="Agent chats"] li button[title]').count(), 1, "no second chat for the same task")
+    assert.equal(await page.locator('[aria-label="Chats"] li button[title]').count(), 1, "no second chat for the same task")
     console.log("ok  board task chat: first turn names the task; reopening resumes the same chat")
   }
 } finally {
