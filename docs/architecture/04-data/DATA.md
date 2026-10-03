@@ -16,10 +16,11 @@ VibeDoc reads and writes your actual project files. No sync, no import, no datab
 | File | Written by | Format |
 |------|-----------|--------|
 | `plans/tasks/T*.md` | `updateTaskStatus()` | Replaces `**Status:**` line only |
-| `memory/MEMORY.md` | `updateMemory()` | Full overwrite |
+| `memory/MEMORY.md` | `updateMemory()`, `restoreMemoryVersion()` | Rewrites only the sections passed (R045); a restore writes a saved version back |
 | `docs/architecture/decisions/ADR-*.md` | `logDecision()` | Creates new file |
 | `docs/architecture/decisions/_INDEX.md` | `logDecision()` | Appends row |
 | `.vibedoc-activity.json` | `appendActivity()` | JSON array, prepend, max 2000 |
+| `.vibedoc/memory-history/<stamp>-<actor>.md` | `updateMemory()`, `restoreMemoryVersion()` (via `snapshotMemory()`) | Copy of MEMORY.md taken before each write: `<!-- vibedoc-snapshot actor=ai\|human reason=update\|restore -->` line + the old content. Id = UTC stamp `20261003T154209123Z` + actor; the 20 newest are kept (R045) |
 | `.vibedoc/episodes/<sessionId>.md` | `writeEpisode()` | Session episode (R050), full overwrite per session |
 | `memory/.cleanup.json` | `dismissHealthFlag()` | `{ "dismissed": { "<flag id>": "YYYY-MM-DD" } }`, sorted keys (R051) |
 | `memory/.recall-log.json` | `markEntriesRecalled()`, `deleteEntry()` | `{ "E004": "YYYY-MM-DD" }`: last `vibedoc_get_entries` fetch per entry, sorted keys, written at most once per id per day (R051) |

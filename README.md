@@ -53,7 +53,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
 - **Plan from the chat** — ask the agent sidebar to plan a roadmap or break an epic into tasks; it asks questions, shows the plan, and writes nothing until you accept
 - **Manual tests & review** — the agent leaves a click-through checklist on each finished task (`🧪 0/5` on the card, ticked on `/manual-tests`); an optional Review column lets you approve a task or send it back with a note. Nothing ever blocks "done"
-- **MCP server** — 34 tools your AI agent can call to read docs, move tasks, write ADRs, and more
+- **MCP server** — 36 tools your AI agent can call to read docs, move tasks, write ADRs, and more
 
 ---
 
@@ -101,7 +101,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 ## MCP tools
 
-34 tools your AI agent can call, grouped by category.
+36 tools your AI agent can call, grouped by category.
 
 ### Session & status
 
@@ -109,6 +109,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | ----------------------- | ---------------------------------------------------------------- |
 | `vibedoc_read_memory`   | Read `MEMORY.md` (+ the latest auto episode newer than it) — triggers "session start" in the activity feed |
 | `vibedoc_update_memory` | Write end-of-session summary and handoff note                    |
+| `vibedoc_memory_history` | List earlier `MEMORY.md` versions, read one, or restore it (undoable) |
 | `vibedoc_save_entry`    | Save a long-lived fact as `memory/entries/E001-*.md` (listed at session start) |
 | `vibedoc_delete_entry`  | Delete a knowledge entry that is no longer true                  |
 | `vibedoc_recall`        | Search entries by keyword → compact list (id, type, summary)     |
@@ -137,6 +138,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | `vibedoc_append_doc`     | Append content to an existing doc      |
 | `vibedoc_rename_doc`     | Move or rename a doc                   |
 | `vibedoc_delete_doc`     | Delete a doc                           |
+| `vibedoc_set_doc_priority` | Set or clear a doc's P0–P3 priority (frontmatter) |
 | `vibedoc_list_templates` | List available doc templates with IDs  |
 | `vibedoc_propose_edit`   | Propose edits as a diff; the user accepts or rejects in the UI |
 

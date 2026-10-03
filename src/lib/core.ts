@@ -27,6 +27,7 @@ import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, 
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
+import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } from './memory-sections'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -908,16 +909,7 @@ export async function logDecision(params: ADRParams, root: string, actor: 'ai' |
 
 // ─── Memory ───────────────────────────────────────────────────────────────────
 
-export interface MemoryParams {
-  currentState: string
-  justCompleted?: string[]
-  workingOn?: string
-  upNext?: string[]
-  issues?: (string | { issue: string; severity?: string; status?: string })[]
-  decisions?: string[]
-  techDebt?: string[]
-  handoff: string
-}
+export type { MemoryParams } from './memory-sections'
 
 export async function readMemory(root: string): Promise<{ content: string; exists: boolean }> {
   try {
@@ -928,22 +920,109 @@ export async function readMemory(root: string): Promise<{ content: string; exist
   }
 }
 
+/** Rewrites only the sections passed (R045); throws "Nothing to update: …" when no known field is given. */
 export async function updateMemory(params: MemoryParams, root: string, actor: 'ai' | 'human' = 'human'): Promise<void> {
-  const { currentState, justCompleted = [], workingOn = '', upNext = [], issues = [], decisions = [], techDebt = [], handoff } = params
   const now = new Date()
-  const today = now.toISOString().split('T')[0]
-  const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  const stamp = `${now.toISOString().split('T')[0]} at ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+  const file = path.join(root, 'memory', 'MEMORY.md')
+  const current = await fs.readFile(file, 'utf8').catch(() => '')
+  const content = mergeMemory(current, params, stamp)
 
-  const content = `# Project Memory\n**Last updated:** ${today} at ${time}\n\n## Current state\n${currentState}\n\n## Just completed\n${justCompleted.map(i => `- ${i}`).join('\n') || '- (nothing this session)'}\n\n## Working on now\n${workingOn || '(nothing active)'}\n\n## Up next\n${upNext.map((item, i) => `${i + 1}. ${item}`).join('\n') || '1. (define next steps)'}\n\n## Active issues\n| Issue | Severity | Status |\n|-------|----------|--------|\n${issues.map(i => typeof i === 'string' ? `| ${i} | medium | open |` : `| ${i.issue} | ${i.severity || 'medium'} | ${i.status || 'open'} |`).join('\n') || '| None | — | — |'}\n\n## Recent decisions\n${decisions.map(d => `- ${d}`).join('\n') || '- (none this session)'}\n\n## Tech debt\n${techDebt.map(d => `- ${d}`).join('\n') || '- (none noted)'}\n\n## Handoff for next session\n${handoff}\n`
-
+  await snapshotMemory(root, actor, 'update')
   await fs.mkdir(path.join(root, 'memory'), { recursive: true })
-  await fs.writeFile(path.join(root, 'memory', 'MEMORY.md'), content, 'utf8')
+  await fs.writeFile(file, content, 'utf8')
 
+  const keys = passedKeys(params)
   await appendActivity(root, {
     type: 'memory_updated', actor,
     title: 'Session memory updated',
-    detail: handoff.slice(0, 120),
+    detail: params.handoff != null
+      ? String(params.handoff).slice(0, 120)
+      : `Updated: ${SECTIONS.filter(([k]) => keys.includes(k)).map(([, h]) => h).join(', ')}`,
   })
+}
+
+// ─── Memory history (R045) ────────────────────────────────────────────────────
+
+const MEMORY_HISTORY_DIR = path.join('.vibedoc', 'memory-history')
+const MEMORY_HISTORY_KEEP = 20
+const SNAPSHOT_ID = /^\d{8}T\d{9}Z-[\w:-]+$/
+const SNAPSHOT_HEADER = /^<!-- vibedoc-snapshot actor=(\S*) reason=(\S*) -->\r?\n/
+
+export type MemoryVersion = { id: string; at: string; actor: string; reason: string; bytes: number; excerpt: string }
+
+/** `20261003T154209123Z-ai` → `2026-10-03T15:42:09.123Z` */
+const snapshotAt = (id: string) => id.replace(/^(\d{4})(\d\d)(\d\d)T(\d\d)(\d\d)(\d\d)(\d{3})Z.*$/, '$1-$2-$3T$4:$5:$6.$7Z')
+
+/**
+ * Copies the current MEMORY.md (if any) to .vibedoc/memory-history/<stamp>-<actor>.md, keeping the 20 newest.
+ * ponytail: no lock — two concurrent writes can both snapshot the same base; add withMemoryLock if that matters.
+ */
+async function snapshotMemory(root: string, actor: 'ai' | 'human', reason: 'update' | 'restore'): Promise<string | null> {
+  const current = await fs.readFile(path.join(root, 'memory', 'MEMORY.md'), 'utf8').catch(() => null)
+  if (current === null) return null
+  const dir = path.join(root, MEMORY_HISTORY_DIR)
+  await fs.mkdir(dir, { recursive: true })
+  const who = actor === 'ai' ? 'ai' : 'human'
+  const body = `<!-- vibedoc-snapshot actor=${who} reason=${reason} -->\n${current}`
+  // same-millisecond writes: step the stamp forward instead of overwriting a snapshot
+  let id = ''
+  for (let t = Date.now(); ; t++) {
+    id = `${new Date(t).toISOString().replace(/[-:.]/g, '')}-${who}`
+    try {
+      await fs.writeFile(path.join(dir, `${id}.md`), body, { encoding: 'utf8', flag: 'wx' })
+      break
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e
+    }
+  }
+  const ids = await snapshotIds(root)
+  await Promise.all(ids.slice(MEMORY_HISTORY_KEEP).map(old => fs.rm(path.join(dir, `${old}.md`), { force: true })))
+  return id
+}
+
+/** Snapshot ids, newest first (the stamp prefix sorts by time). */
+async function snapshotIds(root: string): Promise<string[]> {
+  const names = await fs.readdir(path.join(root, MEMORY_HISTORY_DIR)).catch(() => [] as string[])
+  return names.filter(n => n.endsWith('.md')).map(n => n.slice(0, -3)).filter(id => SNAPSHOT_ID.test(id)).sort().reverse()
+}
+
+async function readSnapshot(id: string, root: string): Promise<{ actor: string; reason: string; content: string } | null> {
+  if (!SNAPSHOT_ID.test(id)) throw new RoadmapError('Invalid version id')
+  const raw = await fs.readFile(path.join(root, MEMORY_HISTORY_DIR, `${id}.md`), 'utf8').catch(() => null)
+  if (raw === null) return null
+  const h = SNAPSHOT_HEADER.exec(raw)
+  return { actor: h?.[1] ?? '', reason: h?.[2] ?? '', content: h ? raw.slice(h[0].length) : raw }
+}
+
+/** Saved MEMORY.md versions, newest first; `excerpt` = first non-empty line of that version's handoff. */
+export async function listMemoryVersions(root: string): Promise<MemoryVersion[]> {
+  const out: MemoryVersion[] = []
+  for (const id of await snapshotIds(root)) {
+    const snap = await readSnapshot(id, root)
+    if (!snap) continue
+    const handoff = parseMemory(snap.content).sections.find(s => s.heading.trim().toLowerCase() === 'handoff for next session')
+    const excerpt = handoff?.body.split(/\r?\n/).map(l => l.trim()).find(Boolean) ?? ''
+    out.push({ id, at: snapshotAt(id), actor: snap.actor, reason: snap.reason, bytes: Buffer.byteLength(snap.content), excerpt })
+  }
+  return out
+}
+
+/** A saved version's content (without the snapshot header); null when missing; RoadmapError on a malformed id. */
+export async function getMemoryVersion(id: string, root: string): Promise<string | null> {
+  return (await readSnapshot(id, root))?.content ?? null
+}
+
+/** Writes a saved version back to MEMORY.md, snapshotting the current file first (reason=restore) so it can be undone. */
+export async function restoreMemoryVersion(id: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<{ restoredFrom: string; newId: string | null }> {
+  const content = await getMemoryVersion(id, root)
+  if (content === null) throw new RoadmapError(`Version ${id} not found`, 404)
+  const newId = await snapshotMemory(root, actor, 'restore')
+  await fs.mkdir(path.join(root, 'memory'), { recursive: true })
+  await fs.writeFile(path.join(root, 'memory', 'MEMORY.md'), content, 'utf8')
+  const at = snapshotAt(id)
+  await appendActivity(root, { type: 'memory_updated', actor, title: `Restored MEMORY.md from ${at}` })
+  return { restoredFrom: at, newId }
 }
 
 // ─── Knowledge entries (R046) ─────────────────────────────────────────────────

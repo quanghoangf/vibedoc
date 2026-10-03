@@ -112,16 +112,42 @@ Delete an entry that is wrong or no longer true. The file is removed; git keeps 
 ### `vibedoc_update_memory`
 Update `MEMORY.md` with a session summary. Call at the **end** of every session so the next agent has context.
 
+**Partial update (R045).** Only the sections you pass are rewritten; every other section — including hand-written ones such as `## Key conventions` — and the text above the first `##` stay byte-identical. All fields are optional, but pass at least one: none → error `Nothing to update: pass at least one of …`, nothing written. A field set to `null` or left out counts as not passed.
+
+| Parameter | Type | Section it replaces | Rendered as |
+|-----------|------|---------------------|-------------|
+| `currentState` | string | `## Current state` | the text |
+| `justCompleted` | string[] | `## Just completed` | `- ` bullets (empty → `- (nothing this session)`) |
+| `workingOn` | string | `## Working on now` | the text (empty → `(nothing active)`) |
+| `upNext` | string[] | `## Up next` | `1.` numbered list (empty → `1. (define next steps)`) |
+| `issues` | (string \| `{issue, severity?, status?}`)[] | `## Active issues` | table; severity default `medium`, status default `open` |
+| `decisions` | string[] | `## Recent decisions` | `- ` bullets (empty → `- (none this session)`) |
+| `techDebt` | string[] | `## Tech debt` | `- ` bullets (empty → `- (none noted)`) |
+| `handoff` | string | `## Handoff for next session` | the text |
+
+- Headings match case-insensitively. A missing section is inserted in the order above (after the nearest earlier one, else before the nearest later one, else at the end).
+- `## ` lines inside a passed value become `### `, so a value can't open a section of its own (lines inside ``` fences are left alone).
+- `**Last updated:**` is set to the current date and time (inserted under the H1 when missing). No MEMORY.md yet → the full template is written, with placeholders for the fields you didn't pass.
+- Before writing, the current file is saved as a version — see [`vibedoc_memory_history`](#vibedoc_memory_history).
+
+**Returns:** `🧠 MEMORY.md updated`
+
+---
+
+### `vibedoc_memory_history`
+Earlier versions of `MEMORY.md`. Every write (`vibedoc_update_memory`, `POST /api/memory`, a restore) first copies the current file to `.vibedoc/memory-history/<stamp>-<actor>.md`; the **20** newest are kept, older ones are deleted.
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `currentState` | string | ✅ | One-paragraph summary of where things stand |
-| `handoff` | string | ✅ | What the next session should do first |
-| `justCompleted` | string[] | | List of things finished this session |
-| `workingOn` | string | | What is currently in progress |
-| `upNext` | string[] | | Ordered list of next tasks |
-| `issues` | string[] | | Open issues or blockers |
-| `decisions` | string[] | | Key decisions made |
-| `techDebt` | string[] | | New tech debt introduced |
+| `id` | string | | Version id from the list, e.g. `20261003T154209123Z-ai`. Omit to list |
+| `restore` | boolean | | With `id`: write that version back to `MEMORY.md` |
+
+**Returns:**
+- No `id` → one line per version, newest first (at most 20): `<id> · <ISO time> · ai|human · update|restore · <first line of that version's handoff>`, or `No saved versions of MEMORY.md yet.`
+- `id` → that version's full content. Unknown or malformed id → `Version <id> not found`.
+- `id` + `restore: true` → `Restored MEMORY.md to <ISO time>; the replaced version is <new id>`. The file being replaced is saved first (reason `restore`), so restoring `<new id>` undoes it. Emits `memory_updated`, so an open `/memory` page updates live.
+
+The Memory tab shows the same list under **History (N)**: a line diff from the current file to the chosen version, **Restore this version**, and an Undo toast.
 
 ---
 

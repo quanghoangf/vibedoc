@@ -112,7 +112,7 @@ Delete an entry that is wrong or no longer true. The file is removed; git keeps 
 ```
 
 ### `vibedoc_update_memory` ⚡ triggers real-time UI update
-Write session summary to `memory/MEMORY.md`. **Call at end of every session.**
+Write session summary to `memory/MEMORY.md`. **Call at end of every session.** Only the sections you pass are rewritten (R045); other sections, hand-written ones included, are kept byte-identical. All fields optional, at least one required. Field → section: `currentState` → Current state · `justCompleted` → Just completed · `workingOn` → Working on now · `upNext` → Up next · `issues` → Active issues · `decisions` → Recent decisions · `techDebt` → Tech debt · `handoff` → Handoff for next session. The old file is saved first (see `vibedoc_memory_history`). Details: [mcp-tools.md](../../mcp-tools.md#vibedoc_update_memory).
 ```json
 {
   "name": "vibedoc_update_memory",
@@ -124,6 +124,12 @@ Write session summary to `memory/MEMORY.md`. **Call at end of every session.**
     "handoff": "App is running and the 4 main tabs work. Next priority is T004 (doc editor) — add a textarea edit mode to the doc viewer. File is src/app/page.tsx, look for the selectedDoc panel."
   }
 }
+```
+
+### `vibedoc_memory_history` ⚡ restore triggers real-time UI update
+Earlier versions of MEMORY.md, saved to `.vibedoc/memory-history/` before every write (the 20 newest are kept). No `id` → list, newest first (`<id> · <time> · ai|human · update|restore · <handoff excerpt>`); `id` → that version's content; `id` + `restore: true` → write it back. The replaced file is saved first, so restoring the returned id undoes it.
+```json
+{ "name": "vibedoc_memory_history", "arguments": { "id": "20261003T154209123Z-ai", "restore": true } }
 ```
 
 ---

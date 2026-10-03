@@ -35,6 +35,9 @@ import {
   claimNextTask,
   logDecision,
   updateMemory,
+  listMemoryVersions,
+  getMemoryVersion,
+  restoreMemoryVersion,
   saveEntry,
   deleteEntry,
   sessionStartMemory,
@@ -293,7 +296,7 @@ const TOOLS = [
   {
     name: "vibedoc_update_memory",
     description:
-      "Update MEMORY.md with session summary. Call at END of every session. Durable facts (conventions, gotchas, decisions, preferences) go to vibedoc_save_entry, not the handoff.",
+      "Update MEMORY.md with session summary. Call at END of every session. Only the sections you pass are rewritten; other sections (including hand-written ones) are kept. Durable facts (conventions, gotchas, decisions, preferences) go to vibedoc_save_entry, not the handoff.",
     inputSchema: {
       type: "object",
       properties: {
@@ -301,12 +304,33 @@ const TOOLS = [
         justCompleted: { type: "array", items: { type: "string" } },
         workingOn: { type: "string" },
         upNext: { type: "array", items: { type: "string" } },
-        issues: { type: "array", items: { type: "string" } },
+        issues: {
+          type: "array",
+          items: {
+            oneOf: [
+              { type: "string" },
+              { type: "object", properties: { issue: { type: "string" }, severity: { type: "string" }, status: { type: "string" } }, required: ["issue"] },
+            ],
+          },
+        },
         decisions: { type: "array", items: { type: "string" } },
         techDebt: { type: "array", items: { type: "string" } },
         handoff: { type: "string" },
       },
-      required: ["currentState", "handoff"],
+      required: [],
+    },
+  },
+  {
+    name: "vibedoc_memory_history",
+    description:
+      "Earlier versions of MEMORY.md (a copy is saved before every write). No id → list (newest first); id → that version's content; id + restore: true → write it back (the current file is saved first, so a restore is undoable).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Version id from the list, e.g. 20261003T154209123Z-ai" },
+        restore: { type: "boolean", description: "With id: restore that version" },
+      },
+      required: [],
     },
   },
   {
@@ -911,6 +935,22 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       );
       emitUpdate("memory_updated", { root });
       return `🧠 MEMORY.md updated`;
+    }
+
+    case "vibedoc_memory_history": {
+      const vid = typeof args.id === "string" ? args.id.trim() : "";
+      if (!vid) {
+        const versions = (await listMemoryVersions(root)).slice(0, 20);
+        if (!versions.length) return "No saved versions of MEMORY.md yet.";
+        return versions.map((v) => `${v.id} · ${v.at} · ${v.actor} · ${v.reason} · ${v.excerpt}`).join("\n");
+      }
+      // a malformed id throws in core; to the agent it is just as missing
+      const content = await getMemoryVersion(vid, root).catch(() => null);
+      if (content === null) return `Version ${vid} not found`;
+      if (args.restore !== true) return content;
+      const { restoredFrom, newId } = await restoreMemoryVersion(vid, root, "ai");
+      emitUpdate("memory_updated", { root });
+      return `Restored MEMORY.md to ${restoredFrom}; the replaced version is ${newId ?? "(none — there was no MEMORY.md)"}`;
     }
 
     case "vibedoc_save_entry": {

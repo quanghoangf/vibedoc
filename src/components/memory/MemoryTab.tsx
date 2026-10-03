@@ -7,8 +7,9 @@ import { EntryRelated } from "./EntryRelated"
 import { EntryHistory } from "./EntryHistory"
 import { MemoryGraph } from "./MemoryGraph"
 import { CleanupPanel } from "./CleanupPanel"
+import { MemoryHistory } from "./MemoryHistory"
 import type { MergeInput } from "./MergeDialog"
-import type { CleanupFlag } from "@/lib/core"
+import type { CleanupFlag, MemoryVersion } from "@/lib/core"
 import { cn } from "@/lib/utils"
 import { AlertTriangle } from "lucide-react"
 
@@ -37,9 +38,16 @@ interface MemoryTabProps {
   onMerge: (input: MergeInput) => Promise<string | null>
   /** Delete from a "Not recalled lately" row; the Cleanup panel stays open */
   onDeleteStale: (id: string) => void
+  /** Saved MEMORY.md versions (null while loading) */
+  versions: MemoryVersion[] | null
+  /** The history pane is open (?history=1) and its selected version (?version=) */
+  history: boolean
+  versionId: string | null
+  onHistory: (open: boolean, versionId?: string | null) => void
+  onRestore: (version: MemoryVersion) => Promise<void>
 }
 
-export function MemoryTab({ memory, entries, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved, onDelete, view, onView, flags, cleanup, onCleanup, onDismiss, onMerge, onDeleteStale }: MemoryTabProps) {
+export function MemoryTab({ memory, entries, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved, onDelete, view, onView, flags, cleanup, onCleanup, onDismiss, onMerge, onDeleteStale, versions, history, versionId, onHistory, onRestore }: MemoryTabProps) {
   const selected = selectedId ? entries?.find((e) => e.id === selectedId) : undefined
   const open = flags?.filter((f) => !f.dismissed) ?? []
   const warn = open.some((f) => f.severity === "warn")
@@ -112,12 +120,36 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
         </div>
       ) : (
         <div className="min-w-0">
-          <div className="flex items-baseline justify-between mb-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <h2 className="font-display text-base font-semibold tracking-tight">Session handoff</h2>
-            <span className="text-xs font-mono text-muted">memory/MEMORY.md</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-mono text-muted">memory/MEMORY.md</span>
+              <button
+                type="button"
+                aria-pressed={history}
+                onClick={() => onHistory(!history)}
+                className={cn(
+                  "flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-medium text-muted outline-none transition-colors duration-(--duration-fast)",
+                  "hover:border-border2 hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent",
+                  history && "border-border2 bg-surface2 text-txt",
+                )}
+              >
+                History <span className="font-mono text-[11px]">({versions?.length ?? "…"})</span>
+              </button>
+            </div>
           </div>
 
-          {memory?.exists ? (
+          {history ? (
+            <MemoryHistory
+              versions={versions}
+              current={memory?.exists ? memory.content : ""}
+              rootParam={rootParam}
+              selectedId={versionId}
+              onSelect={(id) => onHistory(true, id)}
+              onClose={() => onHistory(false)}
+              onRestore={onRestore}
+            />
+          ) : memory?.exists ? (
             <div className="bg-surface border border-border rounded-xl p-5">
               <MarkdownRenderer content={memory.content} />
             </div>

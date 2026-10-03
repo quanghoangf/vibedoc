@@ -36,6 +36,24 @@ export function lineDiff(before: string, after: string): DiffLine[] {
   ]
 }
 
+const CONTEXT = 2
+
+// Keep changed lines plus CONTEXT lines around them; collapse the rest into a count.
+export function visibleHunks(lines: DiffLine[]): (DiffLine | number)[] {
+  const keep = lines.map(() => false)
+  lines.forEach((l, i) => {
+    if (l.op === " ") return
+    for (let k = Math.max(0, i - CONTEXT); k <= Math.min(lines.length - 1, i + CONTEXT); k++) keep[k] = true
+  })
+  const out: (DiffLine | number)[] = []
+  lines.forEach((l, i) => {
+    if (keep[i]) out.push(l)
+    else if (typeof out[out.length - 1] === "number") out[out.length - 1] = (out[out.length - 1] as number) + 1
+    else out.push(1)
+  })
+  return out
+}
+
 export type TextEdit = { old_string: string; new_string: string }
 
 // Same contract as Claude Code's Edit tool: each old_string must match exactly once, applied in order.

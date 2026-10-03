@@ -6,7 +6,7 @@ import { useApp } from "@/context/AppContext"
 import { MemoryTab } from "@/components/memory/MemoryTab"
 import { toast, undoToast } from "@/components/ui/toast"
 import type { Entry } from "@/lib/entries"
-import type { CleanupFlag } from "@/lib/core"
+import type { CleanupFlag, MemoryVersion } from "@/lib/core"
 import type { MergeInput } from "@/components/memory/MergeDialog"
 
 export default function MemoryPage() {
@@ -18,16 +18,19 @@ export default function MemoryPage() {
 }
 
 function MemoryPageInner() {
-  const { summary, rootParam } = useApp()
+  const { summary, rootParam, refresh } = useApp()
   const router = useRouter()
   // ?entry=E012 is the open entry and ?view=graph the Graph view, so a link or a reload keeps both
   const params = useSearchParams()
   const selectedId = params.get("entry")
   const view = params.get("view") === "graph" ? "graph" : "list"
   const cleanup = params.get("cleanup") === "1"
+  const history = params.get("history") === "1"
+  const versionId = history ? params.get("version") : null
   const [entries, setEntries] = useState<Entry[] | null>(null)
   const [creating, setCreating] = useState(false)
   const [flags, setFlags] = useState<CleanupFlag[] | null>(null)
+  const [versions, setVersions] = useState<MemoryVersion[] | null>(null)
 
   const load = useCallback(() => {
     let live = true
@@ -43,6 +46,20 @@ function MemoryPageInner() {
 
   // AppContext replaces `summary` on every memory_updated SSE event, so refetch the entries with it
   useEffect(() => load(), [load, summary])
+
+  // MEMORY.md versions (R045); refetched with `summary` too, so an agent's handoff shows up while the list is open
+  const loadVersions = useCallback(() => {
+    let live = true
+    fetch(`/api/memory/versions${rootParam}`)
+      .then((r) => r.json())
+      .then((d: unknown) => { if (live) setVersions(Array.isArray(d) ? d : []) })
+      .catch((e) => {
+        console.warn("Loading memory versions failed", e)
+        if (live) setVersions([])
+      })
+    return () => { live = false }
+  }, [rootParam])
+  useEffect(() => loadVersions(), [loadVersions, summary])
 
   // Health flags (incl. dismissed) for the Cleanup count + panel; they depend on the board and roadmap too
   const loadFlags = useCallback(() => {
@@ -77,11 +94,14 @@ function MemoryPageInner() {
     }
   }, [rootParam, loadFlags])
 
-  const go = useCallback((entry: string | null, v: "list" | "graph", withCleanup = false) => {
+  // hist: undefined = history closed, null = the list, an id = that version
+  const go = useCallback((entry: string | null, v: "list" | "graph", withCleanup = false, hist?: string | null) => {
     const q = new URLSearchParams()
     if (v === "graph") q.set("view", "graph")
     if (entry) q.set("entry", entry)
     if (withCleanup) q.set("cleanup", "1")
+    if (hist !== undefined) q.set("history", "1")
+    if (hist) q.set("version", hist)
     router.replace(q.size ? `/memory?${q}` : "/memory", { scroll: false })
   }, [router])
   const select = useCallback((id: string | null) => {
@@ -144,6 +164,25 @@ function MemoryPageInner() {
     }
   }, [post, select, load])
 
+  // Restore writes the version back; the API snapshots the replaced file first and returns its id, so Undo restores that
+  const restoreVersion = useCallback(async (version: MemoryVersion) => {
+    try {
+      const { replacedId } = await post("/api/memory/restore", { id: version.id })
+      go(null, view)
+      await refresh()
+      loadVersions()
+      const undo = async () => {
+        await post("/api/memory/restore", { id: replacedId })
+        await refresh()
+        loadVersions()
+      }
+      if (replacedId) undoToast("Restored MEMORY.md", undo)
+      else toast("Restored MEMORY.md")
+    } catch (e) {
+      toast(`Restore failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }, [post, go, view, refresh, loadVersions])
+
   return (
     <MemoryTab
       memory={summary?.memory ?? null}
@@ -163,6 +202,11 @@ function MemoryPageInner() {
       onDismiss={dismiss}
       onMerge={merge}
       onDeleteStale={removeStale}
+      versions={versions}
+      history={history}
+      versionId={versionId}
+      onHistory={(open, id) => go(null, view, false, open ? id ?? null : undefined)}
+      onRestore={restoreVersion}
       onSaved={(entry) => {
         // show the saved text now; the SSE refetch confirms it
         setEntries((list) => [...(list ?? []).filter((e) => e.id !== entry.id), entry])
