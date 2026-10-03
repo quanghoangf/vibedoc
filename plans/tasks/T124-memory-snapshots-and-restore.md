@@ -1,5 +1,6 @@
 # T124: Snapshot MEMORY.md before each write + restore
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Done:** 2026-10-03
 **Phase:** R045 — Safe memory updates
 **Size:** M (2–3 hrs)
 **Depends on:** T123
@@ -14,23 +15,23 @@ Every write to MEMORY.md first saves the version it replaces, so you can bring b
 - Project rules: only `src/lib/core.ts` touches fs; `emitUpdate()` is called from API routes only. CLAUDE.md lists every file VibeDoc writes, so add this folder to that list.
 
 ## Scope
-- [ ] In `core.ts`, a `snapshotMemory(root, actor, reason)` helper:
-  - [ ] Copies the current MEMORY.md, when one exists, to `.vibedoc/memory-history/<YYYYMMDDTHHMMSSmmmZ>-<actor>.md`.
-  - [ ] Prepends a one-line HTML comment header: `<!-- vibedoc-snapshot actor=ai reason=update -->`.
-  - [ ] Prunes to the 20 newest.
-- [ ] Call `snapshotMemory` from `updateMemory()` before every write.
-- [ ] `listMemoryVersions(root)` → `{ id, at, actor, reason, bytes, excerpt }[]`, newest first. `excerpt` is the first line of that version's handoff section.
-- [ ] `getMemoryVersion(id, root)` → the content without the header line.
-- [ ] `restoreMemoryVersion(id, root, actor)`:
-  - [ ] Validates the id with `/^\d{8}T\d{9}Z-[\w:-]+$/`, so no path traversal.
-  - [ ] Snapshots the current file with `reason=restore`, then writes the old content.
-  - [ ] Appends a `memory_updated` activity entry, "Restored MEMORY.md from <at>".
-- [ ] Routes:
-  - [ ] `GET /api/memory/versions` → the list; `?id=` → `{ content }`.
-  - [ ] `POST /api/memory/restore {id}` → `{ ok, restoredFrom }` and `emitUpdate('memory_updated')`.
-  - [ ] Unknown or invalid id → 404 / 400.
-- [ ] Add `/.vibedoc/memory-history/` to `.gitignore`, next to `/.vibedoc/episodes/`.
-- [ ] Add the folder to CLAUDE.md's "VibeDoc writes only …" list.
+- [x] In `core.ts`, a `snapshotMemory(root, actor, reason)` helper:
+  - [x] Copies the current MEMORY.md, when one exists, to `.vibedoc/memory-history/<YYYYMMDDTHHMMSSmmmZ>-<actor>.md`.
+  - [x] Prepends a one-line HTML comment header: `<!-- vibedoc-snapshot actor=ai reason=update -->`.
+  - [x] Prunes to the 20 newest.
+- [x] Call `snapshotMemory` from `updateMemory()` before every write.
+- [x] `listMemoryVersions(root)` → `{ id, at, actor, reason, bytes, excerpt }[]`, newest first. `excerpt` is the first line of that version's handoff section.
+- [x] `getMemoryVersion(id, root)` → the content without the header line.
+- [x] `restoreMemoryVersion(id, root, actor)`:
+  - [x] Validates the id with `/^\d{8}T\d{9}Z-[\w:-]+$/`, so no path traversal.
+  - [x] Snapshots the current file with `reason=restore`, then writes the old content.
+  - [x] Appends a `memory_updated` activity entry, "Restored MEMORY.md from <at>".
+- [x] Routes:
+  - [x] `GET /api/memory/versions` → the list; `?id=` → `{ content }`.
+  - [x] `POST /api/memory/restore {id}` → `{ ok, restoredFrom }` and `emitUpdate('memory_updated')`.
+  - [x] Unknown or invalid id → 404 / 400.
+- [x] Add `/.vibedoc/memory-history/` to `.gitignore`, next to `/.vibedoc/episodes/`.
+- [x] Add the folder to CLAUDE.md's "VibeDoc writes only …" list.
 
 **Out of scope:** the MCP tool (T125), the UI (T126), snapshotting hand edits made outside VibeDoc (we only see our own writes).
 
@@ -45,11 +46,11 @@ Every write to MEMORY.md first saves the version it replaces, so you can bring b
 - Put the snapshot write inside the same function as the write; the existing code has no lock, so don't add one. Add a `ponytail:` comment saying two concurrent writes can both snapshot the same base.
 
 ## Acceptance criteria
-- [ ] Three `vibedoc_update_memory` calls → 3 snapshot files. The newest snapshot equals the file as it was before the third call.
-- [ ] A 21st write leaves 20 files, and the oldest is gone.
-- [ ] `POST /api/memory/restore {id}` makes MEMORY.md equal that version, and also creates a `reason=restore` snapshot of the file that was replaced.
-- [ ] `POST /api/memory/restore {id:"../../etc/passwd"}` → 400; nothing is read or written.
-- [ ] No MEMORY.md yet → the first write creates no snapshot and no error.
+- [x] Three `vibedoc_update_memory` calls → 3 snapshot files. The newest snapshot equals the file as it was before the third call.
+- [x] A 21st write leaves 20 files, and the oldest is gone.
+- [x] `POST /api/memory/restore {id}` makes MEMORY.md equal that version, and also creates a `reason=restore` snapshot of the file that was replaced.
+- [x] `POST /api/memory/restore {id:"../../etc/passwd"}` → 400; nothing is read or written.
+- [x] No MEMORY.md yet → the first write creates no snapshot and no error.
 
 ## Verify
 ```bash
