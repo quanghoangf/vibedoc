@@ -8,9 +8,10 @@ export async function POST(req: NextRequest) {
   try {
     const root = rootOf(req)
     const { id, actor } = await jsonBody(req)
-    const { restoredFrom } = await restoreMemoryVersion(String(id ?? ''), root, actor === 'ai' ? 'ai' : 'human')
+    const { restoredFrom, newId } = await restoreMemoryVersion(String(id ?? ''), root, actor === 'ai' ? 'ai' : 'human')
     emitUpdate('memory_updated', { root })
-    return NextResponse.json({ ok: true, restoredFrom })
+    // replacedId = the snapshot of the file this replaced; restoring it is the Undo
+    return NextResponse.json({ ok: true, restoredFrom, replacedId: newId })
   } catch (e) {
     return errorResponse(e)
   }

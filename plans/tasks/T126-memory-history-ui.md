@@ -1,5 +1,6 @@
 # T126: Version history + diff + Restore on /memory
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Done:** 2026-10-03
 **Phase:** R045 — Safe memory updates
 **Size:** M (2–3 hrs)
 **Depends on:** T124
@@ -20,12 +21,12 @@ On `/memory`, a person sees the earlier versions of the handoff: when each was s
 - Never use `localStorage`. URL state follows `?entry=` (e.g. `?history=1`, `?version=<id>`).
 
 ## Scope
-- [ ] A "History (N)" button in the handoff header; `?history=1` opens the list in place of the rendered handoff.
-- [ ] Each row: relative time (absolute in the `title`), `OwnerChip` for the actor, reason (update / restore) and the handoff excerpt.
-- [ ] Selecting a row (`?version=`) shows a line diff of that version against the current file, with a "Restore this version" button.
-- [ ] Restore → `POST /api/memory/restore`, then `undoToast("Restored MEMORY.md", …)`. Undo restores the `reason=restore` snapshot the call just created, so the API should return its id.
-- [ ] Refresh live when a `memory_updated` SSE event arrives (an agent writes while the list is open).
-- [ ] Empty state: "No earlier versions yet. VibeDoc saves one before each handoff."
+- [x] A "History (N)" button in the handoff header; `?history=1` opens the list in place of the rendered handoff.
+- [x] Each row: relative time (absolute in the `title`), `OwnerChip` for the actor, reason (update / restore) and the handoff excerpt.
+- [x] Selecting a row (`?version=`) shows a line diff of that version against the current file, with a "Restore this version" button.
+- [x] Restore → `POST /api/memory/restore`, then `undoToast("Restored MEMORY.md", …)`. Undo restores the `reason=restore` snapshot the call just created, so the API should return its id.
+- [x] Refresh live when a `memory_updated` SSE event arrives (an agent writes while the list is open).
+- [x] Empty state: "No earlier versions yet. VibeDoc saves one before each handoff."
 
 **Out of scope:** editing MEMORY.md in the UI; snapshots of edits made outside VibeDoc.
 
@@ -35,11 +36,11 @@ On `/memory`, a person sees the earlier versions of the handoff: when each was s
 - `src/app/api/memory/restore/route.ts`: return `{ ok, restoredFrom, replacedId }` if T124 didn't already
 
 ## Acceptance criteria
-- [ ] After two agent handoffs, History lists 2 versions newest first, and the diff marks the changed handoff lines in +/−.
-- [ ] Restore puts the old handoff back in the rendered view without a reload; Undo brings the newer one back.
-- [ ] Keyboard: rows are buttons and can be reached with Tab; Esc closes the history pane.
-- [ ] Works at 390px wide with no horizontal scroll, in dark and light.
-- [ ] No new lint errors above the current baseline.
+- [x] After two agent handoffs, History lists 2 versions newest first, and the diff marks the changed handoff lines in +/−.
+- [x] Restore puts the old handoff back in the rendered view without a reload; Undo brings the newer one back.
+- [x] Keyboard: rows are buttons and can be reached with Tab; Esc closes the history pane.
+- [x] Works at 390px wide with no horizontal scroll, in dark and light.
+- [x] No new lint errors above the current baseline.
 
 ## Verify
 ```bash
