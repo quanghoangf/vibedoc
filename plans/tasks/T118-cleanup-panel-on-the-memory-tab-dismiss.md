@@ -51,12 +51,12 @@ curl -s localhost:3000/api/memory/health
 ## Manual tests
 _2026-10-03 — ai_
 ### Steps
-- [ ] Put a done task id under `## Working on now` in `memory/MEMORY.md`, open `/memory` → header shows "Cleanup (1)" with an amber warning icon
-- [ ] Click Cleanup → right pane lists the flag under "Contradicts the board"; click the task id in the row → `/board?task=<id>` opens that task
-- [ ] Back on `/memory?cleanup=1`, click Dismiss → row disappears, "Memory looks clean", `memory/.cleanup.json` holds the flag id with today's date
-- [ ] Reload the page → flag still hidden; call `vibedoc_read_memory` → no "Memory warnings" line for that task
-- [ ] With the panel open in one tab, move another task named under Working on to Done on `/board` in a second tab → its row appears in the first tab without a reload
-- [ ] Tick "Show dismissed" → the dismissed flag shows greyed out with "dismissed YYYY-MM-DD" and no Dismiss button
+- [x] Put a done task id under `## Working on now` in `memory/MEMORY.md`, open `/memory` → header shows "Cleanup (1)" with an amber warning icon
+- [x] Click Cleanup → right pane lists the flag under "Contradicts the board"; click the task id in the row → `/board?task=<id>` opens that task
+- [x] Back on `/memory?cleanup=1`, click Dismiss → row disappears, "Memory looks clean", `memory/.cleanup.json` holds the flag id with today's date
+- [x] Reload the page → flag still hidden; call `vibedoc_read_memory` → no "Memory warnings" line for that task
+- [x] With the panel open in one tab, move another task named under Working on to Done on `/board` in a second tab → its row appears in the first tab without a reload
+- [x] Tick "Show dismissed" → the dismissed flag shows greyed out with "dismissed YYYY-MM-DD" and no Dismiss button
 ### Regression risk
-- [ ] Memory tab List/Graph toggle, opening an entry and New entry still work; opening an entry closes the Cleanup panel
-- [ ] Session start (`vibedoc_read_memory`) still shows warnings for flags that are not dismissed
+- [x] Memory tab List/Graph toggle, opening an entry and New entry still work; opening an entry closes the Cleanup panel
+- [x] Session start (`vibedoc_read_memory`) still shows warnings for flags that are not dismissed
