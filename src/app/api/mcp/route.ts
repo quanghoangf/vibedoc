@@ -43,6 +43,7 @@ import {
   recallEntries,
   relatedEntries,
   getEntriesByIds,
+  markEntriesRecalled,
   getMemoryGraph,
   noteDocEdit,
   setDocProperties,
@@ -942,6 +943,8 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       if (!ids.length) throw new Error('ids must be a non-empty array, e.g. { "ids": ["E001"] }');
       if (ids.length > MAX_ENTRY_IDS) throw new Error(`Too many ids (${ids.length}); fetch at most ${MAX_ENTRY_IDS} per call and split the rest`);
       const [{ found, missing }, graph] = await Promise.all([getEntriesByIds(ids, root), getMemoryGraph(root)]);
+      // R051: a full-body fetch is what counts as "recalled" (not recall lists or the session index)
+      if (await markEntriesRecalled(found.map((e) => e.id), root)) emitUpdate("memory_updated", { root });
       const blocks = found.map((e) => {
         const links = formatEntryLinks(graph, e.id);
         return `## ${e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.body ? `\n\n${e.body}` : ""}` +

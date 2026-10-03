@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, Info } from "lucide-react"
+import { AlertTriangle, Info, Trash2 } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { displayStatus } from "@/lib/statuses"
@@ -20,7 +20,7 @@ const GROUPS: { kind: HealthKind; label: string }[] = [
 ]
 
 /** Memory health flags (R051), grouped by kind. Dismiss hides a flag until its id changes (memory/.cleanup.json). */
-export function CleanupPanel({ flags, entries, onDismiss, onMerge, onOpenEntry, onClose }: {
+export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onOpenEntry, onClose }: {
   /** null while loading; includes dismissed flags (marked `dismissed`) */
   flags: CleanupFlag[] | null
   /** for entry summaries next to their ids */
@@ -28,6 +28,8 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onOpenEntry, 
   onDismiss: (flag: CleanupFlag) => void
   /** Approve a suggested merge; returns an error message, or null on success */
   onMerge: (input: MergeInput) => Promise<string | null>
+  /** Delete a stale entry now (Undo toast, no confirm) */
+  onDelete: (id: string) => void
   onOpenEntry: (id: string) => void
   onClose: () => void
 }) {
@@ -87,6 +89,16 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onOpenEntry, 
             className="h-6 shrink-0 rounded-md border border-border px-2 text-xs text-txt outline-none transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
           >
             Merge…
+          </button>
+        )}
+        {f.suggestion?.action === "delete" && !f.dismissed && (
+          <button
+            type="button"
+            onClick={() => f.suggestion?.ids.forEach(onDelete)}
+            aria-label={`Delete ${f.suggestion.ids.join(", ")}`}
+            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs text-txt outline-none transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 hover:text-danger focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Trash2 className="size-3" aria-hidden /> Delete
           </button>
         )}
         {f.dismissed ? (

@@ -35,9 +35,11 @@ interface MemoryTabProps {
   onCleanup: (open: boolean) => void
   onDismiss: (flag: CleanupFlag) => void
   onMerge: (input: MergeInput) => Promise<string | null>
+  /** Delete from a "Not recalled lately" row; the Cleanup panel stays open */
+  onDeleteStale: (id: string) => void
 }
 
-export function MemoryTab({ memory, entries, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved, onDelete, view, onView, flags, cleanup, onCleanup, onDismiss, onMerge }: MemoryTabProps) {
+export function MemoryTab({ memory, entries, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved, onDelete, view, onView, flags, cleanup, onCleanup, onDismiss, onMerge, onDeleteStale }: MemoryTabProps) {
   const selected = selectedId ? entries?.find((e) => e.id === selectedId) : undefined
   const open = flags?.filter((f) => !f.dismissed) ?? []
   const warn = open.some((f) => f.severity === "warn")
@@ -101,7 +103,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
         </div>
       ) : cleanup ? (
         <div className="min-w-0 lg:sticky lg:top-6">
-          <CleanupPanel flags={flags} entries={entries} onDismiss={onDismiss} onMerge={onMerge} onOpenEntry={onOpen} onClose={() => onCleanup(false)} />
+          <CleanupPanel flags={flags} entries={entries} onDismiss={onDismiss} onMerge={onMerge} onDelete={onDeleteStale} onOpenEntry={onOpen} onClose={() => onCleanup(false)} />
         </div>
       ) : selectedId && entries ? (
         <div role="alert" className="min-w-0 rounded-xl border border-dashed border-border p-5 text-sm text-muted">

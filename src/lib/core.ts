@@ -25,7 +25,7 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallHit } from './recall'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
-import { findContradictions, findDuplicates, formatHealthWarnings, type HealthFlag } from './memory-health'
+import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1021,6 +1021,35 @@ export async function getEntriesByIds(ids: string[], root: string): Promise<{ fo
   return { found, missing }
 }
 
+const RECALL_LOG_FILE = path.join('memory', '.recall-log.json')
+
+/** `memory/.recall-log.json` (entry id → YYYY-MM-DD last fetched by vibedoc_get_entries); missing or invalid → {}. */
+export async function readRecallLog(root: string): Promise<RecallLog> {
+  try {
+    const d = JSON.parse(await fs.readFile(path.join(root, RECALL_LOG_FILE), 'utf-8')) as unknown
+    if (d && typeof d === 'object' && !Array.isArray(d)) {
+      return Object.fromEntries(Object.entries(d).filter((kv): kv is [string, string] => typeof kv[1] === 'string'))
+    }
+  } catch { /* missing or unreadable → never recalled */ }
+  return {}
+}
+
+const writeRecallLog = async (root: string, log: RecallLog) => {
+  const file = path.join(root, RECALL_LOG_FILE)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, JSON.stringify(log, null, 2) + '\n', 'utf-8')
+}
+
+/** Stamp today on each id (R051). Writes only when a date changes, so at most once per id per day. Returns whether it wrote. */
+export function markEntriesRecalled(ids: string[], root: string): Promise<boolean> {
+  if (!ids.length) return Promise.resolve(false)
+  return withEntryLock(async () => {
+    const next = markRecalled(await readRecallLog(root), ids, localToday())
+    if (next) await writeRecallLog(root, next)
+    return !!next
+  })
+}
+
 /**
  * What an agent reads at session start: MEMORY.md + the newest episode newer than it (R050) + the entry index,
  * capped at `memory.sessionBudgetTokens` (R048).
@@ -1049,17 +1078,18 @@ export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>
 export type CleanupFlag = HealthFlag & { dismissed?: string }
 
 /**
- * Handoff/board contradictions, dangling ids in MEMORY.md and the entries, and duplicate entries (R051). Pure rules in src/lib/memory-health.ts.
+ * Handoff/board contradictions, dangling ids in MEMORY.md and the entries, duplicate entries and entries not recalled lately (R051). Pure rules in src/lib/memory-health.ts.
  * Dismissed flags are left out unless `includeDismissed` (the panel's "Show dismissed").
  */
 export async function getMemoryHealth(root: string, opts: { includeDismissed?: boolean } = {}): Promise<CleanupFlag[]> {
-  const [memory, entries, { tasks }, { items }, { dismissed }] = await Promise.all([
-    readMemory(root), listEntries(root), listTasks(root), listRoadmap(root), readCleanupState(root),
+  const [memory, entries, { tasks }, { items }, { dismissed }, recallLog] = await Promise.all([
+    readMemory(root), listEntries(root), listTasks(root), listRoadmap(root), readCleanupState(root), readRecallLog(root),
   ])
   const board = [...tasks, ...items].map(({ id, status }) => ({ id, status }))
   const flags = [
     ...findContradictions(memory.exists ? memory.content : '', entries, board, t => extractRefs(t).ids),
     ...findDuplicates(entries, tokenize),
+    ...findStale(entries, recallLog, localToday()),
   ]
   return opts.includeDismissed
     ? flags.map(f => (dismissed[f.id] ? { ...f, dismissed: dismissed[f.id] } : f))
@@ -1182,6 +1212,9 @@ export function deleteEntry(id: string, root: string, actor: 'ai' | 'human' = 'h
     if (!entry) throw new Error(`Entry ${norm} not found`)
     const raw = await fs.readFile(path.join(root, entry.file), 'utf8')
     await fs.rm(path.join(root, entry.file))
+    // drop the id from the recall log so it doesn't fill up with dead ids; restore doesn't re-add it
+    const log = await readRecallLog(root)
+    if (norm in log) { delete log[norm]; await writeRecallLog(root, sortedLog(log)) }
     await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${norm} deleted`, detail: entry.summary })
     return { ...entry, raw }
   })

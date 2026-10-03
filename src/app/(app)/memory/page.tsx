@@ -112,6 +112,21 @@ function MemoryPageInner() {
     }
   }, [post, select, load])
 
+  // From the Cleanup panel: same delete + Undo, but the panel stays open
+  const removeStale = useCallback(async (id: string) => {
+    try {
+      const { file, raw } = await post("/api/memory/entries/delete", { id })
+      setEntries((list) => (list ?? []).filter((e) => e.id !== id))
+      setFlags((list) => (list ?? []).filter((f) => !(f.kind === "stale" && f.refs.includes(id))))
+      undoToast(`Deleted ${id}`, async () => {
+        await post("/api/memory/entries/restore", { file, raw })
+        load()
+      })
+    } catch (e) {
+      toast(`Delete failed: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }, [post, load])
+
   // The dialog is the approval; Undo writes every touched file back
   const merge = useCallback(async (input: MergeInput): Promise<string | null> => {
     try {
@@ -147,6 +162,7 @@ function MemoryPageInner() {
       onCleanup={(open) => { setCreating(false); go(open ? null : selectedId, view, open) }}
       onDismiss={dismiss}
       onMerge={merge}
+      onDeleteStale={removeStale}
       onSaved={(entry) => {
         // show the saved text now; the SSE refetch confirms it
         setEntries((list) => [...(list ?? []).filter((e) => e.id !== entry.id), entry])

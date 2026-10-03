@@ -167,3 +167,47 @@ export function findDuplicates(entries: DupEntry[], tokenize: Tokenize, opts: { 
     }
   }).sort((a, b) => byId(a.refs[0], b.refs[0]))
 }
+
+// ─── Not recalled lately ──────────────────────────────────────────────────────
+
+/** `memory/.recall-log.json`: entry id → the YYYY-MM-DD an agent last fetched its body (vibedoc_get_entries). */
+export type RecallLog = Record<string, string>
+export const STALE_DAYS = 60
+
+// local calendar dates, compared as UTC midnights so DST never shifts a day
+const dayNumber = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86_400_000
+const isDate = (d: string | undefined): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d)
+
+/**
+ * Entries nobody has recalled in more than `days` days (default 60). Age = days since the last recall, or since
+ * `updatedAt` when never recalled or edited after the last recall, so a brand-new or just-edited entry is never stale.
+ */
+export function findStale(
+  entries: { id: string; updatedAt: string }[], recallLog: RecallLog, today: string, opts: { days?: number } = {},
+): HealthFlag[] {
+  const days = opts.days ?? STALE_DAYS
+  const flags: HealthFlag[] = []
+  for (const e of entries) {
+    const recalled = isDate(recallLog[e.id]) ? recallLog[e.id] : undefined
+    const since = [recalled, isDate(e.updatedAt) ? e.updatedAt : undefined].filter(isDate).sort().pop()
+    if (!since) continue
+    const age = dayNumber(today) - dayNumber(since)
+    if (age <= days) continue
+    const ago = (d: string) => { const n = dayNumber(today) - dayNumber(d); return `${n} ${n === 1 ? 'day' : 'days'} ago` }
+    flags.push({
+      id: `stale:${e.id}`, kind: 'stale', severity: 'info',
+      message: recalled ? `${e.id} last recalled ${ago(recalled)}` : `${e.id} never recalled (updated ${ago(since)})`,
+      refs: [e.id], suggestion: { action: 'delete', ids: [e.id] },
+    })
+  }
+  return flags.sort((a, b) => byId(a.refs[0], b.refs[0]))
+}
+
+/** The log after `ids` were recalled on `today`, or null when nothing changes (so the file isn't rewritten). Sorted keys. */
+export function markRecalled(log: RecallLog, ids: string[], today: string): RecallLog | null {
+  if (ids.every(id => log[id] === today)) return null
+  return sortedLog({ ...log, ...Object.fromEntries(ids.map(id => [id, today])) })
+}
+
+export const sortedLog = (log: RecallLog): RecallLog =>
+  Object.fromEntries(Object.entries(log).sort(([a], [b]) => byId(a, b)))

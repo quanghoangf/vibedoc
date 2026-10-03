@@ -1,6 +1,6 @@
 // Self-check for memory-health. Run: node src/lib/memory-health.check.mts
 import assert from 'node:assert/strict'
-import { duplicateScore, findContradictions, findDuplicates, formatHealthWarnings, splitSections, type DupEntry, type HealthFlag } from './memory-health.ts'
+import { duplicateScore, findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, splitSections, type DupEntry, type HealthFlag } from './memory-health.ts'
 import { extractRefs } from './memory-graph.ts'
 import { tokenize } from './recall.ts'
 
@@ -129,5 +129,33 @@ findDuplicates(big, s => (calls++, tokenize(s)))
 assert.equal(calls, 2 * big.length)
 // info severity: never a warning in vibedoc_read_memory
 assert.equal(formatHealthWarnings(pair), 'ℹ 1 memory cleanup suggestion on /memory')
+
+// ─── Not recalled lately ───
+const today = '2026-10-03'
+const e = (id: string, updatedAt: string) => ({ id, updatedAt })
+const stale = (entries: { id: string; updatedAt: string }[], log: Record<string, string> = {}, opts?: { days?: number }) =>
+  findStale(entries, log, today, opts).map(f => f.id)
+// 60-day boundary: exactly 60 days is fine, 61 is stale
+assert.deepEqual(stale([e('E1', '2026-01-01')], { E1: '2026-08-04' }), [])
+assert.deepEqual(stale([e('E1', '2026-01-01')], { E1: '2026-08-03' }), ['stale:E1'])
+// never recalled → falls back to updatedAt; brand-new entry never stale
+assert.deepEqual(stale([e('E2', '2026-07-05'), e('E3', '2026-10-03'), e('E4', '2026-08-04')]), ['stale:E2'])
+// an edit after the last recall resets the clock
+assert.deepEqual(stale([e('E5', '2026-10-01')], { E5: '2026-01-01' }), [])
+// custom days
+assert.deepEqual(stale([e('E6', '2026-09-20')], {}, { days: 7 }), ['stale:E6'])
+assert.deepEqual(stale([e('E6', '2026-09-26')], {}, { days: 7 }), [])
+// invalid log values are ignored; no date at all → never flagged
+assert.deepEqual(stale([e('E7', '2026-09-30'), e('E8', '')], { E7: 'yesterday', E8: 'nope' }), [])
+// flag shape, messages, id order
+const sf = findStale([e('E10', '2026-01-01'), e('E9', '2026-07-05')], { E10: '2026-07-21' }, today)
+assert.deepEqual(sf.map(f => f.id), ['stale:E9', 'stale:E10'])
+assert.deepEqual(sf[0], { id: 'stale:E9', kind: 'stale', severity: 'info', message: 'E9 never recalled (updated 90 days ago)', refs: ['E9'], suggestion: { action: 'delete', ids: ['E9'] } })
+assert.equal(sf[1].message, 'E10 last recalled 74 days ago')
+assert.equal(formatHealthWarnings(sf), 'ℹ 2 memory cleanup suggestions on /memory')
+// markRecalled: null when nothing changes (no rewrite), sorted keys otherwise
+assert.equal(markRecalled({ E4: today }, ['E4'], today), null)
+assert.deepEqual(Object.entries(markRecalled({ E10: '2026-01-01', E4: '2026-09-01' }, ['E2', 'E4'], today) ?? {}),
+  [['E2', today], ['E4', today], ['E10', '2026-01-01']])
 
 console.log('memory-health: all checks passed')

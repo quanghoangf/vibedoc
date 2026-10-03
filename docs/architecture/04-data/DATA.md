@@ -22,6 +22,7 @@ VibeDoc reads and writes your actual project files. No sync, no import, no datab
 | `.vibedoc-activity.json` | `appendActivity()` | JSON array, prepend, max 2000 |
 | `.vibedoc/episodes/<sessionId>.md` | `writeEpisode()` | Session episode (R050), full overwrite per session |
 | `memory/.cleanup.json` | `dismissHealthFlag()` | `{ "dismissed": { "<flag id>": "YYYY-MM-DD" } }`, sorted keys (R051) |
+| `memory/.recall-log.json` | `markEntriesRecalled()`, `deleteEntry()` | `{ "E004": "YYYY-MM-DD" }`: last `vibedoc_get_entries` fetch per entry, sorted keys, written at most once per id per day (R051) |
 
 ## Activity log schema
 ```json
