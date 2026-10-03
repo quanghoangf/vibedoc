@@ -1,6 +1,6 @@
 # R051: Memory cleanup & staleness
 **Parent:** R004
-**Status:** planned
+**Status:** done
 **Order:** 50
 **Tasks:** T117, T118, T119, T120, T121, T122
 
