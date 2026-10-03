@@ -1,8 +1,9 @@
 # T122: Docs + e2e for memory cleanup
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R051 — Memory cleanup & staleness
 **Size:** M
 **Depends on:** T120, T121
+**Done:** 2026-10-03
 
 ## Goal
 The cleanup feature is documented for both people and agents, and an e2e test proves the epic's two Done-when criteria end to end.
@@ -34,3 +35,16 @@ The cleanup feature is documented for both people and agents, and an e2e test pr
 pnpm typecheck && pnpm build && pnpm lint
 pnpm test:e2e   # or the project's e2e script; check package.json
 ```
+
+## Manual tests
+_2026-10-03 — ai_
+### Steps
+- [ ] In a project's MEMORY.md, list a done task under "## Working on now", then call vibedoc_read_memory → the reply has "## ⚠ Memory warnings" with "Handoff says T… is in progress, but it is done" right under the handoff
+- [ ] Open /memory → the Cleanup (N) button counts the flag; click it → the contradiction row shows, with the task id in mono
+- [ ] Save two entries that say the same thing → Cleanup shows "E… and E… look like duplicates" with Merge…
+- [ ] Merge… → Merge into E… → only one entry file is left in memory/entries/ and the duplicate row is gone when you reopen Cleanup
+- [ ] Click Undo in the toast → both entry files are back unchanged and Cleanup lists the duplicate again
+- [ ] Read docs/architecture/mcp-tools.md "Memory cleanup" → flags, warning block, recall log, memory/.cleanup.json, memory/.recall-log.json and the four routes are explained
+### Regression risk
+- [ ] vibedoc_read_memory on a clean project still returns the handoff and the knowledge entry index with no warning block
+- [ ] Merge and Undo from the Memory tab (e2e/memory-merge.mjs) still pass
