@@ -22,7 +22,7 @@ import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
-import { DEFAULT_SESSION_BUDGET, fitToBudget, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
+import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
 import { parseEpisode, type Episode } from './episodes'
 import { buildGraph, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
@@ -1020,10 +1020,16 @@ export async function getEntriesByIds(ids: string[], root: string): Promise<{ fo
   return { found, missing }
 }
 
-/** What an agent reads at session start: MEMORY.md + the entry index, capped at `memory.sessionBudgetTokens` (R048). */
+/**
+ * What an agent reads at session start: MEMORY.md + the newest episode newer than it (R050) + the entry index,
+ * capped at `memory.sessionBudgetTokens` (R048).
+ */
 export async function sessionStartMemory(root: string): Promise<string> {
-  const [memory, entries, { sessionBudgetTokens }] = await Promise.all([readMemory(root), listEntries(root), readProjectSettings(root)])
-  return fitToBudget(memory.content, indexHits(entries), sessionBudgetTokens).text
+  const [memory, entries, { sessionBudgetTokens }, fresh] = await Promise.all([
+    readMemory(root), listEntries(root), readProjectSettings(root), episodesSinceHandoff(root),
+  ])
+  const episode = fresh.length ? formatEpisodeSection(fresh[0], fresh.length - 1) : ''
+  return fitToBudget(memory.content, indexHits(entries), sessionBudgetTokens, episode).text
 }
 
 /** The "## Related memory" block for a task (up to `limit` strong keyword matches), or '' (R048). */
@@ -2213,6 +2219,16 @@ export async function listEpisodes(root: string): Promise<Episode[]> {
 
 export async function getLatestEpisode(root: string): Promise<Episode | null> {
   return (await listEpisodes(root))[0] ?? null
+}
+
+/** Episodes that ended after MEMORY.md was last written (by vibedoc_update_memory or by hand), newest first. */
+export async function episodesSinceHandoff(root: string): Promise<Episode[]> {
+  const [eps, stat] = await Promise.all([
+    listEpisodes(root),
+    fs.stat(path.join(root, 'memory', 'MEMORY.md')).catch(() => null),
+  ])
+  const since = stat?.mtimeMs ?? -Infinity
+  return eps.filter(e => Date.parse(e.end) > since)
 }
 
 // ─── Saved board views (.vibedoc/views.json) ─────────────────────────────────

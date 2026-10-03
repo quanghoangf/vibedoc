@@ -1,6 +1,6 @@
 // Self-check for recall. Run: node src/lib/recall.check.mts
 import assert from 'node:assert/strict'
-import { DEFAULT_SESSION_BUDGET, estimateTokens, filterEntries, fitToBudget, formatCompactLine, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry } from './recall.ts'
+import { DEFAULT_SESSION_BUDGET, estimateTokens, filterEntries, fitToBudget, formatCompactLine, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry } from './recall.ts'
 
 const e = (id: string, type: string, summary: string, body = '', updatedAt = '2026-09-01'): RecallEntry =>
   ({ id, type, summary, body, updatedAt })
@@ -110,6 +110,34 @@ assert.match(over.text, /over the 500-token session budget: trim memory\/MEMORY.
 // empty index
 assert.equal(fitToBudget(handoff, [], 2000).text,
   '# Project Memory\nhandoff text\n\n## Knowledge entries (0)\nSave new facts with vibedoc_save_entry; fetch bodies with vibedoc_get_entries.')
+
+// episode section (R050): heading with the end date, body whole, "+N older" only when more are newer
+const ep = { end: '2026-10-03T13:05:00.000Z', body: '## What happened\n- T113 → done\n\n## Where it stopped\n> wired the builder' }
+const epSection = formatEpisodeSection(ep)
+assert.equal(epSection, '## Since the last handoff (auto, 2026-10-03)\n### What happened\n- T113 → done\n\n### Where it stopped\n> wired the builder')
+assert.match(formatEpisodeSection(ep, 2), /\+2 older episodes in \.vibedoc\/episodes\/$/)
+assert.match(formatEpisodeSection(ep, 1), /\+1 older episode in /)
+
+// no episode → identical to before
+assert.equal(fitToBudget(handoff, few, 2000, '').text, all.text)
+
+// episode fits: handoff → episode → index, all lines shown
+const withEp = fitToBudget(handoff, few, 2000, epSection)
+assert.equal(withEp.shown, 3)
+assert.ok(withEp.text.startsWith(`${handoff.trimEnd()}\n\n${epSection}\n\n## Knowledge entries (3)\n`))
+
+// episode pushes index lines out, still within budget
+const epTight = fitToBudget(handoff, bigIndex, 300, epSection)
+assert.ok(epTight.tokens <= 300, `epTight ${epTight.tokens}`)
+assert.ok(epTight.shown < tight.shown && epTight.omitted > tight.omitted)
+assert.ok(epTight.text.includes(epSection))
+
+// handoff + episode over budget: both whole, no index lines, warning names both
+const bigEp = formatEpisodeSection({ end: ep.end, body: 'y'.repeat(1600) })
+const epOver = fitToBudget(handoff, few, 300, bigEp)
+assert.equal(epOver.shown, 0)
+assert.ok(epOver.text.includes(bigEp))
+assert.match(epOver.text, /The handoff and the latest episode are ~\d+ tokens, over the 300-token session budget/)
 
 // taskQuery: title + Goal (capped) + epic title without its id; other sections ignored
 const raw = '# T090: SSE reconnect\n**Phase:** R012 — Live updates\n\n## Goal\nKeep the EventSource alive.\n\n## Scope\n- [ ] kubernetes\n'

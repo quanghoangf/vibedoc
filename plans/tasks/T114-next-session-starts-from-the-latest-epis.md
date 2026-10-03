@@ -1,8 +1,9 @@
 # T114: Next session starts from the latest episode (vibedoc_read_memory)
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R050 — Automatic session episodes
 **Size:** M
 **Depends on:** T113
+**Done:** 2026-10-03
 
 ## Goal
 When the newest episode is newer than `MEMORY.md`, `vibedoc_read_memory` shows it right after the handoff, so the next session starts from where the last one actually stopped. This closes the epic's Done when.
@@ -45,3 +46,15 @@ pnpm build && pnpm lint
 curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_read_memory","arguments":{}}}' | jq -r '.result.content[0].text' | head -40
 ```
+
+## Manual tests
+_2026-10-03 — ai_
+### Steps
+- [ ] In a chat, ask the agent to move a task, and do not let it call vibedoc_update_memory → `.vibedoc/episodes/<session>.md` appears
+- [ ] Start a new chat and let it call vibedoc_read_memory → right after the handoff you see `## Since the last handoff (auto, <date>)` with that episode (its sections shown as `###`)
+- [ ] Leave two such episodes, then call vibedoc_read_memory again → only the newest one shows, followed by `+1 older episode in .vibedoc/episodes/`
+- [ ] Run vibedoc_update_memory (or save MEMORY.md by hand), then call vibedoc_read_memory → the section is gone
+- [ ] Set `memory.sessionBudgetTokens` low (e.g. 300) while an episode is shown → the handoff and the episode stay whole, index lines drop out, and the warning names both
+### Regression risk
+- [ ] With no `.vibedoc/episodes/` folder, vibedoc_read_memory output is the same as before (handoff + Knowledge entries index)
+- [ ] The Activity tab still shows "Session started" when an agent calls vibedoc_read_memory
