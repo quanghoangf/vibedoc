@@ -22,10 +22,10 @@ import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
-import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
+import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallHit } from './recall'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
-import { findContradictions, formatHealthWarnings, type HealthFlag } from './memory-health'
+import { findContradictions, findDuplicates, formatHealthWarnings, type HealthFlag } from './memory-health'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1049,7 +1049,7 @@ export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>
 export type CleanupFlag = HealthFlag & { dismissed?: string }
 
 /**
- * Handoff/board contradictions and dangling ids in MEMORY.md and the entries (R051). Pure rules in src/lib/memory-health.ts.
+ * Handoff/board contradictions, dangling ids in MEMORY.md and the entries, and duplicate entries (R051). Pure rules in src/lib/memory-health.ts.
  * Dismissed flags are left out unless `includeDismissed` (the panel's "Show dismissed").
  */
 export async function getMemoryHealth(root: string, opts: { includeDismissed?: boolean } = {}): Promise<CleanupFlag[]> {
@@ -1057,7 +1057,10 @@ export async function getMemoryHealth(root: string, opts: { includeDismissed?: b
     readMemory(root), listEntries(root), listTasks(root), listRoadmap(root), readCleanupState(root),
   ])
   const board = [...tasks, ...items].map(({ id, status }) => ({ id, status }))
-  const flags = findContradictions(memory.exists ? memory.content : '', entries, board, t => extractRefs(t).ids)
+  const flags = [
+    ...findContradictions(memory.exists ? memory.content : '', entries, board, t => extractRefs(t).ids),
+    ...findDuplicates(entries, tokenize),
+  ]
   return opts.includeDismissed
     ? flags.map(f => (dismissed[f.id] ? { ...f, dismissed: dismissed[f.id] } : f))
     : flags.filter(f => !dismissed[f.id])

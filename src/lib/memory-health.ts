@@ -95,3 +95,66 @@ export function formatHealthWarnings(flags: HealthFlag[]): string {
   return ['## ⚠ Memory warnings', ...warns.slice(0, MAX_SESSION_WARNINGS).map(f => `- ⚠ ${f.message}`),
     ...(more > 0 ? [`…and ${more} more on /memory`] : [])].join('\n')
 }
+
+// ─── Duplicates ───────────────────────────────────────────────────────────────
+
+export type DupEntry = { id: string; type: string; summary: string; body: string }
+/** recall.ts's tokenize, passed in by core.ts (pure libs don't import values from each other) so stopwords match recall. */
+export type Tokenize = (s: string) => string[]
+
+// Threshold 0.5, picked with the self-check fixture: "Only core.ts touches the file system" / "Only core.ts may touch fs"
+// scores 0.57, near misses sharing one topic word ("core.ts owns the activity log") stay ≤ 0.25.
+export const DUPLICATE_THRESHOLD = 0.5
+const TYPE_PENALTY = 0.1
+// modal fillers that say nothing about the topic ("may touch" vs "touches")
+const FILLER = new Set(['may', 'must', 'should'])
+// ponytail: suffix strip on top of recall's plural strip ("touche" → "touch"); a real stemmer if pairs slip through
+const stem = (t: string) => (t.length > 4 ? t.replace(/(ing|ed|es|e)$/, '') : t)
+
+const jaccard = (a: Set<string>, b: Set<string>) => {
+  if (!a.size && !b.size) return 0
+  let common = 0
+  for (const t of a) if (b.has(t)) common++
+  return common / (a.size + b.size - common)
+}
+const byId = (a: string, b: string) => a.localeCompare(b, 'en', { numeric: true })
+
+/** 0.6·J(summary) + 0.4·J(summary + body), minus 0.1 when the types differ. */
+export function duplicateScore(a: DupEntry, b: DupEntry, tokenize: Tokenize): number {
+  const set = (s: string) => new Set(tokenize(s).map(stem).filter(t => !FILLER.has(t)))
+  const score = 0.6 * jaccard(set(a.summary), set(b.summary)) + 0.4 * jaccard(set(`${a.summary}\n${a.body}`), set(`${b.summary}\n${b.body}`))
+  return a.type === b.type ? score : score - TYPE_PENALTY
+}
+
+/** Entries that say the same thing, grouped transitively (E1~E2, E2~E3 → one flag). Score shown = the strongest pair. */
+export function findDuplicates(entries: DupEntry[], tokenize: Tokenize, opts: { threshold?: number } = {}): HealthFlag[] {
+  const threshold = opts.threshold ?? DUPLICATE_THRESHOLD
+  const parent = entries.map((_, i) => i)
+  const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])))
+  const best = new Map<number, number>()
+  // ponytail: O(n²) pairs, fine up to a few hundred entries; bucket by shared summary token if memory grows past that
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      const s = duplicateScore(entries[i], entries[j], tokenize)
+      if (s < threshold) continue
+      parent[find(j)] = find(i)
+      best.set(i, Math.max(best.get(i) ?? 0, s))
+    }
+  }
+  const groups = new Map<number, { ids: string[]; score: number }>()
+  entries.forEach((e, i) => {
+    const g = groups.get(find(i)) ?? { ids: [], score: 0 }
+    g.ids.push(e.id)
+    g.score = Math.max(g.score, best.get(i) ?? 0)
+    groups.set(find(i), g)
+  })
+  return [...groups.values()].filter(g => g.ids.length > 1).map(({ ids, score }) => {
+    ids.sort(byId)
+    const names = ids.length === 2 ? ids.join(' and ') : `${ids.slice(0, -1).join(', ')} and ${ids[ids.length - 1]}`
+    return {
+      id: `duplicate:${ids.join('+')}`, kind: 'duplicate' as const, severity: 'info' as const,
+      message: `${names} look like duplicates (${Math.round(score * 100)}%)`,
+      refs: ids, suggestion: { action: 'merge' as const, ids },
+    }
+  }).sort((a, b) => byId(a.refs[0], b.refs[0]))
+}

@@ -99,7 +99,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
         </div>
       ) : cleanup ? (
         <div className="min-w-0 lg:sticky lg:top-6">
-          <CleanupPanel flags={flags} onDismiss={onDismiss} onOpenEntry={onOpen} onClose={() => onCleanup(false)} />
+          <CleanupPanel flags={flags} entries={entries} onDismiss={onDismiss} onOpenEntry={onOpen} onClose={() => onCleanup(false)} />
         </div>
       ) : selectedId && entries ? (
         <div role="alert" className="min-w-0 rounded-xl border border-dashed border-border p-5 text-sm text-muted">

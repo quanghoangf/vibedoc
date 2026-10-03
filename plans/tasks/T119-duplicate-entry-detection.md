@@ -1,8 +1,9 @@
 # T119: Duplicate entry detection
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R051 — Memory cleanup & staleness
 **Size:** M
 **Depends on:** T118
+**Done:** 2026-10-03
 
 ## Goal
 The Cleanup panel suggests merging entries that say the same thing, e.g. two conventions both about "only core.ts touches fs". It shows them as a pair (or group) with a similarity score. Approving comes in the next task.
@@ -45,3 +46,16 @@ node src/lib/memory-health.check.mts
 pnpm typecheck && pnpm build && pnpm lint
 curl -s localhost:3000/api/memory/health | grep duplicate
 ```
+
+## Manual tests
+_2026-10-03 — ai_
+### Steps
+- [ ] Save two entries "Only core.ts touches the file system" and "Only core.ts may touch fs" (same type) → /memory shows Cleanup (1); the panel has a "Possible duplicates" group with "E… and E… look like duplicates (57%)"
+- [ ] Look at the duplicate row → both ids are listed with their summaries; Merge… is greyed out and can't be clicked or focused
+- [ ] Click one of the entry rows in the group → that entry opens in the detail pane
+- [ ] Save a third entry "Only core.ts touches fs" → still one flag listing all three ids, not three pairs
+- [ ] Dismiss the group, reload → it stays hidden; add another similar entry → the group reappears (its id changed)
+- [ ] Call vibedoc_read_memory → shows the ℹ cleanup suggestion line, not a ⚠ warning
+### Regression risk
+- [ ] Contradiction / missing-item rows and Dismiss on the Cleanup panel still work
+- [ ] vibedoc_read_memory / /api/memory/health latency with hundreds of entries (O(n²) pair scan)

@@ -9,18 +9,21 @@ import { displayStatus } from "@/lib/statuses"
 import { cn } from "@/lib/utils"
 import type { CleanupFlag } from "@/lib/core"
 import type { HealthKind } from "@/lib/memory-health"
+import type { Entry } from "@/lib/entries"
 
 const GROUPS: { kind: HealthKind; label: string }[] = [
   { kind: "contradiction", label: "Contradicts the board" },
   { kind: "dangling-ref", label: "Missing items" },
-  { kind: "duplicate", label: "Duplicates" },
+  { kind: "duplicate", label: "Possible duplicates" },
   { kind: "stale", label: "Not recalled lately" },
 ]
 
 /** Memory health flags (R051), grouped by kind. Dismiss hides a flag until its id changes (memory/.cleanup.json). */
-export function CleanupPanel({ flags, onDismiss, onOpenEntry, onClose }: {
+export function CleanupPanel({ flags, entries, onDismiss, onOpenEntry, onClose }: {
   /** null while loading; includes dismissed flags (marked `dismissed`) */
   flags: CleanupFlag[] | null
+  /** for entry summaries next to their ids */
+  entries: Entry[] | null
   onDismiss: (flag: CleanupFlag) => void
   onOpenEntry: (id: string) => void
   onClose: () => void
@@ -29,6 +32,7 @@ export function CleanupPanel({ flags, onDismiss, onOpenEntry, onClose }: {
   const { board } = useApp()
   const [showDismissed, setShowDismissed] = useState(false)
   const tasks = useMemo(() => new Map(Object.values(board ?? {}).flat().map((t) => [t.id, t])), [board])
+  const summaries = useMemo(() => new Map((entries ?? []).map((e) => [e.id, e.summary])), [entries])
   const shown = (flags ?? []).filter((f) => showDismissed || !f.dismissed)
   const dismissedCount = (flags ?? []).filter((f) => f.dismissed).length
 
@@ -41,6 +45,7 @@ export function CleanupPanel({ flags, onDismiss, onOpenEntry, onClose }: {
 
   const ref = (id: string) => {
     const task = tasks.get(id)
+    const title = task?.title ?? summaries.get(id)
     return (
       <button
         key={id}
@@ -50,7 +55,7 @@ export function CleanupPanel({ flags, onDismiss, onOpenEntry, onClose }: {
       >
         {task && <StatusIcon status={displayStatus(task)} className="size-3.5 shrink-0" />}
         <span className="shrink-0 font-mono text-[11px] text-muted">{id}</span>
-        {task && <span className="min-w-0 truncate text-txt">{task.title}</span>}
+        {title && <span className="min-w-0 truncate text-txt">{title}</span>}
       </button>
     )
   }
@@ -64,8 +69,16 @@ export function CleanupPanel({ flags, onDismiss, onOpenEntry, onClose }: {
           <p className={cn("text-[13px]", f.dismissed ? "text-muted" : "text-txt")}>
             {f.message.split(/\b([TRE]\d+)\b/).map((part, i) => (i % 2 ? <span key={i} className="font-mono text-[12px]">{part}</span> : part))}
           </p>
-          {f.refs.length > 0 && <div className="-ml-1.5 flex flex-wrap gap-1">{f.refs.map(ref)}</div>}
+          {f.refs.length > 0 && (
+            <div className={cn("-ml-1.5 flex gap-1", f.kind === "duplicate" ? "flex-col items-start" : "flex-wrap")}>{f.refs.map(ref)}</div>
+          )}
         </div>
+        {f.suggestion?.action === "merge" && !f.dismissed && (
+          // placeholder: the merge flow lands in the next task
+          <button type="button" disabled className="h-6 shrink-0 cursor-not-allowed rounded-md border border-border px-2 text-xs text-muted opacity-50">
+            Merge…
+          </button>
+        )}
         {f.dismissed ? (
           <span className="shrink-0 font-mono text-[10px] text-muted" title="Dismissed on">dismissed {f.dismissed}</span>
         ) : (
