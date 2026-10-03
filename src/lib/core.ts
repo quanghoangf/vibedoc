@@ -1040,6 +1040,14 @@ const writeRecallLog = async (root: string, log: RecallLog) => {
   await fs.writeFile(file, JSON.stringify(log, null, 2) + '\n', 'utf-8')
 }
 
+/** Drop deleted ids from the recall log so it doesn't fill up with dead ids; restore/undo don't re-add them. Call inside withEntryLock. */
+const dropFromRecallLog = async (root: string, ids: string[]) => {
+  const log = await readRecallLog(root)
+  if (!ids.some(id => id in log)) return
+  for (const id of ids) delete log[id]
+  await writeRecallLog(root, sortedLog(log))
+}
+
 /** Stamp today on each id (R051). Writes only when a date changes, so at most once per id per day. Returns whether it wrote. */
 export function markEntriesRecalled(ids: string[], root: string): Promise<boolean> {
   if (!ids.length) return Promise.resolve(false)
@@ -1212,9 +1220,7 @@ export function deleteEntry(id: string, root: string, actor: 'ai' | 'human' = 'h
     if (!entry) throw new Error(`Entry ${norm} not found`)
     const raw = await fs.readFile(path.join(root, entry.file), 'utf8')
     await fs.rm(path.join(root, entry.file))
-    // drop the id from the recall log so it doesn't fill up with dead ids; restore doesn't re-add it
-    const log = await readRecallLog(root)
-    if (norm in log) { delete log[norm]; await writeRecallLog(root, sortedLog(log)) }
+    await dropFromRecallLog(root, [norm])
     await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${norm} deleted`, detail: entry.summary })
     return { ...entry, raw }
   })
@@ -1285,6 +1291,7 @@ export function mergeEntries(
     if (old.file !== entry.file) await fs.rm(path.join(root, old.file), { force: true })
     for (const b of before) if (b.dropped) await fs.rm(path.join(root, b.file), { force: true })
     for (const r of rewrites) await fs.writeFile(path.join(root, r.file), r.raw, 'utf8')
+    await dropFromRecallLog(root, drops)
     await appendActivity(root, { type: 'memory_updated', actor, title: `Entries merged into ${keepId}`, detail: `${drops.join(', ')} merged` })
     return { entry, before }
   })

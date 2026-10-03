@@ -2,6 +2,8 @@
 //   1. An entry updated 90 days ago and never recalled shows "never recalled"; one recalled long ago shows "last recalled N days ago".
 //   2. vibedoc_get_entries writes today's date to memory/.recall-log.json (once a day) and the row disappears live.
 //   3. Delete from a row removes the entry (and its log line) with an Undo toast; Undo brings it back, panel stays open.
+//      Keyboard focus moves to the next row's action, or to the Cleanup heading when no rows are left.
+//   4. Merging entries drops the merged-away ids from the recall log too.
 // Fails on any browser console error.
 //
 //   PW_DIR=<dir with node_modules/playwright> node e2e/memory-stale.mjs
@@ -24,6 +26,7 @@ const entry = (id, summary, updated) =>
 entry("E001", "Old never read fact", ymd(90))
 entry("E002", "Read long ago fact", ymd(200))
 entry("E003", "Fresh fact", today)
+entry("E004", "Another old fact", ymd(100))
 const logFile = path.join(fx, "memory/.recall-log.json")
 writeFileSync(logFile, JSON.stringify({ E002: ymd(74) }, null, 2) + "\n")
 
@@ -72,16 +75,45 @@ try {
 
   // 3. Delete → Undo toast → Undo restores; panel stays open
   const deleted = page.waitForResponse((r) => r.url().includes("/api/memory/entries/delete"))
-  await e2.getByRole("button", { name: "Delete" }).click()
+  await e2.getByRole("button", { name: "Delete" }).focus()
+  await page.keyboard.press("Enter")
   assert.ok((await deleted).ok())
   await e2.waitFor({ state: "detached" })
+  const focused = () => page.evaluate(() => { const a = document.activeElement; return `${a?.closest("[data-flag]")?.getAttribute("data-flag") ?? ""}|${a?.tagName}|${a?.textContent?.trim()}` })
+  await page.waitForFunction(() => document.activeElement?.tagName !== "BODY")
+  assert.equal(await focused(), "stale:E004|BUTTON|Delete", "focus moves to the next row's Delete")
   assert.ok(!existsSync(path.join(fx, "memory/entries/E002-read-long-ago-fact.md")))
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(logFile, "utf8"))), ["E001"], "delete drops the id from the recall log")
   assert.match(page.url(), /cleanup=1/)
   await page.getByRole("button", { name: "Undo" }).click()
   await e2.getByText(/E002 never recalled/).waitFor({ timeout: 5000 })
   assert.ok(existsSync(path.join(fx, "memory/entries/E002-read-long-ago-fact.md")))
-  console.log("ok  Delete removes the entry with Undo; Undo brings it back (not re-added to the log)")
+  console.log("ok  Delete removes the entry with Undo; Undo brings it back (not re-added to the log); focus moves to the next row")
+
+  // last row gone → focus lands on the Cleanup heading
+  await panel.locator('[data-flag="stale:E002"]').waitFor()
+  const dismissed4 = page.waitForResponse((r) => r.url().includes("/api/memory/health/dismiss") && r.request().postData()?.includes("stale:E004"))
+  await panel.locator('[data-flag="stale:E004"]').getByRole("button", { name: "Dismiss" }).focus()
+  await page.keyboard.press("Enter")
+  assert.ok((await dismissed4).ok())
+  const dismissed = page.waitForResponse((r) => r.url().includes("/api/memory/health/dismiss") && r.request().postData()?.includes("stale:E002"))
+  await panel.locator('[data-flag="stale:E002"]').getByRole("button", { name: "Dismiss" }).focus()
+  await page.keyboard.press("Enter")
+  assert.ok((await dismissed).ok())
+  await panel.getByText("Memory looks clean").waitFor()
+  await page.waitForFunction(() => document.activeElement?.tagName === "H2")
+  console.log("ok  Dismissing the last row moves focus to the Cleanup heading")
+
+  // 4. Merge drops the merged-away id from the recall log
+  writeFileSync(logFile, JSON.stringify({ E001: today, E002: today, E004: today }, null, 2) + "\n")
+  const res = await fetch(`${BASE}/api/memory/entries/merge${q}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ keepId: "E002", dropIds: ["E004"], type: "convention", summary: "Read long ago fact", body: "Merged." }),
+  })
+  assert.ok(res.ok, await res.text())
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(logFile, "utf8"))), ["E001", "E002"], "merge drops E004 from the recall log")
+  console.log("ok  merge drops the merged-away id from the recall log")
 
   assert.deepEqual(errors, [], "no browser console errors")
   console.log("ok  no console errors")

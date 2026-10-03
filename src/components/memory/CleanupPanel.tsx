@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, Info, Trash2 } from "lucide-react"
 import { useApp } from "@/context/AppContext"
@@ -39,11 +39,27 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
   const [merging, setMerging] = useState<string[] | null>(null)
   // the Merge… button that opened the dialog: the dialog has no DialogTrigger, so focus goes back here by hand
   const mergeTrigger = useRef<HTMLButtonElement | null>(null)
+  // a row action that removes its row (Delete, Dismiss with dismissed hidden): once it's gone, focus the row now at its index
+  const refocus = useRef<{ id: string; index: number } | null>(null)
+  const sectionRef = useRef<HTMLElement | null>(null)
   const tasks = useMemo(() => new Map(Object.values(board ?? {}).flat().map((t) => [t.id, t])), [board])
   const summaries = useMemo(() => new Map((entries ?? []).map((e) => [e.id, e.summary])), [entries])
   const shown = (flags ?? []).filter((f) => showDismissed || !f.dismissed)
   const mergeGroup = merging && (entries ?? []).filter((e) => merging.includes(e.id))
   const dismissedCount = (flags ?? []).filter((f) => f.dismissed).length
+  const shownIds = shown.map((f) => f.id).join(" ")
+
+  useEffect(() => {
+    const pending = refocus.current
+    if (!pending || shownIds.split(" ").includes(pending.id)) return
+    refocus.current = null
+    const rows = sectionRef.current?.querySelectorAll<HTMLElement>("li[data-flag]") ?? []
+    const next = rows[Math.min(pending.index, rows.length - 1)]
+    const target = next?.querySelector<HTMLElement>("button[data-action]") ?? sectionRef.current?.querySelector<HTMLElement>("h2")
+    target?.focus()
+  }, [shownIds])
+
+  const willRemove = (f: CleanupFlag) => { refocus.current = { id: f.id, index: shown.indexOf(f) } }
 
   // open a referenced item where it lives, like the Related panel
   const open = (id: string) => {
@@ -85,6 +101,7 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
         {f.suggestion?.action === "merge" && !f.dismissed && (
           <button
             type="button"
+            data-action
             onClick={(e) => { mergeTrigger.current = e.currentTarget; setMerging(f.suggestion?.ids ?? null) }}
             className="h-6 shrink-0 rounded-md border border-border px-2 text-xs text-txt outline-none transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
           >
@@ -94,7 +111,8 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
         {f.suggestion?.action === "delete" && !f.dismissed && (
           <button
             type="button"
-            onClick={() => f.suggestion?.ids.forEach(onDelete)}
+            data-action
+            onClick={() => { willRemove(f); f.suggestion?.ids.forEach(onDelete) }}
             aria-label={`Delete ${f.suggestion.ids.join(", ")}`}
             className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs text-txt outline-none transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 hover:text-danger focus-visible:ring-2 focus-visible:ring-accent"
           >
@@ -106,7 +124,8 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
         ) : (
           <button
             type="button"
-            onClick={() => onDismiss(f)}
+            data-action
+            onClick={() => { if (!showDismissed) willRemove(f); onDismiss(f) }}
             className="h-6 shrink-0 rounded-md px-2 text-xs text-muted outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent"
           >
             Dismiss
@@ -117,9 +136,9 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
   }
 
   return (
-    <section aria-label="Cleanup" className="min-w-0">
+    <section ref={sectionRef} aria-label="Cleanup" className="min-w-0">
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 className="font-display text-base font-semibold tracking-tight">Cleanup</h2>
+        <h2 tabIndex={-1} className="outline-none font-display text-base font-semibold tracking-tight">Cleanup</h2>
         <div className="flex items-center gap-3">
           {dismissedCount > 0 && (
             <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted">
