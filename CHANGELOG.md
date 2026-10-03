@@ -1,3 +1,63 @@
+# [1.11.0](https://github.com/quanghoangf/vibedoc/compare/v1.10.0...v1.11.0) (2026-10-03)
+
+
+### Bug Fixes
+
+* **chat:** route an epic's ask to its own chat, never into another item's or a waiting one ([1c08398](https://github.com/quanghoangf/vibedoc/commit/1c08398c623da2be4f3f669d5e31400fcef55c5d))
+* **docs:** backticked glob patterns are not links ([0c93f01](https://github.com/quanghoangf/vibedoc/commit/0c93f01dd0985ca92834b2fa20036578fcbef1a7))
+* **docs:** resolve titled, encoded, id wikilinks; skip ~~~ and inline code ([091233d](https://github.com/quanghoangf/vibedoc/commit/091233d7cbdf35215d160b13e8ab280826bc9831))
+* **graph:** keep the link cache fresh across pages and colour status dots like their chips ([f3d41d3](https://github.com/quanghoangf/vibedoc/commit/f3d41d3a2488b0184fc26f53d5c110e3b44338fa))
+* **graph:** readable labels at fit, label-first search, column-side preview, accent-edge selection ([67dff84](https://github.com/quanghoangf/vibedoc/commit/67dff84cab9bc408651f000a574ea6904bff8009))
+* **graph:** solid accent line instead of the edge glow; CSS unfold entrance without per-frame renders ([54f8a64](https://github.com/quanghoangf/vibedoc/commit/54f8a6432f185e8590b0dfd1304d0bea58f2493e))
+* **graph:** T108 search cursor resets with the matches, framing keeps the 0.5 floor, neighbour labels hold when zoomed out ([8cad818](https://github.com/quanghoangf/vibedoc/commit/8cad8182e96c26446f95a2c65c9c7cbdce307449))
+* **graph:** T109 narrow syntax-example rule, dot-folder links not drawn dead, Show all keeps keyboard focus, full broken-links label from lg ([a90f378](https://github.com/quanghoangf/vibedoc/commit/a90f378703b3325842e36d15e99eaf7efaea7993))
+* **graph:** T109 self-check cases for placeholders, [@includes](https://github.com/includes), bare names, dot-folder files and syntax examples ([e326d89](https://github.com/quanghoangf/vibedoc/commit/e326d890e280120472c06325faa9f27069476d41))
+* **graph:** T109 trustworthy broken and stale counts — skip placeholders and syntax examples, resolve [@includes](https://github.com/includes), unique bare names and dot-folder files; /graph toolbar shows broken links only ([68127da](https://github.com/quanghoangf/vibedoc/commit/68127dac4582fef3775bccc10c4d570f2487038f))
+* **graph:** T110 keyboard-selected node keeps the hairline under focus; new tasks log activity so Recent sees them ([d5d766f](https://github.com/quanghoangf/vibedoc/commit/d5d766f1d0d0bb932cb95ef2f55cc17b67953d84))
+* **graph:** T111 selected edge clears 3:1 for every accent, epic status in entry Related, no 0 counts on a failed load ([8b40017](https://github.com/quanghoangf/vibedoc/commit/8b40017e11f68d13f7d80b85345ef183cd22a124))
+* **graph:** T112 Fit reuses the mount fit's camera, so the first Fit starts no label pass under the entrance ([5415e38](https://github.com/quanghoangf/vibedoc/commit/5415e385760a6f4691caed29d4b44b5cd4cef850))
+* **memory:** episodes cover work done after a session's handoff ([4ebeaa6](https://github.com/quanghoangf/vibedoc/commit/4ebeaa62abfeaebb25ebd01f03f6d14375b78e69))
+* **memory:** ignore ids in code, prune dismissals of gone entries, flag dangling entry ids ([81ce8a5](https://github.com/quanghoangf/vibedoc/commit/81ce8a548b14ee2a91c6a05d43a12cca45c71d99))
+* **memory:** T113 label entry saves and merge chat sources in a session episode ([a4e0594](https://github.com/quanghoangf/vibedoc/commit/a4e0594a7675f0f8c6156b6f7efc0bc49113741f))
+* **memory:** T115 never backfill a session another client's read_memory interrupts ([b20d705](https://github.com/quanghoangf/vibedoc/commit/b20d7050f611231d43aa0af688bc078f7a9c2158))
+* **memory:** T117 ignore headings inside code fences when splitting handoff sections ([8126b86](https://github.com/quanghoangf/vibedoc/commit/8126b860d0e4d720abc05a7f03c2e6f91285070c))
+* **memory:** T118 serialize cleanup dismisses and show IDs in flag messages in mono ([6ad1c93](https://github.com/quanghoangf/vibedoc/commit/6ad1c93a95a47d968466975144860f26cb757e12))
+* **memory:** T119 tokenize each entry once in duplicate detection ([ac5a164](https://github.com/quanghoangf/vibedoc/commit/ac5a16470c16c9513d6f9658dd69423508a636ab))
+* **memory:** T120 return focus to Merge… when the merge dialog closes ([73a0aec](https://github.com/quanghoangf/vibedoc/commit/73a0aec2a3addc1a3f7259c36bbab45cfa183d54))
+* **memory:** T121 prune merged ids from the recall log and keep focus after a row action ([b3e1169](https://github.com/quanghoangf/vibedoc/commit/b3e116989651fe958093d28427cca19d5fe0d366))
+* **memory:** T122 add the warnings step to the in-app CLAUDE.md template ([85c3dc8](https://github.com/quanghoangf/vibedoc/commit/85c3dc884a443ffd18f7c1afe76f1e48af5d8b21))
+
+
+### Features
+
+* **docs:** clickable .md links and [[wikilinks]] in the doc preview ([537ba6b](https://github.com/quanghoangf/vibedoc/commit/537ba6b734e2039a24904a14f657c4a326b32706))
+* **docs:** hover preview card for doc links and linked docs rows ([fa42424](https://github.com/quanghoangf/vibedoc/commit/fa42424a22bb833ad32b517f1376ae1a20ec876c))
+* **docs:** linked docs panel with links to, linked from and broken links ([a50e2c1](https://github.com/quanghoangf/vibedoc/commit/a50e2c15c9a167e202a8ab0ecf3e9dd8def5dad4))
+* **docs:** readable link previews with status chips, sentence citations and unique link counts ([a81626a](https://github.com/quanghoangf/vibedoc/commit/a81626a69d1d935ff2137566faee648d5a32d51f))
+* **docs:** resolved doc link graph with links and graph API ([79803bc](https://github.com/quanghoangf/vibedoc/commit/79803bc527ba847d8a6b26c2c591a1c944414067))
+* **graph:** /graph page with the whole-repo doc link graph ([cc5fbc6](https://github.com/quanghoangf/vibedoc/commit/cc5fbc6997af45eec38f8668f940fe0ab9fc6316))
+* **graph:** deterministic force layout for the doc graph ([135e63b](https://github.com/quanghoangf/vibedoc/commit/135e63b6af096b33ac8d77914d6f9728389e14cc))
+* **graph:** final polish pass, keyboard and live-update e2e, Doc Link Graph in DESIGN.md ([7d34ab8](https://github.com/quanghoangf/vibedoc/commit/7d34ab8e726e666ded8b646cb7c34c8a04070a5a))
+* **graph:** keep the camera on live updates, one fetch per burst, error state ([544041a](https://github.com/quanghoangf/vibedoc/commit/544041a505d8b8efa998cb31f29fb6c92dacdc12))
+* **graph:** keyboard path and screen reader names for /graph ([6045322](https://github.com/quanghoangf/vibedoc/commit/6045322c8afa5ae71adac6443e4bb447bf37ab39))
+* **graph:** living map motion — settle entrance, drag physics, edge flow, hover magnet and live ping ([3bc4718](https://github.com/quanghoangf/vibedoc/commit/3bc47184b6f75b900dcda21f0be98c87cbf453ce))
+* **graph:** readable at the fitted zoom — px-gated labels, unlinked shelf, search framing and cycling, 24px hit pads ([2076124](https://github.com/quanghoangf/vibedoc/commit/2076124f8b4461a765c41d539448129dfd3c91c2))
+* **graph:** relayout glides with the camera, selection ripples, live changes flash ([656c10f](https://github.com/quanghoangf/vibedoc/commit/656c10f2f29bc1eaf516869b968265cdcc31cd81))
+* **graph:** split broken links from stale path mentions, list both and jump to the line ([f4d5662](https://github.com/quanghoangf/vibedoc/commit/f4d5662b46f3d083afdbf627cd30368da694c5cd))
+* **graph:** status-aware shapes and colours, visible link counts, label collisions ([4f93492](https://github.com/quanghoangf/vibedoc/commit/4f93492e8c14790e3c03cc2f67ed1125638c7b3e))
+* **graph:** T110 colour marks what needs you — done hollow grey, Recent notch and chip, hue-independent selection ring, light-theme teal token ([0302b70](https://github.com/quanghoangf/vibedoc/commit/0302b706ad0c02101f12571a6202030f072a5fd7))
+* **graph:** T111 visible keyboard model and one link UI — key strip, ? Graph section, Show in graph, epic status icons, muted broken count, Tab-safe preview, menu focus edge ([ae81177](https://github.com/quanghoangf/vibedoc/commit/ae811770efb4ef50165cb7d8b4d7fdd610ba091c))
+* **graph:** T112 entrance without a re-render, phone bottom-sheet card, hover yields to focus, files vs docs count ([0637012](https://github.com/quanghoangf/vibedoc/commit/06370122ddec95800ef32ea121332b3d201efc0b))
+* **mcp:** vibedoc_read_doc ends with resolved related files ([a7328f5](https://github.com/quanghoangf/vibedoc/commit/a7328f52c3232af74aefec27ba8a40e7cee134f5))
+* **memory:** cleanup panel on the Memory tab with dismissable health flags ([3c7f488](https://github.com/quanghoangf/vibedoc/commit/3c7f488e2e1318e8ae7a24f21f2eccead3c3d645))
+* **memory:** episodes at epic-run end and lazy backfill for ended sessions ([6350ed8](https://github.com/quanghoangf/vibedoc/commit/6350ed84f39d01597bb5ce47b0a6796c6c40e19c))
+* **memory:** start the next session from the latest episode newer than MEMORY.md ([eacabe4](https://github.com/quanghoangf/vibedoc/commit/eacabe448729d1f5d4184f5ddd1823d3d66c958b))
+* **memory:** T119 flag duplicate knowledge entries in the Cleanup panel ([d284a80](https://github.com/quanghoangf/vibedoc/commit/d284a8082de8b20d738639ede1082c94083b5b85))
+* **memory:** T120 approve a suggested merge into one entry, with Undo ([264bb8c](https://github.com/quanghoangf/vibedoc/commit/264bb8c9a93a039bdc35e36963be49c068112e97))
+* **memory:** T121 recall log and "Not recalled lately" cleanup flags ([2ca3c3d](https://github.com/quanghoangf/vibedoc/commit/2ca3c3d04b0db8fd42d112610b382e8d0119fd31))
+* **memory:** warn in vibedoc_read_memory when the handoff contradicts the board ([2153e41](https://github.com/quanghoangf/vibedoc/commit/2153e4146f68ee24d95e4deb611ad55b880735db))
+* **memory:** write a session episode when a chat turn ends without a handoff ([063a142](https://github.com/quanghoangf/vibedoc/commit/063a1427e0502e6c538457bc81c3f8bf40daa772))
+
 # [1.10.0](https://github.com/quanghoangf/vibedoc/compare/v1.9.0...v1.10.0) (2026-09-30)
 
 
