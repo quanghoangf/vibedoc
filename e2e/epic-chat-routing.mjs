@@ -31,6 +31,13 @@ try {
 
   // In-app, as a user does: the first sheet from a deep link, later ones by clicking the map (no reload, so the chat
   // store keeps its "current chat" — the reload in a goto would hide the bug)
+  // Esc, then wait for the modal to finish closing before the next click (as a user does): in a production build a
+  // click inside the ~200ms close animation can land while two Radix dialogs swap and leave the page unclickable
+  async function closeChat() {
+    await page.keyboard.press("Escape")
+    await page.waitForFunction(() => !document.querySelector('[role="dialog"]'))
+  }
+
   async function breakDown(epic) {
     if (page.url().includes("/roadmap")) await page.locator(`.react-flow__node[data-id="${epic}"]`).click()
     else await page.goto(`${BASE}/roadmap?item=${epic}`)
@@ -42,7 +49,7 @@ try {
   await page.getByText("Questions for R002.").waitFor()
   assert.equal(calls.length, 1)
   assert.equal(calls[0].sessionId, null)
-  await page.keyboard.press("Escape")
+  await closeChat()
 
   // 2. R003 gets its own chat and session, not R002's waiting one
   await breakDown("R003")
@@ -53,7 +60,7 @@ try {
   await page.waitForFunction((s) => document.querySelectorAll(`${s} li button[title^="Break down"]`).length === 2, SIDEBAR)
   assert.equal(await page.getByRole("dialog").getByText("Questions for R002.").count(), 0, "the open chat is R003's, without R002's turn")
   console.log("ok  a second epic's breakdown starts its own chat and session while the first waits on answers")
-  await page.keyboard.press("Escape")
+  await closeChat()
 
   // 3. R002 asked again (the sheet hides its button while the chat waits; the multi-epic dialog, the editor and the
   //    palette reach askAgent the same way): its waiting chat opens, no second ask is sent
