@@ -1,8 +1,9 @@
 # T117: Handoff vs board contradictions + warning in vibedoc_read_memory
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R051 — Memory cleanup & staleness
 **Size:** M
 **Depends on:** —
+**Done:** 2026-10-03
 
 ## Goal
 When `memory/MEMORY.md` says T055 is being worked on but T055 is done, the next agent that calls `vibedoc_read_memory` sees a warning such as `⚠ Handoff says T055 is in progress, but it is done` before it trusts the handoff. This is the thin end-to-end path of the epic and covers its first Done-when criterion.
@@ -69,3 +70,16 @@ curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_read_memory","arguments":{}}}'
 ```
 Revert the MEMORY.md edit afterwards.
+
+## Manual tests
+_2026-10-03 — ai_
+### Steps
+- [ ] In memory/MEMORY.md, put a done task id (e.g. T001) under `## Working on now`, then call `vibedoc_read_memory` → a `## ⚠ Memory warnings` block under the handoff says `Handoff says T001 is in progress, but it is done`
+- [ ] Put a cancelled task or a done epic (R id) under `## Up next` → the warning says it is up next, but it is cancelled / done
+- [ ] Put a task that is still in progress under `## Just completed` → `Handoff says T0xx is done, but it is in-progress`
+- [ ] Make the handoff match the board again → no warning block; the output is the same as before this change
+- [ ] Mention a missing T999 in a knowledge entry body (and no warn flags) → a single line `ℹ 1 memory cleanup suggestion on /memory`
+- [ ] Revert the MEMORY.md / entry edits
+### Regression risk
+- [ ] `vibedoc_read_memory` still shows the latest episode and the knowledge-entry index within the session token budget
+- [ ] Projects without memory/MEMORY.md still return the "No MEMORY.md found" text with no warnings

@@ -24,7 +24,8 @@ import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, type RecallHit } from './recall'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
-import { buildGraph, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
+import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
+import { findContradictions, formatHealthWarnings, type HealthFlag } from './memory-health'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1029,7 +1030,10 @@ export async function sessionStartMemory(root: string): Promise<string> {
     readMemory(root), listEntries(root), readProjectSettings(root), episodesSinceHandoff(root),
   ])
   const episode = fresh.length ? formatEpisodeSection(fresh[0], fresh.length - 1) : ''
-  return fitToBudget(memory.content, indexHits(entries), sessionBudgetTokens, episode).text
+  // R051: warnings sit directly under the handoff, so the budget never cuts them
+  const warnings = memory.exists ? formatHealthWarnings(await getMemoryHealth(root)) : ''
+  const handoff = warnings ? `${memory.content.trimEnd()}\n\n${warnings}\n` : memory.content
+  return fitToBudget(handoff, indexHits(entries), sessionBudgetTokens, episode).text
 }
 
 /** The "## Related memory" block for a task (up to `limit` strong keyword matches), or '' (R048). */
@@ -1037,6 +1041,15 @@ export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>
   // rank everything so the score filter in formatRelated sees all candidates before the limit
   const entries = await listEntries(root)
   return formatRelated(rankEntries(entries, taskQuery(task), { limit: entries.length }), limit)
+}
+
+// ─── Memory health ────────────────────────────────────────────────────────────
+
+/** Handoff/board contradictions and dangling ids in MEMORY.md and the entries (R051). Pure rules in src/lib/memory-health.ts. */
+export async function getMemoryHealth(root: string): Promise<HealthFlag[]> {
+  const [memory, entries, { tasks }, { items }] = await Promise.all([readMemory(root), listEntries(root), listTasks(root), listRoadmap(root)])
+  const board = [...tasks, ...items].map(({ id, status }) => ({ id, status }))
+  return findContradictions(memory.exists ? memory.content : '', entries, board, t => extractRefs(t).ids)
 }
 
 // ─── File history from git (R053) ─────────────────────────────────────────────
