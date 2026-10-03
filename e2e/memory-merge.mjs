@@ -3,6 +3,7 @@
 //   2. Edit summary + body → Merge into E004 → one E004-*.md with the edited text, E011 gone, E012's "E011" → "E004",
 //      the duplicate flag is gone, the kept entry is open, and vibedoc_read_memory lists E004 but not E011.
 //   3. Undo → all three files are back byte-for-byte (same names, same text).
+//   1b. Esc / Cancel close the dialog and return focus to the Merge… button.
 //   4. Bad requests (unknown id, empty summary) → 400 and no file changes.
 // Fails on any browser console error.
 //
@@ -71,6 +72,19 @@ try {
   assert.ok(await dialog.getByRole("radio", { name: /E004/ }).isChecked())
   assert.equal(await dialog.getByLabel("Merged details (markdown)").inputValue(), "API routes import from core.\n\n---\n\nNever import fs elsewhere.")
   console.log("ok  Merge… opens the dialog keeping E004, bodies joined under ---")
+
+  // keyboard: Esc closes and gives focus back to the Merge… button (DESIGN.md popover rule), then reopen with Enter
+  await page.keyboard.press("Escape")
+  await dialog.waitFor({ state: "hidden" })
+  await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Merge…")
+  await page.keyboard.press("Enter")
+  await dialog.waitFor()
+  await dialog.getByRole("button", { name: "Cancel" }).click()
+  await dialog.waitFor({ state: "hidden" })
+  await page.waitForFunction(() => document.activeElement?.textContent?.trim() === "Merge…")
+  await page.keyboard.press("Enter")
+  await dialog.waitFor()
+  console.log("ok  Esc / Cancel return focus to Merge…")
 
   // 2. Edit + approve (keyboard: ⌘↵)
   await dialog.getByLabel("Merged summary (one line)").fill("Only core.ts touches the fs")

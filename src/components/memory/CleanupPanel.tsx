@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, Info } from "lucide-react"
 import { useApp } from "@/context/AppContext"
@@ -35,6 +35,8 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onOpenEntry, 
   const { board } = useApp()
   const [showDismissed, setShowDismissed] = useState(false)
   const [merging, setMerging] = useState<string[] | null>(null)
+  // the Merge… button that opened the dialog: the dialog has no DialogTrigger, so focus goes back here by hand
+  const mergeTrigger = useRef<HTMLButtonElement | null>(null)
   const tasks = useMemo(() => new Map(Object.values(board ?? {}).flat().map((t) => [t.id, t])), [board])
   const summaries = useMemo(() => new Map((entries ?? []).map((e) => [e.id, e.summary])), [entries])
   const shown = (flags ?? []).filter((f) => showDismissed || !f.dismissed)
@@ -81,7 +83,7 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onOpenEntry, 
         {f.suggestion?.action === "merge" && !f.dismissed && (
           <button
             type="button"
-            onClick={() => setMerging(f.suggestion?.ids ?? null)}
+            onClick={(e) => { mergeTrigger.current = e.currentTarget; setMerging(f.suggestion?.ids ?? null) }}
             className="h-6 shrink-0 rounded-md border border-border px-2 text-xs text-txt outline-none transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
           >
             Merge…
@@ -144,7 +146,7 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onOpenEntry, 
         </div>
       )}
       {mergeGroup && mergeGroup.length > 1 && (
-        <MergeDialog key={mergeGroup.map((e) => e.id).join("+")} group={mergeGroup} onClose={() => setMerging(null)} onApprove={onMerge} />
+        <MergeDialog key={mergeGroup.map((e) => e.id).join("+")} group={mergeGroup} onClose={() => setMerging(null)} onApprove={onMerge} returnFocus={mergeTrigger} />
       )}
     </section>
   )

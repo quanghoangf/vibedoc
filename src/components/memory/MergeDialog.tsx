@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type RefObject } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -16,12 +16,14 @@ function draftFor(keep: Entry, group: Entry[]) {
 }
 
 /** Approve a suggested duplicate merge (R051). Nothing is merged until Approve. Mount with a key per group. */
-export function MergeDialog({ group, onClose, onApprove }: {
+export function MergeDialog({ group, onClose, onApprove, returnFocus }: {
   /** the suggested entries, at least two */
   group: Entry[]
   onClose: () => void
   /** Returns an error message to show, or null on success. */
   onApprove: (input: MergeInput) => Promise<string | null>
+  /** focused again on close (Esc / Cancel), when it is still on the page */
+  returnFocus?: RefObject<HTMLElement | null>
 }) {
   const sorted = [...group].sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }))
   const [keepId, setKeepId] = useState(sorted[0].id)
@@ -45,7 +47,12 @@ export function MergeDialog({ group, onClose, onApprove }: {
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto border-border bg-surface text-txt shadow-xl shadow-black/20">
+      <DialogContent
+        onCloseAutoFocus={(e) => {
+          const el = returnFocus?.current
+          if (el?.isConnected) { e.preventDefault(); el.focus() }
+        }}
+        className="max-h-[90vh] max-w-3xl overflow-y-auto border-border bg-surface text-txt shadow-xl shadow-black/20">
         <DialogTitle className="text-sm font-semibold text-txt">Merge entries</DialogTitle>
         <DialogDescription className="text-xs text-muted">
           Pick the entry to keep and edit the merged text. The others are deleted; mentions of them point to the kept id.
