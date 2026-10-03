@@ -2,7 +2,7 @@
 **Parent:** R004
 **Status:** planned
 **Order:** 50
-**Tasks:** —
+**Tasks:** T117, T118, T119, T120, T121, T122
 
 Memory stays trustworthy as it grows: memory that is stale, duplicated or contradicting gets flagged before it misleads an agent. Based on agentmemory's decay and contradiction handling.
 
