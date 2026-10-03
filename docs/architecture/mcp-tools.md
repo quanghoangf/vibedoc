@@ -25,6 +25,7 @@ Add the same `url` entry to your MCP server config.
 
 ```
 1. vibedoc_read_memory             ← what happened last session? (ends with the knowledge entry index)
+   vibedoc_update_memory           ← only if it showed "⚠ Memory warnings": fix the handoff first
    vibedoc_get_sessions            ← (optional) what other agents did since
 2. vibedoc_next_task { epic }      ← claim the next ready task (returns its full spec, now in-progress)
 3. vibedoc_search_docs             ← find relevant docs before writing
@@ -80,6 +81,8 @@ Read `MEMORY.md` — the session handoff file written by the previous agent sess
 **Parameters:** none
 
 **Returns:** full content of `memory/MEMORY.md`, then — when a [session episode](#automatic-session-episodes) ended after MEMORY.md was last written — `## Since the last handoff (auto, YYYY-MM-DD)` with the newest one (`+N older episodes in .vibedoc/episodes/` when there are more), then `## Knowledge entries (N)` with one `E001 · type · summary (~N tok)` line per entry, newest first, capped at `memory.sessionBudgetTokens` (`.vibedoc/settings.json`, default 2000 tokens; the handoff and the episode are never cut, index lines drop first → `+N more entries`, use `vibedoc_recall`)
+
+Directly under the handoff (never cut by the budget) comes the [memory warnings block](#memory-cleanup) when the handoff contradicts the board — fix the handoff with `vibedoc_update_memory` before starting work.
 
 Before answering it backfills an `inferred` episode for up to 5 ended agent sessions since the last MEMORY.md write that have no handoff and no episode (never the session still running), so the reply can show them.
 
@@ -330,6 +333,41 @@ Write a new Architecture Decision Record (ADR) when making a significant technic
 ```
 
 **How the next session sees it:** `vibedoc_read_memory` shows the newest episode whose `**End:**` is later than MEMORY.md's last write, under `## Since the last handoff (auto, <date>)`, right after the handoff. Once an agent calls `vibedoc_update_memory`, older episodes stop showing. Each write emits the SSE event `episode_saved`.
+
+---
+
+## Memory cleanup
+
+VibeDoc checks memory against the board on every `vibedoc_read_memory` and on the Memory tab (`/memory`, **Cleanup (N)** button → `?cleanup=1`). Flags are derived on each read, never stored (pure rules in `src/lib/memory-health.ts`, `getMemoryHealth()` in core):
+
+| Flag | Severity | When |
+|------|----------|------|
+| `contradiction` | ⚠ warn | MEMORY.md names a task or epic under **Working on now** / **Up next** that is done or cancelled, or a task under **Just completed** that isn't done |
+| `dangling-ref` | info | MEMORY.md or an entry mentions a `T…` / `R…` id that doesn't exist |
+| `duplicate` | info | Two or more entries say the same thing (keyword overlap ≥ 50%, grouped); the row offers **Merge…** |
+| `stale` | info | No agent fetched the entry with `vibedoc_get_entries` for more than 60 days (or never, counted from `**Updated:**`); the row offers **Delete** with Undo |
+
+**Warning block.** When there are `warn` flags, `vibedoc_read_memory` puts this right under the handoff (max 5 lines, the rest → `…and N more on /memory`):
+
+```
+## ⚠ Memory warnings
+- ⚠ Handoff says T055 is in progress, but it is done
+```
+
+With only info flags it shows one line instead: `ℹ 3 memory cleanup suggestions on /memory`. **Agents: when you see the warning block, fix the handoff with `vibedoc_update_memory` before starting work.**
+
+**Recall log.** `vibedoc_get_entries` records today's date per fetched id in `memory/.recall-log.json` — that is what "recalled" means for the `stale` flag (`vibedoc_recall` lists and the session index don't count). Deleting or merging an entry drops its id from the log.
+
+**Merge.** **Merge…** opens a dialog (keep the oldest id by default, edit the merged summary and body). Approving rewrites the kept entry, deletes the others and points `E…` references in other entries at the kept id. Undo writes every touched file back byte-for-byte.
+
+**Sidecar files** (both small JSON with sorted keys, so they diff cleanly; committing them is the project's choice):
+
+| File | Holds |
+|------|-------|
+| `memory/.cleanup.json` | `{ "dismissed": { "<flag id>": "YYYY-MM-DD" } }` — a dismissed flag stays hidden while its id stays the same |
+| `memory/.recall-log.json` | `{ "E004": "YYYY-MM-DD" }` — last `vibedoc_get_entries` fetch per entry, written at most once per id per day |
+
+**Routes** (UI): `GET /api/memory/health[?dismissed=1]` → `{ flags }` · `POST /api/memory/health/dismiss { id }` · `POST /api/memory/entries/merge { keepId, dropIds, type, summary, body }` → `{ entry, before }` · `POST /api/memory/entries/merge/undo { before }`. Each mutation emits `memory_updated`.
 
 ---
 

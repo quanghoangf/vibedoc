@@ -286,7 +286,7 @@ const TOOLS = [
   {
     name: "vibedoc_read_memory",
     description:
-      "Read MEMORY.md — the session handoff file. Always call this at session start.",
+      "Read MEMORY.md — the session handoff file. Always call this at session start. If it shows '## ⚠ Memory warnings' (the handoff contradicts the board), fix the handoff with vibedoc_update_memory before starting work.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
