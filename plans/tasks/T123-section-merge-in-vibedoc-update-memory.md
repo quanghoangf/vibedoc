@@ -1,5 +1,6 @@
 # T123: Section merge in vibedoc_update_memory
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Done:** 2026-10-03
 **Phase:** R045 — Safe memory updates
 **Size:** M (2–3 hrs)
 **Depends on:** —
@@ -15,24 +16,24 @@ An agent's `vibedoc_update_memory` rewrites only the sections it passes. Every o
 - Project rules: only `core.ts` touches fs. Pure libs never import values from each other: `memory-health.ts` already has `splitSections()`, so either copy that logic or move it, and don't import across libs.
 
 ## Scope
-- [ ] `src/lib/memory-sections.ts` (new, pure):
-  - [ ] `parseMemory(md)` → `{ preamble, sections: { heading, body }[] }`, lossless. Joining the result back gives the input byte for byte. `## ` lines inside ``` fences are not headings.
-  - [ ] `mergeMemory(current, params, stamp)` → the new markdown.
-- [ ] Merge rules:
-  - [ ] Each passed field renders with the existing format (bullets, numbered list, issues table, the "(nothing …)" placeholders) and replaces the body of the section with the same heading, matched case-insensitively.
-  - [ ] When a passed section is missing from the file, append it in template order, after the last known section that comes before it.
-  - [ ] Unknown sections and their order stay untouched.
-  - [ ] Replace the `**Last updated:**` line in the preamble, or insert it under the H1.
-  - [ ] An empty or missing file renders the full template, as today.
-- [ ] `updateMemory()` reads the current file, calls `mergeMemory`, then writes the result.
-  - [ ] Throw `Nothing to update: pass at least one of …` when no known field is given.
-  - [ ] The activity detail is `handoff.slice(0,120)` when a handoff was passed, otherwise it lists the sections that were updated.
-- [ ] MCP `vibedoc_update_memory`:
-  - [ ] Change `required` to `[]`.
-  - [ ] Description: "Only the sections you pass are rewritten; other sections (including hand-written ones) are kept."
-  - [ ] Return the error text on an empty call.
-- [ ] `POST /api/memory` returns 400 with the error message on an empty call.
-- [ ] `src/lib/memory-sections.check.mts`.
+- [x] `src/lib/memory-sections.ts` (new, pure):
+  - [x] `parseMemory(md)` → `{ preamble, sections: { heading, body }[] }`, lossless. Joining the result back gives the input byte for byte. `## ` lines inside ``` fences are not headings.
+  - [x] `mergeMemory(current, params, stamp)` → the new markdown.
+- [x] Merge rules:
+  - [x] Each passed field renders with the existing format (bullets, numbered list, issues table, the "(nothing …)" placeholders) and replaces the body of the section with the same heading, matched case-insensitively.
+  - [x] When a passed section is missing from the file, append it in template order, after the last known section that comes before it.
+  - [x] Unknown sections and their order stay untouched.
+  - [x] Replace the `**Last updated:**` line in the preamble, or insert it under the H1.
+  - [x] An empty or missing file renders the full template, as today.
+- [x] `updateMemory()` reads the current file, calls `mergeMemory`, then writes the result.
+  - [x] Throw `Nothing to update: pass at least one of …` when no known field is given.
+  - [x] The activity detail is `handoff.slice(0,120)` when a handoff was passed, otherwise it lists the sections that were updated.
+- [x] MCP `vibedoc_update_memory`:
+  - [x] Change `required` to `[]`.
+  - [x] Description: "Only the sections you pass are rewritten; other sections (including hand-written ones) are kept."
+  - [x] Return the error text on an empty call.
+- [x] `POST /api/memory` returns 400 with the error message on an empty call.
+- [x] `src/lib/memory-sections.check.mts`.
 
 **Out of scope:** snapshots and restore (T124), the MCP history tool (T125), the UI (T126), docs and e2e (T127).
 
@@ -48,11 +49,11 @@ An agent's `vibedoc_update_memory` rewrites only the sections it passes. Every o
 - Build `stamp` (`YYYY-MM-DD at HH:MM`) in core. The pure lib never calls `new Date()`, so the check stays deterministic.
 
 ## Acceptance criteria
-- [ ] A MEMORY.md with a `## Key conventions` section between two template sections: `vibedoc_update_memory { handoff: "x" }` changes only `## Handoff for next session` and `**Last updated:**`; everything else is byte-identical.
-- [ ] `vibedoc_update_memory {}` → error text and the file is unchanged.
-- [ ] A missing MEMORY.md plus `{ currentState, handoff }` → the same full template as before this task.
-- [ ] A `## Up next` line inside a ``` fence of another section is not treated as a heading.
-- [ ] `node src/lib/memory-sections.check.mts` passes, and the existing `memory-health.check.mts` and `episodes.check.mts` still pass.
+- [x] A MEMORY.md with a `## Key conventions` section between two template sections: `vibedoc_update_memory { handoff: "x" }` changes only `## Handoff for next session` and `**Last updated:**`; everything else is byte-identical.
+- [x] `vibedoc_update_memory {}` → error text and the file is unchanged.
+- [x] A missing MEMORY.md plus `{ currentState, handoff }` → the same full template as before this task.
+- [x] A `## Up next` line inside a ``` fence of another section is not treated as a heading.
+- [x] `node src/lib/memory-sections.check.mts` passes, and the existing `memory-health.check.mts` and `episodes.check.mts` still pass.
 
 ## Verify
 ```bash

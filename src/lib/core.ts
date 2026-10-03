@@ -27,6 +27,7 @@ import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, 
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
+import { mergeMemory, passedKeys, SECTIONS, type MemoryParams } from './memory-sections'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -908,16 +909,7 @@ export async function logDecision(params: ADRParams, root: string, actor: 'ai' |
 
 // ─── Memory ───────────────────────────────────────────────────────────────────
 
-export interface MemoryParams {
-  currentState: string
-  justCompleted?: string[]
-  workingOn?: string
-  upNext?: string[]
-  issues?: (string | { issue: string; severity?: string; status?: string })[]
-  decisions?: string[]
-  techDebt?: string[]
-  handoff: string
-}
+export type { MemoryParams } from './memory-sections'
 
 export async function readMemory(root: string): Promise<{ content: string; exists: boolean }> {
   try {
@@ -928,21 +920,24 @@ export async function readMemory(root: string): Promise<{ content: string; exist
   }
 }
 
+/** Rewrites only the sections passed (R045); throws "Nothing to update: …" when no known field is given. */
 export async function updateMemory(params: MemoryParams, root: string, actor: 'ai' | 'human' = 'human'): Promise<void> {
-  const { currentState, justCompleted = [], workingOn = '', upNext = [], issues = [], decisions = [], techDebt = [], handoff } = params
   const now = new Date()
-  const today = now.toISOString().split('T')[0]
-  const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-
-  const content = `# Project Memory\n**Last updated:** ${today} at ${time}\n\n## Current state\n${currentState}\n\n## Just completed\n${justCompleted.map(i => `- ${i}`).join('\n') || '- (nothing this session)'}\n\n## Working on now\n${workingOn || '(nothing active)'}\n\n## Up next\n${upNext.map((item, i) => `${i + 1}. ${item}`).join('\n') || '1. (define next steps)'}\n\n## Active issues\n| Issue | Severity | Status |\n|-------|----------|--------|\n${issues.map(i => typeof i === 'string' ? `| ${i} | medium | open |` : `| ${i.issue} | ${i.severity || 'medium'} | ${i.status || 'open'} |`).join('\n') || '| None | — | — |'}\n\n## Recent decisions\n${decisions.map(d => `- ${d}`).join('\n') || '- (none this session)'}\n\n## Tech debt\n${techDebt.map(d => `- ${d}`).join('\n') || '- (none noted)'}\n\n## Handoff for next session\n${handoff}\n`
+  const stamp = `${now.toISOString().split('T')[0]} at ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+  const file = path.join(root, 'memory', 'MEMORY.md')
+  const current = await fs.readFile(file, 'utf8').catch(() => '')
+  const content = mergeMemory(current, params, stamp)
 
   await fs.mkdir(path.join(root, 'memory'), { recursive: true })
-  await fs.writeFile(path.join(root, 'memory', 'MEMORY.md'), content, 'utf8')
+  await fs.writeFile(file, content, 'utf8')
 
+  const keys = passedKeys(params)
   await appendActivity(root, {
     type: 'memory_updated', actor,
     title: 'Session memory updated',
-    detail: handoff.slice(0, 120),
+    detail: params.handoff != null
+      ? String(params.handoff).slice(0, 120)
+      : `Updated: ${SECTIONS.filter(([k]) => keys.includes(k)).map(([, h]) => h).join(', ')}`,
   })
 }
 

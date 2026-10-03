@@ -293,7 +293,7 @@ const TOOLS = [
   {
     name: "vibedoc_update_memory",
     description:
-      "Update MEMORY.md with session summary. Call at END of every session. Durable facts (conventions, gotchas, decisions, preferences) go to vibedoc_save_entry, not the handoff.",
+      "Update MEMORY.md with session summary. Call at END of every session. Only the sections you pass are rewritten; other sections (including hand-written ones) are kept. Durable facts (conventions, gotchas, decisions, preferences) go to vibedoc_save_entry, not the handoff.",
     inputSchema: {
       type: "object",
       properties: {
@@ -306,7 +306,7 @@ const TOOLS = [
         techDebt: { type: "array", items: { type: "string" } },
         handoff: { type: "string" },
       },
-      required: ["currentState", "handoff"],
+      required: [],
     },
   },
   {
