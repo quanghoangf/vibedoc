@@ -114,10 +114,11 @@ export function mergeMemory(current: string, params: MemoryParams, stamp: string
     const idx = before.length ? Math.max(...before) + 1 : after.length ? Math.min(...after) : doc.sections.length
     const last = idx === doc.sections.length
     // the text above the new heading must end in a blank line
+    const eol = current.includes('\r\n') ? '\r\n' : '\n'
     const prev = idx > 0 ? doc.sections[idx - 1] : null
-    if (prev) prev.body = prev.body.replace(/\n*$/, '\n\n')
-    else if (doc.preamble) doc.preamble = doc.preamble.replace(/\n*$/, '\n\n')
-    doc.sections.splice(idx, 0, { heading, line: `## ${heading}`, body: `\n${content}\n${last ? '' : '\n'}` })
+    if (prev) prev.body = prev.body.replace(/(\r?\n)*$/, eol + eol)
+    else if (doc.preamble) doc.preamble = doc.preamble.replace(/(\r?\n)*$/, eol + eol)
+    doc.sections.splice(idx, 0, { heading, line: `## ${heading}`, body: `${eol}${content.replace(/\r?\n/g, eol)}${eol}${last ? '' : eol}` })
   })
 
   // stamp: replace **Last updated:**, else insert under the H1, else on top — never inside a fence

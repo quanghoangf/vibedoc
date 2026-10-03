@@ -64,4 +64,11 @@ assert.equal(mergeMemory('```sh\n# comment\n```\n# Real\n\n## Up next ##\n1. a\n
 // fences close only on the same char, at least as long; ~~~ fences count
 assert.deepEqual(parseMemory('## A\n````md\n```\n## Up next\n````\n## B\n~~~\n## C\n~~~\n').sections.map(s => s.heading), ['A', 'B'])
 
+// CRLF file + a missing section inserted → no bare LF anywhere
+{
+  const out = mergeMemory('# M\r\n\r\n## Current state\r\nx\r\n\r\n## Notes\r\nkeep\r\n', { issues: ['a'] }, 'S')
+  assert.equal(/(?<!\r)\n/.test(out), false)
+  assert.match(out, /## Active issues\r\n/)
+}
+
 console.log('memory-sections: ok')

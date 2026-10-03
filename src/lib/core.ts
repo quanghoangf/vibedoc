@@ -1001,7 +1001,7 @@ export async function listMemoryVersions(root: string): Promise<MemoryVersion[]>
   for (const id of await snapshotIds(root)) {
     const snap = await readSnapshot(id, root)
     if (!snap) continue
-    const handoff = parseMemory(snap.content).sections.find(s => s.heading === 'Handoff for next session')
+    const handoff = parseMemory(snap.content).sections.find(s => s.heading.trim().toLowerCase() === 'handoff for next session')
     const excerpt = handoff?.body.split(/\r?\n/).map(l => l.trim()).find(Boolean) ?? ''
     out.push({ id, at: snapshotAt(id), actor: snap.actor, reason: snap.reason, bytes: Buffer.byteLength(snap.content), excerpt })
   }

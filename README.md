@@ -138,6 +138,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | `vibedoc_append_doc`     | Append content to an existing doc      |
 | `vibedoc_rename_doc`     | Move or rename a doc                   |
 | `vibedoc_delete_doc`     | Delete a doc                           |
+| `vibedoc_set_doc_priority` | Set or clear a doc's P0–P3 priority (frontmatter) |
 | `vibedoc_list_templates` | List available doc templates with IDs  |
 | `vibedoc_propose_edit`   | Propose edits as a diff; the user accepts or rejects in the UI |
 

@@ -304,7 +304,15 @@ const TOOLS = [
         justCompleted: { type: "array", items: { type: "string" } },
         workingOn: { type: "string" },
         upNext: { type: "array", items: { type: "string" } },
-        issues: { type: "array", items: { type: "string" } },
+        issues: {
+          type: "array",
+          items: {
+            oneOf: [
+              { type: "string" },
+              { type: "object", properties: { issue: { type: "string" }, severity: { type: "string" }, status: { type: "string" } }, required: ["issue"] },
+            ],
+          },
+        },
         decisions: { type: "array", items: { type: "string" } },
         techDebt: { type: "array", items: { type: "string" } },
         handoff: { type: "string" },
