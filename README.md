@@ -106,7 +106,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 | Tool                    | Effect                                                           |
 | ----------------------- | ---------------------------------------------------------------- |
-| `vibedoc_read_memory`   | Read `MEMORY.md` — triggers "session start" in the activity feed |
+| `vibedoc_read_memory`   | Read `MEMORY.md` (+ the latest auto episode newer than it) — triggers "session start" in the activity feed |
 | `vibedoc_update_memory` | Write end-of-session summary and handoff note                    |
 | `vibedoc_save_entry`    | Save a long-lived fact as `memory/entries/E001-*.md` (listed at session start) |
 | `vibedoc_delete_entry`  | Delete a knowledge entry that is no longer true                  |
@@ -204,6 +204,7 @@ Add this to your project's `CLAUDE.md` to guide your AI agent:
 - Call `vibedoc_update_task` for each task touched
 - Call `vibedoc_save_entry` for each fact that should outlast the session (convention, gotcha, decision, preference)
 - Call `vibedoc_update_memory` with full summary and handoff note
+- (If a session ends without it, VibeDoc saves an automatic episode in `.vibedoc/episodes/` and the next `vibedoc_read_memory` shows it. It is a safety net, not a replacement.)
 ```
 
 ---
@@ -253,6 +254,8 @@ Every AI and human action is appended to `.vibedoc-activity.json` in your projec
 The Activity tab opens on **Sessions**: one card per agent or human session with who, when, how long, a headline (`3 tasks moved (2 done) · 2 docs changed · 1 ADR`) and clickable task, doc and ADR chips. Expand a card to see its raw events; **All events** shows the flat feed. Both update live via SSE.
 
 A session is the events one actor makes without a 30-minute break, and `vibedoc_read_memory` (session start) always opens a new one. From a task's detail panel, the **Sessions** list shows every session that moved the task and jumps to that card in the Activity tab. Agents read the same timeline with `vibedoc_get_sessions`.
+
+A session that ends without a `vibedoc_update_memory` handoff still leaves a summary: VibeDoc writes `.vibedoc/episodes/<sessionId>.md` (what happened, where it stopped, what's open) when a chat turn ends, when an epic run ends, or later at the next session start, and the next `vibedoc_read_memory` shows the newest one under **Since the last handoff**. Episodes never touch `MEMORY.md`.
 
 ---
 

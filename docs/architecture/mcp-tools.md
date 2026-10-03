@@ -35,6 +35,8 @@ Add the same `url` entry to your MCP server config.
    vibedoc_update_memory           ← write handoff for next session
 ```
 
+Forgot step 7? VibeDoc leaves an [automatic episode](#automatic-session-episodes) and the next `vibedoc_read_memory` shows it — but the handoff you write is better, so still call `vibedoc_update_memory`.
+
 For a task outside an epic, pick it by hand: `vibedoc_get_status` → `vibedoc_get_task <id>` → `vibedoc_update_task <id> in-progress` → work → `vibedoc_update_task <id> done`.
 
 The `/work-epic <epic id>` skill ([`skills/work-epic/SKILL.md`](../../skills/work-epic/SKILL.md)) runs this loop for Claude Code.
@@ -77,7 +79,9 @@ Read `MEMORY.md` — the session handoff file written by the previous agent sess
 
 **Parameters:** none
 
-**Returns:** full content of `memory/MEMORY.md`, then `## Knowledge entries (N)` with one `E001 · type · summary (~N tok)` line per entry, newest first, capped at `memory.sessionBudgetTokens` (`.vibedoc/settings.json`, default 2000 tokens; the rest → `+N more entries`, use `vibedoc_recall`)
+**Returns:** full content of `memory/MEMORY.md`, then — when a [session episode](#automatic-session-episodes) ended after MEMORY.md was last written — `## Since the last handoff (auto, YYYY-MM-DD)` with the newest one (`+N older episodes in .vibedoc/episodes/` when there are more), then `## Knowledge entries (N)` with one `E001 · type · summary (~N tok)` line per entry, newest first, capped at `memory.sessionBudgetTokens` (`.vibedoc/settings.json`, default 2000 tokens; the handoff and the episode are never cut, index lines drop first → `+N more entries`, use `vibedoc_recall`)
+
+Before answering it backfills an `inferred` episode for up to 5 ended agent sessions since the last MEMORY.md write that have no handoff and no episode (never the session still running), so the reply can show them.
 
 ---
 
@@ -195,6 +199,8 @@ Needs a human: unblock one of the tasks above.
 🗺️ R010 "Login": all tasks done but status is planned → vibedoc_update_roadmap_item { "id": "R010", "status": "done" }
 ```
 
+**Episode at run end:** on *Nothing ready* and *Finished*, if the caller's session moved something and wrote no `vibedoc_update_memory` handoff, VibeDoc writes its [episode](#automatic-session-episodes) (`**Source:** epic R010`) and the reply ends with `Episode saved → .vibedoc/episodes/<sessionId>.md`. Still call `vibedoc_update_memory` — the episode is the safety net.
+
 ---
 
 ### `vibedoc_get_roadmap`
@@ -288,6 +294,42 @@ Write a new Architecture Decision Record (ADR) when making a significant technic
 | `consequences` | string | | Trade-offs and follow-ups |
 
 **Returns:** ADR number and file path (written to `docs/architecture/decisions/ADR-NNN-*.md`)
+
+---
+
+## Automatic session episodes
+
+`vibedoc_update_memory` is still the way to hand off: an agent writes what matters and what to do next. An **episode** is the safety net for a session that ended without it — a short summary VibeDoc builds from the session's activity (R050). Episodes never touch `MEMORY.md`.
+
+**Where:** `.vibedoc/episodes/<sessionId>.md`, one per agent session (`src/lib/episodes.ts` builds it, pure; `core.ts` writes it).
+
+**When it is written** — only for a session that changed something (doc reads and session starts alone don't count) and has no MEMORY.md write; saving entries is not a handoff:
+| Trigger | Source line |
+|---|---|
+| A chat turn from the UI ends (`/api/chat`, after `claude -p` exits) | `chat <conversationId>` (a session shared by several chats lists each) |
+| `vibedoc_next_task` returns *Nothing ready* or *Finished* | `epic R0xx` |
+| `vibedoc_read_memory` finds an ended agent session (up to 5, since the last MEMORY.md write) with no episode | `inferred` |
+
+**Format** (body ≤ 1600 characters, ≈ 400 tokens; the last message is trimmed first, then the lists):
+```
+# Episode ses_1790587370058_tzmkg: 1 task moved
+**Session:** ses_1790587370058_tzmkg
+**Actor:** ai:claude-code
+**Start:** 2026-10-03T13:01:12.000Z
+**End:** 2026-10-03T13:04:40.000Z
+**Source:** chat c_abc123
+
+## What happened
+- T001 → in-progress
+
+## Where it stopped
+> Moved T001 to in-progress; the form validation is next.
+
+## Open
+- T001 Form (in-progress)
+```
+
+**How the next session sees it:** `vibedoc_read_memory` shows the newest episode whose `**End:**` is later than MEMORY.md's last write, under `## Since the last handoff (auto, <date>)`, right after the handoff. Once an agent calls `vibedoc_update_memory`, older episodes stop showing. Each write emits the SSE event `episode_saved`.
 
 ---
 
