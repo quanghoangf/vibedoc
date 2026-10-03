@@ -61,7 +61,9 @@ export function CleanupPanel({ flags, onDismiss, onOpenEntry, onClose }: {
       <li key={f.id} data-flag={f.id} className={cn("flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2.5", f.dismissed && "opacity-60")}>
         <Icon className={cn("mt-0.5 size-3.5 shrink-0", f.severity === "warn" && !f.dismissed ? "text-amber" : "text-muted")} aria-label={f.severity === "warn" ? "Warning" : "Note"} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <p className={cn("text-[13px]", f.dismissed ? "text-muted" : "text-txt")}>{f.message}</p>
+          <p className={cn("text-[13px]", f.dismissed ? "text-muted" : "text-txt")}>
+            {f.message.split(/\b([TRE]\d+)\b/).map((part, i) => (i % 2 ? <span key={i} className="font-mono text-[12px]">{part}</span> : part))}
+          </p>
           {f.refs.length > 0 && <div className="-ml-1.5 flex flex-wrap gap-1">{f.refs.map(ref)}</div>}
         </div>
         {f.dismissed ? (

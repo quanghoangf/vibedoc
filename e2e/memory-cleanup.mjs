@@ -3,6 +3,8 @@
 //   2. Dismiss → row hidden, memory/.cleanup.json written, vibedoc_read_memory drops the warning; a reload keeps it hidden.
 //   3. Moving another task to done on the board API updates the panel live (no reload).
 //   4. "Show dismissed" lists the dismissed flag greyed out.
+//   5. IDs inside a flag message render in mono (DESIGN.md Grep rule).
+//   6. Parallel dismisses all land in .cleanup.json (no lost read-modify-write).
 // Fails on any browser console error.
 //
 //   PW_DIR=<dir with node_modules/playwright> node e2e/memory-cleanup.mjs
@@ -85,6 +87,24 @@ try {
   assert.equal(await row.getByRole("button", { name: "Dismiss" }).count(), 0)
   assert.ok(Number(await row.evaluate((el) => getComputedStyle(el).opacity)) < 1)
   console.log("ok  Show dismissed lists the dismissed flag greyed out")
+
+  // 5. IDs in the message are mono
+  const msgId = panel.locator('[data-flag="contradiction:working-on:T002"] p span', { hasText: "T002" })
+  assert.match(await msgId.evaluate((el) => getComputedStyle(el).fontFamily), /mono/i)
+  console.log("ok  IDs in the flag message render in mono")
+
+  // 6. Parallel dismisses: every id is saved
+  const ids = ["T003", "T004", "T005", "T006"]
+  for (const id of ids) task(id, `Batch ${id}`, "✅ Done")
+  writeFileSync(path.join(fx, "memory/MEMORY.md"), `# Project Memory\n\n## Working on now\n${ids.map((id) => `- ${id}`).join("\n")}\n`)
+  const flagIds = ids.map((id) => `contradiction:working-on:${id}`)
+  const results = await Promise.all(flagIds.map((flagId) =>
+    fetch(`${BASE}/api/memory/health/dismiss${q}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: flagId }) })))
+  assert.ok(results.every((r) => r.ok), `dismiss statuses: ${results.map((r) => r.status)}`)
+  const saved = Object.keys(JSON.parse(readFileSync(cleanupFile, "utf8")).dismissed)
+  for (const flagId of [...flagIds, "contradiction:working-on:T001"]) assert.ok(saved.includes(flagId), `${flagId} saved`)
+  assert.doesNotMatch(await mcp("vibedoc_read_memory", {}), /T00[3-6] is in progress/)
+  console.log("ok  4 parallel dismisses all saved")
 
   assert.deepEqual(errors, [], "no browser console errors")
   console.log("ok  no console errors")

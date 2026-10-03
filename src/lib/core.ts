@@ -1076,18 +1076,29 @@ export async function readCleanupState(root: string): Promise<{ dismissed: Recor
   return { dismissed: {} }
 }
 
+// ponytail: in-process mutex like withEntryLock, so parallel dismisses don't drop ids; doesn't cover a second VibeDoc process.
+let cleanupLock: Promise<unknown> = Promise.resolve()
+function withCleanupLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = cleanupLock.then(fn, fn)
+  cleanupLock = run.catch(() => {})
+  return run
+}
+
 /** Hide a health flag for as long as its id stays the same. Throws when no current flag has that id. */
 export async function dismissHealthFlag(flagId: string, root: string, actor: 'human' | 'ai' = 'human'): Promise<CleanupFlag> {
   const flag = (await getMemoryHealth(root, { includeDismissed: true })).find(f => f.id === flagId)
   if (!flag) throw new RoadmapError(`Flag "${flagId}" not found`, 404)
-  const { dismissed } = await readCleanupState(root)
-  dismissed[flagId] = localToday()
-  const sorted = Object.fromEntries(Object.entries(dismissed).sort(([a], [b]) => a.localeCompare(b)))
-  const file = path.join(root, CLEANUP_FILE)
-  await fs.mkdir(path.dirname(file), { recursive: true })
-  await fs.writeFile(file, JSON.stringify({ dismissed: sorted }, null, 2) + '\n', 'utf-8')
+  const date = await withCleanupLock(async () => {
+    const { dismissed } = await readCleanupState(root)
+    dismissed[flagId] = localToday()
+    const sorted = Object.fromEntries(Object.entries(dismissed).sort(([a], [b]) => a.localeCompare(b)))
+    const file = path.join(root, CLEANUP_FILE)
+    await fs.mkdir(path.dirname(file), { recursive: true })
+    await fs.writeFile(file, JSON.stringify({ dismissed: sorted }, null, 2) + '\n', 'utf-8')
+    return dismissed[flagId]
+  })
   await appendActivity(root, { type: 'memory_updated', actor, title: 'Cleanup flag dismissed', detail: flag.message })
-  return { ...flag, dismissed: dismissed[flagId] }
+  return { ...flag, dismissed: date }
 }
 
 // ─── File history from git (R053) ─────────────────────────────────────────────
