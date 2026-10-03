@@ -1,6 +1,6 @@
 # R050: Automatic session episodes
 **Parent:** R003
-**Status:** planned
+**Status:** done
 **Order:** 70
 **Tasks:** T113, T114, T115, T116
 
