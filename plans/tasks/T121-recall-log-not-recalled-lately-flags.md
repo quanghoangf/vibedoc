@@ -1,8 +1,9 @@
 # T121: Recall log + "Not recalled lately" flags
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R051 — Memory cleanup & staleness
 **Size:** M
 **Depends on:** T118
+**Done:** 2026-10-03
 
 ## Goal
 VibeDoc records when an agent last actually read each entry. The Cleanup panel then lists entries that nobody has recalled in a long time, each with a Delete action (approval plus Undo), so dead weight can be pruned.
@@ -48,3 +49,16 @@ curl -s localhost:3000/api/mcp -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_get_entries","arguments":{"ids":["E001"]}}}'
 cat memory/.recall-log.json
 ```
+
+## Manual tests
+_2026-10-03 — ai_
+### Steps
+- [ ] In a project with a knowledge entry whose **Updated:** is 90 days ago, open /memory → Cleanup → "Not recalled lately" lists it as "E00x never recalled (updated 90 days ago)"
+- [ ] Have an agent call `vibedoc_get_entries { ids: ["E00x"] }` → `memory/.recall-log.json` gets today's date for it and the row disappears without a reload
+- [ ] Call it again the same day → the log file is not rewritten (no git diff)
+- [ ] Put an old date for another entry in the log → its row reads "last recalled N days ago"
+- [ ] Click Delete on that row → entry is gone, its log line is removed, an Undo toast shows and the panel stays open
+- [ ] Click Undo → the entry is back in the list and the flag returns as "never recalled"
+### Regression risk
+- [ ] Deleting an entry from the entry detail (⌫ / Delete button) still works with Undo
+- [ ] vibedoc_read_memory's cleanup info line now also counts stale entries
