@@ -110,6 +110,15 @@ assert.deepEqual(pick({}, null), ['superseded', 'old']) // 'cur' is the newest a
 assert.deepEqual(pick({ now: Date.parse(at(90)) }, null), ['cur', 'superseded', 'old']) // …until it goes idle
 assert.deepEqual(pick({ since: Date.parse(at(20)) }), ['superseded']) // ended before the last MEMORY.md write
 assert.deepEqual(pick({}, 'cur', ['has_ep', 'old', 'superseded']), [])
+// Another client's vibedoc_read_memory opens a read-only session after the running one: that doesn't end it
+const bf2 = [
+  ev(0, 'task_updated', { taskId: 'T1', taskStatus: 'in-progress', sessionId: 'running' }),
+  ev(1, 'session_start', { sessionId: 'reader1' }),
+  ev(2, 'session_start', { sessionId: 'reader2' }),
+]
+const pick2 = (now: number) => sessionsNeedingEpisode(groupSessions(bf2), bf2, new Set(), 'reader1', { now: Date.parse(at(now)), gapMs: SESSION_GAP_MS }).map(x => x.id)
+assert.deepEqual(pick2(10), [])
+assert.deepEqual(pick2(40), ['running']) // …ended once idle > 30 min
 assert.equal(lastEventTitle(bss.find(x => x.id === 'old')!, bf), 'T1 → done')
 assert.equal(lastEventTitle(bss.find(x => x.id === 'reads')!, bf), undefined)
 

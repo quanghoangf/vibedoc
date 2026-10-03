@@ -125,7 +125,8 @@ export interface BackfillOpts {
 
 /**
  * R050 backfill: ended agent sessions with work, no handoff and no episode file yet, newest first, at most `limit` (5).
- * Ended = idle longer than `gapMs`, or a later session by the same actor exists. `sessions` come newest first (groupSessions).
+ * Ended = idle longer than `gapMs`, or a later session with work by the same actor exists. A later read-only session
+ * (another client's vibedoc_read_memory opens one) doesn't end it: the agent may still be working. `sessions` come newest first.
  */
 export function sessionsNeedingEpisode(
   sessions: Session[], events: ActivityEvent[], existingIds: Set<string>, currentSessionId: string | null, opts: BackfillOpts,
@@ -135,7 +136,7 @@ export function sessionsNeedingEpisode(
     .filter(s => {
       if (s.actor !== 'ai' || s.id === currentSessionId || existingIds.has(s.id)) return false
       const end = Date.parse(s.end)
-      const ended = opts.now - end > opts.gapMs || sessions.some(o => o.actor === s.actor && o.start > s.start)
+      const ended = opts.now - end > opts.gapMs || sessions.some(o => o.actor === s.actor && o.start > s.start && hasWork(o, events))
       return ended && end > since && hasWork(s, events) && !isHandoffWritten(s, events)
     })
     .slice(0, opts.limit ?? 5)

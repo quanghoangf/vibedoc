@@ -897,10 +897,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     }
 
     case "vibedoc_read_memory": {
+      // read before logSessionStart, which opens a new session: the one still running is the agent's, never backfill it
+      const running = currentSessionId(root);
       await logSessionStart(root, "ai");
       emitUpdate("session_start", { root });
       // R050: ended sessions with no handoff get an `inferred` episode first, so the response below can show it
-      for (const ep of await backfillEpisodes(root, { excludeSessionId: currentSessionId(root) })) {
+      for (const ep of await backfillEpisodes(root, { excludeSessionId: running })) {
         emitUpdate("episode_saved", ep);
       }
       return sessionStartMemory(root);

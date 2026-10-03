@@ -56,7 +56,8 @@ ls .vibedoc/episodes
 - Backfill only looks at sessions that ended after the last MEMORY.md write: older ones are covered by that handoff and T114 never shows them, and without the cutoff every `vibedoc_read_memory` would write 5 more episodes for old history.
 - Backfill only picks `ai` sessions with a non-read event (`hasWork`); human board sessions and read-only sessions get none.
 - Both "finished" and "waiting" replies of `vibedoc_next_task` count as the end of the run.
-- Ceiling: `vibedoc_read_memory` starts a new session (T046), so an agent that calls it twice in one run gets an `inferred` episode for the first half. It ends before that run's handoff, so it is not shown.
+- The running session is read before `logSessionStart` (which opens a new one) and excluded, and a later session only ends an earlier one when it has work: another client's `vibedoc_read_memory` (a read-only session) never backfills a session that is still running.
+- Ceiling: all `ai` clients share one session per root (T046), and `vibedoc_read_memory` starts a new one. When work continues after it (same agent calling it twice, or another client reading mid-run), the next backfill writes an `inferred` episode for the first half. It ends before that run's handoff, so it is not shown.
 
 ## Manual tests
 _2026-10-03 — ai_
