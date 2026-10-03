@@ -3,6 +3,7 @@
 //   1. One chat turn from the UI moves T001 to in-progress (no vibedoc_update_memory).
 //   2. An episode lands in <fixture>/.vibedoc/episodes/<sessionId>.md.
 //   3. A fresh vibedoc_read_memory shows it under "Since the last handoff".
+//   4. Work after a handoff in the same session still gets an episode (epic-run end).
 //
 //   pnpm build && PW_DIR=<dir with node_modules/playwright> node e2e/session-episodes.mjs
 //
@@ -111,6 +112,30 @@ try {
   assert.match(memory, /T001 → in-progress/)
   assert.match(memory, new RegExp(REPLY))
   console.log("ok  a fresh vibedoc_read_memory shows it under \"Since the last handoff\"")
+
+  // 4. Work after a handoff in the same session still gets an episode (here at epic-run end)
+  const fx2 = makeFixture()
+  writeFileSync(path.join(fx2, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** T001, T002\n")
+  writeFileSync(path.join(fx2, "plans/tasks/T001-a.md"), "# T001: A\n**Status:** 📋 Todo\n**Phase:** R002\n")
+  writeFileSync(path.join(fx2, "plans/tasks/T002-b.md"), "# T002: B\n**Status:** 📋 Todo\n**Phase:** R002\n")
+  const mcp2 = async (name, args) => {
+    const r = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(fx2)}`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+    })
+    return (await r.json()).result.content.map((c) => c.text).join("\n")
+  }
+  await mcp2("vibedoc_update_task", { taskId: "T001", status: "in-progress" })
+  await mcp2("vibedoc_update_memory", { handoff: "Chat A: T001 started" })
+  await new Promise((r) => setTimeout(r, 1100))
+  await mcp2("vibedoc_update_task", { taskId: "T001", status: "done" })
+  await mcp2("vibedoc_update_task", { taskId: "T002", status: "done" })
+  const end = await mcp2("vibedoc_next_task", { epic: "R002" })
+  assert.match(end, /Episode saved →/)
+  const memory2 = await mcp2("vibedoc_read_memory", {})
+  assert.match(memory2, /## Since the last handoff/)
+  assert.match(memory2, /T002 → done/)
+  console.log("ok  work after a handoff in the same session still gets an episode")
 } finally {
   await browser?.close()
   server.kill("SIGTERM")

@@ -48,7 +48,7 @@ function renderBody(s: Session, opts: EpisodeOpts, cap: number, msgMax: number):
 
 /**
  * Markdown for `.vibedoc/episodes/<id>.md`; '' for a session with no events. Body ≤ EPISODE_BODY_CAP.
- * Only for sessions without a handoff (isHandoffWritten false), so the headline's "memory updated" can only be entry saves.
+ * Only for sessions whose work isn't covered by a handoff (isHandoffWritten false); the headline's "memory updated" reads as entries saved.
  */
 export function buildEpisode(s: Session, opts: EpisodeOpts): string {
   if (!s.eventCount) return ''
@@ -88,10 +88,17 @@ export function mergeSources(prev: string | undefined, next: string): string {
   return all.includes(next) ? all.join(', ') : [...all, next].join(', ')
 }
 
-/** A MEMORY.md write in this session. Entry saves reuse `memory_updated` ("Entry E001 saved") and don't count. */
+/**
+ * The session's last MEMORY.md write covers all its work: no non-read event came after it.
+ * Entry saves reuse `memory_updated` ("Entry E001 saved") and count as work, not as a handoff.
+ * Work after a handoff (the session is shared by every 'ai' client) still needs an episode.
+ */
 export function isHandoffWritten(s: Session, events: ActivityEvent[]): boolean {
   const ids = new Set(s.eventIds)
-  return events.some(e => ids.has(e.id) && e.type === 'memory_updated' && !e.title.startsWith('Entry '))
+  const mine = events.filter(e => ids.has(e.id) && !READ_ONLY.includes(e.type))
+  const isHandoff = (e: ActivityEvent) => e.type === 'memory_updated' && !e.title.startsWith('Entry ')
+  const at = mine.filter(isHandoff).reduce<string | null>((m, e) => (m === null || e.timestamp > m ? e.timestamp : m), null)
+  return at !== null && !mine.some(e => e.timestamp > at)
 }
 
 /** Sessions by `actor` with a non-read event at or after `since` (ISO): the ones a chat turn touched. */

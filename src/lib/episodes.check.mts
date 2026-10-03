@@ -55,6 +55,14 @@ assert.equal(isHandoffWritten(groupSessions(handoff)[0], handoff), true)
 // …but only one inside this session
 const other = [...events, ev(6, 'memory_updated', { title: 'Session memory updated', sessionId: 'ses_2' })]
 assert.equal(isHandoffWritten(groupSessions(other).find(x => x.id === 'ses_1')!, other), false)
+// …and only when nothing changed after it: a handoff, then a task move in the same session → still needs an episode
+const after = [...handoff, ev(7, 'task_updated', { taskId: 'T009', taskStatus: 'done' })]
+assert.equal(isHandoffWritten(groupSessions(after)[0], after), false)
+// an entry save after the handoff is work too; a doc read isn't
+const afterEntry = [...handoff, ev(7, 'memory_updated', { title: 'Entry E002 saved' })]
+assert.equal(isHandoffWritten(groupSessions(afterEntry)[0], afterEntry), false)
+const afterRead = [...handoff, ev(7, 'doc_read', { title: 'Read docs/x.md' })]
+assert.equal(isHandoffWritten(groupSessions(afterRead)[0], afterRead), true)
 
 // Size cap: long transcript and long lists still fit
 const many = Array.from({ length: 80 }, (_, i) => ev(10 + i, 'task_updated', { taskId: `T${200 + i}`, taskStatus: 'in-progress', sessionId: 'ses_big' }))
@@ -119,6 +127,13 @@ const bf2 = [
 const pick2 = (now: number) => sessionsNeedingEpisode(groupSessions(bf2), bf2, new Set(), 'reader1', { now: Date.parse(at(now)), gapMs: SESSION_GAP_MS }).map(x => x.id)
 assert.deepEqual(pick2(10), [])
 assert.deepEqual(pick2(40), ['running']) // …ended once idle > 30 min
+// Work after the session's handoff is backfilled too (the handoff doesn't cover it)
+const bf3 = [
+  ev(0, 'task_updated', { taskId: 'T1', taskStatus: 'in-progress', sessionId: 'late' }),
+  ev(1, 'memory_updated', { title: 'Session memory updated', sessionId: 'late' }),
+  ev(2, 'task_updated', { taskId: 'T1', taskStatus: 'done', sessionId: 'late' }),
+]
+assert.deepEqual(sessionsNeedingEpisode(groupSessions(bf3), bf3, new Set(), null, { now: Date.parse(at(40)), gapMs: SESSION_GAP_MS }).map(x => x.id), ['late'])
 assert.equal(lastEventTitle(bss.find(x => x.id === 'old')!, bf), 'T1 → done')
 assert.equal(lastEventTitle(bss.find(x => x.id === 'reads')!, bf), undefined)
 
