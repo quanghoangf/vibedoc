@@ -100,7 +100,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [chats, setChats] = useState<ChatTab[]>([])
   const [loaded, setLoaded] = useState(false)
   const [modalId, setModalId] = useState<string | null>(null)
-  // The chat last shown (modal or page): where an askAgent() goes when that chat is idle
+  // The chat last shown (modal or page): where an untargeted askAgent() goes when that chat is idle and unattached
   const [currentId, setCurrentId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   // One in-flight request per chat; a stream only ever writes into the chat id it was started for
@@ -222,18 +222,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     show(c ? c.id : create(a))
   }
 
-  // askAgent() from anywhere: into the current chat when it is idle, otherwise into a new one; then show it.
+  // askAgent() from anywhere, routed by routeAsk(): an ask about an item goes to that item's chat (or opens it while it
+  // runs or waits on you), anything else to the current chat only when it is idle and unattached; then show it.
   // No deps on purpose: re-subscribes each render so the handler sees the current `chats`/`send`.
   useEffect(() => {
     function onAsk(e: Event) {
       const { message, newChat } = (e as CustomEvent<AskAgentDetail>).detail ?? {}
       if (!message) return
+      const epic = epicOf(message)
       // abortsRef is updated synchronously by send(), so it counts asks fired earlier in this same tick
-      const route = routeAsk(chats, currentId, { newChat, running: abortsRef.current.size })
+      const route = routeAsk(chats, currentId, { target: epic ? { kind: "epic", id: epic } : null, newChat, running: abortsRef.current.size })
       if ("refused" in route) return setNotice(route.refused)
       setNotice(null)
-      const epic = epicOf(message)
-      const id = "chatId" in route ? route.chatId : create(epic ? { kind: "epic", id: epic } : null)
+      // already working on it, or waiting on your answer: show that chat instead of sending a second ask
+      if ("open" in route) return newChat ? undefined : show(route.open)
+      const id = "chatId" in route ? route.chatId : create(route.attach)
       send(id, message)
       // newChat asks (the multi-epic breakdown dialog) run in the background: the sidebar and roadmap show them
       if (!newChat) show(id)

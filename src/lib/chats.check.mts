@@ -53,14 +53,34 @@ assert.equal(fromSaved<StatusMessage>({ ...chat('x', [failed]), dismissed: true 
 
 // routeAsk
 const idle = chat('i'), busy = chat('b', [msg()], { busy: true })
+const none = { newChat: true, attach: null }
 assert.deepEqual(routeAsk([idle], 'i'), { chatId: 'i' })
-assert.deepEqual(routeAsk([busy], 'b'), { newChat: true })
-assert.deepEqual(routeAsk([idle], 'i', { newChat: true }), { newChat: true })
-assert.deepEqual(routeAsk([], null), { newChat: true })
-assert.deepEqual(routeAsk([idle], 'gone'), { newChat: true })
+assert.deepEqual(routeAsk([busy], 'b'), none)
+assert.deepEqual(routeAsk([idle], 'i', { newChat: true }), none)
+assert.deepEqual(routeAsk([], null), none)
+assert.deepEqual(routeAsk([idle], 'gone'), none)
 const running = Array.from({ length: MAX_RUNNING_CHATS }, (_, i) => chat(`r${i}`, [msg()], { busy: true }))
 assert.deepEqual(routeAsk(running, null), { refused: TOO_MANY_CHATS })
 assert.deepEqual(routeAsk([idle], 'i', { running: MAX_RUNNING_CHATS }), { refused: TOO_MANY_CHATS })
+// a chat waiting on the user (questions / review) is never written into
+const asking = chat('q', [ask]), reviewing = chat('v', [msg({ plans: [{ status: 'pending' }] })])
+assert.deepEqual(routeAsk([asking], 'q'), none)
+assert.deepEqual(routeAsk([reviewing], 'v'), none)
+// an ask about an item: never into another item's chat (the bug: R045 went into R051's chat waiting on answers)
+const r051 = { kind: 'epic', id: 'R051' } as Attach, r045 = { kind: 'epic', id: 'R045' } as Attach
+const r051Asking = chat('a51', [ask], { attach: r051 })
+assert.deepEqual(routeAsk([r051Asking], 'a51', { target: r045 }), { newChat: true, attach: r045 })
+assert.deepEqual(routeAsk([chat('i51', [msg()], { attach: r051 })], 'i51', { target: r045 }), { newChat: true, attach: r045 })
+// … into its own chat when idle; open it (send nothing) when it is running or waiting on you
+assert.deepEqual(routeAsk([chat('i45', [msg()], { attach: r045 }), idle], 'i', { target: r045 }), { chatId: 'i45' })
+assert.deepEqual(routeAsk([chat('q45', [ask], { attach: r045 })], null, { target: r045 }), { open: 'q45' })
+assert.deepEqual(routeAsk([chat('b45', [msg()], { attach: r045, busy: true })], null, { target: r045 }), { open: 'b45' })
+// opening an existing item chat isn't refused at the cap; the newest chat for the item wins
+assert.deepEqual(routeAsk([...running, chat('q45', [ask], { attach: r045 })], null, { target: r045 }), { open: 'q45' })
+// newChat (the multi-epic dialog) still reuses the item's own idle chat instead of duplicating it
+assert.deepEqual(routeAsk([chat('i45', [msg()], { attach: r045 })], null, { target: r045, newChat: true }), { chatId: 'i45' })
+// a generic ask never lands in an item's chat
+assert.deepEqual(routeAsk([chat('i51', [msg()], { attach: r051 })], 'i51'), none)
 
 // epicOf, chatTitle
 assert.equal(epicOf('Break down epic R004 into tasks.'), 'R004')

@@ -95,18 +95,37 @@ export const isWaiting = (s: ChatStatus): s is "needs-answer" | "review" => s ==
 export const MAX_RUNNING_CHATS = 4
 export const TOO_MANY_CHATS = `Too many agents running (${MAX_RUNNING_CHATS}). Stop or close a chat, or wait.`
 
+export type AskRoute =
+  | { chatId: string }
+  | { newChat: true; attach: Attach | null }
+  | { open: string }
+  | { refused: string }
+
 /**
- * Where an askAgent() message goes: the current chat when it is idle, otherwise a new chat.
- * Refused at the cap. `running` overrides the busy count when `chats` may be stale (several asks in one tick).
+ * Where an askAgent() message goes. An ask about an item (`target`, e.g. "Break down epic R004…") goes to that item's
+ * chat when it is idle, opens it when it is running or waiting on you, else starts a new chat attached to the item.
+ * Any other ask reuses the current chat only when it is idle and about nothing in particular; `newChat` never does.
+ * A chat waiting on the user, running, or about another item is never written into. Refused at the cap.
+ * `running` overrides the busy count when `chats` may be stale (several asks in one tick).
  */
-export function routeAsk(
-  chats: Chat[],
+export function routeAsk<C extends Chat<StatusMessage>>(
+  chats: C[],
   currentId: string | null,
-  opts: { newChat?: boolean; running?: number } = {},
-): { chatId: string } | { newChat: true } | { refused: string } {
+  opts: { target?: Attach | null; newChat?: boolean; running?: number } = {},
+): AskRoute {
+  const { target = null, newChat = false } = opts
+  const free = (c: C) => chatStatus(c) === "idle" || chatStatus(c) === "error"
+  if (target) {
+    const own = chatFor(chats, target)
+    if (own && !free(own)) return { open: own.id }
+  }
   if ((opts.running ?? chats.filter((c) => c.busy).length) >= MAX_RUNNING_CHATS) return { refused: TOO_MANY_CHATS }
+  if (target) {
+    const own = chatFor(chats, target)
+    return own ? { chatId: own.id } : { newChat: true, attach: target }
+  }
   const current = chats.find((c) => c.id === currentId)
-  return current && !current.busy && !opts.newChat ? { chatId: current.id } : { newChat: true }
+  return current && !newChat && !current.attach && free(current) ? { chatId: current.id } : { newChat: true, attach: null }
 }
 
 // ─── Attachments ──────────────────────────────────────────────────────────────
