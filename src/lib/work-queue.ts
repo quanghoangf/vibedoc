@@ -58,3 +58,12 @@ export function pickNextTask(epic: RoadmapItem, tasks: QueueTask[]): QueueResult
   }
   return { kind: 'waiting', waiting, needsHuman: waiting.every(w => !canMove(w.taskId)) }
 }
+
+/**
+ * Claim-response line for a task whose spec's last auto run failed (R058): points the agent at the spec to fix first.
+ * Empty when there's no spec or the last run didn't fail.
+ */
+export function failedRunNote(tests: Pick<NonNullable<Task['manualTests']>, 'spec' | 'autoRun'> | null): string {
+  if (!tests?.spec || tests.autoRun?.result !== 'failed') return ''
+  return `🤖 Last auto run failed (${tests.autoRun.date}): spec \`${tests.spec}\`. Read the failing step in the report below, fix the code (or a wrong test, never by weakening an assertion) and run it again before done.`
+}

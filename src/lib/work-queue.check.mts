@@ -1,7 +1,7 @@
 // Self-check for work-queue. Run: node src/lib/work-queue.check.mts
 import assert from 'node:assert/strict'
 import type { RoadmapItem } from './core'
-import { depIds, pickNextTask, type QueueTask } from './work-queue.ts'
+import { depIds, failedRunNote, pickNextTask, type QueueTask } from './work-queue.ts'
 
 const epic = (tasks: string[]): RoadmapItem =>
   ({ id: 'R002', title: 'Epic', parent: 'R001', status: 'planned', order: 10, tasks, due: null, body: '', file: 'R002.md' })
@@ -90,6 +90,17 @@ assert.deepEqual(pickNextTask(epic(['T001']), [t('T001', 'todo')]), { kind: 'rea
     assert.equal(r.needsHuman, true)
     assert.ok(r.waiting.some((w) => w.reason.includes('T001 is paused')))
   }
+}
+
+// claim response (R058): a failed auto run names the spec; passed / never run / no spec → nothing
+{
+  const spec = 'e2e/vibedoc/T012-theme.spec.ts'
+  const note = failedRunNote({ spec, autoRun: { result: 'failed', date: '2026-10-04' } })
+  assert.ok(note.includes(`\`${spec}\``) && note.includes('2026-10-04'), note)
+  assert.equal(failedRunNote({ spec, autoRun: { result: 'passed', date: '2026-10-04' } }), '')
+  assert.equal(failedRunNote({ spec, autoRun: null }), '')
+  assert.equal(failedRunNote({ spec: null, autoRun: { result: 'failed', date: '2026-10-04' } }), '')
+  assert.equal(failedRunNote(null), '')
 }
 
 console.log('work-queue: ok')

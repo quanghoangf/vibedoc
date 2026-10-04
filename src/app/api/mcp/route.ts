@@ -19,6 +19,7 @@ import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
 import { formatCompactLine, tokenize } from "@/lib/recall";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
+import { failedRunNote } from "@/lib/work-queue";
 import {
   rootFrom,
   listDocs,
@@ -976,7 +977,8 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const changes = review?.outcome === "changes requested"
         ? `\n\n⚠️ Changes requested (${review.at}):\n${review.note}\nAddress this first; the rest of the spec below still applies.`
         : "";
-      return `🔨 Claimed **${task.id}** ${task.title} (now in-progress)${changes}\n\n## ${task.file}\n\n${task.raw}` +
+      const failed = failedRunNote(task.manualTests);
+      return `🔨 Claimed **${task.id}** ${task.title} (now in-progress)${changes}${failed ? `\n\n${failed}` : ""}\n\n## ${task.file}\n\n${task.raw}` +
         (await roadmapHint(root, task.id)) + withGap(await relatedEntries(task, root));
     }
 

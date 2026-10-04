@@ -21,12 +21,12 @@ Read the project's `CLAUDE.md` once. Task files quote the relevant rules, but th
    - `✅ Epic … is finished` — see the stop rules below.
 
    If a reply ends with a `🗺️ Roadmap out of sync` hint for this epic (for example, set it to in-progress), apply it with `vibedoc_update_roadmap_item`, so the roadmap matches the board.
-2. **Read the task.** If the reply has a `⚠️ Changes requested` line, a human sent this task back from review: that note is the first thing to fix, and the rest of the spec still applies. Read its Goal, Scope, Files, Implementation notes, Acceptance criteria and Verify. The task file is the spec. Stay inside its Scope: later tasks in the epic own the rest, and if you do their work now, their diffs will conflict with yours.
+2. **Read the task.** If the reply has a `⚠️ Changes requested` line, a human sent this task back from review: that note is the first thing to fix, and the rest of the spec still applies. A `🤖 Last auto run failed` line names the Playwright spec that failed last time: read the failing step in the task's report, and make that spec pass before done. Read its Goal, Scope, Files, Implementation notes, Acceptance criteria and Verify. The task file is the spec. Stay inside its Scope: later tasks in the epic own the rest, and if you do their work now, their diffs will conflict with yours.
 3. **Implement** the task, following the project's patterns.
 4. **Verify.** Run every command in the task's **Verify** block, and check each acceptance criterion you can check. If something fails and the fix is inside the task's scope, fix it and run Verify again.
-5. **Done.** Only when Verify passes: write a manual test report (below). If the task changed something a user sees in the browser, write the spec for it next ([Write the spec](#write-the-spec-ui-tasks)). Then call `vibedoc_update_task { "taskId": "<id>", "status": "done", "manualTests": "<report>" }` (plus `"spec": "<path>"` when you wrote one), then commit that task's changes, following the repo's commit rules (message format, attribution, which files to stage). Each task leaves the app in a working state. When you commit after each task, it is safe to stop at any point, and a human can review or revert one task at a time.
+5. **Done.** Only when Verify passes: write a manual test report (below). If the task changed something a user sees in the browser, write the spec for it next ([Write the spec](#write-the-spec-ui-tasks)) and run it ([Run the spec](#run-the-spec)): a UI task with a spec is done only when the spec passes. Then call `vibedoc_update_task { "taskId": "<id>", "status": "done", "manualTests": "<report>" }` (plus `"spec": "<path>", "autoResult": "passed"` when you wrote and ran one), then commit that task's changes, following the repo's commit rules (message format, attribution, which files to stage). Each task leaves the app in a working state. When you commit after each task, it is safe to stop at any point, and a human can review or revert one task at a time.
 
-   Use `"status": "review"` instead of done only when you can't judge the result yourself: a visual or UX change you couldn't look at, or a Verify step you couldn't run fully. Say why in your report. A task in review holds back the tasks that depend on it until a human approves it, so the default stays done.
+   Use `"status": "review"` instead of done only when you can't judge the result yourself: a visual or UX change you couldn't look at, a Verify step you couldn't run fully, or a spec that still fails after its retries ([Run the spec](#run-the-spec)). Say why in your report. A task in review holds back the tasks that depend on it until a human approves it, so the default stays done.
 6. **Repeat** from step 1. Mark the current task done before you call `vibedoc_next_task` again. If you don't, the task stays in-progress and the queue treats it as claimed by another agent.
 
 ## Manual test report
@@ -58,7 +58,7 @@ A checklist item a script can check should not wait for a human. After you draft
 4. **Mark the items.** Prefix exactly the automated items with `🤖 ` in the report (`- [ ] 🤖 Open /settings → …`). Manual items keep no mark.
 5. **Link it.** Pass `"spec": "<path>"` to `vibedoc_update_task`, relative to the repo root (with the app **Dir** in front in a monorepo, e.g. `apps/web/e2e/vibedoc/T012-theme-toggle.spec.ts`). The task's checklist header then shows the spec.
 
-Running the spec and acting on its result is not part of this step.
+Then run it ([Run the spec](#run-the-spec)).
 
 **Spec rules:**
 
@@ -117,7 +117,21 @@ test('T012 Theme toggle on settings', async ({ page }) => {
 })
 ```
 
-Then call `vibedoc_update_task { "taskId": "T012", "status": "done", "manualTests": "<report>", "spec": "e2e/vibedoc/T012-theme-toggle.spec.ts" }`.
+## Run the spec
+
+"Done" means proven: a UI task with a spec moves to done only when its spec passes. You run it yourself, from your shell.
+
+1. **Have the app up.** If the app's `playwright.config.*` has a `webServer`, Playwright starts the app itself (and reuses one already listening when `reuseExistingServer` is set); do nothing. Otherwise check the **URL** from `vibedoc_get_frontend` first (`curl -sf <URL>`). If it answers, use it: never start a second dev server next to one that is already listening. If it doesn't, start the app with the reported **Start command** in the app **Dir** in the background, wait until the URL answers, and stop it when you are done.
+2. **Run** from the app **Dir**: `npx playwright test <spec path relative to Dir>`, e.g. `npx playwright test e2e/vibedoc/T012-theme-toggle.spec.ts`.
+3. **Pass** → tick the 🤖 items in the report (`- [x] 🤖 …`): the run proved them, so the human doesn't click through them again. Then call `vibedoc_update_task { "taskId": "<id>", "status": "done", "manualTests": "<report>", "spec": "<path>", "autoResult": "passed" }`. The checklist header then reads `Auto: passed <date>`.
+4. **Fail** → first decide which side is wrong. Read the failing step and the error. If the code doesn't do what the item says, fix the code. If the test is wrong (a locator that doesn't match what the item describes, a wrong path, a step that depends on data it doesn't own), fix the test. Then run it again. At most 2 retries (3 runs in total).
+5. **Still failing after 2 retries** → call `vibedoc_update_task { "taskId": "<id>", "status": "review", "manualTests": "<report>", "spec": "<path>", "autoResult": "failed" }`. Leave the 🤖 items unticked, and add a `### Failing auto run` group at the top of the report with the failing step's text and the important error line, e.g. `- [ ] Step "Click the Theme switch → the switch reads Light" failed: expected "Light", received "Dark"`. Commit as usual. When the task comes back, the claim reply names the spec (`🤖 Last auto run failed`), so the next agent starts there.
+
+**Never weaken an assertion just to get a pass.** Don't delete or loosen an `expect`, drop a step, swap a precise locator for a vague one, add `test.skip` / `.fixme`, or remove the 🤖 mark from an item that the code fails. A green run that no longer checks the item is worse than a red one: the task ends done, and the human trusts it. If the item itself was wrong (the expected result in the report doesn't match what the task asked for), fix the item text and its step together, and say so in your summary.
+
+A Verify failure still follows the [Failure rule](#failure-rule) (blocked). Review is for a spec that fails while Verify passes: the code may be fine and only a human can tell.
+
+For the example above, a passing run ends with `vibedoc_update_task { "taskId": "T012", "status": "done", "manualTests": "<the report with the three 🤖 items ticked>", "spec": "e2e/vibedoc/T012-theme-toggle.spec.ts", "autoResult": "passed" }`.
 
 ## Stop rules
 
