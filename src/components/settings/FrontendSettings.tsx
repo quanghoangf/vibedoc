@@ -90,6 +90,7 @@ export function FrontendSettings({ rootParam }: { rootParam: string }) {
               {note}
             </p>
           ))}
+          <ServerRow url={app.url} rootParam={rootParam} />
           {data.playwright && <PlaywrightRow app={app} status={data.playwright} rootParam={rootParam} />}
         </div>
       )}
@@ -235,6 +236,81 @@ function PlaywrightRow({ app, status, rootParam }: { app: FrontendApp; status: P
         <div className="space-y-1">
           {install.failed && <p className="text-xs text-red-400" role="alert">Install failed. Last output:</p>}
           <pre ref={logRef} className="max-h-48 overflow-auto rounded-md border border-border bg-bg p-2 font-mono text-[11px] leading-snug text-muted" data-testid="playwright-install-log">{install.output}</pre>
+        </div>
+      )}
+    </div>
+  )
+}
+
+type ServerStatus = { state: "stopped" | "starting" | "running"; startedByUs: boolean; reused?: boolean; error?: string; output?: string }
+
+const SERVER_PILL: Record<ServerStatus["state"], { label: string; cls: string }> = {
+  running: { label: "Running", cls: "border-green-400/40 bg-green-400/10 text-green-400" },
+  starting: { label: "Starting…", cls: "border-amber/40 bg-amber/10 text-amber" },
+  stopped: { label: "Stopped", cls: "border-border bg-surface2 text-muted" },
+}
+
+/** T142: dev server state + Start / Stop. Stop only works on a server VibeDoc started; SSE keeps other tabs live. */
+function ServerRow({ url, rootParam }: { url: string; rootParam: string }) {
+  const [status, setStatus] = useState<ServerStatus | null>(null)
+  const [busy, setBusy] = useState<"start" | "stop" | null>(null)
+
+  const load = useCallback((signal?: { cancelled: boolean }) => {
+    fetch(`/api/frontend/server${rootParam}`)
+      .then(res => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((json: ServerStatus) => { if (!signal?.cancelled) setStatus(s => ({ ...json, reused: s?.reused && json.state === "running" && !json.startedByUs })) })
+      .catch(() => { if (!signal?.cancelled) setStatus(null) })
+  }, [rootParam])
+
+  useEffect(() => {
+    const signal = { cancelled: false }
+    load(signal)
+    const onSse = (e: Event) => {
+      const type = (e as CustomEvent<{ type?: string }>).detail?.type
+      if (type === "frontend_server_updated" || type === "frontend_updated") load(signal)
+    }
+    window.addEventListener("vibedoc:sse", onSse)
+    return () => { signal.cancelled = true; window.removeEventListener("vibedoc:sse", onSse) }
+  }, [load])
+
+  const act = async (action: "start" | "stop") => {
+    setBusy(action)
+    if (action === "start") setStatus(s => ({ ...(s ?? { startedByUs: false }), state: "starting", error: undefined, output: undefined }))
+    const res = await fetch(`/api/frontend/server${rootParam}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
+    }).catch(() => null)
+    const json = await res?.json().catch(() => null)
+    setBusy(null)
+    if (!res?.ok) {
+      setStatus({ state: "stopped", startedByUs: false, error: json?.error ?? `Couldn’t ${action} the app`, output: json?.output ?? "" })
+      return
+    }
+    setStatus({ state: json?.state ?? "stopped", startedByUs: json?.startedByUs ?? false, reused: json?.reused ?? false })
+    if (json?.reused) toast("Already running: reused it")
+  }
+
+  const state = status?.state ?? "stopped"
+  const pill = SERVER_PILL[state]
+  const canStop = state === "running" && !!status?.startedByUs && busy === null
+  const note = state === "running"
+    ? status?.startedByUs ? "Started by VibeDoc. Stopped when VibeDoc exits." : status?.reused ? "Reused: it was already running, so VibeDoc won’t stop it." : "Already running outside VibeDoc, so VibeDoc won’t stop it."
+    : state === "starting" ? "Waiting for the URL to respond…" : null
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border px-4 py-3" data-testid="frontend-server">
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-sm text-muted">Dev server</span>
+        <div className="flex items-center gap-2">
+          <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${pill.cls}`} data-testid="server-pill">{status?.reused && state === "running" ? "Running · reused" : pill.label}</span>
+          <button type="button" onClick={() => act("start")} disabled={state === "starting" || (state === "running" && !!status?.startedByUs) || busy !== null} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">Start</button>
+          <button type="button" onClick={() => act("stop")} disabled={!canStop} title={state === "running" && !status?.startedByUs ? "VibeDoc didn’t start this server" : undefined} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">Stop</button>
+        </div>
+      </div>
+      {note && <p className="text-xs text-muted">{note} <code className="font-mono">{url}</code></p>}
+      {status?.error && (
+        <div className="space-y-1">
+          <p className="text-xs text-red-400" role="alert">{status.error}</p>
+          {status.output && <pre className="max-h-48 overflow-auto rounded-md border border-border bg-bg p-2 font-mono text-[11px] leading-snug text-muted" data-testid="server-output">{status.output}</pre>}
         </div>
       )}
     </div>

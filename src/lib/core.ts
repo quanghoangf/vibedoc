@@ -235,12 +235,21 @@ export async function readFrontendOverride(root: string): Promise<FrontendOverri
   return cleanOverride(await readSettingsObject(root).then(s => s.frontend, () => null))
 }
 
+/** T142: `frontend.startTimeoutSec` in .vibedoc/settings.json, how long Start waits for the app to respond (default 60). */
+export async function readFrontendStartTimeoutSec(root: string): Promise<number> {
+  const raw = await readSettingsObject(root).then(s => (s.frontend as { startTimeoutSec?: unknown } | undefined)?.startTimeoutSec, () => null)
+  return typeof raw === 'number' && raw > 0 ? raw : 60
+}
+
 /** Sets (or, for null / all-empty, removes) `frontend` in .vibedoc/settings.json; every other key is kept. */
 export async function saveFrontendOverride(override: FrontendOverride | null, root: string): Promise<FrontendOverride | null> {
   const clean = cleanOverride(override)
   const file = path.join(root, SETTINGS_FILE)
   const settings = await readSettingsObject(root)
-  if (clean) settings.frontend = clean
+  // Keep a hand-set start timeout (T142): it isn't part of the override form
+  const timeout = (settings.frontend as { startTimeoutSec?: unknown } | undefined)?.startTimeoutSec
+  const kept = timeout === undefined ? clean : { ...clean, startTimeoutSec: timeout }
+  if (kept) settings.frontend = kept
   else if ('frontend' in settings) delete settings.frontend
   else return null // nothing to reset: don't create the file
   await fs.mkdir(path.dirname(file), { recursive: true })
