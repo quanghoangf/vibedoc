@@ -6,6 +6,7 @@
 
 import fs from 'fs/promises'
 import path from 'path'
+import os from 'os'
 import { glob } from 'glob'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -29,6 +30,8 @@ import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } fro
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } from './memory-sections'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
+import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
+import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1060,9 +1063,10 @@ export async function getEntry(id: string, root: string): Promise<Entry | null> 
 
 /**
  * Create (no id) or update (id) one entry. Throws with the validation message on bad input or an unknown id.
- * Stamps `**By:**`: "human", or "ai:<agent>" for an agent save (R047).
+ * Stamps `**By:**`: "human", or "ai:<agent>" for an agent save (R047). An update without `source` keeps the old one (R052).
+ * `log: false` skips the per-entry activity event (a batch import logs one event itself).
  */
-export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human' = 'human', agent?: string): Promise<Entry> {
+export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human' = 'human', agent?: string, log = true): Promise<Entry> {
   const error = validateEntryInput(input)
   if (error) return Promise.reject(new Error(error))
   return withEntryLock(async () => {
@@ -1080,15 +1084,88 @@ export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human'
     const entry: Entry = {
       id, type: input.type as EntryType, summary, body: (input.body ?? '').trim(),
       updatedAt: localToday(), by: actor === 'human' ? 'human' : parseOwner(`ai:${agent || 'agent'}`) ?? 'ai:agent',
+      source: (typeof input.source === 'string' && input.source.trim()) || previous?.source,
       file: path.join(ENTRIES_DIR, `${id}-${entrySlug(summary)}.md`),
     }
     await fs.mkdir(path.join(root, ENTRIES_DIR), { recursive: true })
     await fs.writeFile(path.join(root, entry.file), formatEntry(entry), 'utf8')
     // Summary changed → new slug; the id stays
     if (previous && previous.file !== entry.file) await fs.rm(path.join(root, previous.file), { force: true })
-    await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${id} saved`, detail: summary })
+    if (log) await appendActivity(root, { type: 'memory_updated', actor, title: `Entry ${id} saved`, detail: summary })
     return entry
   })
+}
+
+/**
+ * `<config>/projects/<slug>/memory`, config = $CLAUDE_CONFIG_DIR or ~/.claude. Fixed: callers can't pass a path (R052).
+ * The slug comes from the real path, like Claude Code's (macOS /tmp → /private/tmp, symlinked folders).
+ */
+export async function claudeMemoryDir(root: string): Promise<string> {
+  const config = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+  const real = await fs.realpath(root).catch(() => path.resolve(root))
+  return path.join(config, 'projects', claudeProjectSlug(real), 'memory')
+}
+
+/** The project's Claude Code memories as entry candidates, read-only. Skips MEMORY.md (the index) and unparsable files; missing folder → []. */
+export async function readClaudeMemory(root: string): Promise<ClaudeMemoryCandidate[]> {
+  const dir = await claudeMemoryDir(root)
+  let names: string[]
+  try {
+    names = await fs.readdir(dir)
+  } catch {
+    return []
+  }
+  const files = names.filter(n => n.endsWith('.md') && n !== 'MEMORY.md').sort()
+  const parsed = await Promise.all(files.map(async n => parseClaudeMemory(await fs.readFile(path.join(dir, n), 'utf8').catch(() => ''), n)))
+  return parsed.filter((c): c is ClaudeMemoryCandidate => !!c)
+}
+
+/**
+ * Plan the import of the project's Claude Code memory (dedupe by `**Source:**`); with `apply`, write the new and
+ * changed entries through saveEntry() (ids from its lock) and log one activity event. `dir` uses `~` for the home path.
+ */
+export async function importClaudeMemory(
+  root: string, actor: 'ai' | 'human', apply: boolean, agent?: string,
+): Promise<{ dir: string; found: number; plan: ImportPlan; written: number }> {
+  const abs = await claudeMemoryDir(root)
+  const home = os.homedir()
+  const dir = abs === home || abs.startsWith(home + path.sep) ? '~' + abs.slice(home.length) : abs
+  const candidates = await readClaudeMemory(root)
+  const plan = planImport(candidates, await listEntries(root))
+  let written = 0
+  if (apply) {
+    // ponytail: planned outside the entry lock, so a save racing the import can still slip in a duplicate source
+    const toInput = (c: ClaudeMemoryCandidate, id?: string): EntryInput =>
+      ({ id, type: c.type, summary: c.summary, body: c.body, source: CLAUDE_SOURCE_PREFIX + c.name })
+    for (const c of plan.create) { await saveEntry(toInput(c), root, actor, agent, false); written++ }
+    for (const u of plan.update) { await saveEntry(toInput(u.candidate, u.entry.id), root, actor, agent, false); written++ }
+    if (written) await appendActivity(root, { type: 'memory_updated', actor, title: `Imported ${written} entries from Claude Code` })
+  }
+  return { dir, found: candidates.length, plan, written }
+}
+
+/**
+ * Write the entries into the managed block of AGENTS.md (created when missing) and CLAUDE.md (only when it exists),
+ * so agents that read those files see the same conventions (R052). A file is written only when its text changed.
+ * Both files are checked before either is written, so a broken block (one marker) leaves both untouched.
+ */
+export async function exportEntries(root: string, actor: 'ai' | 'human'): Promise<{ count: number; files: { file: string; changed: boolean }[] }> {
+  const entries = await listEntries(root)
+  const block = renderEntriesBlock(entries)
+  const plans: { file: string; before: string; after: string }[] = []
+  for (const file of ['AGENTS.md', 'CLAUDE.md']) {
+    const before = await fs.readFile(path.join(root, file), 'utf8').catch(() => null)
+    if (before === null && file === 'CLAUDE.md') continue // creating CLAUDE.md changes how Claude Code treats the project
+    const res = upsertManagedBlock(before ?? '', block)
+    if ('error' in res) throw new RoadmapError(`${file}: ${res.error}`)
+    plans.push({ file, before: before ?? '', after: res.text })
+  }
+  for (const p of plans) {
+    if (p.after === p.before) continue
+    await fs.writeFile(path.join(root, p.file), p.after, 'utf8')
+    await appendActivity(root, { type: 'doc_updated', actor, title: `Exported memory to ${p.file}`, detail: p.file })
+  }
+  return { count: entries.length, files: plans.map(p => ({ file: p.file, changed: p.after !== p.before })) }
 }
 
 /** Entries in the order of `ids` (any case / padding), plus the ids that matched nothing. */
@@ -1372,7 +1449,7 @@ export function mergeEntries(
     // the merged text shouldn't point at an id that is about to disappear either
     const entry: Entry = {
       id: keepId, type: fields.type as EntryType, summary, body: replaceEntryRefs((fields.body ?? '').trim(), drops, keepId),
-      updatedAt: localToday(), by: actor === 'human' ? 'human' : 'ai:agent',
+      updatedAt: localToday(), by: actor === 'human' ? 'human' : 'ai:agent', source: old.source,
       file: path.join(ENTRIES_DIR, `${keepId}-${entrySlug(summary)}.md`),
     }
     const before: MergeBefore[] = [{ file: old.file, raw: await read(old) }]

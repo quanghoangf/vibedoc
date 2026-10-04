@@ -1,5 +1,5 @@
 # Data Architecture
-**Last updated:** 2026-09-28
+**Last updated:** 2026-10-04
 
 ## No database — intentional
 
@@ -8,9 +8,10 @@ VibeDoc reads and writes your actual project files. No sync, no import, no datab
 ## Files VibeDoc reads (never modifies)
 | File | Used for |
 |------|---------|
-| `CLAUDE.md` / `AGENTS.md` | Project root detection marker |
+| `CLAUDE.md` / `AGENTS.md` | Project root detection marker (written only inside the managed block, below) |
 | `docs/**/*.md` | Doc browser, search |
 | `plans/tasks/T*.md` | Task parsing, kanban board |
+| `~/.claude/projects/<slug>/memory/*.md` | `vibedoc_import_memory` source (R052): Claude Code's memory for this project, read-only. `<slug>` = the absolute root with every non-alphanumeric character as `-`; `$CLAUDE_CONFIG_DIR` replaces `~/.claude`. Each file's frontmatter `name` / `description` / `type` becomes an entry; the `MEMORY.md` index is skipped |
 
 ## Files VibeDoc writes
 | File | Written by | Format |
@@ -22,6 +23,8 @@ VibeDoc reads and writes your actual project files. No sync, no import, no datab
 | `.vibedoc-activity.json` | `appendActivity()` | JSON array, prepend, max 2000 |
 | `.vibedoc/memory-history/<stamp>-<actor>.md` | `updateMemory()`, `restoreMemoryVersion()` (via `snapshotMemory()`) | Copy of MEMORY.md taken before each write: `<!-- vibedoc-snapshot actor=ai\|human reason=update\|restore -->` line + the old content. Id = UTC stamp `20261003T154209123Z` + actor; the 20 newest are kept (R045) |
 | `.vibedoc/episodes/<sessionId>.md` | `writeEpisode()` | Session episode (R050), full overwrite per session |
+| `memory/entries/E*.md` | `saveEntry()`, `deleteEntry()`, `importClaudeMemory()` | One fact per file: `# E001: summary`, then `**Type:**` / `**Updated:**` / optional `**Source:**` / `**By:**`. `**Source:** claude-code:<name>` marks an imported entry (R052); the import dedupes on it, and an update without a source keeps the old one |
+| `AGENTS.md` / `CLAUDE.md` | `exportEntries()` | Managed block only (R052): `<!-- vibedoc:entries:start -->` … `<!-- vibedoc:entries:end -->` holds `## Project memory` with one `### Conventions` / `Gotchas` / `Decisions` / `Preferences` list. Text outside the markers is kept byte-for-byte. AGENTS.md is created when missing; CLAUDE.md is written only when it exists. A lone or reversed marker → error, nothing written |
 | `memory/.cleanup.json` | `dismissHealthFlag()` | `{ "dismissed": { "<flag id>": "YYYY-MM-DD" } }`, sorted keys (R051) |
 | `memory/.recall-log.json` | `markEntriesRecalled()`, `deleteEntry()` | `{ "E004": "YYYY-MM-DD" }`: last `vibedoc_get_entries` fetch per entry, sorted keys, written at most once per id per day (R051) |
 

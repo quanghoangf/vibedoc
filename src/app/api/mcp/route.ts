@@ -39,6 +39,8 @@ import {
   getMemoryVersion,
   restoreMemoryVersion,
   saveEntry,
+  importClaudeMemory,
+  exportEntries,
   deleteEntry,
   sessionStartMemory,
   backfillEpisodes,
@@ -102,6 +104,7 @@ function err(id: JsonRpcRequest["id"], code: number, message: string) {
 }
 
 const MAX_ENTRY_IDS = 20;
+const MEMORY_SOURCES = ["claude-code"] as const; // R052: Cursor / Cline importers are out of scope
 const withGap = (block: string) => (block ? `\n\n${block}` : "");
 
 const TOOLS = [
@@ -347,6 +350,25 @@ const TOOLS = [
       },
       required: ["type", "summary"],
     },
+  },
+  {
+    name: "vibedoc_import_memory",
+    description:
+      "Import the developer's Claude Code memory for this project into knowledge entries. Without apply it only previews; call again with apply: true to write.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        source: { type: "string", enum: [...MEMORY_SOURCES] },
+        apply: { type: "boolean", description: "Write the previewed entries. Default false (preview only)." },
+      },
+      required: ["source"],
+    },
+  },
+  {
+    name: "vibedoc_export_memory",
+    description:
+      "Write the knowledge entries into a managed block in AGENTS.md (created if missing) and CLAUDE.md (if it exists), so Cursor, Codex and other agents see the same conventions. Text outside the block is never touched.",
+    inputSchema: { type: "object", properties: {} },
   },
   {
     name: "vibedoc_recall",
@@ -954,9 +976,40 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     }
 
     case "vibedoc_save_entry": {
-      const entry = await saveEntry(args as unknown as EntryInput, root, "ai", agent);
+      // only the declared fields: agents never set **Source:** by hand (R052)
+      const { id, type, summary, body } = args as unknown as EntryInput;
+      const entry = await saveEntry({ id, type, summary, body }, root, "ai", agent);
       emitUpdate("memory_updated", { root, entryId: entry.id });
       return `🧠 Saved **${entry.id}** · ${entry.type} · ${entry.summary}\n${entry.file}`;
+    }
+
+    case "vibedoc_import_memory": {
+      if (!(MEMORY_SOURCES as readonly unknown[]).includes(args.source)) {
+        throw new Error(`Unknown source "${String(args.source ?? "")}": use one of ${MEMORY_SOURCES.join(", ")}`);
+      }
+      const apply = args.apply === true;
+      const { dir, found, plan, written } = await importClaudeMemory(root, "ai", apply, agent);
+      if (!found && !plan.onlyInVibedoc.length) return `No Claude Code memory found at ${dir}`;
+      if (written) emitUpdate("memory_updated", { root });
+      const pad = (s: string, n: number) => s.padEnd(n);
+      const rows = [
+        `📥 Claude Code memory → ${found} found in ${dir}`,
+        ...plan.create.map((c) => `+ ${pad(apply ? "created" : "new", 10)} ${pad(c.type, 11)} ${c.summary}   (${c.name})`),
+        ...plan.update.map((u) => `~ ${pad(apply ? "updated" : "update", 10)} ${pad(u.entry.id, 11)} ${u.candidate.type}  ${u.candidate.summary}`),
+        `= ${pad("unchanged", 10)} ${plan.unchanged.length}`,
+        ...plan.onlyInVibedoc.map((e) => `? ${pad("only in VibeDoc", 10)} ${e.id}  ${e.summary}   (${e.source}, not deleted)`),
+      ];
+      const counts = `${plan.create.length} new · ${plan.update.length} update · ${plan.unchanged.length} unchanged`;
+      if (!apply) rows.push(counts, plan.create.length + plan.update.length ? "Call again with apply: true to write." : "Nothing to write.");
+      else rows.push(written ? `Wrote ${written} ${written === 1 ? "entry" : "entries"} (${plan.create.length} created · ${plan.update.length} updated).` : "Nothing to write.");
+      return rows.join("\n");
+    }
+
+    case "vibedoc_export_memory": {
+      const { count, files } = await exportEntries(root, "ai");
+      // whole-file shape (no edits): an open editor re-reads the file and splices in the difference
+      for (const f of files) if (f.changed) emitUpdate("doc_updated", { path: f.file, actor: "ai" });
+      return `📤 Exported ${count} ${count === 1 ? "entry" : "entries"} → ${files.map((f) => `${f.file} (${f.changed ? "updated" : "unchanged"})`).join(", ")}`;
     }
 
     case "vibedoc_recall": {
@@ -981,7 +1034,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       if (await markEntriesRecalled(found.map((e) => e.id), root)) emitUpdate("memory_updated", { root });
       const blocks = found.map((e) => {
         const links = formatEntryLinks(graph, e.id);
-        return `## ${e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.body ? `\n\n${e.body}` : ""}` +
+        return `## ${e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.source ? `\nSource: ${e.source}` : ""}${e.body ? `\n\n${e.body}` : ""}` +
           (links.length ? `\n\n${links.join("\n")}` : "");
       });
       if (missing.length) blocks.push(`Not found: ${missing.join(", ")}`);

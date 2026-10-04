@@ -100,7 +100,7 @@ Save one long-lived fact as its own file, `memory/entries/E001-<slug>.md`. Omit 
 ```
 
 ### `vibedoc_get_entries`
-Fetch full entries by id (max 20). Also records today's date per id in `memory/.recall-log.json`, which the Cleanup panel's "not recalled lately" flag reads.
+Fetch full entries by id (max 20). An imported entry shows `Source: claude-code:<name>` under its `updated` line. Also records today's date per id in `memory/.recall-log.json`, which the Cleanup panel's "not recalled lately" flag reads.
 ```json
 { "name": "vibedoc_get_entries", "arguments": { "ids": ["E004", "E012"] } }
 ```
@@ -109,6 +109,18 @@ Fetch full entries by id (max 20). Also records today's date per id in `memory/.
 Delete an entry that is wrong or no longer true. The file is removed; git keeps its history.
 ```json
 { "name": "vibedoc_delete_entry", "arguments": { "id": "E001" } }
+```
+
+### `vibedoc_import_memory` ⚡ apply triggers real-time UI update
+Import Claude Code memory (`~/.claude/projects/<slug>/memory/*.md`, read-only; the `MEMORY.md` index is skipped) into knowledge entries. `source` is required and must be `claude-code`. `apply` defaults to `false`: a preview that lists `new` / `update` / `unchanged` / `only in VibeDoc` and writes nothing; `apply: true` writes. Claude Code `type` → entry type: `feedback` / `user` → `preference`, `project` → `decision`, anything else → `convention`. Each entry gets `**Source:** claude-code:<name>`, which re-imports dedupe on; nothing is deleted. Details: [mcp-tools.md](../../mcp-tools.md#vibedoc_import_memory).
+```json
+{ "name": "vibedoc_import_memory", "arguments": { "source": "claude-code", "apply": true } }
+```
+
+### `vibedoc_export_memory` ⚡ triggers real-time UI update
+Write the entries into the block between `<!-- vibedoc:entries:start -->` and `<!-- vibedoc:entries:end -->` in `AGENTS.md` (created when missing) and `CLAUDE.md` (only when it exists), grouped Conventions · Gotchas · Decisions · Preferences. Text outside the markers is never touched; an unchanged set leaves the files unchanged. No parameters.
+```json
+{ "name": "vibedoc_export_memory", "arguments": {} }
 ```
 
 ### `vibedoc_update_memory` ⚡ triggers real-time UI update
