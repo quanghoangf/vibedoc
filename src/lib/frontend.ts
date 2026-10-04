@@ -14,12 +14,14 @@ export type FrontendApp = {
   source: 'detected' | 'override'
   /** Monorepo: every web app package, best first, so the UI can offer the rest (T139) */
   candidates?: FrontendCandidate[]
+  /** T143: path Log in opens, e.g. "/login" (settings only, never detected) */
+  loginPath?: string
 }
 
 export type FrontendCandidate = { dir: string; name: string; framework: Framework }
 
 /** `.vibedoc/settings.json` `frontend`: each set field wins over detection (T139). */
-export type FrontendOverride = { dir?: string; startCommand?: string; url?: string }
+export type FrontendOverride = { dir?: string; startCommand?: string; url?: string; loginPath?: string }
 
 /** Lockfile → package manager, in priority order. core.ts checks which of these exist. */
 export const LOCKFILES: [string, PackageManager][] = [
@@ -168,7 +170,7 @@ export function detectFrontendProject(
 export function cleanOverride(raw: unknown): FrontendOverride | null {
   if (!raw || typeof raw !== 'object') return null
   const out: FrontendOverride = {}
-  for (const key of ['dir', 'startCommand', 'url'] as const) {
+  for (const key of ['dir', 'startCommand', 'url', 'loginPath'] as const) {
     const v = (raw as Record<string, unknown>)[key]
     if (typeof v === 'string' && v.trim()) out[key] = v.trim()
   }
@@ -183,6 +185,10 @@ export function applyOverride(
   detected: FrontendApp | null, override: FrontendOverride | null, detectAt: (dir: string) => FrontendApp | null,
 ): FrontendApp | null {
   if (!override) return detected
+  // loginPath alone doesn't change which app this is, nor make it an override
+  if (!override.dir && !override.startCommand && !override.url) {
+    return detected && override.loginPath ? { ...detected, loginPath: override.loginPath } : detected
+  }
   const base = override.dir && override.dir !== detected?.dir ? detectAt(override.dir) : detected
   const fallback: FrontendApp = {
     dir: override.dir ?? '.', name: override.dir ?? '.', framework: 'unknown',
@@ -251,8 +257,33 @@ function playwrightLine(app: FrontendApp, pw: PlaywrightStatus | null | undefine
   return steps.length ? `${state} (run in ${app.dir}: \`${formatSteps(steps)}\`)` : state
 }
 
-/** `vibedoc_get_frontend` reply. Auth stays "unknown" until T143 detects it. */
-export function formatFrontend(app: FrontendApp | null, notes: string[], playwright?: PlaywrightStatus | null): string {
+// ─── Login session (T143) ────────────────────────────────────────────────────
+
+/** Playwright storageState saved by Log in, at `.vibedoc/auth/storage-state.json`; savedAt = its mtime (ISO). */
+export type FrontendAuth = { saved: boolean; savedAt?: string }
+
+/** The URL Log in opens: the app URL plus the optional login path. Null when the app URL isn't a full URL. */
+export function loginUrl(app: FrontendApp): string | null {
+  if (!URL.canParse(app.url)) return null
+  return new URL(app.loginPath ?? '', app.url).toString()
+}
+
+/** Why Log in can't open a headed browser here, or null when it can. */
+export function loginUnavailable(env: { demo: boolean; platform: string; display?: string; waylandDisplay?: string }): string | null {
+  if (env.demo) return 'Not available in the read-only demo.'
+  if (env.platform === 'linux' && !env.display && !env.waylandDisplay) return 'No desktop session (DISPLAY is not set): Log in needs to open a browser window.'
+  return null
+}
+
+function authLine(auth: FrontendAuth | null | undefined): string {
+  if (!auth) return 'unknown'
+  return auth.saved
+    ? `session saved${auth.savedAt ? ` ${auth.savedAt}` : ''} (.vibedoc/auth/storage-state.json, Playwright storageState)`
+    : 'no saved session (Settings → Frontend app → Log in)'
+}
+
+/** `vibedoc_get_frontend` reply. */
+export function formatFrontend(app: FrontendApp | null, notes: string[], playwright?: PlaywrightStatus | null, auth?: FrontendAuth | null): string {
   if (!app) {
     return [
       '## Frontend app',
@@ -269,7 +300,8 @@ export function formatFrontend(app: FrontendApp | null, notes: string[], playwri
     `**URL:** ${app.url || 'unknown'}`,
     `**Source:** ${app.source === 'override' ? 'override (Settings → Frontend app)' : 'detected'}`,
     `**Playwright:** ${playwrightLine(app, playwright)}`,
-    '**Auth:** unknown',
+    ...(app.loginPath ? [`**Login path:** ${app.loginPath}`] : []),
+    `**Auth:** ${authLine(auth)}`,
     ...(others.length ? [`**Other apps:** ${others.map(c => `${c.dir} (${c.framework})`).join(', ')}`] : []),
     ...notes.map(n => `⚠ ${n}`),
   ].join('\n')

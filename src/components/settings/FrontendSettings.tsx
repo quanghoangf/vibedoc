@@ -2,15 +2,21 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { AlertTriangle } from "lucide-react"
-import { formatSteps, playwrightInstallSteps, type FrontendApp, type FrontendOverride, type PlaywrightStatus } from "@/lib/frontend"
+import { formatSteps, playwrightInstallSteps, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from "@/lib/frontend"
 import { toast } from "@/components/ui/toast"
 
 const FIELD = "h-8 min-w-0 rounded-md border border-border bg-bg px-2 font-mono text-sm text-txt focus:outline-hidden focus:ring-1 focus:ring-accent disabled:opacity-50"
 
-type FrontendData = { app: FrontendApp | null; notes: string[]; override: FrontendOverride | null; playwright: PlaywrightStatus | null }
+type LoginState = { running: boolean; unavailable: string | null }
+type FrontendData = {
+  app: FrontendApp | null; notes: string[]; override: FrontendOverride | null; playwright: PlaywrightStatus | null
+  auth: FrontendAuth; login: LoginState
+}
 
-const toData = (json: Partial<FrontendData> | null): FrontendData =>
-  ({ app: json?.app ?? null, notes: json?.notes ?? [], override: json?.override ?? null, playwright: json?.playwright ?? null })
+const toData = (json: Partial<FrontendData> | null): FrontendData => ({
+  app: json?.app ?? null, notes: json?.notes ?? [], override: json?.override ?? null, playwright: json?.playwright ?? null,
+  auth: json?.auth ?? { saved: false }, login: { running: json?.login?.running ?? false, unavailable: json?.login?.unavailable ?? null },
+})
 
 const FRAMEWORK_LABEL: Record<FrontendApp["framework"], string> = {
   next: "Next.js", vite: "Vite", remix: "Remix", astro: "Astro", nuxt: "Nuxt",
@@ -32,7 +38,12 @@ export function FrontendSettings({ rootParam }: { rootParam: string }) {
     const signal = { cancelled: false }
     load(signal)
     // Another tab or an agent saved an override: show it live
-    const onSse = (e: Event) => { if ((e as CustomEvent<{ type?: string }>).detail?.type === "frontend_updated") load(signal) }
+    const onSse = (e: Event) => {
+      const detail = (e as CustomEvent<{ type?: string; payload?: { loginError?: string | null } }>).detail
+      if (detail?.type !== "frontend_updated") return
+      load(signal)
+      if (detail.payload?.loginError) toast(`Log in failed: ${detail.payload.loginError}`)
+    }
     window.addEventListener("vibedoc:sse", onSse)
     return () => { signal.cancelled = true; window.removeEventListener("vibedoc:sse", onSse) }
   }, [load])
@@ -92,6 +103,7 @@ export function FrontendSettings({ rootParam }: { rootParam: string }) {
           ))}
           <ServerRow url={app.url} rootParam={rootParam} />
           {data.playwright && <PlaywrightRow app={app} status={data.playwright} rootParam={rootParam} />}
+          <LoginRow data={data} rootParam={rootParam} onChange={setData} />
         </div>
       )}
 
@@ -109,10 +121,12 @@ function OverrideForm({ app, override, onSave }: {
   const [dir, setDir] = useState(app?.dir ?? "")
   const [startCommand, setStartCommand] = useState(app?.startCommand ?? "")
   const [url, setUrl] = useState(app?.url ?? "")
+  const [loginPath, setLoginPath] = useState(app?.loginPath ?? "")
   const [busy, setBusy] = useState(false)
   const candidates = app?.candidates ?? []
   const dirChanged = dir !== (app?.dir ?? "")
-  const changed = dirChanged || startCommand !== (app?.startCommand ?? "") || url !== (app?.url ?? "")
+  const loginPathChanged = loginPath !== (app?.loginPath ?? "")
+  const changed = dirChanged || startCommand !== (app?.startCommand ?? "") || url !== (app?.url ?? "") || loginPathChanged
 
   const run = async (o: FrontendOverride | null) => { setBusy(true); await onSave(o); setBusy(false) }
   const submit = () => run({
@@ -120,6 +134,8 @@ function OverrideForm({ app, override, onSave }: {
     ...(dirChanged ? { dir } : override),
     ...(startCommand !== (app?.startCommand ?? "") && { startCommand }),
     ...(url !== (app?.url ?? "") && { url }),
+    // Empty clears it (the server drops empty fields); switching apps keeps it unless edited
+    ...(loginPathChanged ? { loginPath } : dirChanged && app?.loginPath ? { loginPath: app.loginPath } : {}),
   })
 
   return (
@@ -143,6 +159,10 @@ function OverrideForm({ app, override, onSave }: {
       <label className="flex flex-col gap-1 text-xs text-muted">
         URL
         <input aria-label="URL" value={url} onChange={(e) => setUrl(e.target.value)} disabled={dirChanged} placeholder="http://localhost:5173" className={FIELD} />
+      </label>
+      <label className="flex flex-col gap-1 text-xs text-muted">
+        Login path (optional)
+        <input aria-label="Login path" value={loginPath} onChange={(e) => setLoginPath(e.target.value)} placeholder="/login" className={FIELD} />
       </label>
       {dirChanged && <p className="text-xs text-muted">Save to switch apps; its start command and URL are detected again.</p>}
       <div className="flex items-center gap-2">
@@ -313,6 +333,55 @@ function ServerRow({ url, rootParam }: { url: string; rootParam: string }) {
           {status.output && <pre className="max-h-48 overflow-auto rounded-md border border-border bg-bg p-2 font-mono text-[11px] leading-snug text-muted" data-testid="server-output">{status.output}</pre>}
         </div>
       )}
+    </div>
+  )
+}
+
+/** T143: Log in opens the app in a headed Chromium; closing it saves the session for every later test. */
+function LoginRow({ data, rootParam, onChange }: { data: FrontendData; rootParam: string; onChange: (d: FrontendData) => void }) {
+  const [busy, setBusy] = useState<"open" | "clear" | null>(null)
+  const { auth, login, playwright } = data
+  const blocked = login.unavailable
+    ?? (playwright && !playwright.installed ? "Install Playwright first (above): Log in uses the app’s own Playwright."
+      : playwright?.browsersInstalled === false ? "Install Chromium first (above): Log in opens it." : null)
+
+  const call = async (method: "POST" | "DELETE") => {
+    setBusy(method === "POST" ? "open" : "clear")
+    const res = await fetch(`/api/frontend/login${rootParam}`, { method, headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => null)
+    const json = await res?.json().catch(() => null)
+    setBusy(null)
+    if (!res?.ok) return toast(json?.error ?? (method === "POST" ? "Couldn’t open the browser" : "Couldn’t clear the session"))
+    if (method === "POST") {
+      onChange({ ...data, login: { ...login, running: true } })
+      toast("Log in in the browser window, then close it")
+    } else {
+      onChange({ ...data, auth: json?.auth ?? { saved: false } })
+      toast("Session cleared")
+    }
+  }
+
+  const status = login.running
+    ? "Browser open: log in, then close the window to save the session."
+    : auth.saved
+      ? `Session saved ${auth.savedAt ? new Date(auth.savedAt).toLocaleString() : ""}`.trim()
+      : "No session saved. Tests run logged out."
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border px-4 py-3" data-testid="frontend-login">
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-sm text-muted">Login session</span>
+        <div className="flex items-center gap-2">
+          {auth.saved && (
+            <button type="button" onClick={() => call("DELETE")} disabled={busy !== null || login.running} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">Clear session</button>
+          )}
+          <button type="button" onClick={() => call("POST")} disabled={!!blocked || busy !== null || login.running} title={blocked ?? undefined} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">
+            {busy === "open" ? "Opening…" : "Log in"}
+          </button>
+        </div>
+      </div>
+      <p className="text-xs text-muted" data-testid="login-status">{status}</p>
+      {blocked && <p className="text-xs text-muted">{blocked}</p>}
+      {auth.saved && <p className="text-xs text-muted">Stored in <code className="font-mono">.vibedoc/auth/</code>, which is git-ignored: it holds live cookies.</p>}
     </div>
   )
 }

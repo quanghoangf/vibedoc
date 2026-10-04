@@ -168,3 +168,36 @@ export async function frontendServerStatus(root: string, url: string): Promise<S
   const failure = failures.get(root)
   return { state: (await probe(url)) ? 'running' : 'stopped', url, startedByUs: false, ...failure }
 }
+
+// ─── Log in browser (T143) ───────────────────────────────────────────────────
+
+const logins = (globalThis as unknown as { vibedocLogins?: Set<string> }).vibedocLogins ??= new Set()
+
+export const loginRunning = (root: string) => logins.has(root)
+
+/**
+ * Opens the target's own Playwright (`npx --no`, never a download) headed at `url`; it writes
+ * `statePath` when the user closes the window. Returns once spawned; `onExit` gets an error or null.
+ * False when a login window is already open for this root.
+ */
+export function openLoginBrowser(opts: { root: string; cwd: string; url: string; statePath: string; onExit: (error: string | null) => void }): boolean {
+  const { root, cwd, url, statePath, onExit } = opts
+  if (logins.has(root)) return false
+  logins.add(root)
+  // Fixed argv, no shell except on Windows (npx is a .cmd shim there)
+  const child = spawn('npx', ['--no', 'playwright', 'open', `--save-storage=${statePath}`, url], {
+    cwd, env: childEnv(url), stdio: ['ignore', 'ignore', 'pipe'], shell: process.platform === 'win32',
+  })
+  let stderr = ''
+  child.stderr?.on('data', (c: Buffer) => { stderr = (stderr + c.toString('utf8')).slice(-2000) })
+  let done = false
+  const finish = (error: string | null) => {
+    if (done) return
+    done = true
+    logins.delete(root)
+    onExit(error)
+  }
+  child.on('error', e => finish((e as NodeJS.ErrnoException).code === 'ENOENT' ? 'npx not found on PATH' : e.message))
+  child.on('close', code => finish(code === 0 ? null : stderr.trim().split('\n').pop() || `Playwright exited with code ${code}`))
+  return true
+}

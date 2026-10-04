@@ -33,7 +33,7 @@ import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, repl
 import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
 import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
 import { isDemo } from './demo'
-import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, workspacePatterns, type FrontendApp, type FrontendOverride, type PlaywrightStatus } from './frontend'
+import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -220,6 +220,29 @@ export async function snapshotPackageJson(appDir: string): Promise<() => Promise
     if (before == null) return
     if ((await fs.readFile(file, 'utf8').catch(() => null)) !== before) await fs.writeFile(file, before, 'utf8')
   }
+}
+
+// T143: the Log in session. Live cookies: the folder's own .gitignore keeps it out of git.
+const AUTH_DIR = path.join('.vibedoc', 'auth')
+const AUTH_STATE = 'storage-state.json'
+
+export async function frontendAuthStatus(root: string): Promise<FrontendAuth> {
+  const st = await fs.stat(path.join(root, AUTH_DIR, AUTH_STATE)).catch(() => null)
+  return st?.isFile() ? { saved: true, savedAt: st.mtime.toISOString() } : { saved: false }
+}
+
+/** Creates `.vibedoc/auth/` with a `*` .gitignore (before anything is saved there); returns the state file's absolute path. */
+export async function prepareFrontendAuth(root: string): Promise<string> {
+  const dir = path.resolve(root, AUTH_DIR)
+  await fs.mkdir(dir, { recursive: true })
+  const ignore = path.join(dir, '.gitignore')
+  if ((await fs.readFile(ignore, 'utf8').catch(() => null)) !== '*\n') await fs.writeFile(ignore, '*\n', 'utf8')
+  return path.join(dir, AUTH_STATE)
+}
+
+/** Deletes the saved session. False when there was none. */
+export async function clearFrontendAuth(root: string): Promise<boolean> {
+  return fs.rm(path.join(root, AUTH_DIR, AUTH_STATE)).then(() => true, () => false)
 }
 
 /** {} when the file is missing; throws when it exists but isn't a JSON object, so a save never clobbers it. */
@@ -1023,7 +1046,7 @@ export async function logDecision(params: ADRParams, root: string, actor: 'ai' |
 // ─── Memory ───────────────────────────────────────────────────────────────────
 
 export type { MemoryParams } from './memory-sections'
-export type { FrontendApp, FrontendOverride, PlaywrightStatus } from './frontend'
+export type { FrontendApp, FrontendAuth, FrontendOverride, PlaywrightStatus } from './frontend'
 
 export async function readMemory(root: string): Promise<{ content: string; exists: boolean }> {
   try {

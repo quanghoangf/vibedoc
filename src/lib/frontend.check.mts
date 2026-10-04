@@ -1,7 +1,7 @@
 // Self-check: frontend app detection on fixture dirs. Run: node src/lib/frontend.check.mts
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { applyOverride, cleanOverride, formatSteps, hasChromium, playwrightInstallSteps, playwrightStatus, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
+import { applyOverride, cleanOverride, loginUnavailable, loginUrl, formatSteps, hasChromium, playwrightInstallSteps, playwrightStatus, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
 
 // Same reads as core.detectFrontend(): root package.json + which files sit next to it.
 const fixture = (name: string) => {
@@ -134,5 +134,23 @@ assert.ok(!hasChromium(['firefox-1466', 'chromium-tip-of-tree-1290', '.links']))
 assert.match(formatFrontend(vite, [], none), /\*\*Playwright:\*\* not installed \(run in \.: `pnpm add -D @playwright\/test && npx playwright install chromium`\)/)
 assert.match(formatFrontend(vite, [], has), /\*\*Playwright:\*\* installed v1\.48\.2$/m)
 assert.match(formatFrontend(vite, []), /\*\*Playwright:\*\* unknown/)
+
+// ─── Login session (T143) ───
+const withLogin = applyOverride(web, { loginPath: '/login' }, detectAt)
+assert.equal(withLogin?.source, 'detected', 'loginPath alone is not an app override')
+assert.equal(withLogin?.loginPath, '/login')
+assert.equal(applyOverride(null, { loginPath: '/login' }, () => null), null, 'loginPath alone never invents an app')
+assert.equal(applyOverride(web, { url: 'http://localhost:9999', loginPath: '/in' }, detectAt)?.loginPath, '/in')
+assert.deepEqual(cleanOverride({ loginPath: ' /login ' }), { loginPath: '/login' })
+assert.equal(loginUrl(withLogin!), 'http://localhost:3100/login')
+assert.equal(loginUrl(web), 'http://localhost:3100/')
+assert.equal(loginUrl({ ...web, url: '' }), null)
+assert.equal(loginUnavailable({ demo: false, platform: 'darwin' }), null)
+assert.match(loginUnavailable({ demo: false, platform: 'linux' }) ?? '', /DISPLAY/)
+assert.equal(loginUnavailable({ demo: false, platform: 'linux', waylandDisplay: 'wayland-0' }), null)
+assert.match(loginUnavailable({ demo: true, platform: 'darwin' }) ?? '', /demo/)
+assert.match(formatFrontend(web, [], null, { saved: true, savedAt: '2026-10-04T10:00:00.000Z' }), /\*\*Auth:\*\* session saved 2026-10-04T10:00:00\.000Z/)
+assert.match(formatFrontend(web, [], null, { saved: false }), /\*\*Auth:\*\* no saved session/)
+assert.match(formatFrontend(withLogin, []), /\*\*Login path:\*\* \/login/)
 
 console.log('frontend.check: ok')
