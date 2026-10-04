@@ -310,7 +310,7 @@ export async function getContext(paths: string[], root: string): Promise<string>
   return parts.join('\n\n---\n\n')
 }
 
-export async function createDoc(docPath: string, content: string, root: string): Promise<void> {
+export async function createDoc(docPath: string, content: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<void> {
   const resolvedRoot = path.resolve(root)
   const fullPath = path.resolve(root, docPath)
   if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
@@ -327,8 +327,8 @@ export async function createDoc(docPath: string, content: string, root: string):
   }
   await fs.mkdir(path.dirname(fullPath), { recursive: true })
   await fs.writeFile(fullPath, content, 'utf8')
-  await appendActivity(root, { type: 'doc_created', actor: 'human', title: `Created: ${docPath}`, detail: docPath })
-  try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root) } catch {}
+  await appendActivity(root, { type: 'doc_created', actor, title: `Created: ${docPath}`, detail: docPath })
+  try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root, actor, false) } catch {}
 }
 
 export async function searchDocs(query: string, root: string): Promise<SearchResult[]> {
@@ -489,8 +489,9 @@ export async function updateTaskStatus(
 
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
 
-  // Append to activity log
-  await appendActivity(root, {
+  // A move to the status the task already has (re-claim, repeated update_task) isn't news
+  const unchanged = task.status === newStatus && task.customStatus === resolved.customStatus
+  if (!unchanged) await appendActivity(root, {
     type: 'task_updated', actor,
     title: `${task.id} moved to ${newStatus}`,
     detail: task.title,
@@ -586,7 +587,7 @@ export function deleteTask(taskId: string, root: string, actor: 'ai' | 'human' =
     const links: TaskLink[] = []
     for (const epic of items.filter(i => i.tasks.includes(task.id))) {
       links.push({ epic: epic.id, index: epic.tasks.indexOf(task.id) })
-      await updateRoadmapItem(epic.id, { tasks: epic.tasks.filter(t => t !== task.id) }, root, actor)
+      await updateRoadmapItem(epic.id, { tasks: epic.tasks.filter(t => t !== task.id) }, root, actor, false)
     }
     await appendActivity(root, { type: 'task_updated', actor, title: `${task.id} deleted`, detail: task.title, taskId: task.id })
     return { task, links }
@@ -600,9 +601,9 @@ export async function setTaskEpic(taskId: string, epicId: string | null, root: s
   const target = epicId ? items.find(i => i.id === epicId.trim().toUpperCase() && i.parent !== null) : undefined
   if (epicId && !target) throw new RoadmapError(`Epic not found: ${epicId}`)
   for (const e of items.filter(i => i.tasks.includes(task.id) && i.id !== target?.id)) {
-    await updateRoadmapItem(e.id, { tasks: e.tasks.filter(t => t !== task.id) }, root, actor)
+    await updateRoadmapItem(e.id, { tasks: e.tasks.filter(t => t !== task.id) }, root, actor, false)
   }
-  if (target && !target.tasks.includes(task.id)) await updateRoadmapItem(target.id, { tasks: [...target.tasks, task.id] }, root, actor)
+  if (target && !target.tasks.includes(task.id)) await updateRoadmapItem(target.id, { tasks: [...target.tasks, task.id] }, root, actor, false)
   return updateTaskMeta(task.id, { phase: target ? `${target.id} — ${target.title}` : '' }, root, actor)
 }
 
@@ -642,7 +643,7 @@ export function restoreTask(file: unknown, raw: unknown, links: TaskLink[], root
       if (!epic || epic.tasks.includes(id)) continue
       const tasks = [...epic.tasks]
       tasks.splice(Math.max(0, Math.min(Number(link.index) || 0, tasks.length)), 0, id)
-      await updateRoadmapItem(epic.id, { tasks }, root, actor)
+      await updateRoadmapItem(epic.id, { tasks }, root, actor, false)
     }
     await appendActivity(root, { type: 'task_updated', actor, title: `${id} restored`, taskId: id })
     return getTask(id, root)
@@ -852,7 +853,7 @@ export function applyPlan(
 
     if (!epic) return { created, epic: null }
     const fresh = await getRoadmapItem(epic.id, root)
-    const updated = await updateRoadmapItem(epic.id, { tasks: [...fresh.tasks, ...created.map(c => c.id)] }, root, actor)
+    const updated = await updateRoadmapItem(epic.id, { tasks: [...fresh.tasks, ...created.map(c => c.id)] }, root, actor, false)
     return { created, epic: updated }
   })
 }
@@ -1638,6 +1639,8 @@ export async function readActivity(root: string, limit = 50): Promise<ActivityEv
 }
 
 export async function logSessionStart(root: string, actor: 'ai' | 'human' = 'ai'): Promise<void> {
+  // An agent re-reading memory mid-session isn't a new connection
+  if (currentSessionId(root, actor)) return
   await appendActivity(root, { type: 'session_start', actor, title: 'Session started', detail: 'Agent connected' })
 }
 
@@ -1660,7 +1663,7 @@ export async function appendDoc(docPath: string, content: string, root: string):
   await fs.writeFile(fullPath, existing.trimEnd() + '\n\n' + content, 'utf8')
 }
 
-export async function renameDoc(oldPath: string, newPath: string, root: string): Promise<void> {
+export async function renameDoc(oldPath: string, newPath: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<void> {
   const resolvedRoot = path.resolve(root)
   const fullOld = path.resolve(root, oldPath)
   const fullNew = path.resolve(root, newPath)
@@ -1683,12 +1686,12 @@ export async function renameDoc(oldPath: string, newPath: string, root: string):
       await fs.unlink(fullOld)
     } else throw e
   }
-  await appendActivity(root, { type: 'doc_renamed', actor: 'human', title: `Renamed ${oldPath} → ${newPath}` })
-  try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root) } catch {}
+  await appendActivity(root, { type: 'doc_renamed', actor, title: `Renamed ${oldPath} → ${newPath}` })
+  try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root, actor, false) } catch {}
 }
 
 /** Returns the removed content, so the client can offer Undo (re-create via createDoc). */
-export async function deleteDoc(docPath: string, root: string): Promise<string> {
+export async function deleteDoc(docPath: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<string> {
   const resolvedRoot = path.resolve(root)
   const fullPath = path.resolve(root, docPath)
   if (!fullPath.startsWith(resolvedRoot + path.sep) && fullPath !== resolvedRoot) {
@@ -1696,8 +1699,8 @@ export async function deleteDoc(docPath: string, root: string): Promise<string> 
   }
   const content = await fs.readFile(fullPath, 'utf8')
   await fs.unlink(fullPath)
-  await appendActivity(root, { type: 'doc_deleted', actor: 'human', title: `Deleted ${docPath}` })
-  try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root) } catch {}
+  await appendActivity(root, { type: 'doc_deleted', actor, title: `Deleted ${docPath}` })
+  try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root, actor, false) } catch {}
   return content
 }
 
@@ -1774,7 +1777,7 @@ export async function readRegistry(root: string): Promise<{ content: string; exi
   }
 }
 
-export async function rebuildRegistry(root: string, actor: 'ai' | 'human' = 'human'): Promise<{ path: string; totalFiles: number }> {
+export async function rebuildRegistry(root: string, actor: 'ai' | 'human' = 'human', log = true): Promise<{ path: string; totalFiles: number }> {
   const docs = await listDocs(root)
   const files = docs.map(d => d.path)
 
@@ -1819,7 +1822,8 @@ export async function rebuildRegistry(root: string, actor: 'ai' | 'human' = 'hum
   ].join('\n')
 
   await writeDoc(REGISTRY_PATH, content, root)
-  await appendActivity(root, {
+  // Automatic rebuilds after a doc create/rename/delete aren't logged: the doc row already says what changed
+  if (log) await appendActivity(root, {
     type: 'registry_rebuilt',
     actor,
     title: 'Document registry rebuilt',
@@ -2280,13 +2284,15 @@ async function createRoadmapItemUnlocked(
 }
 
 export function updateRoadmapItem(
-  id: string, patch: UpdateRoadmapItemPatch, root: string, actor: 'ai' | 'human' = 'human'
+  id: string, patch: UpdateRoadmapItemPatch, root: string, actor: 'ai' | 'human' = 'human',
+  /** false when the edit is a side effect of a task change (its **Tasks:** line); the task row already says it */
+  log = true,
 ): Promise<RoadmapItem> {
-  return withRoadmapLock(() => updateRoadmapItemUnlocked(id, patch, root, actor))
+  return withRoadmapLock(() => updateRoadmapItemUnlocked(id, patch, root, actor, log))
 }
 
 async function updateRoadmapItemUnlocked(
-  id: string, patch: UpdateRoadmapItemPatch, root: string, actor: 'ai' | 'human'
+  id: string, patch: UpdateRoadmapItemPatch, root: string, actor: 'ai' | 'human', log: boolean,
 ): Promise<RoadmapItem> {
   const { item, raw } = await findRoadmapFile(id, root)
   const p = patch ?? {}
@@ -2353,7 +2359,7 @@ async function updateRoadmapItemUnlocked(
 
   await fs.writeFile(path.join(root, item.file), [...head, ...rest].join('\n'), 'utf8')
   const updated = await getRoadmapItem(item.id, root)
-  await appendActivity(root, { type: 'roadmap_updated', actor, title: `${item.id} updated`, detail: updated.title })
+  if (log) await appendActivity(root, { type: 'roadmap_updated', actor, title: `${item.id} updated`, detail: updated.title })
   return updated
 }
 

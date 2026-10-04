@@ -6,6 +6,7 @@ import type { ActivityEvent, Session } from "@/types"
 import { cn } from "@/lib/utils"
 import { isLive } from "@/lib/sessions"
 import { SessionCard } from "./SessionCard"
+import type { EventTarget } from "@/lib/activity"
 import { clock } from "./ActivityEventRow"
 
 export function dayLabel(ts: string): string {
@@ -35,10 +36,11 @@ interface SessionTimelineProps {
   events: Map<string, ActivityEvent>
   onOpenTask: (taskId: string) => void
   onOpenDoc: (path: string) => void
+  onOpen?: (target: EventTarget) => void
   focusSessionId?: string | null
 }
 
-export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, focusSessionId }: SessionTimelineProps) {
+export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpen, focusSessionId }: SessionTimelineProps) {
   const [actor, setActor] = useState<ActorFilter>("all")
   // Ticking clock: expires "working" badges without new events
   const [now, setNow] = useState(() => Date.now())
@@ -111,6 +113,7 @@ export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, focus
                     events={s.eventIds.flatMap(id => events.get(id) ?? [])}
                     onOpenTask={onOpenTask}
                     onOpenDoc={onOpenDoc}
+                    onOpen={onOpen}
                     focused={s.id === focusSessionId}
                     live={live}
                   />
