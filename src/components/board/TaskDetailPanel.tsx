@@ -7,6 +7,7 @@ import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import type { Task } from "@/types"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
+import { TaskRuns } from "./TaskRuns"
 import Link from "next/link"
 import { Bot, Calendar, Check, ChevronRight, Copy, CircleDashed, CornerUpLeft, Flag, FlaskConical, Map as MapIcon, MessageSquare, MoreHorizontal, Pencil, Ruler, Trash2, User } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -180,6 +181,8 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                 {task.manualTests && (task.manualTests.spec || task.manualTests.autoRun) && (
                   <AutoTestsLine spec={task.manualTests.spec} autoRun={task.manualTests.autoRun} />
                 )}
+
+                <TaskRuns key={`runs-${task.id}`} taskId={task.id} latest={task.lastRun?.runId ?? null} />
 
                 <ReviewHistory entries={reviewHistory(task.raw ?? "")} />
 

@@ -270,6 +270,22 @@ A session that ends without a `vibedoc_update_memory` handoff still leaves a sum
 
 ---
 
+## Screenshots and video
+
+Browser tests that import `vibedoc/playwright` record each step's screenshot and a video of the run:
+
+```ts
+import { test } from 'vibedoc/playwright'
+test.use({ vibedocTask: 'T138' })            // or env VIBEDOC_TASK_ID
+test('T138', async ({ page, step }) => {
+  await step('Open /board → board loads', async () => { await page.goto('/board') })
+})
+```
+
+Files go to `~/.vibedoc/runs/<project>/<taskId>/<runId>/` (`NN-<step>.png`, `video.webm`, `run.json`), outside the repo. `VIBEDOC_RUNS_DIR` moves that root (set it for the VibeDoc server too). Only the newest `runs.keep` runs per task are kept (`.vibedoc/settings.json`, default 5; `VIBEDOC_RUNS_KEEP` overrides). The task panel's **Runs** section shows the latest run: step thumbnails with ✓/✗, the video, and a picker for older kept runs. More in [Getting started](docs/getting-started.md#6-screenshots-and-video).
+
+---
+
 ## Development
 
 ```bash
