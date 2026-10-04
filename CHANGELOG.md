@@ -1,3 +1,16 @@
+# [1.13.0](https://github.com/quanghoangf/vibedoc/compare/v1.12.0...v1.13.0) (2026-10-04)
+
+
+### Features
+
+* **activity:** action badges, filters, clickable targets, less noise ([6650a6c](https://github.com/quanghoangf/vibedoc/commit/6650a6c9329e704c1be93d900bcda5a8080f3ff1))
+* **cli:** vibedoc --version / -v (T136) ([0054ca6](https://github.com/quanghoangf/vibedoc/commit/0054ca6f8570d28d27a2a31d64226dc86a8f163d))
+* **demo:** example project and Docker/Fly demo deploy config (T133) ([a3e44fb](https://github.com/quanghoangf/vibedoc/commit/a3e44fbf35da7e19614d0f047194540eda67e839))
+* **demo:** VIBEDOC_DEMO=1 read-only demo mode (T132) ([64ce61c](https://github.com/quanghoangf/vibedoc/commit/64ce61c458edc70ae46c1624f7918dff376ae700))
+* **docs:** /welcome landing page and /getting-started guide (T134) ([6e963d2](https://github.com/quanghoangf/vibedoc/commit/6e963d22cfef2f00f70d3bb96ad7c178a9c0d7cb))
+* **memory:** import Claude Code memory and export entries to AGENTS.md (R052) ([7f12a94](https://github.com/quanghoangf/vibedoc/commit/7f12a949b3b668ae4ba9a436f92e6fbde34f8a8f))
+* **ui:** show the VibeDoc version in the sidebar header (T137) ([99d2023](https://github.com/quanghoangf/vibedoc/commit/99d2023fe3286730aa921fbc6d8b71d9d00f1dac))
+
 # [1.12.0](https://github.com/quanghoangf/vibedoc/compare/v1.11.0...v1.12.0) (2026-10-03)
 
 
