@@ -21,6 +21,7 @@ import type { SavedView } from './board-views'
 import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
+import { parseKeep } from './runs-retention'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallHit } from './recall'
@@ -585,16 +586,17 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
 
 /**
  * The task settings from .vibedoc/settings.json (R055): `tasks.sizeDays` over the defaults (automatic due dates)
- * and `statuses` (custom statuses; the built-ins when unset).
+ * and `statuses` (custom statuses; the built-ins when unset). `runs.keep` (R059): test runs kept per task, default 5.
  */
-export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number }> {
-  let s: { tasks?: { sizeDays?: SizeDays }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown } } | null = null
+export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number }> {
+  let s: { tasks?: { sizeDays?: SizeDays }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
   try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
   const budget = Number(s?.memory?.sessionBudgetTokens)
   return {
     sizeDays: { ...DEFAULT_SIZE_DAYS, ...(s?.tasks?.sizeDays ?? {}) }, statuses: statusDefs(s?.statuses),
     // R048: token cap for what vibedoc_read_memory returns
     sessionBudgetTokens: budget > 0 ? budget : DEFAULT_SESSION_BUDGET,
+    runsKeep: parseKeep(s?.runs?.keep),
   }
 }
 

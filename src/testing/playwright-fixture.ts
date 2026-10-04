@@ -9,6 +9,8 @@
  *
  * Each `step` saves `NN-<slug>.png` (also when it fails), the run is recorded as `video.webm`, and
  * `run.json` is written at the end, all in `<runsRoot>/<project>/<taskId>/<runId>/` (see runs-paths.ts).
+ * Then only the newest N runs of that task are kept: `$VIBEDOC_RUNS_KEEP`, else `runs.keep` in the project's
+ * `.vibedoc/settings.json`, else 5 (runs-retention.ts).
  * Runs inside the target repo's Playwright process, not the VibeDoc server, so it writes its own files.
  *
  * The package export is the compiled `dist/testing/playwright-fixture.js` (`npm run build:playwright`, run by
@@ -17,9 +19,10 @@
 
 import { test as base, expect } from '@playwright/test'
 import { execFileSync } from 'child_process'
-import { mkdirSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import path from 'path'
 import { newRunId, projectKey, runDir, stepFile } from '../lib/runs-paths.js'
+import { parseKeep, planPrune } from '../lib/runs-retention.js'
 
 export type RunStep = { index: number; name: string; status: 'passed' | 'failed'; screenshot: string | null; error: string | null }
 /** Read by the runs API/viewer and R060: keep the shape stable. */
@@ -41,12 +44,47 @@ function gitCommit(): string | null {
   }
 }
 
+const RUN_ID = /^\d{8}T\d{6}Z$/
+const projectRoot = () => process.env.VIBEDOC_PROJECT || process.env.VIBEDOC_ROOT || process.cwd()
+
+/** `$VIBEDOC_RUNS_KEEP` wins; else the project's `runs.keep` setting (same key core's readProjectSettings reads). */
+function runsKeep(): number {
+  if (process.env.VIBEDOC_RUNS_KEEP) return parseKeep(process.env.VIBEDOC_RUNS_KEEP)
+  try {
+    return parseKeep(JSON.parse(readFileSync(path.join(projectRoot(), '.vibedoc', 'settings.json'), 'utf8'))?.runs?.keep)
+  } catch {
+    return parseKeep(undefined) // no settings file: the default
+  }
+}
+
+/**
+ * Delete all but the newest N finished runs of this task. Never the current run, never fails the test.
+ * Only dirs with a run.json count: another worker's run that is still being written has none yet.
+ */
+function pruneRuns(run: Run): void {
+  const taskDir = path.dirname(run.dir)
+  try {
+    const ids = readdirSync(taskDir, { withFileTypes: true })
+      .filter(d => d.isDirectory() && RUN_ID.test(d.name) && existsSync(path.join(taskDir, d.name, 'run.json')))
+      .map(d => d.name)
+    for (const id of planPrune(ids, runsKeep(), run.runId)) {
+      try {
+        rmSync(path.join(taskDir, id), { recursive: true, force: true })
+      } catch (e) {
+        console.warn(`vibedoc: could not delete old run ${id}: ${e instanceof Error ? e.message : e}`)
+      }
+    }
+  } catch (e) {
+    console.warn(`vibedoc: could not prune runs in ${taskDir}: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
 export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: Run; step: Step }>({
   vibedocTask: [undefined, { option: true }],
 
   vibedocRun: async ({ vibedocTask }, provide) => {
     const taskId = vibedocTask || process.env.VIBEDOC_TASK_ID || 'no-task'
-    const project = projectKey(process.env.VIBEDOC_PROJECT || process.env.VIBEDOC_ROOT || process.cwd())
+    const project = projectKey(projectRoot())
     let at = new Date()
     mkdirSync(path.dirname(runDir(project, taskId, newRunId(at))), { recursive: true })
     // Two runs of one task in the same second (or parallel workers): the exclusive mkdir picks the next free second
@@ -107,6 +145,7 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
       status: failed ? 'failed' : 'passed', commit: gitCommit(), video: videoFile, steps,
     }
     writeFileSync(path.join(vibedocRun.dir, 'run.json'), JSON.stringify(manifest, null, 2) + '\n')
+    pruneRuns(vibedocRun)
   }, { auto: true }],
 })
 
