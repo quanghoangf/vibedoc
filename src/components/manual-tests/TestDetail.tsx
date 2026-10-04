@@ -8,14 +8,20 @@ import { displayStatus } from "@/lib/statuses"
 import { StatusChip } from "@/components/shared/StatusIcon"
 import { ReviewActions } from "@/components/board/TaskDetailPanel"
 import { RunPlayer } from "./RunPlayer"
+import { TestEvidence } from "./TestEvidence"
 import type { ManualTestItem, ManualTests } from "@/lib/manual-tests"
 import { outstanding, sendBackNote, stepParts, type ReviewRow } from "@/lib/test-review"
 import { REVIEWABLE } from "@/lib/review"
 import { TEST_REVIEW_KEYS } from "@/lib/shortcuts"
 import type { Task } from "@/types"
 
-/** The right pane of /manual-tests: one task's evidence (run replay), its checklist and the review decision. */
-export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDecided, expanded, onExpand, onClose }: {
+export type DetailView = "review" | "evidence"
+
+/**
+ * The right pane of /manual-tests: one task's run replay, its checklist and the review decision (Review view), or
+ * its evidence doc with the run history (Evidence view, R060).
+ */
+export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDecided, expanded, onExpand, onClose, view, onView, run, onRun }: {
   task: Task
   tests: ManualTests | null
   row: ReviewRow
@@ -29,6 +35,12 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
   onExpand: (expanded: boolean) => void
   /** Close the panel (wide screens): the list takes the width again */
   onClose: () => void
+  /** ?view=evidence */
+  view: DetailView
+  onView: (view: DetailView) => void
+  /** ?run=: the kept run the evidence details (null = newest) */
+  run: string | null
+  onRun: (runId: string | null) => void
 }) {
   const { demo } = useApp()
   const items = tests?.items ?? []
@@ -103,14 +115,38 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
             </span>
           )}
         </div>
+        <div role="tablist" aria-label="View" className="flex w-fit items-center gap-0.5 rounded-md border border-border bg-bg p-0.5">
+          {(["review", "evidence"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => onView(v)}
+              title={`${v === "review" ? "Run replay and checklist" : "The evidence doc and run history"} (${TEST_REVIEW_KEYS.view.key})`}
+              className={cn(
+                "rounded-sm px-2.5 py-1 text-xs capitalize transition-colors duration-(--duration-fast) focus-visible:outline-2 focus-visible:outline-accent",
+                view === v ? "bg-surface2 text-txt" : "text-muted hover:text-txt",
+              )}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
         <KeyStrip
-          tick={!demo && manual.some((i) => !checkedOf(i))}
+          view={view}
+          tick={view === "review" && !demo && manual.some((i) => !checkedOf(i))}
           approve={decides && task.status === "review"}
           sendBack={decides && REVIEWABLE["changes requested"].includes(task.status)}
         />
       </header>
 
-      <section aria-label="Evidence" className="border-b border-border px-5 py-5 sm:px-7">
+      {view === "evidence" ? (
+        <section aria-label="Evidence" className="px-5 py-5 sm:px-7">
+          <TestEvidence key={task.id} taskId={task.id} latest={task.lastRun?.runId ?? null} run={run} onRun={onRun} />
+        </section>
+      ) : <>
+      <section aria-label="Run" className="border-b border-border px-5 py-5 sm:px-7">
         <RunPlayer key={task.id} taskId={task.id} latest={task.lastRun?.runId ?? null} />
       </section>
 
@@ -145,6 +181,7 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
           </div>
         ))}
       </section>
+      </>}
 
       {decides && <Decision task={task} row={row} onDecided={onDecided} />}
     </article>
@@ -156,7 +193,7 @@ const ICON_BTN = "inline-flex size-8 items-center justify-center rounded-md text
 const KBD = "rounded-sm border border-border2 bg-surface2 px-1 py-0.5 font-mono text-[11px] leading-none text-txt"
 
 /** The page keys that apply to this task, for sighted keyboard users (the `?` sheet lists them all). */
-function KeyStrip({ tick, approve, sendBack }: { tick: boolean; approve: boolean; sendBack: boolean }) {
+function KeyStrip({ view, tick, approve, sendBack }: { view: DetailView; tick: boolean; approve: boolean; sendBack: boolean }) {
   const K = TEST_REVIEW_KEYS
   const keys: [string, string][] = [
     ["j", ""], ["k", "move"],
@@ -164,8 +201,9 @@ function KeyStrip({ tick, approve, sendBack }: { tick: boolean; approve: boolean
     ...(approve ? [[K.approve.key, "twice to approve"]] as [string, string][] : []),
     ...(sendBack ? [[K.sendBack.key, "send back"]] as [string, string][] : []),
     [K.failed.key, "next failed"],
+    [K.view.key, view === "review" ? "evidence" : "review"],
     [K.expand.key, "page"],
-    ["space", "play"],
+    ...(view === "review" ? [["space", "play"]] as [string, string][] : []),
   ]
   return (
     <p aria-hidden className="flex flex-wrap items-center gap-x-1 gap-y-1 font-mono text-[11px] text-muted max-sm:hidden">

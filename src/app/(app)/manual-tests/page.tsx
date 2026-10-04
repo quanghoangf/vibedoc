@@ -8,7 +8,7 @@ import { parseManualTests, type ManualTestItem, type ManualTests } from "@/lib/m
 import { REVIEW_TABS, filterRows, selectionLabel, sortRows, toRow, type ReviewRow, type ReviewTab } from "@/lib/test-review"
 import { shouldHandleShortcut } from "@/lib/shortcuts"
 import { timeAgo } from "@/components/activity/ActivityEventRow"
-import { TestDetail } from "@/components/manual-tests/TestDetail"
+import { TestDetail, type DetailView } from "@/components/manual-tests/TestDetail"
 import { TestBulkBar } from "@/components/manual-tests/TestBulkBar"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/types"
@@ -117,7 +117,7 @@ function TestReview() {
   const finishClose = () => setParams({ task: null, full: null, panel: "0" })
   const select = useCallback((id: string | null) => {
     setClosingId(null)
-    setParams({ task: id, panel: null })
+    setParams({ task: id, panel: null, run: null })
   }, [setParams])
 
   // The list is one tab stop (roving tabindex): the selected row, else the first
@@ -193,6 +193,7 @@ function TestReview() {
   const showDetail = !!selected && !!selectedRow
   // ?full=1: the selected task as a page (list and filters fold away); e or Collapse brings the list back
   const full = showDetail && params.get("full") === "1"
+  const view: DetailView = params.get("view") === "evidence" ? "evidence" : "review"
 
   // Page keys (TEST_REVIEW_KEYS): j/k (↓/↑ in the list) walk, x ticks, a a approves, s sends back, f next failure, / searches.
   // Capture phase so a / s / / win over the layout's page jumps; no deps: it reads this render's state.
@@ -245,6 +246,7 @@ function TestReview() {
           else return
           break
         case "o": if (selected) setParams({ full: full ? null : "1" }); break
+        case "v": if (selected) setParams({ view: view === "evidence" ? null : "evidence", run: null }); break
         default: return
       }
       e.preventDefault()
@@ -401,6 +403,10 @@ function TestReview() {
               expanded={full}
               onExpand={(on) => setParams({ full: on ? "1" : null })}
               onClose={close}
+              view={view}
+              onView={(v) => setParams({ view: v === "evidence" ? "evidence" : null, run: null })}
+              run={params.get("run")}
+              onRun={(r) => setParams({ run: r })}
               onDecided={() => {
                 // Next row that still needs you, below the current one first, wrapping to the top
                 const at = shown.findIndex((r) => r.id === selected.task.id)

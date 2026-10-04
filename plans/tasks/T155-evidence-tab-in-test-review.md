@@ -1,8 +1,12 @@
 # T155: Evidence tab in Test review, with run history
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R060 — Evidence report per task
 **Size:** M (2–3 hrs)
 **Depends on:** T154
+**Owner:** ai:claude-code
+**Due:** 2026-10-07
+**Started:** 2026-10-04
+**Done:** 2026-10-04
 
 ## Goal
 On `/manual-tests`, a task's detail has an **Evidence** view: the evidence doc with a screenshot and result for every checklist item, and a history of runs you can switch between.
@@ -47,3 +51,16 @@ node src/lib/shortcuts.check.mts
 pnpm lint && pnpm build
 # open http://localhost:3000/manual-tests?task=T138&view=evidence (desktop + 390px)
 ```
+
+## Manual tests
+_2026-10-04 — ai · Spec: `e2e/vibedoc/T155-evidence-tab-in-test-review.spec.ts` · Auto: passed 2026-10-04_
+### Steps
+- [x] 🤖 Open /manual-tests?tab=all&task=T138&view=evidence → the Evidence tab is selected and every run step shows its screenshot
+- [x] 🤖 Click the older run in History → the URL gets &run= and that run is marked shown
+- [x] 🤖 Reload → the same run is still shown
+- [x] 🤖 Click a screenshot → it opens large in a dialog; Esc closes the dialog and the task stays open
+- [x] 🤖 Press v → the Review view (run player and checklist) shows and view=evidence leaves the URL
+- [ ] On the Evidence view, the doc reads well: History list, the result line, checklist glyphs, screenshots full width with a border, the "▶ Video of this run" link opens the video in a new tab
+- [ ] At phone width (~390px) the Evidence view has no sideways scroll and screenshots fit the column
+### Regression risk
+- [ ] In the Review view the run player, ticking checks, approve / send back and the multi-select bar work as before; j/k walk tasks and keep the chosen view
