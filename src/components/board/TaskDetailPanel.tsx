@@ -183,7 +183,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                   <AutoTestsLine spec={task.manualTests.spec} autoRun={task.manualTests.autoRun} />
                 )}
 
-                <TaskRuns key={`runs-${task.id}`} taskId={task.id} latest={task.lastRun?.runId ?? null} />
+                <TaskRuns key={`runs-${task.id}`} taskId={task.id} latest={task.lastRun?.runId ?? null} onNavigate={onClose} />
 
                 <ReviewHistory entries={reviewHistory(task.raw ?? "")} />
 

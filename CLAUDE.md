@@ -21,7 +21,7 @@ src/
     (app)/roadmap/page.tsx ← Roadmap page (roadmap.sh-style, React Flow)
     (app)/graph/page.tsx  ← Whole-repo doc link graph (React Flow, force layout)
     (app)/chat/page.tsx   ← All agent chats: list · conversation · epic/task context
-    (app)/manual-tests/page.tsx ← Test review: task list (Needs you/Failed/Passed/No run) + run replay, checklist, review
+    (app)/manual-tests/page.tsx ← Test review: task list (Needs you/Failed/Passed/No run) + run replay, checklist, review; Evidence view (?view=evidence)
     api/
       mcp/route.ts        ← MCP JSON-RPC endpoint (AI connects here)
       events/route.ts     ← SSE stream (real-time browser updates)
@@ -36,6 +36,7 @@ src/
       conversations/route.ts ← Saved agent chats (.vibedoc/chats/<id>.json)
       tasks/manual-tests/route.ts ← Tick a task's manual test item
       tasks/review/route.ts ← Approve / send back a task in review
+      tasks/[id]/evidence/route.ts ← A task's evidence doc (checklist × kept runs), ?run= for an older run
       roadmap/*           ← Roadmap list + create/update/delete/layout
   components/
     roadmap/              ← Roadmap canvas, nodes, editor

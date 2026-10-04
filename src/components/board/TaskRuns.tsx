@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Check, ImageOff, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
@@ -10,9 +11,10 @@ import type { RunManifest, RunStep } from "@/lib/runs-paths"
 
 /**
  * A task's recorded test runs (R059): the picked run's step screenshots + video, newest run first.
- * Mount with key={taskId}. `latest` = the board's newest run id, so a new run refetches. Full history is R060.
+ * Mount with key={taskId}. `latest` = the board's newest run id, so a new run refetches. The evidence doc with every
+ * kept run (R060) is one click away on /manual-tests; `onNavigate` closes the panel first.
  */
-export function TaskRuns({ taskId, latest }: { taskId: string; latest: string | null }) {
+export function TaskRuns({ taskId, latest, onNavigate }: { taskId: string; latest: string | null; onNavigate?: () => void }) {
   const { rootParam } = useApp()
   const [runs, setRuns] = useState<RunManifest[] | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
@@ -44,7 +46,16 @@ export function TaskRuns({ taskId, latest }: { taskId: string; latest: string | 
 
   return (
     <section aria-label="Test runs" className="px-5 py-3 border-b border-border shrink-0">
-      <p className="mb-2 text-xs font-mono uppercase tracking-wide text-muted">Runs</p>
+      <div className="mb-2 flex items-center gap-2">
+        <p className="text-xs font-mono uppercase tracking-wide text-muted">Runs</p>
+        <Link
+          href={`/manual-tests?tab=all&task=${encodeURIComponent(taskId)}&view=evidence`}
+          onClick={onNavigate}
+          className="ml-auto rounded-sm text-xs text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          Evidence →
+        </Link>
+      </div>
       {runs === null ? null : !run ? (
         <p className="text-xs text-muted">
           No recorded runs yet. Write the spec with <code className="font-mono text-txt">vibedoc/playwright</code>&apos;s <code className="font-mono text-txt">step()</code> to capture one.

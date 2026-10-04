@@ -105,12 +105,15 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
           )}
           {tests && (
             <Link
-              href={`/manual-tests#${task.id}`}
+              href={`/manual-tests?tab=all&task=${task.id}&view=evidence`}
               draggable={false}
               onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation() /* the card's Enter would open the panel instead */}
+              onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
               title={`Manual tests: ${tests.done} of ${tests.total} ticked` +
                 (tests.auto ? `, ${tests.auto} automated` : "") +
-                (tests.autoRun ? ` (last run ${tests.autoRun.result} ${tests.autoRun.date})` : "")}
+                (tests.autoRun ? ` (last run ${tests.autoRun.result} ${tests.autoRun.date})` : "") +
+                " · click for evidence"}
               className={cn(
                 "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
                 tests.autoRun?.result === "failed" ? "border-danger/40 text-danger"

@@ -1,8 +1,12 @@
 # T156: Open evidence from the task panel and card badge, e2e, docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R060 — Evidence report per task
 **Size:** M (2–3 hrs)
 **Depends on:** T155
+**Owner:** ai:claude-code
+**Due:** 2026-10-07
+**Started:** 2026-10-04
+**Done:** 2026-10-04
 
 ## Goal
 Opening a done task anywhere leads to its evidence in one click: from the task panel, and from the 🧪 badge on the board card.
@@ -50,3 +54,15 @@ Opening a done task anywhere leads to its evidence in one click: from the task p
 pnpm lint && pnpm build
 node e2e/evidence.mjs
 ```
+
+## Manual tests
+_2026-10-04 — ai_
+### Steps
+- [ ] On /board, click the 🧪 badge of a task that has runs (e.g. a task in review or in progress) → /manual-tests opens on that task in the Evidence view with its screenshots; the badge tooltip ends with "· click for evidence"
+- [ ] Tab to a card's 🧪 badge and press Enter → same Evidence view (the task panel does not open)
+- [ ] Open a task panel → in the Runs section, "Evidence →" (top right) opens the same view and the panel closes
+- [ ] Open T155 (done) → Runs → Evidence → every 🤖 item shows ✅ with its screenshot
+- [ ] A task with a checklist but no runs → Evidence → "No run yet." with its checklist, not an error
+### Regression risk
+- [ ] Clicking a card's body still opens the task panel, and dragging a card between columns still works (try dragging from the title, not the badge)
+- [ ] The panel's "manual tests ticked · Open checklist →" row still opens /manual-tests on the Review view
