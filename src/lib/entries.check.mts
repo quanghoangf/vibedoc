@@ -40,6 +40,16 @@ assert.equal(parseEntry(byAi, 'f')?.by, 'ai:claude')
 assert.equal(parseEntry(formatEntry({ ...e, body: '', by: 'human' }), 'f')?.by, 'human')
 assert.equal(parseEntry(raw, 'f')?.by, null)
 
+// **Source:** round trip (R052): written right after **Updated:**, read back; without it the output is unchanged
+const imported = { ...e, by: 'ai:claude', source: 'claude-code:only-core-touches-fs' }
+const srcRaw = formatEntry(imported)
+assert.equal(srcRaw, '# E001: Only core.ts touches fs\n**Type:** convention\n**Updated:** 2026-09-30\n**Source:** claude-code:only-core-touches-fs\n**By:** ai:claude\n\nAPI routes import from core.\n\nWhy: one place.\n')
+assert.deepEqual(parseEntry(srcRaw, 'f'), { ...imported, file: 'f' })
+assert.equal(formatEntry(parseEntry(srcRaw, 'f')!), srcRaw)
+assert.equal('source' in (parseEntry(byAi, 'f') ?? {}), false)
+assert.equal(formatEntry(parseEntry(byAi, 'f')!), byAi)
+assert.equal(formatEntry({ ...e, source: '' }), raw)
+
 // parse: meta block stops at the first non-meta line; ids normalized; CRLF ok
 assert.equal(parseEntry('# e2: S\r\n**Type:** gotcha\r\n\r\n**Type:** decision', 'f')?.type, 'gotcha')
 assert.equal(parseEntry('# e2: S\n**Type:** gotcha\n', 'f')?.id, 'E002')
