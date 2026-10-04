@@ -1,0 +1,1 @@
+Docs-only fixture: no package.json, so no web frontend.

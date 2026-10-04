@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useApp } from "@/context/AppContext"
-import { Palette, Type, FolderCog, Plug, Zap, Bot, Settings, Columns3 } from "lucide-react"
+import { Palette, Type, FolderCog, Plug, Zap, Bot, Settings, Columns3, AppWindow } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeSettings } from "@/components/settings/ThemeSettings"
 import { EditorSettings } from "@/components/settings/EditorSettings"
@@ -11,6 +11,7 @@ import { MCPSettings } from "@/components/settings/MCPSettings"
 import { SkillsSettings } from "@/components/settings/SkillsSettings"
 import { AgentsSettings } from "@/components/settings/AgentsSettings"
 import { StatusesSettings } from "@/components/settings/StatusesSettings"
+import { FrontendSettings } from "@/components/settings/FrontendSettings"
 import { setStatusDefs } from "@/components/shared/status-defs"
 import { statusDefs } from "@/lib/statuses"
 import type { AppSettings, Skill, Agent } from "@/lib/settings"
@@ -22,6 +23,7 @@ const TABS = [
   { id: "editor", label: "Editor", icon: Type },
   { id: "project", label: "Project", icon: FolderCog },
   { id: "statuses", label: "Statuses", icon: Columns3 },
+  { id: "frontend", label: "Frontend app", icon: AppWindow },
   { id: "mcp", label: "MCP", icon: Plug },
   { id: "skills", label: "Skills", icon: Zap },
   { id: "agents", label: "Agents", icon: Bot },
@@ -175,6 +177,7 @@ export default function SettingsPage() {
           {activeTab === "statuses" && (
             <StatusesSettings settings={settings} onSave={saveSettings} />
           )}
+          {activeTab === "frontend" && <FrontendSettings rootParam={rootParam} />}
           {activeTab === "mcp" && (
             <MCPSettings settings={settings} onSave={saveSettings} />
           )}

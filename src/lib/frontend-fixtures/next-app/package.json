@@ -1,0 +1,1 @@
+{ "name": "shop-web", "scripts": { "dev": "next dev", "build": "next build" }, "dependencies": { "next": "16.0.0", "react": "19.0.0" } }

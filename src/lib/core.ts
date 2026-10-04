@@ -33,6 +33,7 @@ import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, repl
 import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
 import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
 import { isDemo } from './demo'
+import { detectFrontendApp, type FrontendApp } from './frontend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,6 +155,16 @@ export function getConfiguredRoot(): string {
 /** The project root for a request's `?root=` override. The read-only demo pins the configured root, so visitors can't read other host folders. */
 export function rootFrom(override?: string | null): string {
   return (!isDemo() && override) || getConfiguredRoot()
+}
+
+// ─── Frontend app (R057) ──────────────────────────────────────────────────────
+
+/** The project's web frontend from its root package.json (pure detection in frontend.ts); null when there is none. */
+export async function detectFrontend(root: string): Promise<FrontendApp | null> {
+  const packageJson = await fs.readFile(path.join(root, 'package.json'), 'utf8').catch(() => null)
+  if (packageJson == null) return null
+  const files = await fs.readdir(root).catch(() => [] as string[])
+  return detectFrontendApp('.', packageJson, files)
 }
 
 // ─── Multi-project: scan parent directories ───────────────────────────────────
@@ -920,6 +931,7 @@ export async function logDecision(params: ADRParams, root: string, actor: 'ai' |
 // ─── Memory ───────────────────────────────────────────────────────────────────
 
 export type { MemoryParams } from './memory-sections'
+export type { FrontendApp } from './frontend'
 
 export async function readMemory(root: string): Promise<{ content: string; exists: boolean }> {
   try {
