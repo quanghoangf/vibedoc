@@ -1,5 +1,5 @@
 # MCP Tools Reference
-**Last updated:** 2026-09-30
+**Last updated:** 2026-10-04
 
 VibeDoc exposes an MCP server at `/api/mcp` (HTTP JSON-RPC 2.0). AI coding agents connect here to read project state, manage tasks, and write documentation.
 
@@ -98,6 +98,8 @@ Save one long-lived fact as its own file, `memory/entries/E001-<slug>.md`. A fac
 | `body` | string | | Details and the why (markdown) |
 | `id` | string | | Entry to update, e.g. `E001`. Omit to create |
 
+An update keeps the entry's `**Source:**` line ([`vibedoc_import_memory`](#vibedoc_import_memory)).
+
 **Returns:** `🧠 Saved **E001** · convention · <summary>` and the file path. Unknown type, bad summary or unknown id → error, nothing written.
 
 ---
@@ -106,6 +108,60 @@ Save one long-lived fact as its own file, `memory/entries/E001-<slug>.md`. A fac
 Delete an entry that is wrong or no longer true. The file is removed; git keeps its history.
 
 **Parameters:** `id` (string, required), e.g. `E001`
+
+---
+
+### `vibedoc_import_memory` ⚡ triggers real-time UI update
+Import the developer's Claude Code memory for this project into knowledge entries (R052). Reads `~/.claude/projects/<slug>/memory/*.md` (`$CLAUDE_CONFIG_DIR` replaces `~/.claude`; `<slug>` = the absolute project root with every non-alphanumeric character as `-`), read-only. The folder is fixed: callers can't pass a path. The `MEMORY.md` index and files without frontmatter `name` + `description` are skipped.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `source` | string | ✅ | `claude-code` (the only source; Cursor / Cline importers are out of scope) |
+| `apply` | boolean | | Write the previewed entries. Default `false`: preview only, nothing written |
+
+Each file becomes one entry: `description` → summary (at most 120 characters), the text after the frontmatter → body, `type` → entry type:
+
+| Claude Code `type` | Entry type |
+|---|---|
+| `feedback`, `user` | `preference` |
+| `project` | `decision` |
+| `reference`, anything else, missing | `convention` |
+
+The entry gets `**Source:** claude-code:<name>`. Re-imports dedupe on that line only: same type, summary and body → unchanged; otherwise the entry is updated in place (same id). An entry whose Claude Code file is gone is listed as `only in VibeDoc`, never deleted. Entries without a source never match.
+
+**Returns:** one line per candidate, then the counts:
+```
+📥 Claude Code memory → 2 found in ~/.claude/projects/-Users-x-work-app/memory
++ new        decision    Use pnpm, the npm lockfile conflicts   (pnpm_only)
++ new        preference  Keep answers short   (terse)
+= unchanged  0
+2 new · 0 update · 0 unchanged
+Call again with apply: true to write.
+```
+With `apply: true` the rows read `created` / `updated` and end with `Wrote N entries (… created · … updated).` (or `Nothing to write.`). One `memory_updated` activity event per apply. No memory file and no earlier import → `No Claude Code memory found at <dir>`; any other `source` → error.
+
+`vibedoc_get_entries` prints `Source: claude-code:<name>` under the `updated` line of an imported entry.
+
+---
+
+### `vibedoc_export_memory` ⚡ triggers real-time UI update
+Write the knowledge entries into a managed block of `AGENTS.md` (created when missing) and `CLAUDE.md` (only when it exists), so Cursor, Codex and other agents that read those files see the same conventions (R052).
+
+**Parameters:** none
+
+The block:
+```markdown
+<!-- vibedoc:entries:start -->
+## Project memory
+_Generated from memory/entries/ by VibeDoc. Edit the entries, not this block._
+
+### Conventions
+- <summary>: <first body line, ≤200 chars> (E001)
+<!-- vibedoc:entries:end -->
+```
+Groups in order Conventions · Gotchas · Decisions · Preferences (empty ones skipped; `_No entries yet._` when there are none), ids ascending inside a group. No date, so an unchanged set renders byte-identical and the file is not rewritten. The block replaces the text between the markers, or is appended after a blank line when there are none; everything outside is kept byte-for-byte, line endings included. A lone or reversed marker in either file → error, neither file written.
+
+**Returns:** `📤 Exported N entries → AGENTS.md (updated), CLAUDE.md (unchanged)`. Each changed file logs a `doc_updated` event and refreshes an open editor.
 
 ---
 
