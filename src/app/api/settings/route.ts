@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs/promises'
 import path from 'path'
-import { getConfiguredRoot } from '@/lib/core'
+import { rootFrom } from '@/lib/core'
 import { DEFAULT_SETTINGS, DEFAULT_SKILLS, DEFAULT_AGENTS, type AppSettings, type Skill, type Agent } from '@/lib/settings'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 const VIBEDOC_DIR = '.vibedoc'
 const SETTINGS_FILE = 'settings.json'
@@ -11,6 +12,7 @@ const AGENTS_FILE = 'agents.json'
 
 async function ensureVibedocDir(root: string) {
   const dir = path.join(root, VIBEDOC_DIR)
+  if (isDemo()) return dir // GET runs this too: a read-only demo creates nothing
   try {
     await fs.mkdir(dir, { recursive: true })
   } catch {}
@@ -31,7 +33,7 @@ async function writeJsonFile(filePath: string, data: unknown): Promise<void> {
 }
 
 export async function GET(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   const type = req.nextUrl.searchParams.get('type') || 'all'
   const dir = await ensureVibedocDir(root)
 
@@ -69,7 +71,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  if (isDemo()) return demoForbidden()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   const type = req.nextUrl.searchParams.get('type')
   const dir = await ensureVibedocDir(root)
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createDoc, getConfiguredRoot } from '@/lib/core'
+import { createDoc, rootFrom } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 interface FileToWrite {
   path: string
@@ -9,8 +10,9 @@ interface FileToWrite {
 }
 
 export async function POST(req: NextRequest) {
+  if (isDemo()) return demoForbidden()
   try {
-    const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+    const root = rootFrom(req.nextUrl.searchParams.get('root'))
     const { files } = await req.json() as { files: FileToWrite[] }
 
     const results: { path: string; success: boolean; error?: string }[] = []

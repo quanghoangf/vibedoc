@@ -9,10 +9,11 @@
 
 import { NextRequest } from 'next/server'
 import { spawn } from 'child_process'
-import { getConfiguredRoot, listEpisodes, listTasks, readActivity, writeEpisode } from '@/lib/core'
+import { rootFrom, listEpisodes, listTasks, readActivity, writeEpisode } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { groupSessions } from '@/lib/sessions'
 import { buildEpisode, isHandoffWritten, mergeSources, turnSessions } from '@/lib/episodes'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -64,7 +65,8 @@ async function writeTurnEpisodes(root: string, since: string, conversationId: st
 }
 
 export async function POST(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  if (isDemo()) return demoForbidden()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   const { message, sessionId, docPath, conversationId } = await req.json()
   if (typeof message !== 'string' || !message.trim()) {
     return Response.json({ error: 'message is required' }, { status: 400 })

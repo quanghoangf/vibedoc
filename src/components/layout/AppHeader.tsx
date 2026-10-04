@@ -44,7 +44,7 @@ interface AppHeaderProps {
 export function AppHeader({ summary, projects, activeProject, liveIndicator, onProjectChange, onToggleChat, onOpenSearch }: AppHeaderProps) {
   const pathname = usePathname()
   const title = Object.entries(PAGE_TITLES).find(([p]) => pathname.startsWith(p))?.[1]
-  const { activity } = useApp()
+  const { activity, demo } = useApp()
   // ChatContext's minute clock, so "N agents working" and "last agent call" age without new events
   const { now } = useChats()
 
@@ -66,6 +66,14 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
 
       <div className="flex-1" />
 
+      {demo && (
+        <p className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg/60 px-2.5 py-1 text-xs text-muted">
+          <span className="hidden lg:inline">Live demo, read-only. Install:</span>
+          <span className="lg:hidden">Read-only demo</span>
+          <code className="hidden font-mono text-txt lg:inline">npx vibedoc</code>
+        </p>
+      )}
+
       <AgentStatus liveIndicator={liveIndicator} activity={activity} now={now} />
 
       <button
@@ -81,7 +89,7 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
 
       <ConnectMenu activity={activity} now={now} />
 
-      <button
+      {!demo && <button
         type="button"
         onClick={onToggleChat}
         title="Chats (c)"
@@ -90,7 +98,7 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
       >
         <MessagesSquare className="size-3.5" aria-hidden />
         <span className="hidden sm:inline">Chats</span>
-      </button>
+      </button>}
     </header>
   )
 }

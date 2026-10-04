@@ -8,6 +8,7 @@ import { OwnerChip } from "@/components/shared/OwnerChip"
 import { parseOwner } from "@/lib/owner"
 import { timeAgo } from "@/components/activity/ActivityEventRow"
 import type { MemoryVersion } from "@/lib/core"
+import { useApp } from "@/context/AppContext"
 
 interface MemoryHistoryProps {
   /** null while loading */
@@ -27,6 +28,7 @@ interface MemoryHistoryProps {
  * A row shows a line diff from the current file to that version and a Restore button.
  */
 export function MemoryHistory({ versions, current, rootParam, selectedId, onSelect, onClose, onRestore }: MemoryHistoryProps) {
+  const { demo } = useApp()
   const [loaded, setLoaded] = useState<{ id: string; content: string } | { id: string; error: string } | null>(null)
   const [restoring, setRestoring] = useState(false)
   const selected = versions?.find((v) => v.id === selectedId) ?? null
@@ -140,7 +142,7 @@ export function MemoryHistory({ versions, current, rootParam, selectedId, onSele
               ),
             )}
           </div>
-          <div className="flex items-center gap-2 border-t border-border px-3 py-2">
+          {!demo && <div className="flex items-center gap-2 border-t border-border px-3 py-2">
             <button
               type="button"
               onClick={restore}
@@ -150,7 +152,7 @@ export function MemoryHistory({ versions, current, rootParam, selectedId, onSele
               {restoring ? "Restoring…" : "Restore this version"}
             </button>
             <span className="text-[11px] text-muted">The current file is saved first, so you can undo.</span>
-          </div>
+          </div>}
         </div>
       )}
     </section>

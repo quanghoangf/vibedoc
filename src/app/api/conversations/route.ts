@@ -5,19 +5,21 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { deleteChat, getConfiguredRoot, listChats, saveChat } from '@/lib/core'
+import { deleteChat, rootFrom, listChats, saveChat } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   return NextResponse.json({ chats: await listChats(root) })
 }
 
 // body: { chat } to save, or { delete: id }
 export async function POST(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  if (isDemo()) return demoForbidden()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   try {
     const body = await req.json()
     if (typeof body?.delete === 'string') {

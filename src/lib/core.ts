@@ -32,6 +32,7 @@ import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } fro
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
 import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
+import { isDemo } from './demo'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -150,13 +151,18 @@ export function getConfiguredRoot(): string {
   return process.env.VIBEDOC_ROOT || process.cwd()
 }
 
+/** The project root for a request's `?root=` override. The read-only demo pins the configured root, so visitors can't read other host folders. */
+export function rootFrom(override?: string | null): string {
+  return (!isDemo() && override) || getConfiguredRoot()
+}
+
 // ─── Multi-project: scan parent directories ───────────────────────────────────
 
 export async function discoverProjects(searchBase?: string): Promise<Project[]> {
   const base = searchBase || path.dirname(getConfiguredRoot())
   const projects: Project[] = []
 
-  try {
+  if (!isDemo()) try {
     const entries = await fs.readdir(base, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
@@ -1210,7 +1216,7 @@ const dropFromRecallLog = async (root: string, ids: string[]) => {
 
 /** Stamp today on each id (R051). Writes only when a date changes, so at most once per id per day. Returns whether it wrote. */
 export function markEntriesRecalled(ids: string[], root: string): Promise<boolean> {
-  if (!ids.length) return Promise.resolve(false)
+  if (!ids.length || isDemo()) return Promise.resolve(false)
   return withEntryLock(async () => {
     const next = markRecalled(await readRecallLog(root), ids, localToday())
     if (next) await writeRecallLog(root, next)
@@ -1653,6 +1659,7 @@ export function currentSessionId(root: string, actor: ActivityEvent['actor'] = '
 }
 
 async function appendActivity(root: string, event: Omit<ActivityEvent, 'id' | 'timestamp'>): Promise<void> {
+  if (isDemo()) return // read-only demo (R042): a read (session start) never writes the log
   const now = Date.now()
   const full: ActivityEvent = {
     id: `evt_${now}_${Math.random().toString(36).slice(2, 7)}`,
@@ -1681,6 +1688,7 @@ const DOC_EDIT_LOOKBACK = 50
  * actor within 10 minutes of the newest event for that doc just moves that event's time forward.
  */
 export async function noteDocEdit(root: string, docPath: string, actor: 'ai' | 'human'): Promise<void> {
+  if (isDemo()) return
   const file = path.join(root, ACTIVITY_FILE)
   let events: ActivityEvent[] = []
   try { events = JSON.parse(await fs.readFile(file, 'utf8')) } catch {}
@@ -2635,6 +2643,7 @@ function sessionEpisode(s: Session, events: ActivityEvent[], tasks: Task[], sour
 export async function backfillEpisodes(
   root: string, { excludeSessionId = null, limit = 5 }: { excludeSessionId?: string | null; limit?: number } = {},
 ): Promise<{ sessionId: string; file: string }[]> {
+  if (isDemo()) return []
   const [events, files, memStat] = await Promise.all([
     readActivity(root, ACTIVITY_CAP),
     fs.readdir(path.join(root, EPISODES_DIR)).catch(() => [] as string[]),
@@ -2659,6 +2668,7 @@ export async function backfillEpisodes(
  * null when there is no running session, it wrote a handoff, or it changed nothing. Rewrites keep earlier sources.
  */
 export async function writeRunEpisode(root: string, source: string, agent?: string): Promise<{ sessionId: string; file: string } | null> {
+  if (isDemo()) return null
   const id = currentSessionId(root)
   if (!id) return null
   const events = await readActivity(root, ACTIVITY_CAP)

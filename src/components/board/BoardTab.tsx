@@ -47,7 +47,7 @@ function customized(v: SavedView): boolean {
 }
 
 export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabProps) {
-  const { rootParam } = useApp()
+  const { rootParam, demo } = useApp()
   const { agents } = useChats()
   const params = useSearchParams()
   const [views, setViews] = useState<SavedView[]>(DEFAULT_VIEWS)
@@ -73,11 +73,12 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
   // Unchanged built-ins stay out of views.json so later changes to DEFAULT_VIEWS still reach this project.
   const persist = useCallback((next: SavedView[]) => {
     setViews(next)
+    if (demo) return // read-only demo (R042): views live in this tab only
     const body = { views: next.filter((v) => !BUILT_IN.includes(v.id) || customized(v)) }
     fetch(`/api/views${rootParam}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`) })
       .catch((e) => { console.warn("[vibedoc] could not save views:", e); loadViews() })
-  }, [rootParam, loadViews])
+  }, [rootParam, loadViews, demo])
 
   // ── Live state = the URL. No view keys → the active saved view's state. ─────
   const vParam = params.get("v")
@@ -192,13 +193,13 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
       if (e.key === "v") select(ids[(ids.indexOf(activeId) + 1) % ids.length])
       else if (n >= 1 && n <= 4) select(BUILT_IN[n - 1])
       else if (e.key === "f") setFilterOpen(true)
-      else if (e.key === "n") onNewTask()
+      else if (e.key === "n" && !demo) onNewTask()
       else return
       e.preventDefault()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [order, activeId, select, onNewTask])
+  }, [order, activeId, select, onNewTask, demo])
 
   // Only tasks still on screen count as selected (a filter or a delete drops the rest)
   const selected = useMemo(() => new Set(shown.map((t) => t.id).filter((id) => picked.has(id))), [shown, picked])
@@ -219,7 +220,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
   }, [selected.size, clearSelection])
 
   const count = (...s: Task["status"][]) => tasks.filter((t) => s.includes(t.status)).length
-  const viewProps = { tasks: shown, allTasks: tasks, state, agentTasks, onOpenTask, selected, onToggleSelect: toggleSelect }
+  const viewProps = { tasks: shown, allTasks: tasks, state, agentTasks, onOpenTask, selected, onToggleSelect: demo ? undefined : toggleSelect }
 
   return (
     <div className="flex min-w-0 flex-col">
@@ -234,7 +235,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
             </span>
           </p>
         </div>
-        <button
+        {!demo && <button
           type="button"
           onClick={onNewTask}
           className="inline-flex h-8.5 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-accent px-3 text-[13px] font-medium text-accent-fg transition-colors duration-(--duration-fast) ease-out-soft hover:bg-accent/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
@@ -242,7 +243,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
           <Plus aria-hidden className="size-[15px]" />
           New task
           <kbd className="rounded-sm border border-accent-fg/25 bg-accent-fg/15 px-1 py-0.5 font-mono text-[10px] leading-none max-sm:hidden">n</kbd>
-        </button>
+        </button>}
       </header>
 
       <div className="mt-[18px] px-4 sm:px-8">

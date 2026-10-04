@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { restoreMemoryVersion } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { errorResponse, jsonBody, rootOf } from '../../roadmap/_shared'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 /** Write a saved MEMORY.md version back (R045); the replaced file is snapshotted first, so this is undoable. */
 export async function POST(req: NextRequest) {
+  if (isDemo()) return demoForbidden()
   try {
     const root = rootOf(req)
     const { id, actor } = await jsonBody(req)

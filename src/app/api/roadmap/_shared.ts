@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { RoadmapError, getConfiguredRoot } from '@/lib/core'
+import { RoadmapError, rootFrom } from '@/lib/core'
 
 export function rootOf(req: NextRequest): string {
-  return req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  return rootFrom(req.nextUrl.searchParams.get('root'))
 }
 
 /** Parse a JSON object body; throws RoadmapError (400) on malformed input. */

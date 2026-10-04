@@ -186,7 +186,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
         )}
       >
         <td className="pl-3" onClick={(e) => e.stopPropagation()}>
-          <SelectBox label={`Select ${task.id}`} checked={selected.has(task.id)} onChange={() => onToggleSelect?.([task.id])} />
+          {onToggleSelect && <SelectBox label={`Select ${task.id}`} checked={selected.has(task.id)} onChange={() => onToggleSelect([task.id])} />}
         </td>
         <td className={cn("px-2.5", cellMono)}>{task.id}</td>
         <td className="min-w-0 px-1">
@@ -216,12 +216,12 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
         <thead>
           <tr className="h-[34px] border-b border-border2 bg-bg text-[11px] text-muted">
             <th scope="col" className="pl-3 text-left">
-              <SelectBox
+              {onToggleSelect && <SelectBox
                 label="Select all shown tasks"
                 checked={allPicked}
                 mixed={somePicked}
-                onChange={() => onToggleSelect?.(tasks.map((t) => t.id), !allPicked)}
-              />
+                onChange={() => onToggleSelect(tasks.map((t) => t.id), !allPicked)}
+              />}
             </th>
             {header("id", "ID")}
             {header("title", "Title")}

@@ -5,11 +5,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { TaskStateError, approveTask, getConfiguredRoot, sendBackTask } from '@/lib/core'
+import { TaskStateError, approveTask, rootFrom, sendBackTask } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 export async function POST(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  if (isDemo()) return demoForbidden()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   const body = await req.json().catch(() => null) as { id?: unknown; action?: unknown; note?: unknown } | null
   const note = typeof body?.note === 'string' ? body.note : ''
   if (typeof body?.id !== 'string' || (body.action !== 'approve' && body.action !== 'send-back')) {

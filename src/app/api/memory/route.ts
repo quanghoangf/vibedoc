@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readMemory, updateMemory, getConfiguredRoot } from '@/lib/core'
+import { readMemory, updateMemory, rootFrom } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 export async function GET(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   const memory = await readMemory(root)
   return NextResponse.json(memory)
 }
 
 export async function POST(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  if (isDemo()) return demoForbidden()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   const { actor, ...params } = await req.json()
   try {
     await updateMemory(params, root, actor === 'ai' ? 'ai' : 'human')

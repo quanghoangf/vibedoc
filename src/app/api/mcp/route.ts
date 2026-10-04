@@ -20,7 +20,7 @@ import { formatCompactLine, tokenize } from "@/lib/recall";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
 import {
-  getConfiguredRoot,
+  rootFrom,
   listDocs,
   readDoc,
   searchDocs,
@@ -78,6 +78,7 @@ import type { TextEdit } from "@/lib/diff";
 import { agentFromUserAgent } from "@/lib/owner";
 import type { StatusDef } from "@/lib/statuses";
 import { planTarget, validatePlan, type Plan } from "@/lib/plan";
+import { isDemo } from "@/lib/demo";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
 import { groupSessions, sessionDuration, sessionsForTask } from "@/lib/sessions";
@@ -104,6 +105,21 @@ function err(id: JsonRpcRequest["id"], code: number, message: string) {
 }
 
 const MAX_ENTRY_IDS = 20;
+
+/** Demo mode (R042) runs only these. An allowlist, so a new write tool is refused until it is added here. */
+const DEMO_TOOLS = new Set([
+  "vibedoc_get_status", "vibedoc_get_sessions", "vibedoc_read_doc", "vibedoc_list_docs", "vibedoc_search_docs",
+  "vibedoc_list_tasks", "vibedoc_get_task", "vibedoc_read_memory", "vibedoc_memory_history", "vibedoc_recall",
+  "vibedoc_get_entries", "vibedoc_list_templates", "vibedoc_get_context", "vibedoc_get_planning_guide",
+  "vibedoc_get_file_map", "vibedoc_read_registry", "vibedoc_get_roadmap",
+]);
+
+/** False for a write in demo mode. `vibedoc_memory_history` reads, except with `restore: true`. */
+function allowedInDemo(name: string, args: Record<string, unknown>): boolean {
+  return DEMO_TOOLS.has(name) && !(name === "vibedoc_memory_history" && args.restore === true);
+}
+
+const visibleTools = () => (isDemo() ? TOOLS.filter((t) => DEMO_TOOLS.has(t.name)) : TOOLS);
 const MEMORY_SOURCES = ["claude-code"] as const; // R052: Cursor / Cline importers are out of scope
 const withGap = (block: string) => (block ? `\n\n${block}` : "");
 
@@ -1229,8 +1245,8 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
 function withProjectStatuses(statuses: StatusDef[]) {
   const custom = statuses.filter((d) => d.id !== d.category);
-  if (!custom.length) return TOOLS;
-  return TOOLS.map((t) => {
+  if (!custom.length) return visibleTools();
+  return visibleTools().map((t) => {
     if (t.name !== "vibedoc_update_task") return t;
     return {
       ...t,
@@ -1265,7 +1281,7 @@ export async function POST(req: NextRequest) {
 
   // tools/list: vibedoc_update_task's status enum follows the project's statuses (R055)
   if (method === "tools/list") {
-    const root = req.nextUrl.searchParams.get("root") || getConfiguredRoot();
+    const root = rootFrom(req.nextUrl.searchParams.get("root"));
     return ok(id, { tools: withProjectStatuses((await readProjectSettings(root)).statuses) });
   }
 
@@ -1273,8 +1289,9 @@ export async function POST(req: NextRequest) {
   if (method === "tools/call") {
     const name = (params?.name as string) || "";
     const args = (params?.arguments as Record<string, unknown>) || {};
+    if (isDemo() && !allowedInDemo(name, args)) return err(id, -32000, "read-only demo");
     try {
-      const root = req.nextUrl.searchParams.get("root") || getConfiguredRoot();
+      const root = rootFrom(req.nextUrl.searchParams.get("root"));
       const agent = typeof args.agent === "string" && args.agent.trim() ? args.agent.trim() : agentFromUserAgent(req.headers.get("user-agent"));
       const text = await handleTool(name, args, root, agent);
       return ok(id, { content: [{ type: "text", text }] });
@@ -1296,6 +1313,6 @@ export async function GET() {
     name: "vibedoc",
     version: "1.0.0",
     status: "ready",
-    tools: TOOLS.map((t) => t.name),
+    tools: visibleTools().map((t) => t.name),
   });
 }

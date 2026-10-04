@@ -12,6 +12,7 @@ import type { MergeInput } from "./MergeDialog"
 import type { CleanupFlag, MemoryVersion } from "@/lib/core"
 import { cn } from "@/lib/utils"
 import { AlertTriangle } from "lucide-react"
+import { useApp } from "@/context/AppContext"
 
 interface MemoryTabProps {
   memory: { content: string; exists: boolean } | null
@@ -51,6 +52,8 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
   const selected = selectedId ? entries?.find((e) => e.id === selectedId) : undefined
   const open = flags?.filter((f) => !f.dismissed) ?? []
   const warn = open.some((f) => f.severity === "warn")
+  // Cleanup only dismisses, merges and deletes: none of it in the read-only demo (R042)
+  const { demo } = useApp()
   return (
     <div className={cn(
       "grid items-start gap-6 p-6",
@@ -59,7 +62,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
       <div className="flex items-center justify-between gap-4 lg:col-span-2">
         <h1 className="font-display text-xl font-semibold tracking-tight">Memory</h1>
         <div className="flex items-center gap-2">
-          <button
+          {!demo && <button
             type="button"
             aria-pressed={cleanup}
             onClick={() => onCleanup(!cleanup)}
@@ -71,7 +74,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
           >
             {warn && <AlertTriangle className="size-3.5 text-amber" aria-hidden />}
             Cleanup <span className="font-mono text-[11px]">({open.length})</span>
-          </button>
+          </button>}
           <div role="group" aria-label="Entries view" className="flex rounded-md border border-border p-0.5">
             {(["list", "graph"] as const).map((v) => (
               <button
@@ -109,7 +112,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
             )}
           </EntryDetail>
         </div>
-      ) : cleanup ? (
+      ) : cleanup && !demo ? (
         <div className="min-w-0 lg:sticky lg:top-6">
           <CleanupPanel flags={flags} entries={entries} onDismiss={onDismiss} onMerge={onMerge} onDelete={onDeleteStale} onOpenEntry={onOpen} onClose={() => onCleanup(false)} />
         </div>

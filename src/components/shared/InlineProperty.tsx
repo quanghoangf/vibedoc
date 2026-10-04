@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react"
 import { Check } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { useApp } from "@/context/AppContext"
 
 // Edit one property where it is shown (R055). Clicks and keys are stopped so a card or row underneath
 // doesn't open or drag. Keyboard: the menu takes arrows + Enter, Esc cancels; the date takes Enter / Esc.
@@ -12,6 +13,11 @@ const stop = (e: React.SyntheticEvent) => e.stopPropagation()
 const trigger = "inline-flex min-w-0 items-center gap-1 rounded-sm px-1 -mx-1 text-left outline-hidden hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent/60"
 
 export interface InlineOption { value: string; label: string; node?: ReactNode }
+
+/** Read-only demo (R042): the value, not a control */
+const Shown = ({ children, className }: { children: ReactNode; className?: string }) => (
+  <span className={cn("inline-flex min-w-0 items-center gap-1", className)}>{children}</span>
+)
 
 /** The shown value opens a menu of options; picking one calls onChange (the menu closes). */
 export function InlineSelect({ label, value, options, onChange, children, className }: {
@@ -23,6 +29,8 @@ export function InlineSelect({ label, value, options, onChange, children, classN
   children: ReactNode
   className?: string
 }) {
+  const { demo } = useApp()
+  if (demo) return <Shown className={className}>{children}</Shown>
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -52,10 +60,12 @@ export function InlineDate({ label, value, onChange, children, className }: {
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value ?? "")
+  const { demo } = useApp()
   const commit = () => {
     setEditing(false)
     if ((draft || null) !== value) onChange(draft || null)
   }
+  if (demo) return <Shown className={className}>{children}</Shown>
   if (!editing) {
     return (
       <button
@@ -104,12 +114,14 @@ export function InlineText({ label, value, onChange, children, className, placeh
 }) {
   const [editing, setEditing] = useState(startEditing)
   const [draft, setDraft] = useState(value ?? "")
+  const { demo } = useApp()
   const commit = () => {
     setEditing(false)
     const next = draft.trim() || null
     if (next !== value) onChange(next)
     else if (!next) onCancel?.()
   }
+  if (demo) return <Shown className={className}>{children}</Shown>
   if (!editing) {
     return (
       <button

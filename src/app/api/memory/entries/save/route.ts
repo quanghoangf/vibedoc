@@ -3,9 +3,11 @@ import { RoadmapError, saveEntry } from '@/lib/core'
 import { validateEntryInput, type EntryInput } from '@/lib/entries'
 import { emitUpdate } from '@/lib/events'
 import { errorResponse, jsonBody, rootOf } from '../../../roadmap/_shared'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 /** Create (no id) or update (id) a knowledge entry from the Memory tab. */
 export async function POST(req: NextRequest) {
+  if (isDemo()) return demoForbidden()
   try {
     const body = await jsonBody(req)
     const input = { id: body.id ?? undefined, type: body.type, summary: body.summary, body: body.body ?? '' } as EntryInput

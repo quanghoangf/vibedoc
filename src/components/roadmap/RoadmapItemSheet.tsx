@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
+import { useApp } from "@/context/AppContext"
 import { chatFor } from "@/lib/chats"
 import { AgentDot, AgentMark } from "@/components/chat/AgentMark"
 import { useChats } from "@/context/ChatContext"
@@ -72,6 +73,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
   const progress = progressById[item.id]
   const today = localToday()
   const { chats, showAbout } = useChats()
+  const { demo } = useApp()
   const chat = isHorizon ? undefined : chatFor(chats, { kind: "epic", id: item.id })
   const offerBreakdown = !isHorizon && item.tasks.length === 0 && !chat
   const [menuOpen, setMenuOpen] = useState(false)
@@ -103,7 +105,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
           </SheetDescription>
         }
         title={<SheetTitle className="text-xl font-semibold leading-tight text-txt">{item.title}</SheetTitle>}
-        menu={<ItemActionsMenu item={item} items={items} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} />}
+        menu={demo ? undefined : <ItemActionsMenu item={item} items={items} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} />}
         properties={[
           {
             label: "Status",
@@ -199,6 +201,8 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
       </div>
 
       <footer className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-border bg-surface px-6 py-3">
+        {/* Read-only demo (R042): only "Open file" */}
+        {!demo && <>
         {offerBreakdown && (
           <Button size="sm" onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} className="bg-accent text-accent-fg hover:bg-accent/90">
             <Bot /> Break down with agent
@@ -222,6 +226,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
         <Button size="sm" variant="outline" onClick={onEdit}>
           <Pencil /> Edit
         </Button>
+        </>}
         <Button size="sm" variant="ghost" onClick={() => onEditRaw(item.file)} className="ml-auto text-muted hover:text-txt">
           <FileText /> Open file
         </Button>
@@ -443,7 +448,9 @@ function LinkedTasks({ item, tasksById, onOpen }: {
 /** Per-task chat entry in the epic sheet: always visible when a chat exists, on hover otherwise. */
 function TaskChatButton({ taskId }: { taskId: string }) {
   const { chats, showAbout } = useChats()
+  const { demo } = useApp()
   const has = !!chatFor(chats, { kind: "task", id: taskId })
+  if (demo) return null
   return (
     <button
       type="button"

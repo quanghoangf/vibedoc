@@ -4,9 +4,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getConfiguredRoot, readViews, saveViews } from '@/lib/core'
+import { rootFrom, readViews, saveViews } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { DEFAULT_VIEWS, type SavedView, type ViewKind } from '@/lib/board-views'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +16,7 @@ const ID_RE = /^[a-z0-9-]{1,40}$/
 const KINDS: ViewKind[] = ['board', 'table', 'epic', 'timeline']
 
 export async function GET(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   return NextResponse.json({ views: (await readViews(root)) ?? DEFAULT_VIEWS })
 }
 
@@ -40,7 +41,8 @@ function invalid(views: unknown): string | null {
 
 // body: { views: SavedView[] } — replaces the whole list
 export async function POST(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  if (isDemo()) return demoForbidden()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   let body: { views?: unknown }
   try {
     body = await req.json()

@@ -243,13 +243,15 @@ function TaskTests({ t, checkedOf, onToggle }: {
 
 /** The native checkbox, drawn in the system: pencil-grey box, teal fill with an ink check when ticked. */
 function Tick({ checked, onChange, className }: { checked: boolean; onChange: (checked: boolean) => void; className?: string }) {
+  const { demo } = useApp() // read-only demo (R042): shown, not tickable
   return (
     <span className={cn("relative mt-0.5 flex size-4 shrink-0", className)}>
       <input
         type="checkbox"
         checked={checked}
+        disabled={demo}
         onChange={(e) => onChange(e.target.checked)}
-        className="peer size-4 cursor-pointer appearance-none rounded-sm border border-muted bg-bg transition-colors duration-(--duration-fast) checked:border-teal checked:bg-teal hover:border-txt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        className="peer size-4 cursor-pointer disabled:cursor-default appearance-none rounded-sm border border-muted bg-bg transition-colors duration-(--duration-fast) checked:border-teal checked:bg-teal hover:border-txt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       />
       <Check strokeWidth={3} className="pointer-events-none absolute inset-0.5 size-3 text-accent-fg opacity-0 peer-checked:opacity-100" aria-hidden />
     </span>

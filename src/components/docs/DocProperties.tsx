@@ -27,7 +27,7 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
   words: number
   minutes: number
 }) {
-  const { rootParam } = useApp()
+  const { rootParam, demo } = useApp()
   // Shown right away; the file write comes back through the editor buffer a moment later
   const [pending, setPending] = useState<Record<string, string | null>>({})
   // A property being named ("Add a property → Text"), then the key whose value input opens on its own
@@ -62,7 +62,7 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
     setFresh(key)
   }
 
-  const nameMenu = (key: string, label: string) => (
+  const nameMenu = (key: string, label: string) => demo ? <span className="truncate">{label}</span> : (
     <DropdownMenu>
       <DropdownMenuTrigger className="-mx-1.5 flex h-7 min-w-0 items-center rounded-sm px-1.5 text-left outline-hidden transition-colors hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent/60">
         <span className="truncate">{label}</span>
@@ -107,7 +107,7 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
 
   return (
     <PropertyRows properties={rows}>
-      {naming ? (
+      {demo ? null : naming ? (
         <div className="flex w-full items-center gap-2">
           <Type className="size-3.5 shrink-0 text-muted" aria-hidden />
           <div className="w-40"><InlineText startEditing label="New property name" value={null} placeholder="Property name" onChange={addNamed} onCancel={() => setNaming(false)}><span /></InlineText></div>

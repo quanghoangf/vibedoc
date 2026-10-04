@@ -8,6 +8,7 @@ import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { ENTRY_TYPES, validateEntryInput, type Entry, type EntryType } from "@/lib/entries"
+import { useApp } from "@/context/AppContext"
 
 type Draft = { type: EntryType; summary: string; body: string }
 
@@ -23,6 +24,7 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
   onClose: () => void
   children?: ReactNode
 }) {
+  const { demo } = useApp()
   const [editing, setEditing] = useState(entry === null)
   const [draft, setDraft] = useState<Draft>(() => toDraft(entry))
   const [error, setError] = useState<string | null>(null)
@@ -56,7 +58,7 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
 
   // ⌫ / Delete deletes the open entry, unless the user is typing somewhere
   useEffect(() => {
-    if (editing || !entry) return
+    if (editing || !entry || demo) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Backspace" && e.key !== "Delete") return
       if (e.metaKey || e.ctrlKey || e.altKey) return
@@ -67,7 +69,7 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [editing, entry, onDelete])
+  }, [editing, entry, onDelete, demo])
 
   const closeButton = (
     <button type="button" onClick={onClose} aria-label="Close entry" className="rounded p-1 text-muted hover:bg-surface2 hover:text-txt">
@@ -137,12 +139,14 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
         kicker={<span>{entry.id} · entry</span>}
         menu={
           <span className="flex items-center gap-1">
+            {!demo && <>
             <Button variant="ghost" size="sm" onClick={startEdit} className="h-7 px-2 text-xs">
               <Pencil className="size-3.5" /> Edit
             </Button>
             <Button variant="ghost" size="sm" onClick={() => onDelete(entry)} title="Delete (⌫)" className="h-7 px-2 text-xs hover:text-danger">
               <Trash2 className="size-3.5" /> Delete
             </Button>
+            </>}
             {closeButton}
           </span>
         }

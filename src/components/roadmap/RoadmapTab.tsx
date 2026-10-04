@@ -127,7 +127,7 @@ function subscribeTheme(cb: () => void) {
 const FLOW_STYLE = { "--xy-background-color": "var(--color-bg)" } as React.CSSProperties
 
 export function RoadmapTab() {
-  const { rootParam, openDoc, board } = useApp()
+  const { rootParam, openDoc, board, demo } = useApp()
   const { showAbout } = useChats()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -441,6 +441,7 @@ export function RoadmapTab() {
     },
   }
   const openMenu = (id: string, e: React.MouseEvent) => {
+    if (demo) return
     e.preventDefault()
     setMenuAt({ id, x: e.clientX, y: e.clientY })
   }
@@ -467,7 +468,7 @@ export function RoadmapTab() {
       <div className="flex-1 p-6">
         {error && <p className="mb-4 text-sm text-danger">{error}</p>}
         <EmptyState icon="🗺️" message="No roadmap yet" subMessage="Items live in plans/roadmap/R*.md" bordered />
-        <div className="mt-4 flex flex-col items-center gap-2">
+        {!demo && <div className="mt-4 flex flex-col items-center gap-2">
           <div className="flex gap-2">
             <Button size="sm" onClick={generate} disabled={generating} className="bg-accent text-accent-fg hover:bg-accent/90">
               <Sparkles /> {generating ? "Generating…" : "Generate roadmap"}
@@ -483,7 +484,7 @@ export function RoadmapTab() {
             </Button>
           </div>
           <p className="text-xs text-muted">Generate {sourceLabel}. Existing files are not modified.</p>
-        </div>
+        </div>}
         {dialog}
       </div>
     )
@@ -514,9 +515,10 @@ export function RoadmapTab() {
             <AttentionMenu
               drift={health.drift}
               onSelect={setSelectedId}
-              onApply={(d) => d.suggestedStatus && saveItem(d.id, { status: d.suggestedStatus }).then((err) => { if (err) setError(err) })}
+              onApply={demo ? undefined : (d) => d.suggestedStatus && saveItem(d.id, { status: d.suggestedStatus }).then((err) => { if (err) setError(err) })}
             />
           )}
+          {!demo && <>
           {view === "map" && (
             <Button size="sm" variant="outline" onClick={arrange} disabled={arranging} title="Tidy the map: epics in one column each side of their horizon, nothing overlapping">
               <LayoutGrid /> Arrange
@@ -533,6 +535,7 @@ export function RoadmapTab() {
           <Button size="sm" onClick={() => setCreateParent("")} className="bg-accent text-accent-fg hover:bg-accent/90">
             <Plus /> Horizon
           </Button>
+          </>}
         </div>
       </div>
 
@@ -543,6 +546,7 @@ export function RoadmapTab() {
             edges={edges}
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
+            nodesDraggable={!demo}
             onNodeClick={(_, n) => setSelectedId(n.id)}
             onNodeContextMenu={(e, n) => openMenu(n.id, e)}
             onNodeDragStart={() => { draggingRef.current = true }}
@@ -614,7 +618,8 @@ function RoadmapStats({ items, tasksById }: { items: RoadmapItem[]; tasksById: R
 function AttentionMenu({ drift, onSelect, onApply }: {
   drift: RoadmapDrift[]
   onSelect: (id: string) => void
-  onApply: (d: RoadmapDrift) => void
+  /** Missing in the read-only demo: no "→ status" buttons */
+  onApply?: (d: RoadmapDrift) => void
 }) {
   return (
     <details className="group relative">
@@ -628,7 +633,7 @@ function AttentionMenu({ drift, onSelect, onApply }: {
             <button type="button" onClick={() => onSelect(d.id)} className="flex-1 text-left leading-relaxed text-muted hover:text-txt">
               {d.message}
             </button>
-            {d.suggestedStatus && (
+            {d.suggestedStatus && onApply && (
               <button
                 type="button"
                 onClick={() => onApply(d)}

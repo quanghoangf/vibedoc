@@ -18,6 +18,8 @@ interface AppContextValue {
   projects: Project[]
   activeProject: string
   summary: Summary | null
+  /** Read-only demo (VIBEDOC_DEMO=1, from /api/summary): hide every write control (R042) */
+  demo: boolean
   board: TaskBoard | null
   activity: ActivityEvent[]
   liveIndicator: boolean
@@ -143,7 +145,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { es.close(); setConnection("connecting") }
   }, [activeProject, refresh])
 
+  const demo = summary?.demo === true
+
   const moveTask = useCallback(async (taskId: string, status: string) => {
+    if (demo) return // read-only demo: the card must not move and snap back
     // Optimistic update: move card in UI immediately, animated via View Transitions when supported
     const apply = () => setBoard(prev => {
       if (!prev) return prev
@@ -183,9 +188,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast(`Could not move ${taskId}: the server is not reachable`)
     }
     refresh() // real state (also reverts a failed move)
-  }, [rootParam, refresh])
+  }, [demo, rootParam, refresh])
 
   const updateTaskFields = useCallback(async (taskId: string, patch: { owner?: string | null; due?: string | null; size?: string; priority?: Priority | null }) => {
+    if (demo) return
     setBoard((prev) => {
       if (!prev) return prev
       const next = { ...prev }
@@ -205,7 +211,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast(`Could not update ${taskId}: ${(e as Error).message}`)
       refresh() // roll back to the files
     }
-  }, [rootParam, refresh])
+  }, [demo, rootParam, refresh])
 
   const openDoc = useCallback(async (docPath: string, link?: string) => {
     const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(docPath)}`)
@@ -224,6 +230,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       projects,
       activeProject,
       summary,
+      demo,
       board,
       activity,
       liveIndicator,

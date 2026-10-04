@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TEMPLATES } from "@/lib/templates";
-import { getConfiguredRoot, listDocs } from "@/lib/core";
+import { rootFrom, listDocs } from "@/lib/core";
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 interface TemplateSelection {
   id: string;
@@ -276,8 +277,9 @@ ${conventions}
 }
 
 export async function POST(req: NextRequest) {
+  if (isDemo()) return demoForbidden()
   try {
-    const root = req.nextUrl.searchParams.get("root") || getConfiguredRoot();
+    const root = rootFrom(req.nextUrl.searchParams.get("root"));
     const { templates, answers, mode } = (await req.json()) as {
       templates: TemplateSelection[];
       answers: ProjectAnswers;

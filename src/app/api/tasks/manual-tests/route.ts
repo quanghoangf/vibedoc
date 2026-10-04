@@ -4,11 +4,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { getConfiguredRoot, setManualTestChecked } from '@/lib/core'
+import { rootFrom, setManualTestChecked } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 export async function POST(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  if (isDemo()) return demoForbidden()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   const body = await req.json().catch(() => null) as { id?: unknown; index?: unknown; checked?: unknown } | null
   if (typeof body?.id !== 'string' || !Number.isInteger(body.index) || typeof body.checked !== 'boolean') {
     return NextResponse.json({ error: 'Expected { id: string, index: integer, checked: boolean }' }, { status: 400 })

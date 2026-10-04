@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listDocs, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, getConfiguredRoot, enrichDescription, noteDocEdit, docLastEdit, setDocProperties } from '@/lib/core'
+import { listDocs, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, rootFrom, enrichDescription, noteDocEdit, docLastEdit, setDocProperties } from '@/lib/core'
 import { PROPERTY_KEY, parsePriority } from '@/lib/doc-priority'
 import { emitUpdate } from '@/lib/events'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 export async function GET(req: NextRequest) {
-  const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+  const root = rootFrom(req.nextUrl.searchParams.get('root'))
   const query = req.nextUrl.searchParams.get('q')
   const read = req.nextUrl.searchParams.get('read')
 
@@ -21,8 +22,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  if (isDemo()) return demoForbidden()
   try {
-    const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+    const root = rootFrom(req.nextUrl.searchParams.get('root'))
     const { path: docPath, content, edits, actor, properties } = await req.json()
     // `properties` ({key: value | null}) rewrites only those frontmatter keys
     if (properties !== undefined) {
@@ -49,8 +51,9 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (isDemo()) return demoForbidden()
   try {
-    const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+    const root = rootFrom(req.nextUrl.searchParams.get('root'))
     const { path: docPath, content } = await req.json()
     await createDoc(docPath, content, root)
     emitUpdate('doc_created', { path: docPath })
@@ -67,8 +70,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  if (isDemo()) return demoForbidden()
   try {
-    const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+    const root = rootFrom(req.nextUrl.searchParams.get('root'))
     const { oldPath, newPath } = await req.json()
     await renameDoc(oldPath, newPath, root)
     emitUpdate('doc_renamed', { oldPath, newPath })
@@ -79,8 +83,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (isDemo()) return demoForbidden()
   try {
-    const root = req.nextUrl.searchParams.get('root') || getConfiguredRoot()
+    const root = rootFrom(req.nextUrl.searchParams.get('root'))
     const { path: docPath } = await req.json()
     const content = await deleteDoc(docPath, root)
     emitUpdate('doc_deleted', { path: docPath })

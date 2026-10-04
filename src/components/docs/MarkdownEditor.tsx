@@ -42,10 +42,12 @@ interface Props {
 
 export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, barStart, barEnd, titleBlock, aside }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
-  const { rootParam } = useApp()
+  const { rootParam, demo } = useApp()
   const ytextRef = useRef<import("yjs").Text | null>(null)
   const awarenessRef = useRef<{ getStates: () => Map<number, unknown> } | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>(initialContent.trim() ? "preview" : "edit")
+  const [chosenMode, setViewMode] = useState<ViewMode>(initialContent.trim() ? "preview" : "edit")
+  // Read-only demo (R042): preview only, so no editor mounts and nothing autosaves
+  const viewMode: ViewMode = demo ? "preview" : chosenMode
   const [previewContent, setPreviewContent] = useState(initialContent)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("saved")
   const [userCount, setUserCount] = useState(1)
@@ -305,6 +307,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
       {/* Doc bar: where the doc lives on the left, the mode and every tool on the right */}
       <div className="flex h-11 shrink-0 items-center gap-1 border-b border-border px-3 sm:px-4">
         <div className="flex min-w-0 flex-1 items-center gap-1 font-mono text-[11px] text-muted">{barStart}</div>
+        {!demo && <>
         <span role="status" className={`mr-2 flex items-center gap-1 whitespace-nowrap text-xs ${statusColor} ${saveStatus === "saved" ? "max-sm:sr-only" : ""}`}>
           {saveStatus === "saved" && <Check className="h-3 w-3 animate-in fade-in zoom-in-50 duration-(--duration-base)" aria-hidden />}{statusText}
         </span>
@@ -316,12 +319,13 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
           </TabsList>
         </Tabs>
         <div className="mx-1.5 h-4 w-px bg-border" aria-hidden />
+        </>}
         {userCount > 1 && (
           <Badge variant="secondary" className="h-5 gap-1 text-[10px] px-1.5 max-sm:hidden" title={`${userCount} tabs have this doc open`}>
             <Users className="h-3 w-3" />{userCount}
           </Badge>
         )}
-        {docPath.endsWith(".md") && (
+        {docPath.endsWith(".md") && !demo && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt max-sm:hidden" aria-label="Break down with agent"
@@ -388,9 +392,9 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
             {!previewContent.trim() && (
               <div className="mx-auto flex w-full max-w-[72ch] items-center gap-3 text-sm text-muted">
                 This doc is empty.
-                <Button size="sm" variant="outline" onClick={() => setViewMode("edit")}>
+                {!demo && <Button size="sm" variant="outline" onClick={() => setViewMode("edit")}>
                   <Pencil className="size-3.5" aria-hidden /> Start writing
-                </Button>
+                </Button>}
               </div>
             )}
             <MarkdownRenderer

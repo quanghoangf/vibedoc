@@ -33,6 +33,7 @@ interface TaskCardProps {
  */
 export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected = false, onSelect }: TaskCardProps) {
   const [isDragging, setIsDragging] = useState(false)
+  const { demo } = useApp()
   const show = (p: PropertyKey) => properties.includes(p)
   const epic = show("epic") && task.phase ? epicOf(task.phase) : null
   const sentBack = task.status === "todo" && task.raw ? latestReview(task.raw) : null
@@ -44,7 +45,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
 
   return (
     <div
-      draggable
+      draggable={!demo}
       role="button"
       tabIndex={0}
       aria-label={`${task.id} ${task.title}`}
@@ -75,7 +76,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
         <span className="flex-1" />
         {show("due") && task.due && !done && <TaskDueField task={task}><span title="Due">{task.due.slice(5)}</span></TaskDueField>}
         {size && <TaskSizeField task={task}><span title={task.size} className="rounded-sm bg-surface2 px-1 text-[10px]">{size}</span></TaskSizeField>}
-        <CardMenu task={task} onOpen={onOpen} />
+        {!demo && <CardMenu task={task} onOpen={onOpen} />}
       </div>
 
       <p className={cn("mt-1 line-clamp-2 text-[13px] font-medium leading-snug", done ? "text-muted" : "text-txt")}>{task.title}</p>

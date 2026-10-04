@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from "react"
 import { ITEM_KEYS, itemActionForKey, shouldHandleShortcut, type ItemAction } from "@/lib/shortcuts"
+import { useApp } from "@/context/AppContext"
 
 export interface ItemCommand {
   action: ItemAction
@@ -24,14 +25,16 @@ const top = () => stack[stack.length - 1] ?? null
  */
 export function useItemCommands(title: string | null, commands: ItemCommand[]) {
   const ref = useRef(commands)
+  // Every item action edits, deletes or chats: a read-only demo (R042) registers none, so keys and ⌘K offer nothing
+  const { demo } = useApp()
   useEffect(() => { ref.current = commands })
   useEffect(() => {
-    if (!title) return
+    if (!title || demo) return
     const entry: Entry = { title, get: () => ref.current }
     stack = [...stack, entry]
     emit()
     return () => { stack = stack.filter((e) => e !== entry); emit() }
-  }, [title])
+  }, [title, demo])
 }
 
 /** For the ⌘K palette: the current item and its actions, or null. */

@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { applyPlan, getTask } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { errorResponse, jsonBody, rootOf } from '../../roadmap/_shared'
+import { isDemo, demoForbidden } from '@/lib/demo'
 
 /** POST { plan, selected } → writes the selected plan items. 400 { error } on validation errors. */
 export async function POST(req: NextRequest) {
+  if (isDemo()) return demoForbidden()
   try {
     const { plan, selected } = await jsonBody(req)
     const root = rootOf(req)

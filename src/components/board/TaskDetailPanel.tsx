@@ -61,7 +61,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
 
   const nextStatuses = task ? NEXT_STATUS[task.status] || [] : []
   const { chats, showAbout } = useChats()
-  const { rootParam } = useApp()
+  const { rootParam, demo } = useApp()
   const chat = task ? chatFor(chats, { kind: "task", id: task.id }) : undefined
   // the edit form shows while this matches the open task
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -96,7 +96,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
             <ItemPanelHeader
               kicker={<TaskCrumb task={task} onNavigate={onClose} />}
               title={<SheetTitle className="text-base font-semibold leading-snug text-txt">{task.title}</SheetTitle>}
-              menu={
+              menu={demo ? undefined :
                   <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                     <DropdownMenuTrigger asChild>
                       <button type="button" aria-label={`Actions for ${task.id}`} className="ml-auto grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
@@ -128,8 +128,8 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
 
             {editing && <TaskEditForm key={`edit-${task.id}`} task={task} rootParam={rootParam} onDone={() => setEditingId(null)} />}
 
-            {/* Quick actions */}
-            <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-border shrink-0">
+            {/* Quick actions (none in the read-only demo) */}
+            {!demo && <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-border shrink-0">
               {nextStatuses.map((s) => (
                 <button
                   key={s}
@@ -145,9 +145,9 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
               >
                 <MessageSquare className="size-3.5" /> {chat ? "Open chat" : "Chat about task"}
               </button>
-            </div>
+            </div>}
 
-            {task.status === "review" && <ReviewActions key={`review-${task.id}`} taskId={task.id} onDone={onClose} />}
+            {task.status === "review" && !demo && <ReviewActions key={`review-${task.id}`} taskId={task.id} onDone={onClose} />}
 
             {/* Body, then activity: one scroll area */}
             <div className="flex-1 overflow-y-auto">

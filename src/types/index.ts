@@ -16,6 +16,8 @@ export interface Summary {
   docs: { total: number }
   memory: { content: string; exists: boolean }
   activity: ActivityEvent[]
+  /** VIBEDOC_DEMO=1 on the server: read-only demo, the UI hides every write control (R042) */
+  demo?: boolean
 }
 
 export interface SelectedDoc {

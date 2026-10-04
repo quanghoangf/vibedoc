@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils"
 import { shortcutFor } from "@/lib/shortcuts"
 import { VIBEDOC_VERSION } from "@/lib/version"
 import { SidebarChats } from "./SidebarChats"
+import { useApp } from "@/context/AppContext"
 
 // Chats lead the shell (SidebarChats); pages follow, grouped by what you do there. Settings sits in the footer.
 const NAV_GROUPS = [
@@ -57,6 +58,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ board }: AppSidebarProps) {
   const pathname = usePathname()
+  const { demo } = useApp()
   const settingsKey = shortcutFor("/settings")
   // Unticked manual test items across all tasks (R043)
   const untested = board ? Object.values(board).flat().reduce((n, t) => n + (t.manualTests ? t.manualTests.total - t.manualTests.done : 0), 0) : 0
@@ -80,7 +82,7 @@ export function AppSidebar({ board }: AppSidebarProps) {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarChats />
+        {!demo && <SidebarChats />}
         {NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -122,7 +124,7 @@ export function AppSidebar({ board }: AppSidebarProps) {
               <kbd aria-hidden className={cn(kbdClass, "ml-auto")}>?</kbd>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
+          {!demo && <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={pathname.startsWith("/settings")} tooltip={{ children: <span className="flex items-center gap-2">Settings<kbd className={kbdClass}>{settingsKey}</kbd></span> }}>
               <Link href="/settings" aria-keyshortcuts={settingsKey}>
                 <Settings />
@@ -130,7 +132,7 @@ export function AppSidebar({ board }: AppSidebarProps) {
                 <kbd aria-hidden className={cn(kbdClass, "ml-auto hidden group-hover/menu-item:inline group-focus-within/menu-item:inline")}>{settingsKey}</kbd>
               </Link>
             </SidebarMenuButton>
-          </SidebarMenuItem>
+          </SidebarMenuItem>}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>

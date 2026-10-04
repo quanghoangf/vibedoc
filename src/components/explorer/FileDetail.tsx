@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { ExplorerFile } from "@/types"
+import { useApp } from "@/context/AppContext"
 
 const SOURCE_LABEL: Record<ExplorerFile['source'], string> = { ai: 'AI', extracted: 'Auto' }
 const SOURCE_VARIANT: Record<ExplorerFile['source'], 'default' | 'secondary'> = { ai: 'default', extracted: 'secondary' }
@@ -18,6 +19,7 @@ interface FileDetailProps {
 }
 
 export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProps) {
+  const { demo } = useApp()
   const [enriching, setEnriching] = useState(false)
   const [flashGreen, setFlashGreen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -95,10 +97,10 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
       </div>
 
       <div className="flex gap-2 pt-2">
-        <Button variant="outline" size="sm" onClick={handleEnrich} disabled={enriching}>
+        {!demo && <Button variant="outline" size="sm" onClick={handleEnrich} disabled={enriching}>
           <RefreshCw className={`w-3 h-3 mr-1.5 ${enriching ? "animate-spin" : ""}`} />
           Re-enrich
-        </Button>
+        </Button>}
         <Button variant="outline" size="sm" onClick={() => onOpenDoc(file.path)}>
           <ExternalLink className="w-3 h-3 mr-1.5" />
           Open in Docs

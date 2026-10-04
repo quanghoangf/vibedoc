@@ -64,7 +64,7 @@ const icon = (Icon: LucideIcon) => <Icon className="size-3.5 shrink-0 text-muted
 export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen, onShowHelp, rootParam }: CommandPaletteProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { board, projects, activeProject, onProjectChange } = useApp()
+  const { board, projects, activeProject, onProjectChange, demo } = useApp()
   const { chats, queue, now, show, create } = useChats()
   const [query, setQuery] = useState("")
   const [activeIndex, setActiveIndex] = useState(0)
@@ -160,8 +160,11 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
     }
 
     const actions: Row[] = [
-      { id: "new-chat", group: "Actions", label: "New chat", lead: icon(MessageSquarePlus), run: () => { show(create()); onClose() } },
-      { id: "new-doc", group: "Actions", label: "New doc", lead: icon(FilePlus), run: () => { onNewDoc?.(); onClose() } },
+      // Read-only demo (R042): nothing that creates
+      ...(demo ? [] : [
+        { id: "new-chat", group: "Actions", label: "New chat", lead: icon(MessageSquarePlus), run: () => { show(create()); onClose() } },
+        { id: "new-doc", group: "Actions", label: "New doc", lead: icon(FilePlus), run: () => { onNewDoc?.(); onClose() } },
+      ]),
       { id: "go-file", group: "Actions", label: "Go to file", lead: icon(FileText), kbd: "⌘P", run: onQuickOpen },
       ...(pathname?.startsWith("/docs") ? [{
         id: "toggle-docs-list", group: "Actions", label: "Hide / show docs list", lead: icon(PanelLeft), kbd: DOCS_LIST_KEY.label,
@@ -190,7 +193,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
       }
     }
     return out
-  }, [q, current, chats, queue, now, board, epics, projects, activeProject, docs, router, onClose, show, create, onNewDoc, onQuickOpen, onShowHelp, onOpenDoc, onProjectChange, rootParam, pathname])
+  }, [q, current, chats, queue, now, board, epics, projects, activeProject, docs, router, onClose, show, create, onNewDoc, onQuickOpen, onShowHelp, onOpenDoc, onProjectChange, rootParam, pathname, demo])
 
   const active = Math.max(0, Math.min(activeIndex, rows.length - 1))
   // Runs of one group, each rendered as an ARIA group named by its heading

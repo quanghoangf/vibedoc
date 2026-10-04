@@ -94,7 +94,7 @@ export function useItemAgent(a: Attach): ItemAgent | undefined {
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const { rootParam, activeProject, selectedDoc } = useApp()
+  const { rootParam, activeProject, selectedDoc, demo } = useApp()
   const pathname = usePathname()
   const router = useRouter()
   const [chats, setChats] = useState<ChatTab[]>([])
@@ -128,7 +128,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       .then((r) => (r.ok ? r.json() : { chats: [] }))
       .then((d: { chats?: unknown[] }) => {
         if (cancelled) return
-        const loadedChats = (d.chats ?? []).map((c) => fromSaved<ChatMessage>(c)).filter((c): c is ChatTab => !!c)
+        // Read-only demo: no chats at all, so no item shows a chat mark to click
+        const loadedChats = (demo ? [] : d.chats ?? []).map((c) => fromSaved<ChatMessage>(c)).filter((c): c is ChatTab => !!c)
         notifiedRef.current = Object.fromEntries(loadedChats.map((c) => [c.id, chatStatus(c)]))
         setChats(loadedChats)
         setModalId(null)
@@ -140,7 +141,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (!cancelled) { setChats([]); setLoaded(true) }
       })
     return () => { cancelled = true }
-  }, [activeProject, rootParam])
+  }, [activeProject, rootParam, demo])
 
   // Save chats marked dirty: at turn start (so a reload shows it as interrupted), turn end and card resolution.
   // Never per stream delta: nothing marks a chat dirty while it streams.
@@ -193,7 +194,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setModalId(null)
   }
 
+  // Read-only demo (R042): no chat ever opens, so no agent can be spawned from any button or key
   function show(chatId: string) {
+    if (demo) return
     setCurrentId(chatId)
     if (onChatPage) {
       setModalId(null)
@@ -328,7 +331,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   async function send(chatId: string, text: string) {
     const message = text.trim()
     const chat = chats.find((c) => c.id === chatId)
-    if (!message || chat?.busy) return
+    if (!message || chat?.busy || demo) return
     // Ask once, from this click/Enter (browsers want a user gesture), so waiting chats can notify later
     if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission().catch(() => {})
     const first = !chat?.messages.length

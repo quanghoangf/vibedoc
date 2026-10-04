@@ -20,7 +20,7 @@ async function send(url: string, method: string, body: unknown): Promise<string 
 }
 
 export default function DocsPage() {
-  const { selectedDoc, setSelectedDoc, rootParam, activeProject } = useApp()
+  const { selectedDoc, setSelectedDoc, rootParam, activeProject, demo } = useApp()
   const [docs, setDocs] = useState<DocFile[]>([])
   const [docSearch, setDocSearch] = useState("")
   const [newDocOpen, setNewDocOpen] = useState(false)
@@ -163,14 +163,14 @@ export default function DocsPage() {
         onClose={() => setPathDialog(null)}
       />
       <DocsTab
-        docActions={docActions}
+        docActions={demo ? undefined : docActions}
         docs={docs}
         selectedDoc={selectedDoc}
         docSearch={docSearch}
         onSearchChange={handleSearchChange}
         onDocSelect={handleDocSelect}
         onDirtyChange={handleDirtyChange}
-        onNewDocClick={() => setNewDocOpen(true)}
+        onNewDocClick={demo ? undefined : () => setNewDocOpen(true)}
         onDocDeleted={handleDocDeleted}
         onDocRenamed={handleDocRenamed}
         rootParam={rootParam}

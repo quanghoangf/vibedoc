@@ -36,10 +36,13 @@ const SHORTCUT_SECTIONS = [
   })),
 ]
 
+/** Pages that only write or spawn agents: the read-only demo (R042) shows a note instead */
+const DEMO_BLOCKED = ["/chat", "/settings", "/setup"]
+
 const skipLink = "sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-1.5 focus:text-xs focus:text-txt focus:ring-2 focus:ring-ring"
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
-  const { loading, summary, projects, activeProject, liveIndicator, onProjectChange, board, openDoc, rootParam } = useApp()
+  const { loading, summary, projects, activeProject, liveIndicator, onProjectChange, board, openDoc, rootParam, demo } = useApp()
   const router = useRouter()
   const pathname = usePathname()
   const [showHelp, setShowHelp] = useState(false)
@@ -95,7 +98,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       if (href) { router.push(href); return }
       switch (e.key) {
         // preventDefault: the modal autofocuses its composer, which would otherwise receive this "c"
-        case CHAT_KEY: e.preventDefault(); showDefault(); break
+        case CHAT_KEY: if (demo) break; e.preventDefault(); showDefault(); break
         case "?": setShowHelp((v) => !v); break
         case "Escape": setShowHelp(false); break
         case "/":
@@ -114,7 +117,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [router, pathname, showDefault])
+  }, [router, pathname, showDefault, demo])
 
   if (loading) return <LoadingScreen />
 
@@ -134,8 +137,12 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           onToggleChat={showDefault}
           onOpenSearch={() => setCmdOpen(true)}
         />
-        <main id="main" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto outline-none">{children}</main>
-        <ChatModal />
+        <main id="main" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto outline-none">
+          {demo && DEMO_BLOCKED.some((p) => pathname.startsWith(p)) ? (
+            <p className="p-8 text-sm text-muted">Not available in the read-only demo. Install VibeDoc with <code className="font-mono text-txt">npx vibedoc</code> to use it.</p>
+          ) : children}
+        </main>
+        {!demo && <ChatModal />}
         <Toaster />
         <ItemCommandKeys />
 
@@ -149,7 +156,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           open={cmdOpen}
           onClose={() => setCmdOpen(false)}
           onOpenDoc={openDoc}
-          onNewDoc={() => { setCmdOpen(false); setNewDocOpen(true) }}
+          onNewDoc={demo ? undefined : () => { setCmdOpen(false); setNewDocOpen(true) }}
           onQuickOpen={() => { setCmdOpen(false); setQuickOpen(true) }}
           onShowHelp={() => { setCmdOpen(false); setShowHelp(true) }}
           rootParam={rootParam}
