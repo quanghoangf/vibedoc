@@ -1,6 +1,6 @@
 # R060: Evidence report per task
 **Parent:** R002
-**Status:** in-progress
+**Status:** done
 **Order:** 200
 **Tasks:** T153, T154, T155, T156
 
