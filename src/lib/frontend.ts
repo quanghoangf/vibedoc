@@ -196,6 +196,46 @@ export function applyOverride(
   }
 }
 
+// ─── Playwright (T141) ───────────────────────────────────────────────────────
+
+/** Resolved from the target app's node_modules (app dir, then root), never VibeDoc's. */
+export type PlaywrightStatus = { installed: boolean; version?: string; browsersInstalled?: boolean }
+
+export const PLAYWRIGHT_PACKAGES = ['@playwright/test', 'playwright'] as const
+
+/** Installed = a node_modules package.json for @playwright/test or playwright was found; its version wins. */
+export function playwrightStatus(nodeModulesPackageJsons: (string | null)[], browsersInstalled: boolean): PlaywrightStatus {
+  for (const raw of nodeModulesPackageJsons) {
+    if (raw == null) continue
+    let version: unknown
+    try { version = JSON.parse(raw)?.version } catch { continue }
+    return { installed: true, ...(typeof version === 'string' && { version }), browsersInstalled }
+  }
+  return { installed: false, browsersInstalled }
+}
+
+/** A Playwright browser cache listing (`chromium-1140`, `chromium_headless_shell-1140`, …) has Chromium. */
+export function hasChromium(cacheEntries: string[]): boolean {
+  // ponytail: any Chromium revision counts; matching the revision to the installed Playwright version is a later refinement
+  return cacheEntries.some(e => /^chromium(_headless_shell)?-\d+$/.test(e))
+}
+
+const ADD_DEV: Record<PackageManager, string[]> = {
+  npm: ['npm', 'install', '-D'], pnpm: ['pnpm', 'add', '-D'], yarn: ['yarn', 'add', '-D'], bun: ['bun', 'add', '-d'],
+}
+
+/**
+ * Argv steps run in the app dir, in order; empty when nothing is missing.
+ * No package → add @playwright/test, then Chromium; package but no Chromium → Chromium only.
+ */
+export function playwrightInstallSteps(pm: PackageManager, status: PlaywrightStatus): string[][] {
+  const browsers = ['npx', 'playwright', 'install', 'chromium']
+  if (!status.installed) return [[...ADD_DEV[pm], '@playwright/test'], browsers]
+  return status.browsersInstalled === false ? [browsers] : []
+}
+
+export const formatSteps = (steps: string[][]) => steps.map(s => s.join(' ')).join(' && ')
+
 // ─── MCP text (T140) ─────────────────────────────────────────────────────────
 
 /** `vibedoc_get_status` line, e.g. `Frontend: apps/web (vite) · pnpm --filter web dev · http://localhost:5173`. */
@@ -204,8 +244,15 @@ export function frontendStatusLine(app: FrontendApp | null): string {
   return `Frontend: ${[`${app.dir} (${app.framework})`, app.startCommand, app.url].filter(Boolean).join(' · ')}`
 }
 
-/** `vibedoc_get_frontend` reply. Playwright and auth stay "unknown" until T141 / T143 detect them. */
-export function formatFrontend(app: FrontendApp | null, notes: string[]): string {
+function playwrightLine(app: FrontendApp, pw: PlaywrightStatus | null | undefined): string {
+  if (!pw) return 'unknown'
+  const steps = playwrightInstallSteps(app.packageManager, pw)
+  const state = pw.installed ? `installed${pw.version ? ` v${pw.version}` : ''}${pw.browsersInstalled === false ? ', Chromium missing' : ''}` : 'not installed'
+  return steps.length ? `${state} (run in ${app.dir}: \`${formatSteps(steps)}\`)` : state
+}
+
+/** `vibedoc_get_frontend` reply. Auth stays "unknown" until T143 detects it. */
+export function formatFrontend(app: FrontendApp | null, notes: string[], playwright?: PlaywrightStatus | null): string {
   if (!app) {
     return [
       '## Frontend app',
@@ -221,7 +268,7 @@ export function formatFrontend(app: FrontendApp | null, notes: string[]): string
     `**Start command:** ${app.startCommand || 'unknown'}`,
     `**URL:** ${app.url || 'unknown'}`,
     `**Source:** ${app.source === 'override' ? 'override (Settings → Frontend app)' : 'detected'}`,
-    '**Playwright:** unknown',
+    `**Playwright:** ${playwrightLine(app, playwright)}`,
     '**Auth:** unknown',
     ...(others.length ? [`**Other apps:** ${others.map(c => `${c.dir} (${c.framework})`).join(', ')}`] : []),
     ...notes.map(n => `⚠ ${n}`),

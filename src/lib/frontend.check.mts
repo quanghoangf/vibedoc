@@ -1,7 +1,7 @@
 // Self-check: frontend app detection on fixture dirs. Run: node src/lib/frontend.check.mts
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
+import { applyOverride, cleanOverride, formatSteps, hasChromium, playwrightInstallSteps, playwrightStatus, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
 
 // Same reads as core.detectFrontend(): root package.json + which files sit next to it.
 const fixture = (name: string) => {
@@ -115,5 +115,24 @@ assert.match(reply, /\*\*Other apps:\*\* apps\/docs \(astro\)/)
 assert.match(reply, /⚠ Port clash/)
 assert.match(formatFrontend(null, []), /Settings → Frontend app/)
 assert.match(formatFrontend(applyOverride(null, { startCommand: 'x' }, () => null), []), /\*\*URL:\*\* unknown/)
+
+
+// ─── Playwright (T141) ───
+const none = playwrightStatus([null, null, '{broken'], false)
+assert.deepEqual(none, { installed: false, browsersInstalled: false })
+assert.equal(formatSteps(playwrightInstallSteps('pnpm', none)), 'pnpm add -D @playwright/test && npx playwright install chromium')
+assert.equal(formatSteps(playwrightInstallSteps('npm', none)), 'npm install -D @playwright/test && npx playwright install chromium')
+assert.equal(formatSteps(playwrightInstallSteps('yarn', none)), 'yarn add -D @playwright/test && npx playwright install chromium')
+// First hit wins (app's @playwright/test before the root's)
+const has = playwrightStatus([null, '{"version":"1.48.2"}', '{"version":"1.40.0"}'], true)
+assert.deepEqual(has, { installed: true, version: '1.48.2', browsersInstalled: true })
+assert.deepEqual(playwrightInstallSteps('pnpm', has), [])
+assert.deepEqual(playwrightInstallSteps('pnpm', { ...has, browsersInstalled: false }), [['npx', 'playwright', 'install', 'chromium']])
+assert.ok(hasChromium(['ffmpeg-1010', 'chromium_headless_shell-1140']))
+assert.ok(hasChromium(['chromium-1140']))
+assert.ok(!hasChromium(['firefox-1466', 'chromium-tip-of-tree-1290', '.links']))
+assert.match(formatFrontend(vite, [], none), /\*\*Playwright:\*\* not installed \(run in \.: `pnpm add -D @playwright\/test && npx playwright install chromium`\)/)
+assert.match(formatFrontend(vite, [], has), /\*\*Playwright:\*\* installed v1\.48\.2$/m)
+assert.match(formatFrontend(vite, []), /\*\*Playwright:\*\* unknown/)
 
 console.log('frontend.check: ok')

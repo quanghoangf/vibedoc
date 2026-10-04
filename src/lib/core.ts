@@ -33,7 +33,7 @@ import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, repl
 import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
 import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
 import { isDemo } from './demo'
-import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, workspacePatterns, type FrontendApp, type FrontendOverride } from './frontend'
+import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, workspacePatterns, type FrontendApp, type FrontendOverride, type PlaywrightStatus } from './frontend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -183,6 +183,43 @@ export async function detectFrontend(root: string): Promise<FrontendApp | null> 
   const detected = detectFrontendProject(packageJson, files, packages)
   return applyOverride(detected, override, dir =>
     dir === '.' ? detectFrontendApp('.', packageJson, files) : detectFrontendProject(null, files, packages.filter(p => p.dir === dir)))
+}
+
+/** Absolute dir of the app, or null when an override points it outside the project root. */
+export function frontendAppDir(root: string, app: FrontendApp): string | null {
+  const dir = path.resolve(root, app.dir)
+  const rel = path.relative(path.resolve(root), dir)
+  return rel.startsWith('..') || path.isAbsolute(rel) ? null : dir
+}
+
+/** Playwright's browser cache: PLAYWRIGHT_BROWSERS_PATH, else the per-OS default (playwright-core registry). */
+function playwrightBrowsersDir(appDir: string): string {
+  const env = process.env.PLAYWRIGHT_BROWSERS_PATH
+  if (env === '0') return path.join(appDir, 'node_modules', 'playwright-core', '.local-browsers')
+  if (env) return path.resolve(env)
+  if (process.platform === 'darwin') return path.join(os.homedir(), 'Library', 'Caches', 'ms-playwright')
+  if (process.platform === 'win32') return path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), 'AppData', 'Local'), 'ms-playwright')
+  return path.join(process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), '.cache'), 'ms-playwright')
+}
+
+/** T141: @playwright/test / playwright from the app's node_modules, then the root's; Chromium from the browser cache. */
+export async function detectPlaywright(root: string, app: FrontendApp): Promise<PlaywrightStatus> {
+  const appDir = frontendAppDir(root, app) ?? root
+  const dirs = [...new Set([appDir, path.resolve(root)])]
+  const reads = dirs.flatMap(d => PLAYWRIGHT_PACKAGES.map(pkg =>
+    fs.readFile(path.join(d, 'node_modules', pkg, 'package.json'), 'utf8').catch(() => null)))
+  const [jsons, cache] = await Promise.all([Promise.all(reads), fs.readdir(playwrightBrowsersDir(appDir)).catch(() => [] as string[])])
+  return playwrightStatus(jsons, hasChromium(cache))
+}
+
+/** Snapshot of the app's package.json; the returned restore() writes it back (a failed install must leave it as it was). */
+export async function snapshotPackageJson(appDir: string): Promise<() => Promise<void>> {
+  const file = path.join(appDir, 'package.json')
+  const before = await fs.readFile(file, 'utf8').catch(() => null)
+  return async () => {
+    if (before == null) return
+    if ((await fs.readFile(file, 'utf8').catch(() => null)) !== before) await fs.writeFile(file, before, 'utf8')
+  }
 }
 
 /** {} when the file is missing; throws when it exists but isn't a JSON object, so a save never clobbers it. */
@@ -977,7 +1014,7 @@ export async function logDecision(params: ADRParams, root: string, actor: 'ai' |
 // ─── Memory ───────────────────────────────────────────────────────────────────
 
 export type { MemoryParams } from './memory-sections'
-export type { FrontendApp, FrontendOverride } from './frontend'
+export type { FrontendApp, FrontendOverride, PlaywrightStatus } from './frontend'
 
 export async function readMemory(root: string): Promise<{ content: string; exists: boolean }> {
   try {

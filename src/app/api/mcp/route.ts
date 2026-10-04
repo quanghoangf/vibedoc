@@ -29,6 +29,7 @@ import {
   getContext,
   getProjectSummary,
   detectFrontend,
+  detectPlaywright,
   listTasks,
   getTask,
   updateTaskStatus,
@@ -785,7 +786,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     case "vibedoc_get_frontend": {
       const app = await detectFrontend(root);
       const notes = app ? frontendNotes(app, Number(process.env.PORT) || 3000, path.resolve(root) === process.cwd()) : [];
-      return formatFrontend(app, notes);
+      return formatFrontend(app, notes, app ? await detectPlaywright(root, app) : null);
     }
 
     case "vibedoc_get_sessions": {

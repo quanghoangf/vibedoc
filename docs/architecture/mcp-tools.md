@@ -60,7 +60,7 @@ The project's web frontend app, as Settings → Frontend app shows it (R057). Ca
 
 **Parameters:** none
 
-**Returns:** the app's dir (and package name), framework, start command, URL, source (`detected`, or `override` when set in Settings / `frontend` in `.vibedoc/settings.json`), Playwright and auth state (`unknown` until those checks exist), the other web apps in a monorepo, and warnings (VibeDoc's own repo, port clash):
+**Returns:** the app's dir (and package name), framework, start command, URL, source (`detected`, or `override` when set in Settings / `frontend` in `.vibedoc/settings.json`), Playwright state (installed + version, or the install command to run in the app dir; Settings → Frontend app has an Install button), auth state (`unknown` until that check exists), the other web apps in a monorepo, and warnings (VibeDoc's own repo, port clash):
 ```
 ## Frontend app
 **Dir:** apps/web (web)
@@ -68,7 +68,7 @@ The project's web frontend app, as Settings → Frontend app shows it (R057). Ca
 **Start command:** pnpm --filter web dev
 **URL:** http://localhost:5173
 **Source:** detected
-**Playwright:** unknown
+**Playwright:** installed v1.48.2
 **Auth:** unknown
 **Other apps:** apps/docs (astro)
 ```

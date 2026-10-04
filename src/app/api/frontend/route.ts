@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import path from 'path'
-import { detectFrontend, readFrontendOverride, rootFrom, saveFrontendOverride } from '@/lib/core'
+import { detectFrontend, detectPlaywright, readFrontendOverride, rootFrom, saveFrontendOverride } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { frontendNotes } from '@/lib/frontend'
 import { isDemo, demoForbidden } from '@/lib/demo'
@@ -11,7 +11,8 @@ async function current(root: string) {
   const [app, override] = await Promise.all([detectFrontend(root), readFrontendOverride(root)])
   const vibedocPort = Number(process.env.PORT) || 3000
   const notes = app ? frontendNotes(app, vibedocPort, path.resolve(root) === process.cwd()) : []
-  return { app, notes, override }
+  const playwright = app ? await detectPlaywright(root, app) : null
+  return { app, notes, override, playwright }
 }
 
 export async function GET(req: NextRequest) {

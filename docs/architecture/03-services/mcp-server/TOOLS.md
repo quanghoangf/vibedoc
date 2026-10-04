@@ -34,7 +34,7 @@ Returns board counts, active tasks, blocked tasks, doc count, memory last-update
 
 ### `vibedoc_get_frontend`
 **Call at:** before writing or running browser tests
-The detected (or Settings-overridden) web app: dir, framework, start command, URL, source, Playwright and auth state (`unknown` until checked), other monorepo apps, warnings. No app → points to Settings → Frontend app.
+The detected (or Settings-overridden) web app: dir, framework, start command, URL, source, Playwright state (installed vX, or the install command), auth state (`unknown` until checked), other monorepo apps, warnings. No app → points to Settings → Frontend app.
 ```json
 { "name": "vibedoc_get_frontend", "arguments": {} }
 ```
