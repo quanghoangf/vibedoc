@@ -28,6 +28,7 @@ import {
   createDoc,
   getContext,
   getProjectSummary,
+  detectFrontend,
   listTasks,
   getTask,
   updateTaskStatus,
@@ -79,6 +80,8 @@ import { agentFromUserAgent } from "@/lib/owner";
 import type { StatusDef } from "@/lib/statuses";
 import { planTarget, validatePlan, type Plan } from "@/lib/plan";
 import { isDemo } from "@/lib/demo";
+import { formatFrontend, frontendNotes, frontendStatusLine } from "@/lib/frontend";
+import path from "path";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
 import { groupSessions, sessionDuration, sessionsForTask } from "@/lib/sessions";
@@ -111,7 +114,7 @@ const DEMO_TOOLS = new Set([
   "vibedoc_get_status", "vibedoc_get_sessions", "vibedoc_read_doc", "vibedoc_list_docs", "vibedoc_search_docs",
   "vibedoc_list_tasks", "vibedoc_get_task", "vibedoc_read_memory", "vibedoc_memory_history", "vibedoc_recall",
   "vibedoc_get_entries", "vibedoc_list_templates", "vibedoc_get_context", "vibedoc_get_planning_guide",
-  "vibedoc_get_file_map", "vibedoc_read_registry", "vibedoc_get_roadmap",
+  "vibedoc_get_file_map", "vibedoc_read_registry", "vibedoc_get_roadmap", "vibedoc_get_frontend",
 ]);
 
 /** False for a write in demo mode. `vibedoc_memory_history` reads, except with `restore: true`. */
@@ -128,6 +131,12 @@ const TOOLS = [
     name: "vibedoc_get_status",
     description:
       "Get project status overview: active tasks, blockers, doc count, memory. Call this at session start.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "vibedoc_get_frontend",
+    description:
+      "The project's web frontend app (R057): dir, framework, start command, URL, whether it was detected or set in Settings, Playwright and auth state. Call before writing or running browser tests.",
     inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
@@ -750,12 +759,13 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
   switch (name) {
     case "vibedoc_get_status": {
-      const s = await getProjectSummary(root);
+      const [s, frontend] = await Promise.all([getProjectSummary(root), detectFrontend(root)]);
       const b = s.tasks.board;
       const lines = [
         `## ${s.name} — Project Status`,
         `**Docs:** ${s.docs.total} files`,
         `**Memory:** ${s.memory.exists ? "exists" : "not yet created"}`,
+        frontendStatusLine(frontend),
         "",
         "### Board",
         `📋 Todo: ${b.todo}  🔨 In Progress: ${b["in-progress"]}  👀 Review: ${b.review ?? 0}  🚫 Blocked: ${b.blocked}  ✅ Done: ${b.done}`,
@@ -770,6 +780,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       }
       lines.push("", "_See vibedoc_get_sessions for what happened recently._");
       return lines.join("\n");
+    }
+
+    case "vibedoc_get_frontend": {
+      const app = await detectFrontend(root);
+      const notes = app ? frontendNotes(app, Number(process.env.PORT) || 3000, path.resolve(root) === process.cwd()) : [];
+      return formatFrontend(app, notes);
     }
 
     case "vibedoc_get_sessions": {

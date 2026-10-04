@@ -27,9 +27,16 @@ Reads `memory/MEMORY.md`, then appends the knowledge entry index: `## Knowledge 
 
 ### `vibedoc_get_status`
 **Call at:** start of session, when disoriented
-Returns board counts, active tasks, blocked tasks, doc count, memory last-updated.
+Returns board counts, active tasks, blocked tasks, doc count, memory last-updated, and one `Frontend: <dir> (<framework>) · <start command> · <url>` line (or `Frontend: none detected`).
 ```json
 { "name": "vibedoc_get_status", "arguments": {} }
+```
+
+### `vibedoc_get_frontend`
+**Call at:** before writing or running browser tests
+The detected (or Settings-overridden) web app: dir, framework, start command, URL, source, Playwright and auth state (`unknown` until checked), other monorepo apps, warnings. No app → points to Settings → Frontend app.
+```json
+{ "name": "vibedoc_get_frontend", "arguments": {} }
 ```
 
 ### `vibedoc_list_tasks`

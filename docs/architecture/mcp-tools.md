@@ -51,7 +51,28 @@ Get project status overview: active tasks, blockers, doc count, memory state. Ca
 
 **Parameters:** none
 
-**Returns:** markdown summary of board state + active/blocked tasks, ending with a pointer to `vibedoc_get_sessions`
+**Returns:** markdown summary of board state + active/blocked tasks, ending with a pointer to `vibedoc_get_sessions`. One line names the frontend app (R057): `Frontend: apps/web (vite) · pnpm --filter web dev · http://localhost:5173`, or `Frontend: none detected`.
+
+---
+
+### `vibedoc_get_frontend`
+The project's web frontend app, as Settings → Frontend app shows it (R057). Call before writing or running browser tests.
+
+**Parameters:** none
+
+**Returns:** the app's dir (and package name), framework, start command, URL, source (`detected`, or `override` when set in Settings / `frontend` in `.vibedoc/settings.json`), Playwright and auth state (`unknown` until those checks exist), the other web apps in a monorepo, and warnings (VibeDoc's own repo, port clash):
+```
+## Frontend app
+**Dir:** apps/web (web)
+**Framework:** vite
+**Start command:** pnpm --filter web dev
+**URL:** http://localhost:5173
+**Source:** detected
+**Playwright:** unknown
+**Auth:** unknown
+**Other apps:** apps/docs (astro)
+```
+No web app → a message that points to the Settings override.
 
 ---
 

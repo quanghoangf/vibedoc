@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 const GITHUB = "https://github.com/quanghoangf/vibedoc"
 
 const FEATURES = [
-  { title: "Board + MCP tools", body: "Tasks are markdown files in plans/tasks. Your agent claims, moves and finishes them through 38 MCP tools, and the card moves on your board as it happens." },
+  { title: "Board + MCP tools", body: "Tasks are markdown files in plans/tasks. Your agent claims, moves and finishes them through 39 MCP tools, and the card moves on your board as it happens." },
   { title: "Roadmap", body: "Horizons and epics on a map or a timeline, with progress and at-risk flags derived from the tasks under each epic." },
   { title: "Memory", body: "A session handoff plus one-fact knowledge entries. The next agent reads them first and picks up where the last one stopped." },
   { title: "Agent chat", body: "Ask an agent to plan a roadmap, break an epic into tasks or edit a doc. It shows the plan or the diff, and writes nothing until you accept." },

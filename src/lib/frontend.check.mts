@@ -1,7 +1,7 @@
 // Self-check: frontend app detection on fixture dirs. Run: node src/lib/frontend.check.mts
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, frontendNotes, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
+import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
 
 // Same reads as core.detectFrontend(): root package.json + which files sit next to it.
 const fixture = (name: string) => {
@@ -102,5 +102,18 @@ assert.equal(nothing?.framework, 'unknown')
 assert.deepEqual(frontendNotes(applyOverride(null, { startCommand: 'x' }, () => null)!, 3000, false), [], 'empty url never throws')
 assert.deepEqual(cleanOverride({ dir: ' ', url: ' http://x:1 ', startCommand: 3 }), { url: 'http://x:1' })
 assert.equal(cleanOverride({ dir: '' }), null)
+
+// ─── MCP text (T140) ───
+assert.equal(frontendStatusLine(web), 'Frontend: apps/web (next) · pnpm --filter web dev · http://localhost:3100')
+assert.equal(frontendStatusLine(null), 'Frontend: none detected')
+assert.equal(frontendStatusLine(nothing), 'Frontend: . (unknown) · make web · http://localhost:8080')
+const reply = formatFrontend(web, ['Port clash'])
+assert.match(reply, /\*\*Dir:\*\* apps\/web/)
+assert.match(reply, /\*\*URL:\*\* http:\/\/localhost:3100/)
+assert.match(reply, /\*\*Playwright:\*\* unknown/)
+assert.match(reply, /\*\*Other apps:\*\* apps\/docs \(astro\)/)
+assert.match(reply, /⚠ Port clash/)
+assert.match(formatFrontend(null, []), /Settings → Frontend app/)
+assert.match(formatFrontend(applyOverride(null, { startCommand: 'x' }, () => null), []), /\*\*URL:\*\* unknown/)
 
 console.log('frontend.check: ok')

@@ -122,7 +122,7 @@ All API routes call `emitUpdate()` after mutations. Never call from `core.ts`.
 
 ### `src/app/api/mcp/route.ts`
 Hand-rolled JSON-RPC 2.0 MCP handler. **No MCP SDK stdio transport** (incompatible with Next.js).
-Registers 38 tools. Each tool calls `core.ts` functions directly.
+Registers 39 tools. Each tool calls `core.ts` functions directly.
 
 ### `src/app/page.tsx`
 Single client component. Manages all UI state with `useState`. Fetches from API routes.

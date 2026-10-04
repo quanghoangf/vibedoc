@@ -195,3 +195,35 @@ export function applyOverride(
     ...(detected?.candidates && { candidates: detected.candidates }),
   }
 }
+
+// ─── MCP text (T140) ─────────────────────────────────────────────────────────
+
+/** `vibedoc_get_status` line, e.g. `Frontend: apps/web (vite) · pnpm --filter web dev · http://localhost:5173`. */
+export function frontendStatusLine(app: FrontendApp | null): string {
+  if (!app) return 'Frontend: none detected'
+  return `Frontend: ${[`${app.dir} (${app.framework})`, app.startCommand, app.url].filter(Boolean).join(' · ')}`
+}
+
+/** `vibedoc_get_frontend` reply. Playwright and auth stay "unknown" until T141 / T143 detect them. */
+export function formatFrontend(app: FrontendApp | null, notes: string[]): string {
+  if (!app) {
+    return [
+      '## Frontend app',
+      'No web frontend detected: no package.json in the project root or its workspace packages depends on Next, Vite, Remix, Astro, Nuxt, SvelteKit or Create React App.',
+      'If the app is there but not recognised, set it in Settings → Frontend app (dir, start command, URL); it is saved as `frontend` in .vibedoc/settings.json.',
+    ].join('\n')
+  }
+  const others = (app.candidates ?? []).filter(c => c.dir !== app.dir)
+  return [
+    '## Frontend app',
+    `**Dir:** ${app.dir}${app.name !== app.dir ? ` (${app.name})` : ''}`,
+    `**Framework:** ${app.framework}`,
+    `**Start command:** ${app.startCommand || 'unknown'}`,
+    `**URL:** ${app.url || 'unknown'}`,
+    `**Source:** ${app.source === 'override' ? 'override (Settings → Frontend app)' : 'detected'}`,
+    '**Playwright:** unknown',
+    '**Auth:** unknown',
+    ...(others.length ? [`**Other apps:** ${others.map(c => `${c.dir} (${c.framework})`).join(', ')}`] : []),
+    ...notes.map(n => `⚠ ${n}`),
+  ].join('\n')
+}
