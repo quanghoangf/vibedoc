@@ -80,9 +80,15 @@ export async function PUT(req: NextRequest) {
     const data = await req.json()
 
     switch (type) {
-      case 'settings':
-        await writeJsonFile(path.join(dir, SETTINGS_FILE), data)
+      case 'settings': {
+        // `frontend` is owned by PUT /api/frontend: keep what's on disk, not the page's copy from when it loaded
+        const { frontend } = await readJsonFile<{ frontend?: unknown }>(path.join(dir, SETTINGS_FILE), {})
+        const next = { ...data }
+        delete next.frontend
+        if (frontend !== undefined) next.frontend = frontend
+        await writeJsonFile(path.join(dir, SETTINGS_FILE), next)
         break
+      }
       case 'skills':
         await writeJsonFile(path.join(dir, SKILLS_FILE), { skills: data })
         break

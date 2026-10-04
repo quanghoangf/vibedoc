@@ -1,0 +1,1 @@
+{ "name": "@shop/client", "scripts": { "dev": "vite" }, "devDependencies": { "vite": "7.0.0" } }

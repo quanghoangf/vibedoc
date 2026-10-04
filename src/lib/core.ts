@@ -33,7 +33,7 @@ import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, repl
 import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
 import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
 import { isDemo } from './demo'
-import { detectFrontendApp, type FrontendApp } from './frontend'
+import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, workspacePatterns, type FrontendApp, type FrontendOverride } from './frontend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -159,12 +159,58 @@ export function rootFrom(override?: string | null): string {
 
 // ─── Frontend app (R057) ──────────────────────────────────────────────────────
 
-/** The project's web frontend from its root package.json (pure detection in frontend.ts); null when there is none. */
+const SETTINGS_FILE = path.join('.vibedoc', 'settings.json')
+
+/**
+ * The project's web frontend (pure detection in frontend.ts): the best workspace package in a monorepo,
+ * else the root package.json; `.vibedoc/settings.json` `frontend` overrides win (T139). Null when there is none.
+ */
 export async function detectFrontend(root: string): Promise<FrontendApp | null> {
-  const packageJson = await fs.readFile(path.join(root, 'package.json'), 'utf8').catch(() => null)
-  if (packageJson == null) return null
-  const files = await fs.readdir(root).catch(() => [] as string[])
-  return detectFrontendApp('.', packageJson, files)
+  const read = (rel: string) => fs.readFile(path.join(root, rel), 'utf8').catch(() => null)
+  const [packageJson, pnpmWorkspace, files, override] = await Promise.all([
+    read('package.json'), read('pnpm-workspace.yaml'), fs.readdir(root).catch(() => [] as string[]), readFrontendOverride(root),
+  ])
+  const dirs = new Set<string>()
+  for (const pattern of workspacePatterns(packageJson, pnpmWorkspace)) {
+    const hits = await glob(`${pattern}/package.json`, { cwd: root, nodir: true, ignore: '**/node_modules/**', posix: true })
+    for (const hit of hits) dirs.add(path.posix.dirname(hit))
+  }
+  const packages: { dir: string; packageJson: string }[] = []
+  for (const dir of [...dirs].sort()) {
+    const pkg = await read(path.join(dir, 'package.json'))
+    if (pkg != null) packages.push({ dir, packageJson: pkg })
+  }
+  const detected = detectFrontendProject(packageJson, files, packages)
+  return applyOverride(detected, override, dir =>
+    dir === '.' ? detectFrontendApp('.', packageJson, files) : detectFrontendProject(null, files, packages.filter(p => p.dir === dir)))
+}
+
+/** {} when the file is missing; throws when it exists but isn't a JSON object, so a save never clobbers it. */
+async function readSettingsObject(root: string): Promise<Record<string, unknown>> {
+  const raw = await fs.readFile(path.join(root, SETTINGS_FILE), 'utf8').catch(() => null)
+  if (raw == null) return {}
+  const s = JSON.parse(raw)
+  if (!s || typeof s !== 'object' || Array.isArray(s)) throw new Error(`${SETTINGS_FILE} is not a JSON object`)
+  return s
+}
+
+export async function readFrontendOverride(root: string): Promise<FrontendOverride | null> {
+  return cleanOverride(await readSettingsObject(root).then(s => s.frontend, () => null))
+}
+
+/** Sets (or, for null / all-empty, removes) `frontend` in .vibedoc/settings.json; every other key is kept. */
+export async function saveFrontendOverride(override: FrontendOverride | null, root: string): Promise<FrontendOverride | null> {
+  const clean = cleanOverride(override)
+  const file = path.join(root, SETTINGS_FILE)
+  const settings = await readSettingsObject(root)
+  if (clean) settings.frontend = clean
+  else if ('frontend' in settings) delete settings.frontend
+  else return null // nothing to reset: don't create the file
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  const tmp = `${file}.tmp`
+  await fs.writeFile(tmp, JSON.stringify(settings, null, 2), 'utf8')
+  await fs.rename(tmp, file)
+  return clean
 }
 
 // ─── Multi-project: scan parent directories ───────────────────────────────────
@@ -931,7 +977,7 @@ export async function logDecision(params: ADRParams, root: string, actor: 'ai' |
 // ─── Memory ───────────────────────────────────────────────────────────────────
 
 export type { MemoryParams } from './memory-sections'
-export type { FrontendApp } from './frontend'
+export type { FrontendApp, FrontendOverride } from './frontend'
 
 export async function readMemory(root: string): Promise<{ content: string; exists: boolean }> {
   try {

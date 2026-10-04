@@ -1,0 +1,1 @@
+{ "name": "acme", "private": true, "scripts": { "dev": "turbo dev" }, "devDependencies": { "turbo": "2.0.0" } }

@@ -1,0 +1,1 @@
+{ "name": "web", "scripts": { "dev": "next dev -p 3100" }, "dependencies": { "next": "16.0.0", "react": "19.0.0" } }

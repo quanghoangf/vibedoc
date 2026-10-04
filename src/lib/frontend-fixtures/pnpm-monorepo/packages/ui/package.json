@@ -1,0 +1,1 @@
+{ "name": "@acme/ui", "scripts": { "storybook": "storybook dev -p 6006", "build": "vite build" }, "devDependencies": { "vite": "7.0.0", "@storybook/react-vite": "8.0.0" } }

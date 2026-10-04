@@ -1,0 +1,1 @@
+{ "name": "@shop/api", "scripts": { "dev": "node server.js" }, "dependencies": { "express": "5.0.0" } }
