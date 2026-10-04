@@ -230,6 +230,16 @@ body {
 .doc-preview-titled > h1:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 /* Docs motion: a pane that appears on a mode switch fades in; a newly opened doc settles into place. */
 .animate-pane-in { animation: pane-in var(--duration-base) var(--ease-out-soft); }
+/* Test review: the detail slides in from the right / back out; Open as page glides the task to the centre;
+   Collapse brings the list back from the left. Transform + opacity only (reduced motion zeroes them). */
+.animate-panel-in { animation: panel-in var(--duration-slow) var(--ease-out-soft) both; }
+.animate-panel-out { animation: panel-out var(--duration-base) var(--ease-in-out-soft) forwards; }
+.animate-page-in { animation: page-in var(--duration-slow) var(--ease-out-soft) both; }
+.animate-list-in { animation: list-in var(--duration-slow) var(--ease-out-soft) both; }
+@keyframes panel-in { from { opacity: 0; transform: translateX(24px); } }
+@keyframes panel-out { to { opacity: 0; transform: translateX(24px); } }
+@keyframes page-in { from { opacity: 0.4; transform: translateX(12%); } }
+@keyframes list-in { from { opacity: 0; transform: translateX(-24px); } }
 .animate-doc-in { animation: doc-in var(--duration-slow) var(--ease-out-soft); }
 @keyframes pane-in { from { opacity: 0; } }
 @keyframes doc-in { from { opacity: 0; transform: translateY(6px); } }

@@ -1,6 +1,6 @@
 // Self-check for manual test reports. Run: node src/lib/manual-tests.check.mts
 import assert from 'node:assert/strict'
-import { normalizeReport, parseManualTests, setManualTests, setManualTestsMeta, toggleManualTest, untestedItems } from './manual-tests.ts'
+import { normalizeReport, parseManualTests, setManualTests, setManualTestsMeta, toggleManualTest, setAllManualTests, untestedItems } from './manual-tests.ts'
 
 const task = '# T001: First\n**Status:** 🔨 In Progress\n**Depends on:** —\n\n## Goal\nDo it.\n'
 
@@ -113,5 +113,13 @@ assert.deepEqual(untested(withRun), [0, 1, 2], 'failed run: 🤖 items still cou
 assert.deepEqual(untested(run), [], 'passed run + manual ticked: nothing left')
 assert.deepEqual(untested(setManualTestsMeta(withSpec, { autoRun: { result: 'passed', date: '2026-10-05' } }, 'ai', '2026-10-05')), [1])
 assert.deepEqual(untestedItems(parseManualTests(one)!, () => true), [], 'pending ticks apply')
+
+// Bulk: every manual item, 🤖 ones untouched; `changed` lists exactly the flipped indexes
+const bulk = setAllManualTests(tickAuto, true)
+assert.deepEqual(bulk.changed, [1])
+assert.deepEqual(parseManualTests(bulk.raw)?.items.map((i) => i.checked), [false, true, true])
+assert.deepEqual(setAllManualTests(bulk.raw, true).changed, [], 'already ticked: nothing changes')
+assert.deepEqual(setAllManualTests(bulk.raw, false).changed, [1])
+assert.throws(() => setAllManualTests('# T1: x', true), RangeError)
 
 console.log('manual-tests: ok')

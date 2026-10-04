@@ -1,7 +1,9 @@
 /**
  * POST /api/tasks/review  { id, action: "approve" | "send-back", note? }
  * Resolves a task waiting in the optional Review status (R043): approve → done, send back → todo with the note.
- * Both are recorded in the task's `## Review` section. 400 = bad input or empty send-back note; 409 = not in review.
+ * Send back also reopens a done task (a failed run on finished work, /manual-tests). Both are recorded in the task's
+ * `## Review` section. 400 = bad input or empty send-back note; 409 = approve on a task not in review, or send back
+ * on one that is neither in review nor done (REVIEWABLE in src/lib/review.ts).
  */
 
 import { NextRequest, NextResponse } from 'next/server'

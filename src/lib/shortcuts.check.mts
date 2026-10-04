@@ -1,12 +1,16 @@
 // Self-check for keyboard shortcuts. Run: node src/lib/shortcuts.check.mts
 import assert from 'node:assert/strict'
-import { GRAPH_KEYS, ITEM_KEYS, OTHER_SHORTCUTS, PAGE_SHORTCUTS, inTextField, itemActionForKey, pageForKey, pageTitle, shortcutFor, shouldHandleShortcut } from './shortcuts.ts'
+import { GRAPH_KEYS, ITEM_KEYS, TEST_REVIEW_KEYS, OTHER_SHORTCUTS, PAGE_SHORTCUTS, inTextField, itemActionForKey, pageForKey, pageTitle, shortcutFor, shouldHandleShortcut } from './shortcuts.ts'
 
 // A page-jump key never means anything else, and a key appears once per help-sheet section (the Graph section
 // repeats / and Esc on purpose: on /graph they do graph things)
 const pageKeys = PAGE_SHORTCUTS.map((s) => s.key)
 assert.equal(new Set(pageKeys).size, pageKeys.length, 'duplicate page key')
-for (const s of OTHER_SHORTCUTS) assert.ok(!pageKeys.includes(s.key), `${s.key} is a page jump`)
+// Test review's a / s shadow Activity / Settings on /manual-tests only (that page handles them first)
+for (const s of OTHER_SHORTCUTS) {
+  if (s.section === 'Test review' && ['a', 's'].includes(s.key)) continue
+  assert.ok(!pageKeys.includes(s.key), `${s.key} is a page jump`)
+}
 for (const section of new Set(OTHER_SHORTCUTS.map((s) => s.section))) {
   const keys = OTHER_SHORTCUTS.filter((s) => s.section === section).map((s) => s.key)
   assert.equal(new Set(keys).size, keys.length, `duplicate key in ${section}`)
@@ -45,6 +49,10 @@ assert.deepEqual(graphRows.map((s) => s.key), Object.values(GRAPH_KEYS).map((k) 
 for (const k of ['/', 'Tab', '↵', 'o', '←→↑↓', 'Esc', '↵ ⇧↵']) assert.ok(graphRows.some((s) => s.key === k), `Graph section lists ${k}`)
 assert.equal(pageForKey(GRAPH_KEYS.open.key), undefined, 'o is not a page jump')
 assert.equal(pageTitle('/boardx'), undefined)
+assert.deepEqual(OTHER_SHORTCUTS.filter((s) => s.section === 'Test review').map((s) => s.key), Object.values(TEST_REVIEW_KEYS).map((k) => k.key))
+for (const { key } of Object.values(TEST_REVIEW_KEYS)) {
+  if (!['a', 's'].includes(key)) assert.equal(pageForKey(key), undefined, `test review key ${key} clashes with a page jump`)
+}
 
 const base = { defaultPrevented: false, metaKey: false, ctrlKey: false, altKey: false }
 const el = (inField: boolean, editable = false) => ({ isContentEditable: editable, closest: () => (inField ? {} : null) })

@@ -18,6 +18,7 @@ import {
 import type { TaskBoard } from "@/types"
 import { cn } from "@/lib/utils"
 import { shortcutFor } from "@/lib/shortcuts"
+import { countNeedsYou } from "@/lib/test-review"
 import { VIBEDOC_VERSION } from "@/lib/version"
 import { SidebarChats } from "./SidebarChats"
 import { useApp } from "@/context/AppContext"
@@ -60,14 +61,14 @@ export function AppSidebar({ board }: AppSidebarProps) {
   const pathname = usePathname()
   const { demo } = useApp()
   const settingsKey = shortcutFor("/settings")
-  // Unticked manual test items across all tasks (R043); 🤖 items proven by a passed run don't count (R058)
-  const untested = board ? Object.values(board).flat().reduce((n, t) => n + (t.manualTests?.untested ?? 0), 0) : 0
+  // Tasks that need you on /manual-tests: a failed run, in review, or checks left on unfinished work (same rule as its tab)
+  const testsNeedYou = board ? countNeedsYou(Object.values(board).flat()) : 0
   // Work in flight on the board (the counts that used to sit in a separate "Board" section and the header)
   const active = board ? board["in-progress"].length + board.review.length : 0
-  // Advisory counts, so muted: nothing here needs you right now
+  // Muted counts: a nudge, not an alarm
   const badge: Record<string, { n: number; label: string }> = {
     "/board": { n: active, label: "in progress or in review" },
-    "/manual-tests": { n: untested, label: "unticked" },
+    "/manual-tests": { n: testsNeedYou, label: "tasks need you" },
   }
 
   return (

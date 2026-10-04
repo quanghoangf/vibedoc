@@ -10,6 +10,15 @@ export const REVIEW_HEADING = "## Review"
 
 export type ReviewOutcome = "approved" | "changes requested"
 
+/**
+ * Statuses each outcome may resolve: approve only a task waiting in review; send back from review or from done
+ * (a failed run on finished work reopens it). Anything else is a 409 in the route.
+ */
+export const REVIEWABLE: Record<ReviewOutcome, readonly string[]> = {
+  approved: ["review"],
+  "changes requested": ["review", "done"],
+}
+
 export interface ReviewEntry {
   at: string
   outcome: ReviewOutcome

@@ -31,7 +31,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
 const SHORTCUT_SECTIONS = [
   { title: "Go to", rows: PAGE_SHORTCUTS.map(({ key, label, help }) => ({ key, description: help ?? label })) },
-  ...(["Open", "Board", "Graph", "Open item", "Editing & other"] as const).map((title) => ({
+  ...(["Open", "Board", "Graph", "Test review", "Open item", "Editing & other"] as const).map((title) => ({
     title, rows: OTHER_SHORTCUTS.filter((s) => s.section === title).map(({ key, label }) => ({ key, description: label })),
   })),
 ]

@@ -169,6 +169,26 @@ export function untestedItems(t: Pick<ManualTests, "items" | "autoRun">, checked
 }
 
 /** Tick or untick the `index`th checklist item of the `## Manual tests` section (file order), nothing else. */
+/**
+ * Tick (or untick) every manual item of the section in one write; 🤖 items stay as they are (a run proves them).
+ * Returns the indexes it changed, so a bulk undo can flip back exactly those. Throws RangeError without a section.
+ */
+export function setAllManualTests(raw: string, checked: boolean): { raw: string; changed: number[] } {
+  const lines = raw.split("\n")
+  const range = sectionRange(lines)
+  if (!range) throw new RangeError("This task has no manual tests")
+  const changed: number[] = []
+  let n = 0
+  for (let i = range[0] + 1; i < range[1]; i++) {
+    if (!ITEM.test(lines[i])) continue
+    const index = n++
+    if (/\[[ xX]\] 🤖/.test(lines[i]) || /\[[xX]\]/.test(lines[i]) === checked) continue
+    lines[i] = lines[i].replace(/\[( |x|X)\]/, checked ? "[x]" : "[ ]")
+    changed.push(index)
+  }
+  return { raw: lines.join("\n"), changed }
+}
+
 export function toggleManualTest(raw: string, index: number, checked: boolean): string {
   const lines = raw.split("\n")
   const range = sectionRange(lines)

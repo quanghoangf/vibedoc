@@ -105,8 +105,11 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
   // Auto, so every test gets a video + run.json even without steps. Torn down before `page`, so it can close it.
   step: [async ({ page, vibedocRun }, provide, testInfo) => {
     const steps: RunStep[] = []
+    // The page (and its video) exists by now, so offsets from here line up with the video's clock
+    const t0 = Date.now()
     await provide(async (name, fn) => {
       const index = steps.length + 1
+      const startMs = Date.now() - t0
       const screenshot = stepFile(index, name)
       const shoot = async () => {
         try {
@@ -118,10 +121,10 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
       }
       try {
         const result = await base.step(name, fn)
-        steps.push({ index, name, status: 'passed', screenshot: await shoot(), error: null })
+        steps.push({ index, name, status: 'passed', screenshot: await shoot(), error: null, startMs, endMs: Date.now() - t0 })
         return result
       } catch (e) {
-        steps.push({ index, name, status: 'failed', screenshot: await shoot(), error: plain(e instanceof Error ? e.message : String(e)) })
+        steps.push({ index, name, status: 'failed', screenshot: await shoot(), error: plain(e instanceof Error ? e.message : String(e)), startMs, endMs: Date.now() - t0 })
         throw e
       }
     })

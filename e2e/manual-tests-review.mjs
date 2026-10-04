@@ -1,6 +1,6 @@
 // Browser check for R043 (manual tests & optional review), end to end on a fixture project:
-//   1. An agent finishes tasks with reports (vibedoc_update_task + manualTests) → card badges → tick everything
-//      on /manual-tests → the task files get - [x] and the badges turn green.
+//   1. An agent finishes tasks with reports (vibedoc_update_task + manualTests) → 0/2 rows on /manual-tests (All)
+//      → tick everything there → the task files get - [x] and the rows read 2/2.
 //   2. Review: move a task to review → send it back from the panel → vibedoc_next_task reclaims it with the
 //      note first → back to review → approve → done, with both entries in ## Review.
 //   3. No gate: a task without a report moves straight to done.
@@ -46,18 +46,21 @@ try {
     const out = await mcp("vibedoc_update_task", { taskId: id, status: "done", manualTests: `### Steps\n- [ ] Open ${id} → it works\n### Regression risk\n- [ ] Board still loads` })
     assert.match(out, /🧪 Manual tests: 0\/2 ticked/)
   }
-  await page.goto(`${BASE}/board`)
-  await page.getByTitle("Manual tests: 0 of 2 ticked").nth(1).waitFor()
+  // Both are done, so neither needs you (checks left on finished work stay under All). The board folds done
+  // lanes and shows done tasks as a rail of IDs, so the 0/2 → 2/2 tally is read off the /manual-tests ruling.
   await page.goto(`${BASE}/manual-tests`)
-  await page.getByText("4 items to check across 2 tasks").waitFor()
-  for (const label of ["Open T001 → it works", "Open T002 → it works"]) await page.getByLabel(label).check()
-  for (const box of await page.getByLabel("Board still loads").all()) await box.check()
-  await page.getByText("Nothing left to check.").waitFor()
+  await page.getByRole("button", { name: "Show all 2 tasks" }).waitFor()
+  await page.goto(`${BASE}/manual-tests?tab=all`)
+  for (const id of ["T001", "T002"]) await page.locator(`[data-row="${id}"]`).getByRole("img", { name: "0 of 2 manual checks ticked" }).waitFor()
+  for (const id of ["T001", "T002"]) {
+    await page.locator(`[data-row="${id}"] button`).click()
+    await page.getByRole("checkbox", { name: new RegExp(`Open ${id}`) }).check()
+    await page.getByLabel("Board still loads").check()
+  }
+  for (const id of ["T001", "T002"]) await page.locator(`[data-row="${id}"]`).getByRole("img", { name: "2 of 2 manual checks ticked" }).waitFor()
   for (let i = 0; i < 30 && !(file("T001").includes("- [x] Board still loads") && file("T002").includes("- [x] Board still loads")); i++) await page.waitForTimeout(100)
   for (const id of ["T001", "T002"]) assert.doesNotMatch(file(id), /- \[ \]/, `${id}: every item ticked in the file`)
-  await page.goto(`${BASE}/board`)
-  await page.getByTitle("Manual tests: 2 of 2 ticked").nth(1).waitFor()
-  console.log("ok  agent reports → badges → ticked on /manual-tests → files updated, badges 2/2")
+  console.log("ok  agent reports → 0/2 on /manual-tests → ticked → files updated, rows 2/2")
 
   // 2. Review: send back from the panel → reclaimed with the note first → review again → approve
   await mcp("vibedoc_update_task", { taskId: "T003", status: "review" })

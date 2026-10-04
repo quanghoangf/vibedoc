@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
@@ -23,6 +23,7 @@ import { deleteTaskWithUndo, updateTask } from "./task-api"
 import type { TaskMetaPatch } from "@/types"
 import { AgentMark } from "@/components/chat/AgentMark"
 import { useApp } from "@/context/AppContext"
+import { toast } from "@/components/ui/toast"
 import { useChats } from "@/context/ChatContext"
 import { chatFor } from "@/lib/chats"
 import { reviewHistory, type ReviewEntry } from "@/lib/review"
@@ -345,15 +346,29 @@ function TaskEditForm({ task, rootParam, onDone }: { task: Task; rootParam: stri
   )
 }
 
-/** Approve (→ done) or send back with a note (→ todo) a task waiting in Review. */
-function ReviewActions({ taskId, onDone }: { taskId: string; onDone: () => void }) {
+export type ReviewAction = "approve" | "send-back"
+
+/**
+ * Approve (→ done) or send back with a note (→ todo) a task waiting in Review. /manual-tests also uses it for a
+ * failed run on a done task: `canApprove={false}`, the note prefilled from the failed step, its own `prompt`
+ * line, and `children` (Open task) at the end of the button row. A toast confirms the outcome.
+ */
+export function ReviewActions({ taskId, onDone, canApprove = true, initialNote = "", prompt, className, children }: {
+  taskId: string
+  onDone: (action: ReviewAction) => void
+  canApprove?: boolean
+  initialNote?: string
+  prompt?: ReactNode
+  className?: string
+  children?: ReactNode
+}) {
   const { rootParam } = useApp()
   const [sendingBack, setSendingBack] = useState(false)
-  const [note, setNote] = useState("")
+  const [note, setNote] = useState(initialNote)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function act(action: "approve" | "send-back") {
+  async function act(action: ReviewAction) {
     setBusy(true)
     setError(null)
     try {
@@ -363,7 +378,11 @@ function ReviewActions({ taskId, onDone }: { taskId: string; onDone: () => void 
         body: JSON.stringify({ id: taskId, action, note }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Request failed (${res.status})`)
-      onDone()
+      toast(action === "approve" ? `Approved ${taskId} → done` : `Sent back ${taskId} → todo`)
+      setSendingBack(false)
+      setNote(initialNote)
+      setBusy(false)
+      onDone(action)
     } catch (e) {
       setError((e as Error).message)
       setBusy(false)
@@ -371,46 +390,55 @@ function ReviewActions({ taskId, onDone }: { taskId: string; onDone: () => void 
   }
 
   return (
-    <div className="flex flex-col gap-2 px-5 py-3 border-b border-border shrink-0 bg-accent/5">
-      <p className="text-xs text-muted">Waiting for your review. Approving moves it to done; sending it back returns it to the queue with your note.</p>
+    <div className={cn("flex flex-col gap-2 px-5 py-3 border-b border-border shrink-0 bg-accent/5", className)}>
+      {prompt ?? <p className="text-xs text-muted">Waiting for your review. Approving moves it to done; sending it back returns it to the queue with your note.</p>}
       {sendingBack ? (
         <div className="flex flex-col gap-2 animate-fade-in">
           <textarea
             autoFocus
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            rows={3}
+            rows={initialNote ? Math.min(6, initialNote.split("\n").length + 1) : 3}
             placeholder="What needs to change? The agent reads this first."
             aria-label="Send back note"
-            className="w-full resize-none rounded-md border border-border bg-bg px-2.5 py-2 text-sm text-txt placeholder:text-muted focus:border-accent/60 focus:outline-hidden"
+            className="w-full resize-y rounded-md border border-border bg-bg px-2.5 py-2 text-sm text-txt placeholder:text-muted focus:border-accent/60 focus:outline-hidden"
           />
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => act("send-back")}
               disabled={busy || !note.trim()}
               className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-amber/15 border border-amber/40 text-amber transition-colors hover:bg-amber/25 disabled:opacity-40"
             >
-              <CornerUpLeft className="size-3.5" /> Send back
+              <CornerUpLeft className="size-3.5" aria-hidden /> {busy ? "Sending back…" : "Send back"}
             </button>
-            <button onClick={() => { setSendingBack(false); setNote("") }} disabled={busy} className="text-xs text-muted hover:text-txt">Cancel</button>
+            <button onClick={() => { setSendingBack(false); setNote(initialNote) }} disabled={busy} className="text-xs text-muted hover:text-txt">Cancel</button>
+            <span className="text-[11px] text-muted">Moves it to todo with this note; the agent reads it first.</span>
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canApprove && (
+            <button
+              data-review="approve"
+              onClick={() => act("approve")}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-teal/15 border border-teal/40 text-teal transition-colors hover:bg-teal/25 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              <Check className="size-3.5" aria-hidden /> Approve
+            </button>
+          )}
           <button
-            onClick={() => act("approve")}
-            disabled={busy}
-            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-teal/15 border border-teal/40 text-teal transition-colors hover:bg-teal/25 disabled:opacity-40"
-          >
-            <Check className="size-3.5" /> Approve
-          </button>
-          <button
+            data-review="send-back"
             onClick={() => setSendingBack(true)}
             disabled={busy}
-            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted transition-colors hover:text-txt hover:border-border2"
+            className={cn(
+              "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm border transition-colors",
+              canApprove ? "bg-surface2 border-border text-muted hover:text-txt hover:border-border2" : "bg-amber/15 border-amber/40 text-amber hover:bg-amber/25",
+            )}
           >
-            <CornerUpLeft className="size-3.5" /> Send back…
+            <CornerUpLeft className="size-3.5" aria-hidden /> {canApprove ? "Send back…" : "Send back to agent…"}
           </button>
+          {children}
         </div>
       )}
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}

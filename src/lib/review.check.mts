@@ -1,6 +1,6 @@
 // Self-check for task review history. Run: node src/lib/review.check.mts
 import assert from 'node:assert/strict'
-import { appendReviewEntry, latestReview, reviewHistory } from './review.ts'
+import { REVIEWABLE, appendReviewEntry, latestReview, reviewHistory } from './review.ts'
 
 const task = '# T001: First\n**Status:** 👀 Review\n\n## Goal\nDo it.\n'
 
@@ -22,6 +22,10 @@ assert.ok(two.indexOf('— approved') < two.indexOf('## Manual tests'), 'entry s
 assert.ok(two.includes('## Manual tests\n_2026-10-01 — ai_\n### Steps\n- [ ] A'), 'following section untouched')
 assert.deepEqual(reviewHistory(two).map((e) => e.outcome), ['changes requested', 'approved'])
 assert.deepEqual(latestReview(two), { at: '2026-10-02T09:30:00Z', outcome: 'approved', note: '' })
+
+// Approve only from review; send back also reopens a done task (a failed run on finished work)
+assert.deepEqual(REVIEWABLE.approved, ['review'])
+assert.deepEqual(REVIEWABLE['changes requested'], ['review', 'done'])
 
 // Send back needs a note; approve doesn't
 assert.throws(() => appendReviewEntry(task, 'changes requested', '   ', '2026-10-01T11:00:00Z'), /note is required/)

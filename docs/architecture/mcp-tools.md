@@ -497,7 +497,7 @@ _2026-10-01 — ai_
 ```
 
 - The board card shows `🧪 done/total`: muted while items remain, green when all are ticked. Click it to open the checklist.
-- **`/manual-tests`** lists every task with unticked items, grouped by epic, newest report first. Ticking an item writes `- [x]` to the task file (`POST /api/tasks/manual-tests` `{ id, index, checked }`) and never changes the task's status. **Show fully tested** lists the rest. The sidebar link counts unticked items.
+- **`/manual-tests`** (Test review) lists every task with a checklist or a recorded run. The default **Needs you** tab holds tasks with a failed last run, tasks in review, and open (not done or cancelled) tasks with checks left; Failed · Passed · No run · All hold the rest. Ticking an item writes `- [x]` to the task file (`POST /api/tasks/manual-tests` `{ id, index, checked }`) and never changes the task's status.
 - A new report replaces the old one, because the code changed and old ticks no longer apply.
 
 **Review is an optional status** (`👀 Review`), a column between In progress and Todo:
@@ -505,9 +505,10 @@ _2026-10-01 — ai_
 ```
 in-progress ──► review ──► Approve    ──► done
                    └─────► Send back  ──► todo   (note required)
+done (failed run) ───────► Send back  ──► todo   (/manual-tests)
 ```
 
-- Approve and Send back are in the task panel (`POST /api/tasks/review` `{ id, action: "approve" | "send-back", note? }`: 400 for an empty send-back note, 409 when the task isn't in review). Both are recorded in the task's `## Review` section, which the panel shows as history.
+- Approve and Send back are in the task panel and on /manual-tests (`POST /api/tasks/review` `{ id, action: "approve" | "send-back", note? }`: 400 for an empty send-back note, 409 when approving a task that isn't in review or sending back one that is neither in review nor done; `REVIEWABLE` in `src/lib/review.ts`). Both are recorded in the task's `## Review` section, which the panel shows as history.
 - A sent-back todo card shows **changes requested**. When `vibedoc_next_task` hands it out again, the reply starts with `⚠️ Changes requested:` and the note.
 - A task in review is not done: its dependents wait, the epic isn't finished, and `vibedoc_next_task` says `T0xx in review — needs a human`.
 - `/work-epic` defaults to done. It uses review only when it can't judge the result itself (a visual change it couldn't see, or a Verify step it couldn't run).

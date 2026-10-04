@@ -9,7 +9,8 @@ import path from 'path'
 
 const SLUG_MAX = 60
 
-export type RunStep = { index: number; name: string; status: 'passed' | 'failed'; screenshot: string | null; error: string | null }
+/** `startMs` / `endMs`: offsets from the video's start (optional: runs recorded before they existed have none). */
+export type RunStep = { index: number; name: string; status: 'passed' | 'failed'; screenshot: string | null; error: string | null; startMs?: number; endMs?: number }
 /** `run.json`: written by the fixture, read by the runs API/viewer and R060. Keep the shape stable. */
 export type RunManifest = {
   runId: string; taskId: string; project: string; startedAt: string; endedAt: string

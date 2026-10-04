@@ -17,8 +17,8 @@ import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraf
 import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
-import { parseManualTests, setManualTests, setManualTestsMeta, toggleManualTest, untestedItems, type AutoRun, type ManualTestsMeta } from './manual-tests'
-import { appendReviewEntry, type ReviewOutcome } from './review'
+import { parseManualTests, setAllManualTests, setManualTests, setManualTestsMeta, toggleManualTest, untestedItems, type AutoRun, type ManualTestsMeta } from './manual-tests'
+import { REVIEWABLE, appendReviewEntry, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
 import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
@@ -70,7 +70,8 @@ export interface Task {
   raw?: string
 }
 
-export type TaskLastRun = { runId: string; status: RunManifest['status']; steps: number; passed: number }
+/** `failed`: the run's first failed step (feeds the /manual-tests decision bar and its send-back note). */
+export type TaskLastRun = { runId: string; status: RunManifest['status']; steps: number; passed: number; failed: { index: number; name: string; error: string | null } | null }
 
 export interface TaskBoard {
   todo: Task[]
@@ -616,7 +617,9 @@ export async function listRuns(taskId: string, root: string): Promise<RunManifes
 }
 
 function toLastRun(r: RunManifest | undefined): TaskLastRun | null {
-  return r ? { runId: r.runId, status: r.status, steps: r.steps.length, passed: r.steps.filter(s => s.status === 'passed').length } : null
+  if (!r) return null
+  const f = r.steps.find(s => s.status === 'failed')
+  return { runId: r.runId, status: r.status, steps: r.steps.length, passed: r.steps.filter(s => s.status === 'passed').length, failed: f ? { index: f.index, name: f.name, error: f.error } : null }
 }
 
 /** Newest valid run of every task that has one: one readdir per task folder, run.json read until one parses. */
@@ -909,7 +912,10 @@ export class TaskStateError extends Error {}
 
 async function reviewTask(taskId: string, outcome: ReviewOutcome, note: string, next: TaskStatus, root: string) {
   const task = await getTask(taskId, root)
-  if (task.status !== 'review') throw new TaskStateError(`${task.id} is ${task.status}, not in review`)
+  const allowed = REVIEWABLE[outcome]
+  if (!allowed.includes(task.status)) {
+    throw new TaskStateError(`${task.id} is ${task.status}; ${outcome === 'approved' ? 'approve' : 'send back'} needs ${allowed.join(' or ')}`)
+  }
   const at = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
   const content = appendReviewEntry(task.raw ?? '', outcome, note, at)
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
@@ -921,9 +927,17 @@ export function approveTask(taskId: string, root: string, note = '') {
   return reviewTask(taskId, 'approved', note, 'done', root)
 }
 
-/** Review → todo (so vibedoc_next_task hands it out again), with the note as a `changes requested` entry. Note required. */
+/** Review or done → todo (so vibedoc_next_task hands it out again), with the note as a `changes requested` entry. Note required. */
 export function sendBackTask(taskId: string, note: string, root: string) {
   return reviewTask(taskId, 'changes requested', note, 'todo', root)
+}
+
+/** Tick or untick every manual item of one task (🤖 ones untouched). `changed` = the indexes flipped, for Undo. */
+export async function setAllManualTestsChecked(taskId: string, checked: boolean, root: string): Promise<{ task: Task; changed: number[] }> {
+  const task = await getTask(taskId, root)
+  const { raw, changed } = setAllManualTests(task.raw ?? '', checked)
+  if (changed.length) await fs.writeFile(path.join(root, task.file), raw, 'utf8')
+  return { task: changed.length ? await getTask(task.id, root) : task, changed }
 }
 
 /** Tick or untick one manual test item (index in file order). Never changes the task status. Throws RangeError for a bad index. */

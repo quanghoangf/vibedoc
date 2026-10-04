@@ -61,8 +61,23 @@ export const GRAPH_KEYS = {
   clear: { key: "Esc", label: "Clear the search, then the selection" },
 } as const
 
+/**
+ * Keys on /manual-tests (Test review): the help sheet's section and the detail's kbd strip read this one list.
+ * `a` and `s` shadow the Activity / Settings jumps on that page only.
+ */
+export const TEST_REVIEW_KEYS = {
+  move: { key: "j k", label: "Next / previous task" },
+  tick: { key: "x", label: "Tick the next manual check" },
+  approve: { key: "a", label: "Approve (in review): focus it, a again confirms" },
+  sendBack: { key: "s", label: "Send back with a note" },
+  failed: { key: "f", label: "Next failed task" },
+  pick: { key: "⇧/⌘-click", label: "Select several tasks (bulk tick, approve, send back); Esc clears" },
+  expand: { key: "o", label: "Open the task as a page / collapse back to the list" },
+  play: { key: "Space", label: "Play / pause (player focused)" },
+} as const
+
 /** Everything else the help sheet lists, after the page jumps, grouped by `section`. */
-export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "Open" | "Board" | "Graph" | "Open item" | "Editing & other" }[] = [
+export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "Open" | "Board" | "Graph" | "Test review" | "Open item" | "Editing & other" }[] = [
   { key: "⌘K", label: "Command palette", section: "Open" },
   { key: "⌘P", label: "Go to file", section: "Open" },
   { key: CHAT_KEY, label: "Open next chat", section: "Open" },
@@ -72,6 +87,7 @@ export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "O
   { key: "f", label: "Open filters", section: "Board" },
   { key: "⇧-click", label: "Select tasks (bulk actions)", section: "Board" },
   ...Object.values(GRAPH_KEYS).map(({ key, label }) => ({ key, label, section: "Graph" as const })),
+  ...Object.values(TEST_REVIEW_KEYS).map(({ key, label }) => ({ key, label, section: "Test review" as const })),
   ...Object.values(ITEM_KEYS).map(({ label, help }) => ({ key: label, label: help, section: "Open item" as const })),
   { key: "/", label: "Focus search (docs, board)", section: "Editing & other" },
   { key: DOCS_LIST_KEY.label, label: "Hide / show the docs list", section: "Editing & other" },

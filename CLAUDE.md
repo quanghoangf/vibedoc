@@ -21,7 +21,7 @@ src/
     (app)/roadmap/page.tsx ← Roadmap page (roadmap.sh-style, React Flow)
     (app)/graph/page.tsx  ← Whole-repo doc link graph (React Flow, force layout)
     (app)/chat/page.tsx   ← All agent chats: list · conversation · epic/task context
-    (app)/manual-tests/page.tsx ← Tasks with unticked manual test items; tick to save
+    (app)/manual-tests/page.tsx ← Test review: task list (Needs you/Failed/Passed/No run) + run replay, checklist, review
     api/
       mcp/route.ts        ← MCP JSON-RPC endpoint (AI connects here)
       events/route.ts     ← SSE stream (real-time browser updates)
