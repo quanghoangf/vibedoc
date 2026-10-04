@@ -24,12 +24,8 @@ import path from 'path'
 import { newRunId, projectKey, runDir, stepFile } from '../lib/runs-paths.js'
 import { parseKeep, planPrune } from '../lib/runs-retention.js'
 
-export type RunStep = { index: number; name: string; status: 'passed' | 'failed'; screenshot: string | null; error: string | null }
-/** Read by the runs API/viewer and R060: keep the shape stable. */
-export type RunManifest = {
-  runId: string; taskId: string; project: string; startedAt: string; endedAt: string
-  status: 'passed' | 'failed'; commit: string | null; video: string | null; steps: RunStep[]
-}
+import type { RunManifest, RunStep } from '../lib/runs-paths.js'
+export type { RunManifest, RunStep }
 type Run = { dir: string; runId: string; taskId: string; project: string; startedAt: string }
 type Step = <T>(name: string, fn: () => Promise<T>) => Promise<T>
 

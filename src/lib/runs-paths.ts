@@ -9,6 +9,45 @@ import path from 'path'
 
 const SLUG_MAX = 60
 
+export type RunStep = { index: number; name: string; status: 'passed' | 'failed'; screenshot: string | null; error: string | null }
+/** `run.json`: written by the fixture, read by the runs API/viewer and R060. Keep the shape stable. */
+export type RunManifest = {
+  runId: string; taskId: string; project: string; startedAt: string; endedAt: string
+  status: 'passed' | 'failed'; commit: string | null; video: string | null; steps: RunStep[]
+}
+
+/** Input checks before anything is joined into a runs path (the runs API takes these from the URL). */
+export const isRunId = (s: string) => /^\d{8}T\d{6}Z$/.test(s)
+export const isRunFile = (s: string) => /^[\w.-]+\.(png|webm)$/.test(s) && !s.startsWith('.')
+export const isRunTaskId = (s: string) => /^T\d+$/.test(s)
+export const runFileType = (file: string) => (file.endsWith('.webm') ? 'video/webm' : 'image/png')
+
+/** A parsed run.json, or null when it isn't one (half-written, hand-edited, another tool's file). */
+export function parseRunManifest(text: string): RunManifest | null {
+  try {
+    const m = JSON.parse(text)
+    return m && typeof m === 'object' && isRunId(String(m.runId)) && Array.isArray(m.steps) && (m.status === 'passed' || m.status === 'failed') ? m : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * `Range: bytes=…` → the inclusive byte span to send. null = send the whole file (no header, a multi-range or
+ * a syntax we don't read); 'unsatisfiable' = 416. Covers `a-b`, `a-` and the suffix form `-n`.
+ */
+export function parseRange(header: string | null | undefined, size: number): { start: number; end: number } | 'unsatisfiable' | null {
+  const m = header?.trim().match(/^bytes=(\d*)-(\d*)$/)
+  if (!m || (!m[1] && !m[2])) return null
+  if (!m[1]) {
+    const n = Number(m[2])
+    return n === 0 || size === 0 ? 'unsatisfiable' : { start: Math.max(0, size - n), end: size - 1 }
+  }
+  const start = Number(m[1])
+  const end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1
+  return start >= size || end < start ? 'unsatisfiable' : { start, end }
+}
+
 /** `$VIBEDOC_RUNS_DIR`, else `~/.vibedoc/runs`. */
 export function runsRoot(env: NodeJS.ProcessEnv = process.env): string {
   return env.VIBEDOC_RUNS_DIR || path.join(os.homedir(), '.vibedoc', 'runs')

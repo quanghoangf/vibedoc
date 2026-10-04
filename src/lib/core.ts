@@ -5,6 +5,8 @@
  */
 
 import fs from 'fs/promises'
+import { createReadStream } from 'fs'
+import { Readable } from 'stream'
 import path from 'path'
 import os from 'os'
 import { glob } from 'glob'
@@ -22,6 +24,7 @@ import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { parseKeep } from './runs-retention'
+import { isRunFile, isRunId, isRunTaskId, parseRange, parseRunManifest, projectKey, runsRoot, type RunManifest } from './runs-paths'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallHit } from './recall'
@@ -61,9 +64,13 @@ export interface Task {
   /** The `## Manual tests` checklist (R043), counted; null when the task has none */
   /** `untested`: unticked items still needing a human (manual, or 🤖 without a passed run) */
   manualTests: { total: number; done: number; auto: number; untested: number; spec: string | null; autoRun: AutoRun | null } | null
+  /** Newest recorded test run (R059), null when the task has none. `steps` / `passed` are counts. */
+  lastRun: TaskLastRun | null
   file: string
   raw?: string
 }
+
+export type TaskLastRun = { runId: string; status: RunManifest['status']; steps: number; passed: number }
 
 export interface TaskBoard {
   todo: Task[]
@@ -537,7 +544,7 @@ function parseTaskFile(filePath: string, content: string, defs: StatusDef[]): Ta
 
   const tests = parseManualTests(content)
   const manualTests = tests && { total: tests.total, done: tests.done, auto: tests.auto, untested: untestedItems(tests).length, spec: tests.spec, autoRun: tests.autoRun }
-  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, file: filePath, raw: content }
+  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, lastRun: null, file: filePath, raw: content }
 }
 
 export async function listTasks(root: string): Promise<{ tasks: Task[]; board: TaskBoard }> {
@@ -553,8 +560,10 @@ export async function listTasks(root: string): Promise<{ tasks: Task[]; board: T
     } catch {}
   }
 
+  const lastRuns = await lastRunsByTask(root)
   const board: TaskBoard = { todo: [], 'in-progress': [], review: [], blocked: [], paused: [], done: [], cancelled: [] }
   for (const t of tasks) {
+    t.lastRun = lastRuns.get(t.id) ?? null
     const col = (board[t.status] ? t.status : 'todo') as TaskStatus
     board[col].push(t)
   }
@@ -568,10 +577,90 @@ export async function getTask(taskId: string, root: string): Promise<Task> {
     const matches = await glob(pattern, { cwd: root, nodir: true })
     if (matches.length > 0) {
       const content = await fs.readFile(path.join(root, matches[0]), 'utf8')
-      return parseTaskFile(matches[0], content, statuses)
+      const task = parseTaskFile(matches[0], content, statuses)
+      task.lastRun = toLastRun((await listRuns(task.id, root))[0])
+      return task
     }
   }
   throw new Error(`Task not found: ${taskId}`)
+}
+
+// ─── Test runs (R059) ─────────────────────────────────────────────────────────
+// Recorded by the vibedoc/playwright fixture in `<runsRoot>/<projectKey>/<taskId>/<runId>/`, outside the repo.
+
+/** A task's runs folder, or null when the id isn't a plain task id (it comes from the URL). */
+function taskRunsDir(taskId: string, root: string): string | null {
+  return isRunTaskId(taskId) ? path.join(runsRoot(), projectKey(root), taskId) : null
+}
+
+async function readRunManifest(dir: string): Promise<RunManifest | null> {
+  try {
+    return parseRunManifest(await fs.readFile(path.join(dir, 'run.json'), 'utf8'))
+  } catch {
+    return null // no run.json yet (still running) or unreadable
+  }
+}
+
+/** A task's runs, newest first. Folders without a valid run.json are skipped. Demo / no runs dir → []. */
+export async function listRuns(taskId: string, root: string): Promise<RunManifest[]> {
+  const dir = taskRunsDir(taskId, root)
+  if (!dir || isDemo()) return []
+  let ids: string[]
+  try {
+    ids = (await fs.readdir(dir)).filter(isRunId).sort().reverse()
+  } catch {
+    return []
+  }
+  const runs = await Promise.all(ids.map(id => readRunManifest(path.join(dir, id))))
+  return runs.filter((r): r is RunManifest => r !== null)
+}
+
+function toLastRun(r: RunManifest | undefined): TaskLastRun | null {
+  return r ? { runId: r.runId, status: r.status, steps: r.steps.length, passed: r.steps.filter(s => s.status === 'passed').length } : null
+}
+
+/** Newest valid run of every task that has one: one readdir per task folder, run.json read until one parses. */
+async function lastRunsByTask(root: string): Promise<Map<string, TaskLastRun>> {
+  const out = new Map<string, TaskLastRun>()
+  if (isDemo()) return out
+  let taskIds: string[]
+  try {
+    taskIds = (await fs.readdir(path.join(runsRoot(), projectKey(root)))).filter(isRunTaskId)
+  } catch {
+    return out // no runs yet
+  }
+  await Promise.all(taskIds.map(async id => {
+    const dir = path.join(runsRoot(), projectKey(root), id)
+    const runIds = await fs.readdir(dir).then(n => n.filter(isRunId).sort().reverse(), () => [])
+    for (const runId of runIds) {
+      const last = toLastRun((await readRunManifest(path.join(dir, runId))) ?? undefined)
+      if (last) return void out.set(id, last)
+    }
+  }))
+  return out
+}
+
+/**
+ * One screenshot or video of a run, as a web stream. Ids and name are checked before any path join.
+ * `range` is the request's Range header. null = bad input or no such file; 'unsatisfiable' → 416.
+ */
+export async function readRunFile(taskId: string, runId: string, file: string, root: string, range?: string | null):
+  Promise<{ stream: ReadableStream<Uint8Array>; size: number; span: { start: number; end: number } | null } | { unsatisfiable: true; size: number } | null> {
+  const dir = taskRunsDir(taskId, root)
+  if (!dir || !isRunId(runId) || !isRunFile(file) || isDemo()) return null
+  const filePath = path.join(dir, runId, file)
+  let size: number
+  try {
+    const st = await fs.stat(filePath)
+    if (!st.isFile()) return null
+    size = st.size
+  } catch {
+    return null
+  }
+  const span = parseRange(range, size)
+  if (span === 'unsatisfiable') return { unsatisfiable: true, size }
+  const node = createReadStream(filePath, span ?? undefined)
+  return { stream: Readable.toWeb(node) as ReadableStream<Uint8Array>, size, span }
 }
 
 /**
