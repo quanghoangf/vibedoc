@@ -25,6 +25,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/explorer": "Explorer",
   "/settings": "Settings",
   "/chat": "Chats",
+  "/getting-started": "Getting started",
 }
 
 /** The system focus ring (ui/button.tsx) for the hand-rolled header buttons. */
@@ -67,11 +68,11 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
       <div className="flex-1" />
 
       {demo && (
-        <p className="flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg/60 px-2.5 py-1 text-xs text-muted">
+        <Link href="/welcome" title="About VibeDoc" className={cn("flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg/60 px-2.5 py-1 text-xs text-muted hover:text-txt", focusRing)}>
           <span className="hidden lg:inline">Live demo, read-only. Install:</span>
           <span className="lg:hidden">Read-only demo</span>
           <code className="hidden font-mono text-txt lg:inline">npx vibedoc</code>
-        </p>
+        </Link>
       )}
 
       <AgentStatus liveIndicator={liveIndicator} activity={activity} now={now} />

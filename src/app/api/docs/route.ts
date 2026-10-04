@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listDocs, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, rootFrom, enrichDescription, noteDocEdit, docLastEdit, setDocProperties } from '@/lib/core'
+import { listDocs, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, rootFrom, enrichDescription, noteDocEdit, docLastEdit, setDocProperties, readGettingStarted } from '@/lib/core'
 import { PROPERTY_KEY, parsePriority } from '@/lib/doc-priority'
 import { emitUpdate } from '@/lib/events'
 import { isDemo, demoForbidden } from '@/lib/demo'
@@ -9,6 +9,10 @@ export async function GET(req: NextRequest) {
   const query = req.nextUrl.searchParams.get('q')
   const read = req.nextUrl.searchParams.get('read')
 
+  // VibeDoc's own guide (/getting-started), from the package even when VIBEDOC_ROOT is another project
+  if (req.nextUrl.searchParams.get('guide') === 'getting-started') {
+    return NextResponse.json({ content: await readGettingStarted() })
+  }
   if (read) {
     const doc = await readDoc(read, root)
     return NextResponse.json({ ...doc, lastEdit: await docLastEdit(root, doc.path) })

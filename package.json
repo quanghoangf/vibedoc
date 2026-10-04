@@ -27,6 +27,7 @@
     ".next/static/",
     "public/",
     "skills/",
+    "docs/getting-started.md",
     "next.config.js",
     "ws-server.js",
     "package.json"

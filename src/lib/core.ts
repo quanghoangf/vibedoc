@@ -2539,6 +2539,11 @@ export async function readPlanningSkill(kind: PlanningKind): Promise<string> {
   return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trimStart()
 }
 
+/** VibeDoc's own getting-started guide (R042), read from the package (cwd) like the skills, never the target project. */
+export async function readGettingStarted(): Promise<string> {
+  return fs.readFile(path.join(process.cwd(), 'docs', 'getting-started.md'), 'utf-8')
+}
+
 // ─── Agent chats (.vibedoc/chats/<id>.json) ───────────────────────────────────
 // The browser owns the chat shape (src/lib/chats.ts); core only stores it by id.
 
