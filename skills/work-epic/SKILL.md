@@ -24,7 +24,7 @@ Read the project's `CLAUDE.md` once. Task files quote the relevant rules, but th
 2. **Read the task.** If the reply has a `⚠️ Changes requested` line, a human sent this task back from review: that note is the first thing to fix, and the rest of the spec still applies. Read its Goal, Scope, Files, Implementation notes, Acceptance criteria and Verify. The task file is the spec. Stay inside its Scope: later tasks in the epic own the rest, and if you do their work now, their diffs will conflict with yours.
 3. **Implement** the task, following the project's patterns.
 4. **Verify.** Run every command in the task's **Verify** block, and check each acceptance criterion you can check. If something fails and the fix is inside the task's scope, fix it and run Verify again.
-5. **Done.** Only when Verify passes: write a manual test report (below) and call `vibedoc_update_task { "taskId": "<id>", "status": "done", "manualTests": "<report>" }`, then commit that task's changes, following the repo's commit rules (message format, attribution, which files to stage). Each task leaves the app in a working state. When you commit after each task, it is safe to stop at any point, and a human can review or revert one task at a time.
+5. **Done.** Only when Verify passes: write a manual test report (below). If the task changed something a user sees in the browser, write the spec for it next ([Write the spec](#write-the-spec-ui-tasks)). Then call `vibedoc_update_task { "taskId": "<id>", "status": "done", "manualTests": "<report>" }` (plus `"spec": "<path>"` when you wrote one), then commit that task's changes, following the repo's commit rules (message format, attribution, which files to stage). Each task leaves the app in a working state. When you commit after each task, it is safe to stop at any point, and a human can review or revert one task at a time.
 
    Use `"status": "review"` instead of done only when you can't judge the result yourself: a visual or UX change you couldn't look at, or a Verify step you couldn't run fully. Say why in your report. A task in review holds back the tasks that depend on it until a human approves it, so the default stays done.
 6. **Repeat** from step 1. Mark the current task done before you call `vibedoc_next_task` again. If you don't, the task stays in-progress and the queue treats it as claimed by another agent.
@@ -45,6 +45,79 @@ The report is what a person clicks through before they trust "done". It is saved
 - At least one **Regression risk** item: the existing feature your change most likely breaks.
 - No item that only repeats a Verify command. Those already ran; the report covers what automation didn't.
 - The report is encouraged, never required: a missing one doesn't block anything, but the human then has nothing to check.
+
+## Write the spec (UI tasks)
+
+A checklist item a script can check should not wait for a human. After you draft the report, turn its checkable items into one Playwright spec in the target repo, so the human only clicks through what is left.
+
+**Only UI tasks.** Skip this section when the task changed nothing a user sees in the browser (an MCP tool, a CLI, a pure lib, docs). That task keeps an all-manual report and no `spec`.
+
+1. **Read the app.** Call `vibedoc_get_frontend`. Use what it reports, don't guess: **Dir** (the app folder), **URL**, **Playwright** and **Auth**. If it says no frontend is detected or Playwright is not installed, skip the spec and keep the report all-manual (say why in your summary). Don't install Playwright yourself.
+2. **Decide per item.** An item is automated only if its expected result (after `→`) can become a real `expect(...)`: visible text, the URL, an element's state (visible, checked, disabled, focused) or a count. It stays manual when it needs judgement ("looks right", "feels smooth", spacing, colours), an external system (email, payment, another service), or setup unrelated to this task (most **Regression risk** items). When unsure, leave it manual.
+3. **Write the spec** at `<testDir>/vibedoc/<task file name>.spec.ts` (`plans/tasks/T012-theme-toggle.md` → `T012-theme-toggle.spec.ts`), where `testDir` comes from the app's `playwright.config.*` (relative to the config file), else `e2e`, inside the app **Dir**. One spec per task, one `test()` per spec, one `test.step('<item text>')` per automated item, in checklist order, with the item text copied without the `🤖`. Writing again for the same task replaces the file.
+4. **Mark the items.** Prefix exactly the automated items with `🤖 ` in the report (`- [ ] 🤖 Open /settings → …`). Manual items keep no mark.
+5. **Link it.** Pass `"spec": "<path>"` to `vibedoc_update_task`, relative to the repo root (with the app **Dir** in front in a monorepo, e.g. `apps/web/e2e/vibedoc/T012-theme-toggle.spec.ts`). The task's checklist header then shows the spec.
+
+Running the spec and acting on its result is not part of this step.
+
+**Spec rules:**
+
+- Locators by role, label or text (`getByRole`, `getByLabel`, `getByText`, `getByTestId` as a last resort), never CSS or XPath selectors.
+- No fixed sleeps (`waitForTimeout`, `setTimeout`). Playwright's `expect` and locators already wait.
+- Every `test.step` ends with an `expect`. A step without one proves nothing.
+- Navigate with paths (`page.goto('/settings')`). If the config has no `use.baseURL`, add `test.use({ baseURL: '<URL from vibedoc_get_frontend>' })`.
+- Never script a login (no typed passwords, no secrets in the spec). If **Auth** shows a saved session, reuse it: `test.use({ storageState: '<path to .vibedoc/auth/storage-state.json, relative to the app Dir>' })` (Playwright resolves a relative path from the folder the test runs in, so it is run from the app **Dir**). Without a saved session, leave `storageState` out: a missing file fails every test. If the page needs a login and no session is saved, keep those items manual.
+- Assert this task's change only. Don't create or delete data the test doesn't own.
+
+**Example.** The report
+
+```md
+### Steps
+- [ ] Open /settings → a "Theme" switch shows, set to Dark
+- [ ] Click the Theme switch → the switch reads Light
+- [ ] Reload → Light is still selected
+- [ ] The light theme looks right on the settings cards
+### Regression risk
+- [ ] Logging out from the header menu still works
+```
+
+becomes this report (three items automated; the visual check and the unrelated regression item stay manual):
+
+```md
+### Steps
+- [ ] 🤖 Open /settings → a "Theme" switch shows, set to Dark
+- [ ] 🤖 Click the Theme switch → the switch reads Light
+- [ ] 🤖 Reload → Light is still selected
+- [ ] The light theme looks right on the settings cards
+### Regression risk
+- [ ] Logging out from the header menu still works
+```
+
+and `e2e/vibedoc/T012-theme-toggle.spec.ts` (Auth showed a saved session, so the spec reuses it):
+
+```ts
+import { test, expect } from '@playwright/test'
+
+test.use({ baseURL: 'http://localhost:5173', storageState: '.vibedoc/auth/storage-state.json' })
+
+test('T012 Theme toggle on settings', async ({ page }) => {
+  await test.step('Open /settings → a "Theme" switch shows, set to Dark', async () => {
+    await page.goto('/settings')
+    await expect(page.getByRole('switch', { name: 'Theme' })).toBeVisible()
+    await expect(page.getByText('Dark', { exact: true })).toBeVisible()
+  })
+  await test.step('Click the Theme switch → the switch reads Light', async () => {
+    await page.getByRole('switch', { name: 'Theme' }).click()
+    await expect(page.getByText('Light', { exact: true })).toBeVisible()
+  })
+  await test.step('Reload → Light is still selected', async () => {
+    await page.reload()
+    await expect(page.getByText('Light', { exact: true })).toBeVisible()
+  })
+})
+```
+
+Then call `vibedoc_update_task { "taskId": "T012", "status": "done", "manualTests": "<report>", "spec": "e2e/vibedoc/T012-theme-toggle.spec.ts" }`.
 
 ## Stop rules
 
