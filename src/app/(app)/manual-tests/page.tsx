@@ -3,10 +3,10 @@
 import { displayStatus } from "@/lib/statuses"
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowRight, Check, CircleCheck, FlaskConical } from "lucide-react"
+import { ArrowRight, Bot, Check, ChevronRight, CircleCheck, FlaskConical } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { StatusChip } from "@/components/shared/StatusIcon"
-import { parseManualTests, type ManualTestItem, type ManualTests } from "@/lib/manual-tests"
+import { parseManualTests, untestedItems, type ManualTestItem, type ManualTests } from "@/lib/manual-tests"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/types"
 
@@ -35,7 +35,8 @@ export default function ManualTestsPage() {
     const p = pending[`${t.task.id}:${item.index}`]
     return p && p.raw === t.task.raw ? p.checked : item.checked
   }
-  const remaining = (t: Tested) => t.tests.items.filter((i) => !checkedOf(t, i)).length
+  // Only items a human still has to check: 🤖 ones proven by a passed run don't count (R058)
+  const remaining = (t: Tested) => untestedItems(t.tests, (i) => checkedOf(t, i)).length
 
   const open = all.filter((t) => remaining(t) > 0)
   const shown = showTested ? all : all.filter((t) => remaining(t) > 0 || finishedHere.includes(t.task.id))
@@ -122,7 +123,7 @@ export default function ManualTestsPage() {
         <section key={epic} className="flex flex-col gap-4">
           <EpicHeading epic={epic} />
           {tasks.map((t) => (
-            <TaskTests key={t.task.id} t={t} checkedOf={(i) => checkedOf(t, i)} onToggle={(i, c) => toggle(t, i, c)} />
+            <TaskTests key={t.task.id} t={t} remaining={remaining(t)} checkedOf={(i) => checkedOf(t, i)} onToggle={(i, c) => toggle(t, i, c)} />
           ))}
         </section>
       ))}
@@ -173,18 +174,34 @@ function StepText({ text, checked }: { text: string; checked: boolean }) {
   )
 }
 
-function TaskTests({ t, checkedOf, onToggle }: {
+function TaskTests({ t, remaining, checkedOf, onToggle }: {
   t: Tested
+  remaining: number
   checkedOf: (item: ManualTestItem) => boolean
   onToggle: (item: ManualTestItem, checked: boolean) => void
 }) {
   const done = t.tests.items.filter(checkedOf).length
   const total = t.tests.total
-  const complete = done === total
+  const complete = remaining === 0
+  const proven = t.tests.autoRun?.result === "passed"
+  const manual = t.tests.items.filter((i) => !i.auto)
+  const automated = t.tests.items.filter((i) => i.auto)
   const groups = [
-    { label: "Steps", items: t.tests.items.filter((i) => i.group === "steps") },
-    { label: "Regression risk", items: t.tests.items.filter((i) => i.group === "regression") },
+    { label: "Steps", items: manual.filter((i) => i.group === "steps") },
+    { label: "Regression risk", items: manual.filter((i) => i.group === "regression") },
   ].filter((g) => g.items.length)
+  const row = (item: ManualTestItem, number: string) => {
+    const checked = checkedOf(item)
+    return (
+      <li key={item.index}>
+        <label className="-mx-2 grid cursor-pointer grid-cols-[1rem_1.25rem_1fr] items-start gap-x-2.5 rounded-md px-2 py-2 hover:bg-surface2">
+          <Tick checked={checked} onChange={(c) => onToggle(item, c)} />
+          <span className="mt-px font-mono text-[11px] leading-5 text-muted tabular-nums" aria-hidden>{number}</span>
+          <StepText text={item.text} checked={checked} />
+        </label>
+      </li>
+    )
+  }
 
   return (
     <article
@@ -209,7 +226,7 @@ function TaskTests({ t, checkedOf, onToggle }: {
           {t.tests.items.map((i) => (
             <span
               key={i.index}
-              className={cn("h-1 flex-1 rounded-full transition-colors duration-(--duration-base)", checkedOf(i) ? "bg-teal" : i.group === "regression" ? "bg-amber/25" : "bg-border2")}
+              className={cn("h-1 flex-1 rounded-full transition-colors duration-(--duration-base)", checkedOf(i) || (i.auto && proven) ? "bg-teal" : i.group === "regression" ? "bg-amber/25" : "bg-border2")}
             />
           ))}
         </div>
@@ -219,22 +236,28 @@ function TaskTests({ t, checkedOf, onToggle }: {
           <div key={g.label} className="flex flex-col gap-1">
             <p className={cn("font-mono text-[10px] uppercase tracking-widest", g.label === "Steps" ? "text-muted" : "text-amber")}>{g.label}</p>
             <ol className="flex flex-col">
-              {g.items.map((item, n) => {
-                const checked = checkedOf(item)
-                return (
-                  <li key={item.index}>
-                    <label className="-mx-2 grid cursor-pointer grid-cols-[1rem_1.25rem_1fr] items-start gap-x-2.5 rounded-md px-2 py-2 hover:bg-surface2">
-                      <Tick checked={checked} onChange={(c) => onToggle(item, c)} />
-                      {/* Steps are a sequence; regression checks aren't */}
-                      <span className="mt-px font-mono text-[11px] leading-5 text-muted tabular-nums" aria-hidden>{g.label === "Steps" ? String(n + 1).padStart(2, "0") : ""}</span>
-                      <StepText text={item.text} checked={checked} />
-                    </label>
-                  </li>
-                )
-              })}
+              {/* Steps are a sequence; regression checks aren't */}
+              {g.items.map((item, n) => row(item, g.label === "Steps" ? String(n + 1).padStart(2, "0") : ""))}
             </ol>
           </div>
         ))}
+        {/* 🤖 items (R058): a spec covers them, so they stay folded unless the last run didn't pass */}
+        {automated.length > 0 && (
+          <details open={!proven} className="group/auto flex flex-col gap-1">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] text-muted uppercase tracking-widest hover:text-txt [&::-webkit-details-marker]:hidden">
+              <ChevronRight className="size-3 transition-transform group-open/auto:rotate-90" aria-hidden />
+              <Bot className="size-3" aria-hidden />
+              Automated <span className="tabular-nums">({automated.length})</span>
+              <span className="normal-case tracking-normal">
+                {t.tests.autoRun
+                  ? <>· last run <span className={t.tests.autoRun.result === "failed" ? "text-danger" : "text-teal"}>{t.tests.autoRun.result}</span> {t.tests.autoRun.date}</>
+                  : "· not run yet"}
+              </span>
+              {t.tests.spec && <code className="normal-case tracking-normal select-all">{t.tests.spec}</code>}
+            </summary>
+            <ol className="mt-1 flex flex-col">{automated.map((item) => row(item, ""))}</ol>
+          </details>
+        )}
         {t.tests.date && <p className="font-mono text-[10px] text-muted">Report from {t.tests.date}</p>}
       </div>
     </article>

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { CornerDownRight, CornerUpLeft, FlaskConical, MoreHorizontal, PanelRightOpen, Trash2 } from "lucide-react"
+import { Bot, CornerDownRight, CornerUpLeft, FlaskConical, MoreHorizontal, PanelRightOpen, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/context/AppContext"
 import { deleteTaskWithUndo } from "./task-api"
@@ -108,14 +108,19 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
               href={`/manual-tests#${task.id}`}
               draggable={false}
               onClick={(e) => e.stopPropagation()}
-              title={`Manual tests: ${tests.done} of ${tests.total} ticked`}
+              title={`Manual tests: ${tests.done} of ${tests.total} ticked` +
+                (tests.auto ? `, ${tests.auto} automated` : "") +
+                (tests.autoRun ? ` (last run ${tests.autoRun.result} ${tests.autoRun.date})` : "")}
               className={cn(
                 "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
-                tests.done === tests.total ? "border-teal/30 bg-teal/5 text-teal" : "border-border text-muted",
+                tests.autoRun?.result === "failed" ? "border-danger/40 text-danger"
+                  : tests.untested === 0 ? "border-teal/30 bg-teal/5 text-teal" : "border-border text-muted",
               )}
             >
               <FlaskConical className="size-3" aria-hidden />
               {tests.done}/{tests.total}
+              {tests.auto > 0 && <> · <Bot className="size-3" aria-hidden />{tests.auto}</>}
+              {tests.autoRun?.result === "failed" && <span className="size-1.5 rounded-full bg-danger" aria-label="last auto run failed" />}
             </Link>
           )}
         </div>

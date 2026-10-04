@@ -1,6 +1,6 @@
 // Self-check for manual test reports. Run: node src/lib/manual-tests.check.mts
 import assert from 'node:assert/strict'
-import { normalizeReport, parseManualTests, setManualTests, setManualTestsMeta, toggleManualTest } from './manual-tests.ts'
+import { normalizeReport, parseManualTests, setManualTests, setManualTestsMeta, toggleManualTest, untestedItems } from './manual-tests.ts'
 
 const task = '# T001: First\n**Status:** 🔨 In Progress\n**Depends on:** —\n\n## Goal\nDo it.\n'
 
@@ -105,5 +105,13 @@ assert.equal(parseManualTests(setManualTests(run, '- [ ] plain', 'ai', '2026-10-
 const tickAuto = toggleManualTest(withSpec, 2, true)
 assert.match(tickAuto, /- \[x\] 🤖Search still filters/)
 assert.deepEqual(parseManualTests(tickAuto)?.items.map((i) => [i.checked, i.auto]), [[false, true], [false, false], [true, true]])
+
+// T146: untested = unticked manual items, plus 🤖 ones while the spec hasn't passed
+const untested = (raw: string) => untestedItems(parseManualTests(raw)!).map((i) => i.index)
+assert.deepEqual(untested(withSpec), [0, 1, 2], 'never run: 🤖 items still count')
+assert.deepEqual(untested(withRun), [0, 1, 2], 'failed run: 🤖 items still count')
+assert.deepEqual(untested(run), [], 'passed run + manual ticked: nothing left')
+assert.deepEqual(untested(setManualTestsMeta(withSpec, { autoRun: { result: 'passed', date: '2026-10-05' } }, 'ai', '2026-10-05')), [1])
+assert.deepEqual(untestedItems(parseManualTests(one)!, () => true), [], 'pending ticks apply')
 
 console.log('manual-tests: ok')

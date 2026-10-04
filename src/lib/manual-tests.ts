@@ -159,6 +159,15 @@ export function parseManualTests(raw: string): ManualTests | null {
   }
 }
 
+/**
+ * Unticked items a human still has to click through (R058): every manual one, and 🤖 ones unless the spec's last run passed.
+ * `checked` lets the UI apply ticks it hasn't saved yet.
+ */
+export function untestedItems(t: Pick<ManualTests, "items" | "autoRun">, checked: (i: ManualTestItem) => boolean = (i) => i.checked): ManualTestItem[] {
+  const proven = t.autoRun?.result === "passed"
+  return t.items.filter((i) => !checked(i) && !(i.auto && proven))
+}
+
 /** Tick or untick the `index`th checklist item of the `## Manual tests` section (file order), nothing else. */
 export function toggleManualTest(raw: string, index: number, checked: boolean): string {
   const lines = raw.split("\n")

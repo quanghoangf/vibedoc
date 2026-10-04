@@ -60,8 +60,8 @@ export function AppSidebar({ board }: AppSidebarProps) {
   const pathname = usePathname()
   const { demo } = useApp()
   const settingsKey = shortcutFor("/settings")
-  // Unticked manual test items across all tasks (R043)
-  const untested = board ? Object.values(board).flat().reduce((n, t) => n + (t.manualTests ? t.manualTests.total - t.manualTests.done : 0), 0) : 0
+  // Unticked manual test items across all tasks (R043); 🤖 items proven by a passed run don't count (R058)
+  const untested = board ? Object.values(board).flat().reduce((n, t) => n + (t.manualTests?.untested ?? 0), 0) : 0
   // Work in flight on the board (the counts that used to sit in a separate "Board" section and the header)
   const active = board ? board["in-progress"].length + board.review.length : 0
   // Advisory counts, so muted: nothing here needs you right now

@@ -8,7 +8,7 @@ import type { Task } from "@/types"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
 import Link from "next/link"
-import { Calendar, Check, ChevronRight, CircleDashed, CornerUpLeft, Flag, FlaskConical, Map as MapIcon, MessageSquare, MoreHorizontal, Pencil, Ruler, Trash2, User } from "lucide-react"
+import { Bot, Calendar, Check, ChevronRight, Copy, CircleDashed, CornerUpLeft, Flag, FlaskConical, Map as MapIcon, MessageSquare, MoreHorizontal, Pencil, Ruler, Trash2, User } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
@@ -25,6 +25,7 @@ import { useApp } from "@/context/AppContext"
 import { useChats } from "@/context/ChatContext"
 import { chatFor } from "@/lib/chats"
 import { reviewHistory, type ReviewEntry } from "@/lib/review"
+import type { AutoRun } from "@/lib/manual-tests"
 
 const NEXT_STATUS: Record<string, string[]> = {
   todo: ["in-progress", "paused"],
@@ -170,8 +171,14 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                       {task.manualTests.done}/{task.manualTests.total}
                     </span>
                     manual tests ticked
+                    {task.manualTests.auto > 0 && (
+                      <span className="inline-flex items-center gap-1"><span aria-hidden>·</span><Bot className="size-3.5" aria-hidden /><span className="font-mono">{task.manualTests.auto}</span> automated</span>
+                    )}
                     <span className="ml-auto text-accent opacity-0 transition-opacity group-hover:opacity-100">Open checklist →</span>
                   </Link>
+                )}
+                {task.manualTests && (task.manualTests.spec || task.manualTests.autoRun) && (
+                  <AutoTestsLine spec={task.manualTests.spec} autoRun={task.manualTests.autoRun} />
                 )}
 
                 <ReviewHistory entries={reviewHistory(task.raw ?? "")} />
@@ -183,6 +190,46 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
         )}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** "Spec: `path` · last run passed 2026-10-04" (R058). The spec lives in the target repo, so the path is copied, not linked. */
+function AutoTestsLine({ spec, autoRun }: { spec: string | null; autoRun: AutoRun | null }) {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    if (!spec) return
+    try {
+      await navigator.clipboard.writeText(spec)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard blocked: the path stays selectable
+    }
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-5 py-2 border-b border-border text-xs text-muted">
+      {spec && (
+        <span className="inline-flex min-w-0 items-center gap-1">
+          Spec: <code className="select-all truncate font-mono text-txt">{spec}</code>
+          <button
+            type="button"
+            onClick={copy}
+            aria-label={copied ? "Copied" : `Copy ${spec}`}
+            className="rounded-sm p-1 hover:bg-surface2 hover:text-txt focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            {copied ? <Check className="size-3" aria-hidden /> : <Copy className="size-3" aria-hidden />}
+          </button>
+          <span className="sr-only" role="status">{copied ? "Copied to clipboard" : ""}</span>
+        </span>
+      )}
+      {spec && autoRun && <span aria-hidden>·</span>}
+      {autoRun && (
+        <span>
+          last run <span className={cn("font-mono", autoRun.result === "failed" ? "text-danger" : "text-teal")}>{autoRun.result}</span>{" "}
+          <span className="font-mono">{autoRun.date}</span>
+        </span>
+      )}
+    </div>
   )
 }
 

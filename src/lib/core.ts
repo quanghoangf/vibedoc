@@ -15,7 +15,7 @@ import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraf
 import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
-import { parseManualTests, setManualTests, setManualTestsMeta, toggleManualTest, type AutoRun, type ManualTestsMeta } from './manual-tests'
+import { parseManualTests, setManualTests, setManualTestsMeta, toggleManualTest, untestedItems, type AutoRun, type ManualTestsMeta } from './manual-tests'
 import { appendReviewEntry, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
 import { parseOwner } from './owner'
@@ -58,7 +58,8 @@ export interface Task {
   started: string | null
   finished: string | null
   /** The `## Manual tests` checklist (R043), counted; null when the task has none */
-  manualTests: { total: number; done: number; auto: number; spec: string | null; autoRun: AutoRun | null } | null
+  /** `untested`: unticked items still needing a human (manual, or 🤖 without a passed run) */
+  manualTests: { total: number; done: number; auto: number; untested: number; spec: string | null; autoRun: AutoRun | null } | null
   file: string
   raw?: string
 }
@@ -534,7 +535,7 @@ function parseTaskFile(filePath: string, content: string, defs: StatusDef[]): Ta
   const id = idM ? idM[1].toUpperCase() : filename.toUpperCase()
 
   const tests = parseManualTests(content)
-  const manualTests = tests && { total: tests.total, done: tests.done, auto: tests.auto, spec: tests.spec, autoRun: tests.autoRun }
+  const manualTests = tests && { total: tests.total, done: tests.done, auto: tests.auto, untested: untestedItems(tests).length, spec: tests.spec, autoRun: tests.autoRun }
   return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, file: filePath, raw: content }
 }
 
