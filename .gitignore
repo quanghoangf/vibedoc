@@ -44,3 +44,5 @@ docs/REGISTRY.md
 /.vibedoc/chats/
 /.vibedoc/episodes/
 /.vibedoc/memory-history/
+/test-results/
+/dist/

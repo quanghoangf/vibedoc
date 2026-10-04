@@ -1,0 +1,16 @@
+{
+  "//": "Compiles the vibedoc/playwright fixture to dist/ (Playwright won't transpile .ts under node_modules)",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "ES2020",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "types": ["node"]
+  },
+  "files": ["src/testing/playwright-fixture.ts"]
+}

@@ -6,6 +6,13 @@
   "bin": {
     "vibedoc": "./bin/vibedoc.mjs"
   },
+  "exports": {
+    "./package.json": "./package.json",
+    "./playwright": {
+      "types": "./dist/testing/playwright-fixture.d.ts",
+      "default": "./dist/testing/playwright-fixture.js"
+    }
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/quanghoangf/vibedoc.git"
@@ -27,6 +34,8 @@
     ".next/static/",
     "public/",
     "skills/",
+    "dist/testing/",
+    "dist/lib/runs-paths.*",
     "docs/getting-started.md",
     "next.config.js",
     "ws-server.js",
@@ -42,7 +51,8 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "release": "semantic-release",
-    "prepublishOnly": "next build"
+    "prepublishOnly": "next build && npm run build:playwright",
+    "build:playwright": "tsc -p tsconfig.playwright.json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
@@ -81,7 +91,16 @@
     "y-websocket": "^2.1.0",
     "yjs": "^13.6.33"
   },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40"
+  },
+  "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@semantic-release/changelog": "^7.0.0",
     "@semantic-release/git": "^11.0.1",
     "@semantic-release/github": "^12.0.10",
