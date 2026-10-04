@@ -36,6 +36,9 @@ The port is printed in the terminal — use it when configuring your AI agent.
 # Pin to a specific port
 npx vibedoc --port 3333
 
+# Print the installed version (also -v)
+npx vibedoc --version
+
 # Point at a different project
 VIBEDOC_ROOT=/path/to/project npx vibedoc
 ```

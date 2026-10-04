@@ -4,6 +4,7 @@ import { setTimeout } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import net from 'node:net'
+import { createRequire } from 'node:module'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
@@ -28,6 +29,14 @@ async function findFreeRandomPort() {
 
 // Parse args
 const args = process.argv.slice(2)
+
+// --version / -v: print VibeDoc's own version (relative to this file, not the cwd) and exit
+if (args.some((a) => a === '--version' || a === '-v')) {
+  const { version } = createRequire(import.meta.url)('../package.json')
+  process.stdout.write(`${version}\n`)
+  process.exit(0)
+}
+
 const portIndex = args.indexOf('--port')
 const port = portIndex !== -1 && args[portIndex + 1] ? args[portIndex + 1] : await findFreeRandomPort()
 
