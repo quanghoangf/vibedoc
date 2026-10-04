@@ -9,6 +9,7 @@
  *
  * Each `step` saves `NN-<slug>.png` (also when it fails), the run is recorded as `video.webm`, and
  * `run.json` is written at the end, all in `<runsRoot>/<project>/<taskId>/<runId>/` (see runs-paths.ts).
+ * `EVIDENCE.md` (R060, src/lib/evidence.ts) is rewritten next to the runs after each one.
  * Then only the newest N runs of that task are kept: `$VIBEDOC_RUNS_KEEP`, else `runs.keep` in the project's
  * `.vibedoc/settings.json`, else 5 (runs-retention.ts).
  * Runs inside the target repo's Playwright process, not the VibeDoc server, so it writes its own files.
@@ -21,8 +22,10 @@ import { test as base, expect } from '@playwright/test'
 import { execFileSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import path from 'path'
-import { newRunId, projectKey, runDir, stepFile } from '../lib/runs-paths.js'
+import { newRunId, parseRunManifest, projectKey, runDir, stepFile } from '../lib/runs-paths.js'
 import { parseKeep, planPrune } from '../lib/runs-retention.js'
+import { parseManualTests } from '../lib/manual-tests.js'
+import { formatEvidence } from '../lib/evidence.js'
 
 import type { RunManifest, RunStep } from '../lib/runs-paths.js'
 export type { RunManifest, RunStep }
@@ -72,6 +75,27 @@ function pruneRuns(run: Run): void {
     }
   } catch (e) {
     console.warn(`vibedoc: could not prune runs in ${taskDir}: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
+/**
+ * Rewrite `<taskDir>/EVIDENCE.md` (R060) from the kept runs and the task file's checklist. Only the fixture writes
+ * it; VibeDoc formats the same doc on read. Never fails the test.
+ */
+function writeEvidence(run: Run): void {
+  const taskDir = path.dirname(run.dir)
+  try {
+    const tasksDir = path.join(projectRoot(), 'plans', 'tasks')
+    const file = existsSync(tasksDir) ? readdirSync(tasksDir).find(f => f.startsWith(`${run.taskId}-`) && f.endsWith('.md')) : undefined
+    const raw = file ? readFileSync(path.join(tasksDir, file), 'utf8') : ''
+    const title = raw.match(/^#\s+T\d+:\s*(.+)$/m)?.[1].trim() ?? run.taskId
+    const tests = raw ? parseManualTests(raw) : null
+    const runs = readdirSync(taskDir).filter(id => RUN_ID.test(id)).sort().reverse()
+      .map(id => { try { return parseRunManifest(readFileSync(path.join(taskDir, id, 'run.json'), 'utf8')) } catch { return null } })
+      .filter((r): r is RunManifest => r !== null)
+    writeFileSync(path.join(taskDir, 'EVIDENCE.md'), formatEvidence({ taskId: run.taskId, title, items: tests?.items ?? [], spec: tests?.spec ?? null, runs }))
+  } catch (e) {
+    console.warn(`vibedoc: could not write EVIDENCE.md in ${taskDir}: ${e instanceof Error ? e.message : e}`)
   }
 }
 
@@ -145,6 +169,7 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
     }
     writeFileSync(path.join(vibedocRun.dir, 'run.json'), JSON.stringify(manifest, null, 2) + '\n')
     pruneRuns(vibedocRun)
+    writeEvidence(vibedocRun)
   }, { auto: true }],
 })
 
