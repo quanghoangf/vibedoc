@@ -2,9 +2,10 @@
 // Pure (no fs): core.ts reads/writes the file; `node src/lib/manual-tests.check.mts` runs the self-check.
 //
 //   ## Manual tests
-//   _2026-10-01 — ai_
+//   _2026-10-01 — ai · Spec: `e2e/vibedoc/T140-foo.spec.ts` · Auto: passed 2026-10-04_
 //   ### Steps
 //   - [ ] Open /roadmap, click "Break down" on R043 → a chat opens titled with the epic
+//   - [ ] 🤖 Open / → board loads          (R058: automated, covered by the spec)
 //   ### Regression risk
 //   - [ ] Dragging a card between columns still works
 
@@ -18,17 +19,51 @@ export interface ManualTestItem {
   group: ManualTestGroup
   /** Position among all checklist items in the section (T061 toggles by this) */
   index: number
+  /** `🤖 ` prefix (stripped from text): covered by the section's Playwright spec */
+  auto: boolean
 }
+
+export type AutoResult = "passed" | "failed"
+export interface AutoRun { result: AutoResult; date: string }
 
 export interface ManualTests {
   items: ManualTestItem[]
   total: number
   done: number
+  /** Items marked 🤖 */
+  auto: number
   /** From the `_YYYY-MM-DD — actor_` line; null if missing */
   date: string | null
+  /** `Spec: \`path\`` in the header line (relative to the target repo); null if none */
+  spec: string | null
+  /** `Auto: passed|failed YYYY-MM-DD` in the header line; null if never run */
+  autoRun: AutoRun | null
+}
+
+/** Header extras: undefined keeps the current value (header-only update), null removes it. */
+export interface ManualTestsMeta {
+  spec?: string | null
+  autoRun?: AutoRun | null
 }
 
 const ITEM = /^\s*[-*]\s+\[( |x|X)\]\s+(.*)$/
+const AUTO = /^🤖\s*/u
+const STAMP = /^_(\d{4}-\d{2}-\d{2})\b/
+const SPEC = / · Spec: `([^`]+)`/
+const RUN = / · Auto: (passed|failed) (\d{4}-\d{2}-\d{2})/
+
+function header(base: string, spec: string | null, autoRun: AutoRun | null): string {
+  if (spec && (/[`\n]/.test(spec) || spec.startsWith("/") || spec.split(/[\\/]/).includes("..")))
+    throw new Error(`spec must be a relative path inside the repo, got "${spec}"`)
+  return `_${base}${spec ? ` · Spec: \`${spec}\`` : ""}${autoRun ? ` · Auto: ${autoRun.result} ${autoRun.date}` : ""}_`
+}
+
+function readHeader(line: string): { base: string; spec: string | null; autoRun: AutoRun | null } {
+  const inner = line.trim().replace(/^_|_$/g, "")
+  const spec = inner.match(SPEC)?.[1] ?? null
+  const run = inner.match(RUN)
+  return { base: inner.split(" · ")[0], spec, autoRun: run ? { result: run[1] as AutoResult, date: run[2] } : null }
+}
 const BULLET = /^\s*[-*]\s+(.*)$/
 
 /** Lines inside ``` fences, so an example section quoted in a task's spec is never taken for the real one. */
@@ -69,14 +104,31 @@ export function normalizeReport(report: string): string {
 }
 
 /** Write the report as the task's `## Manual tests` section, replacing an older one (old ticks no longer apply). */
-export function setManualTests(raw: string, report: string, actor: "ai" | "human", date: string): string {
+export function setManualTests(raw: string, report: string, actor: "ai" | "human", date: string, meta: ManualTestsMeta = {}): string {
   const body = normalizeReport(report)
   if (!body) throw new Error("manualTests is empty: give at least one checklist item")
   const lines = raw.split("\n")
   const range = sectionRange(lines)
   const rest = range ? [...lines.slice(0, range[0]), ...lines.slice(range[1])] : lines
   const kept = rest.join("\n").replace(/\s+$/, "")
-  return `${kept}\n\n${MANUAL_TESTS_HEADING}\n_${date} — ${actor}_\n${body}\n`
+  return `${kept}\n\n${MANUAL_TESTS_HEADING}\n${header(`${date} — ${actor}`, meta.spec ?? null, meta.autoRun ?? null)}\n${body}\n`
+}
+
+/**
+ * Change only the spec / last run in the existing section's header line; items and ticks stay.
+ * A section without a stamp line (hand-written) gets one from `actor` + `date`, so the parser can read it back.
+ */
+export function setManualTestsMeta(raw: string, meta: ManualTestsMeta, actor: "ai" | "human", date: string): string {
+  const lines = raw.split("\n")
+  const range = sectionRange(lines)
+  if (!range) throw new RangeError("This task has no manual tests: pass manualTests too")
+  const at = range[0] + 1
+  const has = at < range[1] && STAMP.test(lines[at])
+  const cur = has ? readHeader(lines[at]) : { base: `${date} — ${actor}`, spec: null, autoRun: null }
+  const next = header(cur.base, meta.spec === undefined ? cur.spec : meta.spec, meta.autoRun === undefined ? cur.autoRun : meta.autoRun)
+  if (has) lines[at] = next
+  else lines.splice(at, 0, next)
+  return lines.join("\n")
 }
 
 /** The checklist in a task file, or null when it has no `## Manual tests` section (or the section has no items). */
@@ -87,15 +139,24 @@ export function parseManualTests(raw: string): ManualTests | null {
   const items: ManualTestItem[] = []
   let group: ManualTestGroup = "steps"
   let date: string | null = null
+  let spec: string | null = null
+  let autoRun: AutoRun | null = null
   for (const line of lines.slice(range[0] + 1, range[1])) {
-    const stamp = line.match(/^_(\d{4}-\d{2}-\d{2})\b/)
-    if (stamp && !date && !items.length) { date = stamp[1]; continue }
+    const stamp = line.match(STAMP)
+    if (stamp && !date && !items.length) { date = stamp[1]; ({ spec, autoRun } = readHeader(line)); continue }
     if (/^\s*###\s/.test(line)) { group = /^\s*###\s+regression/i.test(line) ? "regression" : "steps"; continue }
     const m = line.match(ITEM)
-    if (m) items.push({ text: m[2].trim(), checked: m[1] !== " ", group, index: items.length })
+    if (m) {
+      const text = m[2].trim()
+      const auto = AUTO.test(text)
+      items.push({ text: auto ? text.replace(AUTO, "") : text, checked: m[1] !== " ", group, index: items.length, auto })
+    }
   }
   if (!items.length) return null
-  return { items, total: items.length, done: items.filter((i) => i.checked).length, date }
+  return {
+    items, total: items.length, done: items.filter((i) => i.checked).length, auto: items.filter((i) => i.auto).length,
+    date, spec, autoRun,
+  }
 }
 
 /** Tick or untick the `index`th checklist item of the `## Manual tests` section (file order), nothing else. */

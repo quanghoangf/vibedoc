@@ -265,7 +265,18 @@ const TOOLS = [
           description:
             "Optional manual test report, saved as the task's `## Manual tests` section (replaces an older one). Markdown checklist: " +
             "`### Steps` items as `- [ ] <what to do> → <what you should see>`, then `### Regression risk` items for existing features worth re-checking. " +
-            "Plain lines become unticked steps.",
+            "Plain lines become unticked steps. Prefix an item with `🤖 ` (`- [ ] 🤖 Open / → board loads`) when a Playwright spec covers it.",
+        },
+        spec: {
+          type: "string",
+          description:
+            "Optional Playwright spec covering the 🤖 items, a path relative to the repo root (e.g. `e2e/vibedoc/T145-foo.spec.ts`). " +
+            "Written in the manual tests header. Without manualTests it updates the existing section's header only.",
+        },
+        autoResult: {
+          type: "string",
+          enum: ["passed", "failed"],
+          description: "Optional result of the spec's last run (dated today). Without manualTests it updates the existing section's header only.",
         },
         agent: {
           type: "string",
@@ -898,7 +909,11 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
     case "vibedoc_update_task": {
       const report = typeof args.manualTests === "string" && args.manualTests.trim() ? args.manualTests : null;
-      if (report) await saveManualTests(String(args.taskId), report, root, "ai");
+      const spec = typeof args.spec === "string" && args.spec.trim() ? args.spec.trim() : undefined;
+      if (args.autoResult !== undefined && args.autoResult !== "passed" && args.autoResult !== "failed")
+        throw new Error('autoResult must be "passed" or "failed"');
+      const autoRun = args.autoResult ? { result: args.autoResult as "passed" | "failed", date: new Date().toISOString().slice(0, 10) } : undefined;
+      if (report || spec || autoRun) await saveManualTests(String(args.taskId), report, root, "ai", { spec, autoRun });
       const result = await updateTaskStatus(
         String(args.taskId),
         args.status as TaskStatus,
@@ -914,7 +929,10 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       });
       const tests = result.task.manualTests;
       return `✅ **${result.task.id}** → **${result.task.status}**\n(was: ${result.previousStatus})` +
-        (tests ? `\n🧪 Manual tests: ${tests.done}/${tests.total} ticked` : "") +
+        (tests ? `\n🧪 Manual tests: ${tests.done}/${tests.total} ticked` +
+          (tests.auto ? ` · 🤖 ${tests.auto} automated` : "") +
+          (tests.spec ? ` · spec \`${tests.spec}\`` : "") +
+          (tests.autoRun ? ` · last run ${tests.autoRun.result} ${tests.autoRun.date}` : "") : "") +
         (await roadmapHint(root, result.task.id));
     }
 

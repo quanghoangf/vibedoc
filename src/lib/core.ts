@@ -15,7 +15,7 @@ import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraf
 import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
-import { parseManualTests, setManualTests, toggleManualTest } from './manual-tests'
+import { parseManualTests, setManualTests, setManualTestsMeta, toggleManualTest, type AutoRun, type ManualTestsMeta } from './manual-tests'
 import { appendReviewEntry, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
 import { parseOwner } from './owner'
@@ -58,7 +58,7 @@ export interface Task {
   started: string | null
   finished: string | null
   /** The `## Manual tests` checklist (R043), counted; null when the task has none */
-  manualTests: { total: number; done: number } | null
+  manualTests: { total: number; done: number; auto: number; spec: string | null; autoRun: AutoRun | null } | null
   file: string
   raw?: string
 }
@@ -534,7 +534,7 @@ function parseTaskFile(filePath: string, content: string, defs: StatusDef[]): Ta
   const id = idM ? idM[1].toUpperCase() : filename.toUpperCase()
 
   const tests = parseManualTests(content)
-  const manualTests = tests && { total: tests.total, done: tests.done }
+  const manualTests = tests && { total: tests.total, done: tests.done, auto: tests.auto, spec: tests.spec, autoRun: tests.autoRun }
   return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, file: filePath, raw: content }
 }
 
@@ -801,9 +801,13 @@ export function restoreTask(file: unknown, raw: unknown, links: TaskLink[], root
   })
 }
 
-export async function saveManualTests(taskId: string, report: string, root: string, actor: 'ai' | 'human' = 'ai'): Promise<Task> {
+/** Write a new `## Manual tests` report (report given), or only update the spec / last run of the existing one (report null). */
+export async function saveManualTests(taskId: string, report: string | null, root: string, actor: 'ai' | 'human' = 'ai', meta: ManualTestsMeta = {}): Promise<Task> {
   const task = await getTask(taskId, root)
-  const content = setManualTests(task.raw ?? '', report, actor, new Date().toISOString().slice(0, 10))
+  const date = new Date().toISOString().slice(0, 10)
+  const content = report !== null
+    ? setManualTests(task.raw ?? '', report, actor, date, meta)
+    : setManualTestsMeta(task.raw ?? '', meta, actor, date)
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
   return getTask(task.id, root)
 }
