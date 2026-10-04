@@ -1,0 +1,7 @@
+node_modules
+.next
+.git
+.env*
+.vibedoc
+.vibedoc-activity.json
+e2e

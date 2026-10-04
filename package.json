@@ -37,6 +37,7 @@
     "dev:ws": "node ws-server.js",
     "build": "next build",
     "start": "next start",
+    "demo": "VIBEDOC_DEMO=1 VIBEDOC_ROOT=examples/demo-project next start",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "release": "semantic-release",
