@@ -257,6 +257,18 @@ Read a specific task file in full — scope, acceptance criteria, definition of 
 
 ---
 
+### `vibedoc_get_evidence`
+Read a task's evidence doc (R060): every checklist item with what its Playwright run proved, from the kept runs in `~/.vibedoc/runs/<project>/<taskId>/`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `taskId` | string | ✅ | e.g. `"T138"` |
+| `runId` | string | | A kept run to detail instead of the newest, e.g. `"20261004T074314Z"` |
+
+**Returns:** markdown: the run's result, step count, time, commit and spec; each 🤖 item as ✅ / ❌ (with the error) / ⚠️ missing, each manual item ☐ / ☑; screenshot and video links as absolute file paths; a History table of kept runs. Formatted fresh on every call (ticks included) by `src/lib/evidence.ts`, the same formatter the fixture uses for `EVIDENCE.md`. Unknown `runId` → error. The UI reads the same doc from `GET /api/tasks/<id>/evidence?run=` with API links.
+
+---
+
 ### `vibedoc_update_task`
 Update a task's status. Triggers a real-time kanban board update in the browser.
 

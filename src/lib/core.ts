@@ -25,6 +25,7 @@ import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { parseKeep } from './runs-retention'
 import { isRunFile, isRunId, isRunTaskId, parseRange, parseRunManifest, projectKey, runsRoot, type RunManifest } from './runs-paths'
+import { formatEvidence } from './evidence'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallHit } from './recall'
@@ -614,6 +615,28 @@ export async function listRuns(taskId: string, root: string): Promise<RunManifes
   }
   const runs = await Promise.all(ids.map(id => readRunManifest(path.join(dir, id))))
   return runs.filter((r): r is RunManifest => r !== null)
+}
+
+/**
+ * A task's evidence doc (R060), formatted fresh from its checklist (ticks included) and kept runs; never written
+ * here (the fixture owns EVIDENCE.md). `src` maps a run's media file to a link: API URLs for the UI, absolute
+ * paths for MCP (default). null = `runId` names no kept run.
+ */
+export async function getEvidence(taskId: string, root: string, opts: { runId?: string | null; src?: (runId: string, file: string) => string } = {}):
+  Promise<{ markdown: string; runId: string | null; runs: { runId: string; status: RunManifest['status']; startedAt: string; commit: string | null }[] } | null> {
+  const task = await getTask(taskId, root)
+  const runs = await listRuns(task.id, root)
+  if (opts.runId && !runs.some(r => r.runId === opts.runId)) return null
+  const dir = taskRunsDir(task.id, root)
+  const tests = task.raw ? parseManualTests(task.raw) : null
+  const markdown = formatEvidence({
+    taskId: task.id, title: task.title, items: tests?.items ?? [], spec: tests?.spec ?? null, runs, runId: opts.runId,
+    src: opts.src ?? ((runId, file) => path.join(dir ?? '', runId, file)),
+  })
+  return {
+    markdown, runId: opts.runId ?? runs[0]?.runId ?? null,
+    runs: runs.map(r => ({ runId: r.runId, status: r.status, startedAt: r.startedAt, commit: r.commit })),
+  }
 }
 
 function toLastRun(r: RunManifest | undefined): TaskLastRun | null {

@@ -50,6 +50,7 @@ import {
   backfillEpisodes,
   currentSessionId,
   writeRunEpisode,
+  getEvidence,
   recallEntries,
   relatedEntries,
   getEntriesByIds,
@@ -117,7 +118,7 @@ const DEMO_TOOLS = new Set([
   "vibedoc_get_status", "vibedoc_get_sessions", "vibedoc_read_doc", "vibedoc_list_docs", "vibedoc_search_docs",
   "vibedoc_list_tasks", "vibedoc_get_task", "vibedoc_read_memory", "vibedoc_memory_history", "vibedoc_recall",
   "vibedoc_get_entries", "vibedoc_list_templates", "vibedoc_get_context", "vibedoc_get_planning_guide",
-  "vibedoc_get_file_map", "vibedoc_read_registry", "vibedoc_get_roadmap", "vibedoc_get_frontend",
+  "vibedoc_get_file_map", "vibedoc_read_registry", "vibedoc_get_roadmap", "vibedoc_get_frontend", "vibedoc_get_evidence",
 ]);
 
 /** False for a write in demo mode. `vibedoc_memory_history` reads, except with `restore: true`. */
@@ -243,6 +244,19 @@ const TOOLS = [
       type: "object",
       properties: {
         taskId: { type: "string", description: 'e.g. "T001", "T003"' },
+      },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "vibedoc_get_evidence",
+    description:
+      "Read a task's evidence doc: every checklist item with what its Playwright run proved (passed / failed with the error / missing / manual), screenshot file paths, the run's time, commit and video, and the history of kept runs.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: 'e.g. "T138"' },
+        runId: { type: "string", description: "A kept run to detail instead of the newest, e.g. \"20261004T074314Z\"" },
       },
       required: ["taskId"],
     },
@@ -906,6 +920,13 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     case "vibedoc_get_task": {
       const task = await getTask(String(args.taskId), root);
       return `## ${task.file}\n\n${task.raw}` + withGap(await relatedEntries(task, root));
+    }
+
+    case "vibedoc_get_evidence": {
+      const runId = typeof args.runId === "string" && args.runId ? args.runId : null;
+      const evidence = await getEvidence(String(args.taskId), root, { runId });
+      if (!evidence) throw new Error(`No kept run ${runId} for ${args.taskId}`);
+      return evidence.markdown;
     }
 
     case "vibedoc_update_task": {
