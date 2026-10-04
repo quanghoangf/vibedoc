@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { sessionDuration } from "@/lib/sessions"
 import { STATUS_META, StatusIcon } from "@/components/shared/StatusIcon"
 import { ActivityEventRow } from "./ActivityEventRow"
+import type { EventTarget } from "@/lib/activity"
 
 // One mark per task, filled with the task's status hue (the One Status Language, as a bar)
 const STATUS_BAR: Record<string, string> = {
@@ -26,17 +27,18 @@ interface SessionCardProps {
   events: ActivityEvent[]
   onOpenTask: (taskId: string) => void
   onOpenDoc: (path: string) => void
+  onOpen?: (target: EventTarget) => void
   focused?: boolean
   live?: boolean
 }
 
 /** Expandable body shared by cards and quiet rows: grid-rows 0fr↔1fr animates height without measuring. */
-function EventList({ open, events }: { open: boolean; events: ActivityEvent[] }) {
+function EventList({ open, events, onOpen }: { open: boolean; events: ActivityEvent[]; onOpen?: (target: EventTarget) => void }) {
   return (
     <div className={cn("grid transition-[grid-template-rows,opacity] duration-(--duration-slow) ease-out-soft", open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
       <div className="min-h-0 overflow-hidden" inert={!open}>
         <div className="mt-3 border-t border-border pt-2">
-          {events.map(e => <ActivityEventRow key={e.id} event={e} />)}
+          {events.map(e => <ActivityEventRow key={e.id} event={e} onOpen={onOpen} />)}
         </div>
       </div>
     </div>
@@ -50,7 +52,7 @@ function Chevron({ open }: { open: boolean }) {
 /** "1 event" says nothing: a session that only connected reads as such. */
 const quietHeadline = (s: Session) => (/^\d+ events?$/.test(s.headline) ? "Connected, nothing changed" : s.headline)
 
-export function SessionCard({ session, events, onOpenTask, onOpenDoc, focused = false, live = false }: SessionCardProps) {
+export function SessionCard({ session, events, onOpenTask, onOpenDoc, onOpen, focused = false, live = false }: SessionCardProps) {
   const [open, setOpen] = useState(focused)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -73,7 +75,7 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, focused = 
           <span className="ml-auto shrink-0 font-mono text-[11px]">{sessionDuration(session)}<span className="hidden sm:inline"> · {count}</span></span>
           <Chevron open={open} />
         </button>
-        <EventList open={open} events={events} />
+        <EventList open={open} events={events} onOpen={onOpen} />
       </div>
     )
   }
@@ -139,7 +141,7 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, focused = 
           })}
         </div>
 
-        <EventList open={open} events={events} />
+        <EventList open={open} events={events} onOpen={onOpen} />
       </div>
     </div>
   )

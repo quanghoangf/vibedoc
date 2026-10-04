@@ -1,12 +1,14 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useRouter } from "next/navigation"
 import type { ActivityEvent, Session } from "@/types"
 import { cn } from "@/lib/utils"
 import { ActivityFeed } from "./ActivityFeed"
 import { SessionTimeline } from "./SessionTimeline"
-import { Activity as ActivityIcon } from "lucide-react"
+import { Activity as ActivityIcon, Bot, User } from "lucide-react"
 import { catchUp } from "@/lib/sessions"
+import { EVENT_CATEGORIES, eventCategory, filterEvents, type EventCategory, type EventTarget } from "@/lib/activity"
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -77,7 +79,18 @@ export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusS
     return () => window.removeEventListener("vibedoc:sse", load)
   }, [rootParam])
 
-  const empty = view === "sessions" ? sessions?.length === 0 : activity.length === 0
+  // The 2000-event log fetched above; AppContext's 30 rows only until it arrives
+  const all = useMemo(() => (events.size ? [...events.values()] : activity), [events, activity])
+  const empty = view === "sessions" ? sessions?.length === 0 : all.length === 0
+
+  const router = useRouter()
+  const open = (t: EventTarget) => {
+    if (t.kind === "task") onOpenTask(t.id)
+    else if (t.kind === "doc") onOpenDoc(t.path)
+    else if (t.kind === "epic") router.push(`/roadmap?item=${t.id}`)
+    else if (t.kind === "entry") router.push(`/memory?entry=${t.id}`)
+    else router.push("/memory")
+  }
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col px-6 py-8">
@@ -132,9 +145,70 @@ export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusS
           </p>
         </div>
       ) : view === "sessions" ? (
-        <SessionTimeline key={focusSessionId ?? ""} focusSessionId={focusSessionId} sessions={sessions ?? []} events={events} onOpenTask={onOpenTask} onOpenDoc={onOpenDoc} />
+        <SessionTimeline key={focusSessionId ?? ""} focusSessionId={focusSessionId} sessions={sessions ?? []} events={events} onOpenTask={onOpenTask} onOpenDoc={onOpenDoc} onOpen={open} />
       ) : (
-        <ActivityFeed activity={activity} />
+        <FilteredFeed events={all} onOpen={open} />
+      )}
+    </div>
+  )
+}
+
+const filterChip = (on: boolean) => cn(
+  "flex h-6 items-center gap-1.5 rounded-[5px] border border-transparent px-2 text-xs font-medium outline-none transition-colors duration-(--duration-fast)",
+  "hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent/60",
+  on ? "border-border2 bg-surface2 text-txt" : "text-muted",
+)
+
+/** "All events" with a kind filter (Tasks, Docs, …) and a who filter (agents / you). */
+function FilteredFeed({ events, onOpen }: { events: ActivityEvent[]; onOpen: (t: EventTarget) => void }) {
+  const [category, setCategory] = useState<EventCategory | null>(null)
+  const [actor, setActor] = useState<ActivityEvent["actor"] | null>(null)
+  const shown = useMemo(() => filterEvents(events, { category, actor }), [events, category, actor])
+  // Kind counts follow the who filter, and the other way round, so a count is what clicking it would show
+  const kindCounts = useMemo(() => {
+    const c: Partial<Record<EventCategory, number>> = {}
+    for (const e of filterEvents(events, { category: null, actor })) c[eventCategory(e)] = (c[eventCategory(e)] ?? 0) + 1
+    return c
+  }, [events, actor])
+  const byActor = filterEvents(events, { category, actor: null })
+  const actorCount = { all: byActor.length, ai: byActor.filter(e => e.actor === "ai").length, human: byActor.filter(e => e.actor === "human").length }
+  const kindTotal = Object.values(kindCounts).reduce((a, b) => a + (b ?? 0), 0)
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filter by kind">
+          <button type="button" aria-pressed={category === null} onClick={() => setCategory(null)} className={filterChip(category === null)}>
+            All <span className="font-mono text-[10px] opacity-70">{kindTotal}</span>
+          </button>
+          {EVENT_CATEGORIES.filter(c => kindCounts[c.id] || category === c.id).map(c => (
+            <button key={c.id} type="button" aria-pressed={category === c.id} onClick={() => setCategory(category === c.id ? null : c.id)} className={filterChip(category === c.id)}>
+              {c.label} <span className="font-mono text-[10px] opacity-70">{kindCounts[c.id] ?? 0}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1 sm:ml-auto" role="group" aria-label="Filter by actor">
+          {([null, "ai", "human"] as const).map(a => {
+            const Icon = a === "ai" ? Bot : a === "human" ? User : null
+            return (
+              <button key={a ?? "all"} type="button" aria-pressed={actor === a} onClick={() => setActor(a)} className={filterChip(actor === a)}>
+                {Icon && <Icon className="size-3" aria-hidden />}
+                {a === null ? "Everyone" : a === "ai" ? "Agents" : "You"}
+                <span className="font-mono text-[10px] opacity-70">{actorCount[a ?? "all"]}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      {shown.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 py-10 text-sm text-muted">
+          No matching events.
+          <button type="button" onClick={() => { setCategory(null); setActor(null) }} className="text-xs text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
+            Clear filters
+          </button>
+        </div>
+      ) : (
+        <ActivityFeed activity={shown} onOpen={onOpen} />
       )}
     </div>
   )

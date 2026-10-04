@@ -1000,7 +1000,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const template =
         TEMPLATES.find((t) => t.id === templateId) ??
         TEMPLATES.find((t) => t.id === "blank")!;
-      await createDoc(docPath, template.content, root);
+      await createDoc(docPath, template.content, root, "ai");
       emitUpdate("doc_created", { path: docPath });
       return `✅ Created: ${docPath} (template: ${template.name})`;
     }
@@ -1083,14 +1083,14 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     case "vibedoc_rename_doc": {
       const oldPath = String(args.oldPath);
       const newPath = String(args.newPath);
-      await renameDoc(oldPath, newPath, root);
+      await renameDoc(oldPath, newPath, root, "ai");
       emitUpdate("doc_renamed", { oldPath, newPath });
       return `✅ Renamed: ${oldPath} → ${newPath}`;
     }
 
     case "vibedoc_delete_doc": {
       const docPath = String(args.path);
-      await deleteDoc(docPath, root);
+      await deleteDoc(docPath, root, "ai");
       emitUpdate("doc_deleted", { path: docPath });
       return `✅ Deleted: ${docPath}`;
     }
