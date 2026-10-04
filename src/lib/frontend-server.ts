@@ -201,3 +201,59 @@ export function openLoginBrowser(opts: { root: string; cwd: string; url: string;
   child.on('close', code => finish(code === 0 ? null : stderr.trim().split('\n').pop() || `Playwright exited with code ${code}`))
   return true
 }
+
+// ─── Smoke test (T144) ───────────────────────────────────────────────────────
+
+const SMOKE_TIMEOUT_MS = 90_000
+
+/** Runs in the app dir with the app's own Playwright (either package), headless. Prints one JSON line. */
+const SMOKE_SCRIPT = `
+const [url, out, state] = process.argv.slice(1)
+let pw
+try { pw = require('playwright') } catch { pw = require('@playwright/test') }
+;(async () => {
+  const browser = await pw.chromium.launch()
+  try {
+    const page = await (await browser.newContext(state ? { storageState: state } : {})).newPage()
+    const res = await page.goto(url, { waitUntil: 'load', timeout: 30000 })
+    // Client-side redirects (an SPA bouncing to /login) land shortly after load
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
+    await page.screenshot({ path: out })
+    process.stdout.write(JSON.stringify({ url: page.url(), status: res ? res.status() : null }) + '\\n')
+  } finally {
+    await browser.close()
+  }
+})().catch(e => { console.error(String(e && e.message || e)); process.exit(1) })
+`
+
+/** Opens `url` headless (with `statePath`'s session when given) and saves a screenshot to `outPath`. */
+export function runSmoke(opts: { cwd: string; url: string; outPath: string; statePath: string | null }): Promise<{ finalUrl: string; status: number | null }> {
+  const { cwd, url, outPath, statePath } = opts
+  return new Promise((resolve, reject) => {
+    // Fixed argv, no shell: the URL and paths are arguments, never parsed as a command
+    const child = spawn(process.execPath, ['-e', SMOKE_SCRIPT, url, outPath, statePath ?? ''], {
+      cwd, env: childEnv(url), stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout?.on('data', (c: Buffer) => { stdout += c.toString('utf8') })
+    child.stderr?.on('data', (c: Buffer) => { stderr = (stderr + c.toString('utf8')).slice(-4000) })
+    const timer = setTimeout(() => child.kill('SIGKILL'), SMOKE_TIMEOUT_MS)
+    child.on('error', e => { clearTimeout(timer); reject(e) })
+    child.on('close', (code, signal) => {
+      clearTimeout(timer)
+      const line = stdout.trim().split('\n').pop() ?? ''
+      try {
+        if (code === 0) {
+          const r = JSON.parse(line) as { url: string; status: number | null }
+          return resolve({ finalUrl: r.url, status: r.status })
+        }
+      } catch { /* falls through to the error below */ }
+      const why = signal === 'SIGKILL' ? `timed out after ${SMOKE_TIMEOUT_MS / 1000}s` : stderr.trim().split('\n').filter(Boolean).slice(-3).join('\n') || `exited with code ${code}`
+      reject(new Error(`Playwright couldn’t open ${url}: ${why}`))
+    })
+  })
+}
+
+/** True when VibeDoc already runs a server for this root (a smoke must not stop it then). */
+export const ownsServer = (root: string) => servers.has(root)

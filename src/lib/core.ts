@@ -245,6 +245,22 @@ export async function clearFrontendAuth(root: string): Promise<boolean> {
   return fs.rm(path.join(root, AUTH_DIR, AUTH_STATE)).then(() => true, () => false)
 }
 
+// T144: the last smoke test screenshot, next to the session (same git-ignored folder)
+const SMOKE_SHOT = 'smoke.png'
+
+/** Where the smoke test writes its screenshot (absolute, the folder exists, the old shot removed) and where Log in's session is. */
+export async function prepareFrontendSmoke(root: string): Promise<{ shotPath: string; statePath: string }> {
+  const statePath = await prepareFrontendAuth(root)
+  const shotPath = path.join(path.dirname(statePath), SMOKE_SHOT)
+  await fs.rm(shotPath, { force: true })
+  return { shotPath, statePath }
+}
+
+/** The last smoke screenshot's bytes, or null when there is none. */
+export async function readFrontendSmokeShot(root: string): Promise<Buffer | null> {
+  return fs.readFile(path.join(root, AUTH_DIR, SMOKE_SHOT)).catch(() => null)
+}
+
 /** {} when the file is missing; throws when it exists but isn't a JSON object, so a save never clobbers it. */
 async function readSettingsObject(root: string): Promise<Record<string, unknown>> {
   const raw = await fs.readFile(path.join(root, SETTINGS_FILE), 'utf8').catch(() => null)

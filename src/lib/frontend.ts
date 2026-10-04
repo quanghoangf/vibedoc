@@ -306,3 +306,30 @@ export function formatFrontend(app: FrontendApp | null, notes: string[], playwri
     ...notes.map(n => `⚠ ${n}`),
   ].join('\n')
 }
+
+// ─── Smoke test (T144) ───────────────────────────────────────────────────────
+
+export type SmokeResult = {
+  ok: boolean
+  /** Final URL after redirects (server and client side), when the page loaded */
+  finalUrl?: string
+  status?: number | null
+  durationMs: number
+  /** Whether the app was started for the smoke and stopped again */
+  startedServer: boolean
+  screenshot: boolean
+  notes: string[]
+  error?: string
+}
+
+/** Notes on a loaded smoke page: no session to load, or it landed on the login path (session missing or expired). */
+export function smokeNotes(finalUrl: string, loginPath: string | undefined, hasSession: boolean): string[] {
+  const notes: string[] = []
+  if (!hasSession) notes.push('No saved session: opened logged out (Log in above to save one).')
+  if (loginPath && URL.canParse(finalUrl)) {
+    const p = new URL(finalUrl).pathname
+    const base = loginPath.replace(/\/+$/, '')
+    if (base && (p === base || p.startsWith(`${base}/`))) notes.push(`Looks logged out: it ended on ${p}, the login path.`)
+  }
+  return notes
+}

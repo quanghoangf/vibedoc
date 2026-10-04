@@ -1,7 +1,7 @@
 // Self-check: frontend app detection on fixture dirs. Run: node src/lib/frontend.check.mts
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { applyOverride, cleanOverride, loginUnavailable, loginUrl, formatSteps, hasChromium, playwrightInstallSteps, playwrightStatus, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
+import { applyOverride, cleanOverride, smokeNotes, loginUnavailable, loginUrl, formatSteps, hasChromium, playwrightInstallSteps, playwrightStatus, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
 
 // Same reads as core.detectFrontend(): root package.json + which files sit next to it.
 const fixture = (name: string) => {
@@ -152,5 +152,13 @@ assert.match(loginUnavailable({ demo: true, platform: 'darwin' }) ?? '', /demo/)
 assert.match(formatFrontend(web, [], null, { saved: true, savedAt: '2026-10-04T10:00:00.000Z' }), /\*\*Auth:\*\* session saved 2026-10-04T10:00:00\.000Z/)
 assert.match(formatFrontend(web, [], null, { saved: false }), /\*\*Auth:\*\* no saved session/)
 assert.match(formatFrontend(withLogin, []), /\*\*Login path:\*\* \/login/)
+
+// ─── Smoke test (T144) ───
+assert.deepEqual(smokeNotes('http://localhost:3100/', '/login', true), [])
+assert.match(smokeNotes('http://localhost:3100/login?next=%2F', '/login', true).join(), /Looks logged out/)
+assert.match(smokeNotes('http://localhost:3100/login/sso', '/login/', true).join(), /Looks logged out/)
+assert.deepEqual(smokeNotes('http://localhost:3100/loginhelp', '/login', true), [], 'a prefix that is not a path segment')
+assert.deepEqual(smokeNotes('http://localhost:3100/login', undefined, true), [], 'no login path = never warns')
+assert.match(smokeNotes('http://localhost:3100/', undefined, false).join(), /No saved session/)
 
 console.log('frontend.check: ok')

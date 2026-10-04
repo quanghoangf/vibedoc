@@ -87,6 +87,19 @@ Ask the agent to follow this loop. The board updates live while it works.
 
 To make this the default, paste the session protocol from the [README](https://github.com/quanghoangf/vibedoc#recommended-claudemd-snippet) into your project's `CLAUDE.md`.
 
+## 5. Frontend app
+
+If the project has a web frontend, VibeDoc finds it so browser tests can run against it. Open **Settings → Frontend app**.
+
+- **Detection.** VibeDoc reads the root `package.json` and, in a monorepo, every workspace package (npm/yarn `workspaces` or `pnpm-workspace.yaml`). It picks the app that depends on Next, Vite, Remix, Astro, Nuxt, SvelteKit or Create React App, and shows its directory, start command (`npm run dev`, `pnpm --filter web dev`, ...) and URL (from a `--port` flag, else the framework's default port).
+- **Override.** Wrong guess? Pick another app, or set the start command, URL or login path, and click **Save**. It is saved as `frontend` in `.vibedoc/settings.json`. Fields you don't change keep following detection. **Reset to detected** removes the override.
+- **Playwright.** The tests use the app's own Playwright. If it is missing, Settings shows the install command (`pnpm add -D @playwright/test && npx playwright install chromium`, for example) with **Copy** and **Install** buttons.
+- **Dev server.** **Start** reuses the app if its URL already answers, else runs the start command and waits until the URL responds (`frontend.startTimeoutSec` in settings, default 60). **Stop** only stops a server that VibeDoc started.
+- **Log in.** Set the login path (for example `/login`), then click **Log in**. A browser window opens at that page. Log in, then close the window. Playwright saves the session to `.vibedoc/auth/storage-state.json`. That folder is git-ignored because it holds live cookies. Every later test loads this session. **Clear session** deletes it.
+- **Smoke test.** **Run smoke test** checks the whole setup. VibeDoc starts the app if it is down, opens its first page headless with the saved session, and shows the result: pass or fail, the final URL after redirects, the HTTP status, the duration and a screenshot (`.vibedoc/auth/smoke.png`). If VibeDoc started the app for the test, it stops it again. "Looks logged out" means the page ended on the login path: log in again. "No saved session" means the test ran logged out.
+
+Agents get the same information from the `vibedoc_get_frontend` MCP tool.
+
 ## Next
 
 - [MCP tools reference](https://github.com/quanghoangf/vibedoc/blob/main/docs/architecture/mcp-tools.md): every tool and its parameters.

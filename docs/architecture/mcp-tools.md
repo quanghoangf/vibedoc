@@ -60,7 +60,7 @@ The project's web frontend app, as Settings → Frontend app shows it (R057). Ca
 
 **Parameters:** none
 
-**Returns:** the app's dir (and package name), framework, start command, URL, source (`detected`, or `override` when set in Settings / `frontend` in `.vibedoc/settings.json`), Playwright state (installed + version, or the install command to run in the app dir; Settings → Frontend app has an Install button), auth state (`unknown` until that check exists), the other web apps in a monorepo, and warnings (VibeDoc's own repo, port clash):
+**Returns:** the app's dir (and package name), framework, start command, URL, source (`detected`, or `override` when set in Settings / `frontend` in `.vibedoc/settings.json`), Playwright state (installed + version, or the install command to run in the app dir; Settings → Frontend app has an Install button), the login path when set, auth state (session saved + when, or no saved session), the other web apps in a monorepo, and warnings (VibeDoc's own repo, port clash):
 ```
 ## Frontend app
 **Dir:** apps/web (web)
@@ -69,10 +69,17 @@ The project's web frontend app, as Settings → Frontend app shows it (R057). Ca
 **URL:** http://localhost:5173
 **Source:** detected
 **Playwright:** installed v1.48.2
-**Auth:** unknown
+**Auth:** no saved session (Settings → Frontend app → Log in)
 **Other apps:** apps/docs (astro)
 ```
 No web app → a message that points to the Settings override.
+
+**Routes** (UI, Settings → Frontend app; all take `?root=`; the POST/PUT/DELETE ones refuse cross-site requests and need `Content-Type: application/json`, and are off in the demo):
+- `GET /api/frontend` → `{ app, notes, override, playwright, auth, login }` · `PUT /api/frontend { override: { dir?, startCommand?, url?, loginPath? } | null }` (null = reset to detected). Emits `frontend_updated`.
+- `POST /api/frontend/playwright/install` → NDJSON stream of the install output (`{type:"output",text}` lines, then `{type:"done",ok,tail}`).
+- `GET /api/frontend/server` → `{ state: "stopped"|"starting"|"running", url, startedByUs, error?, output? }` · `POST /api/frontend/server { action: "start"|"stop" }` (start reuses a server already answering; stop only kills one VibeDoc started, else 409). Emits `frontend_server_updated`.
+- `POST /api/frontend/login` → opens a headed Chromium at the login URL, returns `{ started, url }`; closing it saves `.vibedoc/auth/storage-state.json` and emits `frontend_updated` · `DELETE /api/frontend/login` → `{ cleared, auth }`.
+- `POST /api/frontend/smoke` → starts the app if it is down, opens its first page headless with the saved session, screenshots it, and stops the app again if it started it: `{ ok, finalUrl, status, durationMs, startedServer, screenshot, notes, error? }`. `ok` = the page loaded with an HTTP status below 400; `notes` has "Looks logged out" when the final URL is on the login path and "No saved session" when there is none. 409 when Playwright or Chromium is missing. Emits `frontend_updated`. `GET /api/frontend/smoke` → the last screenshot (`image/png`), 404 when there is none.
 
 ---
 

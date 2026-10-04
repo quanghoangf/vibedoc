@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { AlertTriangle } from "lucide-react"
-import { formatSteps, playwrightInstallSteps, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from "@/lib/frontend"
+import { formatSteps, playwrightInstallSteps, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus, type SmokeResult } from "@/lib/frontend"
 import { toast } from "@/components/ui/toast"
 
 const FIELD = "h-8 min-w-0 rounded-md border border-border bg-bg px-2 font-mono text-sm text-txt focus:outline-hidden focus:ring-1 focus:ring-accent disabled:opacity-50"
@@ -104,6 +104,7 @@ export function FrontendSettings({ rootParam }: { rootParam: string }) {
           <ServerRow url={app.url} rootParam={rootParam} />
           {data.playwright && <PlaywrightRow app={app} status={data.playwright} rootParam={rootParam} />}
           <LoginRow data={data} rootParam={rootParam} onChange={setData} />
+          <SmokeRow playwright={data.playwright} rootParam={rootParam} />
         </div>
       )}
 
@@ -382,6 +383,82 @@ function LoginRow({ data, rootParam, onChange }: { data: FrontendData; rootParam
       <p className="text-xs text-muted" data-testid="login-status">{status}</p>
       {blocked && <p className="text-xs text-muted">{blocked}</p>}
       {auth.saved && <p className="text-xs text-muted">Stored in <code className="font-mono">.vibedoc/auth/</code>, which is git-ignored: it holds live cookies.</p>}
+    </div>
+  )
+}
+
+/** T144: Run smoke test starts the app if needed, opens its first page headless with the saved session and shows a screenshot. */
+function SmokeRow({ playwright, rootParam }: { playwright: PlaywrightStatus | null; rootParam: string }) {
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<SmokeResult | null>(null)
+  const [shotKey, setShotKey] = useState(0)
+  // Headless: no DISPLAY needed, only the app's Playwright + Chromium
+  const blocked = playwright && !playwright.installed ? "Install Playwright first (above): the smoke test uses the app’s own Playwright."
+    : playwright?.browsersInstalled === false ? "Install Chromium first (above)." : null
+
+  const run = async () => {
+    setRunning(true)
+    const res = await fetch(`/api/frontend/smoke${rootParam}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => null)
+    const json = await res?.json().catch(() => null)
+    setRunning(false)
+    if (!res?.ok) {
+      setResult({ ok: false, durationMs: 0, startedServer: false, screenshot: false, notes: [], error: json?.error ?? "Couldn’t run the smoke test" })
+      return
+    }
+    setResult({
+      ok: json?.ok ?? false, finalUrl: json?.finalUrl, status: json?.status ?? null, durationMs: json?.durationMs ?? 0,
+      startedServer: json?.startedServer ?? false, screenshot: json?.screenshot ?? false, notes: json?.notes ?? [], error: json?.error,
+    })
+    setShotKey(Date.now())
+  }
+
+  const shotParams = new URLSearchParams(rootParam)
+  shotParams.set("t", String(shotKey))
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border px-4 py-3" data-testid="frontend-smoke">
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-sm text-muted">Smoke test</span>
+        <div className="flex items-center gap-2">
+          {result && !running && (
+            <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${result.ok ? "border-green-400/40 bg-green-400/10 text-green-400" : "border-red-400/40 bg-red-400/10 text-red-400"}`} data-testid="smoke-pill">
+              {result.ok ? "Passed" : "Failed"}
+            </span>
+          )}
+          <button type="button" onClick={run} disabled={!!blocked || running} title={blocked ?? undefined} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">
+            {running ? "Running…" : "Run smoke test"}
+          </button>
+        </div>
+      </div>
+      <p className="text-xs text-muted">
+        {running ? "Starting the app if needed and opening its first page…" : "Opens the app’s first page headless with the saved session; an app VibeDoc starts for it is stopped again."}
+      </p>
+      {blocked && <p className="text-xs text-muted">{blocked}</p>}
+      {result && !running && (
+        <div className="space-y-2" data-testid="smoke-result">
+          {result.error && <p className="whitespace-pre-wrap text-xs text-red-400" role="alert">{result.error}</p>}
+          {result.finalUrl && (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
+              <dt className="text-muted">Final URL</dt>
+              <dd className="min-w-0 truncate font-mono text-txt" data-testid="smoke-url">{result.finalUrl}</dd>
+              <dt className="text-muted">HTTP status</dt>
+              <dd className="font-mono text-txt">{result.status ?? "–"}</dd>
+              <dt className="text-muted">Duration</dt>
+              <dd className="font-mono text-txt">{(result.durationMs / 1000).toFixed(1)}s{result.startedServer ? " · started and stopped the app" : ""}</dd>
+            </dl>
+          )}
+          {result.notes.map(note => (
+            <p key={note} className="flex items-start gap-2 text-xs text-muted" data-testid="smoke-note">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" aria-hidden />
+              {note}
+            </p>
+          ))}
+          {result.screenshot && (
+            // eslint-disable-next-line @next/next/no-img-element -- an API route image, no optimisation wanted
+            <img src={`/api/frontend/smoke?${shotParams}`} alt={`Screenshot of ${result.finalUrl ?? "the app"}`} className="w-full rounded-md border border-border" data-testid="smoke-shot" />
+          )}
+        </div>
+      )}
     </div>
   )
 }
