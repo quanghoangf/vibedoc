@@ -18,6 +18,7 @@ import {
 import type { TaskBoard } from "@/types"
 import { cn } from "@/lib/utils"
 import { shortcutFor } from "@/lib/shortcuts"
+import { VIBEDOC_VERSION } from "@/lib/version"
 import { SidebarChats } from "./SidebarChats"
 
 // Chats lead the shell (SidebarChats); pages follow, grouped by what you do there. Settings sits in the footer.
@@ -75,6 +76,7 @@ export function AppSidebar({ board }: AppSidebarProps) {
             <Hexagon className="size-3.5" strokeWidth={2.5} />
           </div>
           <span className="text-sm font-semibold tracking-tight text-txt group-data-[collapsible=icon]:hidden">VibeDoc</span>
+          <span title="VibeDoc version" className="truncate font-mono text-[11px] text-muted group-data-[collapsible=icon]:hidden">v{VIBEDOC_VERSION}</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
