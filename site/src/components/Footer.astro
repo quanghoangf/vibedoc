@@ -1,0 +1,21 @@
+---
+import Logo from './Logo.astro'
+import GitHubIcon from './GitHubIcon.astro'
+import { CHANGELOG, DOCS, GITHUB, LICENSE, NPM } from '../data/links'
+
+const links = [
+  { href: DOCS, label: 'Docs' },
+  { href: CHANGELOG, label: 'Changelog' },
+  { href: NPM, label: 'npm' },
+  { href: LICENSE, label: 'MIT license' },
+]
+---
+<footer class="border-t border-rule bg-surface">
+  <div class="mx-auto flex max-w-[1200px] flex-wrap items-center gap-5 px-5 py-8 text-sm text-pencil sm:px-8">
+    <span class="flex items-center gap-2"><Logo size={20} />VibeDoc · local-first</span>
+    <nav aria-label="Footer" class="ml-auto flex flex-wrap items-center gap-5">
+      {links.map((l) => <a href={l.href} class="text-pencil hover:text-ink">{l.label}</a>)}
+      <a href={GITHUB} aria-label="VibeDoc on GitHub" class="inline-flex min-h-10 min-w-10 items-center justify-center text-ink"><GitHubIcon size={20} /></a>
+    </nav>
+  </div>
+</footer>

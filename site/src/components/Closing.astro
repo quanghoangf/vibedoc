@@ -1,0 +1,16 @@
+---
+import GitHubIcon from './GitHubIcon.astro'
+import { GITHUB } from '../data/links'
+---
+<section aria-labelledby="closing-heading" class="mx-auto max-w-[1200px] px-5 pb-26 sm:px-8">
+  <div class="vd-reveal flex flex-wrap items-center gap-8 rounded-[18px] bg-ink px-8 py-16 text-[#e8e8f0] sm:px-12">
+    <div class="flex min-w-0 flex-[1_1_420px] flex-col gap-3">
+      <h2 id="closing-heading" class="m-0 text-4xl leading-[1.06] font-semibold tracking-[-0.03em] sm:text-[44px]">Give your agent a board,<br />and yourself the proof.</h2>
+      <p class="m-0 text-base leading-relaxed text-[#aaaabe]">Open source, MIT licensed, built in the open.</p>
+    </div>
+    <div class="flex flex-wrap gap-3">
+      <a href="#install" class="inline-flex min-h-12 items-center rounded-lg bg-violet px-5.5 font-medium text-night no-underline hover:brightness-110">Get started</a>
+      <a href={GITHUB} class="inline-flex min-h-12 items-center gap-2 rounded-lg border border-[#45455c] px-5.5 text-[#e8e8f0] no-underline hover:border-[#8c8ca0]"><GitHubIcon />Star on GitHub</a>
+    </div>
+  </div>
+</section>

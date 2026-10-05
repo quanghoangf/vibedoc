@@ -1,11 +1,12 @@
 # VibeDoc
 
-**Local-first project intelligence for AI-assisted development.**
+**Local-first project intelligence for AI-assisted development.** · [Website](https://quanghoangf.github.io/vibedoc/)
 
 [![npm](https://img.shields.io/npm/v/vibedoc)](https://www.npmjs.com/package/vibedoc)
 [![node](https://img.shields.io/node/v/vibedoc)](https://nodejs.org)
 [![license](https://img.shields.io/npm/l/vibedoc)](./LICENSE)
 [![CI](https://github.com/quanghoangf/vibedoc/actions/workflows/ci.yml/badge.svg)](https://github.com/quanghoangf/vibedoc/actions/workflows/ci.yml)
+[![Website](https://img.shields.io/badge/website-quanghoangf.github.io%2Fvibedoc-7c6af7)](https://quanghoangf.github.io/vibedoc/)
 
 A kanban board + docs viewer + MCP server — all in one process, zero config.  
 Point your AI agent at it. Watch tasks move in real time.

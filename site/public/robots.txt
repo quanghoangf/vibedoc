@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://quanghoangf.github.io/vibedoc/sitemap-index.xml

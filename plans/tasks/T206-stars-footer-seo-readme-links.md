@@ -1,9 +1,12 @@
 # T206: GitHub stars, footer, social preview/SEO, README + npm links
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R071 — Landing page
 **Size:** M (2–3 hrs)
 **Depends on:** T201
 **Covers:** S3
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 The site looks finished wherever it shows up (search, X, Slack), every visitor finds the next step, and the README and npm page send people to the site.
@@ -47,4 +50,10 @@ grep -n '"homepage"' package.json && grep -n "quanghoangf.github.io/vibedoc" REA
 ## Manual tests
 _2026-10-05 — ai_
 ### Steps
-- [ ] S3 — WHEN a visitor reaches the end of the page → THEN they can go to the docs, the changelog and the GitHub repo (with its star count)
+- [ ] S3 — WHEN a visitor reaches the end of the page → THEN they can go to the docs, the changelog and the GitHub repo (with its star count) (proven locally by the "S3: the footer leads to…" and star-count tests in `site/e2e/landing.spec.ts`; Docs and Changelog point at the README and CHANGELOG.md until R074 / R075)
+- [ ] On the live site, the header's GitHub button shows the real star count (e.g. "★ 12") a moment after load
+- [ ] Paste https://quanghoangf.github.io/vibedoc/ into Slack or X → the preview shows the "Every task your agent finishes comes with proof." card (og.png)
+- [ ] The browser tab shows the violet hexagon favicon
+- [ ] On GitHub and (after the next npm publish) on npmjs.com, the "Website" link opens the site
+### Regression risk
+- [ ] The header still fits on one row at desktop width with the star count added; at 390 px only the GitHub button shows

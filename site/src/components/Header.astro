@@ -22,7 +22,24 @@ const nav = [
       <a href={GITHUB} class="inline-flex min-h-10 items-center gap-2 rounded-md bg-ink px-3 text-white no-underline hover:bg-night">
         <GitHubIcon />
         <span>GitHub</span>
+        <span data-stars hidden class="font-mono text-xs text-[#c8c8dc]"></span>
       </a>
     </nav>
   </div>
 </header>
+
+<script>
+  // Live star count; on any failure the button just reads "GitHub"
+  import { STARS_API } from '../data/links'
+  const slot = document.querySelector<HTMLElement>('[data-stars]')
+  fetch(STARS_API, { headers: { accept: 'application/vnd.github+json' } })
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((repo: { stargazers_count?: number }) => {
+      const n = repo.stargazers_count
+      if (!slot || typeof n !== 'number') return
+      slot.textContent = `★ ${n >= 1000 ? `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k` : n}`
+      slot.setAttribute('aria-label', `${n.toLocaleString('en')} stars`)
+      slot.hidden = false
+    })
+    .catch(() => {})
+</script>

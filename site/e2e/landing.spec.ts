@@ -155,3 +155,40 @@ test.describe('demo video (T204)', () => {
     await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.5)
   })
 })
+
+test.describe('stars, footer and SEO (T206)', () => {
+  test('S3: the footer leads to docs, changelog, npm and GitHub', async ({ page }) => {
+    await page.goto('./')
+    const footer = page.getByRole('contentinfo')
+    await expect(footer.getByRole('link', { name: 'Docs' })).toHaveAttribute('href', 'https://github.com/quanghoangf/vibedoc#readme')
+    await expect(footer.getByRole('link', { name: 'Changelog' })).toHaveAttribute('href', /CHANGELOG\.md$/)
+    await expect(footer.getByRole('link', { name: 'npm' })).toHaveAttribute('href', 'https://www.npmjs.com/package/vibedoc')
+    await expect(footer.getByRole('link', { name: 'VibeDoc on GitHub' })).toHaveAttribute('href', 'https://github.com/quanghoangf/vibedoc')
+  })
+
+  test('the star count shows on the GitHub button', async ({ page }) => {
+    await page.route('https://api.github.com/repos/quanghoangf/vibedoc', (r) => r.fulfill({ json: { stargazers_count: 1234 } }))
+    await page.goto('./')
+    const github = page.getByRole('banner').getByRole('link', { name: /GitHub/ })
+    await expect(github.getByLabel('1,234 stars')).toHaveText('★ 1.2k')
+  })
+
+  test('with the GitHub API blocked the button still reads GitHub, without a count', async ({ page }) => {
+    await page.route('https://api.github.com/**', (r) => r.abort())
+    await page.goto('./')
+    const github = page.getByRole('banner').getByRole('link', { name: /GitHub/ })
+    await expect(github).toHaveText('GitHub')
+    await expect(github).toHaveAttribute('href', 'https://github.com/quanghoangf/vibedoc')
+  })
+
+  test('the closing call to action and the social preview tags are there', async ({ page, request }) => {
+    await page.goto('./')
+    await expect(page.getByRole('heading', { name: /Give your agent a board/ })).toBeVisible()
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', 'https://quanghoangf.github.io/vibedoc/og.png')
+    await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image')
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'https://quanghoangf.github.io/vibedoc/')
+    for (const file of ['og.png', 'favicon.svg', 'sitemap-index.xml', 'robots.txt']) {
+      expect((await request.get(file)).status(), file).toBe(200)
+    }
+  })
+})
