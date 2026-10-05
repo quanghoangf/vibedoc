@@ -10,7 +10,16 @@ import { ReviewActions } from "@/components/board/TaskDetailPanel"
 import { AlertTriangle, Check, HelpCircle, X } from "lucide-react"
 import type { ReviewMark } from "@/lib/review"
 
-type Row = { item: number; text: string; auto: boolean; result: "passed" | "failed" | "missing" | "manual"; screenshot: string | null; error: string | null; unverified: string[] }
+type Row = { item: number; text: string; auto: boolean; result: "passed" | "failed" | "missing" | "manual"; screenshot: string | null; error: string | null; unverified: string[]; flaky?: { attempts: number; error: string | null; screenshot: string | null } | null }
+
+/** R065: a step that passed only on a retry. Shown, never counted as broken. */
+export function FlakyChip({ attempts }: { attempts?: number }) {
+  return (
+    <span title={attempts ? `Passed on attempt ${attempts} after a failure` : "Passed on a retry after a failure"} className="inline-flex shrink-0 items-center rounded-sm border border-amber/40 bg-amber/10 px-1.5 py-0.5 text-[11px] leading-none text-amber">
+      flaky
+    </span>
+  )
+}
 
 /** R063: a passed step that doesn't prove its item; the reasons ride in the title and under the step. */
 export function UnverifiedChip({ reasons }: { reasons: string[] }) {
@@ -240,6 +249,7 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
                     </button>
                   )}
                   <span className="min-w-0 flex-1 text-sm leading-snug text-txt">{r.text}</span>
+                  {r.flaky && <FlakyChip attempts={r.flaky.attempts} />}
                   {weak && <UnverifiedChip reasons={r.unverified} />}
                   {r.result === "passed" && !weak && (
                     <button
@@ -267,6 +277,20 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
                   />
                 )}
                 {r.result === "failed" && r.error && <span className="ml-6 font-mono text-xs whitespace-pre-wrap text-danger">{r.error}</span>}
+                {r.flaky && (
+                  <details className="ml-6 text-xs">
+                    <summary className="cursor-pointer text-amber">First attempt failed (passed on attempt {r.flaky.attempts})</summary>
+                    <div className="mt-1.5 flex flex-col gap-1.5">
+                      {r.flaky.error && <span className="font-mono whitespace-pre-wrap text-danger">{r.flaky.error.split("\n").filter(Boolean).slice(0, 4).join("\n")}</span>}
+                      {r.flaky.screenshot && (
+                        <button type="button" onClick={() => onZoom({ src: media(r.flaky!.screenshot!), alt: `${r.text} (first attempt)` })} className="w-fit rounded-sm focus-visible:outline-2 focus-visible:outline-accent" aria-label={`First attempt screenshot of step ${r.item + 1}`}>
+                          {/* eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API */}
+                          <img src={media(r.flaky.screenshot)} alt="" loading="lazy" className="h-16 w-28 rounded-sm border border-border object-cover object-top" />
+                        </button>
+                      )}
+                    </div>
+                  </details>
+                )}
                 {weak && <span className="ml-6 text-xs text-amber">Unverified: {r.unverified.join(", ")}. It passed but proves nothing about the app; check it by hand.</span>}
               </li>
             )

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Check, Loader2, Square, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isRunning, type RunState } from "@/lib/test-run-events"
-import { UnverifiedChip } from "./TestEvidence"
+import { FlakyChip, UnverifiedChip } from "./TestEvidence"
 
 const clock = (ms: number) => `${(Math.max(0, ms) / 1000).toFixed(1)}s`
 
@@ -39,7 +39,7 @@ export function RunLive({ run, began, ended, unverified = 0, onStop, onDismiss }
   const weak = Math.max(unverified, blank.size)
   const headline = going
     ? run.state === "starting" ? "Starting the app…" : run.state === "checking" ? "Checking the test is honest…" : `Running · step ${run.steps.length}`
-    : run.state === "passed" ? `Passed · ${passed}/${run.steps.length} steps${weak ? ` · ${weak} unverified` : ""}`
+    : run.state === "passed" ? `Passed · ${passed}/${run.steps.length} steps${weak ? ` · ${weak} unverified` : ""}${run.flaky ? ` · ${run.flaky} flaky` : ""}`
     : run.state === "failed" ? `Failed${failedStep ? ` at step ${failedStep.index}` : ""}`
     : run.state === "cancelled" ? "Stopped"
     : "Couldn’t run the spec"
@@ -70,12 +70,15 @@ export function RunLive({ run, began, ended, unverified = 0, onStop, onDismiss }
           {run.steps.map((s) => (
             <li key={s.index} className="grid grid-cols-[1rem_1.5rem_1fr_auto] items-start gap-x-2 py-1 text-sm">
               {s.status === "running" ? <Loader2 className="mt-0.5 size-4 animate-spin text-accent" aria-label="running" />
+                : s.status === "passed" && s.retried ? <Check className="mt-0.5 size-4 text-amber" strokeWidth={2.5} aria-label="passed on retry" />
                 : s.status === "passed" ? <Check className="mt-0.5 size-4 text-teal" strokeWidth={2.5} aria-label="passed" />
                 : <X className="mt-0.5 size-4 text-danger" strokeWidth={2.5} aria-label="failed" />}
               <span className="mt-px font-mono text-[11px] leading-5 text-muted tabular-nums" aria-hidden>{String(s.index).padStart(2, "0")}</span>
               <span className="flex min-w-0 flex-col gap-1">
                 <span className="flex min-w-0 items-start gap-2">
                   <span className={cn("leading-snug", s.status === "running" ? "text-txt" : "text-txt/90")}>{s.name}</span>
+                  {s.retried && s.status === "passed" && <FlakyChip />}
+                  {s.retried && s.status !== "passed" && <span className="shrink-0 text-[11px] text-muted">retrying</span>}
                   {blank.has(s.name) && <UnverifiedChip reasons={["passes without the app"]} />}
                 </span>
                 {s.error && <span className="font-mono text-xs break-words whitespace-pre-wrap text-danger">{s.error}</span>}

@@ -115,11 +115,13 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
               title="Last run · open the evidence"
               className={cn(
                 "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
-                task.lastRun.status === "passed" ? "border-teal/30 bg-teal/5 text-teal" : "border-danger/40 text-danger",
+                task.lastRun.status !== "passed" ? "border-danger/40 text-danger"
+                  : tests?.autoRun?.flaky ? "border-amber/40 bg-amber/5 text-amber"
+                  : "border-teal/30 bg-teal/5 text-teal",
               )}
             >
               {task.lastRun.status === "passed"
-                ? <><Check className="size-3" aria-hidden /> {task.lastRun.passed}/{task.lastRun.steps}</>
+                ? <><Check className="size-3" aria-hidden /> {task.lastRun.passed}/{task.lastRun.steps}{tests?.autoRun?.flaky ? ` · ${tests.autoRun.flaky} flaky` : ""}</>
                 : <><X className="size-3" aria-hidden /> {task.lastRun.steps - task.lastRun.passed} failed</>}
             </Link>
           )}
@@ -138,11 +140,12 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
               onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
               title={`Manual tests: ${tests.done} of ${tests.total} ticked` +
                 (tests.auto ? `, ${tests.auto} automated` : "") +
-                (tests.autoRun ? ` (last run ${tests.autoRun.result} ${tests.autoRun.date})` : "") +
+                (tests.autoRun ? ` (last run ${tests.autoRun.result} ${tests.autoRun.date}${tests.autoRun.flaky ? `, ${tests.autoRun.flaky} flaky` : ""})` : "") +
                 " · click for evidence"}
               className={cn(
                 "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
                 tests.autoRun?.result === "failed" ? "border-danger/40 text-danger"
+                  : tests.autoRun?.flaky ? "border-amber/40 bg-amber/5 text-amber" // R065: passed, but only on a retry
                   : tests.untested === 0 ? "border-teal/30 bg-teal/5 text-teal" : "border-border text-muted",
               )}
             >

@@ -96,3 +96,11 @@ console.log("ok selectionLabel")
   assert.equal(countNeedsYou([{ status: "done", manualTests: { untested: 1, autoRun: { result: "passed", date: "2026-10-05", unverified: 1 } }, lastRun: { status: "passed" } }]), 1)
   console.log("ok unverified row")
 }
+// R065: a flaky pass is Passed + Flaky, never Needs you / Failed
+{
+  const f = toRow({ ...base, id: "T11", status: "done", items: [item(0, true, true)], autoRun: { result: "passed", date: "2026-10-05", flaky: 1 } })
+  assert.deepEqual([f.flaky, f.needsMe, f.result], [1, false, "passed"])
+  assert.deepEqual(["needs", "failed", "passed", "flaky"].map((t) => filterRows([f], t as never, null, "").length), [0, 0, 1, 1])
+  assert.equal(countNeedsYou([{ status: "done", manualTests: { untested: 0, autoRun: { result: "passed", date: "2026-10-05", flaky: 1 } }, lastRun: { status: "passed" } }]), 0)
+  console.log("ok flaky row")
+}

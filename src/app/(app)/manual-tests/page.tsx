@@ -28,7 +28,7 @@ function onWideChange(cb: () => void) {
   return () => mq.removeEventListener("change", cb)
 }
 
-const TAB_LABEL: Record<ReviewTab, string> = { needs: "Needs you", failed: "Failed", passed: "Passed", none: "No run", all: "All" }
+const TAB_LABEL: Record<ReviewTab, string> = { needs: "Needs you", failed: "Failed", passed: "Passed", flaky: "Flaky", none: "No run", all: "All" }
 
 export default function ManualTestsPage() {
   return (
@@ -313,7 +313,7 @@ function TestReview() {
                 )}
               >
                 {TAB_LABEL[t]}
-                <span className={cn("rounded-sm px-1 font-mono text-[11px] tabular-nums", t === "failed" && counts.failed ? "bg-danger/15 text-danger" : "bg-surface2 text-muted")}>{counts[t]}</span>
+                <span className={cn("rounded-sm px-1 font-mono text-[11px] tabular-nums", t === "failed" && counts.failed ? "bg-danger/15 text-danger" : t === "flaky" && counts.flaky ? "bg-amber/15 text-amber" : "bg-surface2 text-muted")}>{counts[t]}</span>
               </button>
             ))}
             <button

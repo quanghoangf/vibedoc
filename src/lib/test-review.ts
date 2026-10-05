@@ -6,8 +6,8 @@
 import type { ManualTestItem, AutoRun } from "./manual-tests"
 
 export type RunResult = "passed" | "failed" | "none"
-export type ReviewTab = "needs" | "failed" | "passed" | "none" | "all"
-export const REVIEW_TABS: ReviewTab[] = ["needs", "failed", "passed", "none", "all"]
+export type ReviewTab = "needs" | "failed" | "passed" | "flaky" | "none" | "all"
+export const REVIEW_TABS: ReviewTab[] = ["needs", "failed", "passed", "flaky", "none", "all"]
 
 export interface ReviewInput {
   id: string
@@ -37,6 +37,8 @@ export interface ReviewRow {
   left: number
   /** R063: passed steps of the last recorded result that don't prove their item */
   unverified: number
+  /** R065: tests of the last recorded result that passed only on a retry (shown, never counted as broken) */
+  flaky: number
   /** A failed run, a task in review, or checks left on a task that isn't finished (see needsYou) */
   needsMe: boolean
 }
@@ -88,6 +90,7 @@ export function toRow(t: ReviewInput): ReviewRow {
     at: (t.lastRun && runIdTime(t.lastRun.runId)) ?? t.autoRun?.date ?? t.reportDate,
     left,
     unverified: t.autoRun?.unverified ?? 0,
+    flaky: t.autoRun?.result === "passed" ? t.autoRun.flaky ?? 0 : 0,
     needsMe: needsYou(t.status, result, left, t.autoRun?.unverified ?? 0),
   }
 }
@@ -95,6 +98,7 @@ export function toRow(t: ReviewInput): ReviewRow {
 export function inTab(r: ReviewRow, tab: ReviewTab): boolean {
   if (tab === "needs") return r.needsMe
   if (tab === "all") return true
+  if (tab === "flaky") return r.flaky > 0 // also under Passed: flaky is a passing result
   return r.result === tab
 }
 

@@ -1,8 +1,12 @@
 # T177: Flaky shown separately: chips, Flaky filter, not counted as broken
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R065 — Self-fixing failures & flaky tests
 **Size:** M (2–3 hrs)
 **Depends on:** T176
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 A flaky test is visible but doesn't raise a false alarm: it gets its own amber label everywhere a run result shows, its own filter on /manual-tests, and it is never counted as failed, in Needs you or in the sidebar count.
@@ -43,3 +47,14 @@ node src/lib/evidence.check.mts
 pnpm lint && pnpm build
 # open http://localhost:3000/manual-tests?tab=flaky
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Run a task whose spec fails once and passes on the retry → during the run the step shows an amber check + "flaky" chip, and the verdict reads "Passed · 1/1 steps · 1 flaky" (agent checked with a throwaway spec on T153, since restored)
+- [ ] /manual-tests → the Flaky tab (amber count) lists that task, Passed includes it, Failed and Needs you don't (if it isn't in review), and the sidebar count is unchanged
+- [ ] Its Evidence doc reads "… · 1 flaky" and under the step "🔁 flaky (passed on attempt 2); the first attempt failed:" with the error and a first-attempt screenshot; `vibedoc_get_evidence` returns the same lines
+- [ ] Put it in review → Steps to review shows the "flaky" chip and a "First attempt failed (passed on attempt 2)" fold with the error and thumbnail
+- [ ] On /board its run chip reads `1/1 · 1 flaky` in amber, and the 🧪 badge is amber
+### Regression risk
+- [ ] A plain passed run still shows teal everywhere and a failed run red; Needs you / Failed counts are unchanged for non-flaky tasks

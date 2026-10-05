@@ -26,7 +26,7 @@ import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { parseKeep } from './runs-retention'
 import { isRunFile, isRunId, isRunTaskId, parseRange, parseRunHonesty, parseRunManifest, projectKey, runsRoot, type RunManifest } from './runs-paths'
-import { formatEvidence, matchItems, ticksForRun } from './evidence'
+import { flakyFor, formatEvidence, matchItems, ticksForRun } from './evidence'
 import { stepVerdict } from './honesty'
 import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
@@ -682,6 +682,8 @@ export type EvidenceRow = {
   result: 'passed' | 'failed' | 'missing' | 'manual'; screenshot: string | null; error: string | null
   /** R063: why this step doesn't prove the item ([] = it does, or unknown) */
   unverified: string[]
+  /** R065: passed only on a retry; what the first attempt showed (screenshot = a file of this run) */
+  flaky: { attempts: number; error: string | null; screenshot: string | null } | null
 }
 
 export async function getEvidence(taskId: string, root: string, opts: { runId?: string | null; src?: (runId: string, file: string) => string } = {}):
@@ -699,6 +701,10 @@ export async function getEvidence(taskId: string, root: string, opts: { runId?: 
   const rows = matchItems(tests?.items ?? [], shown, runVerdict).rows.map((r): EvidenceRow => ({
     item: r.item.index, text: r.item.text, auto: r.item.auto, group: r.item.group, result: r.result,
     screenshot: r.step?.screenshot ?? null, error: r.step?.error ?? null, unverified: r.unverified,
+    flaky: (() => {
+      const f = r.step ? flakyFor(shown, r.step.name) : null
+      return f ? { attempts: f.attempts, error: f.firstFailure.error, screenshot: f.firstFailure.screenshot } : null
+    })(),
   }))
   return {
     markdown, runId: shown?.runId ?? null,

@@ -6,7 +6,7 @@
  */
 
 import type { ManualTestItem } from './manual-tests.js'
-import type { RunManifest, RunStep } from './runs-paths.js'
+import type { RunManifest, RunStep, RunTest } from './runs-paths.js'
 
 export type ItemResult = 'passed' | 'failed' | 'missing' | 'manual'
 /** `unverified` (R063): why the step doesn't prove the item, from the injected verdict; [] = it does / unknown. */
@@ -48,6 +48,24 @@ export interface EvidenceInput {
 }
 
 const GLYPH: Record<RunStep['status'], string> = { passed: '✅', failed: '❌' }
+
+/**
+ * R065: the flaky test a step belongs to, when that step is where its first attempt failed (`firstFailure.step`),
+ * else null. A flaky test without a named step marks nothing.
+ */
+export function flakyFor(run: RunManifest | null, stepName: string): (RunTest & { firstFailure: NonNullable<RunTest['firstFailure']> }) | null {
+  const t = run?.tests?.find(x => x.outcome === 'flaky' && x.firstFailure && x.firstFailure.step && norm(x.firstFailure.step) === norm(stepName))
+  return t ? (t as RunTest & { firstFailure: NonNullable<RunTest['firstFailure']> }) : null
+}
+
+/** Markdown lines under a flaky step: what its first attempt showed. */
+function flakyBlock(f: ReturnType<typeof flakyFor>, runId: string, src: (runId: string, file: string) => string): string[] {
+  if (!f) return []
+  const out = [`  🔁 flaky (passed on attempt ${f.attempts}); the first attempt failed:`]
+  if (f.firstFailure.error) out.push('  ```', ...f.firstFailure.error.replace(/\x1b\[[0-9;]*m/g, '').trimEnd().split('\n').slice(0, 6).map(l => `  ${l.replace(/```/g, "'''")}`), '  ```')
+  if (f.firstFailure.screenshot) out.push(`  ![first attempt](${src(runId, f.firstFailure.screenshot)})`)
+  return out
+}
 const alt = (s: string) => s.replace(/[[\]*`_]/g, '').trim()
 const cell = (s: string) => s.replace(/\|/g, '\\|')
 
@@ -86,6 +104,7 @@ export function formatEvidence({ taskId, title, items, spec, runs, runId, src = 
       `**${GLYPH[run.status]} ${run.status}**`,
       `${passed}/${run.steps.length} steps`,
       unverified && `${unverified} unverified`,
+      run.flaky ? `${run.flaky} flaky` : null,
       when(run.startedAt),
       duration(run),
       short(run.commit) && `commit \`${short(run.commit)}\``,
@@ -109,12 +128,12 @@ export function formatEvidence({ taskId, title, items, spec, runs, runId, src = 
     for (const r of list) {
       if (r.result === 'manual') out.push(`- ${r.item.checked ? '☑' : '☐'} ${r.item.text} — _manual, ${r.item.checked ? 'ticked' : 'not ticked yet'}_`)
       else if (r.result === 'missing') out.push(`- ⚠️ ${r.item.text} — _${run ? 'no step in this run' : 'no run yet'}_`)
-      else out.push(`- ${GLYPH[r.result]} ${r.item.text}`, ...stepBlock(r.step!, run!.runId, src, r.item.text, r.unverified))
+      else out.push(`- ${GLYPH[r.result]} ${r.item.text}`, ...stepBlock(r.step!, run!.runId, src, r.item.text, r.unverified), ...flakyBlock(flakyFor(run, r.step!.name), run!.runId, src))
     }
   }
   if (run && extra.length) {
     out.push('', rows.length ? '### Steps not in the checklist' : '## Steps')
-    for (const s of extra) out.push(`- ${GLYPH[s.status]} ${s.name}`, ...stepBlock(s, run.runId, src, s.name, verdict?.(s, run) ?? []))
+    for (const s of extra) out.push(`- ${GLYPH[s.status]} ${s.name}`, ...stepBlock(s, run.runId, src, s.name, verdict?.(s, run) ?? []), ...flakyBlock(flakyFor(run, s.name), run.runId, src))
   }
 
   if (runs.length) {

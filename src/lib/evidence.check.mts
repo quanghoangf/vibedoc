@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { formatEvidence, matchItems, ticksForRun } from './evidence.ts'
+import { flakyFor, formatEvidence, matchItems, ticksForRun } from './evidence.ts'
 
 const item = (index: number, text: string, auto: boolean, checked = false, group: 'steps' | 'regression' = 'steps') => ({ index, text, auto, checked, group })
 const step = (index: number, name: string, status: 'passed' | 'failed' = 'passed', error: string | null = null) =>
@@ -84,4 +84,17 @@ console.log('ok evidence')
   assert.match(md, /- ✅ Click X → reads Y\n {2}!\[[^\n]+\n {2}⚠️ unverified: no assertion/)
   assert.ok(!/unverified/.test(formatEvidence({ taskId: 'T1', title: 'One', items: its, spec: null, runs: [honest] })), 'no verdict, no flags')
   console.log('ok evidence unverified')
+}
+
+// R065: a flaky test marks the step its first attempt failed at, with that error and screenshot; summary counts it
+{
+  const flakyRun = { ...run('20261005T090000Z', [step(1, 'Open / → board loads')]), flaky: 1,
+    tests: [{ title: 't', outcome: 'flaky' as const, attempts: 2, firstFailure: { step: 'Open / → board loads', error: 'Expected: "Board"\nReceived: ""', screenshot: 'first-failure-01-s.png' } }] }
+  assert.equal(flakyFor(flakyRun, ' Open /  → board loads')?.attempts, 2)
+  assert.equal(flakyFor(flakyRun, 'Other'), null)
+  const md = formatEvidence({ taskId: 'T1', title: 'One', items: [item(0, 'Open / → board loads', true)], spec: null, runs: [flakyRun] })
+  assert.match(md, /1\/1 steps · 1 flaky · /)
+  assert.match(md, /- ✅ Open \/ → board loads\n {2}!\[[^\n]+\n {2}🔁 flaky \(passed on attempt 2\); the first attempt failed:\n {2}```\n {2}Expected: "Board"/)
+  assert.match(md, /!\[first attempt\]\(20261005T090000Z\/first-failure-01-s\.png\)/)
+  console.log('ok evidence flaky')
 }
