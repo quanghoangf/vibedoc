@@ -1,8 +1,12 @@
 # T175: e2e: breaking an old feature names its task in the suite, + docs
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R064 — Regression suite
 **Size:** M
 **Depends on:** T174
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 Prove the epic's Done when automatically: deliberately breaking a feature from an earlier done task makes the suite run name that task with a failing screenshot. Document the suite for users and agents.
@@ -44,3 +48,13 @@ Prove the epic's Done when automatically: deliberately breaking a feature from a
 pnpm lint && pnpm build
 npx playwright test e2e/vibedoc/*regression-suite*.spec.ts
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] `PW_DIR=<dir with playwright> node e2e/regression-suite.mjs` → three ok lines: both fixture tasks pass; after breaking T002's spec the suite reads "Failed · 1 of 2 tasks broke" with T002 first (failing step + loaded screenshot) and T001 passed; Open evidence shows the same failure. R064's Done when is met by this (agent ran it twice in a row, both green)
+- [ ] Read docs/getting-started.md → a "Regression suite" bullet: done tasks with a spec, one process (VIBEDOC_TASK_MAP), the shared lock, where results go, the API and the `suite_run` SSE event
+- [ ] Read README's run paragraph and CLAUDE.md's API list → the Suite tab and `suite/run` are there
+- [ ] Read skills/work-epic/SKILL.md spec rules → "Keep the spec self-contained … regression suite …"
+### Regression risk
+- [ ] `node e2e/run-tests.mjs`, `node e2e/honest-tests.mjs` and `node e2e/evidence.mjs` still pass

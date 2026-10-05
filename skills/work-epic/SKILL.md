@@ -68,6 +68,7 @@ Then run it ([Run the spec](#run-the-spec)).
 - Navigate with paths (`page.goto('/settings')`). If the config has no `use.baseURL`, add `test.use({ baseURL: '<URL from vibedoc_get_frontend>' })`.
 - Never script a login (no typed passwords, no secrets in the spec). If **Auth** shows a saved session, reuse it: `test.use({ storageState: '<path to .vibedoc/auth/storage-state.json, relative to the app Dir>' })` (Playwright resolves a relative path from the folder the test runs in, so it is run from the app **Dir**). Without a saved session, leave `storageState` out: a missing file fails every test. If the page needs a login and no session is saved, keep those items manual.
 - Assert this task's change only. Don't create or delete data the test doesn't own.
+- Keep the spec self-contained: it runs alone and also in the regression suite, one process with every done task's spec. Don't rely on test order or on state another spec left behind.
 
 **Example.** The report
 
