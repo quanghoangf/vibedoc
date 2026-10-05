@@ -110,6 +110,7 @@ The only file that touches the file system. Every read/write goes through here.
 - `listEntries()` / `getEntry()` / `saveEntry()` / `deleteEntry()` — knowledge entries (`memory/entries/E*.md`, pure parsing in `src/lib/entries.ts`)
 - `getDocGraph()` — resolved links between every `.md` file (R056; pure parsing/resolution in `src/lib/doc-links.ts`, per-file mtime cache). Feeds `/api/docs/links`, `/api/docs/graph` and the `vibedoc_read_doc` footer
 - `listSpecs()` / `readSpec()` / `relatedSpecs()` / `getSpecContext()` — capability specs (`docs/specs/<capability>.md`, R066; pure parsing/formatting in `src/lib/specs.ts`). `relatedSpecs` ends `vibedoc_get_task` / `vibedoc_next_task` with `## Related spec`; `getSpecContext` feeds `vibedoc_spec_context`
+- `saveVerification()` / `getVerifyContext()` — verification review (R067): a task's `## Verification` findings (pure format/parse in `src/lib/verification.ts`), and what a reviewing agent needs (criteria, epic Done when, related spec, conventions, the diff of commits naming the task). Reports are marked `outdated` on read when a newer commit names the task
 - `logDecision()` — ADR creation
 - `readActivity()` / `appendActivity()` — activity log
 - `getProjectSummary()` — combined status (used by dashboard)

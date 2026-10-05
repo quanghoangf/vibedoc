@@ -1,8 +1,11 @@
 # T189: Verification review e2e and docs
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R067 — Spec verification review
 **Size:** M (2–3 hrs)
 **Depends on:** T187, T188
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 R067's "Done when" is proven by a test: a task finished with one acceptance criterion skipped gets a finding naming it, and sending it back reaches the agent.
@@ -35,3 +38,12 @@ node src/lib/verification.check.mts
 pnpm lint && pnpm build
 node e2e/verification.mjs
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] On this repo, click Verify on a real task in review (e.g. T186) → the agent chat reads the context, and the task gains a Verification block with findings or "Verified: nothing found."
+- [ ] Read the Verification part of docs/architecture/mcp-tools.md → it matches what the panel shows (section format, send back, outdated)
+- [ ] MEMORY.md has a "Verification review (R067)" Key conventions line and CLAUDE.md lists `## Verification` among what VibeDoc writes
+### Regression risk
+- [ ] Approve / Send back with a note on /manual-tests still work for a task that has no Verification section

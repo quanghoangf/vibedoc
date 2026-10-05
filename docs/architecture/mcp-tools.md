@@ -285,6 +285,8 @@ _2026-10-06 — ai:claude-code · at 3f2a91c_
 
 An unknown severity is an error naming the allowed values.
 
+In the task panel, critical and major findings start checked; **Send back N findings** is the normal send back (task → todo, a `changes requested` entry in `## Review`) with the picked findings as the note, so the next `vibedoc_next_task` starts with them. A report goes **outdated** once a commit whose subject names the task lands after its `sha` (derived on read from the newest 2000 commits, never stored): the panel greys it ("outdated — re-verify", no send back) and `vibedoc_get_task` says to re-verify. No `sha` → never outdated.
+
 ---
 
 ### `vibedoc_get_evidence`
