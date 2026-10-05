@@ -1,0 +1,38 @@
+---
+import GitHubIcon from './GitHubIcon.astro'
+import CopyCommand from './CopyCommand.astro'
+import { GITHUB } from '../data/links'
+---
+<section id="top" class="mx-auto flex max-w-[1200px] flex-col gap-7 px-5 pt-16 pb-10 sm:px-8 sm:pt-22">
+  <p class="vd-in m-0 inline-flex items-center gap-2 self-start rounded-full border border-rule bg-surface px-3 py-1.5 font-mono text-xs tracking-[0.06em] text-pencil uppercase">
+    <span class="vd-pulse size-[7px] rounded-full bg-teal-ink" aria-hidden="true"></span>
+    Spec-driven development for AI coding agents
+  </p>
+  <h1 class="vd-in m-0 max-w-[1000px] text-5xl leading-[0.98] font-semibold tracking-[-0.045em] sm:text-7xl lg:text-[84px]" style="animation-delay: 80ms">
+    Every task your agent finishes comes with <span class="rounded-lg bg-violet/18 px-3">proof</span>.
+  </h1>
+  <div class="vd-in flex flex-wrap items-start gap-12" style="animation-delay: 160ms">
+    <div class="flex min-w-0 flex-[1_1_420px] flex-col gap-5">
+      <p class="m-0 max-w-[560px] text-lg leading-relaxed text-body sm:text-xl">
+        VibeDoc keeps your plan, specs and memory as markdown in your repo. Claude Code, Cursor or any MCP agent works them
+        task by task, and you review each one on its tests, screenshots and video.
+      </p>
+      <div class="flex flex-wrap gap-3">
+        <a href="#demo" class="inline-flex min-h-12 items-center gap-2 rounded-lg bg-violet px-5 text-[15px] font-medium text-night no-underline hover:brightness-110">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5Z"></path></svg>
+          Watch it work
+        </a>
+        <a href={GITHUB} class="inline-flex min-h-12 items-center gap-2 rounded-lg border border-rule-strong bg-surface px-5 text-[15px] no-underline hover:border-pencil">
+          <GitHubIcon />
+          Star on GitHub
+        </a>
+      </div>
+      <p class="m-0 text-[13px] text-pencil">Works with Claude Code · Cursor · Windsurf · Codex · any MCP client</p>
+    </div>
+    <div class="min-w-0 flex-[0_1_500px] overflow-hidden rounded-xl border border-rule bg-surface shadow-[0_12px_32px_rgba(26,26,46,0.06)]">
+      <p class="m-0 border-b border-rule px-4 py-2.5 font-mono text-xs text-pencil">Run it in your project</p>
+      <CopyCommand command="npx vibedoc" />
+      <p class="m-0 px-4 py-2.5 text-[13px] text-pencil">Runs the latest version in the current project. Nothing to install.</p>
+    </div>
+  </div>
+</section>

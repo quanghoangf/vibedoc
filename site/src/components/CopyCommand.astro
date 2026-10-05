@@ -1,0 +1,30 @@
+---
+// One copyable command. Data-driven (`command`, `label`) so the install tabs (T202) render a list of these.
+// Without JavaScript the command is still selectable text.
+interface Props { command: string; label?: string }
+const { command, label = 'Copy install command' } = Astro.props
+---
+<div class="flex items-center gap-3 bg-ink py-3 pr-3 pl-4 text-[#e8e8f0]">
+  <code class="min-w-0 flex-1 overflow-x-auto font-mono text-sm whitespace-nowrap"><span class="text-[#8c8ca0] select-none">$ </span>{command}</code>
+  <button
+    type="button"
+    data-copy={command}
+    aria-label={label}
+    class="min-h-10 min-w-19 cursor-pointer rounded-md bg-violet px-4 text-sm font-medium text-night transition-[filter] hover:brightness-110"
+  >Copy</button>
+</div>
+
+<script>
+  // One listener for every copy button on the page
+  document.addEventListener('click', async (e) => {
+    const button = (e.target as HTMLElement | null)?.closest<HTMLButtonElement>('[data-copy]')
+    if (!button) return
+    try {
+      await navigator.clipboard.writeText(button.dataset.copy ?? '')
+      button.textContent = 'Copied'
+    } catch {
+      button.textContent = 'Copy failed'
+    }
+    window.setTimeout(() => { button.textContent = 'Copy' }, 2000)
+  })
+</script>

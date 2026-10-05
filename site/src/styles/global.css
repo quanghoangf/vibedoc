@@ -1,0 +1,56 @@
+/* VibeDoc landing: the light "paper" palette from DESIGN.md (site/design/README.md), Geist, motion. */
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  --color-paper: rgb(248 248 252);
+  --color-surface: rgb(255 255 255);
+  --color-grid: rgb(240 240 248);
+  --color-rule: rgb(224 224 238);
+  --color-rule-strong: rgb(208 208 228);
+  --color-ink: rgb(26 26 46);
+  --color-body: rgb(84 84 104);
+  --color-pencil: rgb(107 107 128);
+  --color-violet: #7c6af7;
+  --color-violet-ink: #5341d6; /* violet for text: 4.5:1 on paper */
+  --color-teal-ink: #1aa37f;
+  --color-night: rgb(10 10 15);
+}
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background-color: var(--color-paper);
+    background-image:
+      linear-gradient(var(--color-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
+    background-size: 32px 32px;
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--color-violet-ink); outline-offset: 2px; }
+}
+
+/* Motion (design: vd-*). Scroll-driven reveals only where the browser supports them; all of it off for reduced motion. */
+@keyframes vd-rise { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes vd-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes vd-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes vd-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes vd-draw { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.vd-in { animation: vd-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.vd-float { animation: vd-float 6s ease-in-out infinite; }
+.vd-pulse { animation: vd-pulse 1.6s ease-in-out infinite; }
+@supports (animation-timeline: view()) {
+  .vd-reveal { animation: vd-rise linear both; animation-timeline: view(); animation-range: entry 0% cover 28%; }
+  .vd-line { transform-origin: left; animation: vd-draw linear both; animation-timeline: view(); animation-range: entry 10% cover 40%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .vd-in, .vd-float, .vd-pulse, .vd-reveal, .vd-line { animation: none !important; opacity: 1 !important; transform: none !important; }
+}

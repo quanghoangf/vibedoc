@@ -1,6 +1,6 @@
 # R071: Landing page
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 240
 **Tasks:** T201, T202, T203, T204, T205, T206, T208, T207
 

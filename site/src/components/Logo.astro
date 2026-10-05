@@ -1,0 +1,7 @@
+---
+interface Props { size?: number }
+const { size = 28 } = Astro.props
+---
+<span class="flex shrink-0 items-center justify-center rounded-md bg-violet" style={`width:${size}px;height:${size}px`} aria-hidden="true">
+  <svg width={Math.round(size * 0.57)} height={Math.round(size * 0.57)} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" class="text-night"><path d="M12 2.5 20.5 7.25v9.5L12 21.5 3.5 16.75v-9.5Z"></path></svg>
+</span>

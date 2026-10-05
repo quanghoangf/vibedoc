@@ -1,8 +1,11 @@
 # T201: Site skeleton live on GitHub Pages (Astro, hero, npx)
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R071 — Landing page
 **Size:** M (2–3 hrs)
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 A real, small landing page is online at `https://quanghoangf.github.io/vibedoc/` with the headline and a copyable `npx vibedoc`, so every later task widens a live site instead of a local draft.
@@ -55,3 +58,13 @@ pnpm --dir site install && pnpm --dir site build && pnpm --dir site exec playwri
 pnpm typecheck && pnpm build && pnpm lint
 curl -sI https://quanghoangf.github.io/vibedoc/ | head -1   # after the deploy: 200
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] In the GitHub repo: Settings → Pages → Source: GitHub Actions (once), then push `main` → the "Site" workflow runs green and https://quanghoangf.github.io/vibedoc/ shows the hero
+- [ ] On the live page, click Copy → it reads "Copied" and `npx vibedoc` is on your clipboard
+- [ ] The header stays at the top while scrolling, and the hero matches the "C · Lab notebook" design (label with the pulsing dot, headline with the highlighted "proof", buttons, install box)
+- [ ] At phone width (390 px) the hero stacks with no horizontal scroll and the nav shows only the GitHub button
+### Regression risk
+- [ ] The app still builds and runs as before (`pnpm build`, `pnpm dev`); `site/` is not picked up by its typecheck or lint
