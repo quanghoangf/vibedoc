@@ -49,7 +49,6 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
 }) {
   const { demo } = useApp()
   // Kept runs, reported by the evidence view: `[` `]` only show when there is another run to step to
-  const [runCount, setRunCount] = useState(0)
   const items = tests?.items ?? []
   const manual = items.filter((i) => !i.auto)
   const automated = items.filter((i) => i.auto)
@@ -178,13 +177,6 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
             </button>
           ))}
         </div>
-        <KeyStrip
-          view={view}
-          tick={view === "review" && !demo && manual.some((i) => !checkedOf(i))}
-          approve={decides && task.status === "review"}
-          sendBack={decides && REVIEWABLE["changes requested"].includes(task.status)}
-          runs={runCount > 1}
-        />
       </header>
 
       {/* The live Run strip shows in both views: a task in review opens on Evidence, where Run is pressed too */}
@@ -202,7 +194,6 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
             run={run}
             onRun={onRun}
             onReplay={() => onView("review")}
-            onRuns={setRunCount}
             review={reviewHere ? { initialNote: failedNote, onDecided } : undefined}
           />
         </section>
@@ -252,33 +243,6 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
 }
 
 const ICON_BTN = "inline-flex size-8 items-center justify-center rounded-md text-muted transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:outline-2 focus-visible:outline-accent"
-
-const KBD = "rounded-sm border border-border2 bg-surface2 px-1 py-0.5 font-mono text-[11px] leading-none text-txt"
-
-/** The page keys that apply to this task, for sighted keyboard users (the `?` sheet lists them all). */
-function KeyStrip({ view, tick, approve, sendBack, runs }: { view: DetailView; tick: boolean; approve: boolean; sendBack: boolean; runs: boolean }) {
-  const K = TEST_REVIEW_KEYS
-  const keys: [string, string][] = [
-    ["j", ""], ["k", "move"],
-    ...(tick ? [[K.tick.key, "tick"]] as [string, string][] : []),
-    ...(approve ? [[K.approve.key, "twice to approve"]] as [string, string][] : []),
-    ...(sendBack ? [[K.sendBack.key, "send back"]] as [string, string][] : []),
-    [K.failed.key, "next failed"],
-    [K.run.key, "run"],
-    [K.view.key, view === "review" ? "evidence" : "review"],
-    [K.expand.key, "page"],
-    ...(view === "review" ? [["space", "play"]] as [string, string][] : runs ? [["[ ]", "older / newer run"]] as [string, string][] : []),
-  ]
-  return (
-    <p aria-hidden className="flex flex-wrap items-center gap-x-1 gap-y-1 font-mono text-[11px] text-muted max-sm:hidden">
-      {keys.map(([k, label], i) => (
-        <span key={k} className="inline-flex items-center gap-1">
-          <kbd className={KBD}>{k}</kbd>{label}{label && i < keys.length - 1 && <span className="px-0.5" aria-hidden>·</span>}
-        </span>
-      ))}
-    </p>
-  )
-}
 
 const OPEN_TASK = "inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-txt transition-colors hover:border-border2 hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent"
 

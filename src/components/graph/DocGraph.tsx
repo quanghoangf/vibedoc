@@ -1034,13 +1034,14 @@ export function DocGraph() {
           </ReactFlow>
         )}
 
-        {/* Unlinked shelf: files with no visible link, off the map so they never stretch the fit; after the map in tab order */}
+        {/* Unlinked shelf: files with no visible link, off the map so they never stretch the fit; after the map in tab order.
+            right-16 clears the Help button in the corner */}
         {!error && state.kinds.length > 0 && unlinked.length > 0 && (
           <div
             data-shelf
             role="group"
             aria-labelledby="graph-unlinked"
-            className="absolute right-3 bottom-3 left-14 z-10 flex items-center gap-1 overflow-x-auto rounded-md border border-border bg-surface p-1 md:left-auto md:max-w-[min(44rem,calc(100%-4.5rem))] md:flex-wrap md:overflow-x-visible md:max-h-17 md:overflow-y-auto"
+            className="absolute right-16 bottom-3 left-14 z-10 flex items-center gap-1 overflow-x-auto rounded-md border border-border bg-surface p-1 md:left-auto md:max-w-[min(44rem,calc(100%-8.5rem))] md:flex-wrap md:overflow-x-visible md:max-h-17 md:overflow-y-auto"
           >
             <span id="graph-unlinked" className="sticky left-0 shrink-0 bg-surface px-1.5 font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">
               Unlinked <span className="tabular-nums">{unlinked.length}</span>
@@ -1132,14 +1133,6 @@ export function DocGraph() {
               <p className="mt-2 text-xs text-muted">
                 Links to <span className="font-mono tabular-nums text-txt">{shown.to}</span> · Linked from <span className="font-mono tabular-nums text-txt">{shown.from}</span>
                 {hiddenLinks > 0 && <span className="text-muted"> · <span className="font-mono tabular-nums">+{hiddenLinks}</span> hidden by filters</span>}
-              </p>
-              {/* the keys that drive the map, for sighted keyboard users (screen readers get #graph-hint) */}
-              <p aria-hidden className="mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px] text-muted max-sm:hidden">
-                <kbd className={KBD}>{GRAPH_KEYS.select.key}</kbd><kbd className={KBD}>{GRAPH_KEYS.open.key}</kbd> open
-                <span aria-hidden>·</span>
-                <kbd className={KBD}>←→</kbd> linked
-                <span aria-hidden>·</span>
-                <kbd className={KBD}>{GRAPH_KEYS.clear.key}</kbd> clear
               </p>
               <div className="mt-3 flex items-center gap-2">
                 <Button size="sm" onClick={() => open(card)}>Open</Button>

@@ -1,6 +1,6 @@
 // Self-check for keyboard shortcuts. Run: node src/lib/shortcuts.check.mts
 import assert from 'node:assert/strict'
-import { GRAPH_KEYS, ITEM_KEYS, TEST_REVIEW_KEYS, OTHER_SHORTCUTS, PAGE_SHORTCUTS, inTextField, itemActionForKey, pageForKey, pageTitle, shortcutFor, shouldHandleShortcut } from './shortcuts.ts'
+import { GLOBAL_HELP_KEYS, GRAPH_KEYS, ITEM_KEYS, PAGE_HELP, SHORTCUT_SECTIONS, helpFor, TEST_REVIEW_KEYS, OTHER_SHORTCUTS, PAGE_SHORTCUTS, inTextField, itemActionForKey, pageForKey, pageTitle, shortcutFor, shouldHandleShortcut } from './shortcuts.ts'
 
 // A page-jump key never means anything else, and a key appears once per help-sheet section (the Graph section
 // repeats / and Esc on purpose: on /graph they do graph things)
@@ -72,5 +72,20 @@ assert.equal(shouldHandleShortcut({ ...base, target: el(false, true) }), false)
 assert.equal(inTextField(el(true)), true)
 assert.equal(inTextField(el(false)), false)
 assert.equal(inTextField(null), false)
+
+// Help panel: every page with a key has help (except Explorer / Settings, which have no page keys); every key it
+// shows is in the full list, so the two never disagree
+const allKeys = new Set(SHORTCUT_SECTIONS.flatMap((sec) => sec.rows.map((r) => r.key)))
+for (const [href, help] of Object.entries(PAGE_HELP)) {
+  assert.ok(PAGE_SHORTCUTS.some((p) => p.href === href), `${href} is not a page`)
+  for (const { key } of help.keys) assert.ok(allKeys.has(key), `${href} help lists ${key}, missing from the full list`)
+  assert.ok(help.tips.length > 0, `${href} has no tips`)
+}
+for (const { key } of GLOBAL_HELP_KEYS) assert.ok(allKeys.has(key), `global ${key} missing from the full list`)
+for (const href of ['/board', '/roadmap', '/docs', '/graph', '/manual-tests']) assert.ok(PAGE_HELP[href], `${href} needs help`)
+assert.equal(helpFor('/manual-tests')?.title, 'Test review')
+assert.equal(helpFor('/docs/architecture/HLD.md')?.title, 'Docs')
+assert.equal(helpFor('/settings'), null)
+assert.equal(helpFor('/boardx'), null)
 
 console.log('shortcuts.check: ok')

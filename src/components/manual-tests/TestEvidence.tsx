@@ -92,14 +92,13 @@ type Evidence = { markdown: string; runId: string | null; runs: Run[]; rows: Row
  * in a new tab, except the newest run's video, which `onReplay` plays in the Review view. The doc's head (verdict, coverage, run line: everything before its first `## `) renders above History,
  * the rest below; `#heading` links in it scroll within the view.
  */
-export function TestEvidence({ taskId, latest, run, onRun, onReplay, onRuns, review }: {
+export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
   taskId: string
   latest: string | null
   run: string | null
   onRun: (runId: string | null) => void
   /** The newest run's video plays in the Review view */
   onReplay: () => void
-  onRuns: (count: number) => void
   /** R062: the task waits in review → Approve / Send back on top of the proof (prefilled note, extra controls) */
   review?: { initialNote: string; onDecided: () => void; children?: ReactNode }
 }) {
@@ -139,7 +138,6 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, onRuns, rev
   const runs = evidence?.runs ?? (loading ? [] : data?.runs ?? [])
   const error = loading ? null : data?.error ?? null
 
-  useEffect(() => { onRuns(runs.length) }, [runs.length, onRuns])
 
   // Before paint, so an 11k px doc never flashes full-size screenshots and logs
   useLayoutEffect(() => { if (root.current) enhance(root.current) }, [head, body])

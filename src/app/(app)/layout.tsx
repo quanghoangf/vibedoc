@@ -15,8 +15,8 @@ import { Toaster } from "@/components/ui/toast"
 import { ItemCommandKeys } from "@/components/shared/item-commands"
 import { ChatProvider, useChats } from "@/context/ChatContext"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
-import { CHAT_KEY, OTHER_SHORTCUTS, PAGE_SHORTCUTS, pageForKey, pageTitle, shouldHandleShortcut } from "@/lib/shortcuts"
+import { HelpLauncher } from "@/components/layout/HelpLauncher"
+import { CHAT_KEY, pageForKey, pageTitle, shouldHandleShortcut } from "@/lib/shortcuts"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -28,13 +28,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     </AppProvider>
   )
 }
-
-const SHORTCUT_SECTIONS = [
-  { title: "Go to", rows: PAGE_SHORTCUTS.map(({ key, label, help }) => ({ key, description: help ?? label })) },
-  ...(["Open", "Board", "Graph", "Test review", "Open item", "Editing & other"] as const).map((title) => ({
-    title, rows: OTHER_SHORTCUTS.filter((s) => s.section === title).map(({ key, label }) => ({ key, description: label })),
-  })),
-]
 
 /** Pages that only write or spawn agents: the read-only demo (R042) shows a note instead */
 const DEMO_BLOCKED = ["/chat", "/settings", "/setup"]
@@ -168,29 +161,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           onDocCreated={async (path) => { await openDoc(path) }}
         />
 
-        {/* Keyboard shortcuts help modal */}
-        <Dialog open={showHelp} onOpenChange={setShowHelp}>
-          <DialogContent aria-describedby={undefined} className="block max-h-[calc(100dvh-2rem)] w-80 overflow-y-auto overscroll-contain p-5 rounded-xl sm:rounded-xl shadow-2xl">
-            <DialogTitle className="font-display text-sm font-semibold text-txt mb-4">Keyboard shortcuts</DialogTitle>
-            {SHORTCUT_SECTIONS.map(({ title, rows }) => (
-              <table key={title} className="w-full text-xs mt-3 first-of-type:mt-0">
-                <caption className="pb-1 text-left font-mono text-[10px] uppercase tracking-[0.06em] text-muted">{title}</caption>
-                <tbody>
-                  {rows.map(({ key, description }) => (
-                    <tr key={key} className="border-t border-border first:border-0">
-                      <td className="py-1.5 pr-4 w-16 whitespace-nowrap">
-                        <kbd className="font-mono bg-surface2 border border-border rounded-sm px-1.5 py-0.5 text-txt">
-                          {key}
-                        </kbd>
-                      </td>
-                      <td className="py-1.5 text-muted">{description}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ))}
-          </DialogContent>
-        </Dialog>
+        {/* Help, bottom-right: hover peeks at this page's keys and tips; ?, the sidebar and ⌘K pin it */}
+        <HelpLauncher pinned={showHelp} onPinnedChange={setShowHelp} />
       </SidebarInset>
     </SidebarProvider>
   )
