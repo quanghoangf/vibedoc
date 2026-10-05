@@ -1,0 +1,18 @@
+---
+title: Install with your AI assistant
+description: One prompt to paste into Claude Code, Cursor or any agent. It installs VibeDoc, connects it and reports back.
+---
+import { Code } from '@astrojs/starlight/components'
+import { AI_INSTALL_PROMPT, MCP_URL } from '../../../data/ai-install'
+
+Paste this into Claude Code, Cursor or another coding agent, in the project you want VibeDoc for. The agent checks Node, starts VibeDoc on a fixed port, connects it as an MCP server, installs the `/vibedoc:*` skills in Claude Code, checks the connection and reports what it did, step by step.
+
+<Code code={AI_INSTALL_PROMPT} lang="text" title="Prompt" wrap />
+
+What it will and won't do:
+
+- It uses port 3333, so the MCP URL (<code>{MCP_URL}</code>) stays the same every time you start VibeDoc with `npx vibedoc --port 3333`.
+- It asks before anything that needs admin rights, never edits your shell startup files, and never changes your Node version.
+- Claude Code and Cursor load new MCP servers when a session starts: restart the session (or reload MCP servers) after it reports, then try `/vibedoc:roadmap` or "list the VibeDoc tasks".
+
+Prefer to do it by hand? Follow [Getting started](/vibedoc/docs/).

@@ -62,6 +62,23 @@ test.describe('install (T202)', () => {
     }
   })
 
+  test('"Ask your AI" copies the whole install prompt (T211)', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.goto('./')
+    await page.getByRole('tablist', { name: 'Install with' }).getByRole('tab', { name: 'Ask your AI', exact: true }).click()
+    const panel = page.getByRole('tabpanel', { name: 'Ask your AI', exact: true })
+    await expect(panel.getByText('Install VibeDoc (https://github.com/quanghoangf/vibedoc) in this project')).toBeVisible()
+    const copy = panel.getByRole('button', { name: 'Copy install prompt' })
+    await copy.click()
+    await expect(copy).toHaveText('Copied')
+    const prompt = await page.evaluate(() => navigator.clipboard.readText())
+    for (const part of ['--port 3333', 'claude mcp add --transport http vibedoc http://localhost:3333/api/mcp', 'claude plugin install vibedoc@vibedoc', 'Ask me before any command that needs admin rights', 'Never edit my shell startup files', 'Report back as a checklist']) {
+      expect(prompt).toContain(part)
+    }
+    await panel.getByRole('link', { name: 'Read the full prompt' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Install with your AI assistant' })).toBeVisible()
+  })
+
   test('the tabs work with the keyboard', async ({ page }) => {
     await page.goto('./')
     const tabs = page.getByRole('tablist', { name: 'Install with' })
@@ -70,7 +87,7 @@ test.describe('install (T202)', () => {
     await expect(tabs.getByRole('tab', { name: 'npm', exact: true })).toBeFocused()
     await expect(tabs.getByRole('tab', { name: 'npm', exact: true })).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('End')
-    await expect(tabs.getByRole('tab', { name: 'Homebrew', exact: true })).toBeFocused()
+    await expect(tabs.getByRole('tab', { name: 'Ask your AI', exact: true })).toBeFocused()
     await page.keyboard.press('ArrowRight')
     await expect(tabs.getByRole('tab', { name: 'npx', exact: true })).toBeFocused()
     // Tab leaves the list for the selected panel's Copy button

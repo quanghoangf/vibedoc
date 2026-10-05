@@ -31,6 +31,8 @@ npx vibedoc
 VibeDoc picks a free port automatically and opens the setup page in your browser.  
 The port is printed in the terminal — use it when configuring your AI agent.
 
+Rather have your agent do it? Paste [the install prompt](https://quanghoangf.github.io/vibedoc/docs/ai-install/) into Claude Code, Cursor or any agent: it starts VibeDoc on port 3333, connects it over MCP, adds the `/vibedoc:*` skills and reports back.
+
 ### Install it
 
 `npx vibedoc` needs no install. To keep a `vibedoc` command on your machine, pick one:

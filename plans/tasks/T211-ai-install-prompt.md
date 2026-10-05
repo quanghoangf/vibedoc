@@ -1,5 +1,7 @@
 # T211: Install with your AI assistant prompt
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-05
 **Phase:** R073 — Install with your AI assistant
 **Size:** M (2–3 hrs)
 **Depends on:** T210
@@ -32,3 +34,13 @@ A user pastes one prompt into Claude Code, Cursor or another agent; it installs 
 ```bash
 pnpm --dir site build && pnpm --dir site exec playwright test
 ```
+
+## Manual tests
+### Steps
+- [x] 🤖 On the landing page pick the "Ask your AI" install tab → the prompt starts "Install VibeDoc …" and Copy prompt copies the whole prompt (port 3333, `claude mcp add`, plugin install, admin-rights rule, report)
+- [x] 🤖 Click "Read the full prompt" → the docs page "Install with your AI assistant" shows the same prompt
+- [ ] Epic done-when: in a fresh project, paste the prompt into Claude Code → VibeDoc runs on :3333, `claude mcp list` shows vibedoc connected, and after a restart /vibedoc:roadmap is available; the agent's checklist report says so
+- [ ] Paste it into Cursor → `.cursor/mcp.json` gains a vibedoc entry and keeps the servers already there
+- [ ] With something else on port 3333 → the agent stops and asks which port to use
+### Regression risk
+- [ ] The other install tabs (npx, npm, pnpm, bun, Homebrew) still show and copy their one-line command

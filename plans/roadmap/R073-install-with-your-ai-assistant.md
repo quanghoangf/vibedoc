@@ -1,6 +1,6 @@
 # R073: Install with your AI assistant
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 260
 **Tasks:** T211
 

@@ -5,6 +5,8 @@ description: From install to an AI agent moving its first task, in about five mi
 
 From install to an AI agent moving its first task, in about five minutes. You need Node.js 20.9 or newer (Homebrew brings its own).
 
+Rather not read? [Paste one prompt into your agent](/vibedoc/docs/ai-install/) and it does these steps for you.
+
 ## 1. Install and start
 
 In the project you want to work on:

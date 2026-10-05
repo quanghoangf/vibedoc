@@ -12,7 +12,7 @@ test.describe('docs site (T210)', () => {
   test('the sidebar has the guides and the concepts', async ({ page }) => {
     await page.goto('docs/')
     const nav = page.getByRole('navigation', { name: 'Main' })
-    for (const name of ['Getting started', 'Skills (/vibedoc:*)', 'Troubleshooting', 'Tasks and the board', 'Roadmap and epics', 'Memory', 'Capability specs', 'Evidence and test runs']) {
+    for (const name of ['Getting started', 'Install with your AI assistant', 'Skills (/vibedoc:*)', 'Troubleshooting', 'Tasks and the board', 'Roadmap and epics', 'Memory', 'Capability specs', 'Evidence and test runs']) {
       await expect(nav.getByRole('link', { name, exact: true })).toBeAttached()
     }
   })
@@ -43,7 +43,7 @@ test.describe('docs site (T210)', () => {
   })
 
   test('links between docs pages resolve', async ({ page, request }) => {
-    const pages = ['docs/', 'docs/skills/', 'docs/troubleshooting/', 'docs/concepts/tasks/', 'docs/concepts/roadmap/', 'docs/concepts/memory/', 'docs/concepts/specs/', 'docs/concepts/evidence/']
+    const pages = ['docs/', 'docs/ai-install/', 'docs/skills/', 'docs/troubleshooting/', 'docs/concepts/tasks/', 'docs/concepts/roadmap/', 'docs/concepts/memory/', 'docs/concepts/specs/', 'docs/concepts/evidence/']
     for (const p of pages) {
       await page.goto(p)
       const hrefs = await page.getByRole('main').locator('a[href^="/vibedoc/docs"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')))
@@ -51,5 +51,11 @@ test.describe('docs site (T210)', () => {
         expect((await request.get(href!)).status(), `${p} → ${href}`).toBe(200)
       }
     }
+  })
+
+  test('the AI install page shows the same prompt as the landing page (T211)', async ({ page }) => {
+    await page.goto('docs/ai-install/')
+    await expect(page.getByRole('main').getByText('Install VibeDoc (https://github.com/quanghoangf/vibedoc) in this project', { exact: false })).toBeVisible()
+    await expect(page.getByRole('main').getByText('claude plugin install vibedoc@vibedoc', { exact: false }).first()).toBeVisible()
   })
 })
