@@ -33,7 +33,7 @@
     ".next/server/",
     ".next/static/",
     "public/",
-    "skills/",
+    "plugin/",
     "dist/testing/",
     "dist/lib/",
     "src/testing/playwright-fixture.ts",
