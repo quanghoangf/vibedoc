@@ -19,7 +19,7 @@ import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
 import { parseManualTests, setAllManualTests, setManualTests, setManualTestsChecked, setManualTestsMeta, toggleManualTest, untestedItems, type AutoRun, type ManualTestsMeta } from './manual-tests'
-import { REVIEWABLE, appendReviewEntry, formatReviewBody, type ReviewMark, type ReviewOutcome } from './review'
+import { REVIEWABLE, appendReviewEntry, autoFixStreak, formatReviewBody, latestReview, type ReviewMark, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
 import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
@@ -800,8 +800,8 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
  * The task settings from .vibedoc/settings.json (R055): `tasks.sizeDays` over the defaults (automatic due dates)
  * and `statuses` (custom statuses; the built-ins when unset). `runs.keep` (R059): test runs kept per task, default 5.
  */
-export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number; autoSendBack: boolean }> {
-  let s: { tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
+export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number; autoSendBack: boolean; maxAutoFixes: number }> {
+  let s: { tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown; maxAutoFixes?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
   try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
   const budget = Number(s?.memory?.sessionBudgetTokens)
   return {
@@ -813,6 +813,8 @@ export async function readProjectSettings(root: string): Promise<{ sizeDays: Siz
     testRetries: Number.isInteger(s?.tests?.retries) && (s?.tests?.retries as number) >= 0 ? Math.min(s?.tests?.retries as number, 5) : 2,
     // R065: a failed Run sends a done / review task back to the agent (`tests.autoSendBack`, default on)
     autoSendBack: s?.tests?.autoSendBack !== false,
+    // R065: automatic send-backs in a row before a failed Run goes to a human instead (`tests.maxAutoFixes`)
+    maxAutoFixes: Number.isInteger(s?.tests?.maxAutoFixes) && (s?.tests?.maxAutoFixes as number) >= 1 ? (s?.tests?.maxAutoFixes as number) : 3,
   }
 }
 
@@ -1085,9 +1087,29 @@ export async function sendBackFailedRun(taskId: string, root: string, since: str
   if (!run || run.startedAt < since || run.status !== 'failed') return null
   const tests = task.raw ? parseManualTests(task.raw) : null
   const failed = run.steps.filter(s => s.status === 'failed').length
-  return sendBackTask(task.id, `Auto: run failed (${failed} of ${run.steps.length} steps)`, root, {
-    runId: run.runId, marks: failedMarksForRun(tests?.items ?? [], run), auto: true,
-  })
+  const marks = failedMarksForRun(tests?.items ?? [], run)
+  // R065: the agent already had maxAutoFixes tries in a row: this failure goes to a human (review) instead
+  const streak = autoFixStreak(task.raw ?? '')
+  if (streak >= settings.maxAutoFixes) {
+    const at = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+    const body = formatReviewBody(`The agent couldn't fix this in ${streak} automatic attempts. A human decides: fix it, change the test, or send it back with a note.`, run.runId, marks)
+    await fs.writeFile(path.join(root, task.file), appendReviewEntry(task.raw ?? '', 'auto fix limit reached', body, at, false, streak), 'utf8')
+    return updateTaskStatus(task.id, 'review', root, 'human')
+  }
+  return sendBackTask(task.id, `Auto: run failed (${failed} of ${run.steps.length} steps)`, root, { runId: run.runId, marks, auto: true })
+}
+
+/**
+ * R065: a Run passed while the task's last entry is an automatic send-back: say so in ## Review, which ends the
+ * auto-fix streak. Null when there was nothing to end.
+ */
+export async function noteAutoRunPassed(taskId: string, root: string): Promise<Task | null> {
+  const task = await getTask(taskId, root)
+  const last = task.raw ? latestReview(task.raw) : null
+  if (!last || last.outcome !== 'changes requested' || !last.auto) return null
+  const at = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
+  await fs.writeFile(path.join(root, task.file), appendReviewEntry(task.raw ?? '', 'auto run passed', '', at), 'utf8')
+  return getTask(task.id, root)
 }
 
 /** Tick or untick every manual item of one task (🤖 ones untouched). `changed` = the indexes flipped, for Undo. */

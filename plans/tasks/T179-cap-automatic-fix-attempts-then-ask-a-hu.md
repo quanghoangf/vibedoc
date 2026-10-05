@@ -1,8 +1,12 @@
 # T179: Cap automatic fix attempts, then ask a human
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R065 — Self-fixing failures & flaky tests
 **Size:** S (~1 hr)
 **Depends on:** T178
+**Owner:** ai:claude-code
+**Due:** 2026-10-06
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 The agent doesn't loop forever on a test it can't fix. After N automatic send-backs in a row, the next failure moves the task to **review**, shows "needs a human", and stops handing it to agents.
@@ -40,3 +44,14 @@ The agent doesn't loop forever on a test it can't fix. After N automatic send-ba
 node src/lib/review.check.mts && node src/lib/work-queue.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] With `"tests": { "maxAutoFixes": 2 }` and a done task whose spec fails: Run → todo (auto send-back 1); claim it with vibedoc_next_task → "Auto-fix attempt 1 of 2"; mark it done and Run → todo again, claim shows "Auto-fix attempt 2 of 2 (the next failed run goes to a human)"; mark done and Run → the task goes to review with `— auto fix limit reached (2 attempts)` listing the failed step (agent checked this full loop on T153, since restored)
+- [ ] vibedoc_next_task on that epic then says "T0xx in review — needs a human"
+- [ ] On /board the card shows a red "needs a human" chip; its panel says "Needs a human. The agent couldn't make the test pass after 2 automatic fixes…" and the Review history reads "Needs a human · 2 auto fixes failed" / "Changes requested (auto)"
+- [ ] After one auto send-back, a passing Run writes `— auto run passed` and the streak starts over
+- [ ] skills/work-epic/SKILL.md has the "Automatic send-backs" paragraph
+### Regression risk
+- [ ] Approve / Send back by hand still work on a task in review (including one at the limit) and write the usual entries

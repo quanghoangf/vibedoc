@@ -12,6 +12,11 @@
 export const REVIEW_HEADING = "## Review"
 
 export type ReviewOutcome = "approved" | "changes requested"
+/**
+ * R065: entries VibeDoc writes on its own besides decisions: a Run that passed after automatic send-backs (it ends
+ * the streak), and the cap on automatic fixes (the task goes to a human; the heading says how many attempts).
+ */
+export type ReviewEntryOutcome = ReviewOutcome | "auto run passed" | "auto fix limit reached"
 
 /**
  * Statuses each outcome may resolve: approve only a task waiting in review; send back from review or from done
@@ -24,7 +29,7 @@ export const REVIEWABLE: Record<ReviewOutcome, readonly string[]> = {
 
 export interface ReviewEntry {
   at: string
-  outcome: ReviewOutcome
+  outcome: ReviewEntryOutcome
   /** The whole entry body (mark lines included): what the agent reads */
   note: string
   /** R062: the run the reviewer decided from (`Run <id>` line), when there was one */
@@ -33,6 +38,8 @@ export interface ReviewEntry {
   marks: ReviewMark[]
   /** R065: written by VibeDoc after a failed Run (`— changes requested (auto)`), not by a reviewer */
   auto?: boolean
+  /** R065: on an `auto fix limit reached (N attempts)` entry */
+  attempts?: number
 }
 
 /**
@@ -101,7 +108,7 @@ export function summarizeMarks(marks: ReviewMark[], max = 3): { failed: number; 
   }
 }
 
-const ENTRY = /^###\s+(\S+)\s+—\s+(approved|changes requested)(\s+\(auto\))?\s*$/
+const ENTRY = /^###\s+(\S+)\s+—\s+(approved|changes requested|auto run passed|auto fix limit reached)(\s+\(auto\))?(?:\s+\((\d+) attempts?\))?\s*$/
 
 /** Lines inside ``` fences, so a quoted example is never taken for the real section. */
 function fenced(lines: string[]): boolean[] {
@@ -128,7 +135,7 @@ export function reviewHistory(raw: string): ReviewEntry[] {
   const entries: ReviewEntry[] = []
   for (const line of lines.slice(range[0] + 1, range[1])) {
     const m = line.match(ENTRY)
-    if (m) entries.push({ at: m[1], outcome: m[2] as ReviewOutcome, note: "", marks: [], ...(m[3] ? { auto: true } : {}) })
+    if (m) entries.push({ at: m[1], outcome: m[2] as ReviewEntryOutcome, note: "", marks: [], ...(m[3] ? { auto: true } : {}), ...(m[4] ? { attempts: Number(m[4]) } : {}) })
     else if (entries.length) {
       const last = entries[entries.length - 1]
       last.note = last.note ? `${last.note}\n${line}` : line
@@ -149,12 +156,12 @@ export function latestReview(raw: string): ReviewEntry | null {
  * Add an entry to the `## Review` section (created at the end of the file if missing; an existing one keeps its
  * place and grows). A note is required for "changes requested".
  */
-export function appendReviewEntry(raw: string, outcome: ReviewOutcome, note: string, at: string, auto = false): string {
+export function appendReviewEntry(raw: string, outcome: ReviewEntryOutcome, note: string, at: string, auto = false, attempts?: number): string {
   const text = note.trim()
   if (outcome === "changes requested" && !text) throw new Error("A note is required to send a task back")
   // "## " at the start of a note line would end the section early
   const body = text.split("\n").map((l) => (/^#{1,3}\s/.test(l) ? `\\${l}` : l)).join("\n")
-  const entry = [`### ${at} — ${outcome}${auto ? " (auto)" : ""}`, ...(body ? [body] : [])]
+  const entry = [`### ${at} — ${outcome}${auto ? " (auto)" : ""}${attempts ? ` (${attempts} attempts)` : ""}`, ...(body ? [body] : [])]
   const lines = raw.split("\n")
   const range = sectionRange(lines)
   if (!range) return `${raw.replace(/\s+$/, "")}\n\n${REVIEW_HEADING}\n${entry.join("\n")}\n`
@@ -164,4 +171,24 @@ export function appendReviewEntry(raw: string, outcome: ReviewOutcome, note: str
   const out = [...lines.slice(0, end), ...entry, ...lines.slice(end)]
   const joined = out.join("\n")
   return range[1] === lines.length ? `${joined.replace(/\s+$/, "")}\n` : joined
+}
+
+/**
+ * R065: automatic send-backs in a row, newest first, up to the last thing that ends a streak: an approve, a
+ * reviewer's send back, an `auto run passed` entry (a Run passed after them) or a previous limit entry.
+ * The reset is an entry, not the `Auto:` header's date: the header only has a day, the entries are exact.
+ */
+export function autoFixStreak(raw: string): number {
+  let n = 0
+  for (const e of reviewHistory(raw).reverse()) {
+    if (e.outcome === "changes requested" && e.auto) n++
+    else break
+  }
+  return n
+}
+
+/** R065: the claim reply's line for an automatically sent-back task, e.g. "Auto-fix attempt 2 of 3". */
+export function autoFixLine(raw: string, max: number): string | null {
+  const streak = autoFixStreak(raw)
+  return streak ? `Auto-fix attempt ${streak} of ${max}${streak >= max ? " (the next failed run goes to a human)" : ""}` : null
 }

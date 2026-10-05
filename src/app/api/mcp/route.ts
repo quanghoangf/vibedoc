@@ -92,7 +92,7 @@ import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
 import { groupSessions, sessionDuration, sessionsForTask } from "@/lib/sessions";
 import { dueState, localToday, roadmapHealth, type TaskInfo } from "@/lib/roadmap-health";
-import { latestReview } from "@/lib/review";
+import { autoFixLine, latestReview } from "@/lib/review";
 import { PRIORITIES, type Priority } from "@/lib/doc-priority";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
@@ -1006,7 +1006,9 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       // Sent back from review (R043): the reviewer's note comes first, before the spec
       const review = latestReview(task.raw ?? "");
       const changes = review?.outcome === "changes requested"
-        ? `\n\n⚠️ Changes requested (${review.at}):\n${review.note}\nAddress this first; the rest of the spec below still applies.`
+        ? `\n\n⚠️ Changes requested (${review.at}):\n${review.note}\n` +
+          (review.auto && task.raw ? `${autoFixLine(task.raw, (await readProjectSettings(root)).maxAutoFixes)}\n` : "") +
+          "Address this first; the rest of the spec below still applies."
         : "";
       const failed = failedRunNote(task.manualTests);
       return `🔨 Claimed **${task.id}** ${task.title} (now in-progress)${changes}${failed ? `\n\n${failed}` : ""}\n\n## ${task.file}\n\n${task.raw}` +

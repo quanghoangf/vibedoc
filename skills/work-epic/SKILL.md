@@ -130,6 +130,8 @@ test('T012 Theme toggle on settings', async ({ page, step }) => {
 
 **Never weaken an assertion just to get a pass.** Don't delete or loosen an `expect`, drop a step, swap a precise locator for a vague one, add `test.skip` / `.fixme`, add a trivial `expect` to silence an unverified step, or remove the 🤖 mark from an item that the code fails. A green run that no longer checks the item is worse than a red one: the task ends done, and the human trusts it. If the item itself was wrong (the expected result in the report doesn't match what the task asked for), fix the item text and its step together, and say so in your summary.
 
+**Automatic send-backs.** When someone runs a done task's spec from VibeDoc and it fails, the task comes back to the queue on its own: the claim shows `⚠️ Changes requested` with `❌ Step N … · screenshot …` lines and an `Auto-fix attempt k of N` line. Fix the code (or a test that is truly wrong), run the spec, and mark it done as usual. After N failed attempts in a row (`tests.maxAutoFixes`, default 3) the next failure goes to a human instead (review, "needs a human"), so don't try to get under the cap by weakening the spec: the never-weaken rule above applies to every attempt.
+
 A Verify failure still follows the [Failure rule](#failure-rule) (blocked). Review is for a spec that fails while Verify passes: the code may be fine and only a human can tell.
 
 For the example above, a passing run ends with `vibedoc_update_task { "taskId": "T012", "status": "done", "manualTests": "<the report with the three 🤖 items ticked>", "spec": "e2e/vibedoc/T012-theme-toggle.spec.ts", "autoResult": "passed" }`.

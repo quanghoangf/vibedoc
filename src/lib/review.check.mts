@@ -1,6 +1,6 @@
 // Self-check for task review history. Run: node src/lib/review.check.mts
 import assert from 'node:assert/strict'
-import { REVIEWABLE, appendReviewEntry, formatReviewBody, latestReview, parseReviewMarks, reviewHistory, summarizeMarks } from './review.ts'
+import { REVIEWABLE, appendReviewEntry, autoFixLine, autoFixStreak, formatReviewBody, latestReview, parseReviewMarks, reviewHistory, summarizeMarks } from './review.ts'
 
 const task = '# T001: First\n**Status:** 👀 Review\n\n## Goal\nDo it.\n'
 
@@ -85,6 +85,26 @@ assert.equal(latestReview(quoted), null)
   const e = latestReview(raw)!
   assert.deepEqual([e.outcome, e.auto, e.marks], ['changes requested', true, [{ item: -1, step: 'Setup', kind: 'failed', comment: 'boom' }]])
   assert.equal(latestReview(appendReviewEntry(task, 'changes requested', 'x', '2026-10-12T10:00:00Z'))!.auto, undefined)
+}
+
+// R065: the auto-fix streak counts automatic send-backs in a row; a pass, a human or the limit ends it
+{
+  const at = (n: number) => `2026-10-12T10:0${n}:00Z`
+  let raw = appendReviewEntry(task, 'changes requested', 'human note', at(0))
+  assert.equal(autoFixStreak(raw), 0)
+  raw = appendReviewEntry(raw, 'changes requested', 'Auto: run failed', at(1), true)
+  raw = appendReviewEntry(raw, 'changes requested', 'Auto: run failed', at(2), true)
+  assert.equal(autoFixStreak(raw), 2)
+  const passed = appendReviewEntry(raw, 'auto run passed', '', at(3))
+  assert.equal(autoFixStreak(passed), 0)
+  assert.equal(autoFixStreak(appendReviewEntry(passed, 'changes requested', 'Auto: run failed', at(4), true)), 1)
+  const limit = appendReviewEntry(raw, 'auto fix limit reached', 'Run x', at(5), false, 3)
+  assert.match(limit, /### 2026-10-12T10:05:00Z — auto fix limit reached \(3 attempts\)\n/)
+  assert.deepEqual([latestReview(limit)!.outcome, latestReview(limit)!.attempts, autoFixStreak(limit)], ['auto fix limit reached', 3, 0])
+  assert.equal(latestReview(passed)!.outcome, 'auto run passed')
+  assert.equal(autoFixLine(raw, 3), 'Auto-fix attempt 2 of 3')
+  assert.equal(autoFixLine(raw, 2), 'Auto-fix attempt 2 of 2 (the next failed run goes to a human)')
+  assert.equal(autoFixLine(passed, 3), null)
 }
 
 console.log('review: ok')

@@ -40,6 +40,8 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
   const show = (p: PropertyKey) => properties.includes(p)
   const epic = show("epic") && task.phase ? epicOf(task.phase) : null
   const sentBack = task.status === "todo" && task.raw ? latestReview(task.raw) : null
+  // R065: the automatic fixes ran out; a human decides now
+  const needsHuman = task.status === "review" && !!task.raw && latestReview(task.raw)?.outcome === "auto fix limit reached"
   const size = show("size") ? sizeOf(task) : null
   const done = task.status === "done" || task.status === "cancelled"
   const deps = show("deps") ? task.dependsOn.match(/\bT\d+\b/g) ?? [] : []
@@ -86,7 +88,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
 
       <p className={cn("mt-1 line-clamp-2 text-[13px] font-medium leading-snug", done ? "text-muted" : "text-txt")}>{task.title}</p>
 
-      {(epic || changesRequested || deps.length > 0 || tests || (task.status === "review" && task.lastRun)) && (
+      {(epic || changesRequested || needsHuman || deps.length > 0 || tests || (task.status === "review" && task.lastRun)) && (
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
           {epic && (
             <span className="inline-flex min-w-0 max-w-full items-center gap-1 text-[11px] text-muted" title={task.phase}>
@@ -103,6 +105,11 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
             >
               <CornerUpLeft className="size-3" aria-hidden /> changes requested
               {marked && <> · {marked.failed + marked.doubt} {marked.failed + marked.doubt === 1 ? "step" : "steps"}</>}
+            </span>
+          )}
+          {needsHuman && (
+            <span title="The agent couldn't make the test pass after its automatic fixes" className="inline-flex items-center gap-1 rounded-sm border border-danger/40 bg-danger/5 px-1.5 py-0.5 text-[10px] text-danger">
+              <CornerUpLeft className="size-3" aria-hidden /> needs a human
             </span>
           )}
           {task.status === "review" && task.lastRun && (

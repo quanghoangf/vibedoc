@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { detectFrontend, detectPlaywright, readProjectSettings, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, sendBackFailedRun, rootFrom, testReporterPath } from '@/lib/core'
+import { detectFrontend, detectPlaywright, readProjectSettings, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, sendBackFailedRun, noteAutoRunPassed, rootFrom, testReporterPath } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
 import { busyWith, runState, startRun } from '@/lib/test-runner'
@@ -75,6 +75,9 @@ export async function POST(req: NextRequest) {
             // R065: a failed run goes straight back to the agent with its failed steps (tests.autoSendBack)
             const back = result === 'failed' ? await sendBackFailedRun(id, root, s.startedAt) : null
             if (back) emitUpdate('task_updated', { taskId: id, status: back.task.status, previousStatus: back.previousStatus, task: back.task, autoSendBack: true })
+            // …and a pass after automatic send-backs ends that streak (the attempt cap counts from here again)
+            const reset = result === 'passed' ? await noteAutoRunPassed(id, root) : null
+            if (reset) emitUpdate('task_updated', { taskId: id, task: reset })
           })()
             .catch((e) => console.warn(`vibedoc: could not record the ${id} run: ${(e as Error).message}`))
         }

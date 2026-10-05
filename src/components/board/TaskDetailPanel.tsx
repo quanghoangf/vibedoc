@@ -26,7 +26,7 @@ import { useApp } from "@/context/AppContext"
 import { toast } from "@/components/ui/toast"
 import { useChats } from "@/context/ChatContext"
 import { chatFor } from "@/lib/chats"
-import { reviewHistory, type ReviewEntry, type ReviewMark } from "@/lib/review"
+import { latestReview, reviewHistory, type ReviewEntry, type ReviewMark } from "@/lib/review"
 import type { AutoRun } from "@/lib/manual-tests"
 
 const NEXT_STATUS: Record<string, string[]> = {
@@ -151,7 +151,16 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
             </div>}
 
             {task.status === "review" && !demo && (
-              <ReviewActions key={`review-${task.id}`} taskId={task.id} onDone={onClose}>
+              <ReviewActions
+                key={`review-${task.id}`}
+                taskId={task.id}
+                onDone={onClose}
+                prompt={latestReview(task.raw ?? "")?.outcome === "auto fix limit reached" ? (
+                  <p className="text-xs text-danger">
+                    <span className="font-medium">Needs a human.</span> The agent couldn&apos;t make the test pass after {latestReview(task.raw ?? "")?.attempts} automatic fixes. Fix it, change the test, or send it back with a note.
+                  </p>
+                ) : undefined}
+              >
                 {/* R062: decide from the proof */}
                 <Link
                   href={`/manual-tests?tab=all&task=${encodeURIComponent(task.id)}&view=evidence`}
@@ -486,8 +495,11 @@ function ReviewHistory({ entries }: { entries: ReviewEntry[] }) {
         {[...entries].reverse().map((e, i) => (
           <li key={i} className="flex flex-col gap-0.5">
             <span className="flex items-center gap-2 text-xs">
-              <span className={cn("font-medium", e.outcome === "approved" ? "text-teal" : "text-amber")}>
-                {e.outcome === "approved" ? "Approved" : "Changes requested"}
+              <span className={cn("font-medium", e.outcome === "approved" || e.outcome === "auto run passed" ? "text-teal" : e.outcome === "auto fix limit reached" ? "text-danger" : "text-amber")}>
+                {e.outcome === "approved" ? "Approved"
+                  : e.outcome === "auto run passed" ? "Run passed"
+                  : e.outcome === "auto fix limit reached" ? `Needs a human · ${e.attempts ?? ""} auto fixes failed`
+                  : e.auto ? "Changes requested (auto)" : "Changes requested"}
               </span>
               <span className="font-mono text-[10px] text-muted">{e.at.replace("T", " ").replace(/:\d\dZ$/, "Z")}</span>
             </span>
