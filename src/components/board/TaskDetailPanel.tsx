@@ -9,7 +9,7 @@ import { StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
 import { TaskRuns } from "./TaskRuns"
 import Link from "next/link"
-import { Bot, Calendar, Check, ChevronRight, Copy, CircleDashed, CornerUpLeft, Flag, FlaskConical, Map as MapIcon, MessageSquare, MoreHorizontal, Pencil, Ruler, Trash2, User } from "lucide-react"
+import { Bot, Calendar, Check, ChevronRight, Copy, CircleDashed, CornerUpLeft, Flag, FlaskConical, Map as MapIcon, MessageSquare, MoreHorizontal, Pencil, Ruler, ScanSearch, Trash2, User } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
@@ -28,6 +28,7 @@ import { useChats } from "@/context/ChatContext"
 import { chatFor } from "@/lib/chats"
 import { latestReview, reviewHistory, type ReviewEntry, type ReviewMark } from "@/lib/review"
 import { SEVERITIES, type Verification } from "@/lib/verification"
+import { verifyTask } from "@/lib/ask-agent"
 import type { AutoRun } from "@/lib/manual-tests"
 
 const NEXT_STATUS: Record<string, string[]> = {
@@ -143,9 +144,18 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                   <StatusIcon status={s as Task["status"]} className="size-3" /> {STATUS_LABELS[s] || s}
                 </button>
               ))}
+              {(task.status === "review" || task.status === "done") && (
+                <button
+                  onClick={() => verifyTask(task.id)}
+                  title="An agent checks the change against the acceptance criteria and reports findings here"
+                  className="ml-auto inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
+                >
+                  <ScanSearch className="size-3.5" /> Verify
+                </button>
+              )}
               <button
                 onClick={() => { onClose(); showAbout({ kind: "task", id: task.id }) }}
-                className="ml-auto inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110"
+                className={cn(task.status !== "review" && task.status !== "done" && "ml-auto", " inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110")}
               >
                 <MessageSquare className="size-3.5" /> {chat ? "Open chat" : "Chat about task"}
               </button>

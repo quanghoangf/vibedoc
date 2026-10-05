@@ -62,6 +62,7 @@ import {
   readSpec,
   getSpecContext,
   saveVerification,
+  getVerifyContext,
   getEntriesByIds,
   markEntriesRecalled,
   getMemoryGraph,
@@ -300,6 +301,16 @@ const TOOLS = [
         taskId: { type: "string", description: 'e.g. "T138"' },
         runId: { type: "string", description: "A kept run to detail instead of the newest, e.g. \"20261004T074314Z\"" },
       },
+      required: ["taskId"],
+    },
+  },
+  {
+    name: "vibedoc_verify_context",
+    description:
+      "Everything needed to check a finished task against what was asked: its Goal, Scope and Acceptance criteria, the epic's Done when, the related capability spec, project conventions, and the diff of the commits that name the task (capped at ~2000 lines), plus how to report. Then call vibedoc_report_findings.",
+    inputSchema: {
+      type: "object",
+      properties: { taskId: { type: "string", description: "e.g. T156" } },
       required: ["taskId"],
     },
   },
@@ -1022,6 +1033,9 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       if (!evidence) throw new Error(`No kept run ${runId} for ${args.taskId}`);
       return evidence.markdown;
     }
+
+    case "vibedoc_verify_context":
+      return getVerifyContext(String(args.taskId ?? ""), root);
 
     case "vibedoc_report_findings": {
       const findings = validateFindings(args.findings);

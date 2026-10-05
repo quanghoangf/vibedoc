@@ -32,7 +32,7 @@ import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
-import { parseVerification, setVerification, type Finding, type Verification } from './verification'
+import { formatVerifyContext, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
@@ -1048,6 +1048,53 @@ export async function saveVerification(taskId: string, findings: Finding[], root
     title: `${task.id} verified`, detail: findings.length ? `${findings.length} finding${findings.length === 1 ? '' : 's'}` : 'nothing found',
   })
   return getTask(task.id, root)
+}
+
+const VERIFY_DIFF_MAX_LINES = 2000
+const VERIFY_SECTIONS = ['Goal', 'Scope', 'Acceptance criteria', 'Out of scope']
+
+/**
+ * What a reviewing agent needs to judge a finished task (R067): its Goal / Scope / Acceptance criteria / Out of scope,
+ * the epic's Done when, the related spec, ranked conventions, and the commits that name the task with their diff.
+ */
+export async function getVerifyContext(taskId: string, root: string): Promise<string> {
+  const task = await getTask(taskId, root)
+  const raw = task.raw ?? ''
+  const sections = VERIFY_SECTIONS.map(h => ({ heading: h, body: taskSection(raw, h) })).filter(x => x.body)
+  // "**Out of scope:**" is usually a line inside Scope, not its own section
+  const { items } = await listRoadmap(root)
+  const epicId = /^(R\d+)/.exec(task.phase ?? '')?.[1]
+  const epic = items.find(i => i.id === epicId) ?? items.find(i => i.tasks.includes(task.id))
+  const conventions = (await listEntries(root)).filter(e => e.type === 'convention')
+  const hits = rankEntries(conventions, taskQuery(task), { limit: 5 }).filter(h => h.score >= RELATED_MIN_SCORE)
+  let commits: { sha: string; subject: string }[] = []
+  let diff = ''
+  let diffCut = 0
+  let head: string | null = null
+  try {
+    head = (await git(['rev-parse', '--short', 'HEAD'], root)).trim() || null
+    // ids are whole words in commit subjects: "(T156)", "T156:"; -F so the id is never a regex
+    commits = (await git(['log', '-F', `--grep=${task.id}`, '--format=%H%x1f%s'], root))
+      .split('\n').filter(Boolean).map(l => { const [sha, subject] = l.split('\x1f'); return { sha, subject } })
+      .filter(c => new RegExp(`\\b${task.id}\\b`).test(c.subject))
+    if (commits.length) {
+      const lines: string[] = []
+      for (const c of [...commits].reverse()) {
+        lines.push(...(await git(['show', '--format=commit %h %s', '--patch', c.sha], root)).split('\n'))
+      }
+      diffCut = Math.max(0, lines.length - VERIFY_DIFF_MAX_LINES)
+      diff = lines.slice(0, VERIFY_DIFF_MAX_LINES).join('\n')
+    }
+  } catch (e) {
+    console.warn(`verify context: git unavailable for ${task.id}`, e instanceof Error ? e.message : e)
+  }
+  return formatVerifyContext({
+    taskId: task.id, title: task.title, sections,
+    doneWhen: epic ? /\*\*Done when:\*\*\s*(.+)/.exec(epic.body)?.[1].trim() ?? '' : '',
+    relatedSpec: await relatedSpecs(task, root),
+    conventions: hits.map(h => ({ id: h.id, summary: h.summary })),
+    commits, diff, diffCut, head,
+  })
 }
 
 /** The task isn't in the state an action needs (e.g. approving a task that isn't in review). Routes map it to 409. */

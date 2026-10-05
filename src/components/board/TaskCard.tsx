@@ -17,6 +17,7 @@ import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
 import { latestReview, summarizeMarks } from "@/lib/review"
 import { blockingCount } from "@/lib/verification"
+import { verifyTask } from "@/lib/ask-agent"
 import { epicOf, sizeOf, type PropertyKey } from "@/lib/board-views"
 
 const ALL_PROPERTIES: PropertyKey[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "owner"]
@@ -86,6 +87,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
         <span className="flex-1" />
         {show("due") && task.due && !done && <TaskDueField task={task}><span title="Due">{task.due.slice(5)}</span></TaskDueField>}
         {size && <TaskSizeField task={task}><span title={task.size} className="rounded-sm bg-surface2 px-1 text-[10px]">{size}</span></TaskSizeField>}
+        {task.status === "review" && !demo && <CardVerify taskId={task.id} />}
         {!demo && <CardMenu task={task} onOpen={onOpen} />}
       </div>
 
@@ -206,6 +208,25 @@ function CardRun({ taskId }: { taskId: string }) {
       )}
     >
       {running ? <Loader2 className="size-3 animate-spin" aria-hidden /> : <Play className="size-3" aria-hidden />}
+    </button>
+  )
+}
+
+/** R067: Verify on a card in review (on hover / focus): a new agent chat checks it and reports findings. */
+function CardVerify({ taskId }: { taskId: string }) {
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation()
+  return (
+    <button
+      type="button"
+      draggable={false}
+      onClick={(e) => { e.stopPropagation(); verifyTask(taskId) }}
+      onKeyDown={stop}
+      onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
+      aria-label={`Verify ${taskId}`}
+      title="Verify: an agent checks it against the acceptance criteria"
+      className="inline-flex size-5 items-center justify-center rounded-sm text-muted opacity-0 transition-[opacity,color] hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      <ScanSearch className="size-3" aria-hidden />
     </button>
   )
 }

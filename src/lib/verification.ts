@@ -102,3 +102,39 @@ export function validateFindings(input: unknown): Finding[] | string {
 
 /** Critical + major: what the card badge counts. */
 export const blockingCount = (v: Verification | null) => v ? v.findings.filter((f) => f.severity !== "minor").length : 0
+
+export type VerifyContext = {
+  taskId: string
+  title: string
+  sections: { heading: string; body: string }[]
+  doneWhen: string
+  relatedSpec: string
+  conventions: { id: string; summary: string }[]
+  commits: { sha: string; subject: string }[]
+  diff: string
+  /** diff lines left out to stay under the cap */
+  diffCut: number
+  head: string | null
+}
+
+/** Everything an agent needs to judge a finished task against what was asked (R067), plus how to report. */
+export function formatVerifyContext(c: VerifyContext): string {
+  const out = [`# Verify ${c.taskId}: ${c.title}`]
+  for (const s of c.sections) out.push("", `## ${s.heading}`, s.body)
+  if (c.doneWhen) out.push("", "## Epic Done when", c.doneWhen)
+  if (c.relatedSpec) out.push("", c.relatedSpec)
+  if (c.conventions.length) out.push("", "## Conventions", ...c.conventions.map((e) => `- ${e.id} · ${e.summary}`))
+  out.push("", "## The change")
+  if (c.commits.length) {
+    out.push(...c.commits.map((k) => `- ${k.sha.slice(0, 7)} ${k.subject}`), "", "```diff", c.diff.trimEnd(), "```")
+    if (c.diffCut) out.push(`(${c.diffCut} more diff lines cut; read them with git show <sha>)`)
+  } else {
+    out.push(`No commit mentions ${c.taskId}. Compare against the working tree instead: \`git status\` and \`git diff\` (and \`git diff --staged\`).`)
+  }
+  out.push("", "## How to verify",
+    "- Check each acceptance criterion and scope item against the change above (read the files when the diff is not enough).",
+    "- Report only real gaps, each with the criterion it fails and a file:line when there is one. Don't report style or test quality.",
+    "- Severity: critical = a criterion is not met; major = wrong behaviour or a missed edge case; minor = polish.",
+    `- Always finish with vibedoc_report_findings { taskId: "${c.taskId}", findings, sha${c.head ? `: "${c.head}"` : ""} }, with findings: [] when nothing is wrong.`)
+  return out.join("\n")
+}

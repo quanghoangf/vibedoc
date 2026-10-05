@@ -1,8 +1,11 @@
 # T187: vibedoc_verify_context and the "Verify" button
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R067 — Spec verification review
 **Size:** M (2–3 hrs)
 **Depends on:** T186
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 One click on a finished task starts an agent that has everything needed to judge it: what was asked, what the capability must keep doing, the project's conventions, and the change itself.
@@ -40,3 +43,14 @@ One click on a finished task starts an agent that has everything needed to judge
 pnpm lint && pnpm build
 curl -s localhost:3000/api/mcp -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_verify_context","arguments":{"taskId":"T156"}}}' | head -c 2000
 ```
+
+## Manual tests
+_2026-10-05 — ai · Spec: `e2e/vibedoc/T187-verify-context-and-button.spec.ts` · Auto: passed 2026-10-05_
+### Steps
+- [x] 🤖 Open a task in review → the panel shows a Verify button next to Chat about task
+- [x] 🤖 Click Verify → a new agent chat starts with "Verify task <id>: call vibedoc_verify_context, then vibedoc_report_findings."
+- [x] 🤖 Close the panel and hover the task's card in Review → a Verify button shows on the card
+- [ ] Click Verify on a real review task (e.g. T186) with the agent running → the chat calls vibedoc_verify_context then vibedoc_report_findings, and the task panel gains a Verification block
+- [ ] vibedoc_verify_context { taskId: "T156" } → lists T156's acceptance criteria and the diff of its commit; for a task with no commits (e.g. T188) it says to compare against the working tree
+### Regression risk
+- [ ] Chat about task / Open chat on the panel still opens that task's chat, and the card's ⋯ menu and Run button still work

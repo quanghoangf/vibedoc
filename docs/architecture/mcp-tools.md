@@ -257,6 +257,36 @@ Read a specific task file in full — scope, acceptance criteria, definition of 
 
 ---
 
+### `vibedoc_verify_context`
+Everything an agent needs to check a finished task against what was asked (R067): the task's Goal, Scope, Acceptance criteria (and Out of scope when it is a section), the epic's **Done when**, the `## Related spec`, ranked `convention` entries, the commits whose subject names the task (`git log -F --grep=<id>`, whole-word match) with their combined diff (capped at 2000 lines, the cut is counted), the head sha, and how to report. No matching commit → it says to compare against the working tree (`git status` / `git diff`).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `taskId` | string | ✅ | e.g. `"T156"` |
+
+The **Verify** button (task panel for review/done tasks, hover button on Review cards) starts a new agent chat with `Verify task T…: call vibedoc_verify_context, then vibedoc_report_findings.`
+
+---
+
+### `vibedoc_report_findings` ⚡ triggers real-time UI update
+Record what a finished task gets wrong: saved as the task's `## Verification` section (after `## Manual tests`, before `## Review`; a new report replaces the old one) and shown in the task panel, with a `N findings` badge (critical + major) on the card.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `taskId` | string | ✅ | e.g. `"T012"` |
+| `findings` | array | ✅ | `{ severity: "critical" \| "major" \| "minor", criterion, message, file? }`; `[]` = verified, nothing found |
+| `sha` | string | | The commit checked |
+
+```md
+## Verification
+_2026-10-06 — ai:claude-code · at 3f2a91c_
+- [critical] AC2 "Unknown plan → 400" — route returns 500 · `src/app/api/checkout/route.ts:41`
+```
+
+An unknown severity is an error naming the allowed values.
+
+---
+
 ### `vibedoc_get_evidence`
 Read a task's evidence doc (R060): every checklist item with what its Playwright run proved, from the kept runs in `~/.vibedoc/runs/<project>/<taskId>/`.
 

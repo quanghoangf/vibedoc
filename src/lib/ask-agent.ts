@@ -11,6 +11,11 @@ export function askAgent(message: string, opts: { newChat?: boolean } = {}) {
   window.dispatchEvent(new CustomEvent<AskAgentDetail>(ASK_AGENT_EVENT, { detail: { message, ...opts } }))
 }
 
+/** R067: a new chat checks a finished task against what was asked and reports findings on it. */
+export function verifyTask(taskId: string) {
+  askAgent(`Verify task ${taskId}: call vibedoc_verify_context, then vibedoc_report_findings.`, { newChat: true })
+}
+
 export const OPEN_CHAT_EVENT = "vibedoc:open-chat"
 
 /** Opens the chat sidebar on tab `chatId` (e.g. from an epic's "agent working" marker). */
