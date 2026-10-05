@@ -7,9 +7,12 @@
 import type { RunEvent } from './test-run-events'
 
 export type SuiteEntry = { taskId: string; title: string; specRel: string }
-export type SuiteTaskStatus = 'queued' | 'running' | 'passed' | 'failed'
+/** `flaky` (R065): every test passed, at least one only on a retry; counts as passed */
+export type SuiteTaskStatus = 'queued' | 'running' | 'passed' | 'flaky' | 'failed'
 export type SuiteTask = SuiteEntry & {
   status: SuiteTaskStatus
+  /** R065: each test's latest outcome (a retry replaces its failed attempt), keyed by title */
+  outcomes?: Record<string, 'passed' | 'failed' | 'flaky'>
   steps: number
   passed: number
   failedStep: { index: number; name: string; error: string | null } | null
@@ -65,7 +68,7 @@ export function newSuiteState(entries: SuiteEntry[], skipped: number, now: strin
 export function applySuiteEvent(s: SuiteState, e: RunEvent): SuiteState {
   if (e.type === 'end') return { ...s, result: e.status }
   if (e.type === 'begin') return { ...s, state: 'running' }
-  const at = s.tasks.findIndex(t => t.taskId === e.taskId)
+  const at = s.tasks.findIndex(t => t.taskId === (e as { taskId?: string | null }).taskId)
   if (at < 0) return s
   const t = { ...s.tasks[at] }
   if (t.status === 'queued') t.status = 'running'
@@ -76,8 +79,14 @@ export function applySuiteEvent(s: SuiteState, e: RunEvent): SuiteState {
   }
   // A task fails if any of its tests does; it passes once a test ends well and nothing failed
   if (e.type === 'test-end') {
-    if (e.status !== 'passed' && e.status !== 'skipped') t.status = 'failed'
-    else if (t.status !== 'failed') t.status = 'passed'
+    // Playwright's outcome so far: 'unexpected' (failed; a retry may still come), 'flaky' (failed, then passed),
+    // 'expected' / 'skipped'. A later attempt of the same test replaces the earlier one.
+    const o = e.outcome === 'flaky' ? 'flaky' : e.outcome === 'unexpected' ? 'failed' : e.outcome ? 'passed'
+      : e.status === 'passed' || e.status === 'skipped' ? 'passed' : 'failed'
+    t.outcomes = { ...t.outcomes, [e.title]: o }
+    const all = Object.values(t.outcomes)
+    t.status = all.includes('failed') ? 'failed' : all.includes('flaky') ? 'flaky' : 'passed'
+    if (o !== 'failed') t.failedStep = all.includes('failed') ? t.failedStep : null
   }
   const tasks = s.tasks.slice()
   tasks[at] = t
@@ -90,6 +99,7 @@ export function finishSuite(s: SuiteState, out: { code: number | null; cancelled
   if (out.cancelled) return { ...base, state: 'cancelled' }
   if (out.error) return { ...base, state: 'error', error: out.error, tail: out.tail }
   if (s.tasks.some(t => t.status === 'failed')) return { ...base, state: 'failed', tail: out.tail }
+  // Flaky tasks count as passed (R065)
   if (s.result === 'passed' && out.code === 0) return { ...base, state: 'passed' }
   return { ...base, state: 'error', error: `Playwright exited with code ${out.code} before reporting a result`, tail: out.tail }
 }

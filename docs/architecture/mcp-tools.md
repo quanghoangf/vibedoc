@@ -516,14 +516,28 @@ _2026-10-01 — ai_
 
 ```
 in-progress ──► review ──► Approve    ──► done
-                   └─────► Send back  ──► todo   (note required)
+                   └─────► Send back  ──► todo   (note or flagged step required)
 done (failed run) ───────► Send back  ──► todo   (/manual-tests)
+
+Run from VibeDoc (single or suite) on a done / review task:
+  passed (incl. flaky) ──► stays; header Auto: passed <date> [· N unverified] [· N flaky]
+  failed ──► todo, ## Review "— changes requested (auto)" with ❌ marks   (auto send-back)
+  failed after tests.maxAutoFixes auto send-backs in a row ──► review, "— auto fix limit reached (N attempts)"
+  a pass after auto send-backs ──► "— auto run passed" (the streak starts over)
 ```
 
 - Approve and Send back are in the task panel and on /manual-tests (`POST /api/tasks/review` `{ id, action: "approve" | "send-back", note? }`: 400 for an empty send-back note, 409 when approving a task that isn't in review or sending back one that is neither in review nor done; `REVIEWABLE` in `src/lib/review.ts`). Both are recorded in the task's `## Review` section, which the panel shows as history.
 - A sent-back todo card shows **changes requested**. When `vibedoc_next_task` hands it out again, the reply starts with `⚠️ Changes requested:` and the note.
 - A task in review is not done: its dependents wait, the epic isn't finished, and `vibedoc_next_task` says `T0xx in review — needs a human`.
 - `/work-epic` defaults to done. It uses review only when it can't judge the result itself (a visual change it couldn't see, or a Verify step it couldn't run).
+
+**Self-fixing failures & flaky tests (R065).**
+
+- **Retries.** Every Run (single or suite) passes `--retries=<tests.retries>` (default 2, 0 = off).
+- **Flaky.** A test that fails and then passes on a retry is **flaky**. It is recorded in run.json (`tests[].outcome`, `attempts`, `firstFailure` with the first attempt's error and a `first-failure-…png`, plus run-level `flaky`) and shown in amber with its own **Flaky** tab. It counts as passed: it never sends the task back and never counts toward Needs you.
+- **Auto send-back.** A failed Run on a done or review task sends it back on its own (`tests.autoSendBack`, default on). The `— changes requested (auto)` entry carries `Run <id>` and one `❌ Step N "…" — failed: <error> · screenshot <file>` per failed step, so the next `vibedoc_next_task` claim shows them, with an `Auto-fix attempt k of N` line.
+- **The cap.** After `tests.maxAutoFixes` (default 3) automatic send-backs in a row, the next failure moves the task to review with `— auto fix limit reached (N attempts)`. The card and panel show **needs a human**. A pass in between resets the count (`— auto run passed`).
+- **Evidence.** `vibedoc_get_evidence` marks a flaky step `🔁 flaky (passed on attempt N)` with the first attempt's error and screenshot, and counts flaky tests in the summary line.
 
 Why a checklist and not a done gate: [ADR-005](decisions/ADR-005-manual-test-checklist-instead-of-a-done-gate.md).
 

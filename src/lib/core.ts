@@ -1100,6 +1100,19 @@ export async function sendBackFailedRun(taskId: string, root: string, since: str
 }
 
 /**
+ * R065: what every finished Run (single or suite) does to its task, in order: the result into the checklist
+ * (recordRunResult), then a failed one goes back to the agent or, past the cap, to a human (sendBackFailedRun),
+ * and a pass after automatic send-backs ends that streak (noteAutoRunPassed). Each piece that changed the task is
+ * returned so the route can emit `task_updated` for it.
+ */
+export async function handleRunEnd(taskId: string, result: 'passed' | 'failed', steps: { name: string; status: string }[] | null, root: string, since: string) {
+  const recorded = await recordRunResult(taskId, result, steps, root, since)
+  const back = result === 'failed' ? await sendBackFailedRun(taskId, root, since) : null
+  const reset = result === 'passed' ? await noteAutoRunPassed(taskId, root) : null
+  return { recorded: recorded?.task ?? null, back, reset }
+}
+
+/**
  * R065: a Run passed while the task's last entry is an automatic send-back: say so in ## Review, which ends the
  * auto-fix streak. Null when there was nothing to end.
  */

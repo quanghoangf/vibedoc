@@ -8,6 +8,7 @@ import { useApp } from "@/context/AppContext"
 import { isSuiteRunning, type SuiteState, type SuiteTask } from "@/lib/suite"
 import { useSuiteRun } from "./useSuiteRun"
 import { useTestRun } from "./useTestRun"
+import { FlakyChip } from "./TestEvidence"
 import { TEST_REVIEW_KEYS } from "@/lib/shortcuts"
 import type { RunManifest } from "@/lib/runs-paths"
 
@@ -62,15 +63,18 @@ export function SuiteTab({ specs, withoutSpec }: { specs: number; withoutSpec: n
 function SuiteResult({ suite }: { suite: SuiteState }) {
   const going = isSuiteRunning(suite)
   const total = suite.tasks.length
-  const ended = suite.tasks.filter((t) => t.status === "passed" || t.status === "failed").length
+  const ended = suite.tasks.filter((t) => t.status === "passed" || t.status === "flaky" || t.status === "failed").length
   const broken = suite.tasks.filter((t) => t.status === "failed")
-  const passed = suite.tasks.filter((t) => t.status === "passed")
+  // R065: flaky tasks passed (on a retry): listed with the passed ones, labelled, never counted as broken
+  const passed = suite.tasks.filter((t) => t.status === "passed" || t.status === "flaky")
+  const flaky = suite.tasks.filter((t) => t.status === "flaky").length
+  const flakyNote = flaky ? ` · ${flaky} flaky` : ""
   const elapsed = suite.endedAt ? Date.parse(suite.endedAt) - Date.parse(suite.startedAt) : null
 
   const headline = suite.state === "starting" ? "Starting the app…"
     : suite.state === "running" ? `Running · ${ended}/${total} tasks`
-    : suite.state === "passed" ? `Passed · ${total}/${total} tasks`
-    : suite.state === "failed" ? `Failed · ${broken.length} of ${total} ${total === 1 ? "task" : "tasks"} broke`
+    : suite.state === "passed" ? `Passed · ${total}/${total} tasks${flakyNote}`
+    : suite.state === "failed" ? `Failed · ${broken.length} of ${total} ${total === 1 ? "task" : "tasks"} broke${flakyNote}`
     : suite.state === "cancelled" ? `Stopped · ${ended}/${total} tasks ran`
     : "Couldn’t run the suite"
 
@@ -104,7 +108,7 @@ function SuiteResult({ suite }: { suite: SuiteState }) {
           {passed.length > 0 && (
             <details open={!broken.length} className="group">
               <summary className="cursor-pointer text-xs text-muted hover:text-txt">
-                <span className="font-mono tabular-nums">{passed.length}</span> passed
+                <span className="font-mono tabular-nums">{passed.length}</span> passed{flaky > 0 && <span className="text-amber"> ({flaky} flaky)</span>}
               </summary>
               <ol aria-label="Passed tasks" className="mt-1 flex flex-col">{passed.map((t) => <TaskRow key={t.taskId} task={t} />)}</ol>
             </details>
@@ -120,6 +124,7 @@ function SuiteResult({ suite }: { suite: SuiteState }) {
 
 function StatusIcon({ status }: { status: SuiteTask["status"] }) {
   return status === "running" ? <Loader2 className="size-4 animate-spin text-accent" aria-label="running" />
+    : status === "flaky" ? <Check className="size-4 text-amber" strokeWidth={2.5} aria-label="passed on a retry" />
     : status === "passed" ? <Check className="size-4 text-teal" strokeWidth={2.5} aria-label="passed" />
     : status === "failed" ? <X className="size-4 text-danger" strokeWidth={2.5} aria-label="failed" />
     : <span className="size-4 rounded-full border border-border2" aria-label="queued" />
@@ -130,7 +135,7 @@ function TaskRow({ task: t }: { task: SuiteTask }) {
     <li className="grid grid-cols-[1rem_3.25rem_1fr_auto] items-center gap-x-2 py-1.5 text-sm">
       <StatusIcon status={t.status} />
       <span className="font-mono text-[11px] text-muted">{t.taskId}</span>
-      <span className="min-w-0 truncate text-txt" title={t.title}>{t.title}</span>
+      <span className="flex min-w-0 items-center gap-2"><span className="truncate text-txt" title={t.title}>{t.title}</span>{t.status === "flaky" && <FlakyChip />}</span>
       <span className="font-mono text-[11px] text-muted tabular-nums">
         {t.status === "failed" && t.failedStep ? `step ${t.failedStep.index}` : t.steps ? `${t.passed}/${t.steps}` : ""}
       </span>

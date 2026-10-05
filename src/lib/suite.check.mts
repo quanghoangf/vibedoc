@@ -35,4 +35,20 @@ const ok = applySuiteEvent(applySuiteEvent(s0, ev('T9', { type: 'test-end', titl
 assert.equal(finishSuite(ok, { code: 0, cancelled: false, tail: '', now: 'n' }).state, 'passed')
 assert.equal(finishSuite(s, { code: null, cancelled: true, tail: '', now: 'n' }).state, 'cancelled')
 assert.equal(finishSuite(s0, { code: 2, cancelled: false, tail: 'boom', now: 'n' }).state, 'error')
+// R065: a failed attempt then a passing retry → flaky (not failed); a flaky task doesn't fail the suite
+{
+  let f = applySuiteEvent(s0, { type: 'begin', tests: 2 })
+  f = applySuiteEvent(f, ev('T9', { type: 'step-end', index: 1, name: 'A', status: 'failed', error: 'x' }))
+  f = applySuiteEvent(f, ev('T9', { type: 'test-end', title: 'a', status: 'failed', retry: 0, outcome: 'unexpected' }))
+  assert.equal(f.tasks[0].status, 'failed')
+  f = applySuiteEvent(f, ev('T9', { type: 'test-end', title: 'a', status: 'passed', retry: 1, outcome: 'flaky' }))
+  assert.deepEqual([f.tasks[0].status, f.tasks[0].failedStep], ['flaky', null])
+  f = applySuiteEvent(f, ev('T10', { type: 'test-end', title: 'b', status: 'passed', retry: 0, outcome: 'expected' }))
+  f = applySuiteEvent(f, { type: 'end', status: 'passed' })
+  assert.equal(finishSuite(f, { code: 0, cancelled: false, tail: '', now: 'n' }).state, 'passed')
+  // a test that fails on every attempt stays failed
+  let g = applySuiteEvent(s0, ev('T9', { type: 'test-end', title: 'a', status: 'failed', retry: 0, outcome: 'unexpected' }))
+  g = applySuiteEvent(g, ev('T9', { type: 'test-end', title: 'a', status: 'failed', retry: 1, outcome: 'unexpected' }))
+  assert.equal(g.tasks[0].status, 'failed')
+}
 console.log('ok suite')

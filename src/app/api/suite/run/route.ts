@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { detectFrontend, detectPlaywright, readProjectSettings, ensureFixtureKit, frontendAppDir, listTasks, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
+import { detectFrontend, detectPlaywright, readProjectSettings, ensureFixtureKit, frontendAppDir, handleRunEnd, listTasks, readFrontendStartTimeoutSec, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
 import { busyWith, startSuite, suiteState } from '@/lib/test-runner'
@@ -57,9 +57,10 @@ export async function POST(req: NextRequest) {
         // Each task the suite reached gets its result like a single Run (Auto: header, 🤖 ticks); the rest stay
         void (async () => {
           for (const t of s.tasks) {
-            if (t.status !== 'passed' && t.status !== 'failed') continue
-            const r = await recordRunResult(t.taskId, t.status, null, root, s.startedAt).catch(() => null)
-            if (r) emitUpdate('task_updated', { taskId: t.taskId, task: r.task })
+            if (t.status === 'queued' || t.status === 'running') continue
+            // Same end as a single Run (R065): result, auto send-back or the cap, streak reset; flaky counts as passed
+            const r = await handleRunEnd(t.taskId, t.status === 'failed' ? 'failed' : 'passed', null, root, s.startedAt).catch(() => null)
+            for (const task of [r?.recorded, r?.back?.task, r?.reset]) if (task) emitUpdate('task_updated', { taskId: t.taskId, task })
           }
           emitUpdate('suite_run', { suite: s })
         })()

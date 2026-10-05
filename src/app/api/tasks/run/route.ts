@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { detectFrontend, detectPlaywright, readProjectSettings, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, sendBackFailedRun, noteAutoRunPassed, rootFrom, testReporterPath } from '@/lib/core'
+import { detectFrontend, detectPlaywright, readProjectSettings, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, handleRunEnd, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
 import { busyWith, runState, startRun } from '@/lib/test-runner'
@@ -69,16 +69,14 @@ export async function POST(req: NextRequest) {
         // A verdict goes into the task file like an agent's run (Auto: header + 🤖 ticks); cancelled / error write nothing
         if (s.state === 'passed' || s.state === 'failed') {
           const result = s.state
-          void (async () => {
-            const r = await recordRunResult(id, result, s.steps, root, s.startedAt)
-            if (r) emitUpdate('task_updated', { taskId: id, task: r.task })
-            // R065: a failed run goes straight back to the agent with its failed steps (tests.autoSendBack)
-            const back = result === 'failed' ? await sendBackFailedRun(id, root, s.startedAt) : null
-            if (back) emitUpdate('task_updated', { taskId: id, status: back.task.status, previousStatus: back.previousStatus, task: back.task, autoSendBack: true })
-            // …and a pass after automatic send-backs ends that streak (the attempt cap counts from here again)
-            const reset = result === 'passed' ? await noteAutoRunPassed(id, root) : null
-            if (reset) emitUpdate('task_updated', { taskId: id, task: reset })
-          })()
+          void handleRunEnd(id, result, s.steps, root, s.startedAt)
+            .then(({ recorded, back, reset }) => {
+              if (recorded) emitUpdate('task_updated', { taskId: id, task: recorded })
+              // R065: a failed run went back to the agent (or, past the cap, to a human); a pass ended a streak
+              if (back) emitUpdate('task_updated', { taskId: id, status: back.task.status, previousStatus: back.previousStatus, task: back.task, autoSendBack: true })
+              if (reset) emitUpdate('task_updated', { taskId: id, task: reset })
+            })
+            .catch((e) => console.warn(`vibedoc: could not record the ${id} run: ${(e as Error).message}`))
             .catch((e) => console.warn(`vibedoc: could not record the ${id} run: ${(e as Error).message}`))
         }
       },
