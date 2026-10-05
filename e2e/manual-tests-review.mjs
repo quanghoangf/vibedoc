@@ -41,7 +41,7 @@ try {
   page.on("pageerror", (e) => errors.push(e.message))
   await stubChat(page, [], { root: fx })
 
-  // 1. The /work-epic loop, as the agent does it: claim, then done with a report
+  // 1. The /vibedoc:work loop, as the agent does it: claim, then done with a report
   for (const id of ["T001", "T002"]) {
     assert.match(await mcp("vibedoc_next_task", { epic: "R002" }), new RegExp(`Claimed \\*\\*${id}\\*\\*`))
     const out = await mcp("vibedoc_update_task", { taskId: id, status: "done", manualTests: `### Steps\n- [ ] Open ${id} → it works\n### Regression risk\n- [ ] Board still loads` })

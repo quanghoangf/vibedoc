@@ -1,0 +1,13 @@
+{
+  "name": "vibedoc",
+  "owner": { "name": "quanghoangf" },
+  "metadata": { "description": "VibeDoc's agent skills for Claude Code" },
+  "plugins": [
+    {
+      "name": "vibedoc",
+      "source": "./plugin",
+      "description": "/vibedoc:roadmap · /vibedoc:breakdown · /vibedoc:work · /vibedoc:next — plan, break down and run work through VibeDoc",
+      "category": "workflow"
+    }
+  ]
+}

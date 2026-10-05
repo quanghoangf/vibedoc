@@ -1,6 +1,6 @@
 ---
-name: what-next
-description: Tell the user the single most useful next thing to do in a VibeDoc project, with the exact command to run. Reads the board (plans/tasks), the roadmap (plans/roadmap), the activity log, MEMORY.md's handoff and git state, then recommends one action, e.g. unblock a task, resume an abandoned one, /work-epic on the active epic, /epic-breakdown on the next epic, fix roadmap drift, or /roadmap-planner. Use this whenever the user asks "what should I do next", "what's next", "where was I", "nên làm gì tiếp", "tiếp theo làm gì", starts a session and wants orientation, or seems unsure what to pick up, even if they don't mention the roadmap or tasks.
+name: next
+description: Tell the user the single most useful next thing to do in a VibeDoc project, with the exact command to run. Reads the board (plans/tasks), the roadmap (plans/roadmap), the activity log, MEMORY.md's handoff and git state, then recommends one action, e.g. unblock a task, resume an abandoned one, /vibedoc:work on the active epic, /vibedoc:breakdown on the next epic, fix roadmap drift, or /vibedoc:roadmap. Use this whenever the user asks "what should I do next", "what's next", "where was I", "nên làm gì tiếp", "tiếp theo làm gì", starts a session and wants orientation, or seems unsure what to pick up, even if they don't mention the roadmap or tasks.
 ---
 
 # What next
@@ -29,12 +29,12 @@ The order runs from "something is stuck or at risk" to "start something new". Un
 | 2 | A task is `blocked`, or an epic's queue would report "Needs a human" (blocked task, missing task file, broken dependency) | Unblock it: read its `## Blocked because` note if there is one and say what decision is needed. |
 | 2b | A task in `review` or `done` has critical or major findings in its `## Verification` (the card shows "N findings"), and they aren't outdated | Send them back from the task panel (tick the findings → **Send back N findings**), or say which finding is wrong if you disagree. Name the task and the findings. |
 | 3 | A task is `in-progress` with no activity for more than ~24h | It's probably abandoned: resume it, or move it back to `todo` so the queue can hand it out again. |
-| 4 | An epic has ready tasks: `todo`, with every dependency `done` or `cancelled` | `/work-epic <epic>`. Prefer an epic that is already `in-progress`, then the earliest horizon, then by `Order`. Name the task it would start with. |
+| 4 | An epic has ready tasks: `todo`, with every dependency `done` or `cancelled` | `/vibedoc:work <epic>`. Prefer an epic that is already `in-progress`, then the earliest horizon, then by `Order`. Name the task it would start with. |
 | 5 | Roadmap drift: all of an epic's tasks are done but the epic isn't, an epic is `planned` while its tasks are moving, or something is overdue | Fix the status or due date (`vibedoc_update_roadmap_item`, or edit the `**Status:**` line). |
 | 5b | Spec drift under "Needs attention" in `vibedoc_get_roadmap`: a done epic whose spec changes aren't merged, two open epics changing the same requirement, or a scenario no task covers | Unmerged: **Merge into capability spec** on the epic's sheet (a person does it). Conflict: decide which epic owns the requirement and edit the other's `## Spec changes`. Uncovered scenario: add `**Covers:**` to a task, or a task for it, before work starts. |
-| 6 | The earliest horizon has a planned epic with no tasks | `/epic-breakdown <epic>`. Pick the first one by horizon order, then by `Order`. |
-| 7 | No roadmap at all (`plans/roadmap/` empty or missing) | `/roadmap-planner`. |
-| 8 | Nothing above applies | Say the project is in a clean state, and suggest `/roadmap-planner` to plan the next horizon. |
+| 6 | The earliest horizon has a planned epic with no tasks | `/vibedoc:breakdown <epic>`. Pick the first one by horizon order, then by `Order`. |
+| 7 | No roadmap at all (`plans/roadmap/` empty or missing) | `/vibedoc:roadmap`. |
+| 8 | Nothing above applies | Say the project is in a clean state, and suggest `/vibedoc:roadmap` to plan the next horizon. |
 
 When the handoff in MEMORY.md names a specific next step that is still valid (the task exists and isn't done), and nothing from rules 1–3 applies, recommend that step. The previous session had context you don't.
 

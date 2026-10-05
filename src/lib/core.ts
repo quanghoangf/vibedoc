@@ -3283,13 +3283,13 @@ async function writeRoadmapLayoutUnlocked(positions: RoadmapLayout, root: string
 
 // ─── Planning skills ──────────────────────────────────────────────────────────
 
-const PLANNING_SKILLS = { roadmap: 'roadmap-planner', breakdown: 'epic-breakdown' } as const
+const PLANNING_SKILLS = { roadmap: 'roadmap', breakdown: 'breakdown' } as const
 export type PlanningKind = keyof typeof PLANNING_SKILLS
 
-/** Bundled skill body (frontmatter stripped). Read from the VibeDoc package (cwd), not the target project. */
+/** Bundled skill body (frontmatter stripped): the `vibedoc` Claude Code plugin's skills in plugin/skills/, read from the VibeDoc package (cwd), not the target project. */
 export async function readPlanningSkill(kind: PlanningKind): Promise<string> {
   if (!Object.hasOwn(PLANNING_SKILLS, kind)) throw new Error(`Unknown planning kind "${kind}" (expected: ${Object.keys(PLANNING_SKILLS).join(', ')})`)
-  const text = await fs.readFile(path.join(process.cwd(), 'skills', PLANNING_SKILLS[kind], 'SKILL.md'), 'utf-8')
+  const text = await fs.readFile(path.join(process.cwd(), 'plugin', 'skills', PLANNING_SKILLS[kind], 'SKILL.md'), 'utf-8')
   return text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, '').trimStart()
 }
 

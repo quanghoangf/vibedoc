@@ -40,7 +40,7 @@ Forgot step 7? VibeDoc leaves an [automatic episode](#automatic-session-episodes
 
 For a task outside an epic, pick it by hand: `vibedoc_get_status` → `vibedoc_get_task <id>` → `vibedoc_update_task <id> in-progress` → work → `vibedoc_update_task <id> done`.
 
-The `/work-epic <epic id>` skill ([`skills/work-epic/SKILL.md`](../../skills/work-epic/SKILL.md)) runs this loop for Claude Code.
+The `/vibedoc:work <epic id>` skill ([`plugin/skills/work/SKILL.md`](../../plugin/skills/work/SKILL.md)) runs this loop for Claude Code.
 
 ---
 
@@ -565,7 +565,7 @@ With only info flags it shows one line instead: `ℹ 3 memory cleanup suggestion
 
 After a task, the agent leaves a **manual test report**: what a person should click through, and what they should see, before trusting "done". It is encouraged, never required, and nothing blocks moving a task to done.
 
-**The report** is passed as `manualTests` on `vibedoc_update_task` and saved at the end of the task file. `/work-epic` writes one for every task it finishes. Plain lines become unticked steps.
+**The report** is passed as `manualTests` on `vibedoc_update_task` and saved at the end of the task file. `/vibedoc:work` writes one for every task it finishes. Plain lines become unticked steps.
 
 ```md
 ## Manual tests
@@ -597,7 +597,7 @@ Run from VibeDoc (single or suite) on a done / review task:
 - Approve and Send back are in the task panel and on /manual-tests (`POST /api/tasks/review` `{ id, action: "approve" | "send-back", note? }`: 400 for an empty send-back note, 409 when approving a task that isn't in review or sending back one that is neither in review nor done; `REVIEWABLE` in `src/lib/review.ts`). Both are recorded in the task's `## Review` section, which the panel shows as history.
 - A sent-back todo card shows **changes requested**. When `vibedoc_next_task` hands it out again, the reply starts with `⚠️ Changes requested:` and the note.
 - A task in review is not done: the epic isn't finished until it is approved. Its dependents can still start, unless the review is held (its last run failed, or the auto-fix limit was reached): then they wait and `vibedoc_next_task` says `T0xx in review — needs a human`.
-- `/work-epic` defaults to done. It uses review only when it can't judge the result itself (a visual change it couldn't see, or a Verify step it couldn't run).
+- `/vibedoc:work` defaults to done. It uses review only when it can't judge the result itself (a visual change it couldn't see, or a Verify step it couldn't run).
 
 **Self-fixing failures & flaky tests (R065).**
 
@@ -666,7 +666,7 @@ Load the instructions for planning from chat. Call it first when the user asks t
 |-----------|------|----------|-------------|
 | `kind` | `"roadmap"` \| `"breakdown"` | ✅ | `roadmap` = plan horizons and epics; `breakdown` = split one epic into tasks |
 
-**Returns:** a short preamble that maps the terminal skill to the chat tools (use `vibedoc_ask_questions` instead of AskUserQuestion, `vibedoc_propose_plan` instead of writing, no shell or file access), followed by the bundled skill body (`skills/roadmap-planner/SKILL.md` or `skills/epic-breakdown/SKILL.md`).
+**Returns:** a short preamble that maps the terminal skill to the chat tools (use `vibedoc_ask_questions` instead of AskUserQuestion, `vibedoc_propose_plan` instead of writing, no shell or file access), followed by the bundled skill body (`plugin/skills/roadmap/SKILL.md` or `plugin/skills/breakdown/SKILL.md`).
 
 **Writes:** nothing.
 

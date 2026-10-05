@@ -1,11 +1,11 @@
 ---
-name: epic-breakdown
+name: breakdown
 description: Break one roadmap epic (a VibeDoc plans/roadmap/R*.md item) into implementation tasks written for a coding agent. It takes an epic id or file path; with no argument it lists the epics with their status and asks which one to break down. It then asks checkbox questions about scope, effort budget, quality bar and constraints, reads the relevant code, and writes plans/tasks/T*.md files (real files to touch, acceptance criteria, verify commands) linked back to the epic. Use this whenever the user wants to break down, split, decompose, plan or "task out" an epic, feature or roadmap item, asks "what are the tasks for R004", or wants the next epic turned into work an agent can pick up, even if they don't say "epic".
 ---
 
 # Epic breakdown
 
-Turn one epic into a short, ordered list of tasks. A coding agent should be able to pick up any one of them cold and finish it. This skill is a follow-up to `roadmap-planner`: epics are roadmap items that have a `**Parent:**` (horizon), and their body often already contains **In scope / Out of scope / Done when**.
+Turn one epic into a short, ordered list of tasks. A coding agent should be able to pick up any one of them cold and finish it. This skill is a follow-up to `/vibedoc:roadmap`: epics are roadmap items that have a `**Parent:**` (horizon), and their body often already contains **In scope / Out of scope / Done when**.
 
 The tasks are the product of this skill. Someone who reads a task file should know what to build, where it goes, how it follows the codebase's patterns, and how to prove it works, without asking anyone. A vague task gets a vague implementation.
 
@@ -41,7 +41,7 @@ If the chosen epic already has linked tasks, show them and ask whether to **add 
 - **Under an existing epic:** name the closest one if there is one.
 - **Loose tasks, no epic:** the tasks go on the board without a Phase.
 
-For a new epic, write its body the way `roadmap-planner` does: one outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**, taken from the spec and your interview.
+For a new epic, write its body the way `/vibedoc:roadmap` does: one outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**, taken from the spec and your interview.
 
 When the spec is a doc (e.g. "Break down the spec in docs/prd/export.md"), read it with `vibedoc_read_doc` instead of asking the user to paste it. Link back to it: put ``Spec: `<path>` `` on its own line in the new epic body and in each task's `## Context`.
 
@@ -59,7 +59,7 @@ Read the context that grounds the questions. Every question should come from som
 
 Play back the epic in 2–3 lines: what it delivers, and what you found in the code (for example: "No billing code exists yet. Payments would go through `src/lib/…`, following how X was done."). Then ask with `AskUserQuestion`.
 
-**Question rules** (same as `roadmap-planner`):
+**Question rules** (same as `/vibedoc:roadmap`):
 
 - Use checkboxes (`multiSelect: true`) by default. Use single-select only when the answers are exclusive.
 - Put "(Recommended)" on your best guess and list it first.

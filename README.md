@@ -100,6 +100,24 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 > The port is shown in the terminal when VibeDoc starts. Use `--port` to pin it.
 
+### Agent skills (Claude Code plugin)
+
+The planning loop ships as a Claude Code plugin named `vibedoc` (in [`plugin/`](plugin/)):
+
+| Command | What it does |
+|---|---|
+| `/vibedoc:roadmap` | Interview you about goals and write horizons + epics (`plans/roadmap/R*.md`) |
+| `/vibedoc:breakdown R004` | Break one epic into tasks an agent can pick up cold (`plans/tasks/T*.md`) |
+| `/vibedoc:work R004` | Claim, build, verify, test and commit the epic's tasks one by one |
+| `/vibedoc:next` | The single most useful next step, with the command to run |
+
+```text
+/plugin marketplace add quanghoangf/vibedoc
+/plugin install vibedoc@vibedoc
+```
+
+Working on the skills themselves: start Claude Code with `claude --plugin-dir ./plugin` from this repo, so edits apply after `/reload-plugins` (an installed plugin is a copy). VibeDoc's agent chat reads the same files (`plugin/skills/roadmap` and `plugin/skills/breakdown`).
+
 ---
 
 ## MCP tools

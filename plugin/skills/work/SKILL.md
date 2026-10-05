@@ -1,6 +1,6 @@
 ---
-name: work-epic
-description: Work through one VibeDoc roadmap epic (plans/roadmap/R*.md) by itself. It claims the next ready task with vibedoc_next_task, implements it, runs the task's Verify commands, marks it done, commits, and repeats until the epic is finished or needs a human. Use this whenever the user says "work on epic R037", "implement R037", "/work-epic R037", "start the tasks in this epic", "keep going on the epic", "do the next task", or otherwise wants an agent to run an epic's tasks without picking each one by hand.
+name: work
+description: Work through one VibeDoc roadmap epic (plans/roadmap/R*.md) by itself. It claims the next ready task with vibedoc_next_task, implements it, runs the task's Verify commands, marks it done, commits, and repeats until the epic is finished or needs a human. Use this whenever the user says "work on epic R037", "implement R037", "/vibedoc:work R037", "start the tasks in this epic", "keep going on the epic", "do the next task", or otherwise wants an agent to run an epic's tasks without picking each one by hand.
 ---
 
 # Work an epic

@@ -47,6 +47,8 @@ src/
   lib/
     core.ts               ← ALL file system logic (shared by API routes + MCP)
     events.ts             ← In-process SSE event bus (singleton)
+plugin/                   ← Claude Code plugin `vibedoc`: skills/{roadmap,breakdown,work,next} → /vibedoc:<name>; the chat reads roadmap + breakdown
+.claude-plugin/marketplace.json ← marketplace for `/plugin install vibedoc@vibedoc`
 docs/                     ← VibeDoc's own documentation (this project)
 docs/specs/               ← Capability specs (R066): one <capability>.md per capability, requirements + WHEN/THEN scenarios
 plans/tasks/              ← Development tasks

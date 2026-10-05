@@ -1,5 +1,5 @@
 ---
-name: roadmap-planner
+name: roadmap
 description: Build an epic-level product roadmap for any project. Scans the project's docs, then interviews the user with checkbox questions about business goals, users and features only (no tech), and writes horizons (Now / Next / Later) with epics under them as VibeDoc roadmap items (plans/roadmap/R*.md). Use this whenever the user wants to create, generate, draft, plan or bootstrap a roadmap, asks "what should we build next", wants to turn a PRD / README / docs into epics, or wants to plan product phases or milestones, even if they don't say "VibeDoc" or "epic".
 ---
 
@@ -95,7 +95,7 @@ For every epic, write a short body. The person who breaks the epic into tasks la
 **Done when:** <an observable success signal>
 ```
 
-An epic may also state its promise as numbered scenarios, after the body. They become its acceptance tests: `epic-breakdown` gives every task the scenarios it covers and seeds its test checklist from them, and the epic shows each scenario as passed, failed or unproven. Write them when the "Done when" has more than one observable outcome; they are optional.
+An epic may also state its promise as numbered scenarios, after the body. They become its acceptance tests: `/vibedoc:breakdown` gives every task the scenarios it covers and seeds its test checklist from them, and the epic shows each scenario as passed, failed or unproven. Write them when the "Done when" has more than one observable outcome; they are optional.
 
 ```
 ## Scenarios

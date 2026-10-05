@@ -20,7 +20,7 @@ export type StepVerdict = (step: RunStep, run: RunManifest) => string[]
 const norm = (s: string) => s.trim().replace(/\s+/g, ' ')
 
 /**
- * 🤖 items take the status of the run step with the same text (`/work-epic` copies the item text into `step()`),
+ * 🤖 items take the status of the run step with the same text (`/vibedoc:work` copies the item text into `step()`),
  * else `missing`; manual items are `manual`. Steps no item claimed come back as `extra`.
  */
 export function matchItems(items: ManualTestItem[], run: RunManifest | null, verdict?: StepVerdict): { rows: EvidenceRow[]; extra: RunStep[] } {
