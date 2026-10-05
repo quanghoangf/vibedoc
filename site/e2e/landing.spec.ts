@@ -141,3 +141,17 @@ test.describe('loop and features (T203)', () => {
     })
   }
 })
+
+test.describe('demo video (T204)', () => {
+  test('S2: the clip has its poster and captions, and plays inline', async ({ page }) => {
+    await page.goto('./#demo')
+    const video = page.getByRole('region', { name: /You don't touch anything/ }).locator('video')
+    await expect(video).toHaveAttribute('poster', /demo-poster\.jpg$/)
+    await expect(video).toHaveAttribute('playsinline', '')
+    await expect(video.locator('track[kind="captions"]')).toHaveAttribute('src', /demo\.vtt$/)
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThan(0)
+    expect(await video.evaluate((v: HTMLVideoElement) => v.duration)).toBeGreaterThan(10)
+    await video.evaluate((v: HTMLVideoElement) => v.play())
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0.5)
+  })
+})

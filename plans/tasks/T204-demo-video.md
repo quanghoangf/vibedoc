@@ -1,9 +1,12 @@
 # T204: Demo video, recorded with VibeDoc's own capture
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R071 — Landing page
 **Size:** M (2–3 hrs)
 **Depends on:** T201
 **Covers:** S2
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 A visitor watches an agent's task move across the board in a short clip, without installing anything.
@@ -46,5 +49,11 @@ pnpm --dir site build && pnpm --dir site exec playwright test
 
 ## Manual tests
 _2026-10-05 — ai_
+### Not done here
+- [ ] demo.mp4 is missing: ffmpeg isn't installed on this machine, and Safari can't play the WebM. Run `brew install ffmpeg`, then (with `pnpm dev` running in the repo root) `PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0 node site/scripts/record-demo.mjs site/public` → demo.mp4 appears (check it is under 4 MB) and the page picks it up on the next build
 ### Steps
-- [ ] S2 — WHEN a visitor plays the demo video or opens the live demo → THEN they see an agent's task move across the board and the read-only demo opens without installing anything
+- [ ] S2 — WHEN a visitor plays the demo video or opens the live demo → THEN they see an agent's task move across the board and the read-only demo opens without installing anything (video part: proven locally by `site/e2e/landing.spec.ts` "S2: the clip has its poster and captions, and plays inline"; the live demo link is T205)
+- [ ] Click "Watch it work" in the hero → the page scrolls to the dark demo band; play the clip → T002 moves to In progress, then Done, and the next task is claimed; the breadcrumb reads "acme-app"
+- [ ] Turn on captions in the player → four lines describe what happens
+### Regression risk
+- [ ] The rest of the page still loads quickly: the video only loads its metadata until played

@@ -1,0 +1,38 @@
+---
+// The dark demo band: an unedited clip of an agent working the board (recorded by scripts/record-demo.mjs).
+import { existsSync } from 'node:fs'
+import path from 'node:path'
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+// The MP4 (for Safari) exists only where the recording ran with ffmpeg; the WebM always does
+const hasMp4 = existsSync(path.join(process.cwd(), 'public/demo.mp4'))
+---
+<section id="demo" aria-labelledby="demo-heading" class="bg-ink text-[#e8e8f0]">
+  <div class="mx-auto flex max-w-[1200px] flex-wrap items-center gap-14 px-5 py-26 sm:px-8">
+    <div class="vd-reveal flex min-w-0 flex-[1_1_340px] flex-col gap-4">
+      <p class="m-0 font-mono text-xs tracking-[0.08em] text-[#aaa0fa] uppercase">14 seconds, unedited</p>
+      <h2 id="demo-heading" class="m-0 text-4xl leading-[1.08] font-semibold tracking-[-0.03em] sm:text-[44px]">Your agent moves the card. You don't touch anything.</h2>
+      <p class="m-0 text-[17px] leading-relaxed text-[#aaaabe]">
+        The agent asks VibeDoc for the next ready task, builds it, reports its checklist and marks it done. The board updates
+        over a live connection, and the next task opens because its dependency is met.
+      </p>
+    </div>
+    <div class="vd-reveal min-w-0 flex-[1_1_620px] overflow-hidden rounded-xl border border-[#2d2d3d] bg-night">
+      <video
+        controls
+        muted
+        playsinline
+        preload="metadata"
+        poster={`${base}/demo-poster.jpg`}
+        width="1280"
+        height="720"
+        aria-label="Demo: an agent claims task T002, moves it to Done, then claims the next task"
+        class="block h-auto w-full"
+      >
+        {hasMp4 && <source src={`${base}/demo.mp4`} type="video/mp4" />}
+        <source src={`${base}/demo.webm`} type="video/webm" />
+        <track kind="captions" src={`${base}/demo.vtt`} srclang="en" label="English" default />
+      </video>
+    </div>
+  </div>
+</section>
