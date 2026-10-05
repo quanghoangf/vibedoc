@@ -1,8 +1,11 @@
 # T208: Spec-driven development section
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R071 — Landing page
 **Size:** M (2–3 hrs)
 **Depends on:** T201
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 A visitor understands why VibeDoc is spec-driven and what that looks like in practice, in one section: the problem, the difference, and the four steps with real examples.
@@ -37,3 +40,12 @@ A visitor understands why VibeDoc is spec-driven and what that looks like in pra
 ```bash
 pnpm --dir site build && pnpm --dir site exec playwright test
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Click "Spec-driven" in the header → the page scrolls to "Vibe coding forgets. Specs remember."
+- [ ] Read the section: every claim matches what VibeDoc does today (living specs R066, verification R067, scenarios R068, spec merge R069); the scenario line says they "seed each task's checklist" (softened from the design's "done means they passed", which isn't enforced)
+- [ ] The four example cards rise in on scroll and stack to one column on a phone, code still readable
+### Regression risk
+- [ ] Sections below (the loop, the feature tour) still reveal on scroll and keep their spacing

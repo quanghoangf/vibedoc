@@ -192,3 +192,28 @@ test.describe('stars, footer and SEO (T206)', () => {
     }
   })
 })
+
+test.describe('spec-driven section (T208)', () => {
+  for (const width of [390, 1280]) {
+    test(`renders with its heading, both lists and the four example cards at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('./')
+      const sdd = page.getByRole('region', { name: 'Vibe coding forgets. Specs remember.' })
+      await expect(sdd.getByRole('heading', { name: 'Without specs' })).toBeAttached()
+      await expect(sdd.getByRole('heading', { name: 'With VibeDoc' })).toBeAttached()
+      const steps = sdd.getByRole('list', { name: 'Spec-driven, step by step' }).getByRole('listitem')
+      await expect(steps).toHaveCount(4)
+      await expect(sdd.getByText('### Requirement: Session budget', { exact: false })).toBeAttached()
+      await expect(sdd.getByText('#### MODIFIED Requirement:', { exact: false })).toBeAttached()
+      await expect(sdd.getByText('Send back 2 findings')).toBeAttached()
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    })
+  }
+
+  test('the nav link "Spec-driven" lands on the section', async ({ page }) => {
+    await page.goto('./')
+    await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Spec-driven' }).click()
+    await expect(page).toHaveURL(/#sdd$/)
+    await expect(page.getByRole('heading', { name: 'Vibe coding forgets. Specs remember.' })).toBeInViewport()
+  })
+})

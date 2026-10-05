@@ -1,0 +1,90 @@
+---
+// Spec-driven development (R066–R069 as shipped): the problem, without/with, four steps with real examples.
+const without = [
+  'Intent lives in chat history and is gone next session',
+  'The agent rebuilds how a feature works from old tasks',
+  '"Done" is the agent\'s word for it',
+  'Docs drift until nobody trusts them',
+]
+const withVibeDoc = [
+  'Each capability has one spec: requirements with WHEN/THEN scenarios',
+  'The agent sees the related requirements when it claims a task',
+  "Scenarios seed each task's checklist, and the epic shows which ones passed",
+  'A finished epic merges its spec changes in one reviewed diff',
+]
+const pre = 'm-0 mt-4 flex-1 overflow-x-auto bg-ink px-5 py-4 font-mono text-xs leading-[1.65] whitespace-pre-wrap text-[#e8e8f0]'
+---
+<section id="sdd" aria-labelledby="sdd-heading" class="mx-auto flex max-w-[1200px] flex-col gap-12 px-5 pt-28 pb-12 sm:px-8">
+  <div class="vd-reveal flex max-w-[760px] flex-col gap-4">
+    <p class="m-0 font-mono text-xs tracking-[0.08em] text-violet-ink uppercase">Spec-driven development</p>
+    <h2 id="sdd-heading" class="m-0 text-[40px] leading-[1.04] font-semibold tracking-[-0.035em] sm:text-[52px]">Vibe coding forgets. Specs remember.</h2>
+    <p class="m-0 text-lg leading-relaxed text-body">
+      In a chat, what you asked for scrolls away and "done" means "trust me". VibeDoc keeps what each feature must do as
+      living specs next to your code, turns the promises into checks, and verifies the work against them before you approve it.
+    </p>
+  </div>
+
+  <div class="vd-reveal grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-4">
+    <div class="flex flex-col gap-3.5 rounded-xl border border-rule bg-surface p-7">
+      <h3 class="m-0 font-mono text-xs font-normal text-pencil">Without specs</h3>
+      <ul class="m-0 flex list-none flex-col gap-3.5 p-0">
+        {without.map((t) => <li class="text-base leading-normal text-body"><span aria-hidden="true">✕ </span>{t}</li>)}
+      </ul>
+    </div>
+    <div class="flex flex-col gap-3.5 rounded-xl border border-violet/45 bg-surface p-7 shadow-[0_0_0_4px_rgba(124,106,247,0.08)]">
+      <h3 class="m-0 font-mono text-xs font-normal text-violet-ink">With VibeDoc</h3>
+      <ul class="m-0 flex list-none flex-col gap-3.5 p-0">
+        {withVibeDoc.map((t) => <li class="text-base leading-normal"><span aria-hidden="true">✓ </span>{t}</li>)}
+      </ul>
+    </div>
+  </div>
+
+  <ol aria-label="Spec-driven, step by step" class="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(min(270px,100%),1fr))] gap-4 p-0">
+    <li class="vd-reveal flex flex-col overflow-hidden rounded-xl border border-rule bg-surface">
+      <div class="flex flex-col gap-1.5 px-5 pt-5"><p class="m-0 font-mono text-xs text-pencil">1 · Capability spec</p><h3 class="m-0 text-lg font-semibold">What it does today</h3></div>
+      <pre class={pre}><span class="text-[#8c8ca0]">docs/specs/memory.md</span>
+<span class="text-[#aaa0fa]">### Requirement:</span> Session budget
+Session start SHALL fit the
+memory budget.
+
+<span class="text-[#aaa0fa]">#### Scenario:</span> Many entries
+- WHEN there are 200 entries
+- THEN only what fits is listed</pre>
+    </li>
+    <li class="vd-reveal flex flex-col overflow-hidden rounded-xl border border-rule bg-surface">
+      <div class="flex flex-col gap-1.5 px-5 pt-5"><p class="m-0 font-mono text-xs text-pencil">2 · Epic</p><h3 class="m-0 text-lg font-semibold">What will change, and how we'll know</h3></div>
+      <pre class={pre}><span class="text-[#8c8ca0]">plans/roadmap/R069-….md</span>
+<span class="text-[#aaa0fa]">## Scenarios</span>
+### S1: Bigger budget
+- WHEN 300 entries exist
+- THEN session start still fits
+
+<span class="text-[#aaa0fa]">## Spec changes</span>
+#### MODIFIED Requirement:
+Session budget</pre>
+    </li>
+    <li class="vd-reveal flex flex-col overflow-hidden rounded-xl border border-rule bg-surface">
+      <div class="flex flex-col gap-1.5 px-5 pt-5"><p class="m-0 font-mono text-xs text-pencil">3 · Verify</p><h3 class="m-0 text-lg font-semibold">Checked against what was asked</h3></div>
+      <div class="m-5 mb-5 flex flex-1 flex-col gap-2.5">
+        <p class="m-0 rounded-md border-l-[3px] border-[#d64545] bg-[#fdf2f2] px-3 py-2.5 text-[13px] leading-normal"><span class="font-mono text-[11px] text-[#b42f2f]">critical</span><br />AC2 "Unknown plan → 400": route returns 500</p>
+        <p class="m-0 rounded-md border-l-[3px] border-[#c46a1f] bg-[#fdf5ed] px-3 py-2.5 text-[13px] leading-normal"><span class="font-mono text-[11px] text-[#9a520f]">major</span><br />S1 has no test step</p>
+        <p class="m-0 mt-auto text-[13px] text-pencil">Tick findings → <b class="text-ink">Send back 2 findings</b></p>
+      </div>
+    </li>
+    <li class="vd-reveal flex flex-col overflow-hidden rounded-xl border border-rule bg-surface">
+      <div class="flex flex-col gap-1.5 px-5 pt-5"><p class="m-0 font-mono text-xs text-pencil">4 · Merge</p><h3 class="m-0 text-lg font-semibold">The spec stays current</h3></div>
+      <pre class={pre}><span class="text-[#8c8ca0]">Merge R069 into the spec</span>
+<span class="text-[#f08c8c]">− fit 2000 tokens</span>
+<span class="text-[#5fd6b4]">+ fit 3000 tokens</span>
+<span class="text-[#f08c8c]">− WHEN 200 entries</span>
+<span class="text-[#5fd6b4]">+ WHEN 300 entries</span>
+
+<span class="mt-1.5 inline-block rounded-md bg-violet px-3 py-1 text-night">Accept</span></pre>
+    </li>
+  </ol>
+
+  <p class="vd-reveal m-0 max-w-[820px] text-[15px] leading-relaxed text-body">
+    Brownfield-first: you never write specs for the whole codebase up front. A spec starts with the first epic that touches a
+    feature and grows with every epic after it, the same delta idea OpenSpec uses (ADDED, MODIFIED, REMOVED, RENAMED).
+  </p>
+</section>
