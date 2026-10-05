@@ -83,7 +83,9 @@ test.describe('install (T202)', () => {
   test('the one-line installers are served from the site (T213)', async ({ request }) => {
     const sh = await request.get('install.sh')
     expect(sh.status()).toBe(200)
-    expect(await sh.text()).toMatch(/^#!\/bin\/sh\n[\s\S]*sha256[\s\S]*--uninstall/)
+    const script = await sh.text()
+    expect(script.startsWith('#!/bin/sh\n')).toBe(true)
+    for (const part of ['SHASUMS256.txt', 'checksum mismatch', '--uninstall', '--update']) expect(script).toContain(part)
     const ps = await request.get('install.ps1')
     expect(ps.status()).toBe(200)
     expect(await ps.text()).toContain('Get-FileHash -Algorithm SHA256')
