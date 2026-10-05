@@ -1,6 +1,6 @@
 # R069: Spec changes on epics
 **Parent:** R003
-**Status:** planned
+**Status:** in-progress
 **Order:** 120
 **Tasks:** T194, T195, T196, T197
 

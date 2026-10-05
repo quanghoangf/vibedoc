@@ -1,6 +1,6 @@
 // Self-check for specs. Run: node src/lib/specs.check.mts
 import assert from 'node:assert/strict'
-import { findRequirement, formatRelatedSpecs, formatRequirement, formatSpecContext, formatSpecList, isSpecPath, parseSpec, parseSpecSlugs, taskSection, type SpecContext } from './specs.ts'
+import { applyDelta, findRequirement, parseSpecChanges, formatRelatedSpecs, formatRequirement, formatSpecContext, formatSpecList, isSpecPath, parseSpec, parseSpecSlugs, taskSection, type SpecContext } from './specs.ts'
 
 // a full spec
 const full = [
@@ -155,5 +155,116 @@ assert.ok(small.includes('(1 older task cut to fit)') && small.includes('1 older
 // an existing spec is shown and the instructions ask for changes to it
 const withSpec = formatSpecContext({ ...empty, capability: 'memory', existing: '# Memory\n### Requirement: A' }, 6000)
 assert.ok(withSpec.includes('## Existing spec (docs/specs/memory.md)') && withSpec.includes('propose changes to it'))
+
+// ─── R069 spec changes ───
+const epicBody = [
+  'Outcome.',
+  '',
+  '## Spec changes',
+  '### Memory',
+  '#### ADDED Requirement: Entry expiry',
+  'The system SHALL expire entries.',
+  '',
+  '##### Scenario: Old entry',
+  '- WHEN an entry is a year old',
+  '- THEN it is flagged',
+  '#### MODIFIED Requirement: Session budget',
+  'The session start SHALL fit 3000 tokens.',
+  '```',
+  '#### REMOVED Requirement: Not an op (fenced)',
+  '```',
+  '##### Scenario: Big project',
+  '- WHEN there are 300 entries',
+  '- THEN it fits',
+  '#### REMOVED Requirement: Legacy index',
+  'Replaced by recall.',
+  '#### RENAMED Requirement: Recall → Keyword recall',
+  '### board-views',
+  '#### ADDED Requirement: Kanban',
+  'It SHALL show columns.',
+  '',
+  '## Out of scope',
+  '#### ADDED Requirement: ignored',
+].join('\n')
+const changes = parseSpecChanges(epicBody)
+assert.deepEqual(changes.map(c => [c.capability, c.ops.map(o => `${o.op} ${o.name}${o.newName ? ` → ${o.newName}` : ''}`)]), [
+  ['memory', ['ADDED Entry expiry', 'MODIFIED Session budget', 'REMOVED Legacy index', 'RENAMED Recall → Keyword recall']],
+  ['board-views', ['ADDED Kanban']],
+])
+assert.equal(changes[0].ops[0].text, 'The system SHALL expire entries.\n\n##### Scenario: Old entry\n- WHEN an entry is a year old\n- THEN it is flagged')
+assert.match(changes[0].ops[1].text, /```\n#### REMOVED Requirement: Not an op \(fenced\)\n```/)
+assert.equal(changes[0].ops[2].text, 'Replaced by recall.')
+assert.deepEqual(parseSpecChanges('# no section\n#### ADDED Requirement: x'), [])
+assert.deepEqual(parseSpecChanges('```\n## Spec changes\n### m\n#### ADDED Requirement: x\n```'), [])
+
+const specRaw = [
+  '# Memory',
+  '',
+  '## Purpose',
+  'Memory things.',
+  '',
+  '## Requirements',
+  '',
+  '### Requirement: Session budget',
+  'The session start SHALL fit 2000 tokens.',
+  '',
+  '#### Scenario: Many entries',
+  '- WHEN 200 entries',
+  '- THEN it fits',
+  '',
+  '### Requirement: Legacy index',
+  'Old.',
+  '',
+  '### Requirement: Recall',
+  'It SHALL rank.',
+  '',
+  '## Notes',
+  'Kept as is.',
+  '',
+].join('\n')
+const { raw: merged, errors } = applyDelta(specRaw, changes[0].ops, 'memory')
+assert.deepEqual(errors, [])
+const parsed = parseSpec('docs/specs/memory.md', merged)
+assert.deepEqual(parsed.requirements.map(r => r.name), ['Session budget', 'Keyword recall', 'Entry expiry'])
+// MODIFIED replaced the whole block (old scenario gone, new one in, levels shifted, fence kept as text)
+assert.equal(parsed.requirements[0].text.split('\n')[0], 'The session start SHALL fit 3000 tokens.')
+assert.deepEqual(parsed.requirements[0].scenarios.map(s => s.name), ['Big project'])
+assert.ok(merged.includes('```\n#### REMOVED Requirement: Not an op (fenced)\n```'))
+// ADDED went after the last requirement, before ## Notes, with its scenario one level up
+assert.deepEqual(parsed.requirements[2], { name: 'Entry expiry', text: 'The system SHALL expire entries.', scenarios: [{ name: 'Old entry', text: '- WHEN an entry is a year old\n- THEN it is flagged' }] })
+// text outside the touched blocks is byte-for-byte the same
+assert.ok(merged.startsWith('# Memory\n\n## Purpose\nMemory things.\n\n## Requirements\n\n### Requirement: Session budget\n'))
+assert.ok(merged.endsWith('\n## Notes\nKept as is.\n'))
+assert.ok(!merged.includes('Legacy index') && !merged.includes('Old.'))
+// applying the same delta twice reports errors instead of duplicating (MODIFIED is a replace, so it applies again)
+const again = applyDelta(merged, changes[0].ops, 'memory')
+assert.deepEqual(again.errors, [
+  'ADDED "Entry expiry": the spec already has this requirement',
+  'REMOVED "Legacy index": no such requirement in the spec',
+  'RENAMED "Recall": no such requirement in the spec',
+])
+assert.equal(again.raw, merged)
+// each error on its own
+assert.deepEqual(applyDelta(specRaw, [{ op: 'MODIFIED', name: 'Nope', text: 'x' }]).errors, ['MODIFIED "Nope": no such requirement in the spec'])
+assert.deepEqual(applyDelta(specRaw, [{ op: 'REMOVED', name: 'nope', text: '' }]).errors, ['REMOVED "nope": no such requirement in the spec'])
+assert.deepEqual(applyDelta(specRaw, [{ op: 'RENAMED', name: 'Recall', text: '' }]).errors, ['RENAMED "Recall": give the new name as "Old → New"'])
+assert.deepEqual(applyDelta(specRaw, [{ op: 'RENAMED', name: 'Recall', newName: 'session budget', text: '' }]).errors, ['RENAMED "Recall": "session budget" already exists'])
+assert.deepEqual(applyDelta(specRaw, [{ op: 'ADDED', name: 'recall', text: 'x' }]).errors, ['ADDED "recall": the spec already has this requirement'])
+// an erroring op leaves the spec unchanged
+assert.equal(applyDelta(specRaw, [{ op: 'REMOVED', name: 'nope', text: '' }]).raw, specRaw)
+// a requirement block ends at the next ### heading: REMOVED takes its scenarios along
+const noBudget = applyDelta(specRaw, [{ op: 'REMOVED', name: 'Session budget', text: '' }]).raw
+assert.ok(!noBudget.includes('Many entries'))
+assert.deepEqual(parseSpec('x', noBudget).requirements.map(r => r.name), ['Legacy index', 'Recall'])
+
+// new spec: null + ADDED only → H1 from the capability; anything else on null → errors
+const fresh = applyDelta(null, changes[1].ops, 'board-views')
+assert.deepEqual(fresh.errors, [])
+assert.ok(fresh.raw.startsWith('# Board views\n'))
+assert.deepEqual(parseSpec('docs/specs/board-views.md', fresh.raw).requirements, [{ name: 'Kanban', text: 'It SHALL show columns.', scenarios: [] }])
+assert.deepEqual(applyDelta(null, [{ op: 'MODIFIED', name: 'X', text: 'y' }]), { raw: '', errors: ['MODIFIED "X": no such requirement in the spec'] })
+// a spec with no requirement yet: ADDED is appended at the end
+const noReqs = applyDelta('# M\n\nIntro.\n', [{ op: 'ADDED', name: 'A', text: 'It SHALL.' }]).raw
+assert.equal(noReqs, '# M\n\nIntro.\n\n### Requirement: A\nIt SHALL.\n')
 
 console.log('specs ok')

@@ -1,8 +1,11 @@
 # T194: "## Spec changes" format and pure applyDelta
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R069 — Spec changes on epics
 **Size:** M (2–3 hrs)
 **Depends on:** T181
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 An epic can say exactly how it changes a capability spec, and VibeDoc can compute the spec after that change. This is OpenSpec's delta, kept in the epic body instead of a separate change folder.
@@ -45,3 +48,11 @@ An epic can say exactly how it changes a capability spec, and VibeDoc can comput
 node src/lib/specs.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Read the "Spec changes on epics" comment block at the end of src/lib/specs.ts → the format matches the R069 epic (ADDED / MODIFIED / REMOVED / RENAMED, `####` requirement and `#####` scenario in the epic)
+- [ ] Spot-check the self-check cases in specs.check.mts against how you expect a merge to read (MODIFIED replaces the whole block incl. scenarios; ADDED lands after the last requirement; outside text untouched)
+### Regression risk
+- [ ] vibedoc_get_spec / vibedoc_list_specs on docs/specs/memory.md still return the same requirements as before

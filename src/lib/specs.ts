@@ -211,3 +211,139 @@ export function formatSpecContext(ctx: SpecContext, budgetTokens: number): strin
   // ponytail: re-renders per cut task (O(n²) on a few hundred tasks at most); cut in batches if that ever shows
   return cut.size ? `${text}\n\n${cut.size} older task${cut.size === 1 ? '' : 's'} cut to stay under ~${budgetTokens} tokens; read them with vibedoc_get_task.` : text
 }
+
+// ─── Spec changes on epics (R069): OpenSpec's delta, kept in the epic body ───────────────────────────────────────
+//
+//   ## Spec changes
+//   ### memory
+//   #### ADDED Requirement: Entry expiry
+//   The system SHALL …
+//   ##### Scenario: …
+//   #### MODIFIED Requirement: Session budget      (the full new text + scenarios)
+//   #### REMOVED Requirement: Legacy index          (the reason)
+//   #### RENAMED Requirement: Recall → Keyword recall
+//
+// In the epic a requirement is `####` and its scenarios `#####`; in the spec they are `###` / `####`.
+
+export const DELTA_OPS = ['ADDED', 'MODIFIED', 'REMOVED', 'RENAMED'] as const
+export type DeltaOp = { op: (typeof DELTA_OPS)[number]; name: string; newName?: string; text: string }
+export type SpecChange = { capability: string; ops: DeltaOp[] }
+
+const OP_HEADING = /^####\s+(ADDED|MODIFIED|REMOVED|RENAMED)\s+Requirement:\s*(.+?)\s*$/i
+const HEADING = /^(#{1,6})\s/
+const trimBlank = (ls: string[]) => {
+  let a = 0, b = ls.length
+  while (a < b && !ls[a].trim()) a++
+  while (b > a && !ls[b - 1].trim()) b--
+  return ls.slice(a, b)
+}
+
+/** The `## Spec changes` section of an epic body → per capability, its ops in order. */
+export function parseSpecChanges(body: string): SpecChange[] {
+  const lines = body.replace(/\r\n/g, '\n').split('\n')
+  const code = fenced(lines)
+  const start = lines.findIndex((l, i) => !code[i] && /^##\s+Spec changes\s*$/i.test(l.trim()))
+  if (start < 0) return []
+  const out: SpecChange[] = []
+  let op: (DeltaOp & { lines: string[] }) | null = null
+  const flush = () => {
+    if (op && out.length) out[out.length - 1].ops.push({ op: op.op, name: op.name, ...(op.newName ? { newName: op.newName } : {}), text: trimBlank(op.lines).join('\n') })
+    op = null
+  }
+  for (let i = start + 1; i < lines.length; i++) {
+    const l = lines[i]
+    const depth = code[i] ? 0 : HEADING.exec(l)?.[1].length ?? 0
+    if (depth && depth <= 2) break
+    if (depth === 3) {
+      flush()
+      out.push({ capability: l.replace(/^###\s+/, '').trim().toLowerCase(), ops: [] })
+      continue
+    }
+    const m = depth === 4 ? OP_HEADING.exec(l.trim()) : null
+    if (m) {
+      flush()
+      const kind = m[1].toUpperCase() as DeltaOp['op']
+      const [name, newName] = kind === 'RENAMED' ? m[2].split(/\s*(?:→|->)\s*/) : [m[2]]
+      op = { op: kind, name: name.trim(), ...(newName?.trim() ? { newName: newName.trim() } : {}), text: '', lines: [] }
+      continue
+    }
+    op?.lines.push(l)
+  }
+  flush()
+  return out.filter(c => c.capability)
+}
+
+/** Requirement blocks of a spec: `### Requirement:` up to the next heading of depth ≤ 3 or EOF (scenarios move with it). */
+function requirementBlocks(lines: string[]): { name: string; start: number; end: number }[] {
+  const code = fenced(lines)
+  const blocks: { name: string; start: number; end: number }[] = []
+  lines.forEach((l, i) => {
+    if (code[i]) return
+    const depth = HEADING.exec(l)?.[1].length ?? 0
+    if (!depth || depth > 3) return
+    const last = blocks.at(-1)
+    if (last && last.end < 0) last.end = i
+    const m = depth === 3 ? /^###\s+Requirement:\s*(.+?)\s*$/i.exec(l) : null
+    if (m) blocks.push({ name: m[1], start: i, end: -1 })
+  })
+  const last = blocks.at(-1)
+  if (last && last.end < 0) last.end = lines.length
+  return blocks
+}
+
+/** An epic requirement (`#####` scenarios) as spec lines: heading + text with every heading one level up. */
+function specBlock(name: string, text: string): string[] {
+  const body = text.split('\n')
+  const code = fenced(body)
+  return [`### Requirement: ${name}`, ...trimBlank(body.map((l, i) => (!code[i] && /^#{2,6}\s/.test(l) ? l.slice(1) : l)))]
+}
+
+const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
+
+/**
+ * The spec after `ops`, in order; text outside the touched requirement blocks is kept byte-for-byte. Errors (an
+ * ADDED name that exists, a MODIFIED / REMOVED / RENAMED name that doesn't) skip that op. `null` spec = none yet:
+ * ADDED ops start one with an H1 from `capability`.
+ */
+export function applyDelta(specRaw: string | null, ops: DeltaOp[], capability = 'capability'): { raw: string; errors: string[] } {
+  const errors: string[] = []
+  const title = capability.replace(/[-_]+/g, ' ').replace(/^./, c => c.toUpperCase())
+  let lines = (specRaw ?? `# ${title}\n\n## Requirements\n`).split('\n')
+  for (const o of ops) {
+    const blocks = requirementBlocks(lines)
+    const hit = blocks.find(b => same(b.name, o.name))
+    if (o.op === 'ADDED') {
+      if (hit) { errors.push(`ADDED "${o.name}": the spec already has this requirement`); continue }
+      const block = specBlock(o.name, o.text)
+      const last = blocks.at(-1)
+      if (last && last.end < lines.length) {
+        const pad = lines[last.end - 1]?.trim() ? [''] : []
+        lines.splice(last.end, 0, ...pad, ...block, '')
+      } else {
+        // at the end of the file: one blank line before, a trailing newline after
+        lines = [...trimBlankEnd(lines), '', ...block, '']
+      }
+      continue
+    }
+    if (!hit) { errors.push(`${o.op} "${o.name}": no such requirement in the spec`); continue }
+    if (o.op === 'RENAMED') {
+      if (!o.newName) { errors.push(`RENAMED "${o.name}": give the new name as "Old → New"`); continue }
+      if (blocks.some(b => b !== hit && same(b.name, o.newName ?? ''))) { errors.push(`RENAMED "${o.name}": "${o.newName}" already exists`); continue }
+      lines[hit.start] = lines[hit.start].replace(/(Requirement:\s*).+$/i, `$1${o.newName}`)
+      continue
+    }
+    if (o.op === 'REMOVED') { lines.splice(hit.start, hit.end - hit.start); continue }
+    // MODIFIED: replace the block, keeping the blank lines that separated it from what follows
+    let keep = 0
+    while (hit.end - keep - 1 > hit.start && !lines[hit.end - keep - 1].trim()) keep++
+    lines.splice(hit.start, hit.end - keep - hit.start, ...specBlock(o.name, o.text))
+  }
+  if (specRaw === null && errors.length === ops.length) return { raw: '', errors }
+  return { raw: lines.join('\n'), errors }
+}
+
+function trimBlankEnd(ls: string[]): string[] {
+  let b = ls.length
+  while (b > 0 && !ls[b - 1].trim()) b--
+  return ls.slice(0, b)
+}
