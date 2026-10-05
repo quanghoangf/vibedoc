@@ -1,3 +1,29 @@
+# [1.14.0](https://github.com/quanghoangf/vibedoc/compare/v1.13.0...v1.14.0) (2026-10-05)
+
+
+### Features
+
+* **evidence:** evidence API and vibedoc_get_evidence MCP tool (T154) ([099c654](https://github.com/quanghoangf/vibedoc/commit/099c6541b24501ecf5928a725b4d3e7921f35bf8))
+* **evidence:** evidence formatter and EVIDENCE.md written after each run (T153) ([8549bfb](https://github.com/quanghoangf/vibedoc/commit/8549bfb0aa3281722c3e658862c0e4dfbf03dbe1))
+* **evidence:** Evidence view with run history on Test review (T155) ([1fb74a1](https://github.com/quanghoangf/vibedoc/commit/1fb74a1bde3086aaf76848dc2c1e62640fc963ef))
+* **evidence:** open evidence from the card badge and the task panel, e2e and docs (T156) ([dbcb174](https://github.com/quanghoangf/vibedoc/commit/dbcb174ac5420c3a1839d97ee8cb07307462a01c))
+* **frontend:** detect the project's web frontend and show it on Settings (T138) ([ae67556](https://github.com/quanghoangf/vibedoc/commit/ae67556fa0e720225f5fba415fdf8d9c5bec8825))
+* **frontend:** dev server lifecycle, reuse if up else spawn (T142) ([b793951](https://github.com/quanghoangf/vibedoc/commit/b7939517084316da58a60733645ab44d18c4fac3))
+* **frontend:** log in once in a headed browser and save the session (T143) ([b23bae0](https://github.com/quanghoangf/vibedoc/commit/b23bae027c23ef867af44def2432b16b6ff21bc9))
+* **frontend:** monorepo detection and settings override (T139) ([285e27e](https://github.com/quanghoangf/vibedoc/commit/285e27e29f579bfa3d41f6844ff7356d29c37510))
+* **frontend:** Playwright check and one-click install on Settings (T141) ([c1cf5cd](https://github.com/quanghoangf/vibedoc/commit/c1cf5cd8711853bee89a813832000ebeb0ee1d9b))
+* **frontend:** smoke test, e2e check and docs (T144) ([700c9b3](https://github.com/quanghoangf/vibedoc/commit/700c9b32e1c9ee4b45b2bd1aed143e3c7ef57c53))
+* **manual-tests:** automated items, spec link and last run in the checklist header (T145) ([f66091b](https://github.com/quanghoangf/vibedoc/commit/f66091bdbca741f39613a571cb0c73b843060b57))
+* **manual-tests:** show automated vs manual items on card, panel and /manual-tests (T146) ([4e589c7](https://github.com/quanghoangf/vibedoc/commit/4e589c70be9dee977b039455fee4868ba0445f2f))
+* **manual-tests:** Test review page with run replay, multi-select and bulk actions ([44fb21d](https://github.com/quanghoangf/vibedoc/commit/44fb21d9f4e7a625618b0e894badab74e9aab89b))
+* **mcp:** vibedoc_get_frontend tool and Frontend status line (T140) ([9d8f425](https://github.com/quanghoangf/vibedoc/commit/9d8f4250de70252d9a8f717bd956a321356bf720))
+* **playwright:** capture fixture with step screenshots, run video and run.json (T149) ([fc75dbb](https://github.com/quanghoangf/vibedoc/commit/fc75dbb22680babf37c4598f3b40bf27ea981500))
+* **playwright:** keep only the newest N finished runs per task (T150) ([810f423](https://github.com/quanghoangf/vibedoc/commit/810f42305aaa1f070d04ff56d8f763452c1271b7))
+* **runs:** list a task's runs and serve their screenshots and video with Range (T151) ([dfc23c9](https://github.com/quanghoangf/vibedoc/commit/dfc23c9472cdc6d3f018ad85654b3992530c2628))
+* **runs:** show a task's runs with step screenshots and video in the task panel (T152) ([ecb7a07](https://github.com/quanghoangf/vibedoc/commit/ecb7a073ce09007be92a569661f573acd3f719fb))
+* **work-epic:** run the spec before done, fail to review with the spec named on claim (T148) ([c126078](https://github.com/quanghoangf/vibedoc/commit/c126078b657ab4615e02dcb889d9947c1c35dbdd))
+* **work-epic:** write a Playwright spec from the checklist for UI tasks (T147) ([6fa698a](https://github.com/quanghoangf/vibedoc/commit/6fa698ad931da14643aaf64133c4dae39fd106bf))
+
 # [1.13.0](https://github.com/quanghoangf/vibedoc/compare/v1.12.0...v1.13.0) (2026-10-04)
 
 
