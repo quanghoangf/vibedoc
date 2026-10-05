@@ -12,7 +12,7 @@ Image and video paths point at the files in `site/public/`.
 | Sticky header: logo, nav, GitHub button with icon + star count | T201 (star count: T206) |
 | Hero: pill label, headline with highlighted "proof", subhead, CTAs, "works with" line | T201 |
 | Install tabs (npx · npm · pnpm · bun; Homebrew and "Ask your AI" when R072/R073 ship) | T202 |
-| Board screenshot in a browser frame + two floating chips | T203 |
+| "Watch a task move": scroll-driven board, a card goes Todo → In progress → Done with its proof (`LiveRun.astro`, replaced the board screenshot) | T203 |
 | Demo band (dark): the clip with copy | T204 (live demo link: T205) |
 | Spec-driven development: problem, without/with, four example cards, brownfield note | T208 |
 | The loop: four commands with the drawn line | T203 |

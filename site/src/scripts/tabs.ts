@@ -9,10 +9,20 @@ export function setupTabs(root: ParentNode = document) {
     const select = (tab: HTMLButtonElement, focus = false) => {
       for (const t of tabs) {
         const on = t === tab
+        const wasOn = t.getAttribute('aria-selected') === 'true'
         t.setAttribute('aria-selected', String(on))
         t.tabIndex = on ? 0 : -1
         const panel = document.getElementById(t.getAttribute('aria-controls') ?? '')
-        if (panel) panel.hidden = !on
+        if (!panel) continue
+        panel.hidden = !on
+        // The new panel settles in (a short fade with reduced motion), so the switch reads as one change
+        if (on && !wasOn) {
+          const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+          panel.animate(
+            still ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateY(8px)', filter: 'blur(3px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }],
+            { duration: still ? 120 : 260, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+          )
+        }
       }
       if (focus) tab.focus()
     }

@@ -98,13 +98,6 @@ test.describe('loop and features (T203)', () => {
     ['Link graph', 'Every link, on one map'],
   ] as const
 
-  test('the board screenshot shows in its browser frame', async ({ page }) => {
-    await page.goto('./')
-    const shot = page.getByRole('img', { name: /The VibeDoc board/ })
-    await expect(shot).toBeVisible()
-    await expect.poll(() => shot.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0)
-  })
-
   test('the four loop steps appear in order with their commands', async ({ page }) => {
     await page.goto('./#loop')
     const loop = page.getByRole('region', { name: /Four commands, one loop/ })
@@ -215,5 +208,34 @@ test.describe('spec-driven section (T208)', () => {
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Spec-driven' }).click()
     await expect(page).toHaveURL(/#sdd$/)
     await expect(page.getByRole('heading', { name: 'Vibe coding forgets. Specs remember.' })).toBeInViewport()
+  })
+})
+
+test.describe('watch a task move (focal motion)', () => {
+  const opacity = (page, text: string) => page.getByRole('region', { name: 'Watch a task move.' }).getByText(text, { exact: true }).evaluate((e: Element) => getComputedStyle(e).opacity)
+
+  test('with reduced motion the board shows the finished run, nothing hidden', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto('./')
+    const run = page.getByRole('region', { name: 'Watch a task move.' })
+    await expect(run.getByText('3/3 passed · video')).toBeVisible()
+    await expect.poll(() => opacity(page, '2/4')).toBe('1')
+    await expect.poll(() => opacity(page, '1/4')).toBe('0')
+    await expect(run.getByText('ready', { exact: true })).toHaveCount(2)
+    // no pinned scroll: the section is about one screen tall
+    expect(await run.evaluate((e: HTMLElement) => e.offsetHeight)).toBeLessThan(1400)
+  })
+
+  test('scrolling through the section plays the run from 1/4 to 2/4', async ({ page }) => {
+    await page.goto('./')
+    const run = page.getByRole('region', { name: 'Watch a task move.' })
+    const { top, height } = await run.evaluate((e: HTMLElement) => ({ top: e.getBoundingClientRect().top + scrollY, height: e.offsetHeight }))
+    expect(height).toBeGreaterThan(2000) // pinned stage, scroll-driven
+    await page.evaluate((y) => scrollTo(0, y), top)
+    await expect.poll(() => opacity(page, '1/4')).toBe('1')
+    await expect.poll(() => opacity(page, '2/4')).toBe('0')
+    await page.evaluate((y) => scrollTo(0, y), top + height - 900)
+    await expect.poll(() => opacity(page, '2/4')).toBe('1')
+    await expect(run.getByText('3/3 passed · video')).toBeVisible()
   })
 })

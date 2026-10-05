@@ -54,3 +54,103 @@
   html { scroll-behavior: auto; }
   .vd-in, .vd-float, .vd-pulse, .vd-reveal, .vd-line { animation: none !important; opacity: 1 !important; transform: none !important; }
 }
+
+/* ── Focal moment: "Watch a task move" (LiveRun.astro) ──────────────────────────────────────────────────────────
+   Defaults are the story's end state. With scroll-driven animations and no reduced-motion preference, the section
+   grows tall, its stage sticks, and scroll progress through it (view timeline --run, contain range) plays the run. */
+.vd-run-board { --pad: 12px; --gap: 12px; --slot: 176px; }
+@media (max-width: 639px) { .vd-run-board { --slot: 244px; } } /* titles wrap in the narrow columns */
+@media (min-width: 640px) { .vd-run-board { --pad: 16px; } }
+.vd-run-card { border-color: rgb(26 163 127 / 0.5); transform: translateX(calc(200% + 2 * var(--gap))); }
+.vd-run-count-before, .vd-run-wait { opacity: 0; }
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .vd-run { height: 300vh; view-timeline: --run block; }
+    .vd-run-stage { position: sticky; top: 64px; min-height: calc(100vh - 64px); }
+    .vd-run [class*="vd-run-"] { animation-timeline: --run; animation-range: contain 0% contain 100%; animation-fill-mode: both; animation-timing-function: linear; }
+
+    .vd-run-card { animation-name: vd-run-card; }
+    .vd-run-agent { animation-name: vd-run-agent; }
+    .vd-run-step-1 { animation-name: vd-run-step-1; }
+    .vd-run-step-2 { animation-name: vd-run-step-2; }
+    .vd-run-step-3 { animation-name: vd-run-step-3; }
+    .vd-run-proof { animation-name: vd-run-proof; }
+    .vd-run-progress { animation-name: vd-run-progress; }
+    .vd-run-count-before { animation-name: vd-run-before; }
+    .vd-run-count-after, .vd-run-ready { animation-name: vd-run-after; }
+    .vd-run-wait { animation-name: vd-run-before; }
+    .vd-run-locked { animation-name: vd-run-unlock; }
+    .vd-run-caption-1 { animation-name: vd-run-caption-1; }
+    .vd-run-caption-2 { animation-name: vd-run-caption-2; }
+    .vd-run-caption-3 { animation-name: vd-run-caption-3; }
+    .vd-run-caption-1 .vd-run-tick { animation-name: vd-run-tick-1; }
+    .vd-run-caption-2 .vd-run-tick { animation-name: vd-run-tick-2; }
+    .vd-run-caption-3 .vd-run-tick { animation-name: vd-run-tick-3; }
+  }
+}
+
+/* Todo (0–14%) → lift and travel (14–26%) → In progress (26–64%) → travel (64–76%) → Done */
+@keyframes vd-run-card {
+  0%, 12% { transform: translateX(0); border-color: rgb(208 208 228); box-shadow: 0 8px 20px rgb(26 26 46 / 0.10); }
+  20% { transform: translateX(calc(50% + 0.5 * var(--gap))) translateY(-6px) rotate(-1.5deg); box-shadow: 0 22px 40px rgb(26 26 46 / 0.18); }
+  26%, 62% { transform: translateX(calc(100% + var(--gap))); border-color: #7c6af7; box-shadow: 0 0 0 4px rgb(124 106 247 / 0.14), 0 8px 20px rgb(26 26 46 / 0.10); }
+  70% { transform: translateX(calc(150% + 1.5 * var(--gap))) translateY(-6px) rotate(1.5deg); box-shadow: 0 22px 40px rgb(26 26 46 / 0.18); }
+  76%, 100% { transform: translateX(calc(200% + 2 * var(--gap))); border-color: rgb(26 163 127 / 0.5); box-shadow: 0 8px 20px rgb(26 26 46 / 0.10); }
+}
+@keyframes vd-run-agent { 0%, 18% { opacity: 0; transform: translateY(4px); } 26%, 100% { opacity: 1; transform: none; } }
+@keyframes vd-run-step-1 { 0%, 34% { transform: scale(0); } 38%, 100% { transform: scale(1); } }
+@keyframes vd-run-step-2 { 0%, 44% { transform: scale(0); } 48%, 100% { transform: scale(1); } }
+@keyframes vd-run-step-3 { 0%, 54% { transform: scale(0); } 58%, 100% { transform: scale(1); } }
+/* The evidence stamp is revealed left to right, like a label being printed */
+@keyframes vd-run-proof { 0%, 76% { clip-path: inset(0 100% 0 0); } 84%, 100% { clip-path: inset(0 0 0 0); } }
+@keyframes vd-run-progress { 0%, 76% { background-color: rgb(224 224 238); } 82%, 100% { background-color: #1aa37f; } }
+@keyframes vd-run-before { 0%, 78% { opacity: 1; } 82%, 100% { opacity: 0; } }
+@keyframes vd-run-after { 0%, 78% { opacity: 0; } 82%, 100% { opacity: 1; } }
+@keyframes vd-run-unlock { 0%, 80% { opacity: 0.5; border-style: dashed; } 86%, 100% { opacity: 1; border-style: solid; } }
+/* Captions: the active one is full strength, its rule drawn; the others recede */
+@keyframes vd-run-caption-1 { 0%, 22% { opacity: 1; } 30%, 100% { opacity: 0.38; } }
+@keyframes vd-run-caption-2 { 0%, 22% { opacity: 0.38; } 30%, 64% { opacity: 1; } 72%, 100% { opacity: 0.38; } }
+@keyframes vd-run-caption-3 { 0%, 64% { opacity: 0.38; } 72%, 100% { opacity: 1; } }
+@keyframes vd-run-tick-1 { 0% { transform: scaleY(0); } 10%, 22% { transform: scaleY(1); } 30%, 100% { transform: scaleY(0); } }
+@keyframes vd-run-tick-2 { 0%, 26% { transform: scaleY(0); } 36%, 64% { transform: scaleY(1); } 72%, 100% { transform: scaleY(0); } }
+@keyframes vd-run-tick-3 { 0%, 68% { transform: scaleY(0); } 78%, 100% { transform: scaleY(1); } }
+.vd-run-tick { transform-origin: top; }
+
+/* ── Supporting motion ─────────────────────────────────────────────────────────────────────────────────────────── */
+/* Hero: the highlight behind "proof" sweeps in once the headline has landed */
+.vd-mark { background: linear-gradient(rgb(124 106 247 / 0.18), rgb(124 106 247 / 0.18)) no-repeat left / 100% 100%; }
+@keyframes vd-mark { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
+@media (prefers-reduced-motion: no-preference) {
+  .vd-mark { animation: vd-mark 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both; }
+}
+
+/* Loop: each step's number lights up in turn while its row scrolls into view */
+@keyframes vd-step-light { from { color: rgb(208 208 228); } to { color: #5341d6; } }
+/* Merge card: lines arrive one after another */
+@keyframes vd-diff-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* Fixed per-step ranges: var() inside animation-range isn't applied, so each step gets its own window */
+    .vd-step-n, .vd-diff { animation-timeline: view(); animation-fill-mode: both; animation-timing-function: linear; }
+    .vd-step-n { animation-name: vd-step-light; }
+    li:nth-child(1) > .vd-step-n { animation-range: cover 18% cover 28%; }
+    li:nth-child(2) > .vd-step-n { animation-range: cover 26% cover 36%; }
+    li:nth-child(3) > .vd-step-n { animation-range: cover 34% cover 44%; }
+    li:nth-child(4) > .vd-step-n { animation-range: cover 42% cover 52%; }
+    .vd-diff { display: inline-block; animation-name: vd-diff-in; }
+    .vd-diff-0 { animation-range: cover 22% cover 28%; }
+    .vd-diff-1 { animation-range: cover 27% cover 33%; }
+    .vd-diff-2 { animation-range: cover 32% cover 38%; }
+    .vd-diff-3 { animation-range: cover 37% cover 43%; }
+    .vd-diff-5 { animation-range: cover 44% cover 50%; }
+  }
+}
+
+/* Copy: a small press and a tick when the command is on the clipboard */
+[data-copy] { transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1); }
+[data-copy]:active { transform: scale(0.96); }
+
+/* Browser surfaces in the page's own palette */
+::selection { background: rgb(124 106 247 / 0.24); color: inherit; }
+html { scrollbar-color: rgb(208 208 228) transparent; }

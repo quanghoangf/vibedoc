@@ -1,0 +1,91 @@
+---
+// The page's focal moment: scroll drives one task through the loop on a board drawn like the app's.
+// The markup's default state is the END of the story (card in Done, steps ticked), so without scroll-driven
+// animation support, or with reduced motion, nothing is ever hidden. global.css (.vd-run*) plays it on scroll.
+const steps = ['Pick Monthly', 'Pay with a test card', 'Unknown plan → 400']
+const captions = [
+  { title: 'The agent claims the next ready task', text: 'It asks VibeDoc over MCP. T031 has no open dependency, so it moves to In progress under the agent’s name.' },
+  { title: 'Every checklist item runs as a test', text: 'Each step is a Playwright run with a screenshot. The card ticks as the steps pass.' },
+  { title: 'Done comes with proof', text: 'The task lands in Done with its evidence attached, the epic moves to 2 of 4, and the tasks that waited on it open.' },
+]
+---
+<section id="watch" aria-labelledby="watch-heading" class="vd-run">
+  <div class="vd-run-stage mx-auto flex max-w-[1200px] flex-wrap items-center gap-x-14 gap-y-5 px-5 py-8 sm:gap-y-8 sm:px-8 sm:py-16">
+    <div class="flex min-w-0 flex-[1_1_320px] flex-col gap-6">
+      <h2 id="watch-heading" class="m-0 text-3xl sm:text-4xl leading-[1.08] font-semibold tracking-[-0.03em] sm:text-[44px]">Watch a task move.</h2>
+      <ol class="m-0 flex list-none flex-col gap-5 p-0">
+        {captions.map((c, i) => (
+          <li class={`vd-run-caption vd-run-caption-${i + 1} flex gap-4`}>
+            <span class="vd-run-tick my-1 w-0.5 shrink-0 self-stretch rounded-full bg-violet" aria-hidden="true"></span>
+            <span class="flex flex-col gap-1">
+              <span class="text-lg font-semibold">{c.title}</span>
+              <span class="hidden text-[15px] leading-relaxed text-body sm:block">{c.text}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+
+    <div class="min-w-0 flex-[1.4_1_560px]" aria-label="A board while an agent finishes task T031" role="img">
+      <div class="overflow-hidden rounded-[14px] border border-rule-strong bg-surface shadow-[0_30px_80px_rgba(26,26,46,0.12)]" aria-hidden="true">
+        <div class="flex items-center gap-3 border-b border-rule px-4 py-3 text-[13px]">
+          <span class="font-mono text-[11px] text-pencil">R004</span>
+          <span class="font-semibold">Self-serve billing</span>
+          <span class="ml-auto flex items-center gap-1">
+            <span class="h-1.5 w-7 rounded-full bg-teal-ink"></span>
+            <span class="vd-run-progress h-1.5 w-7 rounded-full bg-teal-ink"></span>
+            <span class="h-1.5 w-7 rounded-full bg-rule"></span>
+            <span class="h-1.5 w-7 rounded-full bg-rule"></span>
+          </span>
+          <span class="relative font-mono text-[11px] text-pencil tabular-nums"><span class="vd-run-count-before absolute inset-0">1/4</span><span class="vd-run-count-after">2/4</span></span>
+        </div>
+
+        <div class="vd-run-board relative grid grid-cols-3 gap-3 p-3 sm:p-4">
+          {['Todo', 'In progress', 'Done'].map((col) => (
+            <p class="m-0 font-mono text-[10px] font-medium tracking-[0.06em] text-pencil uppercase">{col}</p>
+          ))}
+
+          <!-- Column bodies: each reserves the moving card's slot at the top -->
+          <div class="flex flex-col gap-2 pt-[var(--slot)]">
+            <div class="vd-run-locked rounded-lg border border-rule bg-surface p-2.5 text-[13px] leading-snug">
+              <span class="font-mono text-[11px] text-pencil">T032</span><br />Receipts by email
+              <span class="relative mt-1.5 block font-mono text-[10px]"><span class="vd-run-wait absolute inset-0 text-pencil">waits on T031</span><span class="vd-run-ready text-teal-ink">ready</span></span>
+            </div>
+            <div class="vd-run-locked rounded-lg border border-rule bg-surface p-2.5 text-[13px] leading-snug">
+              <span class="font-mono text-[11px] text-pencil">T033</span><br />Cancel a subscription
+              <span class="relative mt-1.5 block font-mono text-[10px]"><span class="vd-run-wait absolute inset-0 text-pencil">waits on T031</span><span class="vd-run-ready text-teal-ink">ready</span></span>
+            </div>
+          </div>
+          <div></div>
+          <div class="flex flex-col gap-2 pt-[var(--slot)]">
+            <div class="rounded-lg border border-rule bg-paper p-2.5 text-[13px] leading-snug text-pencil">
+              <span class="font-mono text-[11px]">T030</span><br />Plan catalog
+            </div>
+          </div>
+
+          <!-- The card the story follows -->
+          <div class="vd-run-card absolute top-[calc(var(--pad)+22px)] left-[var(--pad)] w-[calc((100%-2*var(--pad)-2*var(--gap))/3)] rounded-lg border bg-surface p-2.5 text-[13px] leading-snug shadow-[0_8px_20px_rgba(26,26,46,0.10)]">
+            <span class="font-mono text-[11px] text-pencil">T031</span><br />
+            <span class="font-medium">Checkout happy path</span>
+            <span class="vd-run-agent mt-1.5 flex items-center gap-1 font-mono text-[10px] text-violet-ink">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 22 12 12 22 2 12Z"></path></svg>ai:claude-code
+            </span>
+            <span class="mt-2 flex flex-col gap-1">
+              {steps.map((s, i) => (
+                <span class="flex items-center gap-1.5 text-[11px] text-body">
+                  <span class={`vd-run-step vd-run-step-${i + 1} flex size-3.5 shrink-0 items-center justify-center rounded-full bg-teal-ink text-white`}>
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"></path></svg>
+                  </span>
+                  <span class="truncate">{s}</span>
+                </span>
+              ))}
+            </span>
+            <span class="vd-run-proof mt-2 inline-flex items-center gap-1 rounded border border-teal-ink/40 bg-teal-ink/8 px-1.5 py-0.5 font-mono text-[10px] text-[#157a60]">
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"></path></svg>3/3 passed · video
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

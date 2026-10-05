@@ -15,7 +15,7 @@ const steps = [
   <ol class="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(min(250px,100%),1fr))] gap-4 p-0">
     {steps.map((s) => (
       <li class="vd-reveal flex flex-col gap-2.5 rounded-xl border border-rule bg-surface p-6">
-        <span class="font-mono text-[40px] font-medium text-rule-strong" aria-hidden="true">{s.n}</span>
+        <span class="vd-step-n font-mono text-[40px] font-medium text-rule-strong" aria-hidden="true">{s.n}</span>
         <h3 class="m-0 text-[21px] font-semibold">{s.title}</h3>
         <p class="m-0 text-[15px] leading-relaxed text-body">{s.text}</p>
         <code class="mt-auto self-start rounded bg-grid px-2 py-1 font-mono text-[13px]">{s.cmd}</code>
