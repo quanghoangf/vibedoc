@@ -1,8 +1,12 @@
 # T165: Flag a step as doubtful in the Evidence view; prefilled send back
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R062 — Evidence-based review
 **Size:** M
 **Depends on:** T164
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 While reading the evidence, a reviewer can mark any step as **Doubt** with a short comment. **Send back** then opens with every failed and doubted step already listed, each with its screenshot, so the note always names the step.
@@ -46,3 +50,16 @@ node src/lib/shortcuts.check.mts
 pnpm lint && pnpm build
 # /manual-tests?task=<review task>&view=evidence → doubt a step → Send back → git diff plans/tasks/<task>.md
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Put a task with a passing run in review (e.g. T155) and open it on /manual-tests → under the review bar, "Steps to review" lists every automated step with its icon, a thumbnail (click → large) and a Doubt chip
+- [ ] Click Doubt on step 2 and type a comment → the step gets an amber rule and warning icon, the bar shows "1 flagged"
+- [ ] Send back… → the flagged step (thumbnail, text, comment) is listed above the note; with an empty note Send back is enabled; sending writes `Run <id>` and `- ⚠️ Step 2 "…" — doubt: <comment> · screenshot …` into ## Review and the task goes to todo
+- [ ] Approve with a doubt → "Approve with 1 doubt?" + Approve anyway / Cancel; without doubts Approve goes straight through and the entry reads `All N steps reviewed`
+- [ ] A task in review whose last run failed → the failed step is red and already listed under Send back (with its error), even with no doubts (agent checked with a throwaway failing spec, since removed)
+- [ ] Pick an older run in History → the doubts reset
+- [ ] At phone width (~390px) the steps list, Doubt chips and comment field fit without sideways scroll
+### Regression risk
+- [ ] The task panel's Approve / Send back (plain note) and the Review view's decision bar still work as before

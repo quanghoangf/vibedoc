@@ -26,7 +26,7 @@ import { useApp } from "@/context/AppContext"
 import { toast } from "@/components/ui/toast"
 import { useChats } from "@/context/ChatContext"
 import { chatFor } from "@/lib/chats"
-import { reviewHistory, type ReviewEntry } from "@/lib/review"
+import { reviewHistory, type ReviewEntry, type ReviewMark } from "@/lib/review"
 import type { AutoRun } from "@/lib/manual-tests"
 
 const NEXT_STATUS: Record<string, string[]> = {
@@ -364,7 +364,7 @@ export type ReviewAction = "approve" | "send-back"
  * failed run on a done task: `canApprove={false}`, the note prefilled from the failed step, its own `prompt`
  * line, and `children` (Open task) at the end of the button row. A toast confirms the outcome.
  */
-export function ReviewActions({ taskId, onDone, canApprove = true, initialNote = "", prompt, className, children }: {
+export function ReviewActions({ taskId, onDone, canApprove = true, initialNote = "", prompt, className, children, runId, marks, marksList, confirmApprove }: {
   taskId: string
   onDone: (action: ReviewAction) => void
   canApprove?: boolean
@@ -372,21 +372,32 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
   prompt?: ReactNode
   className?: string
   children?: ReactNode
+  /** R062: the run the decision is made from, written into the entry */
+  runId?: string | null
+  /** R062: flagged steps sent with Send back; with one or more the note may stay empty */
+  marks?: ReviewMark[]
+  /** R062: shown above the note while sending back (the flagged steps) */
+  marksList?: ReactNode
+  /** R062: Approve asks this first ("Approve with 2 doubts?") */
+  confirmApprove?: string | null
 }) {
   const { rootParam } = useApp()
   const [sendingBack, setSendingBack] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const [note, setNote] = useState(initialNote)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const flagged = marks?.length ?? 0
 
   async function act(action: ReviewAction) {
     setBusy(true)
     setError(null)
+    setConfirming(false)
     try {
       const res = await fetch(`/api/tasks/review${rootParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: taskId, action, note }),
+        body: JSON.stringify({ id: taskId, action, note, ...(runId ? { runId } : {}), ...(action === "send-back" && flagged ? { marks } : {}) }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Request failed (${res.status})`)
       toast(action === "approve" ? `Approved ${taskId} → done` : `Sent back ${taskId} → todo`)
@@ -405,19 +416,20 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
       {prompt ?? <p className="text-xs text-muted">Waiting for your review. Approving moves it to done; sending it back returns it to the queue with your note.</p>}
       {sendingBack ? (
         <div className="flex flex-col gap-2 animate-fade-in">
+          {marksList}
           <textarea
             autoFocus
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={initialNote ? Math.min(6, initialNote.split("\n").length + 1) : 3}
-            placeholder="What needs to change? The agent reads this first."
+            placeholder={flagged ? "Anything to add? The flagged steps above are sent either way." : "What needs to change? The agent reads this first."}
             aria-label="Send back note"
             className="w-full resize-y rounded-md border border-border bg-bg px-2.5 py-2 text-sm text-txt placeholder:text-muted focus:border-accent/60 focus:outline-hidden"
           />
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => act("send-back")}
-              disabled={busy || !note.trim()}
+              disabled={busy || (!note.trim() && !flagged)}
               className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-amber/15 border border-amber/40 text-amber transition-colors hover:bg-amber/25 disabled:opacity-40"
             >
               <CornerUpLeft className="size-3.5" aria-hidden /> {busy ? "Sending back…" : "Send back"}
@@ -428,10 +440,17 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
         </div>
       ) : (
         <div className="flex flex-wrap items-center gap-2">
-          {canApprove && (
+          {canApprove && confirming && (
+            <span role="alert" className="flex flex-wrap items-center gap-2 text-xs text-amber">
+              {confirmApprove}
+              <button onClick={() => act("approve")} disabled={busy} className="rounded-sm border border-teal/40 bg-teal/15 px-2 py-0.5 text-teal hover:bg-teal/25">Approve anyway</button>
+              <button onClick={() => setConfirming(false)} className="text-muted hover:text-txt">Cancel</button>
+            </span>
+          )}
+          {canApprove && !confirming && (
             <button
               data-review="approve"
-              onClick={() => act("approve")}
+              onClick={() => (confirmApprove ? setConfirming(true) : act("approve"))}
               disabled={busy}
               className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-teal/15 border border-teal/40 text-teal transition-colors hover:bg-teal/25 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >

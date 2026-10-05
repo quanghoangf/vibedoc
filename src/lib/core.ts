@@ -25,7 +25,7 @@ import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { parseKeep } from './runs-retention'
 import { isRunFile, isRunId, isRunTaskId, parseRange, parseRunManifest, projectKey, runsRoot, type RunManifest } from './runs-paths'
-import { formatEvidence, ticksForRun } from './evidence'
+import { formatEvidence, matchItems, ticksForRun } from './evidence'
 import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
@@ -666,8 +666,14 @@ export async function listRuns(taskId: string, root: string): Promise<RunManifes
  * here (the fixture owns EVIDENCE.md). `src` maps a run's media file to a link: API URLs for the UI, absolute
  * paths for MCP (default). null = `runId` names no kept run.
  */
+/** R062: one checklist item against the shown run, for the review controls (not derived from the markdown). */
+export type EvidenceRow = {
+  item: number; text: string; auto: boolean; group: 'steps' | 'regression'
+  result: 'passed' | 'failed' | 'missing' | 'manual'; screenshot: string | null; error: string | null
+}
+
 export async function getEvidence(taskId: string, root: string, opts: { runId?: string | null; src?: (runId: string, file: string) => string } = {}):
-  Promise<{ markdown: string; runId: string | null; runs: { runId: string; status: RunManifest['status']; startedAt: string; commit: string | null }[] } | null> {
+  Promise<{ markdown: string; runId: string | null; runs: { runId: string; status: RunManifest['status']; startedAt: string; commit: string | null }[]; rows: EvidenceRow[] } | null> {
   const task = await getTask(taskId, root)
   const runs = await listRuns(task.id, root)
   if (opts.runId && !runs.some(r => r.runId === opts.runId)) return null
@@ -677,9 +683,15 @@ export async function getEvidence(taskId: string, root: string, opts: { runId?: 
     taskId: task.id, title: task.title, items: tests?.items ?? [], spec: tests?.spec ?? null, runs, runId: opts.runId,
     src: opts.src ?? ((runId, file) => path.join(dir ?? '', runId, file)),
   })
+  const shown = (opts.runId ? runs.find(r => r.runId === opts.runId) : runs[0]) ?? null
+  const rows = matchItems(tests?.items ?? [], shown).rows.map((r): EvidenceRow => ({
+    item: r.item.index, text: r.item.text, auto: r.item.auto, group: r.item.group, result: r.result,
+    screenshot: r.step?.screenshot ?? null, error: r.step?.error ?? null,
+  }))
   return {
-    markdown, runId: opts.runId ?? runs[0]?.runId ?? null,
+    markdown, runId: shown?.runId ?? null,
     runs: runs.map(r => ({ runId: r.runId, status: r.status, startedAt: r.startedAt, commit: r.commit })),
+    rows,
   }
 }
 

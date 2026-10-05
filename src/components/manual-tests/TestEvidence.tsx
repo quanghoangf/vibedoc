@@ -7,8 +7,11 @@ import { timeAgo } from "@/components/activity/ActivityEventRow"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { ReviewActions } from "@/components/board/TaskDetailPanel"
+import { AlertTriangle, Check, X } from "lucide-react"
+import type { ReviewMark } from "@/lib/review"
 
-type Evidence = { markdown: string; runId: string | null; runs: { runId: string; status: "passed" | "failed"; startedAt: string; commit: string | null }[] }
+type Row = { item: number; text: string; auto: boolean; result: "passed" | "failed" | "missing" | "manual"; screenshot: string | null; error: string | null }
+type Evidence = { markdown: string; runId: string | null; runs: { runId: string; status: "passed" | "failed"; startedAt: string; commit: string | null }[]; rows: Row[] }
 
 /**
  * The evidence view on /manual-tests (R060): the task's evidence doc from `/api/tasks/<id>/evidence` (same formatter
@@ -49,26 +52,25 @@ export function TestEvidence({ taskId, latest, run, onRun, review }: {
   return (
     <div className="flex flex-col gap-4">
       {review && (
-        <ReviewActions
-          key={taskId}
+        <ReviewDesk
+          key={`${taskId}:${evidence?.runId ?? "none"}`}
           taskId={taskId}
-          onDone={review.onDecided}
+          runId={evidence?.runId ?? null}
+          rows={evidence?.rows.filter((r) => r.auto) ?? []}
           initialNote={review.initialNote}
-          className="-mx-5 -mt-5 rounded-none border-b border-border px-5 py-3 sm:-mx-7 sm:px-7"
-          prompt={
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <p className="text-[13px] font-medium text-txt">Waiting for your review</p>
-              <p className="text-xs text-muted">
-                {shown
-                  ? <>Reviewing the {older ? "older" : "newest"} run · <span className={shown.status === "passed" ? "text-teal" : "text-danger"}>{shown.status}</span> · <span className="font-mono" title={shown.startedAt}>{timeAgo(shown.startedAt)}</span>{shown.commit && <> · <code className="font-mono">{shown.commit.slice(0, 7)}</code></>}</>
-                  : loading ? "Loading the evidence…" : "No recorded run: decide from the checklist."}
-              </p>
-              {older && <p role="note" className="text-xs text-amber">You&apos;re looking at an older run. The newest one is first in History.</p>}
-            </div>
+          onDecided={review.onDecided}
+          onZoom={setZoom}
+          head={
+            <p className="text-xs text-muted">
+              {shown
+                ? <>Reviewing the {older ? "older" : "newest"} run · <span className={shown.status === "passed" ? "text-teal" : "text-danger"}>{shown.status}</span> · <span className="font-mono" title={shown.startedAt}>{timeAgo(shown.startedAt)}</span>{shown.commit && <> · <code className="font-mono">{shown.commit.slice(0, 7)}</code></>}</>
+                : loading ? "Loading the evidence…" : "No recorded run: decide from the checklist."}
+            </p>
           }
+          older={older}
         >
           {review.children}
-        </ReviewActions>
+        </ReviewDesk>
       )}
       {(evidence?.runs.length ?? 0) > 1 && (
         <nav aria-label="Runs" className="flex flex-col gap-1">
@@ -140,3 +142,120 @@ export function TestEvidence({ taskId, latest, run, onRun, review }: {
     </div>
   )
 }
+
+/**
+ * R062: the review on top of the proof. Every automated step of the shown run with its result and thumbnail; a
+ * Doubt toggle (+ one-line comment) on the ones that passed; failed steps are always flagged. The marks live here
+ * only until Approve / Send back (keyed on task:run, so another run or task starts clean).
+ */
+function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head, older, children }: {
+  taskId: string
+  runId: string | null
+  rows: Row[]
+  initialNote: string
+  onDecided: () => void
+  onZoom: (z: { src: string; alt: string }) => void
+  head: ReactNode
+  older: boolean
+  children?: ReactNode
+}) {
+  const { rootParam } = useApp()
+  const [doubts, setDoubts] = useState<Record<number, string>>({})
+  const media = (file: string) => `/api/tasks/${encodeURIComponent(taskId)}/runs/${runId}/${encodeURIComponent(file)}${rootParam}`
+  const failed = rows.filter((r) => r.result === "failed")
+  const doubted = rows.filter((r) => r.item in doubts)
+  const marks: ReviewMark[] = [
+    ...failed.map((r) => ({ item: r.item, step: r.text, kind: "failed" as const, ...(r.error ? { comment: r.error.split("\n")[0] } : {}), ...(r.screenshot ? { screenshot: r.screenshot } : {}) })),
+    ...doubted.map((r) => ({ item: r.item, step: r.text, kind: "doubt" as const, ...(doubts[r.item].trim() ? { comment: doubts[r.item] } : {}), ...(r.screenshot ? { screenshot: r.screenshot } : {}) })),
+  ].sort((a, b) => a.item - b.item)
+  const count = [doubted.length && `${doubted.length} flagged`, failed.length && `${failed.length} failed`].filter(Boolean).join(" · ")
+
+  return (
+    <div className="-mx-5 -mt-5 flex flex-col border-b border-border sm:-mx-7">
+      <ReviewActions
+        taskId={taskId}
+        onDone={onDecided}
+        runId={runId}
+        marks={marks}
+        initialNote={failed.length ? "" : initialNote}
+        confirmApprove={doubted.length ? `Approve with ${doubted.length} ${doubted.length === 1 ? "doubt" : "doubts"}?` : null}
+        className="rounded-none border-b-0 px-5 py-3 sm:px-7"
+        marksList={marks.length > 0 && (
+          <ul aria-label="Flagged steps" className="flex flex-col gap-1.5 rounded-md border border-border bg-bg p-2">
+            {marks.map((m) => (
+              <li key={m.item} className="flex items-start gap-2 text-xs">
+                {m.kind === "failed" ? <X className="mt-0.5 size-3.5 shrink-0 text-danger" aria-label="failed" /> : <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber" aria-label="doubt" />}
+                {/* eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API */}
+                {m.screenshot && <img src={media(m.screenshot)} alt="" className="h-9 w-14 shrink-0 rounded-sm border border-border object-cover object-top" />}
+                <span className="min-w-0"><span className="font-mono text-muted">Step {m.item + 1}</span> <span className="text-txt">{m.step}</span>{m.comment && <span className="block text-muted">{m.comment}</span>}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        prompt={
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <p className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-medium text-txt">
+              Waiting for your review
+              {count && <span className="text-xs font-normal text-amber">{count}</span>}
+            </p>
+            {head}
+            {older && <p role="note" className="text-xs text-amber">You&apos;re looking at an older run. The newest one is first in History.</p>}
+          </div>
+        }
+      >
+        {children}
+      </ReviewActions>
+
+      {runId && rows.length > 0 && (
+        <ol aria-label="Steps to review" className="flex flex-col px-5 pb-3 sm:px-7">
+          {rows.map((r) => {
+            const doubt = r.item in doubts
+            return (
+              <li key={r.item} className={cn("flex flex-col gap-1.5 border-l-2 py-1.5 pl-2.5", r.result === "failed" ? "border-danger" : doubt ? "border-amber" : "border-transparent")}>
+                <div className="flex items-start gap-2">
+                  {r.result === "failed" ? <X className="mt-0.5 size-4 shrink-0 text-danger" strokeWidth={2.5} aria-label="failed" />
+                    : doubt ? <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber" aria-label="doubted" />
+                    : r.result === "passed" ? <Check className="mt-0.5 size-4 shrink-0 text-teal" strokeWidth={2.5} aria-label="passed" />
+                    : <span className="mt-0.5 size-4 shrink-0 text-center text-xs text-muted" aria-label="no step in this run">–</span>}
+                  {r.screenshot && (
+                    <button type="button" onClick={() => onZoom({ src: media(r.screenshot!), alt: r.text })} className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-accent" aria-label={`Screenshot of step ${r.item + 1}`}>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API */}
+                      <img src={media(r.screenshot)} alt="" loading="lazy" className="h-10 w-16 rounded-sm border border-border object-cover object-top" />
+                    </button>
+                  )}
+                  <span className="min-w-0 flex-1 text-sm leading-snug text-txt">{r.text}</span>
+                  {r.result === "passed" && (
+                    <button
+                      type="button"
+                      aria-pressed={doubt}
+                      onClick={() => setDoubts(({ [r.item]: _, ...rest }) => (doubt ? rest : { ...rest, [r.item]: "" }))}
+                      title="Not convinced this step proves the item"
+                      className={cn(
+                        "shrink-0 rounded-sm border px-1.5 py-0.5 text-[11px] transition-colors focus-visible:outline-2 focus-visible:outline-accent",
+                        doubt ? "border-amber/50 bg-amber/15 text-amber" : "border-border text-muted hover:border-amber/50 hover:text-amber",
+                      )}
+                    >
+                      Doubt
+                    </button>
+                  )}
+                </div>
+                {doubt && (
+                  <input
+                    autoFocus
+                    value={doubts[r.item]}
+                    onChange={(e) => setDoubts((d) => ({ ...d, [r.item]: e.target.value }))}
+                    placeholder="What looks wrong? (optional)"
+                    aria-label={`Doubt comment for step ${r.item + 1}`}
+                    className="ml-6 rounded-md border border-border bg-bg px-2 py-1 text-xs text-txt placeholder:text-muted focus:border-amber/60 focus:outline-hidden"
+                  />
+                )}
+                {r.result === "failed" && r.error && <span className="ml-6 font-mono text-xs whitespace-pre-wrap text-danger">{r.error}</span>}
+              </li>
+            )
+          })}
+        </ol>
+      )}
+    </div>
+  )
+}
+
