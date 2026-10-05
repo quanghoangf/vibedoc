@@ -6,6 +6,7 @@ on:
       - main
 
 permissions:
+  actions: write
   contents: write
   issues: write
   pull-requests: write
@@ -47,11 +48,18 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
 
-      # Homebrew (R072): when the release published a new version, push its formula to the tap.
       - name: Version after release
         id: after
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
+      # Changelog page (R075): the release commit carries [skip ci], so rebuild the site from here.
+      - name: Rebuild the site
+        if: steps.after.outputs.version != steps.before.outputs.version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run site.yml --ref main
+
+      # Homebrew (R072): when the release published a new version, push its formula to the tap.
       - name: Update Homebrew tap
         if: steps.after.outputs.version != steps.before.outputs.version
         env:

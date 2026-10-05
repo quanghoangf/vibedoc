@@ -5,7 +5,7 @@ name: Site
 on:
   push:
     branches: [main]
-    paths: ['site/**', 'src/lib/mcp-tools.ts', 'src/lib/entries.ts', 'src/lib/verification.ts', 'src/lib/doc-priority.ts', '.github/workflows/site.yml']
+    paths: ['site/**', 'CHANGELOG.md', 'src/lib/mcp-tools.ts', 'src/lib/entries.ts', 'src/lib/verification.ts', 'src/lib/doc-priority.ts', '.github/workflows/site.yml']
   workflow_dispatch:
 
 permissions:

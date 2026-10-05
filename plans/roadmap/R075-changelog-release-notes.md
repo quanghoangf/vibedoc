@@ -1,8 +1,8 @@
 # R075: Changelog & release notes
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 280
-**Tasks:** —
+**Tasks:** T212
 
 Visitors and users see what changed in each version in plain words, which shows the project is alive and tells users when to update.
 

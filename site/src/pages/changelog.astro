@@ -1,0 +1,62 @@
+---
+// What changed in each release (R075), generated from the CHANGELOG.md semantic-release writes.
+import changelogMd from '../../../CHANGELOG.md?raw'
+import Base from '../layouts/Base.astro'
+import Header from '../components/Header.astro'
+import Footer from '../components/Footer.astro'
+import { parseChangelog } from '../lib/changelog'
+import { GITHUB, NPM } from '../data/links'
+
+const releases = parseChangelog(changelogMd)
+const fmt = (d: string | null) => d ? new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : ''
+const tone = { New: 'text-violet-ink', Improved: 'text-teal-ink', Fixed: 'text-[#b4541a]' } as const
+---
+<Base title="Changelog · VibeDoc" description="What changed in each VibeDoc release, newest first." path="changelog/">
+  <Header />
+  <main class="mx-auto max-w-[1200px] px-5 pt-16 pb-24 sm:px-8">
+    <h1 class="m-0 text-[clamp(40px,6vw,64px)] leading-[1.02] font-semibold tracking-[-0.035em]">Changelog</h1>
+    <p class="mt-4 max-w-[60ch] text-lg text-body">
+      Every release, newest first. Update with <code class="font-mono text-[0.9em]">npx vibedoc@latest</code>,
+      or see <a href={`${GITHUB}/releases`} class="text-violet-ink underline underline-offset-2">GitHub releases</a> and <a href={NPM} class="text-violet-ink underline underline-offset-2">npm</a>.
+    </p>
+
+    <div class="mt-14 grid gap-12 md:grid-cols-[180px_1fr]">
+      <nav aria-label="Releases" class="hidden md:block">
+        <ol class="sticky top-24 m-0 list-none space-y-1.5 p-0 font-mono text-sm">
+          {releases.map((r) => <li><a href={`#v${r.version}`} class="text-pencil no-underline hover:text-ink">v{r.version}</a></li>)}
+        </ol>
+      </nav>
+      <div class="min-w-0 space-y-14">
+        {releases.map((r, i) => (
+          <article id={`v${r.version}`} class="scroll-mt-24 border-t border-rule pt-8">
+            <header class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <h2 class="m-0 font-mono text-2xl font-medium tracking-[-0.01em]">
+                <a href={`#v${r.version}`} class="text-ink no-underline">v{r.version}</a>
+              </h2>
+              {r.date && <time datetime={r.date} class="text-sm text-pencil">{fmt(r.date)}</time>}
+              {i === 0 && <span class="rounded-full bg-violet/15 px-2.5 py-0.5 text-xs font-medium text-violet-ink">Latest</span>}
+              {r.compare && <a href={r.compare} class="ml-auto text-sm text-pencil hover:text-ink">Full diff</a>}
+            </header>
+            {r.groups.map((g) => (
+              <section class="mt-6" aria-label={`${g.name} in v${r.version}`}>
+                <h3 class={`m-0 font-mono text-xs font-medium tracking-[0.08em] uppercase ${tone[g.name]}`}>{g.name}</h3>
+                <ul class="mt-3 list-none space-y-2.5 p-0">
+                  {g.items.map((it) => (
+                    <li class="grid grid-cols-[auto_1fr] gap-x-3 text-[15px] leading-relaxed text-body">
+                      <span class="mt-[0.7em] h-1 w-1 rounded-full bg-rule-strong" aria-hidden="true"></span>
+                      <span>
+                        {it.scope && <span class="mr-2 rounded bg-grid px-1.5 py-0.5 font-mono text-xs text-pencil">{it.scope}</span>}
+                        {it.commit ? <a href={it.commit} class="text-body no-underline hover:text-ink hover:underline">{it.text}</a> : it.text}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </article>
+        ))}
+      </div>
+    </div>
+  </main>
+  <Footer />
+</Base>

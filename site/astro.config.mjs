@@ -18,7 +18,7 @@ export default defineConfig({
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/quanghoangf/vibedoc' }],
       editLink: { baseUrl: 'https://github.com/quanghoangf/vibedoc/edit/main/site/' },
       sidebar: [
-        { label: 'Start', items: [{ slug: 'docs' }, { slug: 'docs/ai-install' }, { slug: 'docs/skills' }, { slug: 'docs/troubleshooting' }] },
+        { label: 'Start', items: [{ slug: 'docs' }, { slug: 'docs/ai-install' }, { slug: 'docs/skills' }, { slug: 'docs/troubleshooting' }, { label: 'Changelog', link: '/changelog/' }] },
         { label: 'Concepts', items: [{ autogenerate: { directory: 'docs/concepts' } }] },
         {
           label: 'MCP tools',

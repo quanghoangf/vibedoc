@@ -3,17 +3,19 @@ import Logo from './Logo.astro'
 import GitHubIcon from './GitHubIcon.astro'
 import { DOCS, GITHUB } from '../data/links'
 
+// Section links go through the home page, so they also work from /changelog
+const home = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/`
 const nav = [
-  { href: '#sdd', label: 'Spec-driven' },
-  { href: '#loop', label: 'How it works' },
-  { href: '#features', label: 'Features' },
-  { href: '#install', label: 'Install' },
+  { href: `${home}#sdd`, label: 'Spec-driven' },
+  { href: `${home}#loop`, label: 'How it works' },
+  { href: `${home}#features`, label: 'Features' },
+  { href: `${home}#install`, label: 'Install' },
   { href: DOCS, label: 'Docs' },
 ]
 ---
 <header class="sticky top-0 z-10 border-b border-rule bg-paper/85 backdrop-blur-md">
   <div class="mx-auto flex max-w-[1200px] flex-wrap items-center gap-x-6 gap-y-2 px-5 py-3 sm:px-8">
-    <a href="#top" class="flex items-center gap-2.5 no-underline">
+    <a href={home} class="flex items-center gap-2.5 no-underline">
       <Logo />
       <span class="text-base font-semibold tracking-[-0.01em]">VibeDoc</span>
     </a>
