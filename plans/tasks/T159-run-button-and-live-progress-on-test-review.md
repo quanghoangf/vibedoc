@@ -1,8 +1,12 @@
 # T159: Run button with live progress on Test review
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R061 — Run tests from VibeDoc
 **Size:** M (2–3 hrs)
 **Depends on:** T157
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 On `/manual-tests`, a human clicks **Run** on a task and watches each step go from running to passed or failed. Automated checklist items tick as their step passes, and a failed step shows its screenshot.
@@ -53,3 +57,16 @@ node src/lib/shortcuts.check.mts
 pnpm lint && pnpm build
 # open http://localhost:3000/manual-tests?tab=all&task=T155 → Run
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Open /manual-tests?tab=all&task=T155 → a "Run tests" button sits next to Open task; T153 (no spec) has none
+- [ ] Click Run tests → "Starting the app…", then the 5 steps appear one by one with a spinner turning into a teal check and a per-step clock; the Automated items tick live and their header reads "· running now" (agent checked: 5/5 passed in ~4s)
+- [ ] When it ends → "Passed · 5/5 steps · Ns" stays above the player, which shows the new run ("just now"); ✕ dismisses the strip
+- [ ] Point a task at a spec with a wrong expectation and Run → "Failed at step N", the step is red with its Expected / Received lines, and the player below opens on the failed frame (agent checked with a throwaway spec, since removed)
+- [ ] Start a run, reload the page → the strip comes back mid-run; press p → Stopped, Run tests is enabled again, no playwright process is left, and no half-written run folder stays in ~/.vibedoc/runs
+- [ ] While T155 runs, open another task with a spec → its Run tests is disabled with "T155 is running"
+### Regression risk
+- [ ] Review / Evidence views, approve and send back, j/k, o and v keys still work; Space still plays the player when no run is going
+- [ ] Other pages don't flash "live update" for every run step (only the run's end refreshes the board)

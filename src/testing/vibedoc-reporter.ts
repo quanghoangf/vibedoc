@@ -40,7 +40,9 @@ export default class VibedocReporter implements Reporter {
   onStepEnd(_test: TestCase, _result: TestResult, step: TestStep) {
     const index = this.index.get(step)
     if (index === undefined) return
-    const error = step.error?.message ? plain(step.error.message).split('\n').find(l => l.trim()) ?? null : null
+    // The headline, then Playwright's Expected / Received lines when it printed them
+    const lines = step.error?.message ? plain(step.error.message).split('\n').map(l => l.trim()).filter(Boolean) : []
+    const error = lines.length ? [lines[0], ...lines.filter(l => /^(Expected|Received):/.test(l))].join('\n') : null
     this.emit({ type: 'step-end', index, name: step.title, status: step.error ? 'failed' : 'passed', error })
   }
 

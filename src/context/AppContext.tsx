@@ -133,6 +133,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         window.dispatchEvent(new CustomEvent("vibedoc:sse", { detail: msg }))
         // Saving a chat is this tab's own bookkeeping, not a project change: don't flash "live update"
         if (msg.type === "chat_saved") return
+        // R061: a Run's steps stream in (no flash); its end leaves a new run on disk, so reload the board's lastRun
+        if (msg.type === "test_run") {
+          const phase = msg.payload?.state?.state
+          if (phase && phase !== "starting" && phase !== "running") refresh()
+          return
+        }
         setLiveIndicator(true)
         setTimeout(() => setLiveIndicator(false), 2000)
         if (["task_updated", "task_created", "decision_logged", "memory_updated", "session_start"].includes(msg.type)) {

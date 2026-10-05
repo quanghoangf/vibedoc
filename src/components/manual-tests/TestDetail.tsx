@@ -1,7 +1,8 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
-import { ArrowLeft, ArrowRight, ArrowUpRight, Bot, Check, FileCode2, Maximize2, Minimize2, X } from "lucide-react"
+import { ArrowLeft, ArrowRight, ArrowUpRight, Bot, Check, FileCode2, Loader2, Maximize2, Minimize2, Play, Square, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { displayStatus } from "@/lib/statuses"
@@ -9,6 +10,9 @@ import { StatusChip } from "@/components/shared/StatusIcon"
 import { ReviewActions } from "@/components/board/TaskDetailPanel"
 import { RunPlayer } from "./RunPlayer"
 import { TestEvidence } from "./TestEvidence"
+import { RunLive } from "./RunLive"
+import { useTestRun } from "./useTestRun"
+import { isRunning } from "@/lib/test-run-events"
 import type { ManualTestItem, ManualTests } from "@/lib/manual-tests"
 import { outstanding, sendBackNote, stepParts, type ReviewRow } from "@/lib/test-review"
 import { REVIEWABLE } from "@/lib/review"
@@ -50,15 +54,28 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
     { label: "Steps", items: manual.filter((i) => i.group === "steps") },
     { label: "Regression risk", items: manual.filter((i) => i.group === "regression") },
   ].filter((g) => g.items.length)
-  const proven = row.auto.result === "passed"
+  // R061: this task's Run from VibeDoc (live, or just finished until dismissed)
+  const testRun = useTestRun()
+  const [dismissed, setDismissed] = useState<string | null>(null)
+  const mine = testRun.run?.taskId === task.id ? testRun.run : null
+  const going = isRunning(mine)
+  const showRun = mine && mine.startedAt !== dismissed ? mine : null
+  const otherRun = testRun.busy && !mine ? testRun.run!.taskId : null
+  // A run in progress re-proves the automated items: until it ends, only its live results count
+  const proven = row.auto.result === "passed" && !going
+  const liveStatus = (item: ManualTestItem) => mine?.steps.find((s) => s.name.trim().replace(/\s+/g, " ") === item.text.trim().replace(/\s+/g, " "))?.status
   const decides = !demo && (row.result === "failed" || task.status === "review")
 
   const line = (item: ManualTestItem, number: string, readOnly = false) => {
-    const checked = checkedOf(item) || (readOnly && proven)
+    const live = item.auto ? liveStatus(item) : undefined
+    const checked = checkedOf(item) || (readOnly && proven) || live === "passed"
     return (
       <li key={item.index}>
         <label className={cn("-mx-2 grid grid-cols-[1rem_1.25rem_1fr] items-start gap-x-2.5 rounded-md px-2 py-2", !readOnly && "cursor-pointer hover:bg-surface2")}>
-          {readOnly
+          {live === "running" ? <Loader2 className="mt-0.5 size-4 animate-spin text-accent" aria-label="Running now" />
+            : live === "passed" ? <Check className="mt-0.5 size-4 text-teal" strokeWidth={2.5} aria-label="Passed in this run" />
+            : live === "failed" ? <X className="mt-0.5 size-4 text-danger" strokeWidth={2.5} aria-label="Failed in this run" />
+            : readOnly
             ? <Bot className="mt-0.5 size-4 text-teal" aria-label="Proven by the last run" />
             : <Tick checked={checked} onChange={(c) => onToggle(item, c)} />}
           <span className="mt-px font-mono text-[11px] leading-5 text-muted tabular-nums" aria-hidden>{number}</span>
@@ -108,6 +125,21 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
           >
             Open task <ArrowUpRight className="size-3.5" aria-hidden />
           </Link>
+          {tests?.spec && !demo && (
+            <button
+              type="button"
+              data-run
+              onClick={() => void (going ? testRun.stop() : testRun.start(task.id))}
+              disabled={!!otherRun}
+              title={otherRun ? `${otherRun} is running` : going ? `Stop the run (${TEST_REVIEW_KEYS.run.key})` : `Run this task's spec now (${TEST_REVIEW_KEYS.run.key})`}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-40",
+                going ? "border-danger/40 text-danger hover:bg-danger/10" : "border-accent/40 bg-accent/10 text-txt hover:bg-accent/20",
+              )}
+            >
+              {going ? <><Square className="size-3" aria-hidden /> Stop</> : <><Play className="size-3.5" aria-hidden /> Run tests</>}
+            </button>
+          )}
           {tests?.spec && (
             <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted" title="Playwright spec">
               <FileCode2 className="size-3.5 shrink-0" aria-hidden />
@@ -146,9 +178,16 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
           <TestEvidence key={task.id} taskId={task.id} latest={task.lastRun?.runId ?? null} run={run} onRun={onRun} />
         </section>
       ) : <>
-      <section aria-label="Run" className="border-b border-border px-5 py-5 sm:px-7">
-        <RunPlayer key={task.id} taskId={task.id} latest={task.lastRun?.runId ?? null} />
-      </section>
+      {showRun && (
+        <section aria-label="Live run" className="border-b border-border px-5 py-5 sm:px-7">
+          <RunLive run={showRun} began={testRun.began} ended={testRun.ended} onDismiss={() => setDismissed(showRun.startedAt)} />
+        </section>
+      )}
+      {!going && (
+        <section aria-label="Run" className="border-b border-border px-5 py-5 sm:px-7">
+          <RunPlayer key={task.id} taskId={task.id} latest={task.lastRun?.runId ?? null} />
+        </section>
+      )}
 
       <section aria-label="Checklist" className="flex flex-col gap-5 px-5 py-5 sm:px-7">
         {!items.length ? <p className="text-sm text-muted">This task has no checklist. The run above is the whole record.</p> : (
@@ -161,8 +200,8 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
           <div className="flex flex-col gap-1">
             <h3 className="flex flex-wrap items-baseline gap-x-1.5 text-[13px] font-medium text-txt">
               Automated <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{automated.length}</span>
-              <span className={cn("text-xs font-normal", proven ? "text-teal" : row.auto.result === "failed" ? "text-danger" : "")}>
-                {proven ? "· proven by the last run" : row.auto.result === "failed" ? "· the last run failed" : "· not run yet"}
+              <span className={cn("text-xs font-normal", going ? "text-accent" : proven ? "text-teal" : row.auto.result === "failed" ? "text-danger" : "")}>
+                {going ? "· running now" : proven ? "· proven by the last run" : row.auto.result === "failed" ? "· the last run failed" : "· not run yet"}
               </span>
             </h3>
             <ol className="flex flex-col">{/* A passed run proves them; until then a human can still tick them */}
@@ -201,6 +240,7 @@ function KeyStrip({ view, tick, approve, sendBack }: { view: DetailView; tick: b
     ...(approve ? [[K.approve.key, "twice to approve"]] as [string, string][] : []),
     ...(sendBack ? [[K.sendBack.key, "send back"]] as [string, string][] : []),
     [K.failed.key, "next failed"],
+    [K.run.key, "run"],
     [K.view.key, view === "review" ? "evidence" : "review"],
     [K.expand.key, "page"],
     ...(view === "review" ? [["space", "play"]] as [string, string][] : []),

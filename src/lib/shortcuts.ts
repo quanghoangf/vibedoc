@@ -72,6 +72,7 @@ export const TEST_REVIEW_KEYS = {
   sendBack: { key: "s", label: "Send back with a note" },
   failed: { key: "f", label: "Next failed task" },
   pick: { key: "⇧/⌘-click", label: "Select several tasks (bulk tick, approve, send back); Esc clears" },
+  run: { key: "p", label: "Run the task's spec now / stop it (R061)" },
   view: { key: "v", label: "Switch Review / Evidence (the evidence doc and run history)" },
   expand: { key: "o", label: "Open the task as a page / collapse back to the list" },
   play: { key: "Space", label: "Play / pause (player focused)" },

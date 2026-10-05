@@ -246,6 +246,7 @@ function TestReview() {
           else return
           break
         case "o": if (selected) setParams({ full: full ? null : "1" }); break
+        case "p": detail.current?.querySelector<HTMLButtonElement>("[data-run]:not(:disabled)")?.click(); break
         case "v": if (selected) setParams({ view: view === "evidence" ? null : "evidence", run: null }); break
         default: return
       }

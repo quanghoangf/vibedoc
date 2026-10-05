@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { detectFrontend, detectPlaywright, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, rootFrom, testReporterPath } from '@/lib/core'
+import { detectFrontend, detectPlaywright, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
 import { runState, startRun } from '@/lib/test-runner'
@@ -63,7 +63,10 @@ export async function POST(req: NextRequest) {
   try {
     const state = startRun({
       root, taskId: id, spec,
-      onChange: (s) => emitUpdate('test_run', { taskId: id, state: s }),
+      onChange: (s) => {
+        emitUpdate('test_run', { taskId: id, state: s })
+        if (s.state === 'cancelled') void removeUnfinishedRuns(id, root, s.startedAt).catch(() => {})
+      },
       prepare: async () => {
         // An app the user started stays up; only one started for this run is stopped after it
         const ownedBefore = ownsServer(root)

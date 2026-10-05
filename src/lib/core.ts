@@ -683,6 +683,24 @@ export async function getEvidence(taskId: string, root: string, opts: { runId?: 
   }
 }
 
+/**
+ * R061: a cancelled Run leaves its run folder half-written (screenshots, a page@….webm, no run.json), which
+ * retention never counts. Removes this task's folders without run.json whose runId is at or after `since` (ISO).
+ */
+export async function removeUnfinishedRuns(taskId: string, root: string, since: string): Promise<number> {
+  const dir = taskRunsDir(taskId, root)
+  if (!dir || isDemo()) return 0
+  const from = since.replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
+  const ids = await fs.readdir(dir).then(n => n.filter(id => isRunId(id) && id >= from), () => [] as string[])
+  let removed = 0
+  for (const id of ids) {
+    if (await fs.stat(path.join(dir, id, 'run.json')).then(() => true, () => false)) continue
+    await fs.rm(path.join(dir, id), { recursive: true, force: true })
+    removed++
+  }
+  return removed
+}
+
 function toLastRun(r: RunManifest | undefined): TaskLastRun | null {
   if (!r) return null
   const f = r.steps.find(s => s.status === 'failed')
