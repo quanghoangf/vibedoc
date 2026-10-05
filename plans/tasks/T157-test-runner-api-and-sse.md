@@ -1,8 +1,12 @@
 # T157: Runner: run a task's spec from the server, with live step events
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R061 — Run tests from VibeDoc
 **Size:** M (2–3 hrs)
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 VibeDoc can run one task's Playwright spec itself and stream each step's start and result to the browser over SSE, so later tasks can show a live Run without a terminal.
@@ -63,3 +67,16 @@ pnpm lint && pnpm build
 curl -s -XPOST localhost:3000/api/tasks/run -H 'content-type: application/json' -d '{"id":"T155"}'
 sleep 8; curl -s localhost:3000/api/tasks/run | jq '{state, steps: [.steps[].status]}'
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] `curl -XPOST localhost:3000/api/tasks/run -H 'content-type: application/json' -d '{"id":"T155"}'` → 202 with state starting; polling `GET /api/tasks/run` shows the 5 steps go running → passed one by one, then state passed, and a new run dir appears in ~/.vibedoc/runs/vibedoc/T155/
+- [ ] POST again while it runs → 409 "A run is already going: T155"
+- [ ] Start a run, then `POST /api/tasks/run/cancel` → state cancelled, the step that was running reads failed, and `pgrep -f "playwright test"` finds nothing
+- [ ] POST for a task without a spec (e.g. T153) → 409 "T153 has no spec to run"
+- [ ] Give a task a spec path that doesn't exist and run it → state error "No tests found in <spec>" with Playwright's output tail
+- [ ] With the browser on /board open, watch the network/EventSource → `test_run` events arrive for each step
+### Regression risk
+- [ ] Settings → Frontend app → Smoke test and Start/Stop app still work (same server lifecycle)
+- [ ] A run against an app VibeDoc had to start stops that app afterwards; an app you started yourself stays up

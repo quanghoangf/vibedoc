@@ -291,6 +291,18 @@ export async function readFrontendStartTimeoutSec(root: string): Promise<number>
   return typeof raw === 'number' && raw > 0 ? raw : 60
 }
 
+/**
+ * R061: VibeDoc's Playwright reporter, passed to a Run by absolute path. The .ts source in a checkout (Playwright
+ * transpiles it), else the compiled `dist/` file of an npm install. Null when neither is there.
+ */
+export async function testReporterPath(): Promise<string | null> {
+  for (const rel of ['src/testing/vibedoc-reporter.ts', 'dist/testing/vibedoc-reporter.js']) {
+    const p = path.join(process.cwd(), rel)
+    if (await fs.stat(p).then(st => st.isFile(), () => false)) return p
+  }
+  return null
+}
+
 /** Sets (or, for null / all-empty, removes) `frontend` in .vibedoc/settings.json; every other key is kept. */
 export async function saveFrontendOverride(override: FrontendOverride | null, root: string): Promise<FrontendOverride | null> {
   const clean = cleanOverride(override)

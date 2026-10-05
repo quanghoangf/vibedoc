@@ -12,5 +12,5 @@
     "declaration": true,
     "types": ["node"]
   },
-  "files": ["src/testing/playwright-fixture.ts"]
+  "files": ["src/testing/playwright-fixture.ts", "src/testing/vibedoc-reporter.ts"]
 }
