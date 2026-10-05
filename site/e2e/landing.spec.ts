@@ -44,6 +44,7 @@ test.describe('install (T202)', () => {
     ['pnpm', 'pnpm add -g vibedoc'],
     ['bun', 'bun add -g vibedoc'],
     ['Homebrew', 'brew install quanghoangf/vibedoc/vibedoc'],
+    ['No Node', 'curl -fsSL https://quanghoangf.github.io/vibedoc/install.sh | sh'],
   ] as const
 
   test('S1: each tab shows and copies exactly its command', async ({ page, context }) => {
@@ -77,6 +78,15 @@ test.describe('install (T202)', () => {
     }
     await panel.getByRole('link', { name: 'Read the full prompt' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Install with your AI assistant' })).toBeVisible()
+  })
+
+  test('the one-line installers are served from the site (T213)', async ({ request }) => {
+    const sh = await request.get('install.sh')
+    expect(sh.status()).toBe(200)
+    expect(await sh.text()).toMatch(/^#!\/bin\/sh\n[\s\S]*sha256[\s\S]*--uninstall/)
+    const ps = await request.get('install.ps1')
+    expect(ps.status()).toBe(200)
+    expect(await ps.text()).toContain('Get-FileHash -Algorithm SHA256')
   })
 
   test('the tabs work with the keyboard', async ({ page }) => {

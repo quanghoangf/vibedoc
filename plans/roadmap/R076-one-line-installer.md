@@ -1,6 +1,6 @@
 # R076: One-line installer
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 290
 **Tasks:** T213
 

@@ -1,5 +1,7 @@
 # T213: One-line installer with a private Node
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-05
 **Phase:** R076 — One-line installer
 **Size:** L (half a day)
 **Depends on:** —
@@ -16,7 +18,7 @@ On a machine with no Node, `curl -fsSL https://quanghoangf.github.io/vibedoc/ins
 ## Scope
 - [ ] `install.sh` (macOS, Linux; x64 + arm64): install, `--update` (reinstall latest), `--uninstall` (remove `~/.vibedoc/{node,lib,bin}`, never the user's projects or runs); `VIBEDOC_HOME` overrides the folder; `VIBEDOC_VERSION` pins a version
 - [ ] `install.ps1` (Windows x64 / arm64) with the same steps, PATH via the user environment variable after asking
-- [ ] Landing page: "No Node?" line under the install tabs with the one-liner; docs Getting started gets the channel; README
+- [ ] Landing page: a "No Node" install tab with the one-liner (Windows command in its note); docs Getting started gets the channel; README
 - [ ] Check: run `install.sh` against a temp `VIBEDOC_HOME` → `vibedoc --version` prints the npm version; `--uninstall` removes it
 
 **Out of scope:** OS package repos, background auto-update.
@@ -33,3 +35,14 @@ sh -n site/public/install.sh
 VIBEDOC_HOME=$(mktemp -d) sh site/public/install.sh </dev/null
 pnpm --dir site build && pnpm --dir site exec playwright test
 ```
+
+## Manual tests
+### Steps
+- [x] Ran `env -i HOME=<tmp> PATH=/usr/bin:/bin VIBEDOC_HOME=<tmp> sh site/public/install.sh </dev/null` (no Node on PATH) → Node 22 downloaded and verified, "Installed VibeDoc 1.14.0", no shell file written (non-interactive)
+- [x] Started the installed launcher with `--port 4499` (still no Node on PATH) → the server came up and `/api/mcp` tools/list answered
+- [x] `install.sh --uninstall` → node, lib and bin removed; the folder's other contents untouched
+- [x] 🤖 The landing page "No Node" tab shows and copies the curl one-liner; /install.sh and /install.ps1 are served
+- [ ] In a real terminal: `curl -fsSL https://quanghoangf.github.io/vibedoc/install.sh | sh` → it asks "Add … to your PATH in ~/.zshrc? [y/N]"; y adds one line ending in `# vibedoc`, and a new terminal runs `vibedoc --version`
+- [ ] Windows: `irm https://quanghoangf.github.io/vibedoc/install.ps1 | iex` in PowerShell → installs, asks about the user PATH, `vibedoc --version` works in a new terminal (not run: no Windows / PowerShell here)
+### Regression risk
+- [ ] The other install tabs still copy their own command

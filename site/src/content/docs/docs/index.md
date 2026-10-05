@@ -27,6 +27,24 @@ To keep a `vibedoc` command instead of `npx`, install it with any channel. Every
 | bun | `bun add -g vibedoc` | `bun add -g vibedoc@latest` | `bun remove -g vibedoc` |
 | Homebrew | `brew install quanghoangf/vibedoc/vibedoc` | `brew upgrade vibedoc` | `brew uninstall vibedoc` |
 
+**No Node on the machine?** The one-line installer brings its own Node (into `~/.vibedoc`, checksum-verified) and asks before adding `~/.vibedoc/bin` to your PATH:
+
+```bash
+# macOS, Linux
+curl -fsSL https://quanghoangf.github.io/vibedoc/install.sh | sh
+# update / uninstall
+curl -fsSL https://quanghoangf.github.io/vibedoc/install.sh | sh -s -- --update
+curl -fsSL https://quanghoangf.github.io/vibedoc/install.sh | sh -s -- --uninstall
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://quanghoangf.github.io/vibedoc/install.ps1 | iex
+& ([scriptblock]::Create((irm https://quanghoangf.github.io/vibedoc/install.ps1))) -Uninstall
+```
+
+Uninstalling removes only VibeDoc's Node, package and launcher, never your projects or saved test runs.
+
 VibeDoc reads the folder you start it in. For another folder: `VIBEDOC_ROOT=/path/to/project npx vibedoc`.
 
 ## 2. Connect your agent
