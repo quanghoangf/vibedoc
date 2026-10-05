@@ -77,4 +77,14 @@ assert.equal(latestReview(quoted), null)
   assert.deepEqual(summarizeMarks([]), { failed: 0, doubt: 0, steps: [], more: 0 })
 }
 
+// R065: an automatic send back is marked and reads back; a failed step outside the checklist is item -1
+{
+  const body = formatReviewBody('Auto: run failed (1 of 2 steps)', '20261012T094500Z', [{ item: -1, step: 'Setup', kind: 'failed', comment: 'boom' }])
+  const raw = appendReviewEntry(task, 'changes requested', body, '2026-10-12T10:00:00Z', true)
+  assert.match(raw, /### 2026-10-12T10:00:00Z — changes requested \(auto\)\n/)
+  const e = latestReview(raw)!
+  assert.deepEqual([e.outcome, e.auto, e.marks], ['changes requested', true, [{ item: -1, step: 'Setup', kind: 'failed', comment: 'boom' }]])
+  assert.equal(latestReview(appendReviewEntry(task, 'changes requested', 'x', '2026-10-12T10:00:00Z'))!.auto, undefined)
+}
+
 console.log('review: ok')

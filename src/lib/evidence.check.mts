@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { flakyFor, formatEvidence, matchItems, ticksForRun } from './evidence.ts'
+import { failedMarksForRun, flakyFor, formatEvidence, matchItems, ticksForRun } from './evidence.ts'
 
 const item = (index: number, text: string, auto: boolean, checked = false, group: 'steps' | 'regression' = 'steps') => ({ index, text, auto, checked, group })
 const step = (index: number, name: string, status: 'passed' | 'failed' = 'passed', error: string | null = null) =>
@@ -97,4 +97,19 @@ console.log('ok evidence')
   assert.match(md, /- ✅ Open \/ → board loads\n {2}!\[[^\n]+\n {2}🔁 flaky \(passed on attempt 2\); the first attempt failed:\n {2}```\n {2}Expected: "Board"/)
   assert.match(md, /!\[first attempt\]\(20261005T090000Z\/first-failure-01-s\.png\)/)
   console.log('ok evidence flaky')
+}
+
+// R065: a failed run's marks for the automatic send back; passed / flaky runs give none
+{
+  const its = [item(0, 'Open / → board loads', true), item(1, 'Click X → reads Y', true), item(2, 'Looks right', false)]
+  const failedRun = run('20261005T100000Z', [step(1, 'Open / → board loads'), step(2, 'Click X → reads Y', 'failed', '\x1b[31mExpected: "Y"\x1b[39m\nReceived: "Z"'), step(3, 'Stray', 'failed', 'boom')])
+  assert.deepEqual(failedMarksForRun(its, failedRun), [
+    { item: 1, step: 'Click X → reads Y', kind: 'failed', comment: 'Expected: "Y"', screenshot: '02-s.png' },
+    { item: -1, step: 'Stray', kind: 'failed', comment: 'boom', screenshot: '03-s.png' },
+  ])
+  assert.deepEqual(failedMarksForRun(its, run('20261005T100000Z', [step(1, 'Open / → board loads')])), [])
+  const crashed = { ...run('20261005T100000Z', [step(1, 'Open / → board loads')]), status: 'failed' as const, tests: [{ title: 'T1 thing', outcome: 'failed' as const, attempts: 3 }] }
+  assert.deepEqual(failedMarksForRun(its, crashed), [{ item: -1, step: 'T1 thing', kind: 'failed', comment: 'failed outside its steps' }])
+  assert.deepEqual(failedMarksForRun(its, null), [])
+  console.log('ok failedMarksForRun')
 }

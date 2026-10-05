@@ -31,11 +31,14 @@ export interface ReviewEntry {
   runId?: string
   /** R062: per-step marks in the body; [] for entries without any */
   marks: ReviewMark[]
+  /** R065: written by VibeDoc after a failed Run (`— changes requested (auto)`), not by a reviewer */
+  auto?: boolean
 }
 
 /**
  * R062: one flagged step of a send back. `item` = the checklist item's index (file order, shown 1-based as
- * "Step N"); `step` = its text; `screenshot` = the run's file for it (`03-click-save.png`).
+ * "Step N"; R065: -1 = a failed step no checklist item names, shown as "Step 0"); `step` = its text;
+ * `screenshot` = the run's file for it (`03-click-save.png`).
  */
 export interface ReviewMark {
   item: number
@@ -98,7 +101,7 @@ export function summarizeMarks(marks: ReviewMark[], max = 3): { failed: number; 
   }
 }
 
-const ENTRY = /^###\s+(\S+)\s+—\s+(approved|changes requested)\s*$/
+const ENTRY = /^###\s+(\S+)\s+—\s+(approved|changes requested)(\s+\(auto\))?\s*$/
 
 /** Lines inside ``` fences, so a quoted example is never taken for the real section. */
 function fenced(lines: string[]): boolean[] {
@@ -125,7 +128,7 @@ export function reviewHistory(raw: string): ReviewEntry[] {
   const entries: ReviewEntry[] = []
   for (const line of lines.slice(range[0] + 1, range[1])) {
     const m = line.match(ENTRY)
-    if (m) entries.push({ at: m[1], outcome: m[2] as ReviewOutcome, note: "", marks: [] })
+    if (m) entries.push({ at: m[1], outcome: m[2] as ReviewOutcome, note: "", marks: [], ...(m[3] ? { auto: true } : {}) })
     else if (entries.length) {
       const last = entries[entries.length - 1]
       last.note = last.note ? `${last.note}\n${line}` : line
@@ -146,12 +149,12 @@ export function latestReview(raw: string): ReviewEntry | null {
  * Add an entry to the `## Review` section (created at the end of the file if missing; an existing one keeps its
  * place and grows). A note is required for "changes requested".
  */
-export function appendReviewEntry(raw: string, outcome: ReviewOutcome, note: string, at: string): string {
+export function appendReviewEntry(raw: string, outcome: ReviewOutcome, note: string, at: string, auto = false): string {
   const text = note.trim()
   if (outcome === "changes requested" && !text) throw new Error("A note is required to send a task back")
   // "## " at the start of a note line would end the section early
   const body = text.split("\n").map((l) => (/^#{1,3}\s/.test(l) ? `\\${l}` : l)).join("\n")
-  const entry = [`### ${at} — ${outcome}`, ...(body ? [body] : [])]
+  const entry = [`### ${at} — ${outcome}${auto ? " (auto)" : ""}`, ...(body ? [body] : [])]
   const lines = raw.split("\n")
   const range = sectionRange(lines)
   if (!range) return `${raw.replace(/\s+$/, "")}\n\n${REVIEW_HEADING}\n${entry.join("\n")}\n`

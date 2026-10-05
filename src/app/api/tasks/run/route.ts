@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { detectFrontend, detectPlaywright, readProjectSettings, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
+import { detectFrontend, detectPlaywright, readProjectSettings, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, sendBackFailedRun, rootFrom, testReporterPath } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
 import { busyWith, runState, startRun } from '@/lib/test-runner'
@@ -68,8 +68,14 @@ export async function POST(req: NextRequest) {
         if (s.state === 'cancelled') void removeUnfinishedRuns(root, s.startedAt).catch(() => {})
         // A verdict goes into the task file like an agent's run (Auto: header + 🤖 ticks); cancelled / error write nothing
         if (s.state === 'passed' || s.state === 'failed') {
-          void recordRunResult(id, s.state, s.steps, root, s.startedAt)
-            .then((r) => { if (r) emitUpdate('task_updated', { taskId: id, task: r.task }) })
+          const result = s.state
+          void (async () => {
+            const r = await recordRunResult(id, result, s.steps, root, s.startedAt)
+            if (r) emitUpdate('task_updated', { taskId: id, task: r.task })
+            // R065: a failed run goes straight back to the agent with its failed steps (tests.autoSendBack)
+            const back = result === 'failed' ? await sendBackFailedRun(id, root, s.startedAt) : null
+            if (back) emitUpdate('task_updated', { taskId: id, status: back.task.status, previousStatus: back.previousStatus, task: back.task, autoSendBack: true })
+          })()
             .catch((e) => console.warn(`vibedoc: could not record the ${id} run: ${(e as Error).message}`))
         }
       },

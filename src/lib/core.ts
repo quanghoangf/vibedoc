@@ -26,7 +26,7 @@ import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { parseKeep } from './runs-retention'
 import { isRunFile, isRunId, isRunTaskId, parseRange, parseRunHonesty, parseRunManifest, projectKey, runsRoot, type RunManifest } from './runs-paths'
-import { flakyFor, formatEvidence, matchItems, ticksForRun } from './evidence'
+import { failedMarksForRun, flakyFor, formatEvidence, matchItems, ticksForRun } from './evidence'
 import { stepVerdict } from './honesty'
 import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
@@ -800,8 +800,8 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
  * The task settings from .vibedoc/settings.json (R055): `tasks.sizeDays` over the defaults (automatic due dates)
  * and `statuses` (custom statuses; the built-ins when unset). `runs.keep` (R059): test runs kept per task, default 5.
  */
-export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number }> {
-  let s: { tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
+export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number; autoSendBack: boolean }> {
+  let s: { tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
   try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
   const budget = Number(s?.memory?.sessionBudgetTokens)
   return {
@@ -811,6 +811,8 @@ export async function readProjectSettings(root: string): Promise<{ sizeDays: Siz
     runsKeep: parseKeep(s?.runs?.keep),
     // R065: Playwright retries per Run / suite (`tests.retries`, default 2, 0 = off); fail-then-pass = flaky
     testRetries: Number.isInteger(s?.tests?.retries) && (s?.tests?.retries as number) >= 0 ? Math.min(s?.tests?.retries as number, 5) : 2,
+    // R065: a failed Run sends a done / review task back to the agent (`tests.autoSendBack`, default on)
+    autoSendBack: s?.tests?.autoSendBack !== false,
   }
 }
 
@@ -1032,14 +1034,14 @@ export async function saveManualTests(taskId: string, report: string | null, roo
 /** The task isn't in the state an action needs (e.g. approving a task that isn't in review). Routes map it to 409. */
 export class TaskStateError extends Error {}
 
-async function reviewTask(taskId: string, outcome: ReviewOutcome, note: string, next: TaskStatus, root: string) {
+async function reviewTask(taskId: string, outcome: ReviewOutcome, note: string, next: TaskStatus, root: string, auto = false) {
   const task = await getTask(taskId, root)
   const allowed = REVIEWABLE[outcome]
   if (!allowed.includes(task.status)) {
     throw new TaskStateError(`${task.id} is ${task.status}; ${outcome === 'approved' ? 'approve' : 'send back'} needs ${allowed.join(' or ')}`)
   }
   const at = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
-  const content = appendReviewEntry(task.raw ?? '', outcome, note, at)
+  const content = appendReviewEntry(task.raw ?? '', outcome, note, at, auto)
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
   return updateTaskStatus(task.id, next, root, 'human')
 }
@@ -1065,9 +1067,27 @@ export async function approveTask(taskId: string, root: string, note = '', opts:
  * Review or done → todo (so vibedoc_next_task hands it out again), with the note as a `changes requested` entry.
  * R062: `marks` (flagged steps) and `runId` go first in the entry; a note or at least one mark is required.
  */
-export async function sendBackTask(taskId: string, note: string, root: string, opts: { runId?: string | null; marks?: ReviewMark[] } = {}) {
+export async function sendBackTask(taskId: string, note: string, root: string, opts: { runId?: string | null; marks?: ReviewMark[]; auto?: boolean } = {}) {
   const run = await reviewedRun(taskId.toUpperCase(), opts.runId, root)
-  return reviewTask(taskId, 'changes requested', formatReviewBody(note, run?.runId ?? null, opts.marks ?? []), 'todo', root)
+  return reviewTask(taskId, 'changes requested', formatReviewBody(note, run?.runId ?? null, opts.marks ?? []), 'todo', root, opts.auto)
+}
+
+/**
+ * R065: a failed Run goes back to the agent on its own. When `tests.autoSendBack` is on (default) and the task is
+ * done or in review (an agent isn't on it), the task's newest run since `since` becomes a `(auto)` changes-requested
+ * entry: its run id, one ❌ mark per failed step (error + screenshot), "Auto: run failed (n of m steps)". Null = no
+ * send back (setting off, another status, no such run, or the run didn't fail).
+ */
+export async function sendBackFailedRun(taskId: string, root: string, since: string) {
+  const [task, settings] = await Promise.all([getTask(taskId, root), readProjectSettings(root)])
+  if (!settings.autoSendBack || !REVIEWABLE['changes requested'].includes(task.status)) return null
+  const run = (await listRuns(task.id, root))[0]
+  if (!run || run.startedAt < since || run.status !== 'failed') return null
+  const tests = task.raw ? parseManualTests(task.raw) : null
+  const failed = run.steps.filter(s => s.status === 'failed').length
+  return sendBackTask(task.id, `Auto: run failed (${failed} of ${run.steps.length} steps)`, root, {
+    runId: run.runId, marks: failedMarksForRun(tests?.items ?? [], run), auto: true,
+  })
 }
 
 /** Tick or untick every manual item of one task (🤖 ones untouched). `changed` = the indexes flipped, for Undo. */

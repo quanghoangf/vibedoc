@@ -7,6 +7,7 @@
 
 import type { ManualTestItem } from './manual-tests.js'
 import type { RunManifest, RunStep, RunTest } from './runs-paths.js'
+import type { ReviewMark } from './review.js'
 
 export type ItemResult = 'passed' | 'failed' | 'missing' | 'manual'
 /** `unverified` (R063): why the step doesn't prove the item, from the injected verdict; [] = it does / unknown. */
@@ -165,4 +166,24 @@ export function ticksForRun(items: ManualTestItem[], steps: { name: string; stat
     if (!proves && item.checked) untick.push(item.index)
   }
   return { tick, untick }
+}
+
+/**
+ * R065: what a failed Run sends back: one `failed` mark per 🤖 item whose step failed (first error line, its
+ * screenshot), plus failed steps no item names (`item: -1`), plus the failed test itself when no step failed
+ * (a crash outside the steps). A passed or flaky run gives none.
+ */
+export function failedMarksForRun(items: ManualTestItem[], run: RunManifest | null): ReviewMark[] {
+  if (!run || run.status !== 'failed') return []
+  const first = (e: string | null) => e?.replace(/\x1b\[[0-9;]*m/g, '').split('\n').find(l => l.trim())?.trim()
+  const mark = (item: number, step: RunStep): ReviewMark => ({
+    item, step: step.name, kind: 'failed', ...(first(step.error) ? { comment: first(step.error) } : {}), ...(step.screenshot ? { screenshot: step.screenshot } : {}),
+  })
+  const { rows, extra } = matchItems(items, run)
+  const marks = [
+    ...rows.filter(r => r.result === 'failed' && r.step).map(r => mark(r.item.index, r.step!)),
+    ...extra.filter(s => s.status === 'failed').map(s => mark(-1, s)),
+  ]
+  if (!marks.length) marks.push({ item: -1, step: run.tests?.[0]?.title ?? 'The test', kind: 'failed', comment: 'failed outside its steps' })
+  return marks
 }

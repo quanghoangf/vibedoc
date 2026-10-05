@@ -1,8 +1,12 @@
 # T178: Auto send-back on a failed Run with failing step, error and screenshot
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R065 — Self-fixing failures & flaky tests
 **Size:** M (2–3 hrs)
 **Depends on:** T176
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 When a Run from VibeDoc fails, the task goes straight back to the agent: it's moved to todo with a `## Review` entry that lists each failed step with its error and screenshot. `vibedoc_next_task` then hands the agent everything it needs to fix it.
@@ -43,3 +47,14 @@ node src/lib/evidence.check.mts && node src/lib/review.check.mts
 pnpm lint && pnpm build
 # break a step in a done task's spec, Run it on /manual-tests, then: git diff plans/tasks/<task>*.md
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Break one step's expectation in a done task's spec and press Run tests → after the run (and its retries) the task is todo, its card shows "changes requested · 1 step", and ## Review has `— changes requested (auto)` with `Run <id>`, `- ❌ Step N "…" — failed: <error> · screenshot <file>` and "Auto: run failed (1 of 2 steps)" (agent checked on T153 with a throwaway spec, since restored)
+- [ ] `vibedoc_next_task` on that task's epic → the claim shows those lines under ⚠️ Changes requested; `vibedoc_get_evidence {taskId, runId}` lists the failing screenshot
+- [ ] Set `"tests": { "autoSendBack": false }` in .vibedoc/settings.json and run it again → the task stays done; only `Auto: failed <today>` is written
+- [ ] A passed or flaky-only run, and a Stopped run, never change the status
+### Regression risk
+- [ ] A manual Send back from the panel / Evidence still writes a plain `— changes requested` entry (no "(auto)")
+- [ ] A failed run on a todo / in-progress task only updates its Auto header
