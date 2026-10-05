@@ -2,13 +2,15 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { Bot, Calendar, ChevronRight, CircleDashed, FileText, Flag, Layers, ListChecks, MessageSquare, Pencil, Plus, User } from "lucide-react"
+import { Bot, Calendar, ChevronRight, CircleDashed, FileText, Flag, GitMerge, Layers, ListChecks, MessageSquare, Pencil, Plus, User } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { coverageOf, scenarioStatus, type ScenarioStatus, type ScenarioTask } from "@/lib/scenarios"
 import { parseManualTests } from "@/lib/manual-tests"
+import { parseSpecChanges } from "@/lib/specs"
+import { SpecMergeDialog } from "./SpecMergeDialog"
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { useApp } from "@/context/AppContext"
@@ -76,7 +78,11 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
   const progress = progressById[item.id]
   const today = localToday()
   const { chats, showAbout } = useChats()
-  const { demo } = useApp()
+  const { demo, openDoc } = useApp()
+  // R069: the epic's ## Spec changes, offered for merging once it is done (until **Spec merged:** is stamped)
+  const specChanges = isHorizon ? [] : parseSpecChanges(item.body)
+  const canMerge = item.status === "done" && specChanges.length > 0 && !item.specMerged
+  const [merging, setMerging] = useState(false)
   const chat = isHorizon ? undefined : chatFor(chats, { kind: "epic", id: item.id })
   const offerBreakdown = !isHorizon && item.tasks.length === 0 && !chat
   const [menuOpen, setMenuOpen] = useState(false)
@@ -174,6 +180,17 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
         {!isHorizon && item.tasks.length > 0 && <LinkedTasks item={item} tasksById={tasksById} onOpen={onEditRaw} />}
         {!isHorizon && item.scenarios.length > 0 && <Scenarios item={item} tasksById={tasksById} onOpen={onEditRaw} />}
 
+        {item.specMerged && specChanges.length > 0 && (
+          <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+            <span className="text-teal">Capability spec merged {item.specMerged}</span>
+            {specChanges.map((c) => (
+              <button key={c.capability} type="button" onClick={() => { onClose(); void openDoc(`docs/specs/${c.capability}.md`) }} className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] hover:border-border2 hover:text-txt">
+                docs/specs/{c.capability}.md
+              </button>
+            ))}
+          </p>
+        )}
+
         {isHorizon && (
           <section className="flex flex-col gap-2">
             <p className={SECTION}>Epics · {epics.length}</p>
@@ -227,6 +244,11 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
             <Plus /> Add epic
           </Button>
         )}
+        {canMerge && (
+          <Button size="sm" onClick={() => setMerging(true)} className="bg-accent text-accent-fg hover:bg-accent/90">
+            <GitMerge /> Merge into capability spec
+          </Button>
+        )}
         <Button size="sm" variant="outline" onClick={onEdit}>
           <Pencil /> Edit
         </Button>
@@ -235,6 +257,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
           <FileText /> Open file
         </Button>
       </footer>
+      {canMerge && <SpecMergeDialog epicId={item.id} open={merging} onOpenChange={setMerging} />}
     </div>
   )
 }

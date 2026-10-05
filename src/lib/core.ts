@@ -34,7 +34,7 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
-import { formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
+import { applyDelta, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
@@ -1900,6 +1900,43 @@ export async function getSpecContext(
   }, SPEC_CONTEXT_BUDGET)
 }
 
+export type SpecMergePreview = { capability: string; path: string; before: string; after: string; isNew: boolean; errors: string[] }
+
+/** What merging an epic's `## Spec changes` would do to each capability spec (R069). Read-only. */
+export async function previewSpecMerge(epicId: string, root: string): Promise<{ epic: RoadmapItem; merges: SpecMergePreview[] }> {
+  const epic = await getRoadmapItem(epicId, root)
+  const merges = await Promise.all(parseSpecChanges(epic.body).map(async (c): Promise<SpecMergePreview> => {
+    const path = `docs/specs/${c.capability}.md`
+    const valid = /^[a-z0-9][a-z0-9._-]*$/.test(c.capability)
+    const existing = valid ? await readSpec(c.capability, root) : null
+    const { raw, errors } = applyDelta(existing?.raw ?? null, c.ops, c.capability)
+    return {
+      capability: c.capability, path, before: existing?.raw ?? '', after: raw, isNew: !existing,
+      errors: valid ? errors : [`"${c.capability}" is not a capability slug (docs/specs/<slug>.md)`],
+    }
+  }))
+  return { epic, merges }
+}
+
+/**
+ * Write an epic's spec changes into the capability specs and stamp `**Spec merged:**` (R069). Recomputed from the
+ * files on disk, never from the client's text; refused when the epic isn't done, is already merged, has no spec
+ * changes, or any capability has an error (nothing is written then).
+ */
+export async function applySpecMerge(epicId: string, root: string, actor: 'ai' | 'human' = 'human'): Promise<{ epic: RoadmapItem; paths: string[] }> {
+  const { epic, merges } = await previewSpecMerge(epicId, root)
+  if (epic.status !== 'done') throw new RoadmapError(`${epic.id} is ${epic.status}; merge its spec changes once it is done`, 409)
+  if (epic.specMerged) throw new RoadmapError(`${epic.id}'s spec changes were already merged on ${epic.specMerged}`, 409)
+  if (!merges.length) throw new RoadmapError(`${epic.id} has no ## Spec changes`)
+  const errors = merges.flatMap(m => m.errors.map(e => `${m.path}: ${e}`))
+  if (errors.length) throw new RoadmapError(errors.join('\n'))
+  // ponytail: not atomic; a failed write mid-way leaves earlier specs merged and the epic unstamped (re-merging reports their ADDED ops as errors)
+  for (const m of merges) await writeDoc(m.path, m.after, root)
+  const updated = await updateRoadmapItem(epic.id, { specMerged: localToday() }, root, actor, false)
+  await appendActivity(root, { type: 'roadmap_updated', actor, title: `${epic.id} spec merged`, detail: merges.map(m => m.path).join(', ') })
+  return { epic: updated, paths: merges.map(m => m.path) }
+}
+
 /**
  * The "## Related spec" block for a task, or ''. Its epic's `**Specs:**` → every requirement name of those specs;
  * none declared (or none of them exist) → the top `limit` requirements by keyword rank, strong matches only.
@@ -2744,6 +2781,7 @@ export interface RoadmapItem {
   priority: Priority | null  // **Priority:** P0–P3
   specs: string[]       // **Specs:** capability slugs of docs/specs/<slug>.md (R066)
   scenarios: Scenario[] // the body's ## Scenarios (R068)
+  specMerged: string | null // **Spec merged:** YYYY-MM-DD, when its ## Spec changes went into the capability specs (R069)
   body: string          // markdown after the metadata block
   file: string          // path relative to root
 }
@@ -2762,12 +2800,12 @@ export interface CreateRoadmapItemParams {
   body?: string
 }
 
-export type UpdateRoadmapItemPatch = Partial<Omit<CreateRoadmapItemParams, 'title'> & { title: string; specs: string[] | null }>
+export type UpdateRoadmapItemPatch = Partial<Omit<CreateRoadmapItemParams, 'title'> & { title: string; specs: string[] | null; specMerged: string | null }>
 
 
 /** Validation / not-found error from the roadmap API. `status` maps straight to an HTTP code. */
 export class RoadmapError extends Error {
-  constructor(message: string, public status: 400 | 404 = 400) {
+  constructor(message: string, public status: 400 | 404 | 409 = 400) {
     super(message)
     this.name = 'RoadmapError'
   }
@@ -2877,6 +2915,7 @@ function parseRoadmapFile(file: string, content: string): RoadmapItem {
     priority: parsePriority(meta['priority']),
     specs: parseSpecSlugs(meta['specs']),
     scenarios: parseScenarios(lines.slice(metaEnd).join('\n')),
+    specMerged: parseDue(meta['spec merged'] || ''),
     body: lines.slice(metaEnd).join('\n').trim(),
     file,
   }
@@ -2954,7 +2993,7 @@ export function createRoadmapItem(
 const roadmapId = (n: number) => `R${String(n).padStart(3, '0')}`
 
 /** Write a new R*.md (flag 'wx': never overwrites). Callers validate fields and mkdir first. */
-async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner' | 'priority' | 'specs' | 'scenarios'>): Promise<void> {
+async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner' | 'priority' | 'specs' | 'scenarios' | 'specMerged'>): Promise<void> {
   const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
   const filename = slug ? `${f.id}-${slug}.md` : `${f.id}.md`
   const lines = [
@@ -3076,6 +3115,7 @@ async function updateRoadmapItemUnlocked(
   const tasks = p.tasks === undefined ? undefined : parseTaskIds(p.tasks)
   const body = p.body === undefined ? undefined : cleanBody(p.body)
   const due = p.due === undefined ? undefined : cleanDue(p.due)
+  const specMerged = p.specMerged === undefined ? undefined : cleanDue(p.specMerged)
   let owner: string | null | undefined
   if (p.owner !== undefined) {
     owner = p.owner === null || p.owner === '' ? null : parseOwner(p.owner)
@@ -3136,6 +3176,7 @@ async function updateRoadmapItemUnlocked(
   if (owner !== undefined) setMeta('Owner', owner)
   if (priority !== undefined) setMeta('Priority', priority)
   if (specs !== undefined) setMeta('Specs', specs)
+  if (specMerged !== undefined) setMeta('Spec merged', specMerged)
   if (body !== undefined) {
     rest = body ? ['', body, ''] : ['']
   }

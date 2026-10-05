@@ -172,9 +172,10 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
       const msg = (e as CustomEvent).detail
       // A property change (from you or an agent) rewrites only the frontmatter; apply the same rewrite here
       const properties: Record<string, string | null> | undefined = msg?.payload?.properties
-      if (msg?.type !== "doc_updated" || (msg.payload?.actor !== "ai" && !properties)) return
+      // `external`: a write from outside this editor that isn't an agent's (R069: merging an epic's spec changes)
+      if (msg?.type !== "doc_updated" || (msg.payload?.actor !== "ai" && !msg.payload?.external && !properties)) return
       if (String(msg.payload.path).replace(/^\.\//, "") !== docPath) return
-      if (!properties) setAiEditAt(Date.now())
+      if (!properties && msg.payload.actor === "ai") setAiEditAt(Date.now())
       const ytext = ytextRef.current
       const awareness = awarenessRef.current
       if (!ytext?.doc || !awareness) return

@@ -1,8 +1,11 @@
 # T195: "Merge into spec" on a done epic
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R069 — Spec changes on epics
 **Size:** M (2–3 hrs)
 **Depends on:** T194
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 Finishing an epic that changes a capability ends with one reviewed click that updates the capability spec, so specs stay current without anyone rewriting them.
@@ -36,3 +39,15 @@ Finishing an epic that changes a capability ends with one reviewed click that up
 node src/lib/specs.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai · Spec: `e2e/vibedoc/T195-merge-into-spec.spec.ts` · Auto: passed 2026-10-05_
+### Steps
+- [x] 🤖 Open a done epic whose spec changes modify one requirement and click Merge into capability spec → the dialog shows the old line removed and the new line added
+- [x] 🤖 Click Accept → the sheet reads "Capability spec merged" with a link to the spec, and the Merge button is gone
+- [x] 🤖 Click the spec link → the capability spec opens with the new requirement text
+- [x] 🤖 Open a done epic whose change modifies a missing requirement and click Merge → the dialog names "Missing one" and Accept is disabled
+- [ ] With the capability spec open in /docs in another tab, merge from the epic sheet → the open editor shows the new text without a reload, and no "AI edited" marker
+- [ ] vibedoc_get_roadmap on a done epic with unmerged spec changes → its line ends with "spec changes not merged"
+### Regression risk
+- [ ] Epics without `## Spec changes` (or not done yet) show the same footer as before: no Merge button

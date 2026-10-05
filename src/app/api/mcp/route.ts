@@ -17,7 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
 import { formatCompactLine, tokenize } from "@/lib/recall";
-import { findRequirement, formatRequirement, formatSpecList } from "@/lib/specs";
+import { findRequirement, formatRequirement, formatSpecList, parseSpecChanges } from "@/lib/specs";
 import { SEVERITIES, validateFindings } from "@/lib/verification";
 import { parseScenarios, scenarioStatus, type ScenarioTask } from "@/lib/scenarios";
 import { parseManualTests } from "@/lib/manual-tests";
@@ -1412,7 +1412,9 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         (i.tasks.length ? ` (tasks: ${i.tasks.join(", ")})` : "") +
         (progress[i.id] ? ` [${progress[i.id].done}/${progress[i.id].total} done]` : "") +
         (i.due ? ` due ${i.due}${dueState(i.due, i.status, today) === "overdue" ? " ⚠ overdue" : ""}` : "") +
-        (atRisk.has(i.id) ? " ⚠ at risk" : "") + scenarioLine(i);
+        (atRisk.has(i.id) ? " ⚠ at risk" : "") + scenarioLine(i) +
+        // R069: a human merges them from the epic sheet; agents don't
+        (i.status === "done" && !i.specMerged && parseSpecChanges(i.body).length ? " · spec changes not merged (a human merges them on the epic sheet)" : "");
       const horizons = items.filter((i) => i.parent === null);
       const lines = ["## Roadmap"];
       for (const h of horizons) {
