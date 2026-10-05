@@ -9,7 +9,7 @@ import { StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
 import { TaskRuns } from "./TaskRuns"
 import Link from "next/link"
-import { Bot, Calendar, Check, ChevronRight, Copy, CircleDashed, CornerUpLeft, Flag, FlaskConical, Map as MapIcon, MessageSquare, MoreHorizontal, Pencil, Ruler, ScanSearch, Trash2, User } from "lucide-react"
+import { Bot, Calendar, Check, ChevronRight, Copy, CircleDashed, CornerUpLeft, Flag, FlaskConical, Map as MapIcon, ListChecks, MessageSquare, MoreHorizontal, Pencil, Ruler, ScanSearch, Trash2, User } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
@@ -314,6 +314,10 @@ function taskProperties(task: Task): ItemProperty[] {
     { label: "Due", icon: Calendar, value: <TaskDueField task={task}>{task.due ? <DueChip due={task.due} state={dueState(task.due, task.status === "done" ? "done" : "planned", localToday())} /> : <span className="text-muted">—</span>}</TaskDueField> },
     { label: "Size", icon: Ruler, value: <TaskSizeField task={task} /> },
     { label: "Epic", icon: MapIcon, value: epic && <span className="flex min-w-0 items-center gap-1.5">{epic.id && <span className="font-mono text-[11px] text-muted">{epic.id}</span>}<span className="truncate">{epic.title}</span></span> },
+    // R068: the epic scenarios this task covers (read-only; edit the **Covers:** line)
+    ...(task.covers?.length ? [{ label: "Covers", icon: ListChecks, value: (
+      <span className="flex flex-wrap gap-1">{task.covers.map((id) => <span key={id} className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted">{id}</span>)}</span>
+    ) }] : []),
   ]
 }
 

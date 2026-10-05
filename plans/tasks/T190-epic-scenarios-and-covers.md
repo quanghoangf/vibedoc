@@ -1,8 +1,11 @@
 # T190: Epic scenarios and task **Covers:**
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R068 — Scenarios as acceptance tests
 **Size:** M (2–3 hrs)
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 An epic can state its promise as numbered WHEN/THEN scenarios, a task can say which ones it covers, and the epic sheet shows both. Everything else in R068 reads these two things.
@@ -45,3 +48,14 @@ An epic can state its promise as numbered WHEN/THEN scenarios, a task can say wh
 node src/lib/scenarios.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai · Spec: `e2e/vibedoc/T190-epic-scenarios-and-covers.spec.ts` · Auto: passed 2026-10-05_
+### Steps
+- [x] 🤖 Open the epic on /roadmap → its sheet lists Scenarios S1 and S2, S2 covered by the task and S1 by none
+- [x] 🤖 Open the task → its panel shows a Covers row with S2
+- [x] 🤖 Rename the task → the panel shows the new title and still shows Covers S2
+- [ ] The Scenarios section on the epic sheet reads well (ids in mono, WHEN/THEN lines muted, amber "No task covers it") in dark and light
+- [ ] Rename a task through the panel's Edit form (not the API) → its `**Covers:**` line is still in the file
+### Regression risk
+- [ ] An epic without `## Scenarios` shows its sheet exactly as before (Tasks, Brief, footer buttons)

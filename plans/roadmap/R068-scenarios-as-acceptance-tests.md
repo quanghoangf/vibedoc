@@ -1,6 +1,6 @@
 # R068: Scenarios as acceptance tests
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 230
 **Tasks:** T190, T191, T192, T193
 

@@ -32,6 +32,7 @@ import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
+import { parseCovers, parseScenarios, type Scenario } from './scenarios'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
@@ -72,6 +73,8 @@ export interface Task {
   manualTests: { total: number; done: number; auto: number; untested: number; spec: string | null; autoRun: AutoRun | null } | null
   /** Newest recorded test run (R059), null when the task has none. `steps` / `passed` are counts. */
   lastRun: TaskLastRun | null
+  /** `**Covers:** S1, S3`: the epic scenarios this task covers (R068); [] when none */
+  covers: string[]
   /** The `## Verification` findings (R067); null when the task has none */
   verification: Verification | null
   file: string
@@ -598,7 +601,7 @@ function parseTaskFile(filePath: string, content: string, defs: StatusDef[]): Ta
 
   const tests = parseManualTests(content)
   const manualTests = tests && { total: tests.total, done: tests.done, auto: tests.auto, untested: untestedItems(tests).length, spec: tests.spec, autoRun: tests.autoRun }
-  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, lastRun: null, verification: parseVerification(content), file: filePath, raw: content }
+  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, lastRun: null, covers: parseCovers(meta['covers']), verification: parseVerification(content), file: filePath, raw: content }
 }
 
 export async function listTasks(root: string): Promise<{ tasks: Task[]; board: TaskBoard }> {
@@ -2734,6 +2737,7 @@ export interface RoadmapItem {
   owner: string | null  // "human" | "ai:<agent>" (R055)
   priority: Priority | null  // **Priority:** P0–P3
   specs: string[]       // **Specs:** capability slugs of docs/specs/<slug>.md (R066)
+  scenarios: Scenario[] // the body's ## Scenarios (R068)
   body: string          // markdown after the metadata block
   file: string          // path relative to root
 }
@@ -2866,6 +2870,7 @@ function parseRoadmapFile(file: string, content: string): RoadmapItem {
     owner: parseOwner(meta['owner']),
     priority: parsePriority(meta['priority']),
     specs: parseSpecSlugs(meta['specs']),
+    scenarios: parseScenarios(lines.slice(metaEnd).join('\n')),
     body: lines.slice(metaEnd).join('\n').trim(),
     file,
   }
@@ -2943,7 +2948,7 @@ export function createRoadmapItem(
 const roadmapId = (n: number) => `R${String(n).padStart(3, '0')}`
 
 /** Write a new R*.md (flag 'wx': never overwrites). Callers validate fields and mkdir first. */
-async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner' | 'priority' | 'specs'>): Promise<void> {
+async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner' | 'priority' | 'specs' | 'scenarios'>): Promise<void> {
   const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
   const filename = slug ? `${f.id}-${slug}.md` : `${f.id}.md`
   const lines = [

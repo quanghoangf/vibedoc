@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
+import { coverageOf } from "@/lib/scenarios"
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { useApp } from "@/context/AppContext"
@@ -169,6 +170,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
 
       <div className="flex flex-1 flex-col gap-6 px-6 py-5">
         {!isHorizon && item.tasks.length > 0 && <LinkedTasks item={item} tasksById={tasksById} onOpen={onEditRaw} />}
+        {!isHorizon && item.scenarios.length > 0 && <Scenarios item={item} tasksById={tasksById} onOpen={onEditRaw} />}
 
         {isHorizon && (
           <section className="flex flex-col gap-2">
@@ -386,6 +388,45 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
         </Button>
       </footer>
     </div>
+  )
+}
+
+/** R068: the epic's WHEN/THEN scenarios, each with the epic's tasks whose **Covers:** names it. */
+function Scenarios({ item, tasksById, onOpen }: {
+  item: RoadmapItem
+  tasksById: Record<string, Task>
+  onOpen: (file: string) => void
+}) {
+  const tasks = item.tasks.map((id) => tasksById[id]).filter((t): t is Task => !!t)
+  const covered = coverageOf(item.scenarios, tasks)
+  return (
+    <section aria-label="Scenarios" className="flex flex-col gap-2">
+      <p className={SECTION}>Scenarios · {item.scenarios.length}</p>
+      <ul className="flex flex-col gap-3">
+        {item.scenarios.map((sc) => (
+          <li key={sc.id} aria-label={`${sc.id} ${sc.name}`} className="flex flex-col gap-1">
+            <p className="flex items-baseline gap-2 text-sm">
+              <span className="shrink-0 font-mono text-[11px] text-muted">{sc.id}</span>
+              <span className="text-txt">{sc.name}</span>
+            </p>
+            {sc.text && <p className="whitespace-pre-wrap pl-7 text-xs text-muted">{sc.text}</p>}
+            <p className="flex flex-wrap items-center gap-1.5 pl-7 text-xs">
+              {covered[sc.id].length ? covered[sc.id].map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onOpen(tasksById[id].file)}
+                  title={tasksById[id].title}
+                  className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted hover:border-border2 hover:text-txt"
+                >
+                  {id}
+                </button>
+              )) : <span className="text-amber">No task covers it</span>}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
