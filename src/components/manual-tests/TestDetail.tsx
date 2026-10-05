@@ -184,6 +184,12 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
         />
       </header>
 
+      {/* The live Run strip shows in both views: a task in review opens on Evidence, where Run is pressed too */}
+      {showRun && (
+        <section aria-label="Live run" className="border-b border-border px-5 py-5 sm:px-7">
+          <RunLive run={showRun} began={testRun.began} ended={testRun.ended} unverified={row.unverified} onDismiss={() => setDismissed(showRun.startedAt)} />
+        </section>
+      )}
       {view === "evidence" ? (
         <section aria-label="Evidence" className="px-5 py-5 sm:px-7">
           <TestEvidence
@@ -196,11 +202,6 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
           />
         </section>
       ) : <>
-      {showRun && (
-        <section aria-label="Live run" className="border-b border-border px-5 py-5 sm:px-7">
-          <RunLive run={showRun} began={testRun.began} ended={testRun.ended} unverified={row.unverified} onDismiss={() => setDismissed(showRun.startedAt)} />
-        </section>
-      )}
       {!going && (
         <section aria-label="Run" className="border-b border-border px-5 py-5 sm:px-7">
           <RunPlayer key={task.id} taskId={task.id} latest={task.lastRun?.runId ?? null} />
