@@ -3,6 +3,7 @@
 **Status:** done
 **Order:** 70
 **Tasks:** T069, T070, T071, T072, T073
+**Specs:** memory
 
 People and agents can see how memory entries relate to each other and to tasks, epics and docs, which surfaces clusters and gaps. Speculative, based on Cognee and Graphiti.
 

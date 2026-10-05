@@ -1,8 +1,11 @@
 # T185: Dogfood one capability spec, e2e and docs
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R066 — Living capability specs
 **Size:** M (2–3 hrs)
 **Depends on:** T182, T184
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 R066 is proven on VibeDoc itself: one real capability has a reviewed spec, its epic points at it, and an agent claiming a task there sees the requirements.
@@ -41,3 +44,14 @@ node src/lib/specs.check.mts && node src/lib/doc-links.check.mts
 pnpm lint && pnpm build
 node e2e/specs.mjs
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Open /docs → docs/specs/memory.md shows the Capability spec chip; read it and confirm every requirement matches how memory behaves today (fix or delete any that don't) — this is the human review the epic's Done-when needs
+- [ ] Each requirement in docs/specs/memory.md has at least one WHEN/THEN scenario
+- [ ] Open /graph → memory.md is drawn as a hexagon under "Capability specs"
+- [ ] Ask an agent to call vibedoc_get_task T090 (R047) → the reply ends with `## Related spec` listing the memory requirements, without being told where to look
+- [ ] R045, R046, R047, R048 and R053 each have exactly one new `**Specs:** memory` line and nothing else changed
+### Regression risk
+- [ ] /roadmap still opens those five epics and their sheets show the same title, status and tasks

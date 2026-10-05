@@ -3,6 +3,7 @@
 **Status:** done
 **Order:** 50
 **Tasks:** T065, T066, T067, T068
+**Specs:** memory
 
 Agents pull only the memory relevant to the current task, so memory can grow without filling the context window. Based on claude-mem's approach: show a short index first, fetch full entries only on request (about 10× fewer tokens).
 

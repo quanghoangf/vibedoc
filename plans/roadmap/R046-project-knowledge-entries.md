@@ -3,6 +3,7 @@
 **Status:** done
 **Order:** 130
 **Tasks:** T086, T087, T088
+**Specs:** memory
 
 Facts that should outlast a session (conventions, gotchas, decisions, user preferences) live as separate entries next to the session handoff, so agents stop dropping them. Popular memory tools (mem0, grandma, Claude Code's own memory) all keep long-lived facts apart from session logs.
 

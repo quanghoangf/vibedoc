@@ -3,6 +3,7 @@
 **Status:** done
 **Order:** 140
 **Tasks:** T089, T090, T091, T092
+**Specs:** memory
 
 People can see and fix what agents remember without opening files, so bad memory gets corrected before it misleads the next session. Today the Memory tab only displays MEMORY.md.
 

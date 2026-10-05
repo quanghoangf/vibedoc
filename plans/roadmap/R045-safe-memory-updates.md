@@ -3,6 +3,7 @@
 **Status:** done
 **Order:** 120
 **Tasks:** T123, T124, T125, T126, T127
+**Specs:** memory
 
 When an agent writes its session handoff, the notes people wrote by hand stay put, and the previous version can be brought back. Today every update rewrites the whole MEMORY.md, so custom sections like conventions are lost.
 
