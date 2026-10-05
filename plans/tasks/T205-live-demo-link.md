@@ -13,6 +13,10 @@ From the landing page, a visitor opens the real VibeDoc board and roadmap (read-
 - The demo itself is R042's job: **T135** (paused) deploys `fly.toml` / `Dockerfile` (`VIBEDOC_DEMO=1`, `examples/demo-project`) to Fly.io. It needs the human's Fly.io account and their go-ahead to publish; this task starts only once T135 is done and its URL is known.
 - Fly machines sleep when idle (`auto_stop_machines`), so the first open can take a few seconds.
 
+## Design
+- Approved design: `site/design/landing.dc.html` (direction "C · Lab notebook"; section map, tokens and motion in `site/design/README.md`; canvas https://claude.ai/artifact/MMDG5yHgf63oS2dUcLS6nQ). Match its layout, copy, sizes and motion; it is a reference, not code to copy into Astro as is.
+- This task adds the "Open the live demo" button to the demo band built in T204 (not in the design yet: place it under the paragraph, styled like the hero's outline button on the dark band).
+
 ## Scope
 - [ ] "Open live demo" button next to the video, to `<demo url>/board`, and a secondary link to `/roadmap`
 - [ ] A short note that it is a read-only demo and may take a moment to wake

@@ -13,9 +13,14 @@ The site looks finished wherever it shows up (search, X, Slack), every visitor f
 - The docs site (R074) and changelog page (R075) don't exist yet: link the README docs section and `CHANGELOG.md` on GitHub for now, from one place (`site/src/data/links.ts`, created here if T205 hasn't).
 - `package.json` `homepage` shows on the npm page at the next publish.
 
+## Design
+- Approved design: `site/design/landing.dc.html` (direction "C · Lab notebook"; section map, tokens and motion in `site/design/README.md`; canvas https://claude.ai/artifact/MMDG5yHgf63oS2dUcLS6nQ). Match its layout, copy, sizes and motion; it is a reference, not code to copy into Astro as is.
+- This task builds: the live star count in the header's GitHub button, the dark closing call to action ("Give your agent a board, and yourself the proof." with Get started / Star on GitHub), and the footer with the GitHub icon.
+
 ## Scope
 - [ ] Header: GitHub link with the live star count (fetched from `api.github.com/repos/quanghoangf/vibedoc` in the browser; the link still works if the fetch fails)
-- [ ] Footer: GitHub, docs, changelog, npm, license; links from `links.ts`
+- [ ] Closing call-to-action band as in the design
+- [ ] Footer: GitHub (icon link with an `aria-label`), docs, changelog, npm, license; links from `links.ts`
 - [ ] Favicon + logo (from the app's logo tile, `DESIGN.md`), OpenGraph/Twitter image (1200×630, built once and committed), `og:` / `twitter:` meta, canonical URL, `sitemap.xml` and `robots.txt` (Astro sitemap integration)
 - [ ] `README.md`: a "Website" link/badge at the top; `package.json`: `homepage` → `https://quanghoangf.github.io/vibedoc/`
 - [ ] Playwright: footer links resolve (no 404 for internal ones), meta tags present, star count shows a number or falls back to "Star on GitHub"

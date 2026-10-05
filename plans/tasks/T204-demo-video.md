@@ -12,6 +12,10 @@ A visitor watches an agent's task move across the board in a short clip, without
 - Epic: `plans/roadmap/R071-landing-page.md`, scenario S2 (see it working).
 - VibeDoc already records video: the Playwright kit (`src/testing/playwright-fixture.ts`) saves a `.webm` per run. The read-only example project is `examples/demo-project` (`pnpm demo` serves it with `VIBEDOC_DEMO=1`), but a recording that shows a task moving needs a writable copy of it plus MCP calls that move the task while the board is open.
 
+## Design
+- Approved design: `site/design/landing.dc.html` (direction "C · Lab notebook"; section map, tokens and motion in `site/design/README.md`; canvas https://claude.ai/artifact/MMDG5yHgf63oS2dUcLS6nQ). Match its layout, copy, sizes and motion; it is a reference, not code to copy into Astro as is.
+- This task builds: the dark demo band ("14 seconds, unedited", heading, paragraph, the video). A draft clip already exists: `site/public/demo.webm`, recorded with `site/scripts/record-demo.mjs`; finish the script and the encodes rather than starting over.
+
 ## Scope
 - [ ] A script `site/scripts/record-demo.mjs` that copies `examples/demo-project` to a temp folder, starts VibeDoc on it, opens the board in Playwright with video on, and drives a short story through `/api/mcp` (claim a task → in progress → done with a checklist) so the card visibly moves; 15–30 seconds
 - [ ] Encode to `site/public/demo.mp4` (H.264) + `demo.webm` + a poster frame (ffmpeg); keep the mp4 under ~4 MB

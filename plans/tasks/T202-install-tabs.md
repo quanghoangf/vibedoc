@@ -13,10 +13,15 @@ A visitor picks how they install tools and copies the exact command in one click
 - Channels that work today with the published `vibedoc` package: `npx vibedoc`, `npm install -g vibedoc`, `pnpm add -g vibedoc`, `bun add -g vibedoc` (then run `vibedoc`). Homebrew (R072) and the AI-assistant prompt (R073) are not shipped yet.
 - OpenSpec's site does the same with one tab per package manager.
 
+## Design
+- Approved design: `site/design/landing.dc.html` (direction "C · Lab notebook"; section map, tokens and motion in `site/design/README.md`; canvas https://claude.ai/artifact/MMDG5yHgf63oS2dUcLS6nQ). Match its layout, copy, sizes and motion; it is a reference, not code to copy into Astro as is.
+- This task builds: the install box in the hero (tabs, dark command block, Copy, the note line under it) and the "Running in a minute" section (three cards: start VibeDoc, connect over MCP, add the plugin).
+
 ## Scope
 - [ ] `site/src/data/install.ts`: one entry per channel `{ id, label, command, note? }`; the tab list renders from it, so R072/R073 add Homebrew / the prompt by adding an entry
 - [ ] Accessible tabs (`role=tablist`, arrow keys move between tabs), the selected tab's command with the copy button from T201, and a one-line note under global installs ("then run `vibedoc` in your project")
 - [ ] The chosen tab is remembered for the page view only (no storage needed)
+- [ ] "Running in a minute" section: three cards with `npx vibedoc`, the MCP `url` snippet and the two `/plugin` lines, as in the design
 - [ ] Playwright: each tab copies its own command
 
 **Out of scope:** Homebrew and AI-assistant entries (R072, R073), analytics on copies (R077).
@@ -31,6 +36,7 @@ A visitor picks how they install tools and copies the exact command in one click
 - [ ] Each of the four tabs shows and copies exactly its command; the button confirms "Copied"
 - [ ] Tabs work with the keyboard (Tab into the list, arrows switch, Enter/Space copy)
 - [ ] Adding a channel is one new entry in `install.ts` (no markup change)
+- [ ] The three install cards show the exact commands from the design
 
 ## Verify
 ```bash

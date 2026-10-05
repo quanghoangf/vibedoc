@@ -2,7 +2,7 @@
 **Status:** 📋 Todo
 **Phase:** R071 — Landing page
 **Size:** M (2–3 hrs)
-**Depends on:** T202, T203, T204, T205, T206
+**Depends on:** T202, T203, T204, T205, T206, T208
 **Covers:** S1, S2, S3
 
 ## Goal
@@ -12,6 +12,10 @@ The landing page is polished enough to be the project's front door, and the epic
 - Epic: `plans/roadmap/R071-landing-page.md` (Done when: README and npm link to the site; a visitor can copy an install command and open the live demo from the first screen).
 - Design language and anti-patterns: `DESIGN.md` (Do / Don't), `PRODUCT.md`. The `impeccable` skill's critique is the review tool.
 - This task only fixes what the review finds and checks the whole page; each section's own tests already landed with its task.
+
+## Design
+- Approved design: `site/design/landing.dc.html` (direction "C · Lab notebook"; section map, tokens and motion in `site/design/README.md`; canvas https://claude.ai/artifact/MMDG5yHgf63oS2dUcLS6nQ). Match its layout, copy, sizes and motion; it is a reference, not code to copy into Astro as is.
+- The review compares the deployed page with the design section by section (`site/design/README.md` lists them) and with `DESIGN.md`; differences that are improvements are fine, but say so in the report.
 
 ## Scope
 - [ ] Critique the deployed page against `DESIGN.md`: hierarchy of the first screen, typography, spacing, contrast (WCAG AA), motion (respects reduced motion), phone (390px) and desktop; fix the findings
