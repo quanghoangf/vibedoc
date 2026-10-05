@@ -1,8 +1,11 @@
 # T197: Spec changes e2e, docs and planning skills
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R069 — Spec changes on epics
 **Size:** S (~1 hr)
 **Depends on:** T195, T196
+**Owner:** ai:claude-code
+**Due:** 2026-10-06
+**Started:** 2026-10-05
 
 ## Goal
 The delta flow is tested end to end, and the planning skills write `## Spec changes` so agents produce deltas without being asked.
@@ -31,3 +34,12 @@ node src/lib/specs.check.mts && node src/lib/roadmap-health.check.mts
 pnpm lint && pnpm build
 node e2e/spec-changes.mjs
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] In the agent chat, run /roadmap-planner on a change to memory → the proposed epic body has a `## Spec changes` / `### memory` section with ADDED / MODIFIED requirements
+- [ ] Run /epic-breakdown on an epic with `## Spec changes` → every changed requirement is covered by a task, and no task edits docs/specs/
+- [ ] MEMORY.md has the "Spec changes on epics (R069)" Key conventions line; CLAUDE.md lists docs/specs/ writes on merge and the `**Spec merged:**` line
+### Regression risk
+- [ ] /roadmap-planner and /epic-breakdown in the chat still propose plans as before for epics without spec changes

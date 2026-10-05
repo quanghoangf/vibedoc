@@ -53,6 +53,7 @@ Read the context that grounds the questions. Every question should come from som
 - `CLAUDE.md` / `AGENTS.md`, plus architecture docs that touch this area. These give the rules the tasks must obey: layers, banned patterns, required commands.
 - **The code the epic will touch.** Find the existing modules, routes, components and data files in this area, and how a similar feature was built before. Delegate a broad sweep to an Explore agent if the area is large. You need concrete file paths and patterns to reuse, not a full audit.
 - Existing `plans/tasks/` files, to see the numbering, the format, and work that may overlap.
+- The epic's `## Spec changes`, if any (ADDED / MODIFIED / REMOVED / RENAMED requirements of a capability spec): they are scope. Every changed requirement is built by some task, and its scenarios become acceptance criteria. Read the current spec (`vibedoc_get_spec`) to see what changes. When the epic changes a capability that has a spec but has no `## Spec changes`, offer to write them first. Don't edit `docs/specs/` in a task: the human merges the epic's changes when it is done.
 
 ## 3. Interview
 

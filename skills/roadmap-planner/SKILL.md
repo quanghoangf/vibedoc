@@ -104,6 +104,25 @@ An epic may also state its promise as numbered scenarios, after the body. They b
 - THEN <what they observe>
 ```
 
+When an epic changes what an existing capability does and that capability has a spec (`docs/specs/<capability>.md`; `vibedoc_list_specs` lists them), also say how, so the spec can be updated when the epic is done. Requirements here use `####` and their scenarios `#####`; a MODIFIED requirement carries its full new text and scenarios, a REMOVED one the reason, a RENAMED one only its heading:
+
+```
+## Spec changes
+### <capability>
+#### ADDED Requirement: <name>
+The system SHALL <new observable behaviour>.
+##### Scenario: <case>
+- WHEN …
+- THEN …
+#### MODIFIED Requirement: <existing name>
+<the full new requirement text and scenarios>
+#### REMOVED Requirement: <existing name>
+<why>
+#### RENAMED Requirement: <old name> → <new name>
+```
+
+When the epic is done, a person merges these into the spec from the epic sheet (one diff, Accept). Agents never write the spec for it.
+
 Horizons get a one-line body that describes the phase, e.g. "What we're building right now to reach first paying teams."
 
 **In the VibeDoc chat** (you have `vibedoc_propose_plan`): don't write anything yourself. Put all horizons and epics (`kind: "roadmap"`) in one `vibedoc_propose_plan` call. The user's Accept writes them, so skip the rest of this step.
