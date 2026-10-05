@@ -43,6 +43,7 @@
     "src/lib/manual-tests.ts",
     "src/lib/evidence.ts",
     "src/lib/honesty.ts",
+    "src/lib/task-map.ts",
     "docs/getting-started.md",
     "next.config.js",
     "ws-server.js",

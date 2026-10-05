@@ -7,10 +7,14 @@
 /** Must match the prefix in src/testing/vibedoc-reporter.ts (kept standalone: Playwright loads it on its own). */
 export const RUN_LINE_PREFIX = '@@vibedoc '
 
+/** R064: where an event comes from in a suite (spec path relative to the Playwright cwd, and its task). */
+export type EventSource = { file?: string; taskId?: string | null }
 export type RunEvent =
   | { type: 'begin'; tests: number }
-  | { type: 'step-begin'; index: number; name: string }
-  | { type: 'step-end'; index: number; name: string; status: 'passed' | 'failed'; error: string | null }
+  | ({ type: 'test-begin'; title: string } & EventSource)
+  | ({ type: 'test-end'; title: string; status: string } & EventSource)
+  | ({ type: 'step-begin'; index: number; name: string } & EventSource)
+  | ({ type: 'step-end'; index: number; name: string; status: 'passed' | 'failed'; error: string | null } & EventSource)
   | { type: 'end'; status: string }
 
 export type RunStepState = { index: number; name: string; status: 'running' | 'passed' | 'failed'; error: string | null }
@@ -62,10 +66,17 @@ export function parseRunLine(line: string): RunEvent | null {
   if (at < 0) return null
   try {
     const e = JSON.parse(line.slice(at + RUN_LINE_PREFIX.length))
+    const from: EventSource = {
+      ...(typeof e?.file === 'string' ? { file: e.file } : {}),
+      ...(typeof e?.taskId === 'string' || e?.taskId === null ? { taskId: e.taskId } : {}),
+    }
     if (e?.type === 'begin' && Number.isInteger(e.tests)) return { type: 'begin', tests: e.tests }
-    if (e?.type === 'step-begin' && Number.isInteger(e.index) && typeof e.name === 'string') return { type: e.type, index: e.index, name: e.name }
+    if ((e?.type === 'test-begin' || e?.type === 'test-end') && typeof e.title === 'string') {
+      return e.type === 'test-begin' ? { type: e.type, title: e.title, ...from } : { type: e.type, title: e.title, status: String(e.status), ...from }
+    }
+    if (e?.type === 'step-begin' && Number.isInteger(e.index) && typeof e.name === 'string') return { type: e.type, index: e.index, name: e.name, ...from }
     if (e?.type === 'step-end' && Number.isInteger(e.index) && typeof e.name === 'string' && (e.status === 'passed' || e.status === 'failed'))
-      return { type: e.type, index: e.index, name: e.name, status: e.status, error: typeof e.error === 'string' ? e.error : null }
+      return { type: e.type, index: e.index, name: e.name, status: e.status, error: typeof e.error === 'string' ? e.error : null, ...from }
     if (e?.type === 'end' && typeof e.status === 'string') return { type: 'end', status: e.status }
   } catch {
     // a log line that happens to contain the prefix
@@ -76,6 +87,7 @@ export function parseRunLine(line: string): RunEvent | null {
 export function applyEvent(s: RunState, e: RunEvent): RunState {
   if (e.type === 'begin') return { ...s, tests: e.tests }
   if (e.type === 'end') return { ...s, result: e.status }
+  if (e.type === 'test-begin' || e.type === 'test-end') return s // a single-task run reads its steps; suites use these (T173)
   const steps = s.steps.filter(x => x.index !== e.index)
   steps.push(e.type === 'step-begin'
     ? { index: e.index, name: e.name, status: 'running', error: null }

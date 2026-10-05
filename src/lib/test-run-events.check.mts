@@ -62,4 +62,12 @@ assert.equal(specInApp('/etc/x.spec.ts', '.'), null)
   assert.equal(finishChecking(checking, { cancelled: true, blankEvents: blank, now: 'm' }).state, 'cancelled')
   assert.equal(passed.blankPassed, null)
 }
+// R064: suite fields ride along; test-begin/test-end parse and leave a single-task state alone
+{
+  assert.deepEqual(parseRunLine(line({ type: 'step-begin', index: 1, name: 'Open', file: 'e2e/a.spec.ts', taskId: 'T138' })), { type: 'step-begin', index: 1, name: 'Open', file: 'e2e/a.spec.ts', taskId: 'T138' })
+  assert.deepEqual(parseRunLine(line({ type: 'test-end', title: 'T138', status: 'passed', file: 'e2e/a.spec.ts', taskId: null })), { type: 'test-end', title: 'T138', status: 'passed', file: 'e2e/a.spec.ts', taskId: null })
+  assert.deepEqual(parseRunLine(line({ type: 'test-begin', title: 'x' })), { type: 'test-begin', title: 'x' })
+  const t = parseRunLine(line({ type: 'test-begin', title: 'x', file: 'e2e/a.spec.ts', taskId: 'T1' }))!
+  assert.equal(applyEvent(t0, t), t0)
+}
 console.log('ok test-run-events')

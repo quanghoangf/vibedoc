@@ -30,6 +30,7 @@ import { parseKeep, planPrune } from '../lib/runs-retention.js'
 import { parseManualTests } from '../lib/manual-tests.js'
 import { formatEvidence } from '../lib/evidence.js'
 import { isPageSubject, stepVerdict } from '../lib/honesty.js'
+import { parseTaskMap, taskForFile } from '../lib/task-map.js'
 
 import type { RunManifest, RunStep } from '../lib/runs-paths.js'
 export type { RunManifest, RunStep }
@@ -163,8 +164,10 @@ function writeEvidence(run: Run): void {
 export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: Run; step: Step }>({
   vibedocTask: [undefined, { option: true }],
 
-  vibedocRun: async ({ vibedocTask }, provide) => {
-    const taskId = vibedocTask || process.env.VIBEDOC_TASK_ID || 'no-task'
+  vibedocRun: async ({ vibedocTask }, provide, testInfo) => {
+    // The spec's own vibedocTask, else its entry in VIBEDOC_TASK_MAP (a suite: many tasks, one process), else the env
+    const fallback = process.env.VIBEDOC_TASK_ID || 'no-task'
+    const taskId = vibedocTask || taskForFile(parseTaskMap(process.env.VIBEDOC_TASK_MAP), path.relative(process.cwd(), testInfo.file), fallback)
     const project = projectKey(projectRoot())
     if (BLANK) {
       const dir = mkdtempSync(path.join(os.tmpdir(), 'vibedoc-blank-'))

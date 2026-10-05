@@ -1,8 +1,12 @@
 # T172: One Playwright process, many tasks: route each test's run to its task
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R064 — Regression suite
 **Size:** M
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 A single `playwright test a.spec.ts b.spec.ts …` call records each spec's run (screenshots, video, run.json, EVIDENCE.md) under the task that owns it, and the reporter's live events say which task they belong to. This is what the suite runner builds on.
@@ -46,3 +50,13 @@ node src/lib/task-map.check.mts && node src/lib/test-run-events.check.mts
 pnpm build:playwright && pnpm lint && pnpm build
 VIBEDOC_RUNS_DIR=$(mktemp -d) VIBEDOC_TASK_MAP='{"e2e/fixtures/capture-demo.spec.ts":"T138"}' npx playwright test e2e/fixtures/capture-demo.spec.ts --reporter=list,./src/testing/vibedoc-reporter.ts
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] `VIBEDOC_RUNS_DIR=$(mktemp -d) VIBEDOC_TASK_MAP='{"e2e/fixtures/capture-demo.spec.ts":"T138","e2e/vibedoc/T155-evidence-tab-in-test-review.spec.ts":"T155"}' npx playwright test e2e/fixtures/capture-demo.spec.ts e2e/vibedoc/T155-evidence-tab-in-test-review.spec.ts --reporter=list,./src/testing/vibedoc-reporter.ts` → 2 passed; the runs dir has a new run + EVIDENCE.md under both T138/ and T155/, nothing under no-task/
+- [ ] In that output every `@@vibedoc` step line carries `file` and `taskId`, each test has test-begin / test-end with its status, and step `index` restarts at 1 per test
+- [ ] A map key written as `./e2e/...` or with backslashes still matches
+### Regression risk
+- [ ] A single-task run (`VIBEDOC_TASK_ID=T138`, no map) records under T138 as before, and Run tests on /manual-tests still streams steps and passes (agent checked T155: 5/5)
+- [ ] A spec's own `test.use({ vibedocTask })` still wins over the map
