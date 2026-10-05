@@ -1,7 +1,7 @@
 # R025: vibedoc --version flag
 **Parent:** R002
-**Status:** planned
+**Status:** done
 **Order:** 30
-**Tasks:** —
+**Tasks:** T136, T137
 
 Show the installed version from the CLI.

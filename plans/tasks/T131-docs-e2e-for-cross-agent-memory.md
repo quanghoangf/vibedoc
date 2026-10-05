@@ -1,8 +1,12 @@
 # T131: Docs + e2e for cross-agent memory
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R052 — Cross-agent memory
 **Size:** M
 **Depends on:** T129, T130
+**Owner:** human
+**Due:** 2026-10-07
+**Started:** 2026-10-04
+**Done:** 2026-10-04
 
 ## Goal
 The epic's Done-when is proven end to end: Claude Code memory imported into entries ends up in `AGENTS.md`, where Cursor reads it. Agents and people can also read how import and export work.

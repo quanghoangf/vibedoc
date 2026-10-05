@@ -1,8 +1,8 @@
 # R042: Demo & docs site
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 100
-**Tasks:** —
+**Tasks:** T132, T133, T134, T135
 
 Give newcomers a place to see VibeDoc working in 30 seconds before they install it, to lift npm installs and GitHub stars.
 

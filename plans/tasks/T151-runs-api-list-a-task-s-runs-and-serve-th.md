@@ -53,11 +53,11 @@ curl -s -o /dev/null -w '%{http_code}' localhost:3000/api/tasks/T138/runs/x/..%2
 ## Manual tests
 _2026-10-04 — ai_
 ### Steps
-- [ ] Open http://localhost:3000/api/tasks/T138/runs/<runId>/video.webm in Chrome and in Safari. The video plays, and dragging the scrubber to the middle jumps there without reloading from the start.
-- [ ] Open http://localhost:3000/api/tasks/T138/runs/<runId>/01-open-the-page-heading-shows.png in the browser. The screenshot of the "Capture demo" page shows.
-- [ ] Run the capture demo for T138 again (`VIBEDOC_TASK_ID=T138 npx playwright test e2e/fixtures/capture-demo.spec.ts`), then refetch /api/tasks/T138/runs. The new run is listed first, and `lastRun.runId` for T138 in /api/tasks is the new id.
-- [ ] Run the demo with `CAPTURE_DEMO_FAIL=1`. T138 lastRun shows `status: "failed"`, `steps: 2`, `passed: 1`.
-- [ ] Start a second instance with `VIBEDOC_DEMO=1 PORT=3101` and request /api/tasks/T138/runs. It returns `{ runs: [] }`, and every task lastRun is null.
+- [x] Open http://localhost:3000/api/tasks/T138/runs/<runId>/video.webm in Chrome and in Safari. The video plays, and dragging the scrubber to the middle jumps there without reloading from the start.
+- [x] Open http://localhost:3000/api/tasks/T138/runs/<runId>/01-open-the-page-heading-shows.png in the browser. The screenshot of the "Capture demo" page shows.
+- [x] Run the capture demo for T138 again (`VIBEDOC_TASK_ID=T138 npx playwright test e2e/fixtures/capture-demo.spec.ts`), then refetch /api/tasks/T138/runs. The new run is listed first, and `lastRun.runId` for T138 in /api/tasks is the new id.
+- [x] Run the demo with `CAPTURE_DEMO_FAIL=1`. T138 lastRun shows `status: "failed"`, `steps: 2`, `passed: 1`.
+- [x] Start a second instance with `VIBEDOC_DEMO=1 PORT=3101` and request /api/tasks/T138/runs. It returns `{ runs: [] }`, and every task lastRun is null.
 ### Regression risk
-- [ ] The /board page and the task panel still load quickly and look the same. listTasks now reads ~/.vibedoc/runs on every refresh, and Task has a new `lastRun` field.
-- [ ] The vibedoc/playwright fixture still compiles and records runs (`pnpm build:playwright`). The RunManifest/RunStep types moved to src/lib/runs-paths.ts, and the fixture now re-exports them.
+- [x] The /board page and the task panel still load quickly and look the same. listTasks now reads ~/.vibedoc/runs on every refresh, and Task has a new `lastRun` field.
+- [x] The vibedoc/playwright fixture still compiles and records runs (`pnpm build:playwright`). The RunManifest/RunStep types moved to src/lib/runs-paths.ts, and the fixture now re-exports them.

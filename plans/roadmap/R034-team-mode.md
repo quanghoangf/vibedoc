@@ -1,6 +1,6 @@
 # R034: Team mode
 **Parent:** R004
-**Status:** planned
+**Status:** paused
 **Order:** 30
 **Tasks:** —
 

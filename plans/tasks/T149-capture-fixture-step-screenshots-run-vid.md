@@ -78,3 +78,9 @@ _2026-10-04 — ai_
 - [ ] `pnpm install` on a clean checkout shows no peer-dependency warning for @playwright/test, and `pnpm dev` still starts.
 - [ ] `git status` after a Playwright run or `build:playwright` shows no `test-results/` or `dist/` (both gitignored).
 - [ ] `prepublishOnly` now also runs `build:playwright`: a release build still publishes.
+
+## Review
+### 2026-10-04T15:00:47Z — changes requested
+The last run failed at step 2: Click the button → it reads Clicked
+Expected: "Nope"
+Received: "Clicked"

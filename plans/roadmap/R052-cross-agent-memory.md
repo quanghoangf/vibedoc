@@ -1,8 +1,8 @@
 # R052: Cross-agent memory
 **Parent:** R004
-**Status:** planned
+**Status:** done
 **Order:** 60
-**Tasks:** —
+**Tasks:** T128, T129, T130, T131
 
 One project memory works for every coding agent the developer uses, so switching tools doesn't mean starting over. Based on OpenMemory's portable context.
 

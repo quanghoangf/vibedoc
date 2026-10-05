@@ -1,6 +1,6 @@
 # R027: Plugin system
 **Parent:** R003
-**Status:** planned
+**Status:** paused
 **Order:** 10
 **Tasks:** —
 
