@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** planned
 **Order:** 270
-**Tasks:** —
+**Tasks:** T210
 
 Users and evaluators find how to start, how VibeDoc thinks and every MCP tool in one simple, searchable place instead of a long README.
 

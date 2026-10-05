@@ -43,6 +43,7 @@ test.describe('install (T202)', () => {
     ['npm', 'npm install -g vibedoc'],
     ['pnpm', 'pnpm add -g vibedoc'],
     ['bun', 'bun add -g vibedoc'],
+    ['Homebrew', 'brew install quanghoangf/vibedoc/vibedoc'],
   ] as const
 
   test('S1: each tab shows and copies exactly its command', async ({ page, context }) => {
@@ -69,7 +70,7 @@ test.describe('install (T202)', () => {
     await expect(tabs.getByRole('tab', { name: 'npm', exact: true })).toBeFocused()
     await expect(tabs.getByRole('tab', { name: 'npm', exact: true })).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('End')
-    await expect(tabs.getByRole('tab', { name: 'bun', exact: true })).toBeFocused()
+    await expect(tabs.getByRole('tab', { name: 'Homebrew', exact: true })).toBeFocused()
     await page.keyboard.press('ArrowRight')
     await expect(tabs.getByRole('tab', { name: 'npx', exact: true })).toBeFocused()
     // Tab leaves the list for the selected panel's Copy button

@@ -1,8 +1,8 @@
 # R072: Install channels
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 250
-**Tasks:** —
+**Tasks:** T209
 
 People install VibeDoc the way they already install tools, not only with npx, so it feels like a first-class CLI on every machine.
 

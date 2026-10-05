@@ -13,6 +13,17 @@ npx vibedoc
 
 VibeDoc picks a free port, prints the URL in the terminal and opens the setup wizard (`/setup`) in your browser. The wizard can generate starter docs such as `CLAUDE.md`. It is optional: to skip it, click **Board** in the sidebar. Pin the port with `npx vibedoc --port 3333`.
 
+To keep a `vibedoc` command instead of `npx`, install it once with any of these (Homebrew brings its own Node):
+
+| Channel | Install | Update | Uninstall |
+|---------|---------|--------|-----------|
+| npm | `npm install -g vibedoc` | `npm install -g vibedoc@latest` | `npm uninstall -g vibedoc` |
+| pnpm | `pnpm add -g vibedoc` | `pnpm add -g vibedoc@latest` | `pnpm remove -g vibedoc` |
+| bun | `bun add -g vibedoc` | `bun add -g vibedoc@latest` | `bun remove -g vibedoc` |
+| Homebrew | `brew install quanghoangf/vibedoc/vibedoc` | `brew upgrade vibedoc` | `brew uninstall vibedoc` |
+
+Then run `vibedoc` in your project. `vibedoc --version` shows which version you have; every channel serves the same one.
+
 ## 2. Point it at a project
 
 VibeDoc reads the folder you start it in. To use another folder:

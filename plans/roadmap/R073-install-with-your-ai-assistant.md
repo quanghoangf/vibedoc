@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** planned
 **Order:** 260
-**Tasks:** —
+**Tasks:** T211
 
 A user pastes one prompt into Claude Code, Cursor or another agent and it installs VibeDoc, connects it and reports back, so setup takes no reading at all.
 

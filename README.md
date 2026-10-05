@@ -31,6 +31,19 @@ npx vibedoc
 VibeDoc picks a free port automatically and opens the setup page in your browser.  
 The port is printed in the terminal — use it when configuring your AI agent.
 
+### Install it
+
+`npx vibedoc` needs no install. To keep a `vibedoc` command on your machine, pick one:
+
+| Channel | Install | Update | Uninstall |
+|---------|---------|--------|-----------|
+| npm | `npm install -g vibedoc` | `npm install -g vibedoc@latest` | `npm uninstall -g vibedoc` |
+| pnpm | `pnpm add -g vibedoc` | `pnpm add -g vibedoc@latest` | `pnpm remove -g vibedoc` |
+| bun | `bun add -g vibedoc` | `bun add -g vibedoc@latest` | `bun remove -g vibedoc` |
+| Homebrew (macOS, Linux) | `brew install quanghoangf/vibedoc/vibedoc` | `brew upgrade vibedoc` | `brew uninstall vibedoc` |
+
+Every channel serves the same version: each release publishes to npm and updates the Homebrew tap. Check with `vibedoc --version`.
+
 ### Options
 
 ```bash
