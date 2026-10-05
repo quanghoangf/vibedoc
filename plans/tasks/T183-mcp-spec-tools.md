@@ -1,11 +1,12 @@
 # T183: MCP vibedoc_list_specs / vibedoc_get_spec and the epic specs param
-**Status:** 👀 Review
+**Status:** ✅ Done
 **Phase:** R066 — Living capability specs
 **Size:** S (~1 hr)
 **Depends on:** T181
 **Owner:** ai:claude-code
 **Due:** 2026-10-06
 **Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 An agent can find and read specs on purpose (not only through Related spec), and can link an epic to its specs without editing the file by hand.
@@ -48,3 +49,6 @@ _2026-10-05 — ai_
 - [ ] vibedoc_update_roadmap_item with an unknown slug → refused, listing the known slugs, file unchanged
 ### Regression risk
 - [ ] Editing an epic on /roadmap (title, status, due, priority) still saves, and leaves a `**Specs:**` line in place
+
+## Review
+### 2026-10-05T05:47:38Z — approved

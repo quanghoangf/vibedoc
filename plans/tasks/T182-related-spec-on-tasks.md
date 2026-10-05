@@ -1,11 +1,12 @@
 # T182: "## Related spec" on vibedoc_get_task and vibedoc_next_task
-**Status:** 👀 Review
+**Status:** ✅ Done
 **Phase:** R066 — Living capability specs
 **Size:** M (2–3 hrs)
 **Depends on:** T181
 **Owner:** ai:claude-code
 **Due:** 2026-10-08
 **Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 An agent that reads or claims a task sees the requirements of the capability it is about to change, without being told where to look. This is the epic's main "Done when".
@@ -58,3 +59,6 @@ _2026-10-05 — ai_
 ### Regression risk
 - [ ] Edit the epic on /roadmap (status, due) → the `**Specs:**` line is still in its R*.md file
 - [ ] In a project with no docs/specs folder, vibedoc_get_task output is the same as before (task file + Related memory only)
+
+## Review
+### 2026-10-05T05:46:51Z — approved

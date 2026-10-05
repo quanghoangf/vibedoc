@@ -1,11 +1,12 @@
 # T181: Spec format: parser, 'spec' kind in docs and graph, template
-**Status:** 👀 Review
+**Status:** ✅ Done
 **Phase:** R066 — Living capability specs
 **Size:** M (2–3 hrs)
 **Depends on:** —
 **Owner:** ai:claude-code
 **Due:** 2026-10-08
 **Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 A capability spec is a recognised kind of doc: the user creates one from a template, it reads as a spec in /docs and /graph, and VibeDoc can parse its requirements and scenarios. Every later R066 task builds on this parser.
@@ -62,3 +63,8 @@ _2026-10-05 — ai · Spec: `e2e/vibedoc/T181-spec-format-parser-kind-template.s
 ### Regression risk
 - [ ] /graph labels and the selected-file card still show ids for tasks/epics/entries/ADRs and no id for plain docs
 - [ ] Clicking a doc link inside a doc still opens it in /docs (and a task link still opens the board panel)
+
+## Review
+### 2026-10-05T05:47:31Z — approved
+Run 20261005T050801Z
+All 3 steps reviewed
