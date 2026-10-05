@@ -134,6 +134,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Saving a chat is this tab's own bookkeeping, not a project change: don't flash "live update"
         if (msg.type === "chat_saved") return
         // R061: a Run's steps stream in (no flash); its end leaves a new run on disk, so reload the board's lastRun
+        // R064: the same for the suite; each task's result arrives as task_updated, the final state refreshes too
+        if (msg.type === "suite_run") {
+          const phase = msg.payload?.suite?.state
+          if (phase && phase !== "starting" && phase !== "running") refresh()
+          return
+        }
         if (msg.type === "test_run") {
           const phase = msg.payload?.state?.state
           if (phase && phase !== "starting" && phase !== "running") refresh()

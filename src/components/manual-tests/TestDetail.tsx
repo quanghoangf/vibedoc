@@ -12,6 +12,7 @@ import { RunPlayer } from "./RunPlayer"
 import { TestEvidence, UnverifiedChip } from "./TestEvidence"
 import { RunLive } from "./RunLive"
 import { useTestRun } from "./useTestRun"
+import { useSuiteRun } from "./useSuiteRun"
 import { isRunning } from "@/lib/test-run-events"
 import type { ManualTestItem, ManualTests } from "@/lib/manual-tests"
 import { outstanding, sendBackNote, stepParts, type ReviewRow } from "@/lib/test-review"
@@ -64,7 +65,8 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
   const mine = testRun.run?.taskId === task.id ? testRun.run : null
   const going = isRunning(mine)
   const showRun = mine && mine.startedAt !== dismissed ? mine : null
-  const otherRun = testRun.busy && !mine ? testRun.run!.taskId : null
+  const suiteRun = useSuiteRun()
+  const otherRun = suiteRun.busy ? "The suite" : testRun.busy && !mine ? testRun.run!.taskId : null
   // A run in progress re-proves the automated items: until it ends, only its live results count
   const proven = row.auto.result === "passed" && !row.unverified && !going
   const liveStatus = (item: ManualTestItem) => mine?.steps.find((s) => s.name.trim().replace(/\s+/g, " ") === item.text.trim().replace(/\s+/g, " "))?.status

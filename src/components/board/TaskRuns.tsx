@@ -9,6 +9,7 @@ import { timeAgo } from "@/components/activity/ActivityEventRow"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import type { RunManifest, RunStep } from "@/lib/runs-paths"
 import { useTestRun } from "@/components/manual-tests/useTestRun"
+import { useSuiteRun } from "@/components/manual-tests/useSuiteRun"
 import { isRunning } from "@/lib/test-run-events"
 
 /**
@@ -21,7 +22,8 @@ export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string;
   // R061: Run / Stop this task's spec; while it runs, one live line replaces the picked run
   const testRun = useTestRun()
   const live = testRun.run?.taskId === taskId && isRunning(testRun.run) ? testRun.run : null
-  const otherRun = testRun.busy && !live ? testRun.run!.taskId : null
+  const suiteRun = useSuiteRun()
+  const otherRun = suiteRun.busy ? "The suite" : testRun.busy && !live ? testRun.run!.taskId : null
   const current = live?.steps.at(-1)
   const [runs, setRuns] = useState<RunManifest[] | null>(null)
   const [picked, setPicked] = useState<string | null>(null)

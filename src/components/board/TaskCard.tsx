@@ -11,6 +11,7 @@ import { TaskDueField, TaskOwnerField, TaskSizeField } from "./TaskFields"
 import { toast } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
 import { useTestRun } from "@/components/manual-tests/useTestRun"
+import { useSuiteRun } from "@/components/manual-tests/useSuiteRun"
 import { isRunning } from "@/lib/test-run-events"
 import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
@@ -165,7 +166,8 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
 function CardRun({ taskId }: { taskId: string }) {
   const testRun = useTestRun()
   const running = testRun.run?.taskId === taskId && isRunning(testRun.run)
-  const other = testRun.busy && !running ? testRun.run!.taskId : null
+  const suiteRun = useSuiteRun()
+  const other = suiteRun.busy ? "The suite" : testRun.busy && !running ? testRun.run!.taskId : null
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
   return (
     <button

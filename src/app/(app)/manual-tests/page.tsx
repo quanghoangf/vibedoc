@@ -9,6 +9,7 @@ import { REVIEW_TABS, filterRows, selectionLabel, sortRows, toRow, type ReviewRo
 import { shouldHandleShortcut } from "@/lib/shortcuts"
 import { timeAgo } from "@/components/activity/ActivityEventRow"
 import { TestDetail, type DetailView } from "@/components/manual-tests/TestDetail"
+import { SuiteTab } from "@/components/manual-tests/SuiteTab"
 import { TestBulkBar } from "@/components/manual-tests/TestBulkBar"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/types"
@@ -46,6 +47,8 @@ function TestReview() {
   const router = useRouter()
   const params = useSearchParams()
   const tab = (REVIEW_TABS as string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as ReviewTab) : "needs"
+  // R064: the regression suite has its own tab instead of the task list
+  const suiteTab = params.get("tab") === "suite"
   const epic = params.get("epic")
   const [q, setQ] = useState(params.get("q") ?? "")
   const [pending, setPending] = useState<Pending>({})
@@ -92,6 +95,8 @@ function TestReview() {
   }))), [tasks, checkedOf])
 
   const shown = filterRows(rows, tab, epic, q)
+  const doneTasks = board ? Object.values(board).flat().filter((t) => t.status === "done") : []
+  const suiteSpecs = doneTasks.filter((t) => t.manualTests?.spec).length
   const counts = Object.fromEntries(REVIEW_TABS.map((t) => [t, filterRows(rows, t, epic, q).length])) as Record<ReviewTab, number>
   const epics = useMemo(() => [...new Map(rows.filter((r) => r.epic.id).map((r) => [r.epic.id!, r.epic.name])).entries()]
     .sort((a, b) => b[0].localeCompare(a[0], undefined, { numeric: true })), [rows])
@@ -105,7 +110,7 @@ function TestReview() {
   const hash = useSyncExternalStore(onHashChange, () => window.location.hash.slice(1) || null, () => null)
   const wide = useSyncExternalStore(onWideChange, () => window.matchMedia(WIDE).matches, () => true)
   const closed = params.get("panel") === "0"
-  const selectedId = params.get("task") ?? hash ?? (wide && !closed ? shown[0]?.id ?? null : null)
+  const selectedId = suiteTab ? null : params.get("task") ?? hash ?? (wide && !closed ? shown[0]?.id ?? null : null)
   const selected = tasks.find((t) => t.task.id === selectedId) ?? null
   const selectedRow = rows.find((r) => r.id === selectedId) ?? null
 
@@ -212,6 +217,12 @@ function TestReview() {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || document.querySelector("[role=dialog]")) return
       if (!onTick && !shouldHandleShortcut(e)) return
       // Arrows walk the list only from inside it; elsewhere they scroll the detail (j/k walk from anywhere)
+      if (suiteTab) {
+        if (e.key !== "u") return
+        document.querySelector<HTMLButtonElement>("[data-suite]:not(:disabled)")?.click()
+        e.preventDefault()
+        return
+      }
       if (e.key.startsWith("Arrow") && !list.current?.contains(document.activeElement)) return
       const at = shown.findIndex((r) => r.id === selectedId)
       const click = (action: string) => detail.current?.querySelector<HTMLButtonElement>(`[data-review="${action}"]:not(:disabled)`)?.click()
@@ -295,16 +306,28 @@ function TestReview() {
                 key={t}
                 type="button"
                 onClick={() => setParams({ tab: t === "needs" ? null : t, task: null })}
-                aria-current={tab === t ? "page" : undefined}
+                aria-current={tab === t && !suiteTab ? "page" : undefined}
                 className={cn(
                   "inline-flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 pt-1 pb-2.5 text-[13px] transition-colors duration-(--duration-fast) focus-visible:outline-2 focus-visible:outline-accent",
-                  tab === t ? "border-accent text-txt" : "border-transparent text-muted hover:text-txt",
+                  tab === t && !suiteTab ? "border-accent text-txt" : "border-transparent text-muted hover:text-txt",
                 )}
               >
                 {TAB_LABEL[t]}
                 <span className={cn("rounded-sm px-1 font-mono text-[11px] tabular-nums", t === "failed" && counts.failed ? "bg-danger/15 text-danger" : "bg-surface2 text-muted")}>{counts[t]}</span>
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => setParams({ tab: "suite", task: null })}
+              aria-current={suiteTab ? "page" : undefined}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 pt-1 pb-2.5 text-[13px] transition-colors duration-(--duration-fast) focus-visible:outline-2 focus-visible:outline-accent",
+                suiteTab ? "border-accent text-txt" : "border-transparent text-muted hover:text-txt",
+              )}
+            >
+              Suite
+              <span className="rounded-sm bg-surface2 px-1 font-mono text-[11px] text-muted tabular-nums">{suiteSpecs}</span>
+            </button>
           </nav>
           <div className="mb-2 flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
             <select
@@ -335,7 +358,7 @@ function TestReview() {
 
       {error && <p role="alert" className="mx-5 mt-3 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger sm:mx-7">{error}</p>}
 
-      <div className="flex min-h-0 flex-1">
+      {suiteTab ? <SuiteTab specs={suiteSpecs} withoutSpec={doneTasks.length - suiteSpecs} /> : <div className="flex min-h-0 flex-1">
         <section
           key={full ? "page" : "list"}
           aria-label="Tasks"
@@ -420,7 +443,7 @@ function TestReview() {
             </div>
           )}
         </section>
-      </div>
+      </div>}
       <p aria-live="polite" className="sr-only">{selectedRow ? selectionLabel(selectedRow) : ""}</p>
     </div>
   )

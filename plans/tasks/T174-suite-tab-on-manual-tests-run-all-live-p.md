@@ -1,8 +1,12 @@
 # T174: Suite tab on /manual-tests: run all, live progress, broken tasks with screenshot
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R064 — Regression suite
 **Size:** M
 **Depends on:** T173
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 On `/manual-tests`, a human opens the **Suite** tab, clicks **Run suite** and sees every done task's spec run. When it ends, the tasks that broke are listed first, each with its failing step, error and screenshot, and one click opens that task's Evidence.
@@ -52,3 +56,15 @@ node src/lib/shortcuts.check.mts
 pnpm lint && pnpm build
 # open http://localhost:3000/manual-tests?tab=suite → Run suite
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Open /manual-tests?tab=suite → a Suite tab (with the count of done-task specs) shows "Regression suite · N specs from done tasks · M done tasks without a spec" and Run suite
+- [ ] Click Run suite (or press u) → "Starting the app…", then one row per task going queued → running → passed with "Running · k/N tasks"
+- [ ] With a done task's spec deliberately broken → the end reads "Failed · 1 of N tasks broke" and that task is listed first with "Step 2 …", the error lines and the step's screenshot; Open evidence lands on its Evidence view with the same failure (agent checked with a throwaway spec on T153, since restored)
+- [ ] While the suite runs, a task's Run tests (detail, panel, card play) is disabled with "The suite is running"; while a single Run goes, Run suite is disabled with "T0xx is running"
+- [ ] Reload mid-run → the rows come back; press u → Stopped, and Run suite / Run tests are enabled again
+### Regression risk
+- [ ] The other tabs (Needs you … All) still list tasks and j/k/x/a/s/o/v/p keys work there; on the Suite tab those keys do nothing
+- [ ] Board cards, the task panel's Runs section and single Runs behave as before when no suite is running
