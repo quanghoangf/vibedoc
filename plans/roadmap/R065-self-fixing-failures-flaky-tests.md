@@ -1,6 +1,6 @@
 # R065: Self-fixing failures & flaky tests
 **Parent:** R004
-**Status:** planned
+**Status:** done
 **Order:** 90
 **Tasks:** T176, T177, T178, T179, T180
 
