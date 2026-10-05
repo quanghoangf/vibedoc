@@ -2,10 +2,13 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Bot, Check, Circle, CircleCheck, FlaskConical, Search, X } from "lucide-react"
+import { Bot, Check, Circle, CircleCheck, FlaskConical, Pencil, Search, X } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { parseManualTests, type ManualTestItem, type ManualTests } from "@/lib/manual-tests"
-import { REVIEW_TABS, filterRows, selectionLabel, sortRows, toRow, type ReviewRow, type ReviewTab } from "@/lib/test-review"
+import { REVIEW_SORTS, REVIEW_TABS, filterRows, selectionLabel, sortRows, toRow, type ReviewRow, type ReviewSort, type ReviewTab } from "@/lib/test-review"
+import { parsePriority } from "@/lib/doc-priority"
+import { PriorityBadge } from "@/components/shared/PriorityBadge"
+import { OwnerChip } from "@/components/shared/OwnerChip"
 import { shouldHandleShortcut } from "@/lib/shortcuts"
 import { timeAgo } from "@/components/activity/ActivityEventRow"
 import { TestDetail, type DetailView } from "@/components/manual-tests/TestDetail"
@@ -29,6 +32,7 @@ function onWideChange(cb: () => void) {
 }
 
 const TAB_LABEL: Record<ReviewTab, string> = { needs: "Needs you", failed: "Failed", passed: "Passed", flaky: "Flaky", none: "No run", all: "All" }
+const SORT_LABEL: Record<ReviewSort, string> = { default: "Triage order", priority: "Priority", updated: "Recently updated" }
 
 export default function ManualTestsPage() {
   return (
@@ -50,6 +54,7 @@ function TestReview() {
   // R064: the regression suite has its own tab instead of the task list
   const suiteTab = params.get("tab") === "suite"
   const epic = params.get("epic")
+  const sort = (REVIEW_SORTS as string[]).includes(params.get("sort") ?? "") ? (params.get("sort") as ReviewSort) : "default"
   const [q, setQ] = useState(params.get("q") ?? "")
   const [pending, setPending] = useState<Pending>({})
   const [error, setError] = useState<string | null>(null)
@@ -92,7 +97,10 @@ function TestReview() {
     autoRun: tests?.autoRun ?? null,
     lastRun: task.lastRun,
     reportDate: tests?.date ?? null,
-  }))), [tasks, checkedOf])
+    priority: task.priority,
+    owner: task.owner,
+    updatedAt: task.updatedAt,
+  })), sort), [tasks, checkedOf, sort])
 
   const shown = filterRows(rows, tab, epic, q)
   const doneTasks = board ? Object.values(board).flat().filter((t) => t.status === "done") : []
@@ -348,6 +356,14 @@ function TestReview() {
               <option value="">All epics</option>
               {epics.map(([id, name]) => <option key={id} value={id}>{id} · {name}</option>)}
             </select>
+            <select
+              aria-label="Sort"
+              value={sort}
+              onChange={(e) => setParams({ sort: e.target.value === "default" ? null : e.target.value })}
+              className="h-8 min-w-0 flex-1 rounded-md sm:max-w-40 sm:flex-none border border-border bg-bg px-2 text-xs text-txt hover:border-border2 focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              {REVIEW_SORTS.map((s) => <option key={s} value={s}>{SORT_LABEL[s]}</option>)}
+            </select>
             <label className="relative flex min-w-0 flex-1 items-center sm:flex-none">
               <Search className="pointer-events-none absolute left-2 size-3.5 text-muted" aria-hidden />
               <input
@@ -492,6 +508,7 @@ function Row({ row: r, selected, picked, picking, tabStop, onSelect }: {
   tabStop: boolean
   onSelect: (e: React.MouseEvent) => void
 }) {
+  const priority = parsePriority(r.priority)
   return (
     <button
       type="button"
@@ -511,14 +528,22 @@ function Row({ row: r, selected, picked, picking, tabStop, onSelect }: {
         <span className={cn("shrink-0 font-mono text-[11px]", selected ? "text-txt" : "text-muted")}>{r.id}</span>
         <span className={cn("truncate text-[13px]", selected ? "font-semibold text-txt" : "font-medium text-txt/90")} title={r.title}>{r.title}</span>
       </span>
-      <span className="col-start-2 row-start-2 flex min-w-0 items-center gap-2 text-[11px] leading-4 text-muted">
+      <span className="col-start-2 row-start-2 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] leading-4 text-muted">
+        {priority && <PriorityBadge priority={priority} />}
         {r.status === "review" && <span className="shrink-0 rounded-sm bg-accent/15 px-1 font-mono text-accent">review</span>}
         {r.auto.total > 0 && (
           <span className={cn("inline-flex shrink-0 items-center gap-1 font-mono", r.auto.result === "passed" ? "text-teal" : r.auto.result === "failed" ? "text-danger" : "")} title="Automated items">
             <Bot className="size-3" aria-hidden />{r.auto.total}
           </span>
         )}
-        <span className="truncate">{r.epic.id ? `${r.epic.id} · ${r.epic.name}` : r.epic.name}</span>
+        <span className="min-w-0 flex-1 truncate">{r.epic.id ? `${r.epic.id} · ${r.epic.name}` : r.epic.name}</span>
+        {/* Owner as its icon only (name in the tooltip) and "updated" as a pencil + short time: the epic keeps the room */}
+        <OwnerChip owner={r.owner} iconOnly className="shrink-0 [&_svg]:size-3" />
+        {r.updatedAt && (
+          <span className="inline-flex shrink-0 items-center gap-0.5 font-mono" title={`Updated ${new Date(r.updatedAt).toLocaleString()}`}>
+            <Pencil className="size-3" aria-hidden /><span className="sr-only">updated </span>{timeAgo(r.updatedAt).replace(" ago", "")}
+          </span>
+        )}
       </span>
       <span className="col-start-3 row-start-2 sm:row-span-2 sm:row-start-1"><ManualRuling done={r.manual.done} total={r.manual.total} /></span>
       <span className="col-start-4 row-start-2 flex items-baseline justify-end gap-1.5 font-mono sm:row-span-2 sm:row-start-1 sm:flex-col sm:items-end sm:gap-0.5 text-[11px] tabular-nums">

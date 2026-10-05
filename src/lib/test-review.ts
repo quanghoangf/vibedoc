@@ -19,6 +19,10 @@ export interface ReviewInput {
   autoRun: AutoRun | null
   lastRun: { runId: string; status: "passed" | "failed"; steps: number; passed: number } | null
   reportDate: string | null
+  /** Row metadata: `**Priority:**` P0–P3, `**Owner:**` (human | ai:<agent>), newest activity time; optional */
+  priority?: string | null
+  owner?: string | null
+  updatedAt?: string | null
 }
 
 export interface ReviewRow {
@@ -41,6 +45,10 @@ export interface ReviewRow {
   flaky: number
   /** A failed run, a task in review, or checks left on a task that isn't finished (see needsYou) */
   needsMe: boolean
+  priority: string | null
+  owner: string | null
+  /** When the task last changed (activity log), for "updated 2h ago" and the Recently updated sort */
+  updatedAt: string | null
 }
 
 /**
@@ -92,6 +100,9 @@ export function toRow(t: ReviewInput): ReviewRow {
     unverified: t.autoRun?.unverified ?? 0,
     flaky: t.autoRun?.result === "passed" ? t.autoRun.flaky ?? 0 : 0,
     needsMe: needsYou(t.status, result, left, t.autoRun?.unverified ?? 0),
+    priority: t.priority ?? null,
+    owner: t.owner ?? null,
+    updatedAt: t.updatedAt ?? null,
   }
 }
 
@@ -103,10 +114,23 @@ export function inTab(r: ReviewRow, tab: ReviewTab): boolean {
 }
 
 /** Failing first, then waiting in review, then newest activity; ties by id, newest task first. */
-export function sortRows(rows: ReviewRow[]): ReviewRow[] {
+export type ReviewSort = "default" | "priority" | "updated"
+export const REVIEW_SORTS: ReviewSort[] = ["default", "priority", "updated"]
+
+/**
+ * default: failing first, then in review, then newest run. priority: P0 → P3, none last. updated: most recently
+ * changed first, never-logged last. The default order breaks ties in the other two, so triage survives inside them.
+ */
+export function sortRows(rows: ReviewRow[], sort: ReviewSort = "default"): ReviewRow[] {
   const rank = (r: ReviewRow) => (r.result === "failed" ? 0 : r.status === "review" ? 1 : 2)
+  const triage = (a: ReviewRow, b: ReviewRow) =>
+    rank(a) - rank(b) || (b.at ?? "").localeCompare(a.at ?? "") || b.id.localeCompare(a.id, undefined, { numeric: true })
+  // "P0" < "P3" as strings; no priority sorts after every one
+  const prio = (r: ReviewRow) => r.priority ?? "P9"
   return [...rows].sort((a, b) =>
-    rank(a) - rank(b) || (b.at ?? "").localeCompare(a.at ?? "") || b.id.localeCompare(a.id, undefined, { numeric: true }))
+    sort === "priority" ? prio(a).localeCompare(prio(b)) || triage(a, b)
+      : sort === "updated" ? (b.updatedAt ?? "").localeCompare(a.updatedAt ?? "") || triage(a, b)
+      : triage(a, b))
 }
 
 export function filterRows(rows: ReviewRow[], tab: ReviewTab, epic: string | null, q: string): ReviewRow[] {

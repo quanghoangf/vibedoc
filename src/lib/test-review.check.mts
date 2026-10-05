@@ -45,6 +45,22 @@ assert.deepEqual(filterRows([a, b, c, d], "needs", null, "").map((r) => r.id), [
 assert.deepEqual(filterRows([a, b, c, d], "passed", null, "").map((r) => r.id), ["T2"])
 assert.deepEqual(filterRows([a, b, c, d], "none", "R057", "t4").map((r) => r.id), ["T4"])
 assert.deepEqual(filterRows([a, b, c, d], "all", "R099", "").length, 0)
+// Row metadata passes through; sort modes keep triage as the tiebreak
+{
+  const r = (id: string, extra: Partial<ReviewInput>) => toRow({ ...base, id, ...extra })
+  const rows = [
+    r("T10", { priority: "P2", updatedAt: "2026-10-03T10:00:00Z" }),
+    r("T11", { priority: null, updatedAt: "2026-10-05T10:00:00Z", owner: "ai:claude-code" }),
+    r("T12", { priority: "P0" }),
+    r("T13", { priority: "P2", status: "review", updatedAt: "2026-10-01T10:00:00Z" }),
+  ]
+  assert.deepEqual([rows[1].owner, rows[1].updatedAt, rows[0].priority, rows[2].updatedAt], ["ai:claude-code", "2026-10-05T10:00:00Z", "P2", null])
+  assert.deepEqual(sortRows(rows, "priority").map((x) => x.id), ["T12", "T13", "T10", "T11"]) // P2 tie: in review first
+  assert.deepEqual(sortRows(rows, "updated").map((x) => x.id), ["T11", "T10", "T13", "T12"]) // never logged last
+  assert.deepEqual(sortRows(rows).map((x) => x.id), sortRows(rows, "default").map((x) => x.id))
+  assert.equal(sortRows(rows)[0].id, "T13") // default = triage: review first
+  assert.equal(toRow(base).priority, null) // inputs without metadata
+}
 console.log("ok test-review")
 
 // Decision point: what's still open

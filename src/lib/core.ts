@@ -73,6 +73,8 @@ export interface Task {
   manualTests: { total: number; done: number; auto: number; untested: number; spec: string | null; autoRun: AutoRun | null } | null
   /** Newest recorded test run (R059), null when the task has none. `steps` / `passed` are counts. */
   lastRun: TaskLastRun | null
+  /** Newest activity-log event about this task (ISO); null when the log has none (hand edits, or older than its 2000 events) */
+  updatedAt: string | null
   /** `**Covers:** S1, S3`: the epic scenarios this task covers (R068); [] when none */
   covers: string[]
   /** The `## Verification` findings (R067); null when the task has none */
@@ -601,7 +603,7 @@ function parseTaskFile(filePath: string, content: string, defs: StatusDef[]): Ta
 
   const tests = parseManualTests(content)
   const manualTests = tests && { total: tests.total, done: tests.done, auto: tests.auto, untested: untestedItems(tests).length, spec: tests.spec, autoRun: tests.autoRun }
-  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, lastRun: null, covers: parseCovers(meta['covers']), verification: parseVerification(content), file: filePath, raw: content }
+  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, lastRun: null, updatedAt: null, covers: parseCovers(meta['covers']), verification: parseVerification(content), file: filePath, raw: content }
 }
 
 export async function listTasks(root: string): Promise<{ tasks: Task[]; board: TaskBoard }> {
@@ -617,7 +619,8 @@ export async function listTasks(root: string): Promise<{ tasks: Task[]; board: T
     } catch {}
   }
 
-  const lastRuns = await lastRunsByTask(root)
+  const [lastRuns, updated] = await Promise.all([lastRunsByTask(root), taskUpdatedAt(root)])
+  for (const t of tasks) t.updatedAt = updated.get(t.id) ?? null
   await markOutdatedVerifications(tasks, root)
   const board: TaskBoard = { todo: [], 'in-progress': [], review: [], blocked: [], paused: [], done: [], cancelled: [] }
   for (const t of tasks) {
@@ -637,11 +640,19 @@ export async function getTask(taskId: string, root: string): Promise<Task> {
       const content = await fs.readFile(path.join(root, matches[0]), 'utf8')
       const task = parseTaskFile(matches[0], content, statuses)
       task.lastRun = toLastRun((await listRuns(task.id, root))[0])
+      task.updatedAt = (await taskUpdatedAt(root)).get(task.id) ?? null
       await markOutdatedVerifications([task], root)
       return task
     }
   }
   throw new Error(`Task not found: ${taskId}`)
+}
+
+/** Task id → its newest activity-log event time (the log is newest first, 2000 events max). */
+async function taskUpdatedAt(root: string): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  for (const e of await readActivity(root, 2000)) if (e.taskId && !out.has(e.taskId)) out.set(e.taskId, e.timestamp)
+  return out
 }
 
 const OUTDATED_LOG_MAX = 2000
