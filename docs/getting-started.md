@@ -121,6 +121,7 @@ test('T138', async ({ page, step }) => {
 - **Where files go.** `~/.vibedoc/runs/<project>/<taskId>/<runId>/`, outside the repo. The project folder is the project root's folder name.
 - **Env vars.** `VIBEDOC_TASK_ID` instead of `test.use({ vibedocTask })`. `VIBEDOC_RUNS_DIR` moves the runs root (set it for VibeDoc too). `VIBEDOC_PROJECT` is the project root when the tests don't run from it. `VIBEDOC_RUNS_KEEP` overrides `runs.keep`.
 - **Installed `vibedoc` as a dependency?** `import { test, expect } from 'vibedoc/playwright'` is the same fixture.
+- **Honest steps.** End each step with an `expect` on the page (a locator, the page or a response). The kit counts them: a step with none, or only `expect(true)`-style ones, is **unverified**. After a passing Run from VibeDoc the spec runs once more against a blank page (`VIBEDOC_BLANK=1`; nothing is recorded) and steps that pass again are unverified too (`honesty.json` in the run). Unverified items aren't ticked, the checklist header reads `Auto: passed · N unverified`, and the task stays under Needs you.
 - **`runs.keep`.** Only the newest N runs per task are kept: `"runs": { "keep": 5 }` in `.vibedoc/settings.json` (default 5).
 - **See a run.** Open the task: the **Runs** section shows each step's screenshot with ✓ or ✗ (click for the full image and the error), the video, and a picker for the kept runs.
 

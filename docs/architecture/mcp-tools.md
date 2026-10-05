@@ -280,7 +280,7 @@ Update a task's status. Triggers a real-time kanban board update in the browser.
 
 Every transition is allowed: nothing requires a report or a review before `done`.
 
-**Returns:** confirmation with previous and new status, and `🧪 Manual tests: 0/N ticked` when the task has a report
+**Returns:** confirmation with previous and new status, and `🧪 Manual tests: 0/N ticked` when the task has a report. With `autoResult: "passed"`, VibeDoc re-judges the task's newest recorded run (R063): steps with no `expect` on the page are unticked, counted in the header (`· N unverified`) and listed in a final `⚠️ N steps unverified: …` line, which tells the agent to fix those steps
 
 ---
 

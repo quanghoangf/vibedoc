@@ -54,9 +54,11 @@ try {
   await stubChat(page, [], { root: fx })
 
   const evidence = page.getByRole("region", { name: "Evidence" })
+  // The doc's screenshots only (a task in review also has the review steps' icons and thumbnails above it)
+  const shots = evidence.locator(".prose-dark img")
   const loaded = async () => {
-    await evidence.getByRole("img").first().waitFor()
-    for (const img of await evidence.getByRole("img").all()) {
+    await shots.first().waitFor()
+    for (const img of await shots.all()) {
       for (let i = 0; i < 50 && !(await img.evaluate((el) => el.complete && el.naturalWidth > 0)); i++) await page.waitForTimeout(100)
       assert.ok(await img.evaluate((el) => el.naturalWidth > 0), "screenshot loaded")
     }
@@ -68,22 +70,22 @@ try {
   await page.getByRole("dialog").waitFor()
   await page.keyboard.press("Escape")
   await page.getByRole("dialog").waitFor({ state: "hidden" })
-  await card.getByRole("link").focus()            // Enter on the badge follows it, not the card's Enter
+  await card.getByTitle(/^Manual tests:/).focus()  // Enter on the 🧪 badge follows it, not the card's Enter
   await page.keyboard.press("Enter")
   await page.waitForURL(/\/manual-tests\?tab=all&task=T001&view=evidence/)
   assert.equal(await page.getByRole("dialog").count(), 0)
   await loaded()
-  assert.equal(await evidence.getByRole("img").count(), 2)
-  await evidence.getByText('Received: "Clicked"').waitFor()
+  assert.equal(await shots.count(), 2)
+  await evidence.locator(".prose-dark").getByText('Received: "Clicked"').waitFor()
   const history = page.getByRole("navigation", { name: "Runs" })
   await history.getByRole("button").nth(1).click()
   await page.waitForURL(/run=\d{8}T\d{6}Z/)
-  await evidence.getByText("2/2 steps").waitFor()
+  await evidence.locator(".prose-dark").getByText("2/2 steps").waitFor()
   await loaded()
   console.log("ok  card body → panel; 🧪 badge (Enter) → Evidence view: screenshots loaded, failure shown, older run picked from History")
 
   await page.goto(`${BASE}/board?task=T001`)
-  await page.getByRole("dialog").getByRole("link", { name: "Evidence →" }).click()
+  await page.getByRole("dialog").getByRole("link", { name: "Evidence →", exact: true }).click()
   await page.waitForURL(/view=evidence/)
   await loaded()
   console.log("ok  task panel → Evidence → same view")

@@ -28,18 +28,20 @@ symlinkSync(path.join(process.cwd(), "node_modules"), path.join(fx, "node_module
 mkdirSync(path.join(fx, ".vibedoc"), { recursive: true })
 writeFileSync(path.join(fx, ".vibedoc/settings.json"), JSON.stringify({ frontend: { dir: ".", startCommand: "true", url: BASE } }))
 mkdirSync(path.join(fx, "e2e/vibedoc"), { recursive: true })
-// Step 2 waits on the page (not a sleep in the spec): long enough to see step 1 ticked live, and to Stop mid-step
+// Step 2 waits on the page (not a sleep in the spec): long enough to see step 1 ticked live, and to Stop mid-step.
+// Honest under R063: step 1 opens VibeDoc's /board (fails on the blank-page check), step 2 asserts on that page
 writeFileSync(path.join(fx, "e2e/vibedoc/T001-run.spec.ts"), `
 import { test, expect } from './kit/testing/playwright-fixture'
-test.use({ vibedocTask: 'T001' })
+test.use({ vibedocTask: 'T001', baseURL: '${BASE}' })
 test('T001', async ({ page, step }) => {
   await step('Open the page → heading shows', async () => {
-    await page.setContent('<h1>Run me</h1><button onclick="setTimeout(() => this.textContent = \\'Done\\', 3000)">Go</button>')
-    await expect(page.getByRole('heading')).toHaveText('Run me')
+    await page.goto('/board')
+    await expect(page.getByRole('heading', { name: 'Board' })).toBeVisible()
   })
   await step('Click Go → it reads Done', async () => {
-    await page.getByRole('button').click()
-    await expect(page.getByRole('button')).toHaveText('Done', { timeout: 10000 })
+    await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<button id="go" style="position:fixed;top:8px;left:50%;z-index:99999" onclick="setTimeout(() => this.textContent = \\'Done\\', 3000)">Go</button>'))
+    await page.getByRole('button', { name: 'Go', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Done', exact: true })).toBeVisible({ timeout: 10000 })
   })
 })
 `)
@@ -73,7 +75,7 @@ try {
   console.log("ok  Run tests → steps stream in, the first 🤖 item ticks while step 2 runs")
 
   // 2. Verdict written to the task file, evidence has the run
-  await live.getByText(/^Passed · 2\/2 steps/).waitFor({ timeout: 30000 })
+  await live.getByText(/^Passed · 2\/2 steps/).waitFor({ timeout: 60000 })
   for (let i = 0; i < 50 && !readFileSync(taskFile, "utf8").includes(`Auto: passed ${today}`); i++) await page.waitForTimeout(100)
   const after = readFileSync(taskFile, "utf8")
   assert.match(after, new RegExp(`Spec: \`e2e/vibedoc/T001-run.spec.ts\` · Auto: passed ${today}_`))

@@ -1,8 +1,12 @@
 # T171: Honest specs in /work-epic, e2e and docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R063 — Honest tests
 **Size:** M (2–3 hrs)
 **Depends on:** T170
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 Agents write specs that pass the honesty checks the first time, and an end-to-end test proves that a dishonest spec gets flagged before it can count as verified.
@@ -52,3 +56,13 @@ pnpm lint && pnpm build
 PW_DIR=<dir with node_modules/playwright> node e2e/honest-tests.mjs
 PW_DIR=<dir with node_modules/playwright> node e2e/run-tests.mjs
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Read skills/work-epic/SKILL.md → the spec rules say every step ends with an `expect` on the page (a literal counts as none) and mention the blank-page replay; Run the spec step 3 says to fix steps listed as `⚠️ N steps unverified`; the never-weaken list bans adding a trivial expect to silence one
+- [ ] Read README / docs/getting-started.md → one paragraph each on honest steps, the blank-page check and what unverified does
+- [ ] Read docs/architecture/mcp-tools.md `vibedoc_update_task` → the reply's unverified line is described
+- [ ] Ask an agent to run /work-epic on a small UI task in a real app → its spec imports the kit, every step asserts on the page, and the task ends without unverified steps
+### Regression risk
+- [ ] `node e2e/run-tests.mjs` and `node e2e/evidence.mjs` pass (their fixture specs were made honest / their selectors scoped after R062–R063 added review controls and run chips)
