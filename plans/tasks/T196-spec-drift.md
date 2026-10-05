@@ -1,8 +1,11 @@
 # T196: Drift: unmerged spec changes and conflicting epics
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R069 — Spec changes on epics
 **Size:** S (~1 hr)
 **Depends on:** T194
+**Owner:** ai:claude-code
+**Due:** 2026-10-06
+**Started:** 2026-10-05
 
 ## Goal
 Specs don't silently fall behind: a done epic whose spec changes were never merged, or two open epics changing the same requirement, show up in "need attention".
@@ -30,3 +33,12 @@ Specs don't silently fall behind: a done epic whose spec changes were never merg
 node src/lib/roadmap-health.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Mark an epic with `## Spec changes` done without merging → /roadmap "need attention" lists '<id> "<title>" is done but its spec changes aren't merged into <capability>'
+- [ ] Merge it from the epic sheet → that row disappears
+- [ ] Give two open epics a MODIFIED / REMOVED on the same requirement of one capability → "need attention" lists "<A> and <B> both change "<name>" in <capability>" (and vibedoc_get_roadmap shows the same rows)
+### Regression risk
+- [ ] On this repo's roadmap, "need attention" shows no new rows (no epic here has spec changes yet)

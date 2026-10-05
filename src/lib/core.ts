@@ -2782,6 +2782,7 @@ export interface RoadmapItem {
   specs: string[]       // **Specs:** capability slugs of docs/specs/<slug>.md (R066)
   scenarios: Scenario[] // the body's ## Scenarios (R068)
   specMerged: string | null // **Spec merged:** YYYY-MM-DD, when its ## Spec changes went into the capability specs (R069)
+  specChanges: { capability: string; ops: { op: string; name: string }[] }[] // the body's ## Spec changes, targets only (R069)
   body: string          // markdown after the metadata block
   file: string          // path relative to root
 }
@@ -2916,6 +2917,7 @@ function parseRoadmapFile(file: string, content: string): RoadmapItem {
     specs: parseSpecSlugs(meta['specs']),
     scenarios: parseScenarios(lines.slice(metaEnd).join('\n')),
     specMerged: parseDue(meta['spec merged'] || ''),
+    specChanges: parseSpecChanges(lines.slice(metaEnd).join('\n')).map(c => ({ capability: c.capability, ops: c.ops.map(o => ({ op: o.op, name: o.name })) })),
     body: lines.slice(metaEnd).join('\n').trim(),
     file,
   }
@@ -2993,7 +2995,7 @@ export function createRoadmapItem(
 const roadmapId = (n: number) => `R${String(n).padStart(3, '0')}`
 
 /** Write a new R*.md (flag 'wx': never overwrites). Callers validate fields and mkdir first. */
-async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner' | 'priority' | 'specs' | 'scenarios' | 'specMerged'>): Promise<void> {
+async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner' | 'priority' | 'specs' | 'scenarios' | 'specMerged' | 'specChanges'>): Promise<void> {
   const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
   const filename = slug ? `${f.id}-${slug}.md` : `${f.id}.md`
   const lines = [

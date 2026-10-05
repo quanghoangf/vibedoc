@@ -13,7 +13,7 @@ export interface RoadmapProgress { done: number; total: number }
 
 export interface RoadmapDrift {
   id: string
-  kind: 'status-mismatch' | 'missing-task' | 'overdue' | 'at-risk' | 'uncovered-scenario'
+  kind: 'status-mismatch' | 'missing-task' | 'overdue' | 'at-risk' | 'uncovered-scenario' | 'spec-unmerged' | 'spec-conflict'
   message: string
   suggestedStatus?: RoadmapStatus
 }
@@ -93,6 +93,30 @@ export function roadmapHealth(
     }
   }
   const horizonIds = new Set(items.filter(i => i.parent === null).map(i => i.id))
+
+  // R069: spec changes that never reached the capability spec, and two open epics changing the same requirement
+  for (const item of items) {
+    if (item.parent !== null && item.status === 'done' && item.specChanges?.length && !item.specMerged) {
+      drift.push({ id: item.id, kind: 'spec-unmerged', message: `${item.id} "${item.title}" is done but its spec changes aren't merged into ${item.specChanges.map(c => c.capability).join(', ')}` })
+    }
+  }
+  const open = items.filter(i => i.parent !== null && i.specChanges?.length && (i.status !== 'done' || !i.specMerged))
+  const seen = new Set<string>()
+  for (const [n, a] of open.entries()) {
+    for (const b of open.slice(n + 1)) {
+      for (const ca of a.specChanges ?? []) {
+        for (const oa of ca.ops) {
+          if (oa.op === 'ADDED') continue
+          const hit = (b.specChanges ?? []).some(cb => cb.capability === ca.capability &&
+            cb.ops.some(ob => ob.op !== 'ADDED' && ob.name.trim().toLowerCase() === oa.name.trim().toLowerCase()))
+          const key = `${a.id}|${b.id}|${ca.capability}|${oa.name.toLowerCase()}`
+          if (!hit || seen.has(key)) continue
+          seen.add(key)
+          drift.push({ id: a.id, kind: 'spec-conflict', message: `${a.id} and ${b.id} both change "${oa.name}" in ${ca.capability}` })
+        }
+      }
+    }
+  }
 
   for (const item of items) {
     if (item.parent === null) continue

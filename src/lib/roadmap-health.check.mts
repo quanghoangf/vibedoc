@@ -115,4 +115,29 @@ assert.equal(dueState('2027-01-01', 'planned', '2026-12-30'), 'soon', 'across a 
   assert.deepEqual(kinds([item('R016', 'R001', 'planned', ['T4'])]), []) // an item without the field at all
 }
 
+// R069 spec-unmerged / spec-conflict
+{
+  const ch = (capability: string, ...ops: [string, string][]) => [{ capability, ops: ops.map(([op, name]) => ({ op, name })) }]
+  const ep = (id: string, status: RoadmapItem['status'], specChanges: RoadmapItem['specChanges'], specMerged: string | null = null) =>
+    ({ ...item(id, 'R001', status), specChanges, specMerged })
+  const run = (...es: RoadmapItem[]) => roadmapHealth([item('R001', null, 'planned'), ...es], {}, '2026-10-01').drift
+    .filter(d => d.kind === 'spec-unmerged' || d.kind === 'spec-conflict').map(d => `${d.kind}: ${d.message}`)
+  // done + unmerged → flagged; merging clears it; not done → not yet
+  assert.deepEqual(run(ep('R010', 'done', ch('memory', ['MODIFIED', 'Budget']))), ['spec-unmerged: R010 "R010" is done but its spec changes aren\'t merged into memory'])
+  assert.deepEqual(run(ep('R010', 'done', ch('memory', ['MODIFIED', 'Budget']), '2026-09-30')), [])
+  assert.deepEqual(run(ep('R010', 'in-progress', ch('memory', ['MODIFIED', 'Budget']))), [])
+  // two open epics on the same requirement (case-insensitive), once per pair; ADDED never conflicts; other capability doesn't
+  assert.deepEqual(run(
+    ep('R011', 'in-progress', ch('memory', ['MODIFIED', 'Budget'], ['ADDED', 'New'])),
+    ep('R012', 'planned', ch('memory', ['REMOVED', 'budget'], ['ADDED', 'New'])),
+    ep('R013', 'planned', ch('board', ['MODIFIED', 'Budget'])),
+  ), ['spec-conflict: R011 and R012 both change "Budget" in memory'])
+  // a done-but-unmerged epic still conflicts; a merged one doesn't
+  assert.deepEqual(run(ep('R014', 'done', ch('memory', ['RENAMED', 'Budget'])), ep('R015', 'planned', ch('memory', ['MODIFIED', 'Budget']))).filter(m => m.startsWith('spec-conflict')),
+    ['spec-conflict: R014 and R015 both change "Budget" in memory'])
+  assert.deepEqual(run(ep('R014', 'done', ch('memory', ['RENAMED', 'Budget']), '2026-09-30'), ep('R015', 'planned', ch('memory', ['MODIFIED', 'Budget']))), [])
+  // items without the field at all
+  assert.deepEqual(run(item('R016', 'R001', 'done')), [])
+}
+
 console.log('roadmap-health: ok')
