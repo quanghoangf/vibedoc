@@ -4,7 +4,7 @@
 import CopyCommand from './CopyCommand.astro'
 import { INSTALL } from '../data/install'
 ---
-<div class="min-w-0 flex-[0_1_500px] overflow-hidden rounded-xl border border-rule bg-surface shadow-[0_12px_32px_rgba(26,26,46,0.06)]" data-install>
+<div class="min-w-0 flex-[0_1_500px] overflow-hidden rounded-xl border border-rule bg-surface shadow-[0_12px_32px_rgba(26,26,46,0.06)]" data-tabs>
   <div role="tablist" aria-label="Install with" class="flex flex-wrap gap-0.5 border-b border-rule px-1.5 pt-1.5">
     {INSTALL.map((c, i) => (
       <button
@@ -27,25 +27,6 @@ import { INSTALL } from '../data/install'
 </div>
 
 <script>
-  for (const box of document.querySelectorAll<HTMLElement>('[data-install]')) {
-    const tabs = [...box.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
-    const select = (tab: HTMLButtonElement, focus = false) => {
-      for (const t of tabs) {
-        const on = t === tab
-        t.setAttribute('aria-selected', String(on))
-        t.tabIndex = on ? 0 : -1
-        box.querySelector<HTMLElement>(`#${t.getAttribute('aria-controls')}`)!.hidden = !on
-      }
-      if (focus) tab.focus()
-    }
-    tabs.forEach((tab, i) => {
-      tab.addEventListener('click', () => select(tab))
-      tab.addEventListener('keydown', (e) => {
-        const next = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null
-        if (next === null) return
-        e.preventDefault()
-        select(tabs[(next + tabs.length) % tabs.length], true)
-      })
-    })
-  }
+  import { setupTabs } from '../scripts/tabs'
+  setupTabs()
 </script>

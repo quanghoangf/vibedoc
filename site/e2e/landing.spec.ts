@@ -86,3 +86,58 @@ test.describe('install (T202)', () => {
     await expect(install.getByText('/plugin install vibedoc@vibedoc', { exact: false })).toBeVisible()
   })
 })
+
+test.describe('loop and features (T203)', () => {
+  const features = [
+    ['Board', 'A board your agent moves'],
+    ['Roadmap', 'A roadmap that tracks itself'],
+    ['Evidence', 'Evidence for every task'],
+    ['Scenarios', 'Scenarios as acceptance tests'],
+    ['Specs', 'Living capability specs'],
+    ['Memory', 'Memory between sessions'],
+    ['Link graph', 'Every link, on one map'],
+  ] as const
+
+  test('the board screenshot shows in its browser frame', async ({ page }) => {
+    await page.goto('./')
+    const shot = page.getByRole('img', { name: /The VibeDoc board/ })
+    await expect(shot).toBeVisible()
+    await expect.poll(() => shot.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0)
+  })
+
+  test('the four loop steps appear in order with their commands', async ({ page }) => {
+    await page.goto('./#loop')
+    const loop = page.getByRole('region', { name: /Four commands, one loop/ })
+    await expect(loop.getByRole('heading', { level: 3 })).toHaveText(['Plan', 'Break down', 'Build and prove', 'Review'])
+    await expect(loop.getByRole('listitem')).toHaveCount(4)
+    await expect(loop.getByText('/vibedoc:work R004', { exact: true })).toBeVisible()
+  })
+
+  test('each of the 7 feature tabs shows its own title, text and screenshot', async ({ page }) => {
+    await page.goto('./#features')
+    const tabs = page.getByRole('tablist', { name: 'Features' })
+    await expect(tabs.getByRole('tab')).toHaveCount(7)
+    for (const [label, title] of features) {
+      await tabs.getByRole('tab', { name: label, exact: true }).click()
+      const panel = page.getByRole('tabpanel', { name: label, exact: true })
+      await expect(panel.getByRole('heading', { name: title })).toBeVisible()
+      const img = panel.getByRole('img')
+      await expect(img).toHaveAttribute('alt', /.+/)
+      await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth)).toBeGreaterThan(0)
+    }
+    // arrow keys move one tab at a time (setup runs once even though two components use tabs)
+    await tabs.getByRole('tab', { name: 'Board', exact: true }).click()
+    await page.keyboard.press('ArrowRight')
+    await expect(tabs.getByRole('tab', { name: 'Roadmap', exact: true })).toBeFocused()
+  })
+
+  for (const width of [390, 1280]) {
+    test(`sections render with their headings and no horizontal scroll at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('./')
+      await expect(page.getByRole('heading', { name: /Four commands, one loop/ })).toBeAttached()
+      await expect(page.getByRole('heading', { name: 'One local app for the whole loop.' })).toBeAttached()
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+    })
+  }
+})

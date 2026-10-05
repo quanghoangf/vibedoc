@@ -1,8 +1,11 @@
 # T203: The loop + features sections
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R071 — Landing page
 **Size:** L (half day)
 **Depends on:** T201
+**Owner:** ai:claude-code
+**Due:** 2026-10-12
+**Started:** 2026-10-05
 
 ## Goal
 A visitor understands what VibeDoc does in one glance: plan → build → prove → review, and the few features that make each step work.
@@ -39,3 +42,13 @@ A visitor understands what VibeDoc does in one glance: plan → build → prove 
 ```bash
 pnpm --dir site build && pnpm --dir site exec playwright test
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Scroll past the hero → the board screenshot rises into view in its browser frame, with the two notes floating beside it (desktop only; hidden on phones)
+- [ ] Scroll to "Four commands, one loop." → the violet line draws itself across, then the four cards (Plan, Break down, Build and prove, Review) rise in with their commands
+- [ ] In "One local app for the whole loop.", click each of the 7 tabs (or use ←/→) → the text and the screenshot change to that screen
+- [ ] With "Reduce motion" on in your OS, everything shows at once with no movement
+### Regression risk
+- [ ] The install tabs in the hero still switch one tab per arrow key (both now share the tabs script)

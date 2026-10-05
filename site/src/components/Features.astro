@@ -1,0 +1,50 @@
+---
+// The feature tour: one tab per screen, each with its text and a real screenshot (site/public/screens/, light theme).
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+const features = [
+  { id: 'board', label: 'Board', title: 'A board your agent moves', text: 'Tasks are markdown files. Agents claim, move and finish them over MCP, and each card shows its test results and who is on it.', alt: 'The board grouped by epic' },
+  { id: 'roadmap', label: 'Roadmap', title: 'A roadmap that tracks itself', text: 'Horizons and epics on a map or a timeline. Progress, at-risk epics, unmerged spec changes and uncovered scenarios come from the tasks.', alt: 'The roadmap map with horizons and epics' },
+  { id: 'evidence', label: 'Evidence', title: 'Evidence for every task', text: 'Each checklist item runs as a Playwright step. Review the screenshots and video, flag a doubt, approve or send back.', alt: "Test review showing a task's evidence" },
+  { id: 'epic', label: 'Scenarios', title: 'Scenarios as acceptance tests', text: 'Each epic lists its WHEN/THEN scenarios and shows which ones are passed, failed or still unproven by its tasks.', alt: 'An epic sheet with its tasks and scenarios' },
+  { id: 'spec', label: 'Specs', title: 'Living capability specs', text: 'One spec per feature, edited like any doc. Agents get the related requirements whenever they open a task in that area.', alt: 'The memory capability spec open in Docs' },
+  { id: 'memory', label: 'Memory', title: 'Memory between sessions', text: 'A handoff plus one-fact knowledge entries the next agent reads first, with history you can restore.', alt: 'Memory with its knowledge entries' },
+  { id: 'graph', label: 'Link graph', title: 'Every link, on one map', text: 'Docs, tasks, epics, specs and entries, joined by the links in their text. Broken and stale links stand out.', alt: 'The doc link graph' },
+]
+---
+<section id="features" aria-labelledby="features-heading" class="border-y border-rule bg-surface">
+  <div class="mx-auto flex max-w-[1200px] flex-col gap-8 px-5 py-26 sm:px-8" data-tabs>
+    <div class="vd-reveal flex max-w-[700px] flex-col gap-3">
+      <p class="m-0 font-mono text-xs tracking-[0.08em] text-violet-ink uppercase">Inside VibeDoc</p>
+      <h2 id="features-heading" class="m-0 text-4xl leading-[1.08] font-semibold tracking-[-0.03em] sm:text-[44px]">One local app for the whole loop.</h2>
+    </div>
+    <div role="tablist" aria-label="Features" class="vd-reveal flex flex-wrap gap-1.5">
+      {features.map((f, i) => (
+        <button
+          type="button"
+          role="tab"
+          id={`feature-tab-${f.id}`}
+          aria-controls={`feature-panel-${f.id}`}
+          aria-selected={i === 0 ? 'true' : 'false'}
+          tabindex={i === 0 ? 0 : -1}
+          class="min-h-10 cursor-pointer rounded-full border border-rule-strong bg-surface px-4 text-sm text-ink hover:border-pencil aria-selected:border-ink aria-selected:bg-ink aria-selected:text-white"
+        >{f.label}</button>
+      ))}
+    </div>
+    {features.map((f, i) => (
+      <div role="tabpanel" id={`feature-panel-${f.id}`} aria-labelledby={`feature-tab-${f.id}`} hidden={i !== 0} class="flex flex-wrap items-center gap-10">
+        <div class="flex min-w-0 flex-[1_1_300px] flex-col gap-3.5">
+          <h3 class="m-0 text-[26px] font-semibold">{f.title}</h3>
+          <p class="m-0 text-base leading-relaxed text-body">{f.text}</p>
+        </div>
+        <div class="min-w-0 flex-[2_1_560px] overflow-hidden rounded-xl border border-rule-strong shadow-[0_24px_60px_rgba(26,26,46,0.10)]">
+          <img src={`${base}/screens/${f.id}.jpg`} width="2880" height="1800" alt={f.alt} loading="lazy" class="block h-auto w-full" />
+        </div>
+      </div>
+    ))}
+  </div>
+</section>
+
+<script>
+  import { setupTabs } from '../scripts/tabs'
+  setupTabs()
+</script>

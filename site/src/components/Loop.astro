@@ -1,0 +1,25 @@
+---
+const steps = [
+  { n: '01', title: 'Plan', text: 'Turn your docs and a short interview into horizons and epics with scenarios.', cmd: '/vibedoc:roadmap' },
+  { n: '02', title: 'Break down', text: 'Split an epic into tasks an agent can pick up cold, each seeded with its scenarios.', cmd: '/vibedoc:breakdown R004' },
+  { n: '03', title: 'Build and prove', text: 'Claim, build, test and commit, task by task. Each one ends with its evidence.', cmd: '/vibedoc:work R004' },
+  { n: '04', title: 'Review', text: "Approve on the proof, or send findings back. Not sure what's next? Ask.", cmd: '/vibedoc:next' },
+]
+---
+<section id="loop" aria-labelledby="loop-heading" class="mx-auto flex max-w-[1200px] flex-col gap-9 px-5 pt-16 pb-28 sm:px-8">
+  <div class="vd-reveal flex flex-wrap items-end gap-6">
+    <h2 id="loop-heading" class="m-0 min-w-0 flex-[1_1_520px] text-4xl leading-[1.08] font-semibold tracking-[-0.03em] sm:text-[44px]">Plan. Build. Prove. Review.<br />Four commands, one loop.</h2>
+    <p class="m-0 min-w-0 flex-[1_1_320px] text-base leading-relaxed text-body">The commands ship as a Claude Code plugin. In Cursor or any other MCP client, the same steps are the vibedoc_* tools.</p>
+  </div>
+  <div class="vd-line h-0.5 rounded-sm bg-violet" aria-hidden="true"></div>
+  <ol class="m-0 grid list-none grid-cols-[repeat(auto-fit,minmax(min(250px,100%),1fr))] gap-4 p-0">
+    {steps.map((s) => (
+      <li class="vd-reveal flex flex-col gap-2.5 rounded-xl border border-rule bg-surface p-6">
+        <span class="font-mono text-[40px] font-medium text-rule-strong" aria-hidden="true">{s.n}</span>
+        <h3 class="m-0 text-[21px] font-semibold">{s.title}</h3>
+        <p class="m-0 text-[15px] leading-relaxed text-body">{s.text}</p>
+        <code class="mt-auto self-start rounded bg-grid px-2 py-1 font-mono text-[13px]">{s.cmd}</code>
+      </li>
+    ))}
+  </ol>
+</section>
