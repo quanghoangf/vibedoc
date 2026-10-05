@@ -1,12 +1,14 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { Bot, Calendar, ChevronRight, CircleDashed, FileText, Flag, Layers, ListChecks, MessageSquare, Pencil, Plus, User } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
-import { coverageOf } from "@/lib/scenarios"
+import { coverageOf, scenarioStatus, type ScenarioStatus, type ScenarioTask } from "@/lib/scenarios"
+import { parseManualTests } from "@/lib/manual-tests"
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { useApp } from "@/context/AppContext"
@@ -397,8 +399,13 @@ function Scenarios({ item, tasksById, onOpen }: {
   tasksById: Record<string, Task>
   onOpen: (file: string) => void
 }) {
-  const tasks = item.tasks.map((id) => tasksById[id]).filter((t): t is Task => !!t)
+  const tasks = item.tasks.map((id) => tasksById[id]).filter((t): t is Task => !!t && t.status !== "cancelled")
   const covered = coverageOf(item.scenarios, tasks)
+  // R068: each scenario's proof, from its covering tasks' checklists and last auto run
+  const evidence: ScenarioTask[] = tasks.map((t) => {
+    const tests = t.raw ? parseManualTests(t.raw) : null
+    return { id: t.id, covers: t.covers ?? [], items: tests?.items ?? [], autoResult: tests?.autoRun?.result ?? null }
+  })
   return (
     <section aria-label="Scenarios" className="flex flex-col gap-2">
       <p className={SECTION}>Scenarios · {item.scenarios.length}</p>
@@ -407,7 +414,8 @@ function Scenarios({ item, tasksById, onOpen }: {
           <li key={sc.id} aria-label={`${sc.id} ${sc.name}`} className="flex flex-col gap-1">
             <p className="flex items-baseline gap-2 text-sm">
               <span className="shrink-0 font-mono text-[11px] text-muted">{sc.id}</span>
-              <span className="text-txt">{sc.name}</span>
+              <span className="min-w-0 flex-1 text-txt">{sc.name}</span>
+              <ScenarioProof {...scenarioStatus(sc.id, evidence)} />
             </p>
             {sc.text && <p className="whitespace-pre-wrap pl-7 text-xs text-muted">{sc.text}</p>}
             <p className="flex flex-wrap items-center gap-1.5 pl-7 text-xs">
@@ -427,6 +435,23 @@ function Scenarios({ item, tasksById, onOpen }: {
         ))}
       </ul>
     </section>
+  )
+}
+
+const PROOF_STYLE: Record<ScenarioStatus, string> = {
+  passed: "border-teal/30 bg-teal/5 text-teal",
+  failed: "border-danger/40 bg-danger/5 text-danger",
+  unproven: "border-border text-muted",
+}
+
+/** Passed / failed / unproven, linking to the deciding task's evidence. */
+function ScenarioProof({ status, task }: { status: ScenarioStatus; task: string | null }) {
+  const cls = cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px]", PROOF_STYLE[status])
+  if (!task) return <span className={cls}>{status}</span>
+  return (
+    <Link href={`/manual-tests?tab=all&task=${task}&view=evidence`} title={`${task} evidence`} className={cn(cls, "hover:border-accent/50")}>
+      {status}
+    </Link>
   )
 }
 

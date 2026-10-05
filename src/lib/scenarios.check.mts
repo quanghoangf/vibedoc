@@ -1,6 +1,6 @@
 // Self-check for scenarios. Run: node src/lib/scenarios.check.mts
 import assert from 'node:assert/strict'
-import { coverage, coverageOf, parseCovers, parseScenarios, scenarioStep, seedSteps } from './scenarios.ts'
+import { coverage, coverageOf, scenarioStatus, parseCovers, parseScenarios, scenarioStep, seedSteps } from './scenarios.ts'
 
 const body = [
   'Intro text.',
@@ -56,5 +56,27 @@ const three = parseScenarios('## Scenarios\n### S1: a\n### S2: b\n### S3: c')
 assert.deepEqual(coverage(three, [{ id: 'T1', covers: ['S1'] }, { id: 'T2', covers: ['S2'] }, { id: 'T3', covers: ['S3'], status: 'cancelled' }, { id: 'T4' }]),
   { uncovered: ['S3'], untied: ['T4'] })
 assert.deepEqual(coverage([], [{ id: 'T1' }]), { uncovered: [], untied: [] })
+
+// scenarioStatus
+{
+  const task = (id: string, covers: string[], items: [string, boolean, boolean][], autoResult: 'passed' | 'failed' | null = null) =>
+    ({ id, covers, autoResult, items: items.map(([text, checked, auto]) => ({ text, checked, auto })) })
+  const ticked = task('T1', ['S1'], [['S1 — WHEN a → THEN b', true, true]], 'passed')
+  const failedRun = task('T2', ['S2'], [['S2 — WHEN c → THEN d', false, true]], 'failed')
+  const open = task('T3', ['S3'], [['S3 — x', false, false]])
+  const unverified = task('T4', ['S4'], [['S4 — y', false, true]], 'passed') // a passing run that left it unticked
+  const tasks = [ticked, failedRun, open, unverified]
+  assert.deepEqual(scenarioStatus('S1', tasks), { status: 'passed', task: 'T1' })
+  assert.deepEqual(scenarioStatus('S2', tasks), { status: 'failed', task: 'T2' })
+  assert.deepEqual(scenarioStatus('S3', tasks), { status: 'unproven', task: 'T3' })
+  assert.deepEqual(scenarioStatus('S4', tasks), { status: 'unproven', task: 'T4' })
+  assert.deepEqual(scenarioStatus('S9', tasks), { status: 'unproven', task: null })
+  // every covering task must prove it; a failing one wins
+  assert.equal(scenarioStatus('S1', [ticked, task('T5', ['S1'], [['S1 — z', false, false]])]).status, 'unproven')
+  assert.deepEqual(scenarioStatus('S1', [ticked, task('T6', ['S1'], [['S1 - z', false, true]], 'failed')]), { status: 'failed', task: 'T6' })
+  // a covering task whose checklist lost the step: unproven; S1 never matches S10
+  assert.equal(scenarioStatus('S1', [task('T7', ['S1'], [['other', true, false]])]).status, 'unproven')
+  assert.equal(scenarioStatus('S1', [task('T8', ['S1'], [['S10 — x', true, false]])]).status, 'unproven')
+}
 
 console.log('scenarios ok')

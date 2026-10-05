@@ -1,8 +1,11 @@
 # T193: Epic scenario → tasks → evidence view, e2e and docs
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R068 — Scenarios as acceptance tests
 **Size:** M (2–3 hrs)
 **Depends on:** T192
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 The epic answers "is the promise kept?": each scenario shows passed, failed or unproven from its tasks' latest evidence.
@@ -35,3 +38,14 @@ node src/lib/scenarios.check.mts
 pnpm lint && pnpm build
 node e2e/scenarios.mjs
 ```
+
+## Manual tests
+_2026-10-05 — ai · Spec: `e2e/vibedoc/T193-scenario-evidence-view-e2e.spec.ts` · Auto: passed 2026-10-05_
+### Steps
+- [x] 🤖 Open the epic before anything is ticked → S1 and S2 both read "unproven"
+- [x] 🤖 Tick the task's S1 step → S1 reads "passed" and links to that task's evidence; S2 stays "unproven"
+- [ ] Run a covering task's spec from VibeDoc so it fails on its S-step → the scenario reads "failed" (red) and the chip opens that task's Evidence view
+- [ ] The passed / failed / unproven chips read well next to long scenario names, in dark and light
+- [ ] vibedoc_get_roadmap on an epic with scenarios → its line ends with "scenarios N/M passed"
+### Regression risk
+- [ ] /manual-tests Evidence view still opens from a task card's 🧪 badge

@@ -80,3 +80,29 @@ export function coverage(scenarios: Scenario[], tasks: { id: string; covers?: st
     untied: scenarios.length ? live.filter(t => !t.covers?.length).map(t => t.id) : [],
   }
 }
+
+export type ScenarioStatus = 'passed' | 'failed' | 'unproven'
+/** What the status rule needs from a task: its covers, its checklist (🤖 stripped from text) and its last auto run. */
+export type ScenarioTask = {
+  id: string
+  covers: string[]
+  items: { text: string; checked: boolean; auto: boolean }[]
+  autoResult: 'passed' | 'failed' | null
+}
+
+/**
+ * Is scenario `id` proven by the tasks that cover it? A task's step for it is the checklist item starting "S2 — "
+ * (as T191 seeds it). failed = a covering task's last auto run failed and left that 🤖 step unticked; passed = every
+ * covering task has the step ticked (a passing run ticks it, an unverified step is unticked, so it never counts);
+ * else unproven (no covering task, no step, or not ticked yet). `task` = where to look: the failing task, else the first.
+ */
+export function scenarioStatus(id: string, tasks: ScenarioTask[]): { status: ScenarioStatus; task: string | null } {
+  const covering = tasks.filter(t => t.covers.includes(id))
+  if (!covering.length) return { status: 'unproven', task: null }
+  const head = new RegExp(`^${id}\\s+[—–-]\\s`)
+  const step = (t: ScenarioTask) => t.items.find(i => head.test(i.text))
+  // ponytail: "failed" = unticked 🤖 step in a failed run (ticks come from the run); per-step results live in run.json
+  const failed = covering.find(t => { const s = step(t); return !!s && !s.checked && s.auto && t.autoResult === 'failed' })
+  if (failed) return { status: 'failed', task: failed.id }
+  return { status: covering.every(t => step(t)?.checked) ? 'passed' : 'unproven', task: covering[0].id }
+}

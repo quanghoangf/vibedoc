@@ -95,6 +95,15 @@ For every epic, write a short body. The person who breaks the epic into tasks la
 **Done when:** <an observable success signal>
 ```
 
+An epic may also state its promise as numbered scenarios, after the body. They become its acceptance tests: `epic-breakdown` gives every task the scenarios it covers and seeds its test checklist from them, and the epic shows each scenario as passed, failed or unproven. Write them when the "Done when" has more than one observable outcome; they are optional.
+
+```
+## Scenarios
+### S1: <short name>
+- WHEN <the user or system does something>
+- THEN <what they observe>
+```
+
 Horizons get a one-line body that describes the phase, e.g. "What we're building right now to reach first paying teams."
 
 **In the VibeDoc chat** (you have `vibedoc_propose_plan`): don't write anything yourself. Put all horizons and epics (`kind: "roadmap"`) in one `vibedoc_propose_plan` call. The user's Accept writes them, so skip the rest of this step.

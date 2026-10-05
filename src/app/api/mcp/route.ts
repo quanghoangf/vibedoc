@@ -19,7 +19,8 @@ import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
 import { formatCompactLine, tokenize } from "@/lib/recall";
 import { findRequirement, formatRequirement, formatSpecList } from "@/lib/specs";
 import { SEVERITIES, validateFindings } from "@/lib/verification";
-import { parseScenarios } from "@/lib/scenarios";
+import { parseScenarios, scenarioStatus, type ScenarioTask } from "@/lib/scenarios";
+import { parseManualTests } from "@/lib/manual-tests";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
 import { failedRunNote } from "@/lib/work-queue";
@@ -1395,12 +1396,23 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const { progress, drift } = roadmapHealth(items, await taskInfoMap(root), today);
       const icon = { done: "✓", "in-progress": "◐", paused: "⏸", planned: "○" } as const;
       const atRisk = new Set(drift.filter((d) => d.kind === "at-risk").map((d) => d.id));
+      // R068: "scenarios 2/3 passed" on epics with ## Scenarios
+      const { tasks: allTasks } = await listTasks(root);
+      const evidence: ScenarioTask[] = allTasks.filter((t) => t.status !== "cancelled").map((t) => {
+        const tests = t.raw ? parseManualTests(t.raw) : null;
+        return { id: t.id, covers: t.covers, items: tests?.items ?? [], autoResult: tests?.autoRun?.result ?? null };
+      });
+      const scenarioLine = (i: (typeof items)[number]) => {
+        if (!i.scenarios.length) return "";
+        const own = evidence.filter((t) => i.tasks.includes(t.id));
+        return ` · scenarios ${i.scenarios.filter((sc) => scenarioStatus(sc.id, own).status === "passed").length}/${i.scenarios.length} passed`;
+      };
       const fmt = (i: (typeof items)[number]) =>
         `${icon[i.status]} **${i.id}** ${i.title} — ${i.status}` +
         (i.tasks.length ? ` (tasks: ${i.tasks.join(", ")})` : "") +
         (progress[i.id] ? ` [${progress[i.id].done}/${progress[i.id].total} done]` : "") +
         (i.due ? ` due ${i.due}${dueState(i.due, i.status, today) === "overdue" ? " ⚠ overdue" : ""}` : "") +
-        (atRisk.has(i.id) ? " ⚠ at risk" : "");
+        (atRisk.has(i.id) ? " ⚠ at risk" : "") + scenarioLine(i);
       const horizons = items.filter((i) => i.parent === null);
       const lines = ["## Roadmap"];
       for (const h of horizons) {

@@ -372,6 +372,8 @@ Get the product roadmap: horizons with their epics, statuses, linked tasks, prog
 - a linked task is `blocked` → `T041 blocked`
 - the epic is due within 7 days and no linked task is `done` or `in-progress` (or it has no tasks) → `due 2026-10-02, nothing started`
 
+**Scenarios** (R068) — an epic with a `## Scenarios` section (`### S1: name` + WHEN/THEN bullets) gets ` · scenarios N/M passed` on its line. A scenario is **passed** when every task that covers it (`**Covers:** S1`) has its `S1 — …` checklist step ticked (a passing run ticks it; an unverified step stays unticked), **failed** when a covering task's last auto run failed and left that 🤖 step unticked, else **unproven**. A planned / in-progress epic with tasks and a scenario no task covers adds `R068: S3 not covered by any task` under "⚠️ Needs attention".
+
 ```
 ### ◐ **R002** Near-term — in-progress [6/17 done]
 - ◐ **R038** Epic & horizon progress — in-progress (tasks: T035, T036) [1/2 done] ⚠ at risk
@@ -702,13 +704,14 @@ Propose a plan for the user to review. The server validates it against the curre
 | `plan.kind` | `"breakdown"` \| `"roadmap"` | ✅ | Which kind of plan |
 | `plan.epic` | string | breakdown, optional | Existing epic id, e.g. `R004` (not a horizon) |
 | `plan.newEpic` | `{title, parent, body}` | breakdown, optional | Create this epic with the tasks. `parent` is an existing horizon id. Not together with `epic` |
-| `plan.tasks` | `{key, title, size?, dependsOn?, due?, body}[]` | breakdown | New tasks |
+| `plan.tasks` | `{key, title, size?, dependsOn?, due?, covers?, body}[]` | breakdown | New tasks |
 | `plan.horizons` | `{key, title, body?}[]` | roadmap | New horizons (no parent) |
 | `plan.epics` | `{key, title, parent, body}[]` | roadmap | New epics |
 
 - `key` is stable within the plan (`t1`, `h1`, `e1`). It becomes a real id (`T042`, `R044`) on apply.
 - Task `size`: `S (~1 hr)` \| `M (2–3 hrs)` \| `L (half day)`. `due`: `YYYY-MM-DD`. `body`: the full markdown below the meta block (`## Goal`, `## Context`, `## Scope`, `## Files`, `## Acceptance criteria`, `## Verify`).
 - Task `dependsOn`: keys of earlier tasks in this plan, or existing task ids (`"T030"`).
+- Task `covers` (R068): scenario ids of the target epic's `## Scenarios` (`["S1", "S3"]`). Unknown ids are refused with the valid ones. On Accept the task gets `**Covers:** S1, S3` and a seed `## Manual tests` with one step per scenario (`- [ ] S1 — WHEN … → THEN …`). The card warns (without blocking) about scenarios no checked task covers and tasks that cover none.
 - Breakdown target: `epic` (an existing epic), `newEpic` (create one), or neither (loose tasks, written with no phase). Validation errors: both set; `newEpic` parent missing, not found, or an epic (max depth 2); `newEpic` title missing or already used under that horizon; `newEpic` body not a string.
 - Epic `parent`: an existing horizon id (`R002`) or a horizon key in this plan (`h1`). Epic `body`: one outcome sentence, a blank line, then `**In scope:**` / `**Out of scope:**` / `**Done when:**`.
 
