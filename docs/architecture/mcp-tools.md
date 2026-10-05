@@ -253,7 +253,7 @@ Read a specific task file in full — scope, acceptance criteria, definition of 
 |-----------|------|----------|-------------|
 | `taskId` | string | ✅ | e.g. `"T001"`, `"T003"` |
 
-**Returns:** full markdown content of the task file
+**Returns:** full markdown content of the task file, then `## Related memory` and `## Related spec` (the requirements of the capability spec the task's epic declares with `**Specs:**`, else the best keyword matches; nothing when no spec matches). `vibedoc_next_task` ends the same way.
 
 ---
 
@@ -380,6 +380,27 @@ Full-text search across all `.md` files. Returns files and line snippets sorted 
 | `query` | string | ✅ | Search term |
 
 **Returns:** up to 20 matching files with up to 4 line hits each
+
+---
+
+### `vibedoc_list_specs`
+List the capability specs: one per `docs/specs/<capability>.md`, describing what that capability does today as `### Requirement:` headings with `#### Scenario:` WHEN/THEN bullets.
+
+**Returns:** one line per spec, e.g. `- board-views · Board views · 2 requirements · 3 scenarios`
+
+---
+
+### `vibedoc_get_spec`
+Read one capability spec, or one requirement of it.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `capability` | string | ✅ | Spec slug, e.g. `"board-views"` |
+| `requirement` | string | | Requirement name (case-insensitive); omit for the whole file |
+
+**Returns:** the spec file, or the requirement with its scenarios. An unknown slug or requirement is an error that lists the known ones.
+
+Link an epic to its specs with `vibedoc_update_roadmap_item { "id": "R004", "specs": ["board-views"] }`: it writes `**Specs:** board-views` (`[]` or `null` removes the line; unknown slugs are refused).
 
 ---
 

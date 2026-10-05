@@ -101,6 +101,22 @@ export function formatRelatedSpecs(groups: RelatedSpecGroup[]): string {
     if (g.names.length > shown.length) out.push(`- … ${g.names.length - shown.length} more`)
     left -= shown.length
   }
-  out.push('Read with vibedoc_read_doc docs/specs/<capability>.md')
+  out.push('Read with vibedoc_get_spec { capability, requirement? }')
   return out.join('\n')
+}
+
+/** One line per spec for vibedoc_list_specs: "- board-views · Board views · 2 requirements · 3 scenarios". */
+export function formatSpecList(specs: Spec[]): string {
+  if (!specs.length) return 'No capability specs yet. Add one as docs/specs/<capability>.md.'
+  const n = (k: number, w: string) => `${k} ${w}${k === 1 ? '' : 's'}`
+  return specs.map(s => `- ${s.capability} · ${s.title} · ${n(s.requirements.length, 'requirement')} · ${n(s.requirements.reduce((a, r) => a + r.scenarios.length, 0), 'scenario')}`).join('\n')
+}
+
+/** A requirement by name (case-insensitive), back as markdown with its scenarios. */
+export function findRequirement(spec: Spec, name: string): SpecRequirement | null {
+  const want = name.trim().toLowerCase()
+  return spec.requirements.find(r => r.name.toLowerCase() === want) ?? null
+}
+export function formatRequirement(r: SpecRequirement): string {
+  return [`### Requirement: ${r.name}`, r.text, ...r.scenarios.map(sc => `\n#### Scenario: ${sc.name}\n${sc.text}`.trimEnd())].filter(Boolean).join('\n')
 }

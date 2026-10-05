@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
 import { formatCompactLine, tokenize } from "@/lib/recall";
+import { findRequirement, formatRequirement, formatSpecList } from "@/lib/specs";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
 import { failedRunNote } from "@/lib/work-queue";
@@ -56,6 +57,8 @@ import {
   recallEntries,
   relatedEntries,
   relatedSpecs,
+  listSpecs,
+  readSpec,
   getEntriesByIds,
   markEntriesRecalled,
   getMemoryGraph,
@@ -158,6 +161,25 @@ const TOOLS = [
         since: { type: "string", description: "ISO timestamp; only sessions that ended at or after it" },
       },
       required: [],
+    },
+  },
+  {
+    name: "vibedoc_list_specs",
+    description:
+      "List the project's capability specs (docs/specs/<capability>.md): what each capability does today, as requirements with WHEN/THEN scenarios. One line per spec: slug, title, requirement and scenario counts. Read one with vibedoc_get_spec.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "vibedoc_get_spec",
+    description:
+      "Read one capability spec: the whole file, or only one requirement with its scenarios. Check it before changing that capability's behaviour.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        capability: { type: "string", description: 'Spec slug, e.g. "board-views" (docs/specs/board-views.md)' },
+        requirement: { type: "string", description: "Requirement name (case-insensitive); omit for the whole spec" },
+      },
+      required: ["capability"],
     },
   },
   {
@@ -750,6 +772,7 @@ const TOOLS = [
         tasks: { type: "array", items: { type: "string" } },
         due: { type: ["string", "null"], description: "Due date YYYY-MM-DD; null clears it" },
         priority: { type: ["string", "null"], enum: [...PRIORITIES, null], description: "P0 (highest) … P3; null clears it" },
+        specs: { type: ["array", "null"], items: { type: "string" }, description: "Capability spec slugs this epic changes (docs/specs/<slug>.md); its tasks get their requirements. [] or null removes the line" },
         body: { type: "string" },
       },
       required: ["id"],
@@ -843,6 +866,21 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         ...x.docs.map((d) => `- 📄 ${d}`),
         ...x.decisions.map((d) => `- 📝 ${d}`),
       ].join("\n")).join("\n\n");
+    }
+
+    case "vibedoc_list_specs":
+      return formatSpecList(await listSpecs(root));
+
+    case "vibedoc_get_spec": {
+      const found = await readSpec(String(args.capability ?? ""), root);
+      if (!found) {
+        const known = (await listSpecs(root)).map((sp) => sp.capability);
+        throw new Error(`No spec "${String(args.capability ?? "")}". Known: ${known.join(", ") || "none (docs/specs/<capability>.md)"}`);
+      }
+      if (!args.requirement) return `## ${found.path}\n\n${found.raw}`;
+      const req = findRequirement(found.spec, String(args.requirement));
+      if (!req) throw new Error(`No requirement "${String(args.requirement)}" in ${found.path}. Requirements: ${found.spec.requirements.map((r) => r.name).join(", ") || "none"}`);
+      return `## ${found.path} · ${found.spec.title}\n\n${formatRequirement(req)}`;
     }
 
     case "vibedoc_read_doc": {

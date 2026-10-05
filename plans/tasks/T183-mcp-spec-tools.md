@@ -1,8 +1,11 @@
 # T183: MCP vibedoc_list_specs / vibedoc_get_spec and the epic specs param
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R066 — Living capability specs
 **Size:** S (~1 hr)
 **Depends on:** T181
+**Owner:** ai:claude-code
+**Due:** 2026-10-06
+**Started:** 2026-10-05
 
 ## Goal
 An agent can find and read specs on purpose (not only through Related spec), and can link an epic to its specs without editing the file by hand.
@@ -34,3 +37,14 @@ An agent can find and read specs on purpose (not only through Related spec), and
 pnpm lint && pnpm build
 curl -s localhost:3000/api/mcp -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vibedoc_list_specs","arguments":{}}}'
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] With a docs/specs/board-views.md in the project, ask an agent to call vibedoc_list_specs → one line "board-views · <title> · N requirements · M scenarios"
+- [ ] vibedoc_get_spec { capability: "board-views", requirement: "<one requirement name>" } → only that requirement and its scenarios come back
+- [ ] vibedoc_get_spec { capability: "nope" } → an error that lists the known spec slugs
+- [ ] vibedoc_update_roadmap_item { id: "<epic>", specs: ["board-views"] } → the epic file gains exactly one line `**Specs:** board-views`; `specs: []` removes it again
+- [ ] vibedoc_update_roadmap_item with an unknown slug → refused, listing the known slugs, file unchanged
+### Regression risk
+- [ ] Editing an epic on /roadmap (title, status, due, priority) still saves, and leaves a `**Specs:**` line in place

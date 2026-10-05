@@ -1741,6 +1741,19 @@ export async function listSpecs(root: string): Promise<Spec[]> {
   return specs.filter((s): s is Spec => !!s)
 }
 
+/** One spec by capability slug, with its raw file; null when there is no `docs/specs/<capability>.md`. */
+export async function readSpec(capability: string, root: string): Promise<{ path: string; raw: string; spec: Spec } | null> {
+  const slug = capability.trim().toLowerCase().replace(/^docs\/specs\//, '').replace(/\.md$/, '')
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(slug)) return null
+  const rel = `docs/specs/${slug}.md`
+  try {
+    const raw = await fs.readFile(path.join(root, rel), 'utf8')
+    return { path: rel, raw, spec: parseSpec(rel, raw) }
+  } catch {
+    return null
+  }
+}
+
 /**
  * The "## Related spec" block for a task, or ''. Its epic's `**Specs:**` → every requirement name of those specs;
  * none declared (or none of them exist) → the top `limit` requirements by keyword rank, strong matches only.
@@ -2602,7 +2615,7 @@ export interface CreateRoadmapItemParams {
   body?: string
 }
 
-export type UpdateRoadmapItemPatch = Partial<Omit<CreateRoadmapItemParams, 'title'> & { title: string }>
+export type UpdateRoadmapItemPatch = Partial<Omit<CreateRoadmapItemParams, 'title'> & { title: string; specs: string[] | null }>
 
 
 /** Validation / not-found error from the roadmap API. `status` maps straight to an HTTP code. */
@@ -2925,6 +2938,16 @@ async function updateRoadmapItemUnlocked(
     priority = p.priority === null || p.priority === '' ? null : parsePriority(p.priority)
     if (p.priority && !priority) throw new RoadmapError(`priority must be P0, P1, P2 or P3 (got ${JSON.stringify(p.priority)})`)
   }
+  let specs: string | null | undefined
+  if (p.specs !== undefined) {
+    const raw = p.specs === null ? [] : Array.isArray(p.specs) ? p.specs : null
+    if (!raw || raw.some(x => typeof x !== 'string')) throw new RoadmapError('specs must be an array of capability slugs')
+    const slugs = parseSpecSlugs(raw.join(','))
+    const known = (await listSpecs(root)).map(sp => sp.capability)
+    const unknown = slugs.filter(sl => !known.includes(sl))
+    if (unknown.length) throw new RoadmapError(`Unknown spec${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')}; known: ${known.join(', ') || 'none (docs/specs/<capability>.md)'}`)
+    specs = slugs.length ? slugs.join(', ') : null
+  }
   let parent: string | null | undefined
   if (p.parent !== undefined) {
     parent = p.parent === null || p.parent === '' ? null : normalizeRoadmapId(p.parent)
@@ -2964,6 +2987,7 @@ async function updateRoadmapItemUnlocked(
   if (due !== undefined) setMeta('Due', due)
   if (owner !== undefined) setMeta('Owner', owner)
   if (priority !== undefined) setMeta('Priority', priority)
+  if (specs !== undefined) setMeta('Specs', specs)
   if (body !== undefined) {
     rest = body ? ['', body, ''] : ['']
   }

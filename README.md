@@ -56,7 +56,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 - **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
 - **Plan from the chat** — ask the agent sidebar to plan a roadmap or break an epic into tasks; it asks questions, shows the plan, and writes nothing until you accept
 - **Manual tests & review** — the agent leaves a click-through checklist on each finished task (`🧪 0/5` on the card, ticked on `/manual-tests`); an optional Review column lets you approve a task or send it back with a note. Nothing ever blocks "done"
-- **MCP server** — 40 tools your AI agent can call to read docs, move tasks, write ADRs, and more
+- **MCP server** — 42 tools your AI agent can call to read docs, move tasks, write ADRs, and more
 
 ---
 
@@ -104,7 +104,7 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 
 ## MCP tools
 
-40 tools your AI agent can call, grouped by category.
+42 tools your AI agent can call, grouped by category.
 
 ### Session & status
 
@@ -140,6 +140,8 @@ VIBEDOC_ROOT=/path/to/project npx vibedoc
 | `vibedoc_list_docs`      | Discover all docs grouped by section   |
 | `vibedoc_read_doc`       | Load any doc by name; ends with a `## Related files` footer (links to, linked from, broken) |
 | `vibedoc_search_docs`    | Full-text search across all docs       |
+| `vibedoc_list_specs`     | Capability specs (`docs/specs/*.md`) with requirement counts |
+| `vibedoc_get_spec`       | One capability spec, or one requirement with its scenarios |
 | `vibedoc_write_doc`      | Write or overwrite a doc file          |
 | `vibedoc_create_doc`     | Create a doc from a template           |
 | `vibedoc_append_doc`     | Append content to an existing doc      |

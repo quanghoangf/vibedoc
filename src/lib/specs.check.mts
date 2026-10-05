@@ -1,6 +1,6 @@
 // Self-check for specs. Run: node src/lib/specs.check.mts
 import assert from 'node:assert/strict'
-import { formatRelatedSpecs, isSpecPath, parseSpec, parseSpecSlugs } from './specs.ts'
+import { findRequirement, formatRelatedSpecs, formatRequirement, formatSpecList, isSpecPath, parseSpec, parseSpecSlugs } from './specs.ts'
 
 // a full spec
 const full = [
@@ -87,7 +87,7 @@ assert.equal(formatRelatedSpecs([
   '- Table view',
   'Memory · docs/specs/memory.md',
   '- (no requirements yet)',
-  'Read with vibedoc_read_doc docs/specs/<capability>.md',
+  'Read with vibedoc_get_spec { capability, requirement? }',
 ].join('\n'))
 // the line cap spans groups
 const many = formatRelatedSpecs([
@@ -96,5 +96,30 @@ const many = formatRelatedSpecs([
 ])
 assert.equal(many.split('\n').filter(l => /^- [ab]\d/.test(l)).length, 15)
 assert.ok(many.includes('- … 3 more'))
+
+// formatSpecList / findRequirement / formatRequirement
+const boardSpec = parseSpec('docs/specs/board-views.md', full)
+assert.equal(formatSpecList([boardSpec, parseSpec('docs/specs/memory.md', '# Memory')]), [
+  '- board-views · Board views · 2 requirements · 2 scenarios',
+  '- memory · Memory · 0 requirements · 0 scenarios',
+].join('\n'))
+assert.match(formatSpecList([]), /^No capability specs yet/)
+const saved = findRequirement(boardSpec, 'saved VIEWS ')
+assert.ok(saved)
+assert.equal(findRequirement(boardSpec, 'nope'), null)
+assert.equal(formatRequirement(saved), [
+  '### Requirement: Saved views',
+  'The board SHALL keep named views.',
+  '',
+  '#### Scenario: Save a view',
+  '- WHEN the user saves the current filters as "Mine"',
+  '- THEN "Mine" shows in the view list',
+  '',
+  '#### Scenario: Open a view',
+  '- WHEN the user picks "Mine"',
+  '- THEN the board shows its filters',
+].join('\n'))
+// a requirement parsed back from its own markdown is the same requirement
+assert.deepEqual(parseSpec('docs/specs/x.md', formatRequirement(saved)).requirements[0], saved)
 
 console.log('specs ok')
