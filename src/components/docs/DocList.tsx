@@ -23,6 +23,7 @@ import type { DocFile } from "@/types"
 import { priorityRank, type Priority } from "@/lib/doc-priority"
 import { DocActionsMenu, type DocActions } from "./DocActionsMenu"
 import { PriorityBadge } from "@/components/shared/PriorityBadge"
+import { isSpecPath } from "@/lib/specs"
 
 // ─── Selection context (scoped to DocList, not exported) ──────────────────────
 
@@ -160,7 +161,10 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
             <FileText className="h-3.5 w-3.5 shrink-0 opacity-50" />
           )}
           <span className="truncate">{formatName(node.name)}</span>
-          {node.priority && <PriorityBadge priority={node.priority} className="ml-auto" />}
+          {isSpecPath(node.docPath!) && (
+            <span className="ml-auto inline-flex h-4 shrink-0 items-center rounded-sm border border-border px-1 text-[10px] leading-none text-muted">Capability spec</span>
+          )}
+          {node.priority && <PriorityBadge priority={node.priority} className={isSpecPath(node.docPath!) ? undefined : "ml-auto"} />}
         </button>
         {!selectMode && actions && (
           <DocActionsMenu

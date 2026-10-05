@@ -810,4 +810,26 @@ components:
     category: 'technical',
     content: '# Untitled\n\n',
   },
+  {
+    // R066: recognised by path (docs/specs/<capability>.md, parsed by src/lib/specs.ts); rename the file to the capability
+    id: 'capability-spec',
+    name: 'Capability spec',
+    description: 'What one capability does today: requirements with WHEN/THEN scenarios',
+    defaultPath: 'docs/specs/capability.md',
+    category: 'technical',
+    content: `# Capability name
+
+## Purpose
+What this capability does for the user today, in two or three sentences.
+
+## Requirements
+
+### Requirement: Short requirement name
+The system SHALL do one observable thing.
+
+#### Scenario: The usual case
+- WHEN the user does something
+- THEN they see the result
+`,
+  },
 ]

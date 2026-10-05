@@ -2,7 +2,7 @@
 // Self-check: node src/lib/doc-links.check.mts. Regexes and labels are copied from memory-graph.ts (pure libs
 // never import values from each other), but here relative `./` and `../` targets are resolved.
 
-export type DocNodeKind = 'doc' | 'adr' | 'task' | 'epic' | 'entry'
+export type DocNodeKind = 'doc' | 'adr' | 'task' | 'epic' | 'entry' | 'spec'
 /** `status` / `owner` are set on task and epic nodes by GET /api/docs/graph, never by docNode(). */
 export type DocNode = { id: string; kind: DocNodeKind; label: string; path: string; status?: string; owner?: string | null }
 export type LinkKind = 'md' | 'wiki' | 'code' | 'id'
@@ -119,6 +119,8 @@ export function docNode(relPath: string, raw: string): DocNode {
   if ((m = /^plans\/roadmap\/(R\d{3,})[^/]*\.md$/.exec(p))) return { id: m[1], kind: 'epic', label: label(m[1]), path: p }
   if ((m = /^memory\/entries\/(E\d+)[^/]*\.md$/.exec(p))) return { id: normalizeId(m[1]), kind: 'entry', label: label(m[1]), path: p }
   if ((m = /(?:^|\/)(ADR-\d+)[^/]*\.md$/.exec(p))) return { id: normalizeId(m[1]), kind: 'adr', label: label(m[1]), path: p }
+  // a capability spec (R066): `docs/specs/<capability>.md`, no subfolders (isSpecPath in specs.ts)
+  if (/^docs\/specs\/[^/]+\.md$/.test(p)) return { id: p, kind: 'spec', label: h1 || name, path: p }
   return { id: p, kind: 'doc', label: h1 || name, path: p }
 }
 
@@ -273,7 +275,7 @@ export function buildDocGraph(items: DocItem[], otherPaths: readonly string[] = 
 }
 
 /** The kinds /graph shows when its URL names none. */
-export const GRAPH_DEFAULT_KINDS: readonly DocNodeKind[] = ['doc', 'adr']
+export const GRAPH_DEFAULT_KINDS: readonly DocNodeKind[] = ['doc', 'adr', 'spec']
 
 /** /graph selected on one file with Focus 1 ("Show in graph"); a task, epic or entry also turns its kind on. */
 export function graphHref(path: string): string {

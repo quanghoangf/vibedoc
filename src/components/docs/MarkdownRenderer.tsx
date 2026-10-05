@@ -293,7 +293,7 @@ function DocLinks({ docPath, html, containerRef }: { docPath: string; html: stri
         if (t.hash) scrollToHeading(t.hash)
         return
       }
-      if (node.kind === "doc" || node.kind === "adr") {
+      if (node.kind === "doc" || node.kind === "adr" || node.kind === "spec") {
         void openDoc(node.path).then(() => { if (t.hash) scrollToHeading(t.hash) })
       } else {
         openNode(node)

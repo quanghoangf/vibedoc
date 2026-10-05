@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { BookOpen, FileText, Flag, Lightbulb, Scale } from "lucide-react"
+import { BookOpen, FileText, Flag, Lightbulb, ListChecks, Scale } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { displayStatus } from "@/lib/statuses"
@@ -15,7 +15,7 @@ export const GROUPS: { kind: NodeKind; label: string }[] = [
   { kind: "doc", label: "Docs" },
   { kind: "entry", label: "Entries" },
 ]
-export const KIND_ICON = { epic: Flag, adr: Scale, doc: FileText, entry: Lightbulb, task: BookOpen } as const
+export const KIND_ICON = { epic: Flag, adr: Scale, doc: FileText, entry: Lightbulb, task: BookOpen, spec: ListChecks } as const
 
 /** Open a graph node where it lives: a task on /board, an epic on /roadmap, a doc or ADR in Docs, an entry here. */
 export function useOpenNode(onOpenEntry: (id: string) => void) {
@@ -71,7 +71,7 @@ export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpen
           className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm outline-none hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
         >
           {status ? <StatusIcon status={status} className="size-3.5 shrink-0" /> : <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />}
-          {n.kind !== "doc" && <span className="shrink-0 font-mono text-[11px] text-muted">{n.id}</span>}
+          {n.id !== n.path && <span className="shrink-0 font-mono text-[11px] text-muted">{n.id}</span>}
           <span className="min-w-0 truncate text-txt">{n.label}</span>
         </button>
       </li>

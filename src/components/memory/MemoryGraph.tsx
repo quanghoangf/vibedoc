@@ -50,7 +50,7 @@ const MemNodeView = memo(function MemNodeView({ data }: NodeProps<MemNode>) {
         </span>
       ))}
       {status ? <StatusIcon status={status} className="size-3.5 shrink-0" /> : <Icon className={cn("size-3.5 shrink-0", node.kind === "entry" ? "text-accent" : "text-muted")} aria-hidden />}
-      {node.kind !== "doc" && <span className="shrink-0 font-mono text-[10px] text-muted">{node.id}</span>}
+      {node.id !== node.path && <span className="shrink-0 font-mono text-[10px] text-muted">{node.id}</span>}
       <span className={cn("min-w-0 truncate", node.kind === "entry" ? "text-txt" : "text-muted")}>{node.label}</span>
     </div>
   )

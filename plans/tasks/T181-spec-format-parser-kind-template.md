@@ -1,8 +1,11 @@
 # T181: Spec format: parser, 'spec' kind in docs and graph, template
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R066 — Living capability specs
 **Size:** M (2–3 hrs)
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 A capability spec is a recognised kind of doc: the user creates one from a template, it reads as a spec in /docs and /graph, and VibeDoc can parse its requirements and scenarios. Every later R066 task builds on this parser.
@@ -47,3 +50,15 @@ A capability spec is a recognised kind of doc: the user creates one from a templ
 node src/lib/specs.check.mts && node src/lib/doc-links.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai · Spec: `e2e/vibedoc/T181-spec-format-parser-kind-template.spec.ts` · Auto: passed 2026-10-05_
+### Steps
+- [x] 🤖 Open /docs, click New document → the "Capability spec" template shows with path docs/specs/capability.md
+- [x] 🤖 Pick "Capability spec", set the path to a docs/specs/ file and Create → the file shows in the list with a Capability spec chip
+- [x] 🤖 Open /graph → the kind filter lists "Capability specs" and the new file shows as a Capability spec
+- [ ] On /graph, link a spec from another doc → its dot is a hexagon, distinct from doc circles and ADR squares
+- [ ] Create docs/notes/x.md with `### Requirement:` headings → no Capability spec chip, it stays a Docs dot on /graph
+### Regression risk
+- [ ] /graph labels and the selected-file card still show ids for tasks/epics/entries/ADRs and no id for plain docs
+- [ ] Clicking a doc link inside a doc still opens it in /docs (and a task link still opens the board panel)

@@ -34,6 +34,7 @@ type Tween = { from: Record<string, XY>; at: Record<string, XY>; to: Record<stri
 const KINDS: { kind: DocNodeKind; label: string }[] = [
   { kind: "doc", label: "Docs" },
   { kind: "adr", label: "ADRs" },
+  { kind: "spec", label: "Capability specs" },
   { kind: "task", label: "Tasks" },
   { kind: "epic", label: "Epics" },
   { kind: "entry", label: "Entries" },
@@ -89,7 +90,7 @@ const HIT_MAX = 48
 // search framing: half a typical label's width beside the outermost matches
 const MATCH_PAD_X = 72
 const HIT_PAD = `min(${HIT_MAX}px, max(100%, calc(${HIT}px / var(--graph-zoom, 1))))`
-const KIND_NAME: Record<DocNodeKind, string> = { doc: "Doc", adr: "ADR", task: "Task", epic: "Epic", entry: "Entry" }
+const KIND_NAME: Record<DocNodeKind, string> = { doc: "Doc", adr: "ADR", task: "Task", epic: "Epic", entry: "Entry", spec: "Capability spec" }
 // "Recent": files the activity log says an agent or a human changed in this window (T110)
 const RECENT_MS = 24 * 60 * 60 * 1000
 // ponytail: the newest 1000 events cover a day of agent work here; page the log if a busy day outgrows it
@@ -175,11 +176,12 @@ function labelMeasurer(): (n: DocNode) => number {
   }
   const sans = `11px ${css.getPropertyValue("--font-sans")}`
   const mono = `10px ${css.getPropertyValue("--font-mono")}`
-  return (n) => Math.min(max, width(n.label, sans) + (n.kind === "doc" ? 0 : width(n.id, mono) + 4))
+  return (n) => Math.min(max, width(n.label, sans) + (n.id === n.path ? 0 : width(n.id, mono) + 4))
 }
 
 /**
- * Kind by shape, drawn in currentColor: doc circle, ADR square, epic diamond, task (small) circle, entry ring.
+ * Kind by shape, drawn in currentColor: doc circle, ADR square, epic diamond, task (small) circle, entry ring,
+ * capability spec hexagon.
  * `hollow` (done / cancelled) draws the same shape as an outline, inset so the stroke stays inside the box.
  */
 function Shape({ kind, size, hollow, className }: { kind: DocNodeKind; size: number; hollow?: boolean; className?: string }) {
@@ -191,6 +193,7 @@ function Shape({ kind, size, hollow, className }: { kind: DocNodeKind; size: num
     <svg width={size} height={size} viewBox="0 0 10 10" aria-hidden className={cn("shrink-0", className)}>
       {kind === "adr" ? <rect x={0.75 + i} y={0.75 + i} width={8.5 - 2 * i} height={8.5 - 2 * i} rx="1" {...paint} />
         : kind === "epic" ? <path d={hollow ? `M5 ${i * 1.42}L${10 - i * 1.42} 5 5 ${10 - i * 1.42}${i * 1.42} 5Z` : "M5 0 10 5 5 10 0 5Z"} strokeLinejoin="round" {...paint} />
+        : kind === "spec" ? <path d="M5 0.6 9.2 3v4L5 9.4 0.8 7V3Z" strokeLinejoin="round" {...paint} />
         : kind === "entry" ? <circle cx="5" cy="5" r="3.9" fill="none" stroke="currentColor" strokeWidth="2.2" />
         : <circle cx="5" cy="5" r={5 - i} {...paint} />}
     </svg>
@@ -255,7 +258,7 @@ const DotView = memo(function DotView({ data }: NodeProps<DotNode>) {
             "in-[[data-id]:focus-visible]:opacity-100! in-[[data-id]:focus-visible]:bg-surface in-[[data-id]:focus-visible]:px-1 in-[[data-id]:focus-visible]:text-txt in-[[data-id]:focus-visible]:ring-1 in-[[data-id]:focus-visible]:ring-accent/60 in-[[data-id]:focus-visible]:shadow-[0_0_0_3px_rgb(var(--rgb-accent)/0.15)]",
           )}
         >
-          {node.kind !== "doc" && <span className="mr-1 font-mono text-[10px]">{node.id}</span>}
+          {node.id !== node.path && <span className="mr-1 font-mono text-[10px]">{node.id}</span>}
           {node.label}
         </span>
       </div>
@@ -484,7 +487,7 @@ export function DocGraph() {
     if (!q) return []
     const has = (p: string, withPath: boolean) => {
       const n = byPath.get(p)
-      return !!n && (n.label.toLowerCase().includes(q) || (n.kind !== "doc" && n.id.toLowerCase().includes(q)) || (withPath && n.path.toLowerCase().includes(q)))
+      return !!n && (n.label.toLowerCase().includes(q) || (n.id !== n.path && n.id.toLowerCase().includes(q)) || (withPath && n.path.toLowerCase().includes(q)))
     }
     const pathy = /[/.]/.test(q)
     const named = order.filter((p) => has(p, pathy))
@@ -552,7 +555,7 @@ export function DocGraph() {
         // known size: a fresh node object (every restyle, every tween frame) keeps its handles and stays visible
         // instead of React Flow hiding it, and its edges, until it re-measures
         measured: { width: box, height: box },
-        ariaLabel: `${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}${touched.has(p) ? ", changed in the last 24 hours" : ""}${p === selected ? ", selected" : ""}`,
+        ariaLabel: `${KIND_NAME[n.kind]}${n.id === n.path ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}${touched.has(p) ? ", changed in the last 24 hours" : ""}${p === selected ? ", selected" : ""}`,
         // the entrance offset: the layout is centred on 0,0, so -at points back at the centre (inert until data-unfold)
         data: { node: n, size, box, dim: !!lit && !lit.has(p), chip: p === selected || matched.has(p) || !!lit?.has(p) || top.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hollow, recent: touched.has(p), hideLabel: hideLabel.has(p), delay: delayOf(p), quick, unfold: { x: -at.x * UNFOLD_FROM, y: -at.y * UNFOLD_FROM, wait: waitOf(hops.get(p)) } },
         draggable: true,
@@ -1055,7 +1058,7 @@ export function DocGraph() {
                   data-path={p}
                   title={n.path}
                   aria-pressed={on}
-                  aria-label={`${KIND_NAME[n.kind]}${n.kind === "doc" ? "" : ` ${n.id}`} ${n.label}, 0 links${touched.has(p) ? ", changed in the last 24 hours" : ""}`}
+                  aria-label={`${KIND_NAME[n.kind]}${n.id === n.path ? "" : ` ${n.id}`} ${n.label}, 0 links${touched.has(p) ? ", changed in the last 24 hours" : ""}`}
                   onClick={() => (on ? open(n) : select(p))}
                   className={cn(
                     "inline-flex h-6 max-w-48 shrink-0 items-center gap-1.5 rounded-sm px-1.5 text-[11px] outline-none",
@@ -1068,7 +1071,7 @@ export function DocGraph() {
                     <Shape kind={n.kind} size={n.kind === "task" ? 6 : 8} hollow={hollow} className={hue} />
                     {touched.has(p) && <span aria-hidden className="absolute -top-0.5 -right-0.5 size-1 rounded-full bg-accent ring-1 ring-surface" />}
                   </span>
-                  {n.kind !== "doc" && <span className="font-mono text-[10px]">{n.id}</span>}
+                  {n.id !== n.path && <span className="font-mono text-[10px]">{n.id}</span>}
                   <span className="truncate">{n.label}</span>
                 </button>
               )
@@ -1079,7 +1082,7 @@ export function DocGraph() {
         <div aria-live="polite">
           {hidden && (
             <p className="absolute top-3 right-3 z-10 max-w-72 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted shadow-lg">
-              {hidden.kind !== "doc" && <span className="mr-1 font-mono text-[11px]">{hidden.id}</span>}
+              {hidden.id !== hidden.path && <span className="mr-1 font-mono text-[11px]">{hidden.id}</span>}
               <span className="text-txt">{hidden.label}</span> is hidden by filters ·{" "}
               <button
                 type="button"
@@ -1113,7 +1116,7 @@ export function DocGraph() {
               <div className="flex items-start gap-2">
                 {(() => { const Icon = KIND_ICON[card.kind]; return <Icon className="mt-0.5 size-4 shrink-0 text-muted" aria-hidden /> })()}
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-txt">{card.kind !== "doc" && <span className="mr-1.5 font-mono text-[11px] text-muted">{card.id}</span>}{card.label}</p>
+                  <p className="text-sm font-medium text-txt">{card.id !== card.path && <span className="mr-1.5 font-mono text-[11px] text-muted">{card.id}</span>}{card.label}</p>
                   <p className="mt-0.5 truncate font-mono text-[11px] text-muted" title={card.path}>{card.path}</p>
                 </div>
                 <button type="button" aria-label="Clear selection" onClick={() => select(null)} className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted outline-none hover:text-txt focus-visible:ring-2 focus-visible:ring-accent">

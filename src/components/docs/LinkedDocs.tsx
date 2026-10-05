@@ -81,7 +81,7 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
         >
           <span className="flex w-full min-w-0 items-center gap-2">
             {status ? <StatusIcon status={status} className="size-3.5 shrink-0" /> : <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />}
-            {kind !== "doc" && <span className="shrink-0 font-mono text-[11px] text-muted">{id}</span>}
+            {id !== r.path && <span className="shrink-0 font-mono text-[11px] text-muted">{id}</span>}
             <span className="min-w-0 truncate text-txt">{r.label}</span>
           </span>
           {withLine && <span className="w-full truncate pl-5.5 text-[11px] text-muted"><span className="font-mono">L{r.line}</span> · {r.context ?? r.text}</span>}

@@ -85,6 +85,11 @@ assert.deepEqual(docNode('plans/tasks/T093-x.md', '# T093: Doc links\n'), { id: 
 // labels are plain text: no link, emphasis or code syntax from the H1
 assert.equal(docNode('CHANGELOG.md', '# [1.10.0](https://github.com/x/y/compare/v1.9.0...v1.10.0) (2026-09-30)\n').label, '1.10.0 (2026-09-30)')
 assert.equal(docNode('docs/a.md', '# The **bold** `code` and _em_ [[HLD|design]] snake_case_name\n').label, 'The bold code and em design snake_case_name')
+// capability specs (R066): by path only; subfolders and look-alikes elsewhere stay docs
+assert.deepEqual(docNode('docs/specs/board-views.md', '# Board views\n### Requirement: X\n'), { id: 'docs/specs/board-views.md', kind: 'spec', label: 'Board views', path: 'docs/specs/board-views.md' })
+assert.equal(docNode('docs/specs/sub/x.md', '# X\n').kind, 'doc')
+assert.equal(docNode('docs/notes/board-views.md', '# Board views\n### Requirement: X\n#### Scenario: Y\n').kind, 'doc')
+assert.equal(graphHref('docs/specs/memory.md'), '/graph?node=docs%2Fspecs%2Fmemory.md&focus=1')
 assert.deepEqual(docNode('docs/HLD.md', 'no heading'), { id: 'docs/HLD.md', kind: 'doc', label: 'HLD', path: 'docs/HLD.md' })
 // a sentence H1 is prose, not a title: the file name instead; a question, a dash or a trailing ellipsis stays a title
 assert.equal(docNode('AGENTS.md', '# See CLAUDE.md — this file mirrors it for cross-tool compatibility (Cursor, Windsurf, Copilot Workspace).\n').label, 'AGENTS')
@@ -243,6 +248,6 @@ assert.deepEqual(extractLinks([
 // graphHref: Show in graph selects the file with Focus 1, turning on a kind the default hides
 assert.equal(graphHref('docs/a b.md'), '/graph?node=docs%2Fa+b.md&focus=1')
 assert.equal(graphHref('docs/architecture/decisions/ADR-001-x.md'), '/graph?node=docs%2Farchitecture%2Fdecisions%2FADR-001-x.md&focus=1')
-assert.equal(graphHref('plans/tasks/T001-x.md'), '/graph?node=plans%2Ftasks%2FT001-x.md&focus=1&kinds=doc%2Cadr%2Ctask')
+assert.equal(graphHref('plans/tasks/T001-x.md'), '/graph?node=plans%2Ftasks%2FT001-x.md&focus=1&kinds=doc%2Cadr%2Cspec%2Ctask')
 
 console.log('doc-links: ok')

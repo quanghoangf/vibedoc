@@ -1,7 +1,7 @@
 // Pure memory link graph (R053, no fs): links are inferred from text, never stored. Self-check: node src/lib/memory-graph.check.mts
 // Outgoing edges come from entry text; incoming edges from task, roadmap and doc files that mention an entry id.
 
-export type NodeKind = 'entry' | 'task' | 'epic' | 'adr' | 'doc'
+export type NodeKind = 'entry' | 'task' | 'epic' | 'adr' | 'doc' | 'spec' // 'spec': doc-links nodes (R066); fileNode() never makes one
 export type GraphNode = { id: string; kind: NodeKind; label: string; path: string }
 export type GraphEdge = { from: string; to: string } // from mentions to
 export type MemoryGraph = { nodes: GraphNode[]; edges: GraphEdge[] }
@@ -112,7 +112,7 @@ export function formatEntryLinks(graph: MemoryGraph, id: string, cap = 10): stri
 export const GRAPH_COL_W = 240
 export const GRAPH_ROW_H = 48
 /** Column per kind: epics and tasks left of the entries, ADRs and docs right of them. */
-const GRAPH_COL: Record<NodeKind, number> = { epic: -2, task: -1, entry: 0, adr: 1, doc: 2 }
+const GRAPH_COL: Record<NodeKind, number> = { epic: -2, task: -1, entry: 0, adr: 1, doc: 2, spec: 2 }
 
 /**
  * Deterministic positions for the graph view (no layout library, no saved positions): entries stacked in the

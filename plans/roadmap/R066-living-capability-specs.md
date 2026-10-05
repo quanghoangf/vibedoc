@@ -1,6 +1,6 @@
 # R066: Living capability specs
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 210
 **Tasks:** T181, T182, T183, T184, T185
 
