@@ -202,7 +202,8 @@ function TestReview() {
   const defaultView: DetailView = selected?.task.status === "review" ? "evidence" : "review"
   const view: DetailView = params.get("view") === "evidence" || params.get("view") === "review" ? params.get("view") as DetailView : defaultView
 
-  // Page keys (TEST_REVIEW_KEYS): j/k (↓/↑ in the list) walk, x ticks, a a approves, s sends back, f next failure, / searches.
+  // Page keys (TEST_REVIEW_KEYS): j/k (↓/↑ in the list) walk, x ticks, a a approves, s sends back, f next failure, / searches,
+  // [ ] older / newer run in Evidence.
   // Capture phase so a / s / / win over the layout's page jumps; no deps: it reads this render's state.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -261,6 +262,14 @@ function TestReview() {
         case "o": if (selected) setParams({ full: full ? null : "1" }); break
         case "p": detail.current?.querySelector<HTMLButtonElement>("[data-run]:not(:disabled)")?.click(); break
         case "v": if (selected) { const next = view === "evidence" ? "review" : "evidence"; setParams({ view: next === defaultView ? null : next, run: null }) } break
+        // Evidence: step through History (newest first, so [ = the row below); a gone run starts from the newest
+        case "[": case "]": {
+          if (view !== "evidence") return
+          const rows = Array.from(detail.current?.querySelectorAll<HTMLButtonElement>("nav[aria-labelledby=evidence-history] button") ?? [])
+          const at = rows.findIndex((b) => b.getAttribute("aria-current") === "true")
+          rows[at < 0 ? 0 : at + (e.key === "[" ? 1 : -1)]?.click()
+          break
+        }
         default: return
       }
       e.preventDefault()

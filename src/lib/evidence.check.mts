@@ -27,12 +27,15 @@ assert.deepEqual(matchItems(items, null).rows.map(r => r.result), ['missing', 'm
 
 const doc = formatEvidence({ taskId: 'T1', title: 'One', items, spec: 'e2e/vibedoc/T1.spec.ts', runs: [newer, older] })
 assert.ok(doc.startsWith('# T1 — One: evidence\n'))
-assert.match(doc, /\*\*❌ failed\*\* · 2\/3 steps · 2026-10-04 07:43:14 UTC · 1\.2s · commit `abcdef1` · spec `e2e\/vibedoc\/T1\.spec\.ts`/)
+// Verdict + coverage lead: first failed step linked to its group's heading, zero counts dropped, extras linked
+assert.match(doc, /^\*\*❌ \[Failed at step 2 · Click X → reads Y\]\(#steps\)\*\* · 2\/5 checks proven · 1 failed · 1 with no step · 1 manual unticked · \[1 step not in the checklist\]\(#steps-not-in-the-checklist\)$/m)
+assert.ok(doc.indexOf('checks proven') < doc.indexOf('steps passed'))
+assert.match(doc, /\n2\/3 steps passed · 2026-10-04 07:43:14 UTC · 1\.2s · commit `abcdef1` · spec `e2e\/vibedoc\/T1\.spec\.ts`/)
 assert.match(doc, /\[▶ Video of this run\]\(20261004T080000Z\/video\.webm\)/)
-assert.match(doc, /- ✅ Open \/ → board loads\n {2}!\[Open \/ → board loads\]\(20261004T080000Z\/01-s\.png\)/)
-assert.match(doc, /- ❌ Click X → reads Y\n {2}```\n {2}Expected: "Y"\n {2}Received: "Z"\n {2}```\n {2}!\[/)
+// Failed rows lead their group
+assert.match(doc, /### Steps\n- ❌ Click X → reads Y\n {2}```\n {2}Expected: "Y"\n {2}Received: "Z"\n {2}```\n {2}!\[[^\n]*\n- ✅ Open \/ → board loads\n {2}!\[Open \/ → board loads\]\(20261004T080000Z\/01-s\.png\)/)
 assert.match(doc, /- ☑ Looks right — _manual, ticked_/)
-assert.match(doc, /### Regression risk\n- ☐ Drag still works — _manual, not ticked yet_\n- ⚠️ Gone step → nope — _no step in this run_/)
+assert.match(doc, /### Regression risk\n- ⚠️ Gone step → nope — _no step in this run_\n- ☐ Drag still works — _manual, not ticked yet_/)
 assert.match(doc, /### Steps not in the checklist\n- ✅ Extra one/)
 // History newest first, the shown run marked, missing commit as —
 const hist = doc.slice(doc.indexOf('## History'))
@@ -42,7 +45,8 @@ assert.match(hist, /\| ✅ passed \| 2\/2 \| — \|/)
 
 // Picking an older run details it; a custom src maps links
 const old = formatEvidence({ taskId: 'T1', title: 'One', items, spec: null, runs: [newer, older], runId: older.runId, src: (r, f) => `/api/x/${r}/${f}` })
-assert.match(old, /\*\*✅ passed\*\* · 2\/2 steps/)
+assert.match(old, /^\*\*✅ Passed\*\* · 3\/5 checks proven · 1 with no step · 1 manual unticked$/m)
+assert.match(old, /\n2\/2 steps passed · /)
 assert.match(old, /!\[Click X → reads Y\]\(\/api\/x\/20261004T070000Z\/02-s\.png\)/)
 assert.ok(!old.includes('Steps not in the checklist'))
 assert.match(old, /2026-10-04 07:43:14 UTC · \*\*shown\*\* \| ✅ passed/)
@@ -51,12 +55,24 @@ assert.match(old, /2026-10-04 07:43:14 UTC · \*\*shown\*\* \| ✅ passed/)
 const none = formatEvidence({ taskId: 'T1', title: 'One', items, spec: 'a.spec.ts', runs: [] })
 assert.match(none, /_No run yet\. Run `a\.spec\.ts` to record evidence\._/)
 assert.match(none, /- ⚠️ Open \/ → board loads — _no run yet_/)
+assert.match(none, /^1\/5 checks proven · 3 not run yet · 1 manual unticked$/m)
+assert.ok(!none.includes('Passed') && !none.includes('Failed'))
 assert.ok(!none.includes('## History'))
+assert.match(formatEvidence({ taskId: 'T1', title: 'One', items, spec: null, runs: [] }), /^_No run yet\._ No Playwright spec records this task: write one with `vibedoc\/playwright`/m)
 
 // No checklist (no task file): run steps are the doc
 const bare = formatEvidence({ taskId: 'no-task', title: 'no-task', items: [], spec: null, runs: [older] })
 assert.match(bare, /## Steps\n- ✅ Open \/ → board loads/)
 assert.ok(!bare.includes('## Checklist'))
+assert.match(bare, /^\*\*✅ Passed\*\*$/m)
+assert.ok(!bare.includes('checks proven'))
+
+// Calm when a passed run proves every check; a failure outside the checklist links to the extras heading
+const calm = formatEvidence({ taskId: 'T1', title: 'One', items: [items[0], items[1]], spec: null, runs: [older] })
+assert.match(calm, /^\*\*✅ Passed\*\* · 2\/2 checks proven$/m)
+const outside = run('20261004T090000Z', [step(1, 'Open / → board loads'), step(2, 'Click X → reads Y'), step(3, 'Extra [one]', 'failed', 'boom')])
+const ext = formatEvidence({ taskId: 'T1', title: 'One', items: [items[0], items[1]], spec: null, runs: [outside] })
+assert.match(ext, /\*\*❌ \[Failed at step 3 · Extra \\\[one\\\]\]\(#steps-not-in-the-checklist\)\*\* · 2\/2 checks proven · \[1 step not in the checklist\]/)
 console.log('ok evidence')
 
 // R061: a Run's write-back: passed 🤖 ticked, failed 🤖 unticked, manual and unmatched untouched
@@ -80,7 +96,7 @@ console.log('ok evidence')
   const its = [item(0, 'Open / → board loads', true), item(1, 'Click X → reads Y', true)]
   assert.deepEqual(matchItems(its, honest, v).rows.map(r => r.unverified), [[], ['no assertion']])
   const md = formatEvidence({ taskId: 'T1', title: 'One', items: its, spec: null, runs: [honest], verdict: v })
-  assert.match(md, /2\/2 steps · 1 unverified · /)
+  assert.match(md, /2\/2 steps passed · 1 unverified · /)
   assert.match(md, /- ✅ Click X → reads Y\n {2}!\[[^\n]+\n {2}⚠️ unverified: no assertion/)
   assert.ok(!/unverified/.test(formatEvidence({ taskId: 'T1', title: 'One', items: its, spec: null, runs: [honest] })), 'no verdict, no flags')
   console.log('ok evidence unverified')
@@ -93,7 +109,7 @@ console.log('ok evidence')
   assert.equal(flakyFor(flakyRun, ' Open /  → board loads')?.attempts, 2)
   assert.equal(flakyFor(flakyRun, 'Other'), null)
   const md = formatEvidence({ taskId: 'T1', title: 'One', items: [item(0, 'Open / → board loads', true)], spec: null, runs: [flakyRun] })
-  assert.match(md, /1\/1 steps · 1 flaky · /)
+  assert.match(md, /1\/1 steps passed · 1 flaky · /)
   assert.match(md, /- ✅ Open \/ → board loads\n {2}!\[[^\n]+\n {2}🔁 flaky \(passed on attempt 2\); the first attempt failed:\n {2}```\n {2}Expected: "Board"/)
   assert.match(md, /!\[first attempt\]\(20261005T090000Z\/first-failure-01-s\.png\)/)
   console.log('ok evidence flaky')

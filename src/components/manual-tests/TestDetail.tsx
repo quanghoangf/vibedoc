@@ -48,6 +48,8 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
   onRun: (runId: string | null) => void
 }) {
   const { demo } = useApp()
+  // Kept runs, reported by the evidence view: `[` `]` only show when there is another run to step to
+  const [runCount, setRunCount] = useState(0)
   const items = tests?.items ?? []
   const manual = items.filter((i) => !i.auto)
   const automated = items.filter((i) => i.auto)
@@ -158,13 +160,13 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
             </span>
           )}
         </div>
-        <div role="tablist" aria-label="View" className="flex w-fit items-center gap-0.5 rounded-md border border-border bg-bg p-0.5">
+        {/* A two-segment control (DESIGN.md): pressed buttons, not tabs */}
+        <div role="group" aria-label="View" className="flex w-fit items-center gap-0.5 rounded-md border border-border bg-bg p-0.5">
           {(["review", "evidence"] as const).map((v) => (
             <button
               key={v}
               type="button"
-              role="tab"
-              aria-selected={view === v}
+              aria-pressed={view === v}
               onClick={() => onView(v)}
               title={`${v === "review" ? "Run replay and checklist" : "The evidence doc and run history"} (${TEST_REVIEW_KEYS.view.key})`}
               className={cn(
@@ -181,6 +183,7 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
           tick={view === "review" && !demo && manual.some((i) => !checkedOf(i))}
           approve={decides && task.status === "review"}
           sendBack={decides && REVIEWABLE["changes requested"].includes(task.status)}
+          runs={runCount > 1}
         />
       </header>
 
@@ -198,6 +201,8 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
             latest={task.lastRun?.runId ?? null}
             run={run}
             onRun={onRun}
+            onReplay={() => onView("review")}
+            onRuns={setRunCount}
             review={reviewHere ? { initialNote: failedNote, onDecided } : undefined}
           />
         </section>
@@ -251,7 +256,7 @@ const ICON_BTN = "inline-flex size-8 items-center justify-center rounded-md text
 const KBD = "rounded-sm border border-border2 bg-surface2 px-1 py-0.5 font-mono text-[11px] leading-none text-txt"
 
 /** The page keys that apply to this task, for sighted keyboard users (the `?` sheet lists them all). */
-function KeyStrip({ view, tick, approve, sendBack }: { view: DetailView; tick: boolean; approve: boolean; sendBack: boolean }) {
+function KeyStrip({ view, tick, approve, sendBack, runs }: { view: DetailView; tick: boolean; approve: boolean; sendBack: boolean; runs: boolean }) {
   const K = TEST_REVIEW_KEYS
   const keys: [string, string][] = [
     ["j", ""], ["k", "move"],
@@ -262,7 +267,7 @@ function KeyStrip({ view, tick, approve, sendBack }: { view: DetailView; tick: b
     [K.run.key, "run"],
     [K.view.key, view === "review" ? "evidence" : "review"],
     [K.expand.key, "page"],
-    ...(view === "review" ? [["space", "play"]] as [string, string][] : []),
+    ...(view === "review" ? [["space", "play"]] as [string, string][] : runs ? [["[ ]", "older / newer run"]] as [string, string][] : []),
   ]
   return (
     <p aria-hidden className="flex flex-wrap items-center gap-x-1 gap-y-1 font-mono text-[11px] text-muted max-sm:hidden">

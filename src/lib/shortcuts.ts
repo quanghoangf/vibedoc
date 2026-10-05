@@ -75,6 +75,7 @@ export const TEST_REVIEW_KEYS = {
   run: { key: "p", label: "Run the task's spec now / stop it (R061)" },
   suite: { key: "u", label: "Run / stop the regression suite (Suite tab)" },
   view: { key: "v", label: "Switch Review / Evidence (the evidence doc and run history)" },
+  runs: { key: "[ ]", label: "Older / newer run (Evidence)" },
   expand: { key: "o", label: "Open the task as a page / collapse back to the list" },
   play: { key: "Space", label: "Play / pause (player focused)" },
 } as const

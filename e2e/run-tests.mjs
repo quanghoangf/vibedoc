@@ -81,11 +81,11 @@ try {
   assert.match(after, new RegExp(`Spec: \`e2e/vibedoc/T001-run.spec.ts\` · Auto: passed ${today}_`))
   assert.match(after, /- \[x\] 🤖 Open the page → heading shows\n- \[x\] 🤖 Click Go → it reads Done\n- \[ \] The button looks right/)
   assert.ok(existsSync(path.join(fx, "e2e/vibedoc/kit/VERSION")), "the Run wrote the test kit")
-  await page.getByRole("tab", { name: "evidence" }).click()
+  await page.getByRole("group", { name: "View" }).getByRole("button", { name: "evidence" }).click()
   const evidence = page.getByRole("region", { name: "Evidence" })
-  await evidence.getByText(/✅ passed/).first().waitFor()
-  await evidence.getByRole("img").first().waitFor()
-  await page.getByRole("tab", { name: "review" }).click()
+  await evidence.getByText(/✅ Passed/).first().waitFor()
+  await evidence.locator("[data-zoom] img").first().waitFor()
+  await page.getByRole("group", { name: "View" }).getByRole("button", { name: "review" }).click()
   console.log("ok  passed → Auto: passed + both 🤖 items [x] in the file; Evidence shows the new run")
 
   // 3. Stop mid-step: nothing written, no half-written run folder

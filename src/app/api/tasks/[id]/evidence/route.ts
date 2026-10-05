@@ -8,14 +8,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const sp = req.nextUrl.searchParams
   const run = sp.get('run')
   if (!isRunTaskId(id)) return NextResponse.json({ error: 'Bad task id' }, { status: 400 })
-  if (run !== null && !isRunId(run)) return NextResponse.json({ error: 'Bad run id' }, { status: 400 })
   const rootQ = sp.get('root') ? `?root=${encodeURIComponent(sp.get('root')!)}` : ''
   try {
-    const evidence = await getEvidence(id, rootFrom(sp.get('root')), {
-      runId: run,
-      src: (runId, file) => `/api/tasks/${id}/runs/${runId}/${encodeURIComponent(file)}${rootQ}`,
-    })
-    if (!evidence) return NextResponse.json({ error: `No kept run ${run} for ${id}` }, { status: 404 })
+    const root = rootFrom(sp.get('root'))
+    const src = (runId: string, file: string) => `/api/tasks/${id}/runs/${runId}/${encodeURIComponent(file)}${rootQ}`
+    const evidence = run === null || isRunId(run) ? await getEvidence(id, root, { runId: run, src }) : null
+    // A pruned or malformed ?run=: say so, with the kept runs so the view can still offer them
+    if (!evidence) return NextResponse.json({ error: `No kept run ${run} for ${id}`, gone: true, runs: (await getEvidence(id, root, { src }))?.runs ?? [] }, { status: 404 })
     return NextResponse.json(evidence)
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 404 })

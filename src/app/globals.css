@@ -203,6 +203,15 @@ body {
 .prose-dark.prose-compact > :first-child { margin-top: 0; }
 .prose-dark.prose-compact p, .prose-dark.prose-compact li { font-size: 0.75rem; line-height: 1.6; }
 .prose-dark.prose-compact p { margin-bottom: 0.5rem; }
+/* Evidence report (R060, /manual-tests Evidence): result glyphs are the markers, so rows sit flush with no bullets;
+   headings in text colour (accent/green would read as "passed"); inline code (commits, specs, commands) muted, wrapping
+   as whole chips. Links take the accent-edge ink (green / orange clear 4.5:1 on the light page). Specificity beats .prose-dark. */
+.prose-dark.prose-evidence ul { list-style: none; padding-left: 0; }
+.prose-dark.prose-evidence h2, .prose-dark.prose-evidence h3 { color: var(--color-txt); }
+.prose-dark.prose-evidence :not(pre) > code { color: var(--color-muted); overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.prose-dark.prose-evidence a { color: var(--color-accent-edge); }
+/* A long log clamps to 6 lines (TestEvidence's Show full log), fading out so the cut reads as "more below" */
+.prose-dark.prose-evidence pre[data-clamped] > code { display: block; max-height: 6lh; overflow-y: clip; mask-image: linear-gradient(to bottom, black 60%, transparent); }
 .prose-dark li { font-size: 0.875rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.7; margin-bottom: 0.2rem; }
 .prose-dark code { font-family: var(--font-mono); font-size: 0.8rem; background: var(--color-surface2); border: 1px solid var(--color-border); padding: 1px 5px; border-radius: 4px; color: var(--color-teal); }
 .prose-dark pre { background: color-mix(in srgb, var(--color-bg) 50%, var(--color-surface)); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; }

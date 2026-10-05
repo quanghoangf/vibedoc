@@ -42,7 +42,8 @@ try {
   demo(true)
   const doc = readFileSync(path.join(runsDir, "T001", "EVIDENCE.md"), "utf8")
   assert.match(doc, /^# T001 — Capture demo: evidence/)
-  assert.match(doc, /\*\*❌ failed\*\* · 1\/2 steps/)
+  assert.match(doc, /\*\*❌ \[Failed at step 2/)
+  assert.match(doc, /1\/2 steps passed/)
   assert.match(doc, /- ✅ Open the page → heading shows\n {2}!\[[^\]]+\]\(\d{8}T\d{6}Z\/01-[\w-]+\.png\)/)
   assert.match(doc, /- ☐ The page looks right — _manual, not ticked yet_/)
   assert.equal(doc.match(/^\| \d{4}-/gm)?.length, 2, "two runs in History")
@@ -55,7 +56,7 @@ try {
 
   const evidence = page.getByRole("region", { name: "Evidence" })
   // The doc's screenshots only (a task in review also has the review steps' icons and thumbnails above it)
-  const shots = evidence.locator(".prose-dark img")
+  const shots = evidence.locator(".prose-dark [data-zoom] img")
   const loaded = async () => {
     await shots.first().waitFor()
     for (const img of await shots.all()) {
@@ -77,7 +78,7 @@ try {
   await loaded()
   assert.equal(await shots.count(), 2)
   await evidence.locator(".prose-dark").getByText('Received: "Clicked"').waitFor()
-  const history = page.getByRole("navigation", { name: "Runs" })
+  const history = page.getByRole("navigation", { name: "History" })
   await history.getByRole("button").nth(1).click()
   await page.waitForURL(/run=\d{8}T\d{6}Z/)
   await evidence.locator(".prose-dark").getByText("2/2 steps").waitFor()

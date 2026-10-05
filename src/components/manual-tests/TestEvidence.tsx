@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
-import { timeAgo } from "@/components/activity/ActivityEventRow"
-import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
+import { clock, timeAgo } from "@/components/activity/ActivityEventRow"
+import { MarkdownRenderer, flashElement } from "@/components/docs/MarkdownRenderer"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { ReviewActions } from "@/components/board/TaskDetailPanel"
 import { AlertTriangle, Check, HelpCircle, X } from "lucide-react"
@@ -29,33 +29,94 @@ export function UnverifiedChip({ reasons }: { reasons: string[] }) {
     </span>
   )
 }
-type Evidence = { markdown: string; runId: string | null; runs: { runId: string; status: "passed" | "failed"; startedAt: string; commit: string | null }[]; rows: Row[] }
+
+/** `07:43`, or `Oct 4 07:43` when not today (local time) */
+const stamp = (iso: string) => {
+  const d = new Date(iso)
+  return d.toDateString() === new Date().toDateString() ? clock(iso) : `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${clock(iso)}`
+}
+
+// Classes set from enhance() below; literal here so Tailwind generates them (RunPlayer's step thumbnail)
+const THUMB_BTN = "my-1 block w-fit cursor-zoom-in rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+const THUMB = "aspect-video w-18 rounded-sm border border-border bg-surface2 object-cover object-top"
+const SHOT_BTN = "my-2 block w-fit max-w-full cursor-zoom-in rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+const SHOT = "block max-h-[50svh] max-w-full rounded-md border border-danger/50"
+const LOG_BTN = "-mt-2 mb-2 block rounded-sm text-xs text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+/** Logs longer than this clamp, with a Show full log toggle (a short failed-step error stays whole) */
+const LOG_LINES = 6
+
+/**
+ * The rendered doc made scannable: each screenshot becomes a button that opens it large (labelled with its step),
+ * a passed step's as a thumbnail, a failed step's full width; long logs clamp. Idempotent (StrictMode, same html).
+ */
+function enhance(root: HTMLElement) {
+  root.querySelectorAll<HTMLImageElement>("img:not([data-shot])").forEach((img, i) => {
+    const failed = !!img.closest("li")?.textContent?.trimStart().startsWith("❌")
+    const btn = document.createElement("button")
+    btn.type = "button"
+    btn.className = failed ? SHOT_BTN : THUMB_BTN
+    btn.dataset.zoom = img.getAttribute("src") ?? ""
+    btn.dataset.alt = img.alt
+    btn.setAttribute("aria-label", `Show the screenshot of ${img.alt}`)
+    img.replaceWith(btn)
+    img.dataset.shot = String(i)
+    img.alt = ""
+    img.loading = "lazy"
+    img.className = failed ? SHOT : THUMB
+    btn.append(img)
+  })
+  root.querySelectorAll<HTMLPreElement>("pre:not([id])").forEach((pre, i) => {
+    pre.id = `evidence-log-${i}`
+    const lines = (pre.textContent ?? "").trimEnd().split("\n").length
+    if (lines <= LOG_LINES) return
+    pre.dataset.clamped = ""
+    const btn = document.createElement("button")
+    btn.type = "button"
+    btn.className = LOG_BTN
+    btn.dataset.log = pre.id
+    btn.dataset.lines = String(lines)
+    btn.setAttribute("aria-controls", pre.id)
+    btn.setAttribute("aria-expanded", "false")
+    btn.textContent = `Show full log (${lines} lines)`
+    pre.after(btn)
+  })
+}
+
+type Run = { runId: string; status: "passed" | "failed"; startedAt: string; commit: string | null }
+type Evidence = { markdown: string; runId: string | null; runs: Run[]; rows: Row[] }
 
 /**
  * The evidence view on /manual-tests (R060): the task's evidence doc from `/api/tasks/<id>/evidence` (same formatter
  * as the fixture's EVIDENCE.md, with API links), above it the kept runs to pick from (`&run=`). Mount with key={taskId}.
  * `latest` = the board's newest run id, so a new run refetches. A screenshot click opens it large; media links open
- * in a new tab.
+ * in a new tab, except the newest run's video, which `onReplay` plays in the Review view. The doc's head (verdict, coverage, run line: everything before its first `## `) renders above History,
+ * the rest below; `#heading` links in it scroll within the view.
  */
-export function TestEvidence({ taskId, latest, run, onRun, review }: {
+export function TestEvidence({ taskId, latest, run, onRun, onReplay, onRuns, review }: {
   taskId: string
   latest: string | null
   run: string | null
   onRun: (runId: string | null) => void
+  /** The newest run's video plays in the Review view */
+  onReplay: () => void
+  onRuns: (count: number) => void
   /** R062: the task waits in review → Approve / Send back on top of the proof (prefilled note, extra controls) */
   review?: { initialNote: string; onDecided: () => void; children?: ReactNode }
 }) {
   const { rootParam } = useApp()
-  const [data, setData] = useState<{ key: string; evidence: Evidence | null; error: string | null } | null>(null)
+  // gone = the ?run= isn't kept (pruned or malformed); runs then lists the kept ones so History stays
+  const [data, setData] = useState<{ key: string; evidence: Evidence | null; error: string | null; gone?: boolean; runs?: Run[] } | null>(null)
   const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null)
-  const key = `${taskId}|${run}|${latest}|${rootParam}`
+  const [attempt, setAttempt] = useState(0)
+  const root = useRef<HTMLDivElement>(null)
+  const key = `${taskId}|${run}|${latest}|${rootParam}|${attempt}`
 
   useEffect(() => {
     let live = true
     fetch(`/api/tasks/${encodeURIComponent(taskId)}/evidence${rootParam}${run ? `&run=${encodeURIComponent(run)}` : ""}`)
       .then(async (r) => {
         const json = await r.json().catch(() => null)
-        if (live) setData({ key, evidence: r.ok ? json : null, error: r.ok ? null : json?.error ?? `Request failed (${r.status})` })
+        if (live) setData({ key, evidence: r.ok ? json : null, error: r.ok ? null : json?.error ?? `Request failed (${r.status})`, gone: json?.gone, runs: json?.runs })
       })
       .catch((e) => { if (live) setData({ key, evidence: null, error: (e as Error).message }) })
     return () => { live = false }
@@ -63,9 +124,27 @@ export function TestEvidence({ taskId, latest, run, onRun, review }: {
 
   const loading = data?.key !== key
   const evidence = data?.evidence ?? null
+  const cut = evidence ? evidence.markdown.search(/^## /m) : -1
+  const newest = evidence?.runs[0]
+  // The newest run, when an older one is shown
+  const newer = newest && evidence!.runId !== newest.runId ? newest : null
+  const shown = evidence?.runs.find((r) => r.runId === evidence.runId)
+  // The newest run plays in Review's player; an older one only has its raw file
+  const head = (evidence ? (cut < 0 ? evidence.markdown : evidence.markdown.slice(0, cut)) : "")
+    .replace("[▶ Video of this run](", newer ? "[Open video (.webm) ↗](" : "[▶ Play this run in Review](")
+    // The doc keeps UTC (EVIDENCE.md / MCP); here the run line matches History's local time
+    .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/, (t) => (shown ? stamp(shown.startedAt) : t))
+  // The doc's own `## History` table (always last) is for EVIDENCE.md / MCP; here the History nav above replaces it
+  const body = evidence && cut >= 0 ? evidence.markdown.slice(cut).replace(/^## History\n[\s\S]*$/m, "") : ""
+  const runs = evidence?.runs ?? (loading ? [] : data?.runs ?? [])
+  const error = loading ? null : data?.error ?? null
 
-  const shown = evidence?.runs.find((r) => r.runId === evidence.runId) ?? null
-  const older = !!shown && evidence?.runs[0]?.runId !== shown.runId
+  useEffect(() => { onRuns(runs.length) }, [runs.length, onRuns])
+
+  // Before paint, so an 11k px doc never flashes full-size screenshots and logs
+  useLayoutEffect(() => { if (root.current) enhance(root.current) }, [head, body])
+
+  const older = !!newer
 
   return (
     <div className="flex flex-col gap-4">
@@ -90,64 +169,119 @@ export function TestEvidence({ taskId, latest, run, onRun, review }: {
           {review.children}
         </ReviewDesk>
       )}
-      {(evidence?.runs.length ?? 0) > 1 && (
-        <nav aria-label="Runs" className="flex flex-col gap-1">
-          <h3 className="text-[13px] font-medium text-txt">History <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{evidence!.runs.length}</span></h3>
-          <ol className="-mx-2 flex flex-col">
-            {evidence!.runs.map((r, i) => {
-              const current = r.runId === evidence!.runId
-              return (
-                <li key={r.runId}>
-                  <button
-                    type="button"
-                    aria-current={current ? "true" : undefined}
-                    onClick={() => onRun(i === 0 ? null : r.runId)}
-                    className={cn(
-                      "flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-(--duration-fast) hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent",
-                      current && "bg-surface2",
-                    )}
-                  >
-                    <span className={cn("size-2 shrink-0 rounded-full", r.status === "passed" ? "bg-teal" : "bg-danger")} aria-hidden />
-                    <span className={cn("w-12 shrink-0", r.status === "passed" ? "text-teal" : "text-danger")}>{r.status}</span>
-                    <span className="font-mono text-muted tabular-nums" title={r.startedAt}>{timeAgo(r.startedAt)}</span>
-                    {r.commit && <code className="font-mono text-[11px] text-muted">{r.commit.slice(0, 7)}</code>}
-                    {i === 0 && <span className="text-muted">· newest</span>}
-                    {current && <span className="ml-auto text-[11px] text-txt">shown</span>}
-                  </button>
-                </li>
-              )
-            })}
-          </ol>
-        </nav>
-      )}
+      <div
+        ref={root}
+        className={cn(
+          "flex min-w-0 flex-col gap-4 transition-opacity duration-(--duration-fast) [&_h1]:hidden [&_h2]:scroll-mt-4 [&_h3]:scroll-mt-4 [&_strong>a]:text-danger! [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto",
+          loading && evidence && "opacity-60",
+        )}
+        onClick={(e) => {
+          const el = e.target as HTMLElement
+          const shot = el.closest<HTMLElement>("[data-zoom]")
+          if (shot) return setZoom({ src: shot.dataset.zoom!, alt: shot.dataset.alt ?? "" })
+          const log = el.closest<HTMLElement>("[data-log]")
+          if (log) {
+            const pre = document.getElementById(log.dataset.log!)
+            const open = log.getAttribute("aria-expanded") !== "true"
+            pre?.toggleAttribute("data-clamped", !open)
+            log.setAttribute("aria-expanded", String(open))
+            log.textContent = open ? "Show less" : `Show full log (${log.dataset.lines} lines)`
+            return
+          }
+          const a = el.closest("a")
+          const href = a?.getAttribute("href") ?? ""
+          if (href.startsWith("#")) {
+            // In-doc jump (verdict → the failure's group): scroll here, never write a hash onto this URL
+            e.preventDefault()
+            const target = e.currentTarget.querySelector<HTMLElement>(`[id="${CSS.escape(href.slice(1))}"]`)
+            if (!target) return
+            const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            target.scrollIntoView({ block: "start", behavior: still ? "auto" : "smooth" })
+            const row = target.nextElementSibling?.querySelector("li")
+            if (row instanceof HTMLElement) flashElement(row)
+          } else if (!newer && /\.webm(?:\?|$)/.test(href) && !e.metaKey && !e.ctrlKey) {
+            e.preventDefault()
+            onReplay()
+          } else if (href.startsWith("/api/") && !e.metaKey && !e.ctrlKey) {
+            e.preventDefault()
+            window.open(a!.href, "_blank", "noopener,noreferrer")
+          }
+        }}
+      >
+        {/* Announces a run pick (History, [ ], Show newest): the region stays, its text changes */}
+        <p className="sr-only" aria-live="polite" aria-atomic>
+          {!loading && shown ? `Showing ${shown === newest ? "the newest run" : "run"} from ${stamp(shown.startedAt)}, ${shown.status}` : ""}
+        </p>
 
-      {loading && !evidence ? (
-        <div aria-busy className="flex flex-col gap-2" aria-label="Loading evidence">
-          <div className="h-5 w-2/3 animate-pulse rounded-sm bg-surface2" />
-          <div className="h-4 w-1/2 animate-pulse rounded-sm bg-surface2" />
-          <div className="aspect-video w-full animate-pulse rounded-md bg-surface2" />
-        </div>
-      ) : data?.error ? (
-        <p role="alert" className="text-sm text-danger">{data.error}</p>
-      ) : evidence && (
-        <div
-          className={cn(
-            "min-w-0 transition-opacity duration-(--duration-fast) [&_h1]:hidden [&_ul]:list-none [&_ul]:pl-0 [&_li]:list-none [&_img]:my-2 [&_img]:block [&_img]:max-w-full [&_img]:cursor-zoom-in [&_img]:rounded-md [&_img]:border [&_img]:border-border [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto",
-            loading && "opacity-60",
-          )}
-          onClick={(e) => {
-            const el = e.target as HTMLElement
-            if (el instanceof HTMLImageElement) return setZoom({ src: el.src, alt: el.alt })
-            const a = el.closest("a")
-            if (a?.getAttribute("href")?.startsWith("/api/") && !e.metaKey && !e.ctrlKey) {
-              e.preventDefault()
-              window.open(a.href, "_blank", "noopener,noreferrer")
-            }
-          }}
-        >
-          <MarkdownRenderer content={evidence.markdown} />
-        </div>
-      )}
+        {evidence && <MarkdownRenderer content={head} className="prose-evidence" />}
+
+        {error && (
+          <div role="alert" className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+            {data?.gone ? (
+              <>
+                <span className="text-txt">That run isn&apos;t kept any more.</span>
+                <button type="button" onClick={() => onRun(null)} className="rounded-sm text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Show newest run →</button>
+              </>
+            ) : (
+              <>
+                <span className="text-danger">Couldn&apos;t load the evidence.</span>
+                <span className="text-xs text-muted">{error}</span>
+                <button type="button" onClick={() => setAttempt((n) => n + 1)} className="rounded-sm text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Retry</button>
+              </>
+            )}
+          </div>
+        )}
+
+        {newer && (
+          <p className="-mt-2 flex flex-wrap items-baseline gap-x-1.5 text-xs text-muted">
+            <span className="text-txt">Older run</span>
+            <span aria-hidden>·</span>
+            <span>newest <span className={newer.status === "passed" ? "text-teal" : "text-danger"}>{newer.status}</span> <span className="font-mono text-[11px] tabular-nums" title={newer.startedAt}>{timeAgo(newer.startedAt)}</span></span>
+            <button type="button" onClick={() => onRun(null)} className="rounded-sm text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Show newest →</button>
+          </p>
+        )}
+
+        {runs.length > 0 && (
+          <nav aria-labelledby="evidence-history" className="flex flex-col gap-1">
+            {/* h2: the doc's H1 is hidden and its sections are h2, so History sits at the same level */}
+            <h2 id="evidence-history" className="text-[13px] font-medium text-txt">History <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{runs.length}</span></h2>
+            <ol className="-mx-2 flex flex-col">
+              {runs.map((r, i) => {
+                const current = r.runId === evidence?.runId
+                return (
+                  <li key={r.runId}>
+                    <button
+                      type="button"
+                      aria-current={current ? "true" : undefined}
+                      onClick={() => onRun(i === 0 ? null : r.runId)}
+                      className={cn(
+                        "flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors duration-(--duration-fast) hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent",
+                        current && "bg-surface2",
+                      )}
+                    >
+                      <span className={cn("size-2 shrink-0 rounded-full", r.status === "passed" ? "bg-teal" : "bg-danger")} aria-hidden />
+                      <span className={cn("w-12 shrink-0", r.status === "passed" ? "text-teal" : "text-danger")}>{r.status}</span>
+                      <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-muted tabular-nums" title={r.startedAt}>{timeAgo(r.startedAt)}</span>
+                      <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-muted tabular-nums max-sm:hidden">{stamp(r.startedAt)}</span>
+                      {r.commit && <code className="font-mono text-[11px] text-muted">{r.commit.slice(0, 7)}</code>}
+                      {i === 0 && <span className="shrink-0 whitespace-nowrap text-muted">· newest</span>}
+                      {current && <span className="ml-auto text-[11px] text-txt">shown</span>}
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          </nav>
+        )}
+
+        {loading && !evidence ? (
+          <div role="status" aria-busy aria-label="Loading evidence" className="flex flex-col gap-2">
+            <div className="h-5 w-2/3 animate-pulse rounded-sm bg-surface2" />
+            <div className="h-4 w-1/2 animate-pulse rounded-sm bg-surface2" />
+            <div className="aspect-video w-full animate-pulse rounded-md bg-surface2" />
+          </div>
+        ) : body && <MarkdownRenderer content={body} className="prose-evidence" />}
+      </div>
 
       <Dialog open={zoom !== null} onOpenChange={(o) => { if (!o) setZoom(null) }}>
         <DialogContent className="max-h-[90vh] max-w-[min(64rem,calc(100vw-2rem))] overflow-y-auto">
