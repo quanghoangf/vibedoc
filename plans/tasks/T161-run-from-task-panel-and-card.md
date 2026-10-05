@@ -1,8 +1,12 @@
 # T161: Run from the task panel and the board card
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R061 — Run tests from VibeDoc
 **Size:** S (~1–2 hrs)
 **Depends on:** T159
+**Owner:** ai:claude-code
+**Due:** 2026-10-06
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 A task's tests can be re-run from where people already look: the board card and the task panel, not only from /manual-tests.
@@ -41,3 +45,14 @@ A task's tests can be re-run from where people already look: the board card and 
 pnpm lint && pnpm build
 # /board → hover a card with a spec → play; open its panel → Runs → Run / Stop
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] On /board, hover a card whose task has a spec → a small play button appears next to the 🧪 badge (hidden otherwise); click it → it turns into a spinner and the task panel does not open
+- [ ] With that run going, open /manual-tests on the same task in another tab → the live strip shows the same run; the card's spinner turns back into play when it ends
+- [ ] Open a task panel with a spec → Runs header has Run; click it → "Starting the app…", then "Step N · <step text>" advances; Stop → the line goes away and Run is back
+- [ ] While one task runs, the play / Run of every other task is disabled with "T0xx is running"
+### Regression risk
+- [ ] Clicking a card body still opens the panel, the 🧪 badge still opens the Evidence view, and dragging a card between columns still works
+- [ ] A task without a spec shows no play button and its panel's Runs section is as before

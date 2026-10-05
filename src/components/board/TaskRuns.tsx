@@ -2,20 +2,27 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Check, ImageOff, X } from "lucide-react"
+import { Check, ImageOff, Loader2, Play, Square, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { timeAgo } from "@/components/activity/ActivityEventRow"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import type { RunManifest, RunStep } from "@/lib/runs-paths"
+import { useTestRun } from "@/components/manual-tests/useTestRun"
+import { isRunning } from "@/lib/test-run-events"
 
 /**
  * A task's recorded test runs (R059): the picked run's step screenshots + video, newest run first.
  * Mount with key={taskId}. `latest` = the board's newest run id, so a new run refetches. The evidence doc with every
  * kept run (R060) is one click away on /manual-tests; `onNavigate` closes the panel first.
  */
-export function TaskRuns({ taskId, latest, onNavigate }: { taskId: string; latest: string | null; onNavigate?: () => void }) {
-  const { rootParam } = useApp()
+export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string; latest: string | null; spec?: string | null; onNavigate?: () => void }) {
+  const { rootParam, demo } = useApp()
+  // R061: Run / Stop this task's spec; while it runs, one live line replaces the picked run
+  const testRun = useTestRun()
+  const live = testRun.run?.taskId === taskId && isRunning(testRun.run) ? testRun.run : null
+  const otherRun = testRun.busy && !live ? testRun.run!.taskId : null
+  const current = live?.steps.at(-1)
   const [runs, setRuns] = useState<RunManifest[] | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
   const [open, setOpen] = useState<RunStep | null>(null)
@@ -48,6 +55,20 @@ export function TaskRuns({ taskId, latest, onNavigate }: { taskId: string; lates
     <section aria-label="Test runs" className="px-5 py-3 border-b border-border shrink-0">
       <div className="mb-2 flex items-center gap-2">
         <p className="text-xs font-mono uppercase tracking-wide text-muted">Runs</p>
+        {spec && !demo && (
+          <button
+            type="button"
+            onClick={() => void (live ? testRun.stop() : testRun.start(taskId))}
+            disabled={!!otherRun}
+            title={otherRun ? `${otherRun} is running` : live ? "Stop the run" : `Run ${spec} now`}
+            className={cn(
+              "inline-flex h-6 items-center gap-1 rounded-sm border px-1.5 text-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40",
+              live ? "border-danger/40 text-danger hover:bg-danger/10" : "border-border text-txt hover:border-accent/50",
+            )}
+          >
+            {live ? <><Square className="size-3" aria-hidden /> Stop</> : <><Play className="size-3" aria-hidden /> Run</>}
+          </button>
+        )}
         <Link
           href={`/manual-tests?tab=all&task=${encodeURIComponent(taskId)}&view=evidence`}
           onClick={onNavigate}
@@ -56,9 +77,16 @@ export function TaskRuns({ taskId, latest, onNavigate }: { taskId: string; lates
           Evidence →
         </Link>
       </div>
-      {runs === null ? null : !run ? (
+      {live ? (
+        <p aria-live="polite" className="flex min-w-0 items-center gap-1.5 text-xs text-txt">
+          <Loader2 className="size-3.5 shrink-0 animate-spin text-accent" aria-hidden />
+          {current
+            ? <><span className="shrink-0 font-mono text-muted">Step {current.index}</span><span className="truncate" title={current.name}>{current.name}</span></>
+            : <span className="text-muted">Starting the app…</span>}
+        </p>
+      ) : runs === null ? null : !run ? (
         <p className="text-xs text-muted">
-          No recorded runs yet. Write the spec with <code className="font-mono text-txt">vibedoc/playwright</code>&apos;s <code className="font-mono text-txt">step()</code> to capture one.
+          No recorded runs yet. Specs that import VibeDoc&apos;s test kit (<code className="font-mono text-txt">vibedoc_get_frontend</code> writes it) and use <code className="font-mono text-txt">step()</code> record one.
         </p>
       ) : (
         <div className="flex flex-col gap-3">

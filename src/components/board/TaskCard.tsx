@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Bot, CornerDownRight, CornerUpLeft, FlaskConical, MoreHorizontal, PanelRightOpen, Trash2 } from "lucide-react"
+import { Bot, CornerDownRight, CornerUpLeft, FlaskConical, Loader2, MoreHorizontal, PanelRightOpen, Play, Trash2 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/context/AppContext"
 import { deleteTaskWithUndo } from "./task-api"
@@ -10,6 +10,8 @@ import { OwnerChip } from "@/components/shared/OwnerChip"
 import { TaskDueField, TaskOwnerField, TaskSizeField } from "./TaskFields"
 import { toast } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
+import { useTestRun } from "@/components/manual-tests/useTestRun"
+import { isRunning } from "@/lib/test-run-events"
 import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
 import { latestReview } from "@/lib/review"
@@ -126,9 +128,39 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
               {tests.autoRun?.result === "failed" && <span className="size-1.5 rounded-full bg-danger" aria-label="last auto run failed" />}
             </Link>
           )}
+          {tests?.spec && !demo && <CardRun taskId={task.id} />}
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * R061: play on the card (hover / focus; a spinner while this task runs). Events stop here so the card neither
+ * opens nor drags. Disabled while another task of the project runs.
+ */
+function CardRun({ taskId }: { taskId: string }) {
+  const testRun = useTestRun()
+  const running = testRun.run?.taskId === taskId && isRunning(testRun.run)
+  const other = testRun.busy && !running ? testRun.run!.taskId : null
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation()
+  return (
+    <button
+      type="button"
+      draggable={false}
+      onClick={(e) => { e.stopPropagation(); void (running ? testRun.stop() : testRun.start(taskId)) }}
+      onKeyDown={stop}
+      onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
+      disabled={!!other}
+      aria-label={running ? `Stop ${taskId} tests` : `Run ${taskId} tests`}
+      title={other ? `${other} is running` : running ? "Running · click to stop" : "Run the spec now"}
+      className={cn(
+        "inline-flex size-5 items-center justify-center rounded-sm text-muted transition-[opacity,color] hover:text-accent focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed",
+        running ? "text-accent opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+      )}
+    >
+      {running ? <Loader2 className="size-3 animate-spin" aria-hidden /> : <Play className="size-3" aria-hidden />}
+    </button>
   )
 }
 
