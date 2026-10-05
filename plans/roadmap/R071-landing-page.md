@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** planned
 **Order:** 240
-**Tasks:** —
+**Tasks:** T201, T202, T203, T204, T205, T206, T207
 
 A public site where a newcomer understands VibeDoc in 30 seconds, sees it working, and leaves with an install command copied, so installs and GitHub stars grow beyond people who find the README.
 
