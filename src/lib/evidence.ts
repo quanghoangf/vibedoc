@@ -7,7 +7,9 @@
 
 import type { ManualTestItem } from './manual-tests.js'
 import type { RunManifest, RunStep, RunTest } from './runs-paths.js'
-import type { ReviewMark } from './review.js'
+
+/** A `failed` ReviewMark (src/lib/review.ts), spelled out here: the test kit ships this file without review.ts. */
+type FailedMark = { item: number; step: string; kind: 'failed'; comment?: string; screenshot?: string }
 
 export type ItemResult = 'passed' | 'failed' | 'missing' | 'manual'
 /** `unverified` (R063): why the step doesn't prove the item, from the injected verdict; [] = it does / unknown. */
@@ -173,10 +175,10 @@ export function ticksForRun(items: ManualTestItem[], steps: { name: string; stat
  * screenshot), plus failed steps no item names (`item: -1`), plus the failed test itself when no step failed
  * (a crash outside the steps). A passed or flaky run gives none.
  */
-export function failedMarksForRun(items: ManualTestItem[], run: RunManifest | null): ReviewMark[] {
+export function failedMarksForRun(items: ManualTestItem[], run: RunManifest | null): FailedMark[] {
   if (!run || run.status !== 'failed') return []
   const first = (e: string | null) => e?.replace(/\x1b\[[0-9;]*m/g, '').split('\n').find(l => l.trim())?.trim()
-  const mark = (item: number, step: RunStep): ReviewMark => ({
+  const mark = (item: number, step: RunStep): FailedMark => ({
     item, step: step.name, kind: 'failed', ...(first(step.error) ? { comment: first(step.error) } : {}), ...(step.screenshot ? { screenshot: step.screenshot } : {}),
   })
   const { rows, extra } = matchItems(items, run)
