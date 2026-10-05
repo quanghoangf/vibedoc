@@ -146,3 +146,23 @@ Bỏ qua: bài Medium "30+ agentic coding frameworks" (không xác định đư�
 Kết quả: roadmap thêm R066–R070 (Living capability specs, Spec verification review, Scenarios as acceptance tests, Spec changes on epics, OpenSpec import).
 
 Nguồn thêm: [github/spec-kit](https://github.com/github/spec-kit) (templates/commands/clarify.md, analyze.md, checklist.md, spec-driven.md), [Kiro docs](https://kiro.dev/docs/getting-started/first-project/), [Traycer verification](https://docs.traycer.ai/tasks/verification), [BMAD explained — codemyspec](https://codemyspec.com/blog/bmad-method-explained), [Tessl review 2026 — codemyspec](https://codemyspec.com/blog/tessl-review).
+
+---
+
+## 8. Phụ lục: OpenSpec v1.14 và việc cập nhật skill (2026-10-05)
+
+Đọc trực tiếp docs và template trong repo (v1.14.0, 30/09/2026). **Confirmed** trừ khi ghi khác.
+
+| Bài học từ OpenSpec | Nguồn | Đã áp dụng vào |
+|---|---|---|
+| Test và docs đi cùng nhóm task của nó; không gom vào nhóm cuối (đổi từ v1.13.2) | `schemas/spec-driven/schema.yaml` (tasks), release v1.13.2 | `skills/epic-breakdown` (luật slicing + mẫu Acceptance criteria) |
+| Đọc spec hiện có trước khi chọn ADDED/MODIFIED; MODIFIED chép cả block; REMOVED có lý do; RENAMED chỉ đổi tên | schema.yaml (specs), `docs/writing-specs.md` | `skills/roadmap-planner` |
+| Một requirement = một hành vi, SHALL/MUST, ~500 ký tự, ≥ 1 scenario; tên capability theo hành vi lâu dài | schema.yaml, writing-specs.md, release v1.14.0 | `skills/roadmap-planner` |
+| Không back-fill spec cho phần không đổi; spec lớn dần theo từng change | `docs/existing-projects.md` | `skills/roadmap-planner` (epic không đổi hành vi thì không có Spec changes) |
+| Verify: không tính check bỏ qua là đạt; REMOVED kiểm ngược; RENAMED kiểm theo hành vi cũ | `src/core/templates/workflows/verify-change.ts`, release v1.13.2 | `formatVerifyContext` (src/lib/verification.ts) + spec changes / covers của task trong context |
+
+Nối skill với R066–R069: `work-epic` giữ đúng `## Related spec` và nhắc merge spec khi epic xong; `what-next` thêm luật cho verification findings và spec drift (unmerged / conflict / uncovered scenario).
+
+Không lấy: thư mục `changes/` + archive riêng (epic file đã là bản ghi), `design.md` bắt buộc, `/opsx:update`, bộ lệnh mở rộng (OpenSpec cũng thu về profile `core`).
+
+Nguồn: [commands.md](https://github.com/Fission-AI/OpenSpec/blob/main/docs/commands.md), [writing-specs.md](https://github.com/Fission-AI/OpenSpec/blob/main/docs/writing-specs.md), [existing-projects.md](https://github.com/Fission-AI/OpenSpec/blob/main/docs/existing-projects.md), [schema.yaml](https://github.com/Fission-AI/OpenSpec/blob/main/schemas/spec-driven/schema.yaml), [verify-change.ts](https://github.com/Fission-AI/OpenSpec/blob/main/src/core/templates/workflows/verify-change.ts), [releases](https://github.com/Fission-AI/OpenSpec/releases).

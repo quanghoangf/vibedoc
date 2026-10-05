@@ -1,6 +1,6 @@
 // Self-check for verification. Run: node src/lib/verification.check.mts
 import assert from 'node:assert/strict'
-import { blockingCount, formatFindingsNote, formatVerification, isOutdated, parseVerification, setVerification, validateFindings, type Verification } from './verification.ts'
+import { blockingCount, formatVerifyContext, formatFindingsNote, formatVerification, isOutdated, parseVerification, setVerification, validateFindings, type Verification } from './verification.ts'
 
 const v: Verification = {
   at: '2026-10-06', by: 'ai:claude-code', sha: '3f2a91c', findings: [
@@ -83,5 +83,16 @@ assert.equal(isOutdated('bbb2222', 'T186', log), true)
 assert.equal(isOutdated('bbb2222', 'T18', log), false) // T1860 / T186 are other tasks
 assert.equal(isOutdated(undefined, 'T186', log), false)
 assert.equal(isOutdated('0000000', 'T186', log), false)
+
+// formatVerifyContext: epic spec changes, covered scenarios and the verify rules (R069 / R068 / OpenSpec's verify)
+{
+  const base = { taskId: 'T1', title: 'x', sections: [], doneWhen: '', relatedSpec: '', conventions: [], commits: [], diff: '', diffCut: 0, head: null }
+  const out = formatVerifyContext({ ...base, specChanges: [{ capability: 'memory', ops: [{ op: 'REMOVED', name: 'Legacy index' }] }], covers: ['S1', 'S3'] })
+  assert.ok(out.includes('## Epic spec changes') && out.includes('- REMOVED memory: Legacy index'))
+  assert.ok(out.includes('## Scenarios this task covers\nS1, S3'))
+  assert.match(out, /a REMOVED one must be gone/)
+  assert.match(out, /Never count a check you couldn't make as met/)
+  assert.ok(!formatVerifyContext(base).includes('## Epic spec changes') && !formatVerifyContext(base).includes('## Scenarios this task covers'))
+}
 
 console.log('verification ok')

@@ -1131,6 +1131,8 @@ export async function getVerifyContext(taskId: string, root: string): Promise<st
     taskId: task.id, title: task.title, sections,
     doneWhen: epic ? /\*\*Done when:\*\*\s*(.+)/.exec(epic.body)?.[1].trim() ?? '' : '',
     relatedSpec: await relatedSpecs(task, root),
+    specChanges: epic?.specChanges ?? [],
+    covers: task.covers,
     conventions: hits.map(h => ({ id: h.id, summary: h.summary })),
     commits, diff, diffCut, head,
   })

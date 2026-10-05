@@ -22,6 +22,8 @@ Read the project's `CLAUDE.md` once. Task files quote the relevant rules, but th
 
    If a reply ends with a `🗺️ Roadmap out of sync` hint for this epic (for example, set it to in-progress), apply it with `vibedoc_update_roadmap_item`, so the roadmap matches the board.
 2. **Read the task.** If the reply has a `⚠️ Changes requested` line, a human sent this task back from review: that note is the first thing to fix, and the rest of the spec still applies. A `🤖 Last auto run failed` line names the Playwright spec that failed last time: read the failing step in the task's report, and make that spec pass before done. Read its Goal, Scope, Files, Implementation notes, Acceptance criteria and Verify. The task file is the spec. Stay inside its Scope: later tasks in the epic own the rest, and if you do their work now, their diffs will conflict with yours.
+
+   A `## Related spec` block lists requirements of the capability spec you are working in (`vibedoc_get_spec` reads one in full). Keep them true. If the task really has to change one of them, the epic's `## Spec changes` should say so; if it doesn't, do the task as written and say in your report which requirement changed. Never edit `docs/specs/` yourself: a person merges the epic's spec changes when it is done.
 3. **Implement** the task, following the project's patterns.
 4. **Verify.** Run every command in the task's **Verify** block, and check each acceptance criterion you can check. If something fails and the fix is inside the task's scope, fix it and run Verify again.
 5. **Done.** Only when Verify passes: write a manual test report (below). If the task changed something a user sees in the browser, write the spec for it next ([Write the spec](#write-the-spec-ui-tasks)) and run it ([Run the spec](#run-the-spec)): a UI task with a spec is done only when the spec passes. Then call `vibedoc_update_task { "taskId": "<id>", "status": "done", "manualTests": "<report>" }` (plus `"spec": "<path>", "autoResult": "passed"` when you wrote and ran one), then commit that task's changes, following the repo's commit rules (message format, attribution, which files to stage). Each task leaves the app in a working state. When you commit after each task, it is safe to stop at any point, and a human can review or revert one task at a time.
@@ -140,7 +142,7 @@ For the example above, a passing run ends with `vibedoc_update_task { "taskId": 
 
 ## Stop rules
 
-- **`✅ … is finished`:** report the tasks you completed. If the reply suggests setting the epic to done (`vibedoc_update_roadmap_item`), do that. Then stop.
+- **`✅ … is finished`:** report the tasks you completed. If the reply suggests setting the epic to done (`vibedoc_update_roadmap_item`), do that. If the epic has `## Spec changes`, end the report by asking the person to merge them (**Merge into capability spec** on the epic's sheet); don't merge them yourself. Then stop.
 - **`⏳ Nothing ready` with "Needs a human":** a task is blocked or in review, or depends on one. Report the reasons from the reply exactly as given and stop. Only a human can unblock, approve or send back the task, and if you continue you can only guess.
 - **`⏳ Nothing ready` without "Needs a human":** the remaining tasks are in-progress, or they wait on in-progress tasks. Another agent owns those tasks. Report that and stop. Do not take over or re-claim their tasks.
 

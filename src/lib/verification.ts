@@ -130,6 +130,10 @@ export type VerifyContext = {
   sections: { heading: string; body: string }[]
   doneWhen: string
   relatedSpec: string
+  /** R069: the epic's ## Spec changes (targets only); [] when it has none */
+  specChanges?: { capability: string; ops: { op: string; name: string }[] }[]
+  /** R068: scenario ids this task covers (`**Covers:**`) */
+  covers?: string[]
   conventions: { id: string; summary: string }[]
   commits: { sha: string; subject: string }[]
   diff: string
@@ -144,6 +148,11 @@ export function formatVerifyContext(c: VerifyContext): string {
   for (const s of c.sections) out.push("", `## ${s.heading}`, s.body)
   if (c.doneWhen) out.push("", "## Epic Done when", c.doneWhen)
   if (c.relatedSpec) out.push("", c.relatedSpec)
+  if (c.specChanges?.length) {
+    out.push("", "## Epic spec changes (what this epic promises to change in the capability specs)",
+      ...c.specChanges.flatMap((sc) => sc.ops.map((o) => `- ${o.op} ${sc.capability}: ${o.name}`)))
+  }
+  if (c.covers?.length) out.push("", `## Scenarios this task covers`, c.covers.join(", ") + " (see the epic's ## Scenarios; the task's checklist has one step each)")
   if (c.conventions.length) out.push("", "## Conventions", ...c.conventions.map((e) => `- ${e.id} · ${e.summary}`))
   out.push("", "## The change")
   if (c.commits.length) {
@@ -154,8 +163,11 @@ export function formatVerifyContext(c: VerifyContext): string {
   }
   out.push("", "## How to verify",
     "- Check each acceptance criterion and scope item against the change above (read the files when the diff is not enough).",
+    "- Spec changes this task carries out: an ADDED or MODIFIED requirement must be implemented as its new text says; a REMOVED one must be gone (finding no code for it is the expected result; report any path that still does it); a RENAMED one keeps its old behaviour (code names don't have to change).",
+    "- Each covered scenario needs code that handles it and, where the task promised one, a test or a checklist step that exercises it.",
     "- Report only real gaps, each with the criterion it fails and a file:line when there is one. Don't report style or test quality.",
-    "- Severity: critical = a criterion is not met; major = wrong behaviour or a missed edge case; minor = polish.",
+    "- Never count a check you couldn't make as met: report it as minor with a message starting \"Not verified:\" and the reason (no diff, needs a running app, …).",
+    "- Severity: critical = a criterion is not met; major = wrong behaviour or a missed edge case; minor = polish or not verified.",
     `- Always finish with vibedoc_report_findings { taskId: "${c.taskId}", findings, sha${c.head ? `: "${c.head}"` : ""} }, with findings: [] when nothing is wrong.`)
   return out.join("\n")
 }

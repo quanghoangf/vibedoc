@@ -95,7 +95,9 @@ Good slicing rules:
 - **Vertical before horizontal.** When you can, the first task ships a thin end-to-end path, e.g. one plan, happy path only, from UI to storage. Later tasks widen it. A "types only" or "all the API routes" task is harder to verify and hides problems until the end.
 - **Order by dependency, then by risk.** Put the unknowns (a new integration, a tricky migration) early, so they surface while the plan can still change.
 - **No overlap.** Two tasks should not edit the same function for different reasons. Merge them, or make one depend on the other.
+- **Tests and docs travel with their task.** Each task lands the tests (unit, e2e, Playwright spec) and the doc updates its own change calls for, in its own scope and acceptance criteria. Never collect them into a final "e2e and docs" task: when a late task first exercises an early one, failures cascade back through every task in between, and the early tasks were marked done without proof. A last task is only for checks that genuinely span several tasks (the epic's Done-when end to end), plus marking the epic done.
 - **Every epic "Done when" criterion must be covered by some task's acceptance criteria.** Check this before you continue.
+- **Every spec change has a task.** Each requirement in the epic's `## Spec changes` maps to a task whose acceptance criteria are its scenarios. A REMOVED requirement's task proves the behaviour is gone; a RENAMED one's proves it is unchanged.
 - **Scenarios.** When the epic body has a `## Scenarios` section (`### S1: <name>` + `- WHEN …` / `- THEN …` bullets), every task names the scenarios it makes true (`covers`), and every scenario is covered by at least one task. When it has none, offer to write them from "Done when" first (one scenario per promise, WHEN/THEN, numbered S1, S2, …) and add them to the epic before slicing.
 
 Show the plan as a plain-text table, not the full files yet:
@@ -152,7 +154,7 @@ Use this template. The board parser reads only the contiguous `**Key:** Value` b
 ## Acceptance criteria
 - [ ] <Observable behavior: "POST /api/checkout with plan=monthly returns a session URL">
 - [ ] <Edge/error case that matters: "Unknown plan → 400 with error message">
-- [ ] <Quality-bar items chosen in the interview: "Unit test for price calculation">
+- [ ] <Quality-bar items chosen in the interview, for this task's own change: "Unit test for price calculation", "docs/billing.md documents the checkout call">
 
 ## Verify
 ```bash

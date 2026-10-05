@@ -104,7 +104,7 @@ An epic may also state its promise as numbered scenarios, after the body. They b
 - THEN <what they observe>
 ```
 
-When an epic changes what an existing capability does and that capability has a spec (`docs/specs/<capability>.md`; `vibedoc_list_specs` lists them), also say how, so the spec can be updated when the epic is done. Requirements here use `####` and their scenarios `#####`; a MODIFIED requirement carries its full new text and scenarios, a REMOVED one the reason, a RENAMED one only its heading:
+When an epic changes what a capability does, also say how, so its spec can be updated when the epic is done. Check `vibedoc_list_specs` first: an existing capability keeps its exact slug, and a capability with no spec yet gets one from this epic's ADDED requirements when it is merged. Requirements here use `####` and their scenarios `#####`:
 
 ```
 ## Spec changes
@@ -120,6 +120,15 @@ The system SHALL <new observable behaviour>.
 <why>
 #### RENAMED Requirement: <old name> → <new name>
 ```
+
+Rules that keep the merge honest (they follow OpenSpec's, which learned them the hard way):
+
+- **Read the current spec first** (`vibedoc_get_spec { capability }`). Behaviour that is already there is MODIFIED, not ADDED; two competing requirements are worse than none.
+- **MODIFIED carries the whole block.** Copy the existing requirement with every scenario, then edit it. The merge replaces the block, so a scenario you leave out is deleted.
+- **REMOVED says why**, and where users go instead if anything replaces it. **RENAMED** is `Old → New` with no body; the behaviour must not change.
+- **One requirement, one behaviour**, stated with SHALL/MUST so a tester who never saw the code could check it, in a short paragraph (about 500 characters). Examples and edge cases go into scenarios, and every requirement has at least one.
+- **Name capabilities for durable behaviour** (`board-views`, `user-auth`), never for the work (`add-saved-views`). Reuse an existing slug rather than inventing a near-duplicate.
+- **Only what this epic changes.** Don't back-fill specs for parts of the product the epic doesn't touch: specs nobody's work keeps current go stale. An epic that changes no behaviour (a refactor, tooling, docs) has no `## Spec changes`.
 
 When the epic is done, a person merges these into the spec from the epic sheet (one diff, Accept). Agents never write the spec for it.
 

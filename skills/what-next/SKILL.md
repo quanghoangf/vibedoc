@@ -13,8 +13,8 @@ This skill only reads. Don't change task or roadmap files, and don't start the r
 
 Read these, in any order. Prefer the VibeDoc MCP tools when they're connected (`vibedoc_get_status`, `vibedoc_get_roadmap`, `vibedoc_list_tasks`). Otherwise read the files directly. Either way it's cheap, so read everything below before deciding.
 
-- **Tasks:** `plans/tasks/T*.md`. For each: id, title, status, `Depends on`, and `Due` from the `**Key:** Value` block under the H1.
-- **Roadmap:** `plans/roadmap/R*.md`. Items with no `**Parent:**` are horizons, and items with one are epics. For each epic: status, `**Tasks:**` list, and `Due`.
+- **Tasks:** `plans/tasks/T*.md`. For each: id, title, status, `Depends on`, and `Due` from the `**Key:** Value` block under the H1, plus any `## Verification` findings (critical / major / minor).
+- **Roadmap:** `plans/roadmap/R*.md`. Items with no `**Parent:**` are horizons, and items with one are epics. For each epic: status, `**Tasks:**` list, and `Due`. `vibedoc_get_roadmap` also lists "Needs attention" (status drift, overdue, at risk, unmerged spec changes, conflicting spec changes, uncovered scenarios).
 - **Activity:** `.vibedoc-activity.json`. You need the last `task_updated` time for each in-progress task, to tell active work from abandoned work.
 - **Handoff:** the "Handoff for next session" / "Up next" part of `memory/MEMORY.md`, if it exists. It is the last session's intent. Weigh it, but check it against the files, because it goes stale.
 - **Git:** current branch, uncommitted changes, and commits not pushed yet (`git status -sb`, `git log @{u}..` when there is an upstream).
@@ -27,9 +27,11 @@ The order runs from "something is stuck or at risk" to "start something new". Un
 |---|---|---|
 | 1 | Uncommitted changes, or a branch with unpushed commits, that look like finished work | Commit or push / open a PR (`/commit`, `/create-pr`). Say what the changes are. |
 | 2 | A task is `blocked`, or an epic's queue would report "Needs a human" (blocked task, missing task file, broken dependency) | Unblock it: read its `## Blocked because` note if there is one and say what decision is needed. |
+| 2b | A task in `review` or `done` has critical or major findings in its `## Verification` (the card shows "N findings"), and they aren't outdated | Send them back from the task panel (tick the findings → **Send back N findings**), or say which finding is wrong if you disagree. Name the task and the findings. |
 | 3 | A task is `in-progress` with no activity for more than ~24h | It's probably abandoned: resume it, or move it back to `todo` so the queue can hand it out again. |
 | 4 | An epic has ready tasks: `todo`, with every dependency `done` or `cancelled` | `/work-epic <epic>`. Prefer an epic that is already `in-progress`, then the earliest horizon, then by `Order`. Name the task it would start with. |
 | 5 | Roadmap drift: all of an epic's tasks are done but the epic isn't, an epic is `planned` while its tasks are moving, or something is overdue | Fix the status or due date (`vibedoc_update_roadmap_item`, or edit the `**Status:**` line). |
+| 5b | Spec drift under "Needs attention" in `vibedoc_get_roadmap`: a done epic whose spec changes aren't merged, two open epics changing the same requirement, or a scenario no task covers | Unmerged: **Merge into capability spec** on the epic's sheet (a person does it). Conflict: decide which epic owns the requirement and edit the other's `## Spec changes`. Uncovered scenario: add `**Covers:**` to a task, or a task for it, before work starts. |
 | 6 | The earliest horizon has a planned epic with no tasks | `/epic-breakdown <epic>`. Pick the first one by horizon order, then by `Order`. |
 | 7 | No roadmap at all (`plans/roadmap/` empty or missing) | `/roadmap-planner`. |
 | 8 | Nothing above applies | Say the project is in a clean state, and suggest `/roadmap-planner` to plan the next horizon. |
