@@ -1,8 +1,12 @@
 # T167: Kit counts assertions per step; steps without a real one are unverified
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R063 — Honest tests
 **Size:** M (2–3 hrs)
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 Every recorded step knows how many assertions it made and how many of those looked at the page. A step with none, or only trivial ones (`expect(true).toBe(true)`), shows as **unverified** in the evidence doc.
@@ -59,3 +63,14 @@ node src/lib/honesty.check.mts && node src/lib/evidence.check.mts
 pnpm build:playwright && pnpm lint && pnpm build
 npx playwright test e2e/vibedoc/T155-evidence-tab-in-test-review.spec.ts
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Write a kit spec (in e2e/vibedoc/) with one honest step (`expect(page.getByRole(...)).toHaveText(...)`), one step with no expect and one with only `expect(true).toBe(true)`, run it with `npx playwright test` → its run.json steps have `assertions` {1,1}, {0,0} and {1,0} (agent checked with a throwaway spec, since removed)
+- [ ] Open that task's EVIDENCE.md → the summary reads "… · 2 unverified", and the two weak steps show `⚠️ unverified: no assertion` / `only trivial assertions` under their screenshot
+- [ ] `expect.poll(...)` and `expect(locator).not.toBeVisible()` count as checks on the page (not flagged)
+- [ ] Change src/testing/playwright-fixture.ts and call `vibedoc_get_frontend` → e2e/vibedoc/kit is rewritten and its VERSION reads `<version>+<hash>`
+### Regression risk
+- [ ] T155's spec still passes through the kit and its evidence shows no unverified steps; older runs without counts show no flags
+- [ ] `npm pack --dry-run` lists src/lib/honesty.ts and dist/lib/honesty.js

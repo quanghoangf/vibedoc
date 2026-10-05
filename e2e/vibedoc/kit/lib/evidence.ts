@@ -9,7 +9,10 @@ import type { ManualTestItem } from './manual-tests.js'
 import type { RunManifest, RunStep } from './runs-paths.js'
 
 export type ItemResult = 'passed' | 'failed' | 'missing' | 'manual'
-export interface EvidenceRow { item: ManualTestItem; result: ItemResult; step: RunStep | null }
+/** `unverified` (R063): why the step doesn't prove the item, from the injected verdict; [] = it does / unknown. */
+export interface EvidenceRow { item: ManualTestItem; result: ItemResult; step: RunStep | null; unverified: string[] }
+/** R063: a step's honesty verdict (stepVerdict in honesty.ts), injected so this lib imports no values. */
+export type StepVerdict = (step: RunStep) => string[]
 
 const norm = (s: string) => s.trim().replace(/\s+/g, ' ')
 
@@ -17,14 +20,14 @@ const norm = (s: string) => s.trim().replace(/\s+/g, ' ')
  * 🤖 items take the status of the run step with the same text (`/work-epic` copies the item text into `step()`),
  * else `missing`; manual items are `manual`. Steps no item claimed come back as `extra`.
  */
-export function matchItems(items: ManualTestItem[], run: RunManifest | null): { rows: EvidenceRow[]; extra: RunStep[] } {
+export function matchItems(items: ManualTestItem[], run: RunManifest | null, verdict?: StepVerdict): { rows: EvidenceRow[]; extra: RunStep[] } {
   const left = [...(run?.steps ?? [])]
   const rows = items.map((item): EvidenceRow => {
-    if (!item.auto) return { item, result: 'manual', step: null }
+    if (!item.auto) return { item, result: 'manual', step: null, unverified: [] }
     const at = left.findIndex(s => norm(s.name) === norm(item.text))
-    if (at < 0) return { item, result: 'missing', step: null }
+    if (at < 0) return { item, result: 'missing', step: null, unverified: [] }
     const [step] = left.splice(at, 1)
-    return { item, result: step.status, step }
+    return { item, result: step.status, step, unverified: verdict?.(step) ?? [] }
   })
   return { rows, extra: left }
 }
@@ -40,6 +43,8 @@ export interface EvidenceInput {
   runId?: string | null
   /** A run's media file → link; default `<runId>/<file>` (relative to the task's runs folder) */
   src?: (runId: string, file: string) => string
+  /** R063: flags steps that don't prove their item (none = nothing flagged) */
+  verdict?: StepVerdict
 }
 
 const GLYPH: Record<RunStep['status'], string> = { passed: '✅', failed: '❌' }
@@ -62,22 +67,25 @@ function duration(run: RunManifest): string | null {
 
 const short = (commit: string | null) => (commit ? commit.slice(0, 7) : null)
 
-function stepBlock(step: RunStep, runId: string, src: (runId: string, file: string) => string, label: string): string[] {
+function stepBlock(step: RunStep, runId: string, src: (runId: string, file: string) => string, label: string, unverified: string[] = []): string[] {
   const out: string[] = []
   if (step.error) out.push('  ```', ...step.error.replace(/\x1b\[[0-9;]*m/g, '').trimEnd().split('\n').map(l => `  ${l.replace(/```/g, "'''")}`), '  ```')
   if (step.screenshot) out.push(`  ![${alt(label)}](${src(runId, step.screenshot)})`)
+  if (unverified.length) out.push(`  ⚠️ unverified: ${unverified.join(', ')}`)
   return out
 }
 
-export function formatEvidence({ taskId, title, items, spec, runs, runId, src = (r, f) => `${r}/${f}` }: EvidenceInput): string {
+export function formatEvidence({ taskId, title, items, spec, runs, runId, src = (r, f) => `${r}/${f}`, verdict }: EvidenceInput): string {
   const run = (runId ? runs.find(r => r.runId === runId) : runs[0]) ?? null
   const out = [`# ${taskId} — ${title}: evidence`, '']
 
   if (run) {
     const passed = run.steps.filter(s => s.status === 'passed').length
+    const unverified = verdict ? run.steps.filter(s => verdict(s).length).length : 0
     const bits = [
       `**${GLYPH[run.status]} ${run.status}**`,
       `${passed}/${run.steps.length} steps`,
+      unverified && `${unverified} unverified`,
       when(run.startedAt),
       duration(run),
       short(run.commit) && `commit \`${short(run.commit)}\``,
@@ -89,7 +97,7 @@ export function formatEvidence({ taskId, title, items, spec, runs, runId, src = 
     out.push(`_No run yet.${spec ? ` Run \`${spec}\` to record evidence.` : ''}_`)
   }
 
-  const { rows, extra } = matchItems(items, run)
+  const { rows, extra } = matchItems(items, run, verdict)
   const groups: [string, EvidenceRow[]][] = [
     ['Steps', rows.filter(r => r.item.group === 'steps')],
     ['Regression risk', rows.filter(r => r.item.group === 'regression')],
@@ -101,12 +109,12 @@ export function formatEvidence({ taskId, title, items, spec, runs, runId, src = 
     for (const r of list) {
       if (r.result === 'manual') out.push(`- ${r.item.checked ? '☑' : '☐'} ${r.item.text} — _manual, ${r.item.checked ? 'ticked' : 'not ticked yet'}_`)
       else if (r.result === 'missing') out.push(`- ⚠️ ${r.item.text} — _${run ? 'no step in this run' : 'no run yet'}_`)
-      else out.push(`- ${GLYPH[r.result]} ${r.item.text}`, ...stepBlock(r.step!, run!.runId, src, r.item.text))
+      else out.push(`- ${GLYPH[r.result]} ${r.item.text}`, ...stepBlock(r.step!, run!.runId, src, r.item.text, r.unverified))
     }
   }
   if (run && extra.length) {
     out.push('', rows.length ? '### Steps not in the checklist' : '## Steps')
-    for (const s of extra) out.push(`- ${GLYPH[s.status]} ${s.name}`, ...stepBlock(s, run.runId, src, s.name))
+    for (const s of extra) out.push(`- ${GLYPH[s.status]} ${s.name}`, ...stepBlock(s, run.runId, src, s.name, verdict?.(s) ?? []))
   }
 
   if (runs.length) {
@@ -117,4 +125,23 @@ export function formatEvidence({ taskId, title, items, spec, runs, runId, src = 
     }
   }
   return out.join('\n') + '\n'
+}
+
+/**
+ * R061: what a finished Run writes back into the checklist. 🤖 items whose step passed get ticked, 🤖 items whose
+ * step failed get unticked (the run disproved them); manual items and 🤖 items with no step are left alone.
+ */
+export function ticksForRun(items: ManualTestItem[], steps: { name: string; status: string }[]): { tick: number[]; untick: number[] } {
+  const left = [...steps]
+  const tick: number[] = []
+  const untick: number[] = []
+  for (const item of items) {
+    if (!item.auto) continue
+    const at = left.findIndex(s => norm(s.name) === norm(item.text))
+    if (at < 0) continue
+    const [step] = left.splice(at, 1)
+    if (step.status === 'passed' && !item.checked) tick.push(item.index)
+    if (step.status === 'failed' && item.checked) untick.push(item.index)
+  }
+  return { tick, untick }
 }

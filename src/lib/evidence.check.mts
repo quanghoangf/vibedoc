@@ -66,3 +66,19 @@ console.log('ok evidence')
   assert.deepEqual(ticksForRun(its, []), { tick: [], untick: [] })
   console.log('ok ticksForRun')
 }
+
+// R063: an injected verdict marks unverified steps under their screenshot and counts them in the summary
+{
+  const honest = run('20261005T080000Z', [
+    { ...step(1, 'Open / → board loads'), assertions: { total: 1, onPage: 1 } },
+    { ...step(2, 'Click X → reads Y'), assertions: { total: 0, onPage: 0 } },
+  ] as ReturnType<typeof step>[])
+  const v = (s: { assertions?: { total: number } }) => (s.assertions && s.assertions.total === 0 ? ['no assertion'] : [])
+  const its = [item(0, 'Open / → board loads', true), item(1, 'Click X → reads Y', true)]
+  assert.deepEqual(matchItems(its, honest, v).rows.map(r => r.unverified), [[], ['no assertion']])
+  const md = formatEvidence({ taskId: 'T1', title: 'One', items: its, spec: null, runs: [honest], verdict: v })
+  assert.match(md, /2\/2 steps · 1 unverified · /)
+  assert.match(md, /- ✅ Click X → reads Y\n {2}!\[[^\n]+\n {2}⚠️ unverified: no assertion/)
+  assert.ok(!/unverified/.test(formatEvidence({ taskId: 'T1', title: 'One', items: its, spec: null, runs: [honest] })), 'no verdict, no flags')
+  console.log('ok evidence unverified')
+}

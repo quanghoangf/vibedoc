@@ -6,6 +6,7 @@
 
 import fs from 'fs/promises'
 import { createReadStream } from 'fs'
+import { createHash } from 'crypto'
 import { Readable } from 'stream'
 import path from 'path'
 import os from 'os'
@@ -26,6 +27,7 @@ import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuse
 import { parseKeep } from './runs-retention'
 import { isRunFile, isRunId, isRunTaskId, parseRange, parseRunManifest, projectKey, runsRoot, type RunManifest } from './runs-paths'
 import { formatEvidence, matchItems, ticksForRun } from './evidence'
+import { stepVerdict } from './honesty'
 import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
@@ -309,7 +311,7 @@ const PLAYWRIGHT_CONFIGS = ['ts', 'mts', 'js', 'mjs', 'cjs'].map(ext => `playwri
 /**
  * R061: VibeDoc's Playwright fixture copied into the app at `<testDir>/vibedoc/kit/` (TS sources; Playwright
  * transpiles them and they use the app's own @playwright/test). Specs import FIXTURE_KIT_IMPORT and the kit is
- * committed with them. Rewritten only when its VERSION differs from VibeDoc's or a file is missing; nothing else
+ * committed with them. Rewritten only when its VERSION (VibeDoc's version + a source hash) differs or a file is missing; nothing else
  * under `<testDir>/vibedoc/` is touched. Null when the app dir is outside the project or the sources are missing.
  */
 export async function ensureFixtureKit(root: string, app: FrontendApp): Promise<{ dir: string; importPath: string; written: boolean } | null> {
@@ -322,16 +324,18 @@ export async function ensureFixtureKit(root: string, app: FrontendApp): Promise<
   }
   const dir = path.join(appDir, playwrightTestDir(config), 'vibedoc', 'kit')
   const result = { dir: path.relative(root, dir) || '.', importPath: FIXTURE_KIT_IMPORT }
-  const stamp = await fs.readFile(path.join(dir, 'VERSION'), 'utf8').catch(() => null)
-  const present = await Promise.all(FIXTURE_KIT_FILES.map(f => fs.stat(path.join(dir, f)).then(() => true, () => false)))
-  if (stamp?.trim() === VIBEDOC_VERSION && present.every(Boolean)) return { ...result, written: false }
   const sources = await Promise.all(FIXTURE_KIT_FILES.map(f => fs.readFile(path.join(process.cwd(), 'src', f), 'utf8').catch(() => null)))
   if (sources.some(src => src === null)) return null
+  // Version + a hash of the sources: a changed fixture rewrites the kit even within one VibeDoc version (dev)
+  const want = `${VIBEDOC_VERSION}+${createHash('sha1').update(sources.join('\0')).digest('hex').slice(0, 8)}`
+  const stamp = await fs.readFile(path.join(dir, 'VERSION'), 'utf8').catch(() => null)
+  const present = await Promise.all(FIXTURE_KIT_FILES.map(f => fs.stat(path.join(dir, f)).then(() => true, () => false)))
+  if (stamp?.trim() === want && present.every(Boolean)) return { ...result, written: false }
   for (const [i, f] of FIXTURE_KIT_FILES.entries()) {
     await fs.mkdir(path.dirname(path.join(dir, f)), { recursive: true })
     await fs.writeFile(path.join(dir, f), sources[i]!, 'utf8')
   }
-  await fs.writeFile(path.join(dir, 'VERSION'), `${VIBEDOC_VERSION}\n`, 'utf8')
+  await fs.writeFile(path.join(dir, 'VERSION'), `${want}\n`, 'utf8')
   return { ...result, written: true }
 }
 
@@ -670,6 +674,8 @@ export async function listRuns(taskId: string, root: string): Promise<RunManifes
 export type EvidenceRow = {
   item: number; text: string; auto: boolean; group: 'steps' | 'regression'
   result: 'passed' | 'failed' | 'missing' | 'manual'; screenshot: string | null; error: string | null
+  /** R063: why this step doesn't prove the item ([] = it does, or unknown) */
+  unverified: string[]
 }
 
 export async function getEvidence(taskId: string, root: string, opts: { runId?: string | null; src?: (runId: string, file: string) => string } = {}):
@@ -681,12 +687,12 @@ export async function getEvidence(taskId: string, root: string, opts: { runId?: 
   const tests = task.raw ? parseManualTests(task.raw) : null
   const markdown = formatEvidence({
     taskId: task.id, title: task.title, items: tests?.items ?? [], spec: tests?.spec ?? null, runs, runId: opts.runId,
-    src: opts.src ?? ((runId, file) => path.join(dir ?? '', runId, file)),
+    src: opts.src ?? ((runId, file) => path.join(dir ?? '', runId, file)), verdict: s => stepVerdict(s),
   })
   const shown = (opts.runId ? runs.find(r => r.runId === opts.runId) : runs[0]) ?? null
-  const rows = matchItems(tests?.items ?? [], shown).rows.map((r): EvidenceRow => ({
+  const rows = matchItems(tests?.items ?? [], shown, s => stepVerdict(s)).rows.map((r): EvidenceRow => ({
     item: r.item.index, text: r.item.text, auto: r.item.auto, group: r.item.group, result: r.result,
-    screenshot: r.step?.screenshot ?? null, error: r.step?.error ?? null,
+    screenshot: r.step?.screenshot ?? null, error: r.step?.error ?? null, unverified: r.unverified,
   }))
   return {
     markdown, runId: shown?.runId ?? null,

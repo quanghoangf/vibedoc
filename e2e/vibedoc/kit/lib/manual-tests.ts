@@ -189,6 +189,21 @@ export function setAllManualTests(raw: string, checked: boolean): { raw: string;
   return { raw: lines.join("\n"), changed }
 }
 
+/** Tick (or untick) the given item indexes (file order) in one pass; unknown indexes are ignored. */
+export function setManualTestsChecked(raw: string, indexes: number[], checked: boolean): string {
+  if (!indexes.length) return raw
+  const lines = raw.split("\n")
+  const range = sectionRange(lines)
+  if (!range) throw new RangeError("This task has no manual tests")
+  const want = new Set(indexes)
+  let n = 0
+  for (let i = range[0] + 1; i < range[1]; i++) {
+    if (!ITEM.test(lines[i])) continue
+    if (want.has(n++)) lines[i] = lines[i].replace(/\[( |x|X)\]/, checked ? "[x]" : "[ ]")
+  }
+  return lines.join("\n")
+}
+
 export function toggleManualTest(raw: string, index: number, checked: boolean): string {
   const lines = raw.split("\n")
   const range = sectionRange(lines)

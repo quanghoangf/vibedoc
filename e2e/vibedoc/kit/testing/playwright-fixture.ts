@@ -20,7 +20,7 @@
  * prepublishOnly): Playwright won't transpile .ts under node_modules. Hence the `.js` extension on relative imports.
  */
 
-import { test as base, expect } from '@playwright/test'
+import { test as base, expect as baseExpect } from '@playwright/test'
 import { execFileSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import path from 'path'
@@ -28,6 +28,7 @@ import { newRunId, parseRunManifest, projectKey, runDir, stepFile } from '../lib
 import { parseKeep, planPrune } from '../lib/runs-retention.js'
 import { parseManualTests } from '../lib/manual-tests.js'
 import { formatEvidence } from '../lib/evidence.js'
+import { isPageSubject, stepVerdict } from '../lib/honesty.js'
 
 import type { RunManifest, RunStep } from '../lib/runs-paths.js'
 export type { RunManifest, RunStep }
@@ -80,6 +81,33 @@ function pruneRuns(run: Run): void {
   }
 }
 
+// R063: the step running now counts its expects; how many of them looked at the page (vs literals) decides honesty
+let tally: { total: number; onPage: number } | null = null
+const count = (subject: unknown) => {
+  if (!tally) return
+  tally.total++
+  if (isPageSubject(subject)) tally.onPage++
+}
+
+/** Playwright's expect, counting each `expect(subject)` / `.soft` / `.poll` (and those of `expect.configure(...)`). */
+function counted<E extends typeof baseExpect>(e: E): E {
+  return new Proxy(e, {
+    apply(target, thisArg, args) {
+      count(args[0])
+      return Reflect.apply(target, thisArg, args)
+    },
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver)
+      if (typeof value !== 'function') return value
+      if (prop === 'soft' || prop === 'poll') return (...args: unknown[]) => { count(args[0]); return value.apply(target, args) }
+      if (prop === 'configure') return (...args: unknown[]) => counted(value.apply(target, args))
+      return value
+    },
+  })
+}
+
+export const expect = counted(baseExpect)
+
 /**
  * Rewrite `<taskDir>/EVIDENCE.md` (R060) from the kept runs and the task file's checklist. Only the fixture writes
  * it; VibeDoc formats the same doc on read. Never fails the test.
@@ -95,7 +123,7 @@ function writeEvidence(run: Run): void {
     const runs = readdirSync(taskDir).filter(id => RUN_ID.test(id)).sort().reverse()
       .map(id => { try { return parseRunManifest(readFileSync(path.join(taskDir, id, 'run.json'), 'utf8')) } catch { return null } })
       .filter((r): r is RunManifest => r !== null)
-    writeFileSync(path.join(taskDir, 'EVIDENCE.md'), formatEvidence({ taskId: run.taskId, title, items: tests?.items ?? [], spec: tests?.spec ?? null, runs }))
+    writeFileSync(path.join(taskDir, 'EVIDENCE.md'), formatEvidence({ taskId: run.taskId, title, items: tests?.items ?? [], spec: tests?.spec ?? null, runs, verdict: s => stepVerdict(s) }))
   } catch (e) {
     console.warn(`vibedoc: could not write EVIDENCE.md in ${taskDir}: ${e instanceof Error ? e.message : e}`)
   }
@@ -145,12 +173,16 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
           return null // page closed or crashed: the step still gets recorded
         }
       }
+      const assertions = { total: 0, onPage: 0 }
+      tally = assertions
       try {
         const result = await base.step(name, fn)
-        steps.push({ index, name, status: 'passed', screenshot: await shoot(), error: null, startMs, endMs: Date.now() - t0 })
+        tally = null
+        steps.push({ index, name, status: 'passed', screenshot: await shoot(), error: null, startMs, endMs: Date.now() - t0, assertions })
         return result
       } catch (e) {
-        steps.push({ index, name, status: 'failed', screenshot: await shoot(), error: plain(e instanceof Error ? e.message : String(e)), startMs, endMs: Date.now() - t0 })
+        tally = null
+        steps.push({ index, name, status: 'failed', screenshot: await shoot(), error: plain(e instanceof Error ? e.message : String(e)), startMs, endMs: Date.now() - t0, assertions })
         throw e
       }
     })
@@ -175,4 +207,3 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
   }, { auto: true }],
 })
 
-export { expect }

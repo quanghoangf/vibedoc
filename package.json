@@ -42,6 +42,7 @@
     "src/lib/runs-retention.ts",
     "src/lib/manual-tests.ts",
     "src/lib/evidence.ts",
+    "src/lib/honesty.ts",
     "docs/getting-started.md",
     "next.config.js",
     "ws-server.js",
