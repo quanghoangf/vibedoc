@@ -17,7 +17,7 @@ import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraf
 import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
-import { parseManualTests, setAllManualTests, setManualTests, setManualTestsMeta, toggleManualTest, untestedItems, type AutoRun, type ManualTestsMeta } from './manual-tests'
+import { parseManualTests, setAllManualTests, setManualTests, setManualTestsChecked, setManualTestsMeta, toggleManualTest, untestedItems, type AutoRun, type ManualTestsMeta } from './manual-tests'
 import { REVIEWABLE, appendReviewEntry, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
 import { parseOwner } from './owner'
@@ -25,7 +25,7 @@ import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { parseKeep } from './runs-retention'
 import { isRunFile, isRunId, isRunTaskId, parseRange, parseRunManifest, projectKey, runsRoot, type RunManifest } from './runs-paths'
-import { formatEvidence } from './evidence'
+import { formatEvidence, ticksForRun } from './evidence'
 import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
@@ -1023,6 +1023,21 @@ export async function setAllManualTestsChecked(taskId: string, checked: boolean,
   const { raw, changed } = setAllManualTests(task.raw ?? '', checked)
   if (changed.length) await fs.writeFile(path.join(root, task.file), raw, 'utf8')
   return { task: changed.length ? await getTask(task.id, root) : task, changed }
+}
+
+/**
+ * R061: a finished Run from VibeDoc, written back like an agent's run: the header's `Auto: <result> <today>`, 🤖 items
+ * whose step passed ticked and those whose step failed unticked (ticksForRun). One write. Null = no checklist.
+ */
+export async function recordRunResult(taskId: string, result: 'passed' | 'failed', steps: { name: string; status: string }[], root: string): Promise<Task | null> {
+  const task = await getTask(taskId, root)
+  const tests = task.raw ? parseManualTests(task.raw) : null
+  if (!tests || !task.raw) return null
+  const { tick, untick } = ticksForRun(tests.items, steps)
+  let raw = setManualTestsChecked(setManualTestsChecked(task.raw, tick, true), untick, false)
+  raw = setManualTestsMeta(raw, { autoRun: { result, date: localToday() } }, 'human', localToday())
+  if (raw !== task.raw) await fs.writeFile(path.join(root, task.file), raw, 'utf8')
+  return getTask(task.id, root)
 }
 
 /** Tick or untick one manual test item (index in file order). Never changes the task status. Throws RangeError for a bad index. */

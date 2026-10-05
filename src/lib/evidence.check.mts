@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { formatEvidence, matchItems } from './evidence.ts'
+import { formatEvidence, matchItems, ticksForRun } from './evidence.ts'
 
 const item = (index: number, text: string, auto: boolean, checked = false, group: 'steps' | 'regression' = 'steps') => ({ index, text, auto, checked, group })
 const step = (index: number, name: string, status: 'passed' | 'failed' = 'passed', error: string | null = null) =>
@@ -58,3 +58,11 @@ const bare = formatEvidence({ taskId: 'no-task', title: 'no-task', items: [], sp
 assert.match(bare, /## Steps\n- ✅ Open \/ → board loads/)
 assert.ok(!bare.includes('## Checklist'))
 console.log('ok evidence')
+
+// R061: a Run's write-back: passed 🤖 ticked, failed 🤖 unticked, manual and unmatched untouched
+{
+  const its = [item(0, 'A → a', true), item(1, 'B → b', true, true), item(2, 'C → c', true, true), item(3, 'Manual', false), item(4, 'No step', true)]
+  assert.deepEqual(ticksForRun(its, [{ name: 'A → a', status: 'passed' }, { name: ' B  → b', status: 'passed' }, { name: 'C → c', status: 'failed' }, { name: 'Manual', status: 'passed' }]), { tick: [0], untick: [2] })
+  assert.deepEqual(ticksForRun(its, []), { tick: [], untick: [] })
+  console.log('ok ticksForRun')
+}

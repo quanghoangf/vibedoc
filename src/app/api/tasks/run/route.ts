@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { detectFrontend, detectPlaywright, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
+import { detectFrontend, detectPlaywright, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
 import { runState, startRun } from '@/lib/test-runner'
@@ -66,6 +66,12 @@ export async function POST(req: NextRequest) {
       onChange: (s) => {
         emitUpdate('test_run', { taskId: id, state: s })
         if (s.state === 'cancelled') void removeUnfinishedRuns(id, root, s.startedAt).catch(() => {})
+        // A verdict goes into the task file like an agent's run (Auto: header + 🤖 ticks); cancelled / error write nothing
+        if (s.state === 'passed' || s.state === 'failed') {
+          void recordRunResult(id, s.state, s.steps, root)
+            .then((task) => { if (task) emitUpdate('task_updated', { taskId: id, task }) })
+            .catch((e) => console.warn(`vibedoc: could not record the ${id} run: ${(e as Error).message}`))
+        }
       },
       prepare: async () => {
         // An app the user started stays up; only one started for this run is stopped after it

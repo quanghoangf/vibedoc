@@ -53,7 +53,7 @@ pnpm lint && pnpm build
 ```
 
 ## Manual tests
-_2026-10-04 — ai · Spec: `e2e/vibedoc/T155-evidence-tab-in-test-review.spec.ts` · Auto: passed 2026-10-04_
+_2026-10-04 — ai · Spec: `e2e/vibedoc/T155-evidence-tab-in-test-review.spec.ts` · Auto: passed 2026-10-05_
 ### Steps
 - [x] 🤖 Open /manual-tests?tab=all&task=T138&view=evidence → the Evidence tab is selected and every run step shows its screenshot
 - [x] 🤖 Click the older run in History → the URL gets &run= and that run is marked shown

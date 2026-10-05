@@ -1,6 +1,6 @@
 // Self-check for manual test reports. Run: node src/lib/manual-tests.check.mts
 import assert from 'node:assert/strict'
-import { normalizeReport, parseManualTests, setManualTests, setManualTestsMeta, toggleManualTest, setAllManualTests, untestedItems } from './manual-tests.ts'
+import { normalizeReport, parseManualTests, setManualTests, setManualTestsMeta, toggleManualTest, setAllManualTests, setManualTestsChecked, untestedItems } from './manual-tests.ts'
 
 const task = '# T001: First\n**Status:** 🔨 In Progress\n**Depends on:** —\n\n## Goal\nDo it.\n'
 
@@ -123,3 +123,14 @@ assert.deepEqual(setAllManualTests(bulk.raw, false).changed, [1])
 assert.throws(() => setAllManualTests('# T1: x', true), RangeError)
 
 console.log('manual-tests: ok')
+
+// R061: tick / untick several items in one write
+{
+  const raw = "# T1: x\n\n## Manual tests\n_2026-10-05 — ai_\n### Steps\n- [ ] 🤖 a\n- [x] 🤖 b\n- [ ] c\n"
+  const out = setManualTestsChecked(raw, [0, 2, 9], true)
+  assert.deepEqual(parseManualTests(out)!.items.map((i) => i.checked), [true, true, true])
+  assert.deepEqual(parseManualTests(setManualTestsChecked(out, [1], false))!.items.map((i) => i.checked), [true, false, true])
+  assert.equal(setManualTestsChecked(raw, [], true), raw)
+  assert.throws(() => setManualTestsChecked("# T1\n", [0], true), RangeError)
+  console.log("ok setManualTestsChecked")
+}
