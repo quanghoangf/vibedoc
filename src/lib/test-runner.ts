@@ -85,7 +85,11 @@ function spawnPass(entry: Entry, cwd: string, args: string[], env: Record<string
 }
 
 /** `blankEnv` (R063): after a passing run, a second pass with these extra env vars (VIBEDOC_BLANK=1); none = skip. */
-export type Prepared = { cwd: string; specRel: string; reporter: string; env?: Record<string, string>; blankEnv?: Record<string, string>; done?: () => void }
+/** `retries` (R065): Playwright `--retries` (a test failing then passing on retry is flaky); default 0 */
+export type Prepared = { cwd: string; specRel: string; reporter: string; env?: Record<string, string>; blankEnv?: Record<string, string>; retries?: number; done?: () => void }
+
+/** The `playwright test` args every pass uses: the specs, list + VibeDoc's reporter, and the retries. */
+export const playwrightArgs = (specs: string[], reporter: string, retries = 0) => [...specs, `--reporter=list,${reporter}`, `--retries=${retries}`]
 
 /**
  * Starts a run and returns its first state (`starting`). `prepare` makes the app reachable (reuse or start it)
@@ -116,11 +120,10 @@ export function startRun(opts: { root: string; taskId: string; spec: string; pre
       prepared.done?.()
       return set(finishRun(cur, { code: null, cancelled: true, tail: '', now: new Date().toISOString() }))
     }
-    const args = [prepared.specRel, `--reporter=list,${prepared.reporter}`]
-    const pass = (env: Record<string, string> | undefined, onEvent: (e: RunEvent) => void) =>
-      spawnPass(entry, prepared.cwd, args, { ...prepared.env, ...env }, onEvent, lines)
+    const pass = (env: Record<string, string> | undefined, retries: number, onEvent: (e: RunEvent) => void) =>
+      spawnPass(entry, prepared.cwd, playwrightArgs([prepared.specRel], prepared.reporter, retries), { ...prepared.env, ...env }, onEvent, lines)
 
-    const first = await pass(undefined, e => set(applyEvent(cur, e)))
+    const first = await pass(undefined, prepared.retries ?? 0, e => set(applyEvent(cur, e)))
     const verdict = finishRun(cur, { code: first.code, cancelled: entry.cancelled, tail: tail(), now: new Date().toISOString(), error: first.error })
     if (verdict.state !== 'passed' || !prepared.blankEnv) {
       prepared.done?.()
@@ -129,7 +132,7 @@ export function startRun(opts: { root: string; taskId: string; spec: string; pre
     // R063: the same spec against a blank page; whatever passes again proves nothing about the app
     set(startChecking(verdict))
     const blankEvents: RunEvent[] = []
-    await pass(prepared.blankEnv, e => { blankEvents.push(e) })
+    await pass(prepared.blankEnv, 0, e => { blankEvents.push(e) }) // no retries: a blank page fails for good
     prepared.done?.()
     set(finishChecking(cur, { cancelled: entry.cancelled, blankEvents, now: new Date().toISOString() }))
   })()
@@ -166,7 +169,7 @@ export function startSuite(opts: { root: string; entries: SuiteEntry[]; skipped:
     }
     const map = JSON.stringify(Object.fromEntries(entries.map(e => [e.specRel, e.taskId])))
     // ponytail: every spec on one command line; fine for ~100 specs, chunk into several passes beyond that
-    const out = await spawnPass(entry, prepared.cwd, [...entries.map(e => e.specRel), `--reporter=list,${prepared.reporter}`],
+    const out = await spawnPass(entry, prepared.cwd, playwrightArgs(entries.map(e => e.specRel), prepared.reporter, prepared.retries ?? 0),
       { ...prepared.env, VIBEDOC_TASK_MAP: map }, e => set(applySuiteEvent(cur, e)), lines)
     prepared.done?.()
     set(finishSuite(cur, { code: out.code, cancelled: entry.cancelled, tail: lines.join('\n').trimEnd(), now: now(), error: out.error }))

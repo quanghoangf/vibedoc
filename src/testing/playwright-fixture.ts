@@ -22,7 +22,7 @@
 
 import { test as base, expect as baseExpect } from '@playwright/test'
 import { execFileSync } from 'child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
 import os from 'os'
 import path from 'path'
 import { newRunId, parseRunHonesty, parseRunManifest, projectKey, runDir, stepFile } from '../lib/runs-paths.js'
@@ -32,7 +32,7 @@ import { formatEvidence } from '../lib/evidence.js'
 import { isPageSubject, stepVerdict } from '../lib/honesty.js'
 import { parseTaskMap, taskForFile } from '../lib/task-map.js'
 
-import type { RunManifest, RunStep } from '../lib/runs-paths.js'
+import type { RunManifest, RunStep, RunTest } from '../lib/runs-paths.js'
 export type { RunManifest, RunStep }
 type Run = { dir: string; runId: string; taskId: string; project: string; startedAt: string }
 type Step = <T>(name: string, fn: () => Promise<T>) => Promise<T>
@@ -137,6 +137,44 @@ function writeHonesty(run: Run, steps: RunStep[]): void {
   } catch (e) {
     console.warn(`vibedoc: could not write honesty.json in ${taskDir}: ${e instanceof Error ? e.message : e}`)
   }
+}
+
+/**
+ * R065: Playwright retries a failing test in a fresh worker, so attempts meet on disk: attempt N finds attempt N-1's
+ * run (same testId, retry N-1), keeps the first failure (its step, error and screenshot, copied in as
+ * `first-failure-<file>`) and removes that run, so one test leaves one run whose outcome spans its attempts.
+ */
+function foldRetries(run: Run, testId: string, retry: number, title: string, passed: boolean): Pick<RunManifest, 'testId' | 'retry' | 'tests' | 'flaky'> {
+  const outcome: RunTest['outcome'] = passed ? (retry > 0 ? 'flaky' : 'passed') : 'failed'
+  const test: RunTest = { title, outcome, attempts: retry + 1 }
+  if (retry > 0) {
+    const taskDir = path.dirname(run.dir)
+    try {
+      for (const id of readdirSync(taskDir).filter(d => RUN_ID.test(d) && d !== run.runId)) {
+        const prev = (() => { try { return parseRunManifest(readFileSync(path.join(taskDir, id, 'run.json'), 'utf8')) } catch { return null } })()
+        if (!prev || prev.testId !== testId || prev.retry !== retry - 1) continue
+        let first = prev.tests?.[0]?.firstFailure
+        if (!first) {
+          const step = prev.steps.find(s => s.status === 'failed') ?? null
+          first = { step: step?.name ?? null, error: step?.error ?? null, screenshot: step?.screenshot ?? null }
+        }
+        if (first.screenshot) {
+          const copied = first.screenshot.startsWith('first-failure-') ? first.screenshot : `first-failure-${first.screenshot}`
+          try {
+            copyFileSync(path.join(taskDir, id, first.screenshot), path.join(run.dir, copied))
+            first = { ...first, screenshot: copied }
+          } catch {
+            first = { ...first, screenshot: null }
+          }
+        }
+        test.firstFailure = first
+        rmSync(path.join(taskDir, id), { recursive: true, force: true })
+      }
+    } catch (e) {
+      console.warn(`vibedoc: could not fold retry ${retry} of ${title}: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+  return { testId, retry, tests: [test], flaky: outcome === 'flaky' ? 1 : 0 }
 }
 
 /**
@@ -247,6 +285,7 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
       runId: vibedocRun.runId, taskId: vibedocRun.taskId, project: vibedocRun.project,
       startedAt: vibedocRun.startedAt, endedAt: new Date().toISOString(),
       status: failed ? 'failed' : 'passed', commit: gitCommit(), video: videoFile, steps,
+      ...foldRetries(vibedocRun, testInfo.testId, testInfo.retry, testInfo.title, !failed),
     }
     writeFileSync(path.join(vibedocRun.dir, 'run.json'), JSON.stringify(manifest, null, 2) + '\n')
     pruneRuns(vibedocRun)

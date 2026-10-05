@@ -794,8 +794,8 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
  * The task settings from .vibedoc/settings.json (R055): `tasks.sizeDays` over the defaults (automatic due dates)
  * and `statuses` (custom statuses; the built-ins when unset). `runs.keep` (R059): test runs kept per task, default 5.
  */
-export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number }> {
-  let s: { tasks?: { sizeDays?: SizeDays }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
+export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number }> {
+  let s: { tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
   try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
   const budget = Number(s?.memory?.sessionBudgetTokens)
   return {
@@ -803,6 +803,8 @@ export async function readProjectSettings(root: string): Promise<{ sizeDays: Siz
     // R048: token cap for what vibedoc_read_memory returns
     sessionBudgetTokens: budget > 0 ? budget : DEFAULT_SESSION_BUDGET,
     runsKeep: parseKeep(s?.runs?.keep),
+    // R065: Playwright retries per Run / suite (`tests.retries`, default 2, 0 = off); fail-then-pass = flaky
+    testRetries: Number.isInteger(s?.tests?.retries) && (s?.tests?.retries as number) >= 0 ? Math.min(s?.tests?.retries as number, 5) : 2,
   }
 }
 
@@ -1089,7 +1091,8 @@ export async function recordRunResult(taskId: string, result: 'passed' | 'failed
   const unverified = judged.filter(s => s.status === 'passed' && s.unverified.length).map(s => s.name)
   const { tick, untick } = ticksForRun(tests.items, judged)
   let raw = setManualTestsChecked(setManualTestsChecked(task.raw, tick, true), untick, false)
-  raw = setManualTestsMeta(raw, { autoRun: { result, date: localToday(), ...(unverified.length ? { unverified: unverified.length } : {}) } }, 'human', localToday())
+  const flaky = run?.flaky ?? 0 // R065: tests that passed only on a retry
+  raw = setManualTestsMeta(raw, { autoRun: { result, date: localToday(), ...(unverified.length ? { unverified: unverified.length } : {}), ...(flaky ? { flaky } : {}) } }, 'human', localToday())
   if (raw !== task.raw) await fs.writeFile(path.join(root, task.file), raw, 'utf8')
   return { task: await getTask(task.id, root), unverified }
 }

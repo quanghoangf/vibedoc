@@ -51,20 +51,22 @@ export default class VibedocReporter implements Reporter {
     this.emit({ type: 'begin', tests: suite.allTests().length })
   }
 
-  onTestBegin(test: TestCase) {
-    this.emit({ type: 'test-begin', ...this.where(test), title: test.title })
+  onTestBegin(test: TestCase, result: TestResult) {
+    this.count.delete(test.id) // a retry (R065) numbers its steps from 1 again
+    this.emit({ type: 'test-begin', ...this.where(test), title: test.title, retry: result.retry })
   }
 
   onTestEnd(test: TestCase, result: TestResult) {
-    this.emit({ type: 'test-end', ...this.where(test), title: test.title, status: result.status })
+    // outcome() spans the attempts so far: 'flaky' once a retry passes after a failure (R065)
+    this.emit({ type: 'test-end', ...this.where(test), title: test.title, status: result.status, retry: result.retry, outcome: test.outcome() })
   }
 
-  onStepBegin(test: TestCase, _result: TestResult, step: TestStep) {
+  onStepBegin(test: TestCase, result: TestResult, step: TestStep) {
     if (!this.top(step)) return
     const n = (this.count.get(test.id) ?? 0) + 1
     this.count.set(test.id, n)
     this.index.set(step, n)
-    this.emit({ type: 'step-begin', index: n, name: step.title, ...this.where(test) })
+    this.emit({ type: 'step-begin', index: n, name: step.title, retry: result.retry, ...this.where(test) })
   }
 
   onStepEnd(test: TestCase, _result: TestResult, step: TestStep) {

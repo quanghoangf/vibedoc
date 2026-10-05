@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { detectFrontend, detectPlaywright, ensureFixtureKit, frontendAppDir, listTasks, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
+import { detectFrontend, detectPlaywright, readProjectSettings, ensureFixtureKit, frontendAppDir, listTasks, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
 import { busyWith, startSuite, suiteState } from '@/lib/test-runner'
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         const startedServer = server.startedByUs && !ownedBefore
         if (startedServer) emitUpdate('frontend_server_updated', { state: 'running' })
         return {
-          cwd, reporter, env: { VIBEDOC_PROJECT: root },
+          cwd, reporter, env: { VIBEDOC_PROJECT: root }, retries: (await readProjectSettings(root)).testRetries,
           done: () => {
             if (!startedServer) return
             server.stop()

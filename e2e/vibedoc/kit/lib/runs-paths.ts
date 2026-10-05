@@ -18,6 +18,21 @@ export type RunManifest = {
   status: 'passed' | 'failed'; commit: string | null; video: string | null; steps: RunStep[]
   /** R063: the blank-app check, from `honesty.json` next to run.json (never in run.json itself) */
   honesty?: RunHonesty
+  /** R065: the Playwright test this run recorded and which attempt (0 = first); retries fold into one run dir */
+  testId?: string
+  retry?: number
+  /** R065: per test, the final outcome over its attempts; absent before R065 (= one attempt, outcome from status) */
+  tests?: RunTest[]
+  /** R065: tests that failed and then passed on a retry */
+  flaky?: number
+}
+
+/** R065: a test's outcome over Playwright's retries; `firstFailure` = what the first failing attempt showed. */
+export type RunTest = {
+  title: string
+  outcome: 'passed' | 'failed' | 'flaky' | 'skipped'
+  attempts: number
+  firstFailure?: { step: string | null; error: string | null; screenshot: string | null }
 }
 
 /** R063 `honesty.json`: the steps that passed again with every page replaced by a blank one. */

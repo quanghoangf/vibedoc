@@ -25,7 +25,8 @@ export interface ManualTestItem {
 
 export type AutoResult = "passed" | "failed"
 /** `unverified` (R063): passed steps that don't prove their item (no / trivial assertion, pass on a blank page) */
-export interface AutoRun { result: AutoResult; date: string; unverified?: number }
+/** `flaky` (R065): tests that failed and then passed on a retry */
+export interface AutoRun { result: AutoResult; date: string; unverified?: number; flaky?: number }
 
 export interface ManualTests {
   items: ManualTestItem[]
@@ -51,19 +52,19 @@ const ITEM = /^\s*[-*]\s+\[( |x|X)\]\s+(.*)$/
 const AUTO = /^🤖\s*/u
 const STAMP = /^_(\d{4}-\d{2}-\d{2})\b/
 const SPEC = / · Spec: `([^`]+)`/
-const RUN = / · Auto: (passed|failed) (\d{4}-\d{2}-\d{2})(?: · (\d+) unverified)?/
+const RUN = / · Auto: (passed|failed) (\d{4}-\d{2}-\d{2})(?: · (\d+) unverified)?(?: · (\d+) flaky)?/
 
 function header(base: string, spec: string | null, autoRun: AutoRun | null): string {
   if (spec && (/[`\n]/.test(spec) || spec.startsWith("/") || spec.split(/[\\/]/).includes("..")))
     throw new Error(`spec must be a relative path inside the repo, got "${spec}"`)
-  return `_${base}${spec ? ` · Spec: \`${spec}\`` : ""}${autoRun ? ` · Auto: ${autoRun.result} ${autoRun.date}${autoRun.unverified ? ` · ${autoRun.unverified} unverified` : ""}` : ""}_`
+  return `_${base}${spec ? ` · Spec: \`${spec}\`` : ""}${autoRun ? ` · Auto: ${autoRun.result} ${autoRun.date}${autoRun.unverified ? ` · ${autoRun.unverified} unverified` : ""}${autoRun.flaky ? ` · ${autoRun.flaky} flaky` : ""}` : ""}_`
 }
 
 function readHeader(line: string): { base: string; spec: string | null; autoRun: AutoRun | null } {
   const inner = line.trim().replace(/^_|_$/g, "")
   const spec = inner.match(SPEC)?.[1] ?? null
   const run = inner.match(RUN)
-  return { base: inner.split(" · ")[0], spec, autoRun: run ? { result: run[1] as AutoResult, date: run[2], ...(run[3] ? { unverified: Number(run[3]) } : {}) } : null }
+  return { base: inner.split(" · ")[0], spec, autoRun: run ? { result: run[1] as AutoResult, date: run[2], ...(run[3] ? { unverified: Number(run[3]) } : {}), ...(run[4] ? { flaky: Number(run[4]) } : {}) } : null }
 }
 const BULLET = /^\s*[-*]\s+(.*)$/
 

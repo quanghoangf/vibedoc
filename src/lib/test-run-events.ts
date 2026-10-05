@@ -11,13 +11,14 @@ export const RUN_LINE_PREFIX = '@@vibedoc '
 export type EventSource = { file?: string; taskId?: string | null }
 export type RunEvent =
   | { type: 'begin'; tests: number }
-  | ({ type: 'test-begin'; title: string } & EventSource)
-  | ({ type: 'test-end'; title: string; status: string } & EventSource)
-  | ({ type: 'step-begin'; index: number; name: string } & EventSource)
+  | ({ type: 'test-begin'; title: string; retry?: number } & EventSource)
+  | ({ type: 'test-end'; title: string; status: string; retry?: number; outcome?: string } & EventSource)
+  | ({ type: 'step-begin'; index: number; name: string; retry?: number } & EventSource)
   | ({ type: 'step-end'; index: number; name: string; status: 'passed' | 'failed'; error: string | null } & EventSource)
   | { type: 'end'; status: string }
 
-export type RunStepState = { index: number; name: string; status: 'running' | 'passed' | 'failed'; error: string | null }
+/** `retried` (R065): the step failed on an earlier attempt and ran again on a Playwright retry */
+export type RunStepState = { index: number; name: string; status: 'running' | 'passed' | 'failed'; error: string | null; retried?: boolean }
 /**
  * `starting`: the app is being reused / started, Playwright not spawned yet. `checking` (R063): the run passed and
  * the spec runs again against a blank page (honesty check) before the verdict is final.
@@ -40,6 +41,8 @@ export type RunState = {
   tests: number | null
   /** R063: steps that passed again on a blank page; null = not checked (yet, failed, or the check errored) */
   blankPassed: string[] | null
+  /** R065: tests that failed and then passed on a retry */
+  flaky: number
 }
 
 /**
@@ -57,7 +60,7 @@ export function specInApp(spec: string, appDir: string): string | null {
 export const isRunning = (s: RunState | null) => s?.state === 'starting' || s?.state === 'running' || s?.state === 'checking'
 
 export function newRunState(taskId: string, spec: string, now: string): RunState {
-  return { taskId, spec, state: 'starting', startedAt: now, finishedAt: null, steps: [], error: null, tail: null, result: null, tests: null, blankPassed: null }
+  return { taskId, spec, state: 'starting', startedAt: now, finishedAt: null, steps: [], error: null, tail: null, result: null, tests: null, blankPassed: null, flaky: 0 }
 }
 
 /** One stdout line → an event, or null for every other line (list reporter output, app logs). */
@@ -72,9 +75,12 @@ export function parseRunLine(line: string): RunEvent | null {
     }
     if (e?.type === 'begin' && Number.isInteger(e.tests)) return { type: 'begin', tests: e.tests }
     if ((e?.type === 'test-begin' || e?.type === 'test-end') && typeof e.title === 'string') {
-      return e.type === 'test-begin' ? { type: e.type, title: e.title, ...from } : { type: e.type, title: e.title, status: String(e.status), ...from }
+      const retry = Number.isInteger(e.retry) ? { retry: e.retry as number } : {}
+      return e.type === 'test-begin' ? { type: e.type, title: e.title, ...retry, ...from }
+        : { type: e.type, title: e.title, status: String(e.status), ...retry, ...(typeof e.outcome === 'string' ? { outcome: e.outcome } : {}), ...from }
     }
-    if (e?.type === 'step-begin' && Number.isInteger(e.index) && typeof e.name === 'string') return { type: e.type, index: e.index, name: e.name, ...from }
+    if (e?.type === 'step-begin' && Number.isInteger(e.index) && typeof e.name === 'string')
+      return { type: e.type, index: e.index, name: e.name, ...(Number.isInteger(e.retry) ? { retry: e.retry as number } : {}), ...from }
     if (e?.type === 'step-end' && Number.isInteger(e.index) && typeof e.name === 'string' && (e.status === 'passed' || e.status === 'failed'))
       return { type: e.type, index: e.index, name: e.name, status: e.status, error: typeof e.error === 'string' ? e.error : null, ...from }
     if (e?.type === 'end' && typeof e.status === 'string') return { type: 'end', status: e.status }
@@ -87,11 +93,16 @@ export function parseRunLine(line: string): RunEvent | null {
 export function applyEvent(s: RunState, e: RunEvent): RunState {
   if (e.type === 'begin') return { ...s, tests: e.tests }
   if (e.type === 'end') return { ...s, result: e.status }
-  if (e.type === 'test-begin' || e.type === 'test-end') return s // a single-task run reads its steps; suites use these (T173)
+  // R065: a test whose retry passed after a failure is flaky (counted once, on its final attempt)
+  if (e.type === 'test-end') return e.outcome === 'flaky' && e.status === 'passed' ? { ...s, flaky: s.flaky + 1 } : s
+  if (e.type === 'test-begin') return s
+  const before = s.steps.find(x => x.index === e.index)
+  // A step running again on a retry (it failed before, or a later step did) keeps that history as `retried`
+  const retried = before?.retried || (e.type === 'step-begin' && !!e.retry && !!before) || undefined
   const steps = s.steps.filter(x => x.index !== e.index)
   steps.push(e.type === 'step-begin'
-    ? { index: e.index, name: e.name, status: 'running', error: null }
-    : { index: e.index, name: e.name, status: e.status, error: e.error })
+    ? { index: e.index, name: e.name, status: 'running', error: null, ...(retried ? { retried } : {}) }
+    : { index: e.index, name: e.name, status: e.status, error: e.error, ...(retried ? { retried } : {}) })
   steps.sort((a, b) => a.index - b.index)
   return { ...s, state: 'running', steps }
 }

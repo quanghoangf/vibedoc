@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { detectFrontend, detectPlaywright, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
+import { detectFrontend, detectPlaywright, readProjectSettings, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
 import { busyWith, runState, startRun } from '@/lib/test-runner'
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
         const startedServer = server.startedByUs && !ownedBefore
         if (startedServer) emitUpdate('frontend_server_updated', { state: 'running' })
         return {
-          cwd, specRel, reporter,
+          cwd, specRel, reporter, retries: (await readProjectSettings(root)).testRetries,
           env: { VIBEDOC_PROJECT: root, VIBEDOC_TASK_ID: id },
           // R063: after a pass, run again on a blank page; the fixture writes honesty.json into the new run
           blankEnv: { VIBEDOC_BLANK: '1' },

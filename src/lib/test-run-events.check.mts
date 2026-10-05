@@ -70,4 +70,20 @@ assert.equal(specInApp('/etc/x.spec.ts', '.'), null)
   const t = parseRunLine(line({ type: 'test-begin', title: 'x', file: 'e2e/a.spec.ts', taskId: 'T1' }))!
   assert.equal(applyEvent(t0, t), t0)
 }
+// R065: a step that fails, then passes on a retry, ends passed + retried; the test-end outcome counts flaky
+{
+  let r = applyEvent(t0, { type: 'step-begin', index: 1, name: 'Open' })
+  r = applyEvent(r, { type: 'step-end', index: 1, name: 'Open', status: 'failed', error: 'boom' })
+  r = applyEvent(r, { type: 'test-end', title: 't', status: 'failed', retry: 0, outcome: 'unexpected' })
+  r = applyEvent(r, { type: 'test-begin', title: 't', retry: 1 })
+  r = applyEvent(r, { type: 'step-begin', index: 1, name: 'Open', retry: 1 })
+  assert.deepEqual(r.steps[0], { index: 1, name: 'Open', status: 'running', error: null, retried: true })
+  r = applyEvent(r, { type: 'step-end', index: 1, name: 'Open', status: 'passed', error: null })
+  r = applyEvent(r, { type: 'test-end', title: 't', status: 'passed', retry: 1, outcome: 'flaky' })
+  r = applyEvent(r, { type: 'end', status: 'passed' })
+  assert.deepEqual([r.steps[0].status, r.steps[0].retried, r.flaky], ['passed', true, 1])
+  assert.equal(finishRun(r, { code: 0, cancelled: false, tail: '', now: 'n' }).state, 'passed')
+  assert.deepEqual(parseRunLine(line({ type: 'test-end', title: 't', status: 'passed', retry: 1, outcome: 'flaky' })), { type: 'test-end', title: 't', status: 'passed', retry: 1, outcome: 'flaky' })
+  assert.equal(newRunState('T1', 's', 'n').flaky, 0)
+}
 console.log('ok test-run-events')

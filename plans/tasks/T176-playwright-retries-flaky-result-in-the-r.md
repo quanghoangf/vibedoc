@@ -1,8 +1,12 @@
 # T176: Playwright retries + flaky result in the run model
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R065 — Self-fixing failures & flaky tests
 **Size:** M (2–3 hrs)
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 Every VibeDoc run retries failing tests, and a test that fails and then passes on retry is recorded as **flaky**, not failed. The data lands in run.json, the live run state and the task's Auto header, so later tasks can show it and skip send-back for it.
@@ -49,3 +53,14 @@ node src/lib/test-run-events.check.mts && node src/lib/manual-tests.check.mts &&
 pnpm lint && pnpm build
 # Run a task with a fail-once spec from /manual-tests, then: cat ~/.vibedoc/runs/vibedoc/<task>/<run>/run.json | jq '.flaky, .tests[].outcome'
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Give a task a kit spec that fails on its first attempt and passes on the second (e.g. a counter file), then Run tests → the run ends passed; GET /api/tasks/run shows `flaky: 1` and the step `retried: true`; the task header reads `Auto: passed <today> · 1 flaky` (agent checked with a throwaway spec on T153, since restored)
+- [ ] That run's run.json has `tests: [{ outcome: "flaky", attempts: 2, firstFailure: { step, error, screenshot } }]`, `flaky: 1`, and a `first-failure-…png`; only one run folder exists for the run
+- [ ] A spec that always fails → `failed` after 3 attempts (one run folder, `attempts: 3`)
+- [ ] `"tests": { "retries": 0 }` in .vibedoc/settings.json → the same spec fails on its first attempt (`attempts: 1`)
+### Regression risk
+- [ ] Older runs without `tests` / `flaky` still show in the Evidence view and the task panel's Runs
+- [ ] The blank-page honesty check still runs once after a pass (no retries there) and the regression suite still runs (with retries)

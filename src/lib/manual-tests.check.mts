@@ -148,3 +148,13 @@ console.log('manual-tests: ok')
   assert.deepEqual(parseManualTests(raw.replace(" · 2 unverified", ""))!.autoRun, { result: "passed", date: "2026-10-05" })
   console.log("ok unverified header")
 }
+
+// R065: `· N flaky` (after unverified) round-trips; old headers unchanged
+{
+  const head = (extra: string) => `# T1: x\n\n## Manual tests\n_2026-10-05 — ai · Auto: passed 2026-10-05${extra}_\n### Steps\n- [ ] 🤖 a\n`
+  assert.deepEqual(parseManualTests(head(" · 1 flaky"))!.autoRun, { result: "passed", date: "2026-10-05", flaky: 1 })
+  assert.deepEqual(parseManualTests(head(" · 2 unverified · 3 flaky"))!.autoRun, { result: "passed", date: "2026-10-05", unverified: 2, flaky: 3 })
+  assert.match(setManualTestsMeta(head(""), { autoRun: { result: "passed", date: "2026-10-06", flaky: 1 } }, "human", "2026-10-06"), /Auto: passed 2026-10-06 · 1 flaky_/)
+  assert.deepEqual(parseManualTests(head(""))!.autoRun, { result: "passed", date: "2026-10-05" })
+  console.log("ok flaky header")
+}
