@@ -76,3 +76,31 @@ export function parseSpec(path: string, raw: string): Spec {
   flush()
   return { capability, title: title || capability, purpose: join(purpose) || join(intro), requirements }
 }
+
+/** `**Specs:** board-views, memory` on an epic → capability slugs (lower case, comma/space separated, `—` = none). */
+export function parseSpecSlugs(v: string | undefined): string[] {
+  return [...new Set((v ?? '').toLowerCase().split(/[,\s]+/).filter(s => /^[a-z0-9][a-z0-9._-]*$/.test(s)))]
+}
+
+export type RelatedSpecGroup = { capability: string; title: string; names: string[] }
+const RELATED_SPEC_MAX_LINES = 15
+
+/**
+ * "## Related spec" for a task: per spec its path line and requirement names (no bodies), at most ~15 requirement
+ * lines in all; '' when there are no groups.
+ */
+export function formatRelatedSpecs(groups: RelatedSpecGroup[]): string {
+  if (!groups.length) return ''
+  const out = ['## Related spec']
+  let left = RELATED_SPEC_MAX_LINES
+  for (const g of groups) {
+    out.push(`${g.title} · docs/specs/${g.capability}.md`)
+    if (!g.names.length) out.push('- (no requirements yet)')
+    const shown = g.names.slice(0, Math.max(0, left))
+    out.push(...shown.map(n => `- ${n}`))
+    if (g.names.length > shown.length) out.push(`- … ${g.names.length - shown.length} more`)
+    left -= shown.length
+  }
+  out.push('Read with vibedoc_read_doc docs/specs/<capability>.md')
+  return out.join('\n')
+}

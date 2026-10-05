@@ -1,8 +1,11 @@
 # T182: "## Related spec" on vibedoc_get_task and vibedoc_next_task
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R066 — Living capability specs
 **Size:** M (2–3 hrs)
 **Depends on:** T181
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 An agent that reads or claims a task sees the requirements of the capability it is about to change, without being told where to look. This is the epic's main "Done when".
@@ -44,3 +47,14 @@ An agent that reads or claims a task sees the requirements of the capability it 
 node src/lib/specs.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Add `docs/specs/board-views.md` with two `### Requirement:` headings and `**Specs:** board-views` to an epic; ask an agent to run vibedoc_get_task on one of its tasks → the reply ends with `## Related spec` listing both requirement names and the spec path
+- [ ] Remove the `**Specs:**` line; vibedoc_get_task on a task whose title names one requirement (e.g. "Saved views …") → that requirement is listed
+- [ ] vibedoc_get_task on an unrelated task (e.g. billing) → no `## Related spec` block
+- [ ] vibedoc_next_task on that epic → the claim reply also ends with the `## Related spec` block, after Related memory
+### Regression risk
+- [ ] Edit the epic on /roadmap (status, due) → the `**Specs:**` line is still in its R*.md file
+- [ ] In a project with no docs/specs folder, vibedoc_get_task output is the same as before (task file + Related memory only)

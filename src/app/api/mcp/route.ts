@@ -55,6 +55,7 @@ import {
   recordRunResult,
   recallEntries,
   relatedEntries,
+  relatedSpecs,
   getEntriesByIds,
   markEntriesRecalled,
   getMemoryGraph,
@@ -925,7 +926,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
     case "vibedoc_get_task": {
       const task = await getTask(String(args.taskId), root);
-      return `## ${task.file}\n\n${task.raw}` + withGap(await relatedEntries(task, root));
+      return `## ${task.file}\n\n${task.raw}` + withGap(await relatedEntries(task, root)) + withGap(await relatedSpecs(task, root));
     }
 
     case "vibedoc_get_evidence": {
@@ -1018,7 +1019,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         : "";
       const failed = failedRunNote(task.manualTests);
       return `🔨 Claimed **${task.id}** ${task.title} (now in-progress)${changes}${failed ? `\n\n${failed}` : ""}\n\n## ${task.file}\n\n${task.raw}` +
-        (await roadmapHint(root, task.id)) + withGap(await relatedEntries(task, root));
+        (await roadmapHint(root, task.id)) + withGap(await relatedEntries(task, root)) + withGap(await relatedSpecs(task, root));
     }
 
     case "vibedoc_log_decision": {

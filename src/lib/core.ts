@@ -31,7 +31,8 @@ import { stepVerdict } from './honesty'
 import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
-import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallHit } from './recall'
+import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
+import { formatRelatedSpecs, parseSpec, parseSpecSlugs, type RelatedSpecGroup, type Spec } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
@@ -1723,6 +1724,52 @@ export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>
   return formatRelated(rankEntries(entries, taskQuery(task), { limit: entries.length }), limit)
 }
 
+// ─── Capability specs (R066) ──────────────────────────────────────────────────
+
+/** Every `docs/specs/<capability>.md`, parsed. */
+export async function listSpecs(root: string): Promise<Spec[]> {
+  // ponytail: reads every spec file per call (a handful per project); reuse the doc graph's mtime cache if they grow
+  const files = (await glob('docs/specs/*.md', { cwd: root, nodir: true })).map(f => f.replace(/\\/g, '/')).sort()
+  const specs = await Promise.all(files.map(async f => {
+    try {
+      return parseSpec(f, await fs.readFile(path.join(root, f), 'utf8'))
+    } catch (e) {
+      console.warn(`specs: skipped ${f}`, e)
+      return null
+    }
+  }))
+  return specs.filter((s): s is Spec => !!s)
+}
+
+/**
+ * The "## Related spec" block for a task, or ''. Its epic's `**Specs:**` → every requirement name of those specs;
+ * none declared (or none of them exist) → the top `limit` requirements by keyword rank, strong matches only.
+ */
+export async function relatedSpecs(task: Pick<Task, 'id' | 'title' | 'phase' | 'raw'>, root: string, limit = 3): Promise<string> {
+  const specs = await listSpecs(root)
+  if (!specs.length) return ''
+  const { items } = await listRoadmap(root)
+  const epicId = /^(R\d+)/.exec(task.phase ?? '')?.[1]
+  const epic = items.find(i => i.id === epicId) ?? items.find(i => i.tasks.includes(task.id))
+  const declared = (epic?.specs ?? []).map(slug => specs.find(s => s.capability === slug)).filter((s): s is Spec => !!s)
+  if (declared.length) {
+    return formatRelatedSpecs(declared.map(s => ({ capability: s.capability, title: s.title, names: s.requirements.map(r => r.name) })))
+  }
+  const entries: RecallEntry[] = specs.flatMap(s => s.requirements.map(r => ({
+    id: `${s.capability}#${r.name}`, type: 'spec', summary: r.name, updatedAt: '',
+    body: [r.text, ...r.scenarios.map(sc => `${sc.name}\n${sc.text}`)].join('\n'),
+  })))
+  const hits = rankEntries(entries, taskQuery(task), { limit: entries.length }).filter(h => h.score >= RELATED_MIN_SCORE).slice(0, limit)
+  const groups: RelatedSpecGroup[] = []
+  for (const h of hits) {
+    const capability = h.id.slice(0, h.id.indexOf('#'))
+    let g = groups.find(x => x.capability === capability)
+    if (!g) groups.push(g = { capability, title: specs.find(s => s.capability === capability)?.title ?? capability, names: [] })
+    g.names.push(h.summary)
+  }
+  return formatRelatedSpecs(groups)
+}
+
 // ─── Memory health ────────────────────────────────────────────────────────────
 
 /** A flag as the Cleanup panel sees it: `dismissed` is the YYYY-MM-DD it was dismissed on. */
@@ -2536,6 +2583,7 @@ export interface RoadmapItem {
   due: string | null    // "2026-10-15" — a calendar date, not an instant; compare as strings
   owner: string | null  // "human" | "ai:<agent>" (R055)
   priority: Priority | null  // **Priority:** P0–P3
+  specs: string[]       // **Specs:** capability slugs of docs/specs/<slug>.md (R066)
   body: string          // markdown after the metadata block
   file: string          // path relative to root
 }
@@ -2667,6 +2715,7 @@ function parseRoadmapFile(file: string, content: string): RoadmapItem {
     due: parseDue(meta['due'] || ''),
     owner: parseOwner(meta['owner']),
     priority: parsePriority(meta['priority']),
+    specs: parseSpecSlugs(meta['specs']),
     body: lines.slice(metaEnd).join('\n').trim(),
     file,
   }
@@ -2744,7 +2793,7 @@ export function createRoadmapItem(
 const roadmapId = (n: number) => `R${String(n).padStart(3, '0')}`
 
 /** Write a new R*.md (flag 'wx': never overwrites). Callers validate fields and mkdir first. */
-async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner' | 'priority'>): Promise<void> {
+async function writeRoadmapFile(root: string, f: Omit<RoadmapItem, 'file' | 'owner' | 'priority' | 'specs'>): Promise<void> {
   const slug = f.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
   const filename = slug ? `${f.id}-${slug}.md` : `${f.id}.md`
   const lines = [

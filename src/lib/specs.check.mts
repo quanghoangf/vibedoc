@@ -1,6 +1,6 @@
 // Self-check for specs. Run: node src/lib/specs.check.mts
 import assert from 'node:assert/strict'
-import { isSpecPath, parseSpec } from './specs.ts'
+import { formatRelatedSpecs, isSpecPath, parseSpec, parseSpecSlugs } from './specs.ts'
 
 // a full spec
 const full = [
@@ -69,5 +69,32 @@ assert.equal(isSpecPath('docs/specs/sub/board-views.md'), false)
 assert.equal(isSpecPath('docs/board-views.md'), false)
 assert.equal(isSpecPath('docs/specs/board-views.txt'), false)
 assert.equal(isSpecPath('other/docs/specs/a.md'), false)
+
+// parseSpecSlugs
+assert.deepEqual(parseSpecSlugs('board-views, Memory  roadmap,board-views'), ['board-views', 'memory', 'roadmap'])
+assert.deepEqual(parseSpecSlugs('—'), [])
+assert.deepEqual(parseSpecSlugs(undefined), [])
+
+// formatRelatedSpecs: declared (all names), ranked (a few), empty
+assert.equal(formatRelatedSpecs([]), '')
+assert.equal(formatRelatedSpecs([
+  { capability: 'board-views', title: 'Board views', names: ['Saved views', 'Table view'] },
+  { capability: 'memory', title: 'Memory', names: [] },
+]), [
+  '## Related spec',
+  'Board views · docs/specs/board-views.md',
+  '- Saved views',
+  '- Table view',
+  'Memory · docs/specs/memory.md',
+  '- (no requirements yet)',
+  'Read with vibedoc_read_doc docs/specs/<capability>.md',
+].join('\n'))
+// the line cap spans groups
+const many = formatRelatedSpecs([
+  { capability: 'a', title: 'A', names: Array.from({ length: 12 }, (_, i) => `a${i}`) },
+  { capability: 'b', title: 'B', names: Array.from({ length: 6 }, (_, i) => `b${i}`) },
+])
+assert.equal(many.split('\n').filter(l => /^- [ab]\d/.test(l)).length, 15)
+assert.ok(many.includes('- … 3 more'))
 
 console.log('specs ok')
