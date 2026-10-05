@@ -52,6 +52,7 @@ import {
   writeRunEpisode,
   getEvidence,
   ensureFixtureKit,
+  recordRunResult,
   recallEntries,
   relatedEntries,
   getEntriesByIds,
@@ -940,6 +941,8 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         throw new Error('autoResult must be "passed" or "failed"');
       const autoRun = args.autoResult ? { result: args.autoResult as "passed" | "failed", date: new Date().toISOString().slice(0, 10) } : undefined;
       if (report || spec || autoRun) await saveManualTests(String(args.taskId), report, root, "ai", { spec, autoRun });
+      // R063: a pass is judged with the newest recorded run: unverified steps are unticked and counted in the header
+      const honesty = autoRun?.result === "passed" ? await recordRunResult(String(args.taskId), "passed", null, root) : null;
       const result = await updateTaskStatus(
         String(args.taskId),
         args.status as TaskStatus,
@@ -959,6 +962,9 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
           (tests.auto ? ` · 🤖 ${tests.auto} automated` : "") +
           (tests.spec ? ` · spec \`${tests.spec}\`` : "") +
           (tests.autoRun ? ` · last run ${tests.autoRun.result} ${tests.autoRun.date}` : "") : "") +
+        (honesty?.unverified.length
+          ? `\n⚠️ ${honesty.unverified.length} ${honesty.unverified.length === 1 ? "step" : "steps"} unverified (no assertion on the page, or passes without the app): ${honesty.unverified.map((n) => `"${n}"`).join(", ")}. Fix those steps in the spec (a real expect on the page), run it again, then report again.`
+          : "") +
         (await roadmapHint(root, result.task.id));
     }
 

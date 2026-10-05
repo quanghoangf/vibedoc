@@ -85,3 +85,14 @@ assert.equal(sel({ lastRun: { runId: "20261004T074314Z", status: "passed", steps
 assert.equal(sel({ items: [item(0, false), item(1, false)] }), "T138 · no run yet · 2 checks left")
 assert.equal(sel({ items: [item(0, true)] }), "T138 · no run yet · all checks ticked")
 console.log("ok selectionLabel")
+
+// R063: an unverified pass keeps its unticked 🤖 items owed (needs you) and says so
+{
+  const u = toRow({ ...base, id: "T9", status: "review", items: [item(0, true, true), item(1, false, true)], autoRun: { result: "passed", date: "2026-10-05", unverified: 1 } })
+  assert.deepEqual([u.left, u.unverified, u.needsMe], [1, 1, true])
+  assert.deepEqual(outstanding(u), ["1 check unticked", "last run passed · 1 unverified"])
+  // …also on a done task, where unticked checks alone wouldn't count
+  assert.equal(toRow({ ...base, id: "T10", status: "done", items: [item(0, false, true)], autoRun: { result: "passed", date: "2026-10-05", unverified: 1 } }).needsMe, true)
+  assert.equal(countNeedsYou([{ status: "done", manualTests: { untested: 1, autoRun: { result: "passed", date: "2026-10-05", unverified: 1 } }, lastRun: { status: "passed" } }]), 1)
+  console.log("ok unverified row")
+}

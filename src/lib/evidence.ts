@@ -130,8 +130,9 @@ export function formatEvidence({ taskId, title, items, spec, runs, runId, src = 
 /**
  * R061: what a finished Run writes back into the checklist. 🤖 items whose step passed get ticked, 🤖 items whose
  * step failed get unticked (the run disproved them); manual items and 🤖 items with no step are left alone.
+ * R063: a passed step that is unverified (`unverified` reasons) proves nothing either: its item is unticked.
  */
-export function ticksForRun(items: ManualTestItem[], steps: { name: string; status: string }[]): { tick: number[]; untick: number[] } {
+export function ticksForRun(items: ManualTestItem[], steps: { name: string; status: string; unverified?: string[] }[]): { tick: number[]; untick: number[] } {
   const left = [...steps]
   const tick: number[] = []
   const untick: number[] = []
@@ -140,8 +141,9 @@ export function ticksForRun(items: ManualTestItem[], steps: { name: string; stat
     const at = left.findIndex(s => norm(s.name) === norm(item.text))
     if (at < 0) continue
     const [step] = left.splice(at, 1)
-    if (step.status === 'passed' && !item.checked) tick.push(item.index)
-    if (step.status === 'failed' && item.checked) untick.push(item.index)
+    const proves = step.status === 'passed' && !step.unverified?.length
+    if (proves && !item.checked) tick.push(item.index)
+    if (!proves && item.checked) untick.push(item.index)
   }
   return { tick, untick }
 }

@@ -35,22 +35,26 @@ export interface ReviewRow {
   at: string | null
   /** Unticked items a human still owes: every manual one, 🤖 ones unless proven by a passed run */
   left: number
+  /** R063: passed steps of the last recorded result that don't prove their item */
+  unverified: number
   /** A failed run, a task in review, or checks left on a task that isn't finished (see needsYou) */
   needsMe: boolean
 }
 
 /**
- * The one triage rule (the page's "Needs you" tab and the sidebar badge): the last run failed, the task waits
- * in review, or checks are left on a task that isn't done/cancelled. Unticked checks on finished work don't count.
+ * The one triage rule (the page's "Needs you" tab and the sidebar badge): the last run failed or passed with
+ * unverified steps (R063), the task waits in review, or checks are left on a task that isn't done/cancelled.
+ * Unticked checks on finished work don't count.
  */
-export function needsYou(status: string, result: RunResult, left: number): boolean {
-  return result === "failed" || status === "review" || (left > 0 && status !== "done" && status !== "cancelled")
+export function needsYou(status: string, result: RunResult, left: number, unverified = 0): boolean {
+  // R063: a pass that proves less than it claims (unverified steps) is as much your call as a failed one
+  return result === "failed" || unverified > 0 || status === "review" || (left > 0 && status !== "done" && status !== "cancelled")
 }
 
 /** Sidebar badge from board tasks (no parsing): same rule, `untested` stands in for `left`. */
-export function countNeedsYou(tasks: { status: string; manualTests: { untested: number; autoRun: { result: "passed" | "failed" } | null } | null; lastRun: { status: "passed" | "failed" } | null }[]): number {
+export function countNeedsYou(tasks: { status: string; manualTests: { untested: number; autoRun: { result: "passed" | "failed"; unverified?: number } | null } | null; lastRun: { status: "passed" | "failed" } | null }[]): number {
   return tasks.filter((t) => (t.manualTests || t.lastRun) &&
-    needsYou(t.status, t.lastRun?.status ?? t.manualTests?.autoRun?.result ?? "none", t.manualTests?.untested ?? 0)).length
+    needsYou(t.status, t.lastRun?.status ?? t.manualTests?.autoRun?.result ?? "none", t.manualTests?.untested ?? 0, t.manualTests?.autoRun?.unverified ?? 0)).length
 }
 
 /** `20261004T074314Z` → `2026-10-04T07:43:14Z` */
@@ -69,7 +73,8 @@ export function toRow(t: ReviewInput): ReviewRow {
   const manual = t.items.filter((i) => !i.auto)
   const auto = t.items.filter((i) => i.auto)
   const result: RunResult = t.lastRun?.status ?? t.autoRun?.result ?? "none"
-  const proven = (t.lastRun?.status ?? t.autoRun?.result) === "passed"
+  // R063: a pass with unverified steps proves only the 🤖 items it ticked
+  const proven = (t.lastRun?.status ?? t.autoRun?.result) === "passed" && !t.autoRun?.unverified
   const left = manual.filter((i) => !i.checked).length + (proven ? 0 : auto.filter((i) => !i.checked).length)
   return {
     id: t.id,
@@ -82,7 +87,8 @@ export function toRow(t: ReviewInput): ReviewRow {
     steps: t.lastRun ? { passed: t.lastRun.passed, total: t.lastRun.steps } : null,
     at: (t.lastRun && runIdTime(t.lastRun.runId)) ?? t.autoRun?.date ?? t.reportDate,
     left,
-    needsMe: needsYou(t.status, result, left),
+    unverified: t.autoRun?.unverified ?? 0,
+    needsMe: needsYou(t.status, result, left, t.autoRun?.unverified ?? 0),
   }
 }
 
@@ -112,7 +118,7 @@ export function outstanding(r: ReviewRow, failedStep: number | null = null): [ch
   const checks = r.manual.total + r.auto.total
   const left = !checks ? "no checklist" : r.left ? `${r.left} ${r.left === 1 ? "check" : "checks"} unticked` : "all checks ticked"
   const run = r.result === "none" ? "no run yet"
-    : r.result === "passed" ? "last run passed"
+    : r.result === "passed" ? `last run passed${r.unverified ? ` · ${r.unverified} unverified` : ""}`
     : failedStep ? `last run failed at step ${failedStep}` : "last run failed"
   return [left, run]
 }

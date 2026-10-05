@@ -1073,16 +1073,25 @@ export async function setAllManualTestsChecked(taskId: string, checked: boolean,
 /**
  * R061: a finished Run from VibeDoc, written back like an agent's run: the header's `Auto: <result> <today>`, 🤖 items
  * whose step passed ticked and those whose step failed unticked (ticksForRun). One write. Null = no checklist.
+ * R063: steps are judged with the task's newest kept run (assertion counts + its blank-app check; only a run that
+ * started at or after `since`): an unverified step proves nothing, its item is unticked and the header counts it.
+ * `steps: null` = take the newest run's own steps (an agent's `autoResult`). `unverified` = those steps' names.
  */
-export async function recordRunResult(taskId: string, result: 'passed' | 'failed', steps: { name: string; status: string }[], root: string): Promise<Task | null> {
+export async function recordRunResult(taskId: string, result: 'passed' | 'failed', steps: { name: string; status: string }[] | null, root: string, since?: string):
+  Promise<{ task: Task; unverified: string[] } | null> {
   const task = await getTask(taskId, root)
   const tests = task.raw ? parseManualTests(task.raw) : null
   if (!tests || !task.raw) return null
-  const { tick, untick } = ticksForRun(tests.items, steps)
+  const newest = (await listRuns(task.id, root))[0]
+  const run = newest && (!since || newest.startedAt >= since) ? newest : null
+  const verdicts = new Map(run?.steps.map(s => [s.name, runVerdict(s, run)]) ?? [])
+  const judged = (steps ?? run?.steps ?? []).map(s => ({ ...s, unverified: verdicts.get(s.name) ?? [] }))
+  const unverified = judged.filter(s => s.status === 'passed' && s.unverified.length).map(s => s.name)
+  const { tick, untick } = ticksForRun(tests.items, judged)
   let raw = setManualTestsChecked(setManualTestsChecked(task.raw, tick, true), untick, false)
-  raw = setManualTestsMeta(raw, { autoRun: { result, date: localToday() } }, 'human', localToday())
+  raw = setManualTestsMeta(raw, { autoRun: { result, date: localToday(), ...(unverified.length ? { unverified: unverified.length } : {}) } }, 'human', localToday())
   if (raw !== task.raw) await fs.writeFile(path.join(root, task.file), raw, 'utf8')
-  return getTask(task.id, root)
+  return { task: await getTask(task.id, root), unverified }
 }
 
 /** Tick or untick one manual test item (index in file order). Never changes the task status. Throws RangeError for a bad index. */

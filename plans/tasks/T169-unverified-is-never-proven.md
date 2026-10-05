@@ -1,8 +1,12 @@
 # T169: Unverified is never proven: ticks, the Auto header, Needs you
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R063 — Honest tests
 **Size:** M (2–3 hrs)
 **Depends on:** T168
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 A task can't show as automatically verified while a step is unverified. Its automated item stays unticked, the checklist header reads `Auto: passed · N unverified`, the task stays under Needs you, and the badge isn't green.
@@ -41,3 +45,14 @@ A task can't show as automatically verified while a step is unverified. Its auto
 node src/lib/evidence.check.mts && node src/lib/manual-tests.check.mts && node src/lib/test-review.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Give a task a kit spec with one honest step and one `expect(true).toBe(true)` step (both as 🤖 items) and Run it from /manual-tests → when it ends the header reads `· Auto: passed <today> · 1 unverified`, the honest item is [x] and the trivial one stays [ ] (agent checked on a throwaway spec, since removed)
+- [ ] That task shows under Needs you (also when it is done), its /manual-tests row reads "last run passed · 1 unverified", the sidebar count includes it, and its card 🧪 badge isn't teal
+- [ ] As an agent, report `vibedoc_update_task {autoResult: "passed"}` with every 🤖 item ticked on that task → the reply ends with "⚠️ 1 step unverified … \"Trivial → ok\" …" and the file unticks it
+- [ ] An honest spec → no `unverified` part in the header and items tick as before
+### Regression risk
+- [ ] Old task files with `· Auto: passed <date>` still parse; T155's 🤖 items still count as proven
+- [ ] A failed Run still writes `Auto: failed` and unticks the failed step's item

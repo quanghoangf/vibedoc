@@ -134,3 +134,17 @@ console.log('manual-tests: ok')
   assert.throws(() => setManualTestsChecked("# T1\n", [0], true), RangeError)
   console.log("ok setManualTestsChecked")
 }
+
+// R063: `· N unverified` after Auto round-trips; a pass with unverified steps proves only its ticked 🤖 items
+{
+  const raw = "# T1: x\n\n## Manual tests\n_2026-10-05 — ai · Spec: `e2e/x.spec.ts` · Auto: passed 2026-10-05 · 2 unverified_\n### Steps\n- [x] 🤖 a\n- [ ] 🤖 b\n- [ ] c\n"
+  const t = parseManualTests(raw)!
+  assert.deepEqual(t.autoRun, { result: "passed", date: "2026-10-05", unverified: 2 })
+  assert.equal(t.spec, "e2e/x.spec.ts")
+  assert.deepEqual(untestedItems(t).map((i) => i.text), ["b", "c"])
+  const clean = setManualTestsMeta(raw, { autoRun: { result: "passed", date: "2026-10-06" } }, "human", "2026-10-06")
+  assert.match(clean, /· Auto: passed 2026-10-06_\n/)
+  assert.deepEqual(untestedItems(parseManualTests(clean)!).map((i) => i.text), ["c"])
+  assert.deepEqual(parseManualTests(raw.replace(" · 2 unverified", ""))!.autoRun, { result: "passed", date: "2026-10-05" })
+  console.log("ok unverified header")
+}

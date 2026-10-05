@@ -68,8 +68,8 @@ export async function POST(req: NextRequest) {
         if (s.state === 'cancelled') void removeUnfinishedRuns(root, s.startedAt).catch(() => {})
         // A verdict goes into the task file like an agent's run (Auto: header + 🤖 ticks); cancelled / error write nothing
         if (s.state === 'passed' || s.state === 'failed') {
-          void recordRunResult(id, s.state, s.steps, root)
-            .then((task) => { if (task) emitUpdate('task_updated', { taskId: id, task }) })
+          void recordRunResult(id, s.state, s.steps, root, s.startedAt)
+            .then((r) => { if (r) emitUpdate('task_updated', { taskId: id, task: r.task }) })
             .catch((e) => console.warn(`vibedoc: could not record the ${id} run: ${(e as Error).message}`))
         }
       },

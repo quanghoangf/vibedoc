@@ -64,6 +64,9 @@ console.log('ok evidence')
   const its = [item(0, 'A → a', true), item(1, 'B → b', true, true), item(2, 'C → c', true, true), item(3, 'Manual', false), item(4, 'No step', true)]
   assert.deepEqual(ticksForRun(its, [{ name: 'A → a', status: 'passed' }, { name: ' B  → b', status: 'passed' }, { name: 'C → c', status: 'failed' }, { name: 'Manual', status: 'passed' }]), { tick: [0], untick: [2] })
   assert.deepEqual(ticksForRun(its, []), { tick: [], untick: [] })
+  // R063: a passed but unverified step neither ticks nor keeps its tick
+  const its2 = [item(0, 'A → a', true), item(1, 'B → b', true, true)]
+  assert.deepEqual(ticksForRun(its2, [{ name: 'A → a', status: 'passed', unverified: ['no assertion'] }, { name: 'B → b', status: 'passed', unverified: ['passes without the app'] }]), { tick: [], untick: [1] })
   console.log('ok ticksForRun')
 }
 
