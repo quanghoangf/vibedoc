@@ -18,7 +18,7 @@ import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
 import { parseManualTests, setAllManualTests, setManualTests, setManualTestsChecked, setManualTestsMeta, toggleManualTest, untestedItems, type AutoRun, type ManualTestsMeta } from './manual-tests'
-import { REVIEWABLE, appendReviewEntry, type ReviewOutcome } from './review'
+import { REVIEWABLE, appendReviewEntry, formatReviewBody, type ReviewMark, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
 import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
@@ -1012,14 +1012,30 @@ async function reviewTask(taskId: string, outcome: ReviewOutcome, note: string, 
   return updateTaskStatus(task.id, next, root, 'human')
 }
 
-/** Review → done, with an `approved` entry in the task's `## Review` section. */
-export function approveTask(taskId: string, root: string, note = '') {
-  return reviewTask(taskId, 'approved', note, 'done', root)
+/** R062: the decision was made from this kept run; null when there is none (unknown runId → RangeError). */
+async function reviewedRun(taskId: string, runId: string | null | undefined, root: string): Promise<RunManifest | null> {
+  if (!runId) return null
+  const run = (await listRuns(taskId, root)).find(r => r.runId === runId)
+  if (!run) throw new RangeError(`No kept run ${runId} for ${taskId}`)
+  return run
 }
 
-/** Review or done → todo (so vibedoc_next_task hands it out again), with the note as a `changes requested` entry. Note required. */
-export function sendBackTask(taskId: string, note: string, root: string) {
-  return reviewTask(taskId, 'changes requested', note, 'todo', root)
+/**
+ * Review → done, with an `approved` entry in the task's `## Review` section. R062: with `runId`, the entry
+ * names the run and "All N steps reviewed".
+ */
+export async function approveTask(taskId: string, root: string, note = '', opts: { runId?: string | null } = {}) {
+  const run = await reviewedRun(taskId.toUpperCase(), opts.runId, root)
+  return reviewTask(taskId, 'approved', run ? formatReviewBody(note, run.runId, [], run.steps.length) : note, 'done', root)
+}
+
+/**
+ * Review or done → todo (so vibedoc_next_task hands it out again), with the note as a `changes requested` entry.
+ * R062: `marks` (flagged steps) and `runId` go first in the entry; a note or at least one mark is required.
+ */
+export async function sendBackTask(taskId: string, note: string, root: string, opts: { runId?: string | null; marks?: ReviewMark[] } = {}) {
+  const run = await reviewedRun(taskId.toUpperCase(), opts.runId, root)
+  return reviewTask(taskId, 'changes requested', formatReviewBody(note, run?.runId ?? null, opts.marks ?? []), 'todo', root)
 }
 
 /** Tick or untick every manual item of one task (🤖 ones untouched). `changed` = the indexes flipped, for Undo. */

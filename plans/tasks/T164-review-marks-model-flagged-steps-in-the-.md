@@ -1,8 +1,12 @@
 # T164: Review marks model: flagged steps in the ## Review entry + generated send-back note
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R062 — Evidence-based review
 **Size:** M
 **Depends on:** T163
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 A send back can carry per-step marks: steps the reviewer doubts, plus failed steps. Each mark is written into the `## Review` entry with the step name, run id and screenshot, so the agent knows exactly what to fix.
@@ -52,3 +56,14 @@ node src/lib/review.check.mts
 pnpm lint && pnpm build
 curl -s localhost:3000/api/tasks/review -H 'content-type: application/json' -d '{"id":"T155","action":"send-back","runId":"<run>","marks":[{"item":1,"step":"Open evidence","kind":"doubt","comment":"wrong run shown"}]}'
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Put a task with runs in review, then `curl localhost:3000/api/tasks/review -H 'content-type: application/json' -d '{"id":"T155","action":"send-back","runId":"<a kept run>","marks":[{"item":1,"step":"…","kind":"doubt","comment":"wrong run shown","screenshot":"02-….png"}]}'` (no note) → 200, the task is todo and its ## Review entry reads `Run <id>` then `- ⚠️ Step 2 "…" — doubt: wrong run shown · screenshot 02-….png`
+- [ ] Same with no note and no marks → 400 "A note or a flagged step is required…"; kind "meh" → 400; a runId that isn't kept → 400
+- [ ] `vibedoc_next_task` on that epic → the claim shows the Run line and the step lines under ⚠️ Changes requested
+- [ ] Approve with `runId` → the approved entry reads `Run <id>` and `All N steps reviewed`
+### Regression risk
+- [ ] Approve / Send back from the task panel and /manual-tests (plain note, no marks) still work and write the same entries as before
+- [ ] Old task files with plain ## Review notes still show their history in the task panel

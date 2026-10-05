@@ -5,6 +5,9 @@
 //   ### 2026-10-01T11:00:00Z — changes requested
 //   The plan card doesn't scroll when there are 10+ tasks.
 //   ### 2026-10-02T09:30:00Z — approved
+//
+// R062: an entry may start with `Run <runId>` and per-step mark lines (formatReviewBody / parseReviewMarks):
+//   - ❌ Step 3 "Click Save → toast shows" — failed: Timeout waiting for toast · screenshot 03-click-save.png
 
 export const REVIEW_HEADING = "## Review"
 
@@ -22,7 +25,61 @@ export const REVIEWABLE: Record<ReviewOutcome, readonly string[]> = {
 export interface ReviewEntry {
   at: string
   outcome: ReviewOutcome
+  /** The whole entry body (mark lines included): what the agent reads */
   note: string
+  /** R062: the run the reviewer decided from (`Run <id>` line), when there was one */
+  runId?: string
+  /** R062: per-step marks in the body; [] for entries without any */
+  marks: ReviewMark[]
+}
+
+/**
+ * R062: one flagged step of a send back. `item` = the checklist item's index (file order, shown 1-based as
+ * "Step N"); `step` = its text; `screenshot` = the run's file for it (`03-click-save.png`).
+ */
+export interface ReviewMark {
+  item: number
+  step: string
+  kind: "doubt" | "failed"
+  comment?: string
+  screenshot?: string
+}
+
+export const REVIEW_MARK_KINDS = ["doubt", "failed"] as const
+const MARK_GLYPH = { failed: "❌", doubt: "⚠️" } as const
+const RUN_LINE = /^Run (\d{8}T\d{6}Z)$/
+const MARK_LINE = /^- (?:❌|⚠️) Step (\d+) "(.*)" — (failed|doubt)(?:: (.*?))?(?: · screenshot ([\w.-]+\.png))?$/u
+const oneLine = (s: string) => s.replace(/\s*\n\s*/g, " ").trim()
+
+/**
+ * The body of a review entry: `Run <id>`, one line per mark, then the free-text note after a blank line. Approve
+ * passes `reviewed` (the run's step count) for an "All N steps reviewed" line instead of marks.
+ */
+export function formatReviewBody(note: string, runId: string | null, marks: ReviewMark[] = [], reviewed?: number): string {
+  const head = [
+    ...(runId ? [`Run ${runId}`] : []),
+    ...marks.map((m) => `- ${MARK_GLYPH[m.kind]} Step ${m.item + 1} "${oneLine(m.step)}" — ${m.kind}` +
+      (m.comment?.trim() ? `: ${oneLine(m.comment)}` : "") + (m.screenshot ? ` · screenshot ${m.screenshot}` : "")),
+    ...(reviewed !== undefined && !marks.length ? [`All ${reviewed} steps reviewed`] : []),
+  ]
+  return [head.join("\n"), note.trim()].filter(Boolean).join("\n\n")
+}
+
+/** The marks (and run id) back out of an entry body; lines that aren't marks are ignored. */
+export function parseReviewMarks(body: string): { runId?: string; marks: ReviewMark[] } {
+  let runId: string | undefined
+  const marks: ReviewMark[] = []
+  for (const line of body.split("\n")) {
+    const run = line.trim().match(RUN_LINE)
+    if (run) { runId ??= run[1]; continue }
+    const m = line.trim().match(MARK_LINE)
+    if (!m) continue
+    marks.push({
+      item: Number(m[1]) - 1, step: m[2], kind: m[3] as ReviewMark["kind"],
+      ...(m[4] ? { comment: m[4] } : {}), ...(m[5] ? { screenshot: m[5] } : {}),
+    })
+  }
+  return { ...(runId ? { runId } : {}), marks }
 }
 
 const ENTRY = /^###\s+(\S+)\s+—\s+(approved|changes requested)\s*$/
@@ -52,13 +109,16 @@ export function reviewHistory(raw: string): ReviewEntry[] {
   const entries: ReviewEntry[] = []
   for (const line of lines.slice(range[0] + 1, range[1])) {
     const m = line.match(ENTRY)
-    if (m) entries.push({ at: m[1], outcome: m[2] as ReviewOutcome, note: "" })
+    if (m) entries.push({ at: m[1], outcome: m[2] as ReviewOutcome, note: "", marks: [] })
     else if (entries.length) {
       const last = entries[entries.length - 1]
       last.note = last.note ? `${last.note}\n${line}` : line
     }
   }
-  return entries.map((e) => ({ ...e, note: e.note.trim() }))
+  return entries.map((e) => {
+    const note = e.note.trim()
+    return { ...e, note, ...parseReviewMarks(note) }
+  })
 }
 
 export function latestReview(raw: string): ReviewEntry | null {
