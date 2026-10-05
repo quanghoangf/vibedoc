@@ -1,6 +1,6 @@
 // Self-check for scenarios. Run: node src/lib/scenarios.check.mts
 import assert from 'node:assert/strict'
-import { coverageOf, parseCovers, parseScenarios } from './scenarios.ts'
+import { coverageOf, parseCovers, parseScenarios, scenarioStep, seedSteps } from './scenarios.ts'
 
 const body = [
   'Intro text.',
@@ -42,5 +42,13 @@ assert.deepEqual(parseCovers('XS1 S1a'), [])
 
 // coverageOf
 assert.deepEqual(coverageOf(parseScenarios(body), [{ id: 'T1', covers: ['S2'] }, { id: 'T2', covers: ['S2', 'S7'] }]), { S1: [], S2: ['T1', 'T2'] })
+
+// scenarioStep / seedSteps
+const sc = parseScenarios('## Scenarios\n### S1: One\n- WHEN a\n- AND b\n- THEN c\n- AND d\n### S2: Bare\n### S3: Three\n- THEN only')
+assert.equal(scenarioStep(sc[0]), 'S1 — WHEN a AND b → THEN c AND d')
+assert.equal(scenarioStep(sc[1]), 'S2 — Bare')
+assert.equal(scenarioStep(sc[2]), 'S3 — THEN only')
+assert.equal(seedSteps(sc, ['S3', 'S1']), '### Steps\n- [ ] S1 — WHEN a AND b → THEN c AND d\n- [ ] S3 — THEN only')
+assert.equal(seedSteps(sc, ['S9']), '')
 
 console.log('scenarios ok')

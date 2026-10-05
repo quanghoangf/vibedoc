@@ -19,6 +19,7 @@ import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
 import { formatCompactLine, tokenize } from "@/lib/recall";
 import { findRequirement, formatRequirement, formatSpecList } from "@/lib/specs";
 import { SEVERITIES, validateFindings } from "@/lib/verification";
+import { parseScenarios } from "@/lib/scenarios";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
 import { failedRunNote } from "@/lib/work-queue";
@@ -596,7 +597,7 @@ const TOOLS = [
   {
     name: "vibedoc_propose_plan",
     description:
-      "Propose a plan for the user to review: kind \"breakdown\" (tasks: pass epic for an existing epic, newEpic to create the epic with the tasks, or neither for loose tasks with no epic) or kind \"roadmap\" (new horizons and epics: horizons + epics; an epic's parent is an existing horizon id or a horizon key in this plan; epic body = one outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**). Does NOT write anything: the user sees the plan in the UI, can uncheck items, and accepts. Validated against the current files; on errors, fix the plan and call again. Each task body is the full markdown below the meta block (## Goal, ## Context, ## Scope, ## Files, ## Acceptance criteria, ## Verify). dependsOn lists keys of earlier tasks in this plan or existing task ids (\"T030\").",
+      "Propose a plan for the user to review: kind \"breakdown\" (tasks: pass epic for an existing epic, newEpic to create the epic with the tasks, or neither for loose tasks with no epic) or kind \"roadmap\" (new horizons and epics: horizons + epics; an epic's parent is an existing horizon id or a horizon key in this plan; epic body = one outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**). Does NOT write anything: the user sees the plan in the UI, can uncheck items, and accepts. Validated against the current files; on errors, fix the plan and call again. Each task body is the full markdown below the meta block (## Goal, ## Context, ## Scope, ## Files, ## Acceptance criteria, ## Verify). dependsOn lists keys of earlier tasks in this plan or existing task ids (\"T030\"). covers lists the epic's scenario ids (## Scenarios → ### S1: …) the task makes true.",
     inputSchema: {
       type: "object",
       properties: {
@@ -647,6 +648,7 @@ const TOOLS = [
                   title: { type: "string" },
                   size: { type: "string", description: "S (~1 hr) | M (2–3 hrs) | L (half day)" },
                   dependsOn: { type: "array", items: { type: "string" } },
+                  covers: { type: "array", items: { type: "string" }, description: "Scenario ids of the epic's ## Scenarios this task covers (\"S1\"); each becomes a step of the task's Manual tests. When the epic has scenarios, cover every one." },
                   due: { type: "string", description: "YYYY-MM-DD" },
                   body: { type: "string", description: "Markdown below the meta block" },
                 },
@@ -1292,7 +1294,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     case "vibedoc_propose_plan": {
       // Validate only, like propose_edit: the UI writes via POST /api/plan/apply after Accept.
       const [{ items }, { tasks }] = await Promise.all([listRoadmap(root), listTasks(root)]);
-      const errors = validatePlan(args.plan, { roadmap: items, taskIds: tasks.map((t) => t.id) });
+      const errors = validatePlan(args.plan, { roadmap: items, taskIds: tasks.map((t) => t.id), scenarioIds: (body) => parseScenarios(body).map((sc) => sc.id) });
       if (errors.length > 0) throw new Error(`Invalid plan:\n- ${errors.join("\n- ")}`);
       const plan = args.plan as Plan;
       if (plan.kind === "roadmap") {

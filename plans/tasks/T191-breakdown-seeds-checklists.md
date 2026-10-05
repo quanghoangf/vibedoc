@@ -1,8 +1,11 @@
 # T191: Breakdown seeds each task's Manual tests from its scenarios
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R068 — Scenarios as acceptance tests
 **Size:** M (2–3 hrs)
 **Depends on:** T190
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 When an epic with scenarios is broken down, each task starts with a test checklist taken from the scenarios it covers, so the evidence later proves the epic's promise.
@@ -38,3 +41,13 @@ When an epic with scenarios is broken down, each task starts with a test checkli
 node src/lib/plan.check.mts && node src/lib/scenarios.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai · Spec: `e2e/vibedoc/T191-breakdown-seeds-checklists.spec.ts` · Auto: passed 2026-10-05_
+### Steps
+- [x] 🤖 Ask the agent for a breakdown whose first task covers S1 and S2 → the plan card row reads "covers S1, S2" and the other row has no covers
+- [ ] Accept a breakdown plan for an epic with `## Scenarios` S1–S2 where one task has covers S1, S2 → that task file has `**Covers:** S1, S2` and a `## Manual tests` with the steps "S1 — WHEN … → THEN …" and "S2 — …"; it shows 🧪 0/2 on its card
+- [ ] Ask the agent to propose a plan with covers ["S9"] → the chat shows the refusal "covers "S9" is not a scenario of R0xx (valid: S1, S2)"
+- [ ] Run /epic-breakdown on an epic without `## Scenarios` → the agent offers to write scenarios from "Done when" first
+### Regression risk
+- [ ] Accepting a plan without covers creates the same task files as before (no Covers line, no Manual tests section)

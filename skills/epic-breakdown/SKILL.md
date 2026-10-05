@@ -95,14 +95,15 @@ Good slicing rules:
 - **Order by dependency, then by risk.** Put the unknowns (a new integration, a tricky migration) early, so they surface while the plan can still change.
 - **No overlap.** Two tasks should not edit the same function for different reasons. Merge them, or make one depend on the other.
 - **Every epic "Done when" criterion must be covered by some task's acceptance criteria.** Check this before you continue.
+- **Scenarios.** When the epic body has a `## Scenarios` section (`### S1: <name>` + `- WHEN …` / `- THEN …` bullets), every task names the scenarios it makes true (`covers`), and every scenario is covered by at least one task. When it has none, offer to write them from "Done when" first (one scenario per promise, WHEN/THEN, numbered S1, S2, …) and add them to the epic before slicing.
 
 Show the plan as a plain-text table, not the full files yet:
 
 ```
-#  Task                                  Size  Depends on
-1  Billing data model + plan catalog     S     —
-2  Checkout happy path (monthly plan)    M     1
-3  Webhook: activate/cancel subscription M     2
+#  Task                                  Size  Depends on  Covers
+1  Billing data model + plan catalog     S     —           —
+2  Checkout happy path (monthly plan)    M     1           S1
+3  Webhook: activate/cancel subscription M     2           S2, S3
 ...
 Total ≈ 9h — fits the "~1 week" budget.
 ```
@@ -111,7 +112,7 @@ Ask a single-select question: **Create tasks** (Recommended) / **Adjust**. If th
 
 ## 5. Write the tasks
 
-**In the VibeDoc chat** (you have `vibedoc_propose_plan`): don't write anything yourself. Put every task (`kind: "breakdown"`, with each task's full body) in one `vibedoc_propose_plan` call, with `epic` for an existing epic, `newEpic: { title, parent, body }` for a new one, or neither for loose tasks. The user's Accept writes the task files (and the new epic) and links them, so skip the rest of this step.
+**In the VibeDoc chat** (you have `vibedoc_propose_plan`): don't write anything yourself. Put every task (`kind: "breakdown"`, with each task's full body) in one `vibedoc_propose_plan` call, with `epic` for an existing epic, `newEpic: { title, parent, body }` for a new one, or neither for loose tasks. Give each task `covers: ["S1", …]` when the epic has scenarios: Accept writes a `**Covers:**` line and seeds the task's `## Manual tests` with one step per covered scenario (unknown ids are refused). The user's Accept writes the task files (and the new epic) and links them, so skip the rest of this step.
 
 Continue the numbering from the highest existing `T` id, padded to 3 digits. Write the files to `plans/tasks/T<NNN>-<kebab-slug>.md`. There is no MCP tool that creates tasks, so write the files directly.
 
@@ -124,6 +125,7 @@ Use this template. The board parser reads only the contiguous `**Key:** Value` b
 **Size:** M (2–3 hrs)
 **Depends on:** T030
 **Due:** 2026-10-15
+**Covers:** S1
 
 ## Goal
 <1–2 sentences: the user-visible result and why it matters for the epic.>
@@ -157,7 +159,7 @@ Use this template. The board parser reads only the contiguous `**Key:** Value` b
 ```
 ````
 
-`**Due:**` is optional. Add it only when the user gave a target date in the interview: spread the dates across the tasks in dependency order so the last task lands on the epic's due date. Use a local calendar date (`YYYY-MM-DD`). The roadmap sheet shows it and flags overdue tasks.
+`**Covers:**` lists the epic's scenario ids the task makes true; leave the line out when the epic has no `## Scenarios`. In the terminal, also start the task's `## Manual tests` with one step per covered scenario (`- [ ] S1 — WHEN … → THEN …`). `**Due:**` is optional. Add it only when the user gave a target date in the interview: spread the dates across the tasks in dependency order so the last task lands on the epic's due date. Use a local calendar date (`YYYY-MM-DD`). The roadmap sheet shows it and flags overdue tasks.
 
 Adjust the headings to the project if its existing tasks use a different but richer format. Keep **Goal, Scope, Files, Acceptance criteria and Verify** in all cases. They are what lets an agent work without asking questions.
 

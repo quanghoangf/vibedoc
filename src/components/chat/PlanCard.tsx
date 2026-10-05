@@ -124,7 +124,7 @@ export function PlanCard({ proposal, onResolve }: {
       <ul className="max-h-80 overflow-auto">
         {tasks.map((t) => row(
           t.key, t.title,
-          [t.size, t.dependsOn?.length ? `after ${t.dependsOn.join(", ")}` : null, t.due ? `due ${t.due}` : null].filter(Boolean).join(" · "),
+          [t.size, t.dependsOn?.length ? `after ${t.dependsOn.join(", ")}` : null, t.due ? `due ${t.due}` : null, t.covers?.length ? `covers ${t.covers.join(", ")}` : null].filter(Boolean).join(" · "),
           t.body,
         ))}
         {horizons.map((h) => [

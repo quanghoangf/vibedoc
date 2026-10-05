@@ -8,6 +8,7 @@ export interface PlanTask {
   size?: string          // "S (~1 hr)" | "M (2–3 hrs)" | "L (half day)"
   dependsOn?: string[]   // keys in this plan, or existing task ids ("T030")
   due?: string           // YYYY-MM-DD
+  covers?: string[]      // R068: scenario ids of the target epic ("S1"); seeds the task's Manual tests
   body: string           // full markdown below the meta block: Goal, Context, Scope, Files, …
 }
 export interface PlanHorizon { key: string; title: string; body?: string }
@@ -18,7 +19,8 @@ export type Plan =
   | { kind: 'breakdown'; epic?: string; newEpic?: PlanNewEpic; tasks: PlanTask[] }
   | { kind: 'roadmap'; horizons: PlanHorizon[]; epics: PlanEpic[] }
 
-export interface PlanContext { roadmap: RoadmapItem[]; taskIds: string[] }
+/** `scenarioIds`: a new epic's scenario ids from its body (core passes parseScenarios; pure libs can't import it). */
+export interface PlanContext { roadmap: RoadmapItem[]; taskIds: string[]; scenarioIds?: (body: string) => string[] }
 
 /** A real calendar date "YYYY-MM-DD" (rejects 2026-02-30), else null. Same rule as core's parseDue. */
 function isDate(raw: string): boolean {
@@ -109,6 +111,12 @@ export function validatePlan(plan: unknown, ctx: PlanContext): string[] {
   }
   const tasks = plan.tasks as unknown[]
   const existing = new Set(ctx.taskIds.map(t => t.toUpperCase()))
+  // R068: the scenarios `covers` may name; null = can't tell (no parser for a new epic's body)
+  const target = epicId ? ctx.roadmap.find(i => i.id === epicId) : undefined
+  const scenarioIds: string[] | null = target ? (target.scenarios ?? []).map(sc => sc.id)
+    : isObj(plan.newEpic) && typeof plan.newEpic.body === 'string' ? ctx.scenarioIds?.(plan.newEpic.body) ?? null
+    : []
+  const targetName = target ? target.id : plan.newEpic !== undefined ? 'the new epic' : 'loose tasks (no epic)'
 
   const index = new Map<string, number>()
   tasks.forEach((t, i) => {
@@ -127,6 +135,17 @@ export function validatePlan(plan: unknown, ctx: PlanContext): string[] {
     if (t.size !== undefined && typeof t.size !== 'string') errors.push(`${label}: size must be a string`)
     if (t.due !== undefined && !(typeof t.due === 'string' && isDate(t.due))) {
       errors.push(`${label}: due must be a date YYYY-MM-DD (got ${JSON.stringify(t.due)})`)
+    }
+    if (t.covers !== undefined) {
+      if (!Array.isArray(t.covers) || t.covers.some(c => typeof c !== 'string')) errors.push(`${label}: covers must be an array of scenario ids like ["S1"]`)
+      else if (scenarioIds) {
+        for (const c of t.covers as string[]) {
+          if (!scenarioIds.includes(c.trim().toUpperCase())) {
+            errors.push(`${label}: covers "${c}" is not a scenario of ${targetName}` +
+              (scenarioIds.length ? ` (valid: ${scenarioIds.join(', ')})` : ' (it has no ## Scenarios)'))
+          }
+        }
+      }
     }
     if (t.dependsOn === undefined) return
     if (!Array.isArray(t.dependsOn)) { errors.push(`${label}: dependsOn must be an array`); return }

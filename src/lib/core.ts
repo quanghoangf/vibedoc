@@ -32,7 +32,7 @@ import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
-import { parseCovers, parseScenarios, type Scenario } from './scenarios'
+import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
@@ -1295,6 +1295,7 @@ export interface CreateTaskParams {
   description?: string
   dependsOn?: string
   due?: string
+  covers?: string[]     // R068: **Covers:** scenario ids of the task's epic
   body?: string         // replaces the template sections below the meta block
 }
 
@@ -1337,7 +1338,7 @@ async function createTaskUnlocked(params: CreateTaskParams, root: string, actor:
 **Phase:** ${params.phase || '—'}
 **Size:** ${params.size || '—'}
 **Depends on:** ${params.dependsOn || '—'}
-${due ? `**Due:** ${due}\n` : ''}`
+${due ? `**Due:** ${due}\n` : ''}${params.covers?.length ? `**Covers:** ${params.covers.join(', ')}\n` : ''}`
   const content = params.body !== undefined ? `${meta}\n${params.body.trim()}\n` : `${meta}
 ## What to build
 ${params.description || '—'}
@@ -1360,7 +1361,7 @@ ${params.description || '—'}
 
 /** Validate against the current files, then keep the selected keys. Throws RoadmapError on any problem. */
 function checkPlan(plan: unknown, selected: unknown, items: RoadmapItem[], taskIds: string[]): Plan {
-  const errors = validatePlan(plan, { roadmap: items, taskIds })
+  const errors = validatePlan(plan, { roadmap: items, taskIds, scenarioIds: body => parseScenarios(body).map(sc => sc.id) })
   if (errors.length > 0) throw new RoadmapError(errors.join('\n'))
   if (!Array.isArray(selected)) throw new RoadmapError('selected must be an array of plan keys')
   const { plan: sel, errors: selErrors } = selectPlan(plan as Plan, selected.map(String))
@@ -1416,14 +1417,19 @@ export function applyPlan(
     const created: { key: string; id: string; file: string }[] = []
     for (const t of sel.tasks) {
       const deps = (t.dependsOn ?? []).map(d => ids.get(d.trim()) ?? d.trim().toUpperCase())
+      const covers = parseCovers((t.covers ?? []).join(','))
       const task = await createTaskUnlocked({
         title: t.title.trim(),
         phase: epic ? `${epic.id} — ${epic.title}` : undefined,
         size: t.size,
         dependsOn: deps.join(', ') || undefined,
         due: t.due,
+        covers,
         body: t.body,
       }, root, actor)
+      // R068: the covered scenarios become the task's first test checklist (an agent's report replaces it later)
+      const seed = epic && covers.length ? seedSteps(epic.scenarios, covers) : ''
+      if (seed) await saveManualTests(task.id, seed, root, actor)
       ids.set(t.key.trim(), task.id)
       created.push({ key: t.key, id: task.id, file: task.file })
     }

@@ -122,4 +122,18 @@ assert.equal(planTarget(ne() as Extract<Plan, { kind: 'breakdown' }>), 'new epic
 assert.equal(planTarget({ kind: 'breakdown', tasks: [] }), 'no epic')
 assert.equal(planTarget({ kind: 'breakdown', epic: ' r002 ', tasks: [] }), 'R002')
 
+// R068 covers: ids of the target epic's scenarios; unknown → refused with the valid ids
+const sctx = { ...ctx, roadmap: [item('R001', null), { ...item('R002', 'R001'), scenarios: [{ id: 'S1', name: 'a', text: '' }, { id: 'S2', name: 'b', text: '' }] }] }
+assert.deepEqual(validatePlan(plan([t('t1', undefined, { covers: ['S1', 's2'] })]), sctx), [])
+assert.match(validatePlan(plan([t('t1', undefined, { covers: ['S9'] })]), sctx).join(), /covers "S9" is not a scenario of R002 \(valid: S1, S2\)/)
+assert.match(validatePlan(plan([t('t1', undefined, { covers: ['S1'] })]), ctx).join(), /it has no ## Scenarios/)
+assert.match(validatePlan(plan([t('t1', undefined, { covers: 'S1' as unknown as string[] })]), sctx).join(), /covers must be an array/)
+// a new epic: its body's ids come from ctx.scenarioIds; loose tasks have none
+const newEpicPlan = (covers: string[]): Plan => ({ kind: 'breakdown', newEpic: { title: 'N', parent: 'R001', body: '## Scenarios\n### S1: x' }, tasks: [t('t1', undefined, { covers })] })
+assert.deepEqual(validatePlan(newEpicPlan(['S1']), { ...ctx, scenarioIds: () => ['S1'] }), [])
+assert.match(validatePlan(newEpicPlan(['S2']), { ...ctx, scenarioIds: () => ['S1'] }).join(), /not a scenario of the new epic/)
+assert.match(validatePlan({ kind: 'breakdown', tasks: [t('t1', undefined, { covers: ['S1'] })] }, ctx).join(), /loose tasks/)
+// plans without covers are unchanged
+assert.deepEqual(validatePlan(plan([t('t1')]), sctx), [])
+
 console.log('plan: ok')

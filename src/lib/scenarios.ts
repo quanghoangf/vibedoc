@@ -56,3 +56,17 @@ export function parseCovers(v: string | undefined): string[] {
 export function coverageOf(scenarios: Scenario[], tasks: { id: string; covers: string[] }[]): Record<string, string[]> {
   return Object.fromEntries(scenarios.map(s => [s.id, tasks.filter(t => t.covers.includes(s.id)).map(t => t.id)]))
 }
+
+/** One checklist step per scenario: "S2 — WHEN a → THEN b" (bullet marks dropped, AND lines kept with their part). */
+export function scenarioStep(sc: Scenario): string {
+  const lines = sc.text.split('\n').map(l => l.replace(/^\s*[-*]\s+/, '').trim()).filter(Boolean)
+  const then = lines.findIndex(l => /^THEN\b/i.test(l))
+  const text = then > 0 ? `${lines.slice(0, then).join(' ')} → ${lines.slice(then).join(' ')}` : lines.join(' ')
+  return `${sc.id} — ${text || sc.name}`
+}
+
+/** The seed `## Manual tests` report for a task covering `ids` (in the epic's order); '' when none match. */
+export function seedSteps(scenarios: Scenario[], ids: string[]): string {
+  const picked = scenarios.filter(sc => ids.includes(sc.id))
+  return picked.length ? ['### Steps', ...picked.map(sc => `- [ ] ${scenarioStep(sc)}`)].join('\n') : ''
+}
