@@ -32,6 +32,7 @@ import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
+import { parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
@@ -71,6 +72,8 @@ export interface Task {
   manualTests: { total: number; done: number; auto: number; untested: number; spec: string | null; autoRun: AutoRun | null } | null
   /** Newest recorded test run (R059), null when the task has none. `steps` / `passed` are counts. */
   lastRun: TaskLastRun | null
+  /** The `## Verification` findings (R067); null when the task has none */
+  verification: Verification | null
   file: string
   raw?: string
 }
@@ -595,7 +598,7 @@ function parseTaskFile(filePath: string, content: string, defs: StatusDef[]): Ta
 
   const tests = parseManualTests(content)
   const manualTests = tests && { total: tests.total, done: tests.done, auto: tests.auto, untested: untestedItems(tests).length, spec: tests.spec, autoRun: tests.autoRun }
-  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, lastRun: null, file: filePath, raw: content }
+  return { id, title, status, ...(customStatus && { customStatus }), size: meta['size'] || '', phase: meta['phase'] || '', dependsOn: meta['depends on'] || '', owner: parseOwner(meta['owner']), priority: parsePriority(meta['priority']), due: parseDue(meta['due'] || ''), started: parseDue(meta['started'] || ''), finished: parseDue(meta['done'] || ''), manualTests, lastRun: null, verification: parseVerification(content), file: filePath, raw: content }
 }
 
 export async function listTasks(root: string): Promise<{ tasks: Task[]; board: TaskBoard }> {
@@ -1031,6 +1034,19 @@ export async function saveManualTests(taskId: string, report: string | null, roo
     ? setManualTests(task.raw ?? '', report, actor, date, meta)
     : setManualTestsMeta(task.raw ?? '', meta, actor, date)
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
+  return getTask(task.id, root)
+}
+
+/** Write a new `## Verification` report (R067), replacing the old one; `sha` = the commit the agent checked. */
+export async function saveVerification(taskId: string, findings: Finding[], root: string, by: string, sha?: string): Promise<Task> {
+  const task = await getTask(taskId, root)
+  const at = new Date().toISOString().slice(0, 10)
+  const content = setVerification(task.raw ?? '', { at, by, ...(sha ? { sha } : {}), findings })
+  await fs.writeFile(path.join(root, task.file), content, 'utf8')
+  await appendActivity(root, {
+    type: 'task_updated', actor: 'ai', taskId: task.id,
+    title: `${task.id} verified`, detail: findings.length ? `${findings.length} finding${findings.length === 1 ? '' : 's'}` : 'nothing found',
+  })
   return getTask(task.id, root)
 }
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Bot, Check, CornerDownRight, CornerUpLeft, FlaskConical, Loader2, MoreHorizontal, PanelRightOpen, Play, Trash2, X } from "lucide-react"
+import { Bot, Check, CornerDownRight, CornerUpLeft, FlaskConical, Loader2, MoreHorizontal, PanelRightOpen, Play, ScanSearch, Trash2, X } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/context/AppContext"
 import { deleteTaskWithUndo } from "./task-api"
@@ -16,6 +16,7 @@ import { isRunning } from "@/lib/test-run-events"
 import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
 import { latestReview, summarizeMarks } from "@/lib/review"
+import { blockingCount } from "@/lib/verification"
 import { epicOf, sizeOf, type PropertyKey } from "@/lib/board-views"
 
 const ALL_PROPERTIES: PropertyKey[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "owner"]
@@ -49,6 +50,8 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
   const changesRequested = sentBack?.outcome === "changes requested"
   // R062: a send back with flagged steps says how many, and names them on hover
   const marked = changesRequested && sentBack.marks.length ? summarizeMarks(sentBack.marks) : null
+  // R067: critical + major verification findings
+  const findings = blockingCount(task.verification ?? null)
 
   return (
     <div
@@ -88,7 +91,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
 
       <p className={cn("mt-1 line-clamp-2 text-[13px] font-medium leading-snug", done ? "text-muted" : "text-txt")}>{task.title}</p>
 
-      {(epic || changesRequested || needsHuman || deps.length > 0 || tests || (task.status === "review" && task.lastRun)) && (
+      {(epic || changesRequested || needsHuman || findings > 0 || deps.length > 0 || tests || (task.status === "review" && task.lastRun)) && (
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
           {epic && (
             <span className="inline-flex min-w-0 max-w-full items-center gap-1 text-[11px] text-muted" title={task.phase}>
@@ -110,6 +113,14 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
           {needsHuman && (
             <span title="The agent couldn't make the test pass after its automatic fixes" className="inline-flex items-center gap-1 rounded-sm border border-danger/40 bg-danger/5 px-1.5 py-0.5 text-[10px] text-danger">
               <CornerUpLeft className="size-3" aria-hidden /> needs a human
+            </span>
+          )}
+          {findings > 0 && (
+            <span
+              title={`Verification: ${task.verification?.findings.filter((f) => f.severity === "critical").length ?? 0} critical, ${task.verification?.findings.filter((f) => f.severity === "major").length ?? 0} major`}
+              className="inline-flex items-center gap-1 rounded-sm border border-danger/40 bg-danger/5 px-1.5 py-0.5 text-[10px] text-danger"
+            >
+              <ScanSearch className="size-3" aria-hidden /> {findings} {findings === 1 ? "finding" : "findings"}
             </span>
           )}
           {task.status === "review" && task.lastRun && (

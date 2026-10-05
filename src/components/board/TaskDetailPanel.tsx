@@ -27,6 +27,7 @@ import { toast } from "@/components/ui/toast"
 import { useChats } from "@/context/ChatContext"
 import { chatFor } from "@/lib/chats"
 import { latestReview, reviewHistory, type ReviewEntry, type ReviewMark } from "@/lib/review"
+import { SEVERITIES, type Verification } from "@/lib/verification"
 import type { AutoRun } from "@/lib/manual-tests"
 
 const NEXT_STATUS: Record<string, string[]> = {
@@ -202,6 +203,8 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                 {task.manualTests && (task.manualTests.spec || task.manualTests.autoRun) && (
                   <AutoTestsLine spec={task.manualTests.spec} autoRun={task.manualTests.autoRun} />
                 )}
+
+                {task.verification && <VerificationBlock verification={task.verification} />}
 
                 <TaskRuns key={`runs-${task.id}`} taskId={task.id} latest={task.lastRun?.runId ?? null} spec={task.manualTests?.spec ?? null} onNavigate={onClose} />
 
@@ -482,6 +485,38 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
       )}
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
     </div>
+  )
+}
+
+const SEVERITY_STYLE = { critical: "text-danger", major: "text-amber", minor: "text-muted" } as const
+
+/** R067: what an agent found the task gets wrong against what was asked, grouped by severity. */
+function VerificationBlock({ verification: v }: { verification: Verification }) {
+  return (
+    <section aria-label="Verification" className="flex flex-col gap-2 px-5 py-3 border-b border-border shrink-0">
+      <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted">
+        Verification
+        <span className="normal-case tracking-normal">{v.at} · {v.by}{v.sha ? ` · at ${v.sha}` : ""}</span>
+      </p>
+      {!v.findings.length && <p className="text-xs text-teal">Verified: nothing found.</p>}
+      {SEVERITIES.map((sev) => {
+        const rows = v.findings.filter((f) => f.severity === sev)
+        if (!rows.length) return null
+        return (
+          <div key={sev} className="flex flex-col gap-1">
+            <p className={cn("text-xs font-medium capitalize", SEVERITY_STYLE[sev])}>{sev} · {rows.length}</p>
+            <ul className="flex flex-col gap-1.5">
+              {rows.map((f, i) => (
+                <li key={i} className="flex flex-col gap-0.5 text-xs">
+                  <span className="text-txt">{f.criterion}</span>
+                  <span className="text-muted">{f.message}{f.file && <> · <code className="font-mono text-[11px]">{f.file}</code></>}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      })}
+    </section>
   )
 }
 

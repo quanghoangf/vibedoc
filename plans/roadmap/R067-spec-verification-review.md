@@ -1,6 +1,6 @@
 # R067: Spec verification review
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 220
 **Tasks:** T186, T187, T188, T189
 

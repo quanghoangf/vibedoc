@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ENTRY_TYPES, type EntryInput } from "@/lib/entries";
 import { formatCompactLine, tokenize } from "@/lib/recall";
 import { findRequirement, formatRequirement, formatSpecList } from "@/lib/specs";
+import { SEVERITIES, validateFindings } from "@/lib/verification";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
 import { failedRunNote } from "@/lib/work-queue";
@@ -60,6 +61,7 @@ import {
   listSpecs,
   readSpec,
   getSpecContext,
+  saveVerification,
   getEntriesByIds,
   markEntriesRecalled,
   getMemoryGraph,
@@ -299,6 +301,32 @@ const TOOLS = [
         runId: { type: "string", description: "A kept run to detail instead of the newest, e.g. \"20261004T074314Z\"" },
       },
       required: ["taskId"],
+    },
+  },
+  {
+    name: "vibedoc_report_findings",
+    description:
+      "Record what a finished task gets wrong against what was asked: each finding names the acceptance criterion, scope item or rule it fails. Saved as the task's `## Verification` section (a new report replaces the old one) and shown to the human on the task. [] = verified, nothing found.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: "e.g. T012" },
+        findings: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              severity: { type: "string", enum: [...SEVERITIES], description: "critical = a criterion is not met; major = met only partly or with a bug; minor = small gap" },
+              criterion: { type: "string", description: 'What it fails, quoted short, e.g. AC2 "Unknown plan → 400"' },
+              message: { type: "string", description: "What is missing or wrong, one line" },
+              file: { type: "string", description: 'Where, e.g. "src/app/api/checkout/route.ts:41"' },
+            },
+            required: ["severity", "criterion", "message"],
+          },
+        },
+        sha: { type: "string", description: "The commit you checked (git rev-parse --short HEAD)" },
+      },
+      required: ["taskId", "findings"],
     },
   },
   {
@@ -993,6 +1021,16 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const evidence = await getEvidence(String(args.taskId), root, { runId });
       if (!evidence) throw new Error(`No kept run ${runId} for ${args.taskId}`);
       return evidence.markdown;
+    }
+
+    case "vibedoc_report_findings": {
+      const findings = validateFindings(args.findings);
+      if (typeof findings === "string") throw new Error(findings);
+      const sha = typeof args.sha === "string" && /^[0-9a-f]{4,40}$/i.test(args.sha.trim()) ? args.sha.trim().toLowerCase() : undefined;
+      const task = await saveVerification(String(args.taskId ?? ""), findings, root, `ai:${agent}`, sha);
+      emitUpdate("task_updated", { taskId: task.id, status: task.status, task });
+      const counts = SEVERITIES.map((sev) => [sev, findings.filter((f) => f.severity === sev).length] as const).filter(([, n]) => n);
+      return `🔎 **${task.id}** verification saved: ` + (counts.length ? counts.map(([sev, n]) => `${n} ${sev}`).join(", ") : "nothing found");
     }
 
     case "vibedoc_update_task": {

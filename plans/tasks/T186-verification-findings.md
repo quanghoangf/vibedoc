@@ -1,8 +1,11 @@
 # T186: Verification findings: "## Verification" section, report tool, task panel
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R067 — Spec verification review
 **Size:** M (2–3 hrs)
 **Depends on:** —
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 An agent can record what a finished task gets wrong against what was asked, and the human sees those findings on the task before deciding. Thin slice: findings go in and show up; producing them well is T187.
@@ -44,3 +47,14 @@ An agent can record what a finished task gets wrong against what was asked, and 
 node src/lib/verification.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai · Spec: `e2e/vibedoc/T186-verification-findings.spec.ts` · Auto: passed 2026-10-05_
+### Steps
+- [x] 🤖 Report two findings on a task with vibedoc_report_findings → the open task panel shows a Verification block with "critical · 1" and "minor · 1" without a reload
+- [x] 🤖 Close the panel → the task's card shows "1 finding"
+- [x] 🤖 Report again with no findings → the panel reads "Verified: nothing found." and the old findings are gone
+- [ ] vibedoc_report_findings with severity "blocker" → an error naming critical, major, minor; the task file is unchanged
+- [ ] The Verification block reads well in dark and light: critical red, major amber, minor muted, file refs in mono
+### Regression risk
+- [ ] A task in review still shows Approve / Send back and its Review history; approving it after a verification report leaves the Verification section in place
