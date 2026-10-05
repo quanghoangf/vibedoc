@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       root, taskId: id, spec,
       onChange: (s) => {
         emitUpdate('test_run', { taskId: id, state: s })
-        if (s.state === 'cancelled') void removeUnfinishedRuns(id, root, s.startedAt).catch(() => {})
+        if (s.state === 'cancelled') void removeUnfinishedRuns(root, s.startedAt).catch(() => {})
         // A verdict goes into the task file like an agent's run (Auto: header + 🤖 ticks); cancelled / error write nothing
         if (s.state === 'passed' || s.state === 'failed') {
           void recordRunResult(id, s.state, s.steps, root)

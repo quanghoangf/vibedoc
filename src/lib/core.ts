@@ -685,18 +685,23 @@ export async function getEvidence(taskId: string, root: string, opts: { runId?: 
 
 /**
  * R061: a cancelled Run leaves its run folder half-written (screenshots, a page@….webm, no run.json), which
- * retention never counts. Removes this task's folders without run.json whose runId is at or after `since` (ISO).
+ * retention never counts. Removes every such folder of the project whose runId is at or after `since` (ISO): the
+ * spec's own `vibedocTask` may differ from the task Run was pressed on, and only one Run goes at a time.
  */
-export async function removeUnfinishedRuns(taskId: string, root: string, since: string): Promise<number> {
-  const dir = taskRunsDir(taskId, root)
-  if (!dir || isDemo()) return 0
+export async function removeUnfinishedRuns(root: string, since: string): Promise<number> {
+  if (isDemo()) return 0
+  const projectDir = path.join(runsRoot(), projectKey(root))
   const from = since.replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
-  const ids = await fs.readdir(dir).then(n => n.filter(id => isRunId(id) && id >= from), () => [] as string[])
+  const tasks = await fs.readdir(projectDir).then(n => n.filter(isRunTaskId), () => [] as string[])
   let removed = 0
-  for (const id of ids) {
-    if (await fs.stat(path.join(dir, id, 'run.json')).then(() => true, () => false)) continue
-    await fs.rm(path.join(dir, id), { recursive: true, force: true })
-    removed++
+  for (const task of tasks) {
+    const dir = path.join(projectDir, task)
+    const ids = await fs.readdir(dir).then(n => n.filter(id => isRunId(id) && id >= from), () => [] as string[])
+    for (const id of ids) {
+      if (await fs.stat(path.join(dir, id, 'run.json')).then(() => true, () => false)) continue
+      await fs.rm(path.join(dir, id), { recursive: true, force: true })
+      removed++
+    }
   }
   return removed
 }
