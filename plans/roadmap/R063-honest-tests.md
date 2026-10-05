@@ -2,7 +2,7 @@
 **Parent:** R003
 **Status:** planned
 **Order:** 110
-**Tasks:** —
+**Tasks:** T167, T168, T169, T170, T171
 
 Since humans review evidence and not test code, VibeDoc checks that each test really asserts the expected result, so a test can't pass "for show".
 
