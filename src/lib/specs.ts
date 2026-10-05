@@ -120,3 +120,94 @@ export function findRequirement(spec: Spec, name: string): SpecRequirement | nul
 export function formatRequirement(r: SpecRequirement): string {
   return [`### Requirement: ${r.name}`, r.text, ...r.scenarios.map(sc => `\n#### Scenario: ${sc.name}\n${sc.text}`.trimEnd())].filter(Boolean).join('\n')
 }
+
+export type SpecContextTask = { id: string; title: string; finished: string | null; goal: string; acceptance: string }
+export type SpecContextEpic = { id: string; title: string; doneWhen: string; tasks: SpecContextTask[] }
+export type SpecContext = {
+  capability: string
+  epics: SpecContextEpic[]
+  docs: { path: string; lines: string[] }[]
+  entries: { id: string; type: string; summary: string }[]
+  existing: string | null
+}
+
+const SPEC_FORMAT = [
+  '# <Capability name>',
+  '',
+  '## Purpose',
+  'What it does for the user today, in two or three sentences.',
+  '',
+  '## Requirements',
+  '',
+  '### Requirement: <short name>',
+  'The system SHALL <one observable behaviour>.',
+  '',
+  '#### Scenario: <case>',
+  '- WHEN <the user or system does something>',
+  '- THEN <what they observe>',
+]
+
+/** A section's body (`## Goal`, `## Acceptance criteria`), up to the next `## ` heading; '' when missing. */
+export function taskSection(raw: string, heading: string): string {
+  const esc = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`^## ${esc}[ \\t]*\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, 'm').exec(raw)?.[1].trim() ?? ''
+}
+
+const estimate = (s: string) => Math.ceil(s.length / 4)
+
+/**
+ * Everything already written about a capability, for an agent drafting its spec (R066), within `budgetTokens`:
+ * when over, the oldest done tasks (by Done date, then id) are cut first and the cut is counted.
+ */
+export function formatSpecContext(ctx: SpecContext, budgetTokens: number): string {
+  const { capability } = ctx
+  const target = `docs/specs/${capability}.md`
+  if (!ctx.epics.length && !ctx.docs.length && !ctx.entries.length && ctx.existing === null) {
+    return `Nothing found for "${capability}": no epic, doc or knowledge entry matches. ` +
+      'Pass epics: ["R004", …] (vibedoc_get_roadmap lists them) or a query: with the words the project uses for it.'
+  }
+  const instructions = [
+    '## How to draft the spec',
+    `Write ${target} in this format (only headings shown are parsed; nothing is mandatory):`,
+    '```md', ...SPEC_FORMAT, '```',
+    '- Write observable behaviour (what a user or agent sees today), not implementation: no file names, functions or libraries.',
+    '- One requirement per behaviour, each with at least one WHEN/THEN scenario. Leave out what was planned but never shipped.',
+    ctx.existing === null
+      ? `- Propose it with vibedoc_propose_edit at ${target} (edits: [{ old_string: "", new_string: <the spec> }]); the human accepts the diff. Never write it directly.`
+      : `- A spec exists already: propose changes to it with vibedoc_propose_edit at ${target}. Never write it directly.`,
+  ].join('\n')
+
+  const render = (cut: Set<string>) => {
+    const out = [`# Spec context: ${capability}`]
+    if (ctx.existing !== null) out.push('', `## Existing spec (${target})`, ctx.existing.trim())
+    for (const e of ctx.epics) {
+      out.push('', `## ${e.id}: ${e.title}`)
+      if (e.doneWhen) out.push(`**Done when:** ${e.doneWhen}`)
+      const shown = e.tasks.filter(t => !cut.has(t.id))
+      if (!e.tasks.length) out.push('(no done tasks)')
+      for (const t of shown) {
+        out.push('', `### ${t.id}: ${t.title}${t.finished ? ` (done ${t.finished})` : ''}`)
+        if (t.goal) out.push(t.goal)
+        if (t.acceptance) out.push('', 'Acceptance:', t.acceptance)
+      }
+      const gone = e.tasks.length - shown.length
+      if (gone) out.push('', `(${gone} older task${gone === 1 ? '' : 's'} cut to fit)`)
+    }
+    if (ctx.docs.length) out.push('', '## Related docs', ...ctx.docs.flatMap(d => [`- ${d.path}`, ...d.lines.map(l => `  > ${l}`)]))
+    if (ctx.entries.length) out.push('', '## Knowledge entries', ...ctx.entries.map(e => `- ${e.id} · ${e.type} · ${e.summary}`))
+    out.push('', instructions)
+    return out.join('\n')
+  }
+
+  const oldestFirst = ctx.epics.flatMap(e => e.tasks)
+    .sort((a, b) => (a.finished ?? '').localeCompare(b.finished ?? '') || a.id.localeCompare(b.id, 'en', { numeric: true }))
+  const cut = new Set<string>()
+  let text = render(cut)
+  for (const t of oldestFirst) {
+    if (estimate(text) <= budgetTokens) break
+    cut.add(t.id)
+    text = render(cut)
+  }
+  // ponytail: re-renders per cut task (O(n²) on a few hundred tasks at most); cut in batches if that ever shows
+  return cut.size ? `${text}\n\n${cut.size} older task${cut.size === 1 ? '' : 's'} cut to stay under ~${budgetTokens} tokens; read them with vibedoc_get_task.` : text
+}

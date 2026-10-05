@@ -19,7 +19,7 @@ The UI and the AI agent read and write the same markdown files through the same 
 
 ## Operating Context
 - Started with `npx vibedoc` inside a project; it picks a free port and opens the browser. `VIBEDOC_ROOT` points it at another project.
-- The agent connects over HTTP JSON-RPC MCP at `/api/mcp` (42 tools).
+- The agent connects over HTTP JSON-RPC MCP at `/api/mcp` (43 tools).
 - Source files in the target repo: `plans/tasks/T*.md`, `plans/roadmap/R*.md` + `layout.json`, `docs/**/*.md`, `docs/architecture/decisions/ADR-*.md`, `memory/MEMORY.md`, `.vibedoc-activity.json`, `.vibedoc/chats/*.json`.
 - Surfaces: board, docs (editor with live collaborative buffer), roadmap (map + timeline), agent chats (modal + `/chat`), manual tests, activity, memory, file explorer, command palette.
 - In-app agent chats run `claude -p` against the local Claude Code login, with VibeDoc MCP tools only. Up to 4 run in parallel.

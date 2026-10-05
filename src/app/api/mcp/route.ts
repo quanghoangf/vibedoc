@@ -59,6 +59,7 @@ import {
   relatedSpecs,
   listSpecs,
   readSpec,
+  getSpecContext,
   getEntriesByIds,
   markEntriesRecalled,
   getMemoryGraph,
@@ -178,6 +179,20 @@ const TOOLS = [
       properties: {
         capability: { type: "string", description: 'Spec slug, e.g. "board-views" (docs/specs/board-views.md)' },
         requirement: { type: "string", description: "Requirement name (case-insensitive); omit for the whole spec" },
+      },
+      required: ["capability"],
+    },
+  },
+  {
+    name: "vibedoc_spec_context",
+    description:
+      "Gather what the project already says about one capability so you can draft its spec: matching epics (or the ones you pass) with their done tasks' Goal and Acceptance criteria, related docs, knowledge entries and the existing spec. Read-only, capped at ~6k tokens (oldest tasks cut first). Draft the spec from it and propose it with vibedoc_propose_edit at docs/specs/<capability>.md; never write it directly.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        capability: { type: "string", description: 'Spec slug, e.g. "board-views"' },
+        epics: { type: "array", items: { type: "string" }, description: "Epic ids to use instead of keyword matching, e.g. [\"R010\", \"R022\"]" },
+        query: { type: "string", description: "Words to match epics, docs and entries by (default: the slug's words)" },
       },
       required: ["capability"],
     },
@@ -882,6 +897,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       if (!req) throw new Error(`No requirement "${String(args.requirement)}" in ${found.path}. Requirements: ${found.spec.requirements.map((r) => r.name).join(", ") || "none"}`);
       return `## ${found.path} · ${found.spec.title}\n\n${formatRequirement(req)}`;
     }
+
+    case "vibedoc_spec_context":
+      return getSpecContext(String(args.capability ?? ""), root, {
+        epics: Array.isArray(args.epics) ? args.epics.map(String) : undefined,
+        query: typeof args.query === "string" ? args.query : undefined,
+      });
 
     case "vibedoc_read_doc": {
       const { path: docPath, content } = await readDoc(

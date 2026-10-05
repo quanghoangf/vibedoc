@@ -1,8 +1,11 @@
 # T184: vibedoc_spec_context: gather a capability's history to draft its spec
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R066 — Living capability specs
 **Size:** M (2–3 hrs)
 **Depends on:** T183
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 An existing project can get its first specs without someone rewriting history by hand: one tool call gives the agent everything already written about a capability, the agent drafts the spec, and the human accepts it as a diff.
@@ -41,3 +44,13 @@ An existing project can get its first specs without someone rewriting history by
 node src/lib/specs.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Ask an agent to call vibedoc_spec_context { capability: "board-views" } on this repo → it lists R005 Kanban board with its done tasks, related docs (DESIGN.md "Board Views") and ends with "How to draft the spec"
+- [ ] vibedoc_spec_context { capability: "board-views", epics: ["R056"] } → only R056 and its done tasks (Goal + Acceptance), with "(N older tasks cut to fit)" if it is over the cap
+- [ ] vibedoc_spec_context { capability: "quantum-flux" } → "Nothing found for "quantum-flux" … Pass epics:"
+- [ ] In an agent chat, ask "draft the board-views spec" → the chat ends in a propose-edit card for docs/specs/board-views.md; Accept creates the file and it shows with the Capability spec chip in /docs
+### Regression risk
+- [ ] Other propose-edit flows in the chat (edit an existing doc) still show the diff and Accept still applies it

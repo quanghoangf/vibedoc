@@ -404,6 +404,19 @@ Link an epic to its specs with `vibedoc_update_roadmap_item { "id": "R004", "spe
 
 ---
 
+### `vibedoc_spec_context`
+Gather what the project already says about one capability, so an agent can draft its first spec. Read-only: VibeDoc never writes the spec; the agent proposes it with `vibedoc_propose_edit` (empty `old_string` = new doc) at `docs/specs/<capability>.md` and the human accepts the diff.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `capability` | string | ✅ | Spec slug, e.g. `"board-views"` |
+| `epics` | string[] | | Epic ids to use instead of keyword matching |
+| `query` | string | | Words to match epics, docs and entries by (default: the slug's words) |
+
+**Returns:** the existing spec (if any); each epic's title, **Done when** and its done tasks' Goal + Acceptance criteria; related docs (2 matching lines each, `plans/` and `memory/` excluded); matching knowledge entries; then the spec format and drafting rules. Capped at ~6k tokens: the oldest done tasks are cut first, and the reply says how many. No match at all → "Nothing found …, pass epics:".
+
+---
+
 ### `vibedoc_write_doc`
 Write or create a documentation file. Use to add new docs or update existing ones. The browser DocList refreshes in real time after write — the user can review and edit via the UI.
 

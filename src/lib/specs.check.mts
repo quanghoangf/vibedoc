@@ -1,6 +1,6 @@
 // Self-check for specs. Run: node src/lib/specs.check.mts
 import assert from 'node:assert/strict'
-import { findRequirement, formatRelatedSpecs, formatRequirement, formatSpecList, isSpecPath, parseSpec, parseSpecSlugs } from './specs.ts'
+import { findRequirement, formatRelatedSpecs, formatRequirement, formatSpecContext, formatSpecList, isSpecPath, parseSpec, parseSpecSlugs, taskSection, type SpecContext } from './specs.ts'
 
 // a full spec
 const full = [
@@ -121,5 +121,39 @@ assert.equal(formatRequirement(saved), [
 ].join('\n'))
 // a requirement parsed back from its own markdown is the same requirement
 assert.deepEqual(parseSpec('docs/specs/x.md', formatRequirement(saved)).requirements[0], saved)
+
+// taskSection
+const taskRaw = '# T1: x\n## Goal\nShip it.\n\n## Acceptance criteria\n- [ ] works\n## Verify\nnpm test'
+assert.equal(taskSection(taskRaw, 'Goal'), 'Ship it.')
+assert.equal(taskSection(taskRaw, 'Acceptance criteria'), '- [ ] works')
+assert.equal(taskSection(taskRaw, 'Scope'), '')
+
+// formatSpecContext: nothing found
+const empty: SpecContext = { capability: 'zzz', epics: [], docs: [], entries: [], existing: null }
+assert.match(formatSpecContext(empty, 6000), /^Nothing found for "zzz".*epics:/)
+// everything shown under budget; instructions propose a new doc
+const ctx: SpecContext = {
+  capability: 'board-views',
+  epics: [{ id: 'R010', title: 'Board views', doneWhen: 'saved views work', tasks: [
+    { id: 'T001', title: 'Old', finished: '2026-01-01', goal: 'g1 '.repeat(200), acceptance: '- a1' },
+    { id: 'T002', title: 'New', finished: '2026-05-01', goal: 'g2', acceptance: '- a2' },
+  ] }],
+  docs: [{ path: 'docs/board.md', lines: ['Board views are saved'] }],
+  entries: [{ id: 'E001', type: 'convention', summary: 'Views live in the URL' }],
+  existing: null,
+}
+const all = formatSpecContext(ctx, 6000)
+for (const want of ['# Spec context: board-views', '## R010: Board views', '**Done when:** saved views work', '### T001: Old (done 2026-01-01)',
+  '### T002: New', '- docs/board.md', '  > Board views are saved', '- E001 · convention · Views live in the URL', 'old_string: ""', 'docs/specs/board-views.md']) {
+  assert.ok(all.includes(want), want)
+}
+assert.ok(!all.includes('cut'))
+// over budget: the oldest task goes first, and the cut is counted
+const small = formatSpecContext(ctx, 400)
+assert.ok(!small.includes('### T001') && small.includes('### T002'))
+assert.ok(small.includes('(1 older task cut to fit)') && small.includes('1 older task cut to stay under ~400 tokens'))
+// an existing spec is shown and the instructions ask for changes to it
+const withSpec = formatSpecContext({ ...empty, capability: 'memory', existing: '# Memory\n### Requirement: A' }, 6000)
+assert.ok(withSpec.includes('## Existing spec (docs/specs/memory.md)') && withSpec.includes('propose changes to it'))
 
 console.log('specs ok')

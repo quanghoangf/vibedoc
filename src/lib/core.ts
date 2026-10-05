@@ -32,7 +32,7 @@ import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
-import { formatRelatedSpecs, parseSpec, parseSpecSlugs, type RelatedSpecGroup, type Spec } from './specs'
+import { formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
@@ -1752,6 +1752,55 @@ export async function readSpec(capability: string, root: string): Promise<{ path
   } catch {
     return null
   }
+}
+
+const SPEC_CONTEXT_BUDGET = 6000
+const SPEC_CONTEXT_EPICS = 5
+const SPEC_CONTEXT_DOCS = 6
+const SPEC_CONTEXT_ENTRIES = 8
+
+/**
+ * What the project already says about a capability, for an agent drafting its spec (R066): the given epics (else
+ * keyword-matched ones) with their done tasks' Goal + Acceptance criteria, related docs, entries and the existing
+ * spec. Read-only: the agent proposes the draft with vibedoc_propose_edit.
+ */
+export async function getSpecContext(
+  capability: string, root: string, opts: { epics?: string[]; query?: string } = {},
+): Promise<string> {
+  const slug = capability.trim().toLowerCase().replace(/^docs\/specs\//, '').replace(/\.md$/, '')
+  const words = (opts.query?.trim() || slug.replace(/[-_.]+/g, ' ')).trim()
+  const [{ items }, { tasks }, entries, existing] = await Promise.all([
+    listRoadmap(root), listTasks(root), listEntries(root), readSpec(slug, root),
+  ])
+  let epics: RoadmapItem[]
+  if (opts.epics?.length) {
+    const ids = opts.epics.map(normalizeRoadmapId)
+    epics = ids.map(id => items.find(i => i.id === id)).filter((i): i is RoadmapItem => !!i)
+  } else {
+    const asEntries: RecallEntry[] = items.filter(i => i.parent).map(i => ({ id: i.id, type: 'epic', summary: i.title, body: i.body, updatedAt: '' }))
+    const hits = rankEntries(asEntries, words, { limit: SPEC_CONTEXT_EPICS }).filter(h => h.score >= RELATED_MIN_SCORE)
+    epics = hits.map(h => items.find(i => i.id === h.id)).filter((i): i is RoadmapItem => !!i)
+  }
+  const byId = new Map(tasks.map(t => [t.id, t]))
+  const ctxEpics: SpecContextEpic[] = epics.map(e => ({
+    id: e.id, title: e.title,
+    doneWhen: /\*\*Done when:\*\*\s*(.+)/.exec(e.body)?.[1].trim() ?? '',
+    tasks: e.tasks.map(id => byId.get(id)).filter((t): t is Task => !!t && t.status === 'done').map(t => ({
+      id: t.id, title: t.title, finished: t.finished ?? null,
+      goal: taskSection(t.raw ?? '', 'Goal'), acceptance: taskSection(t.raw ?? '', 'Acceptance criteria'),
+    })),
+  }))
+  // docs only: tasks, epics and entries come in their own sections
+  const docs = (await searchDocs(words, root))
+    .filter(r => !/^(?:plans\/|memory\/|docs\/specs\/)/.test(r.file))
+    .slice(0, SPEC_CONTEXT_DOCS)
+    .map(r => ({ path: r.file, lines: r.hits.slice(0, 2).map(h => h.text) }))
+  const related = rankEntries(entries, words, { limit: SPEC_CONTEXT_ENTRIES }).filter(h => h.score >= RELATED_MIN_SCORE)
+  return formatSpecContext({
+    capability: slug, epics: ctxEpics, docs,
+    entries: related.map(h => ({ id: h.id, type: h.type, summary: h.summary })),
+    existing: existing?.raw ?? null,
+  }, SPEC_CONTEXT_BUDGET)
 }
 
 /**
