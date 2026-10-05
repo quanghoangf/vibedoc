@@ -4,7 +4,8 @@
 //      "Failed · 1 of 2 tasks broke · 1 flaky": T001 is back in todo with an (auto) entry whose ❌ mark names a
 //      screenshot that exists; T002 stays done, flaky in the Suite tab and in its header.
 //   2. A single Run of T002 with a fresh first attempt → "· 1 flaky", still done.
-//   3. The cap: T001 done → Run → todo (attempt 2), done → Run → review with "auto fix limit reached".
+//   3. The cap: T001 reported done (→ review, a check is left) → Run → todo (attempt 2), again → Run → review with
+//      "auto fix limit reached".
 // Fails on any browser console error.
 //
 //   PW_DIR=<dir with node_modules/playwright> node e2e/self-fixing.mjs
@@ -108,13 +109,15 @@ try {
     await page.getByRole("button", { name: "Run tests", exact: true }).click()
     await page.getByRole("region", { name: "Live run" }).getByText(/^Failed at step 2/).waitFor({ timeout: 90000 })
   }
-  assert.match(await mcp("vibedoc_update_task", { taskId: "T001", status: "done" }), /→ \*\*done\*\*/)
+  // The agent reports done, but its failed 🤖 item is still unticked, so it lands in review (a Run works from there)
+  assert.match(await mcp("vibedoc_update_task", { taskId: "T001", status: "done" }), /→ \*\*review\*\*/)
   await runT001()
   await waitFor(() => status("T001").includes("Todo"), "attempt 2 → todo")
   assert.match(await mcp("vibedoc_next_task", { epic: "R002" }), /Auto-fix attempt 2 of 2/)
-  assert.match(await mcp("vibedoc_update_task", { taskId: "T001", status: "done" }), /→ \*\*done\*\*/)
+  assert.match(await mcp("vibedoc_update_task", { taskId: "T001", status: "done" }), /→ \*\*review\*\*/)
   await runT001()
-  await waitFor(() => status("T001").includes("Review"), "limit → review")
+  await waitFor(() => readFileSync(file("T001"), "utf8").includes("auto fix limit reached"), "limit → review")
+  assert.ok(status("T001").includes("Review"))
   assert.match(readFileSync(file("T001"), "utf8"), /— auto fix limit reached \(2 attempts\)/)
   assert.match(await mcp("vibedoc_next_task", { epic: "R002" }), /T001 in review — needs a human/)
   console.log("ok  cap: attempt 2 → todo, then review with \"auto fix limit reached (2 attempts)\", not handed out")

@@ -1183,7 +1183,13 @@ export function claimNextTask(
     const epic = await getRoadmapItem(epicId, root)
     if (!epic.parent) throw new Error(`${epic.id} is a horizon; pass an epic id`)
     const { tasks } = await listTasks(root)
-    const result = pickNextTask(epic, tasks)
+    // A review holds its dependents only when something failed: its last run, or the auto-fix limit (R065)
+    const queue = tasks.map(t => ({
+      ...t,
+      reviewHold: t.status === 'review' && (t.lastRun?.status === 'failed' || t.manualTests?.autoRun?.result === 'failed' ||
+        (!!t.raw && latestReview(t.raw)?.outcome === 'auto fix limit reached')),
+    }))
+    const result = pickNextTask(epic, queue)
     if (result.kind !== 'ready') return { result }
     const { task, previousStatus } = await updateTaskStatus(result.taskId, 'in-progress', root, 'ai', { actor: 'ai', agent })
     return { result, task, previousStatus }

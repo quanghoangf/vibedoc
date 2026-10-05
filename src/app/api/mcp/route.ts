@@ -268,7 +268,8 @@ const TOOLS = [
     description:
       "Update task status. Call when starting, finishing, or blocking a task. UI updates in real time. " +
       "When moving a task to done, include manualTests: a checklist of what a human should click through to trust it, " +
-      "written from what you actually changed (optional, never blocks the move).",
+      "written from what you actually changed. If items are left for a human (manual ones, or 🤖 ones no passing run proved), " +
+      "the task lands in review instead of done; that is expected: carry on, its dependents can still start.",
     inputSchema: {
       type: "object",
       properties: {
@@ -943,21 +944,26 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       if (report || spec || autoRun) await saveManualTests(String(args.taskId), report, root, "ai", { spec, autoRun });
       // R063: a pass is judged with the newest recorded run: unverified steps are unticked and counted in the header
       const honesty = autoRun?.result === "passed" ? await recordRunResult(String(args.taskId), "passed", null, root) : null;
+      // An agent's "done" with checks a human still has to click through (manual items, 🤖 ones no passing run
+      // proved) lands in review instead, so a person looks before it counts as done
+      const left = args.status === "done" ? (await getTask(String(args.taskId), root)).manualTests?.untested ?? 0 : 0;
+      const status = (left > 0 ? "review" : args.status) as TaskStatus;
       const result = await updateTaskStatus(
         String(args.taskId),
-        args.status as TaskStatus,
+        status,
         root,
         "ai",
         { actor: "ai", agent },
       );
       emitUpdate("task_updated", {
         taskId: args.taskId,
-        status: args.status,
+        status,
         previousStatus: result.previousStatus,
         task: result.task,
       });
       const tests = result.task.manualTests;
       return `✅ **${result.task.id}** → **${result.task.status}**\n(was: ${result.previousStatus})` +
+        (left > 0 ? `\n👀 Moved to review, not done: ${left} ${left === 1 ? "check needs" : "checks need"} a human. Carry on with the next task; a person approves it.` : "") +
         (tests ? `\n🧪 Manual tests: ${tests.done}/${tests.total} ticked` +
           (tests.auto ? ` · 🤖 ${tests.auto} automated` : "") +
           (tests.spec ? ` · spec \`${tests.spec}\`` : "") +

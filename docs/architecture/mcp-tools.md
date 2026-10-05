@@ -278,7 +278,7 @@ Update a task's status. Triggers a real-time kanban board update in the browser.
 | `status` | enum | ✅ | `todo` \| `in-progress` \| `review` \| `done` \| `blocked` \| `cancelled` |
 | `manualTests` | string | | Manual test report, a markdown checklist saved as the task's `## Manual tests` section (replaces an older one). See [Manual tests & review](#manual-tests--review) |
 
-Every transition is allowed: nothing requires a report or a review before `done`.
+An agent's `done` with checks left for a human (manual items, or 🤖 items no passing run proved) lands in **review** instead, and the reply says `👀 Moved to review, not done: N checks need a human`. All checks ticked (or proven by a run) → done. A human moving a card on the board isn't redirected. Such a review doesn't hold back the task's dependents; one whose last run failed, or that hit the auto-fix limit, does.
 
 **Returns:** confirmation with previous and new status, and `🧪 Manual tests: 0/N ticked` when the task has a report. With `autoResult: "passed"`, VibeDoc re-judges the task's newest recorded run (R063): steps with no `expect` on the page are unticked, counted in the header (`· N unverified`) and listed in a final `⚠️ N steps unverified: …` line, which tells the agent to fix those steps
 
@@ -528,7 +528,7 @@ Run from VibeDoc (single or suite) on a done / review task:
 
 - Approve and Send back are in the task panel and on /manual-tests (`POST /api/tasks/review` `{ id, action: "approve" | "send-back", note? }`: 400 for an empty send-back note, 409 when approving a task that isn't in review or sending back one that is neither in review nor done; `REVIEWABLE` in `src/lib/review.ts`). Both are recorded in the task's `## Review` section, which the panel shows as history.
 - A sent-back todo card shows **changes requested**. When `vibedoc_next_task` hands it out again, the reply starts with `⚠️ Changes requested:` and the note.
-- A task in review is not done: its dependents wait, the epic isn't finished, and `vibedoc_next_task` says `T0xx in review — needs a human`.
+- A task in review is not done: the epic isn't finished until it is approved. Its dependents can still start, unless the review is held (its last run failed, or the auto-fix limit was reached): then they wait and `vibedoc_next_task` says `T0xx in review — needs a human`.
 - `/work-epic` defaults to done. It uses review only when it can't judge the result itself (a visual change it couldn't see, or a Verify step it couldn't run).
 
 **Self-fixing failures & flaky tests (R065).**
@@ -539,7 +539,7 @@ Run from VibeDoc (single or suite) on a done / review task:
 - **The cap.** After `tests.maxAutoFixes` (default 3) automatic send-backs in a row, the next failure moves the task to review with `— auto fix limit reached (N attempts)`. The card and panel show **needs a human**. A pass in between resets the count (`— auto run passed`).
 - **Evidence.** `vibedoc_get_evidence` marks a flaky step `🔁 flaky (passed on attempt N)` with the first attempt's error and screenshot, and counts flaky tests in the summary line.
 
-Why a checklist and not a done gate: [ADR-005](decisions/ADR-005-manual-test-checklist-instead-of-a-done-gate.md).
+Why a checklist and not a done gate: [ADR-005](decisions/ADR-005-manual-test-checklist-instead-of-a-done-gate.md). Since then an agent's `done` with checks left lands in review (above), which still never blocks the queue for unrelated work.
 
 ---
 

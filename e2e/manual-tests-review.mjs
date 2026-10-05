@@ -1,5 +1,6 @@
 // Browser check for R043 (manual tests & optional review), end to end on a fixture project:
-//   1. An agent finishes tasks with reports (vibedoc_update_task + manualTests) → 0/2 rows on /manual-tests (All)
+//   1. An agent finishes tasks with reports (vibedoc_update_task + manualTests) → with checks left they land in
+//      review, not done, and the queue still hands out T002 (it depends on T001) → 0/2 rows under Needs you
 //      → tick everything there → the task files get - [x] and the rows read 2/2.
 //   2. Review: move a task to review → send it back from the panel → vibedoc_next_task reclaims it with the
 //      note first → back to review → approve → done, with both entries in ## Review.
@@ -44,19 +45,19 @@ try {
   for (const id of ["T001", "T002"]) {
     assert.match(await mcp("vibedoc_next_task", { epic: "R002" }), new RegExp(`Claimed \\*\\*${id}\\*\\*`))
     const out = await mcp("vibedoc_update_task", { taskId: id, status: "done", manualTests: `### Steps\n- [ ] Open ${id} → it works\n### Regression risk\n- [ ] Board still loads` })
+    assert.match(out, /→ \*\*review\*\*[\s\S]*👀 Moved to review, not done: 2 checks need a human/)
     assert.match(out, /🧪 Manual tests: 0\/2 ticked/)
   }
-  // Both are done, so neither needs you (checks left on finished work stay under All). The board folds done
-  // lanes and shows done tasks as a rail of IDs, so the 0/2 → 2/2 tally is read off the /manual-tests ruling.
+  // Both wait in review for their checks, so both need you; the 0/2 → 2/2 tally is read off the /manual-tests ruling
   await page.goto(`${BASE}/manual-tests`)
-  await page.getByRole("button", { name: "Show all 2 tasks" }).waitFor()
-  await page.goto(`${BASE}/manual-tests?tab=all`)
   for (const id of ["T001", "T002"]) await page.locator(`[data-row="${id}"]`).getByRole("img", { name: "0 of 2 manual checks ticked" }).waitFor()
   for (const id of ["T001", "T002"]) {
-    await page.locator(`[data-row="${id}"] button`).click()
+    // A task in review opens on Evidence (R062); its checklist is on the Review view
+    await page.goto(`${BASE}/manual-tests?task=${id}&view=review`)
     await page.getByRole("checkbox", { name: new RegExp(`Open ${id}`) }).check()
     await page.getByLabel("Board still loads").check()
   }
+  await page.goto(`${BASE}/manual-tests`)
   for (const id of ["T001", "T002"]) await page.locator(`[data-row="${id}"]`).getByRole("img", { name: "2 of 2 manual checks ticked" }).waitFor()
   for (let i = 0; i < 30 && !(file("T001").includes("- [x] Board still loads") && file("T002").includes("- [x] Board still loads")); i++) await page.waitForTimeout(100)
   for (const id of ["T001", "T002"]) assert.doesNotMatch(file(id), /- \[ \]/, `${id}: every item ticked in the file`)

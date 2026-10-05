@@ -1,7 +1,11 @@
 // Pure next-task picker for an epic's work queue (no fs). Self-check: node src/lib/work-queue.check.mts
 import type { RoadmapItem, Task } from './core'
 
-export type QueueTask = Pick<Task, 'id' | 'status' | 'dependsOn'>
+/**
+ * `reviewHold`: a task in review that must stop its dependents (its last run failed, or the auto-fix limit sent it
+ * to a human). Other review tasks only wait for someone to click through their checks, so dependents go on.
+ */
+export type QueueTask = Pick<Task, 'id' | 'status' | 'dependsOn'> & { reviewHold?: boolean }
 export type QueueResult =
   | { kind: 'ready'; taskId: string }
   | { kind: 'finished' }
@@ -14,13 +18,15 @@ export function depIds(dependsOn: string): string[] {
 }
 
 const settled = (s: Task['status']) => s === 'done' || s === 'cancelled'
+/** A dependency is met when done / cancelled, or in review only for its checks (not a failure). */
+const met = (t: QueueTask) => settled(t.status) || (t.status === 'review' && !t.reviewHold)
 
 export function pickNextTask(epic: RoadmapItem, tasks: QueueTask[]): QueueResult {
   const byId = new Map(tasks.map(t => [t.id, t]))
   const linked = epic.tasks.map(id => byId.get(id)).filter((t): t is QueueTask => !!t)
   const unmet = (t: QueueTask) => depIds(t.dependsOn).filter(d => {
     const dep = byId.get(d)
-    return !dep || !settled(dep.status)
+    return !dep || !met(dep)
   })
 
   for (const t of linked) {
@@ -29,7 +35,7 @@ export function pickNextTask(epic: RoadmapItem, tasks: QueueTask[]): QueueResult
   if (linked.every(t => settled(t.status))) return { kind: 'finished' }
 
   // Can this task still move without a human? in-progress/settled yes; blocked/paused/review/missing no
-  // (review waits for someone to approve or send it back, R043);
+  // (review waits for someone to approve or send it back, R043; a checks-only review still meets its dependents);
   // todo only if it's in this epic (the queue never hands out outside tasks) and every unmet dep can.
   // Cycles count as stuck.
   const inEpic = new Set(epic.tasks)
@@ -50,7 +56,7 @@ export function pickNextTask(epic: RoadmapItem, tasks: QueueTask[]): QueueResult
     else if (t.status === 'in-progress') waiting.push({ taskId: id, reason: `${id} is in progress (claimed)` })
     else if (t.status === 'blocked') waiting.push({ taskId: id, reason: `${id} is blocked` })
     else if (t.status === 'paused') waiting.push({ taskId: id, reason: `${id} is paused — needs a human to resume it` })
-    else if (t.status === 'review') waiting.push({ taskId: id, reason: `${id} in review — needs a human` })
+    else if (t.status === 'review') waiting.push({ taskId: id, reason: t.reviewHold ? `${id} in review — needs a human` : `${id} in review — waiting for a human to check it` })
     else if (t.status === 'todo') {
       const deps = unmet(t).map(d => `${d} (${byId.get(d)?.status ?? 'missing'})`)
       waiting.push({ taskId: id, reason: `${id} waits on ${deps.join(', ')}` })
