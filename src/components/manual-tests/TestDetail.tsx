@@ -9,7 +9,7 @@ import { displayStatus } from "@/lib/statuses"
 import { StatusChip } from "@/components/shared/StatusIcon"
 import { ReviewActions } from "@/components/board/TaskDetailPanel"
 import { RunPlayer } from "./RunPlayer"
-import { TestEvidence } from "./TestEvidence"
+import { TestEvidence, UnverifiedChip } from "./TestEvidence"
 import { RunLive } from "./RunLive"
 import { useTestRun } from "./useTestRun"
 import { isRunning } from "@/lib/test-run-events"
@@ -66,12 +66,13 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
   const showRun = mine && mine.startedAt !== dismissed ? mine : null
   const otherRun = testRun.busy && !mine ? testRun.run!.taskId : null
   // A run in progress re-proves the automated items: until it ends, only its live results count
-  const proven = row.auto.result === "passed" && !going
+  const proven = row.auto.result === "passed" && !row.unverified && !going
   const liveStatus = (item: ManualTestItem) => mine?.steps.find((s) => s.name.trim().replace(/\s+/g, " ") === item.text.trim().replace(/\s+/g, " "))?.status
   const decides = !demo && (row.result === "failed" || task.status === "review")
 
   const line = (item: ManualTestItem, number: string, readOnly = false) => {
-    const live = item.auto ? liveStatus(item) : undefined
+    // Live marks only while the run goes; after it, the task file (ticks, Auto header) is the record
+    const live = item.auto && going ? liveStatus(item) : undefined
     const checked = checkedOf(item) || (readOnly && proven) || live === "passed"
     return (
       <li key={item.index}>
@@ -83,7 +84,11 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
             ? <Bot className="mt-0.5 size-4 text-teal" aria-label="Proven by the last run" />
             : <Tick checked={checked} onChange={(c) => onToggle(item, c)} />}
           <span className="mt-px font-mono text-[11px] leading-5 text-muted tabular-nums" aria-hidden>{number}</span>
-          <StepText text={item.text} checked={checked} />
+          <span className="flex min-w-0 items-start gap-2">
+            <StepText text={item.text} checked={checked} />
+            {/* R063: the last pass didn't prove this 🤖 item, so it waits for a human */}
+            {item.auto && !checked && !live && row.result === "passed" && row.unverified > 0 && <UnverifiedChip reasons={["the last run didn't prove it"]} />}
+          </span>
         </label>
       </li>
     )
@@ -191,7 +196,7 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
       ) : <>
       {showRun && (
         <section aria-label="Live run" className="border-b border-border px-5 py-5 sm:px-7">
-          <RunLive run={showRun} began={testRun.began} ended={testRun.ended} onDismiss={() => setDismissed(showRun.startedAt)} />
+          <RunLive run={showRun} began={testRun.began} ended={testRun.ended} unverified={row.unverified} onDismiss={() => setDismissed(showRun.startedAt)} />
         </section>
       )}
       {!going && (
@@ -212,7 +217,7 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
             <h3 className="flex flex-wrap items-baseline gap-x-1.5 text-[13px] font-medium text-txt">
               Automated <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{automated.length}</span>
               <span className={cn("text-xs font-normal", going ? "text-accent" : proven ? "text-teal" : row.auto.result === "failed" ? "text-danger" : "")}>
-                {going ? "· running now" : proven ? "· proven by the last run" : row.auto.result === "failed" ? "· the last run failed" : "· not run yet"}
+                {going ? "· running now" : proven ? "· proven by the last run" : row.result === "passed" && row.unverified ? `· ${row.unverified} unverified, check by hand` : row.auto.result === "failed" ? "· the last run failed" : "· not run yet"}
               </span>
             </h3>
             <ol className="flex flex-col">{/* A passed run proves them; until then a human can still tick them */}

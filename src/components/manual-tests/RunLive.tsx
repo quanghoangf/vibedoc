@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Check, Loader2, Square, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isRunning, type RunState } from "@/lib/test-run-events"
+import { UnverifiedChip } from "./TestEvidence"
 
 const clock = (ms: number) => `${(Math.max(0, ms) / 1000).toFixed(1)}s`
 
@@ -12,10 +13,12 @@ const clock = (ms: number) => `${(Math.max(0, ms) / 1000).toFixed(1)}s`
  * its elapsed time; once it ends, the verdict (and the output tail when Playwright itself failed).
  * `began` / `ended`: client times per step index (useTestRun).
  */
-export function RunLive({ run, began, ended, onStop, onDismiss }: {
+export function RunLive({ run, began, ended, unverified = 0, onStop, onDismiss }: {
   run: RunState
   began: Record<number, number>
   ended: Record<number, number>
+  /** R063: unverified steps the finished run left (the task's Auto header, once written) */
+  unverified?: number
   /** A Stop in the strip, for frames without their own Run/Stop control */
   onStop?: () => void
   onDismiss: () => void
@@ -32,9 +35,11 @@ export function RunLive({ run, began, ended, onStop, onDismiss }: {
   const passed = run.steps.filter((s) => s.status === "passed").length
   const total = run.finishedAt ? Date.parse(run.finishedAt) - Date.parse(run.startedAt) : null
 
+  const blank = new Set(run.blankPassed ?? [])
+  const weak = Math.max(unverified, blank.size)
   const headline = going
-    ? run.state === "starting" ? "Starting the app…" : `Running · step ${run.steps.length}`
-    : run.state === "passed" ? `Passed · ${passed}/${run.steps.length} steps`
+    ? run.state === "starting" ? "Starting the app…" : run.state === "checking" ? "Checking the test is honest…" : `Running · step ${run.steps.length}`
+    : run.state === "passed" ? `Passed · ${passed}/${run.steps.length} steps${weak ? ` · ${weak} unverified` : ""}`
     : run.state === "failed" ? `Failed${failedStep ? ` at step ${failedStep.index}` : ""}`
     : run.state === "cancelled" ? "Stopped"
     : "Couldn’t run the spec"
@@ -69,7 +74,10 @@ export function RunLive({ run, began, ended, onStop, onDismiss }: {
                 : <X className="mt-0.5 size-4 text-danger" strokeWidth={2.5} aria-label="failed" />}
               <span className="mt-px font-mono text-[11px] leading-5 text-muted tabular-nums" aria-hidden>{String(s.index).padStart(2, "0")}</span>
               <span className="flex min-w-0 flex-col gap-1">
-                <span className={cn("leading-snug", s.status === "running" ? "text-txt" : "text-txt/90")}>{s.name}</span>
+                <span className="flex min-w-0 items-start gap-2">
+                  <span className={cn("leading-snug", s.status === "running" ? "text-txt" : "text-txt/90")}>{s.name}</span>
+                  {blank.has(s.name) && <UnverifiedChip reasons={["passes without the app"]} />}
+                </span>
                 {s.error && <span className="font-mono text-xs break-words whitespace-pre-wrap text-danger">{s.error}</span>}
               </span>
               <span className="mt-px font-mono text-[11px] leading-5 text-muted tabular-nums">

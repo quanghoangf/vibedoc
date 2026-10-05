@@ -62,6 +62,10 @@ assert.equal(latestReview(quoted), null)
   assert.equal(formatReviewBody('', null, [marks[2]]), '- ⚠️ Step 1 "No comment" — doubt')
   // Approve: run + "All N steps reviewed"
   assert.equal(formatReviewBody('', '20261012T094500Z', [], 5), 'Run 20261012T094500Z\nAll 5 steps reviewed')
+  // R063: an unverified mark round-trips with its reason
+  const u = { item: 3, step: 'Trivial → ok', kind: 'unverified' as const, comment: 'only trivial assertions' }
+  assert.equal(formatReviewBody('', null, [u]), '- ❔ Step 4 "Trivial → ok" — unverified: only trivial assertions')
+  assert.deepEqual(parseReviewMarks(formatReviewBody('', null, [u])).marks, [u])
   // Old entries (plain note) parse with no marks
   assert.deepEqual(parseReviewMarks('The plan card does not scroll.'), { marks: [] })
 }

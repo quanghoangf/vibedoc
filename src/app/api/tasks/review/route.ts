@@ -5,7 +5,7 @@
  * `## Review` section. 400 = bad input or empty send-back note; 409 = approve on a task not in review, or send back
  * on one that is neither in review nor done (REVIEWABLE in src/lib/review.ts).
  * R062: `runId` = the kept run the decision was made from; `marks` = flagged steps ({ item, step, kind:
- * "doubt" | "failed", comment?, screenshot? }) written into the entry. A send back needs a note or a mark.
+ * "doubt" | "failed" | "unverified", comment?, screenshot? }) written into the entry. A send back needs a note or a mark.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -49,7 +49,7 @@ function parseMarks(raw: unknown): ReviewMark[] | string {
   for (const m of raw as Record<string, unknown>[]) {
     if (!Number.isInteger(m?.item) || (m.item as number) < 0) return 'A mark needs item: the checklist index (0 or more)'
     if (typeof m.step !== 'string' || !m.step.trim() || m.step.length > 500) return 'A mark needs step: the step text'
-    if (!REVIEW_MARK_KINDS.includes(m.kind as ReviewMark['kind'])) return `A mark's kind is "doubt" or "failed", got ${JSON.stringify(m.kind)}`
+    if (!REVIEW_MARK_KINDS.includes(m.kind as ReviewMark['kind'])) return `A mark's kind is "doubt", "failed" or "unverified", got ${JSON.stringify(m.kind)}`
     if (m.comment != null && (typeof m.comment !== 'string' || m.comment.length > 2000)) return 'A mark comment is a string'
     if (m.screenshot != null && (typeof m.screenshot !== 'string' || !isRunFile(m.screenshot))) return `Bad screenshot file: ${m.screenshot}`
     out.push({

@@ -40,15 +40,16 @@ export interface ReviewEntry {
 export interface ReviewMark {
   item: number
   step: string
-  kind: "doubt" | "failed"
+  /** R063 `unverified`: the step passed but didn't prove its item (no / trivial assertion, passes without the app) */
+  kind: "doubt" | "failed" | "unverified"
   comment?: string
   screenshot?: string
 }
 
-export const REVIEW_MARK_KINDS = ["doubt", "failed"] as const
-const MARK_GLYPH = { failed: "❌", doubt: "⚠️" } as const
+export const REVIEW_MARK_KINDS = ["doubt", "failed", "unverified"] as const
+const MARK_GLYPH = { failed: "❌", doubt: "⚠️", unverified: "❔" } as const
 const RUN_LINE = /^Run (\d{8}T\d{6}Z)$/
-const MARK_LINE = /^- (?:❌|⚠️) Step (\d+) "(.*)" — (failed|doubt)(?:: (.*?))?(?: · screenshot ([\w.-]+\.png))?$/u
+const MARK_LINE = /^- (?:❌|⚠️|❔) Step (\d+) "(.*)" — (failed|doubt|unverified)(?:: (.*?))?(?: · screenshot ([\w.-]+\.png))?$/u
 const oneLine = (s: string) => s.replace(/\s*\n\s*/g, " ").trim()
 
 /**
@@ -89,8 +90,9 @@ export function parseReviewMarks(body: string): { runId?: string; marks: ReviewM
 export function summarizeMarks(marks: ReviewMark[], max = 3): { failed: number; doubt: number; steps: string[]; more: number } {
   const sorted = [...marks].sort((a, b) => a.item - b.item)
   return {
+    // An unverified step is a doubt the tooling raised: it counts with the reviewer's doubts on a card
     failed: marks.filter((m) => m.kind === "failed").length,
-    doubt: marks.filter((m) => m.kind === "doubt").length,
+    doubt: marks.filter((m) => m.kind !== "failed").length,
     steps: sorted.slice(0, max).map((m) => m.step),
     more: Math.max(0, sorted.length - max),
   }

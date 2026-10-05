@@ -1,8 +1,12 @@
 # T170: Unverified badges in Evidence, review and the Run strip
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R063 — Honest tests
 **Size:** M (2–3 hrs)
 **Depends on:** T169
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 A reviewer sees at a glance which steps aren't really proven, and why. A Send back takes them along automatically.
@@ -41,3 +45,14 @@ A reviewer sees at a glance which steps aren't really proven, and why. A Send ba
 node src/lib/review.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Give a task a kit spec with a setContent-only step, an honest step and an `expect(true)` step (all 🤖) and press Run tests on /manual-tests → the strip shows "Checking the test is honest…", then "Passed · 3/3 steps · 2 unverified" with an "unverified" chip on the setContent step (agent checked with a throwaway spec, since removed)
+- [ ] The Review view's Automated header reads "· 2 unverified, check by hand" and the two unproven items carry the dashed "unverified" chip
+- [ ] Move it to review and open Evidence → the bar says "2 unverified", Steps to review shows the chip, a help icon and the reason under those steps, and they have no Doubt button
+- [ ] Send back… → both are listed (with reasons); sending writes `- ❔ Step N "…" — unverified: <reason> · screenshot …` lines into ## Review
+### Regression risk
+- [ ] An honest run shows no chips; Doubt on passed steps and failed-step flags work as before
+- [ ] The board card for a send back with unverified marks counts them with the flagged steps

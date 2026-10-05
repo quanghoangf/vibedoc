@@ -24,7 +24,8 @@ export interface ManualTestItem {
 }
 
 export type AutoResult = "passed" | "failed"
-export interface AutoRun { result: AutoResult; date: string }
+/** `unverified` (R063): passed steps that don't prove their item (no / trivial assertion, pass on a blank page) */
+export interface AutoRun { result: AutoResult; date: string; unverified?: number }
 
 export interface ManualTests {
   items: ManualTestItem[]
@@ -50,19 +51,19 @@ const ITEM = /^\s*[-*]\s+\[( |x|X)\]\s+(.*)$/
 const AUTO = /^🤖\s*/u
 const STAMP = /^_(\d{4}-\d{2}-\d{2})\b/
 const SPEC = / · Spec: `([^`]+)`/
-const RUN = / · Auto: (passed|failed) (\d{4}-\d{2}-\d{2})/
+const RUN = / · Auto: (passed|failed) (\d{4}-\d{2}-\d{2})(?: · (\d+) unverified)?/
 
 function header(base: string, spec: string | null, autoRun: AutoRun | null): string {
   if (spec && (/[`\n]/.test(spec) || spec.startsWith("/") || spec.split(/[\\/]/).includes("..")))
     throw new Error(`spec must be a relative path inside the repo, got "${spec}"`)
-  return `_${base}${spec ? ` · Spec: \`${spec}\`` : ""}${autoRun ? ` · Auto: ${autoRun.result} ${autoRun.date}` : ""}_`
+  return `_${base}${spec ? ` · Spec: \`${spec}\`` : ""}${autoRun ? ` · Auto: ${autoRun.result} ${autoRun.date}${autoRun.unverified ? ` · ${autoRun.unverified} unverified` : ""}` : ""}_`
 }
 
 function readHeader(line: string): { base: string; spec: string | null; autoRun: AutoRun | null } {
   const inner = line.trim().replace(/^_|_$/g, "")
   const spec = inner.match(SPEC)?.[1] ?? null
   const run = inner.match(RUN)
-  return { base: inner.split(" · ")[0], spec, autoRun: run ? { result: run[1] as AutoResult, date: run[2] } : null }
+  return { base: inner.split(" · ")[0], spec, autoRun: run ? { result: run[1] as AutoResult, date: run[2], ...(run[3] ? { unverified: Number(run[3]) } : {}) } : null }
 }
 const BULLET = /^\s*[-*]\s+(.*)$/
 
@@ -164,7 +165,8 @@ export function parseManualTests(raw: string): ManualTests | null {
  * `checked` lets the UI apply ticks it hasn't saved yet.
  */
 export function untestedItems(t: Pick<ManualTests, "items" | "autoRun">, checked: (i: ManualTestItem) => boolean = (i) => i.checked): ManualTestItem[] {
-  const proven = t.autoRun?.result === "passed"
+  // R063: a pass with unverified steps proves only what it ticked; the unverified 🤖 items stay to check
+  const proven = t.autoRun?.result === "passed" && !t.autoRun.unverified
   return t.items.filter((i) => !checked(i) && !(i.auto && proven))
 }
 

@@ -7,10 +7,19 @@ import { timeAgo } from "@/components/activity/ActivityEventRow"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { ReviewActions } from "@/components/board/TaskDetailPanel"
-import { AlertTriangle, Check, X } from "lucide-react"
+import { AlertTriangle, Check, HelpCircle, X } from "lucide-react"
 import type { ReviewMark } from "@/lib/review"
 
-type Row = { item: number; text: string; auto: boolean; result: "passed" | "failed" | "missing" | "manual"; screenshot: string | null; error: string | null }
+type Row = { item: number; text: string; auto: boolean; result: "passed" | "failed" | "missing" | "manual"; screenshot: string | null; error: string | null; unverified: string[] }
+
+/** R063: a passed step that doesn't prove its item; the reasons ride in the title and under the step. */
+export function UnverifiedChip({ reasons }: { reasons: string[] }) {
+  return (
+    <span title={`Unverified: ${reasons.join(", ")}`} className="inline-flex shrink-0 items-center rounded-sm border border-dashed border-amber/60 px-1.5 py-0.5 text-[11px] leading-none text-amber">
+      unverified
+    </span>
+  )
+}
 type Evidence = { markdown: string; runId: string | null; runs: { runId: string; status: "passed" | "failed"; startedAt: string; commit: string | null }[]; rows: Row[] }
 
 /**
@@ -163,12 +172,15 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
   const [doubts, setDoubts] = useState<Record<number, string>>({})
   const media = (file: string) => `/api/tasks/${encodeURIComponent(taskId)}/runs/${runId}/${encodeURIComponent(file)}${rootParam}`
   const failed = rows.filter((r) => r.result === "failed")
+  // R063: passed but not proven: flagged like failed steps, not something the reviewer can clear
+  const unverified = rows.filter((r) => r.result === "passed" && r.unverified.length)
   const doubted = rows.filter((r) => r.item in doubts)
   const marks: ReviewMark[] = [
     ...failed.map((r) => ({ item: r.item, step: r.text, kind: "failed" as const, ...(r.error ? { comment: r.error.split("\n")[0] } : {}), ...(r.screenshot ? { screenshot: r.screenshot } : {}) })),
+    ...unverified.map((r) => ({ item: r.item, step: r.text, kind: "unverified" as const, comment: r.unverified.join(", "), ...(r.screenshot ? { screenshot: r.screenshot } : {}) })),
     ...doubted.map((r) => ({ item: r.item, step: r.text, kind: "doubt" as const, ...(doubts[r.item].trim() ? { comment: doubts[r.item] } : {}), ...(r.screenshot ? { screenshot: r.screenshot } : {}) })),
   ].sort((a, b) => a.item - b.item)
-  const count = [doubted.length && `${doubted.length} flagged`, failed.length && `${failed.length} failed`].filter(Boolean).join(" · ")
+  const count = [doubted.length && `${doubted.length} flagged`, failed.length && `${failed.length} failed`, unverified.length && `${unverified.length} unverified`].filter(Boolean).join(" · ")
 
   return (
     <div className="-mx-5 -mt-5 flex flex-col border-b border-border sm:-mx-7">
@@ -184,7 +196,9 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
           <ul aria-label="Flagged steps" className="flex flex-col gap-1.5 rounded-md border border-border bg-bg p-2">
             {marks.map((m) => (
               <li key={m.item} className="flex items-start gap-2 text-xs">
-                {m.kind === "failed" ? <X className="mt-0.5 size-3.5 shrink-0 text-danger" aria-label="failed" /> : <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber" aria-label="doubt" />}
+                {m.kind === "failed" ? <X className="mt-0.5 size-3.5 shrink-0 text-danger" aria-label="failed" />
+                  : m.kind === "unverified" ? <HelpCircle className="mt-0.5 size-3.5 shrink-0 text-amber" aria-label="unverified" />
+                  : <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber" aria-label="doubt" />}
                 {/* eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API */}
                 {m.screenshot && <img src={media(m.screenshot)} alt="" className="h-9 w-14 shrink-0 rounded-sm border border-border object-cover object-top" />}
                 <span className="min-w-0"><span className="font-mono text-muted">Step {m.item + 1}</span> <span className="text-txt">{m.step}</span>{m.comment && <span className="block text-muted">{m.comment}</span>}</span>
@@ -210,11 +224,13 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
         <ol aria-label="Steps to review" className="flex flex-col px-5 pb-3 sm:px-7">
           {rows.map((r) => {
             const doubt = r.item in doubts
+            const weak = r.result === "passed" && r.unverified.length > 0
             return (
-              <li key={r.item} className={cn("flex flex-col gap-1.5 border-l-2 py-1.5 pl-2.5", r.result === "failed" ? "border-danger" : doubt ? "border-amber" : "border-transparent")}>
+              <li key={r.item} className={cn("flex flex-col gap-1.5 border-l-2 py-1.5 pl-2.5", r.result === "failed" ? "border-danger" : doubt ? "border-amber" : weak ? "border-dashed border-amber/60" : "border-transparent")}>
                 <div className="flex items-start gap-2">
                   {r.result === "failed" ? <X className="mt-0.5 size-4 shrink-0 text-danger" strokeWidth={2.5} aria-label="failed" />
                     : doubt ? <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber" aria-label="doubted" />
+                    : weak ? <HelpCircle className="mt-0.5 size-4 shrink-0 text-amber" aria-label="unverified" />
                     : r.result === "passed" ? <Check className="mt-0.5 size-4 shrink-0 text-teal" strokeWidth={2.5} aria-label="passed" />
                     : <span className="mt-0.5 size-4 shrink-0 text-center text-xs text-muted" aria-label="no step in this run">–</span>}
                   {r.screenshot && (
@@ -224,7 +240,8 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
                     </button>
                   )}
                   <span className="min-w-0 flex-1 text-sm leading-snug text-txt">{r.text}</span>
-                  {r.result === "passed" && (
+                  {weak && <UnverifiedChip reasons={r.unverified} />}
+                  {r.result === "passed" && !weak && (
                     <button
                       type="button"
                       aria-pressed={doubt}
@@ -250,6 +267,7 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
                   />
                 )}
                 {r.result === "failed" && r.error && <span className="ml-6 font-mono text-xs whitespace-pre-wrap text-danger">{r.error}</span>}
+                {weak && <span className="ml-6 text-xs text-amber">Unverified: {r.unverified.join(", ")}. It passed but proves nothing about the app; check it by hand.</span>}
               </li>
             )
           })}
