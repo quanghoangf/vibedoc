@@ -1,8 +1,12 @@
 # T173: Suite runner + API: run every done task's spec in one go
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R064 — Regression suite
 **Size:** M
 **Depends on:** T172
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 VibeDoc runs the specs of all done tasks as one suite and keeps a per-task result: which tasks passed, which broke, and at which step. The state streams over SSE for the UI.
@@ -48,3 +52,14 @@ pnpm lint && pnpm build
 curl -s -XPOST localhost:3000/api/suite/run -H 'content-type: application/json' -d '{}'
 sleep 20; curl -s localhost:3000/api/suite/run | jq '{state, tasks: [.tasks[] | {taskId, status}]}'
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] `curl -XPOST localhost:3000/api/suite/run -H 'content-type: application/json' -d '{}'` → 202 with every done task that has a spec (here T155) and `skipped` = done tasks without one; `GET /api/suite/run` goes starting → running → passed, and the task gets a new run dir and `Auto: passed <today>`
+- [ ] Point a done task at a spec with a wrong expectation and run the suite → that task is `failed` with `failedStep` (index, name, error), the others pass, the suite is `failed`, and its file reads `Auto: failed <today>` (agent checked with a throwaway spec on T153, since restored)
+- [ ] While the suite runs, `POST /api/tasks/run` → 409 "The regression suite is running"; while a single Run goes, `POST /api/suite/run` → 409 "A run is already going: T0xx"
+- [ ] Start the suite and `POST /api/suite/run/cancel` → cancelled, no playwright process left, no half-written run folder, and no task file changes
+### Regression risk
+- [ ] Run tests on /manual-tests (single task, with its honesty check) still works as before
+- [ ] Settings → Frontend app → Start / Stop app and the smoke test still work

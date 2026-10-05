@@ -10,8 +10,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { detectFrontend, detectPlaywright, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, recordRunResult, removeUnfinishedRuns, rootFrom, testReporterPath } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
-import { runState, startRun } from '@/lib/test-runner'
-import { isRunning, specInApp } from '@/lib/test-run-events'
+import { busyWith, runState, startRun } from '@/lib/test-runner'
+import { specInApp } from '@/lib/test-run-events'
 import { isRunTaskId } from '@/lib/runs-paths'
 import { isDemo, demoForbidden } from '@/lib/demo'
 import { refuseCrossSite } from '@/lib/same-origin'
@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Task not found: ${id}` }, { status: 404 })
   }
   if (!spec) return NextResponse.json({ error: `${id} has no spec to run` }, { status: 409 })
-  const current = runState(root)
-  if (current && isRunning(current)) return NextResponse.json({ error: `A run is already going: ${current.taskId}` }, { status: 409 })
+  const busy = busyWith(root) // a single Run and the suite share the lock (R064)
+  if (busy) return NextResponse.json({ error: busy }, { status: 409 })
 
   const app = await detectFrontend(root)
   if (!app) return NextResponse.json({ error: 'No frontend app detected' }, { status: 404 })
