@@ -1,6 +1,6 @@
 # R061: Run tests from VibeDoc
 **Parent:** R003
-**Status:** in-progress
+**Status:** done
 **Order:** 90
 **Tasks:** T157, T158, T159, T160, T161, T162
 
