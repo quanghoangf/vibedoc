@@ -1,6 +1,6 @@
 ---
 import GitHubIcon from './GitHubIcon.astro'
-import CopyCommand from './CopyCommand.astro'
+import InstallTabs from './InstallTabs.astro'
 import { GITHUB } from '../data/links'
 ---
 <section id="top" class="mx-auto flex max-w-[1200px] flex-col gap-7 px-5 pt-16 pb-10 sm:px-8 sm:pt-22">
@@ -29,10 +29,6 @@ import { GITHUB } from '../data/links'
       </div>
       <p class="m-0 text-[13px] text-pencil">Works with Claude Code · Cursor · Windsurf · Codex · any MCP client</p>
     </div>
-    <div class="min-w-0 flex-[0_1_500px] overflow-hidden rounded-xl border border-rule bg-surface shadow-[0_12px_32px_rgba(26,26,46,0.06)]">
-      <p class="m-0 border-b border-rule px-4 py-2.5 font-mono text-xs text-pencil">Run it in your project</p>
-      <CopyCommand command="npx vibedoc" />
-      <p class="m-0 px-4 py-2.5 text-[13px] text-pencil">Runs the latest version in the current project. Nothing to install.</p>
-    </div>
+    <InstallTabs />
   </div>
 </section>

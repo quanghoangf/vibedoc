@@ -1,9 +1,12 @@
 # T202: Install tabs: npx · npm · pnpm · bun (copy on click)
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R071 — Landing page
 **Size:** M (2–3 hrs)
 **Depends on:** T201
 **Covers:** S1
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 A visitor picks how they install tools and copies the exact command in one click, right under the headline.
@@ -46,4 +49,8 @@ pnpm --dir site build && pnpm --dir site exec playwright test
 ## Manual tests
 _2026-10-05 — ai_
 ### Steps
-- [ ] S1 — WHEN a visitor picks an install tab (npx, npm, Homebrew, AI assistant) and clicks copy → THEN that exact command is on their clipboard and the button confirms it
+- [ ] S1 — WHEN a visitor picks an install tab (npx, npm, Homebrew, AI assistant) and clicks copy → THEN that exact command is on their clipboard and the button confirms it (npx, npm, pnpm and bun ship now; Homebrew and the AI prompt come with R072 / R073. Proven locally by `site/e2e/landing.spec.ts` "S1: each tab shows and copies exactly its command"; check it on the live page)
+- [ ] With the keyboard: Tab into the tabs, ←/→ switch them, Tab again reaches Copy, Enter copies → "Copied"
+- [ ] Scroll to "Running in a minute." → three cards: start VibeDoc, the MCP url snippet, the two /plugin lines; long lines wrap instead of being cut off
+### Regression risk
+- [ ] The hero still reads well at 390 px (tabs fit on one row, Copy stays beside the command)

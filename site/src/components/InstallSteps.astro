@@ -1,0 +1,22 @@
+---
+// "Running in a minute": start VibeDoc, connect the agent over MCP, add the Claude Code commands.
+const steps = [
+  { title: '1 · Start VibeDoc in your project', code: 'cd your-project\nnpx vibedoc' },
+  { title: '2 · Connect your agent over MCP', code: '"vibedoc": {\n  "url": "http://localhost:<port>/api/mcp"\n}' },
+  { title: '3 · Add the commands (Claude Code)', code: '/plugin marketplace add quanghoangf/vibedoc\n/plugin install vibedoc@vibedoc' },
+]
+---
+<section id="install" aria-labelledby="install-heading" class="mx-auto flex max-w-[1200px] flex-col gap-8 px-5 py-24 sm:px-8">
+  <div class="vd-reveal flex max-w-[700px] flex-col gap-3">
+    <h2 id="install-heading" class="m-0 text-4xl leading-[1.08] font-semibold tracking-[-0.03em] sm:text-[44px]">Running in a minute.</h2>
+    <p class="m-0 text-base leading-relaxed text-body">Local-first: one process on your machine, no account, no database. Your plans stay plain markdown in your repo.</p>
+  </div>
+  <div class="grid grid-cols-[repeat(auto-fit,minmax(min(340px,100%),1fr))] gap-4">
+    {steps.map((s) => (
+      <div class="vd-reveal flex flex-col gap-3 rounded-xl border border-rule bg-surface p-6">
+        <h3 class="m-0 font-mono text-xs font-normal text-pencil">{s.title}</h3>
+        <pre class="m-0 rounded-lg bg-ink px-4 py-3.5 font-mono text-[13px] leading-[1.7] break-all whitespace-pre-wrap text-[#e8e8f0]">{s.code}</pre>
+      </div>
+    ))}
+  </div>
+</section>
