@@ -1,6 +1,6 @@
 # R064: Regression suite
 **Parent:** R004
-**Status:** planned
+**Status:** done
 **Order:** 80
 **Tasks:** T172, T173, T174, T175
 
