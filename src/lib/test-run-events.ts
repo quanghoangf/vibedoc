@@ -14,8 +14,11 @@ export type RunEvent =
   | { type: 'end'; status: string }
 
 export type RunStepState = { index: number; name: string; status: 'running' | 'passed' | 'failed'; error: string | null }
-/** `starting`: the app is being reused / started, Playwright not spawned yet. */
-export type RunPhase = 'starting' | 'running' | 'passed' | 'failed' | 'cancelled' | 'error'
+/**
+ * `starting`: the app is being reused / started, Playwright not spawned yet. `checking` (R063): the run passed and
+ * the spec runs again against a blank page (honesty check) before the verdict is final.
+ */
+export type RunPhase = 'starting' | 'running' | 'checking' | 'passed' | 'failed' | 'cancelled' | 'error'
 export type RunState = {
   taskId: string
   spec: string
@@ -31,6 +34,8 @@ export type RunState = {
   result: string | null
   /** Tests Playwright found (reporter `begin`); 0 = the spec path matched nothing */
   tests: number | null
+  /** R063: steps that passed again on a blank page; null = not checked (yet, failed, or the check errored) */
+  blankPassed: string[] | null
 }
 
 /**
@@ -45,10 +50,10 @@ export function specInApp(spec: string, appDir: string): string | null {
   return parts.slice(dir.length).join('/')
 }
 
-export const isRunning = (s: RunState | null) => s?.state === 'starting' || s?.state === 'running'
+export const isRunning = (s: RunState | null) => s?.state === 'starting' || s?.state === 'running' || s?.state === 'checking'
 
 export function newRunState(taskId: string, spec: string, now: string): RunState {
-  return { taskId, spec, state: 'starting', startedAt: now, finishedAt: null, steps: [], error: null, tail: null, result: null, tests: null }
+  return { taskId, spec, state: 'starting', startedAt: now, finishedAt: null, steps: [], error: null, tail: null, result: null, tests: null, blankPassed: null }
 }
 
 /** One stdout line → an event, or null for every other line (list reporter output, app logs). */
@@ -92,4 +97,20 @@ export function finishRun(s: RunState, out: { code: number | null; cancelled: bo
   if (s.result === 'passed' && out.code === 0) return { ...base, state: 'passed', tail: null }
   if (s.result) return { ...base, state: 'failed', tail: out.tail }
   return { ...base, state: 'error', error: `Playwright exited with code ${out.code} before reporting a result`, tail: out.tail }
+}
+
+/** R063: a passed run goes on to the blank-app check (its steps and verdict stay as they are meanwhile). */
+export function startChecking(s: RunState): RunState {
+  return { ...s, state: 'checking', finishedAt: null }
+}
+
+/**
+ * The blank pass is over. Its step events → the names that passed again; a cancel wins; a pass that never
+ * reported (crash) leaves `blankPassed: null` and the run still passed.
+ */
+export function finishChecking(s: RunState, out: { cancelled: boolean; blankEvents: RunEvent[]; now: string }): RunState {
+  if (out.cancelled) return { ...s, state: 'cancelled', finishedAt: out.now }
+  const ended = out.blankEvents.filter((e): e is Extract<RunEvent, { type: 'step-end' }> => e.type === 'step-end')
+  const reported = out.blankEvents.some(e => e.type === 'end')
+  return { ...s, state: 'passed', finishedAt: out.now, blankPassed: reported ? ended.filter(e => e.status === 'passed').map(e => e.name) : null }
 }

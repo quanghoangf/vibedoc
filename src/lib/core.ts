@@ -25,7 +25,7 @@ import { parseOwner } from './owner'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { parseKeep } from './runs-retention'
-import { isRunFile, isRunId, isRunTaskId, parseRange, parseRunManifest, projectKey, runsRoot, type RunManifest } from './runs-paths'
+import { isRunFile, isRunId, isRunTaskId, parseRange, parseRunHonesty, parseRunManifest, projectKey, runsRoot, type RunManifest } from './runs-paths'
 import { formatEvidence, matchItems, ticksForRun } from './evidence'
 import { stepVerdict } from './honesty'
 import { VIBEDOC_VERSION } from './version'
@@ -645,7 +645,10 @@ function taskRunsDir(taskId: string, root: string): string | null {
 
 async function readRunManifest(dir: string): Promise<RunManifest | null> {
   try {
-    return parseRunManifest(await fs.readFile(path.join(dir, 'run.json'), 'utf8'))
+    const run = parseRunManifest(await fs.readFile(path.join(dir, 'run.json'), 'utf8'))
+    // R063: the blank-app check the fixture wrote after a later pass, when there was one
+    const honesty = run && parseRunHonesty(await fs.readFile(path.join(dir, 'honesty.json'), 'utf8').catch(() => ''))
+    return run && honesty ? { ...run, honesty } : run
   } catch {
     return null // no run.json yet (still running) or unreadable
   }
@@ -670,6 +673,9 @@ export async function listRuns(taskId: string, root: string): Promise<RunManifes
  * here (the fixture owns EVIDENCE.md). `src` maps a run's media file to a link: API URLs for the UI, absolute
  * paths for MCP (default). null = `runId` names no kept run.
  */
+/** R063: a step's honesty verdict within its run (assertion counts + the run's blank-app check). */
+const runVerdict = (s: RunManifest['steps'][number], run: RunManifest) => stepVerdict(s, !!run.honesty?.blankPassed.includes(s.name))
+
 /** R062: one checklist item against the shown run, for the review controls (not derived from the markdown). */
 export type EvidenceRow = {
   item: number; text: string; auto: boolean; group: 'steps' | 'regression'
@@ -687,10 +693,10 @@ export async function getEvidence(taskId: string, root: string, opts: { runId?: 
   const tests = task.raw ? parseManualTests(task.raw) : null
   const markdown = formatEvidence({
     taskId: task.id, title: task.title, items: tests?.items ?? [], spec: tests?.spec ?? null, runs, runId: opts.runId,
-    src: opts.src ?? ((runId, file) => path.join(dir ?? '', runId, file)), verdict: s => stepVerdict(s),
+    src: opts.src ?? ((runId, file) => path.join(dir ?? '', runId, file)), verdict: runVerdict,
   })
   const shown = (opts.runId ? runs.find(r => r.runId === opts.runId) : runs[0]) ?? null
-  const rows = matchItems(tests?.items ?? [], shown, s => stepVerdict(s)).rows.map((r): EvidenceRow => ({
+  const rows = matchItems(tests?.items ?? [], shown, runVerdict).rows.map((r): EvidenceRow => ({
     item: r.item.index, text: r.item.text, auto: r.item.auto, group: r.item.group, result: r.result,
     screenshot: r.step?.screenshot ?? null, error: r.step?.error ?? null, unverified: r.unverified,
   }))

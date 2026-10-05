@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { RUN_LINE_PREFIX, applyEvent, finishRun, isRunning, newRunState, parseRunLine, specInApp } from './test-run-events.ts'
+import { RUN_LINE_PREFIX, applyEvent, finishChecking, finishRun, isRunning, newRunState, parseRunLine, specInApp, startChecking } from './test-run-events.ts'
 
 const line = (o: unknown) => `${RUN_LINE_PREFIX}${JSON.stringify(o)}`
 assert.deepEqual(parseRunLine(line({ type: 'step-begin', index: 1, name: 'Open' })), { type: 'step-begin', index: 1, name: 'Open' })
@@ -47,4 +47,19 @@ assert.equal(specInApp('apps/api/e2e/x.spec.ts', 'apps/web'), null)
 assert.equal(specInApp('apps/web', 'apps/web'), null)
 assert.equal(specInApp('e2e/../../etc/x.spec.ts', '.'), null)
 assert.equal(specInApp('/etc/x.spec.ts', '.'), null)
+// R063: passed → checking → passed with the steps that passed on a blank page
+{
+  const checking = startChecking(passed)
+  assert.deepEqual([checking.state, checking.finishedAt, isRunning(checking)], ['checking', null, true])
+  const blank = [
+    { type: 'step-end' as const, index: 1, name: 'Open', status: 'passed' as const, error: null },
+    { type: 'step-end' as const, index: 2, name: 'Click', status: 'failed' as const, error: 'x' },
+    { type: 'end' as const, status: 'failed' },
+  ]
+  const done = finishChecking(checking, { cancelled: false, blankEvents: blank, now: 'm' })
+  assert.deepEqual([done.state, done.blankPassed, done.finishedAt, done.steps.length], ['passed', ['Open'], 'm', 2])
+  assert.equal(finishChecking(checking, { cancelled: false, blankEvents: blank.slice(0, 1), now: 'm' }).blankPassed, null, 'no end event = not checked')
+  assert.equal(finishChecking(checking, { cancelled: true, blankEvents: blank, now: 'm' }).state, 'cancelled')
+  assert.equal(passed.blankPassed, null)
+}
 console.log('ok test-run-events')

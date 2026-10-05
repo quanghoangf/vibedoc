@@ -22,9 +22,10 @@
 
 import { test as base, expect as baseExpect } from '@playwright/test'
 import { execFileSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs'
+import os from 'os'
 import path from 'path'
-import { newRunId, parseRunManifest, projectKey, runDir, stepFile } from '../lib/runs-paths.js'
+import { newRunId, parseRunHonesty, parseRunManifest, projectKey, runDir, stepFile } from '../lib/runs-paths.js'
 import { parseKeep, planPrune } from '../lib/runs-retention.js'
 import { parseManualTests } from '../lib/manual-tests.js'
 import { formatEvidence } from '../lib/evidence.js'
@@ -109,6 +110,35 @@ function counted<E extends typeof baseExpect>(e: E): E {
 export const expect = counted(baseExpect)
 
 /**
+ * R063 blank-app check: with VIBEDOC_BLANK=1 every document request gets an empty page and nothing is recorded;
+ * the steps that still pass go into `honesty.json` of the task's newest finished run (they prove nothing about
+ * the app). VibeDoc runs this pass after each passing Run.
+ */
+const BLANK = process.env.VIBEDOC_BLANK === '1'
+const BLANK_PAGE = '<!doctype html><title>blank</title>'
+
+function readHonesty(dir: string) {
+  try {
+    return parseRunHonesty(readFileSync(path.join(dir, 'honesty.json'), 'utf8'))
+  } catch {
+    return null // not checked
+  }
+}
+
+function writeHonesty(run: Run, steps: RunStep[]): void {
+  const taskDir = path.dirname(runDir(run.project, run.taskId, run.runId))
+  try {
+    const newest = readdirSync(taskDir).filter(id => RUN_ID.test(id) && existsSync(path.join(taskDir, id, 'run.json'))).sort().pop()
+    if (!newest) return
+    const blankPassed = steps.filter(s => s.status === 'passed').map(s => s.name)
+    writeFileSync(path.join(taskDir, newest, 'honesty.json'), JSON.stringify({ checkedAt: new Date().toISOString(), blankPassed }, null, 2) + '\n')
+    writeEvidence({ ...run, dir: path.join(taskDir, newest), runId: newest })
+  } catch (e) {
+    console.warn(`vibedoc: could not write honesty.json in ${taskDir}: ${e instanceof Error ? e.message : e}`)
+  }
+}
+
+/**
  * Rewrite `<taskDir>/EVIDENCE.md` (R060) from the kept runs and the task file's checklist. Only the fixture writes
  * it; VibeDoc formats the same doc on read. Never fails the test.
  */
@@ -123,7 +153,8 @@ function writeEvidence(run: Run): void {
     const runs = readdirSync(taskDir).filter(id => RUN_ID.test(id)).sort().reverse()
       .map(id => { try { return parseRunManifest(readFileSync(path.join(taskDir, id, 'run.json'), 'utf8')) } catch { return null } })
       .filter((r): r is RunManifest => r !== null)
-    writeFileSync(path.join(taskDir, 'EVIDENCE.md'), formatEvidence({ taskId: run.taskId, title, items: tests?.items ?? [], spec: tests?.spec ?? null, runs, verdict: s => stepVerdict(s) }))
+      .map(r => { const h = readHonesty(path.join(taskDir, r.runId)); return h ? { ...r, honesty: h } : r })
+    writeFileSync(path.join(taskDir, 'EVIDENCE.md'), formatEvidence({ taskId: run.taskId, title, items: tests?.items ?? [], spec: tests?.spec ?? null, runs, verdict: (s, r) => stepVerdict(s, !!r.honesty?.blankPassed.includes(s.name)) }))
   } catch (e) {
     console.warn(`vibedoc: could not write EVIDENCE.md in ${taskDir}: ${e instanceof Error ? e.message : e}`)
   }
@@ -135,6 +166,12 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
   vibedocRun: async ({ vibedocTask }, provide) => {
     const taskId = vibedocTask || process.env.VIBEDOC_TASK_ID || 'no-task'
     const project = projectKey(projectRoot())
+    if (BLANK) {
+      const dir = mkdtempSync(path.join(os.tmpdir(), 'vibedoc-blank-'))
+      await provide({ dir, runId: newRunId(), taskId, project, startedAt: new Date().toISOString() })
+      rmSync(dir, { recursive: true, force: true })
+      return
+    }
     let at = new Date()
     mkdirSync(path.dirname(runDir(project, taskId, newRunId(at))), { recursive: true })
     // Two runs of one task in the same second (or parallel workers): the exclusive mkdir picks the next free second
@@ -153,12 +190,17 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
   },
 
   contextOptions: async ({ contextOptions, vibedocRun }, provide) => {
-    await provide({ ...contextOptions, recordVideo: { dir: vibedocRun.dir } })
+    await provide(BLANK ? contextOptions : { ...contextOptions, recordVideo: { dir: vibedocRun.dir } })
   },
 
   // Auto, so every test gets a video + run.json even without steps. Torn down before `page`, so it can close it.
   step: [async ({ page, vibedocRun }, provide, testInfo) => {
     const steps: RunStep[] = []
+    if (BLANK) {
+      await page.route('**/*', r => (r.request().resourceType() === 'document'
+        ? r.fulfill({ status: 200, contentType: 'text/html', body: BLANK_PAGE })
+        : r.continue()))
+    }
     // The page (and its video) exists by now, so offsets from here line up with the video's clock
     const t0 = Date.now()
     await provide(async (name, fn) => {
@@ -166,6 +208,7 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
       const startMs = Date.now() - t0
       const screenshot = stepFile(index, name)
       const shoot = async () => {
+        if (BLANK) return null
         try {
           await page.screenshot({ path: path.join(vibedocRun.dir, screenshot), fullPage: true })
           return screenshot
@@ -187,6 +230,7 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
       }
     })
 
+    if (BLANK) return writeHonesty(vibedocRun, steps)
     const video = page.video()
     await page.close()
     let videoFile: string | null = null

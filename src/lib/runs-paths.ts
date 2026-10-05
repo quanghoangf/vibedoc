@@ -16,6 +16,20 @@ export type RunStep = { index: number; name: string; status: 'passed' | 'failed'
 export type RunManifest = {
   runId: string; taskId: string; project: string; startedAt: string; endedAt: string
   status: 'passed' | 'failed'; commit: string | null; video: string | null; steps: RunStep[]
+  /** R063: the blank-app check, from `honesty.json` next to run.json (never in run.json itself) */
+  honesty?: RunHonesty
+}
+
+/** R063 `honesty.json`: the steps that passed again with every page replaced by a blank one. */
+export type RunHonesty = { checkedAt: string; blankPassed: string[] }
+
+export function parseRunHonesty(text: string): RunHonesty | null {
+  try {
+    const h = JSON.parse(text)
+    return h && typeof h.checkedAt === 'string' && Array.isArray(h.blankPassed) && h.blankPassed.every((n: unknown) => typeof n === 'string') ? h : null
+  } catch {
+    return null
+  }
 }
 
 /** Input checks before anything is joined into a runs path (the runs API takes these from the URL). */

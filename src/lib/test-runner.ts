@@ -6,7 +6,7 @@
  */
 
 import { spawn, type ChildProcess } from 'child_process'
-import { applyEvent, finishRun, isRunning, newRunState, parseRunLine, type RunState } from './test-run-events'
+import { applyEvent, finishChecking, finishRun, isRunning, newRunState, parseRunLine, startChecking, type RunEvent, type RunState } from './test-run-events'
 
 const TAIL_LINES = 40
 
@@ -32,7 +32,8 @@ function killGroup(child: ChildProcess | null, signal: NodeJS.Signals = 'SIGTERM
 /** The project's current or last run (kept until the next start). */
 export const runState = (root: string): RunState | null => runs.get(root)?.state ?? null
 
-export type Prepared = { cwd: string; specRel: string; reporter: string; env?: Record<string, string>; done?: () => void }
+/** `blankEnv` (R063): after a passing run, a second pass with these extra env vars (VIBEDOC_BLANK=1); none = skip. */
+export type Prepared = { cwd: string; specRel: string; reporter: string; env?: Record<string, string>; blankEnv?: Record<string, string>; done?: () => void }
 
 /**
  * Starts a run and returns its first state (`starting`). `prepare` makes the app reachable (reuse or start it)
@@ -61,33 +62,48 @@ export function startRun(opts: { root: string; taskId: string; spec: string; pre
       prepared.done?.()
       return set(finishRun(entry.state, { code: null, cancelled: true, tail: '', now: new Date().toISOString() }))
     }
-    const child = spawn('npx', ['playwright', 'test', prepared.specRel, `--reporter=list,${prepared.reporter}`], {
-      cwd: prepared.cwd, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, ...prepared.env, FORCE_COLOR: '0', CI: '' },
-    })
-    entry.child = child
-    let partial = ''
-    const onData = (c: Buffer) => {
-      const parts = (partial + c.toString('utf8')).split('\n')
-      partial = parts.pop() ?? ''
-      for (const l of parts) {
-        const e = parseRunLine(l)
-        if (e) set(applyEvent(entry.state, e))
-        else if (l.trim()) {
-          lines.push(l)
-          if (lines.length > TAIL_LINES) lines.shift()
+    // One Playwright pass; its reporter events go to `onEvent`, other output to the tail
+    const pass = (env: Record<string, string> | undefined, onEvent: (e: RunEvent) => void) => new Promise<{ code: number | null; error?: string }>((resolve) => {
+      const child = spawn('npx', ['playwright', 'test', prepared.specRel, `--reporter=list,${prepared.reporter}`], {
+        cwd: prepared.cwd, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, ...prepared.env, ...env, FORCE_COLOR: '0', CI: '' },
+      })
+      entry.child = child
+      let partial = ''
+      const onData = (c: Buffer) => {
+        const parts = (partial + c.toString('utf8')).split('\n')
+        partial = parts.pop() ?? ''
+        for (const l of parts) {
+          const e = parseRunLine(l)
+          if (e) onEvent(e)
+          else if (l.trim()) {
+            lines.push(l)
+            if (lines.length > TAIL_LINES) lines.shift()
+          }
         }
       }
-    }
-    child.stdout?.on('data', onData)
-    child.stderr?.on('data', onData)
-    let spawnError: string | undefined
-    child.on('error', e => { spawnError = e.message })
-    child.on('close', code => {
-      killGroup(child, 'SIGKILL') // browsers it left behind
-      prepared.done?.()
-      set(finishRun(entry.state, { code, cancelled: entry.cancelled, tail: tail(), now: new Date().toISOString(), error: spawnError }))
+      child.stdout?.on('data', onData)
+      child.stderr?.on('data', onData)
+      let error: string | undefined
+      child.on('error', e => { error = e.message })
+      child.on('close', code => {
+        killGroup(child, 'SIGKILL') // browsers it left behind
+        resolve({ code, error })
+      })
     })
+
+    const first = await pass(undefined, e => set(applyEvent(entry.state, e)))
+    const verdict = finishRun(entry.state, { code: first.code, cancelled: entry.cancelled, tail: tail(), now: new Date().toISOString(), error: first.error })
+    if (verdict.state !== 'passed' || !prepared.blankEnv) {
+      prepared.done?.()
+      return set(verdict)
+    }
+    // R063: the same spec against a blank page; whatever passes again proves nothing about the app
+    set(startChecking(verdict))
+    const blankEvents: RunEvent[] = []
+    await pass(prepared.blankEnv, e => { blankEvents.push(e) })
+    prepared.done?.()
+    set(finishChecking(entry.state, { cancelled: entry.cancelled, blankEvents, now: new Date().toISOString() }))
   })()
 
   return entry.state

@@ -85,6 +85,8 @@ export async function POST(req: NextRequest) {
         return {
           cwd, specRel, reporter,
           env: { VIBEDOC_PROJECT: root, VIBEDOC_TASK_ID: id },
+          // R063: after a pass, run again on a blank page; the fixture writes honesty.json into the new run
+          blankEnv: { VIBEDOC_BLANK: '1' },
           done: () => {
             if (!startedServer) return
             server.stop()

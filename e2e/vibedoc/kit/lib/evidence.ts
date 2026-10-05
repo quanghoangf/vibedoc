@@ -12,7 +12,7 @@ export type ItemResult = 'passed' | 'failed' | 'missing' | 'manual'
 /** `unverified` (R063): why the step doesn't prove the item, from the injected verdict; [] = it does / unknown. */
 export interface EvidenceRow { item: ManualTestItem; result: ItemResult; step: RunStep | null; unverified: string[] }
 /** R063: a step's honesty verdict (stepVerdict in honesty.ts), injected so this lib imports no values. */
-export type StepVerdict = (step: RunStep) => string[]
+export type StepVerdict = (step: RunStep, run: RunManifest) => string[]
 
 const norm = (s: string) => s.trim().replace(/\s+/g, ' ')
 
@@ -27,7 +27,7 @@ export function matchItems(items: ManualTestItem[], run: RunManifest | null, ver
     const at = left.findIndex(s => norm(s.name) === norm(item.text))
     if (at < 0) return { item, result: 'missing', step: null, unverified: [] }
     const [step] = left.splice(at, 1)
-    return { item, result: step.status, step, unverified: verdict?.(step) ?? [] }
+    return { item, result: step.status, step, unverified: (run && verdict?.(step, run)) || [] }
   })
   return { rows, extra: left }
 }
@@ -81,7 +81,7 @@ export function formatEvidence({ taskId, title, items, spec, runs, runId, src = 
 
   if (run) {
     const passed = run.steps.filter(s => s.status === 'passed').length
-    const unverified = verdict ? run.steps.filter(s => verdict(s).length).length : 0
+    const unverified = verdict ? run.steps.filter(s => verdict(s, run).length).length : 0
     const bits = [
       `**${GLYPH[run.status]} ${run.status}**`,
       `${passed}/${run.steps.length} steps`,
@@ -114,7 +114,7 @@ export function formatEvidence({ taskId, title, items, spec, runs, runId, src = 
   }
   if (run && extra.length) {
     out.push('', rows.length ? '### Steps not in the checklist' : '## Steps')
-    for (const s of extra) out.push(`- ${GLYPH[s.status]} ${s.name}`, ...stepBlock(s, run.runId, src, s.name, verdict?.(s) ?? []))
+    for (const s of extra) out.push(`- ${GLYPH[s.status]} ${s.name}`, ...stepBlock(s, run.runId, src, s.name, verdict?.(s, run) ?? []))
   }
 
   if (runs.length) {

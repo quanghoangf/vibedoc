@@ -1,8 +1,12 @@
 # T168: Blank-app check after a passing Run
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R063 — Honest tests
 **Size:** M (2–3 hrs)
 **Depends on:** T167
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 A test that still passes when the app is gone proves nothing. After every passing Run from VibeDoc, the spec runs once more against a blank page, and every step that passes again is flagged **passes without the app**.
@@ -49,3 +53,14 @@ pnpm lint && pnpm build
 curl -s -XPOST localhost:3000/api/tasks/run -H 'content-type: application/json' -d '{"id":"T155"}'; sleep 25
 cat ~/.vibedoc/runs/vibedoc/T155/$(ls ~/.vibedoc/runs/vibedoc/T155 | grep -E '^[0-9]{8}T' | tail -1)/honesty.json
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Run T155 from /manual-tests (or `POST /api/tasks/run {id:"T155"}`) → GET /api/tasks/run goes running → checking → passed with `blankPassed: []`; the new run dir has honesty.json `{ blankPassed: [] }` and no extra run folder appears
+- [ ] A kit spec whose step only uses `page.setContent`: run it, then `VIBEDOC_BLANK=1 npx playwright test <spec>` → that step lands in honesty.json `blankPassed`, and EVIDENCE.md / the Evidence view show `⚠️ unverified: passes without the app` (agent checked with a throwaway spec, since removed)
+- [ ] Stop during the checking phase → cancelled; the first pass's run stays (run.json, no honesty.json); no playwright process is left
+- [ ] A failing Run never starts the blank pass
+### Regression risk
+- [ ] Running a spec from a shell without VIBEDOC_BLANK records exactly as before (video, screenshots, run.json, EVIDENCE.md)
+- [ ] The Run strip still works while the run is in `checking` (it reads as still running until T170 adds its own message)
