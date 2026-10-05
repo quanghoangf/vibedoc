@@ -1,6 +1,6 @@
 // Self-check for task review history. Run: node src/lib/review.check.mts
 import assert from 'node:assert/strict'
-import { REVIEWABLE, appendReviewEntry, formatReviewBody, latestReview, parseReviewMarks, reviewHistory } from './review.ts'
+import { REVIEWABLE, appendReviewEntry, formatReviewBody, latestReview, parseReviewMarks, reviewHistory, summarizeMarks } from './review.ts'
 
 const task = '# T001: First\n**Status:** 👀 Review\n\n## Goal\nDo it.\n'
 
@@ -64,6 +64,13 @@ assert.equal(latestReview(quoted), null)
   assert.equal(formatReviewBody('', '20261012T094500Z', [], 5), 'Run 20261012T094500Z\nAll 5 steps reviewed')
   // Old entries (plain note) parse with no marks
   assert.deepEqual(parseReviewMarks('The plan card does not scroll.'), { marks: [] })
+}
+
+// R062: card chip summary
+{
+  const m = (item: number, kind: 'doubt' | 'failed') => ({ item, step: `S${item}`, kind })
+  assert.deepEqual(summarizeMarks([m(4, 'doubt'), m(1, 'failed'), m(2, 'doubt'), m(0, 'doubt')]), { failed: 1, doubt: 3, steps: ['S0', 'S1', 'S2'], more: 1 })
+  assert.deepEqual(summarizeMarks([]), { failed: 0, doubt: 0, steps: [], more: 0 })
 }
 
 console.log('review: ok')

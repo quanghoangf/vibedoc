@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Bot, CornerDownRight, CornerUpLeft, FlaskConical, Loader2, MoreHorizontal, PanelRightOpen, Play, Trash2 } from "lucide-react"
+import { Bot, Check, CornerDownRight, CornerUpLeft, FlaskConical, Loader2, MoreHorizontal, PanelRightOpen, Play, Trash2, X } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/context/AppContext"
 import { deleteTaskWithUndo } from "./task-api"
@@ -14,7 +14,7 @@ import { useTestRun } from "@/components/manual-tests/useTestRun"
 import { isRunning } from "@/lib/test-run-events"
 import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
-import { latestReview } from "@/lib/review"
+import { latestReview, summarizeMarks } from "@/lib/review"
 import { epicOf, sizeOf, type PropertyKey } from "@/lib/board-views"
 
 const ALL_PROPERTIES: PropertyKey[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "owner"]
@@ -44,6 +44,8 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
   const deps = show("deps") ? task.dependsOn.match(/\bT\d+\b/g) ?? [] : []
   const tests = show("tests") ? task.manualTests : null
   const changesRequested = sentBack?.outcome === "changes requested"
+  // R062: a send back with flagged steps says how many, and names them on hover
+  const marked = changesRequested && sentBack.marks.length ? summarizeMarks(sentBack.marks) : null
 
   return (
     <div
@@ -83,7 +85,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
 
       <p className={cn("mt-1 line-clamp-2 text-[13px] font-medium leading-snug", done ? "text-muted" : "text-txt")}>{task.title}</p>
 
-      {(epic || changesRequested || deps.length > 0 || tests) && (
+      {(epic || changesRequested || deps.length > 0 || tests || (task.status === "review" && task.lastRun)) && (
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
           {epic && (
             <span className="inline-flex min-w-0 max-w-full items-center gap-1 text-[11px] text-muted" title={task.phase}>
@@ -93,11 +95,32 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
           )}
           {changesRequested && (
             <span
-              title={sentBack?.note}
+              title={marked
+                ? `Flagged: ${[...marked.steps, ...(marked.more ? [`+${marked.more} more`] : [])].join(" · ")}`
+                : sentBack?.note}
               className="inline-flex items-center gap-1 rounded-sm border border-amber/40 bg-amber/5 px-1.5 py-0.5 text-[10px] text-amber"
             >
               <CornerUpLeft className="size-3" aria-hidden /> changes requested
+              {marked && <> · {marked.failed + marked.doubt} {marked.failed + marked.doubt === 1 ? "step" : "steps"}</>}
             </span>
+          )}
+          {task.status === "review" && task.lastRun && (
+            <Link
+              href={`/manual-tests?tab=all&task=${task.id}&view=evidence`}
+              draggable={false}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+              onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
+              title="Last run · open the evidence"
+              className={cn(
+                "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
+                task.lastRun.status === "passed" ? "border-teal/30 bg-teal/5 text-teal" : "border-danger/40 text-danger",
+              )}
+            >
+              {task.lastRun.status === "passed"
+                ? <><Check className="size-3" aria-hidden /> {task.lastRun.passed}/{task.lastRun.steps}</>
+                : <><X className="size-3" aria-hidden /> {task.lastRun.steps - task.lastRun.passed} failed</>}
+            </Link>
           )}
           {deps.length > 0 && (
             <span title={`Depends on ${deps.join(", ")}`} className="inline-flex items-center gap-1 font-mono text-[10px] text-muted">

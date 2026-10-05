@@ -82,6 +82,20 @@ export function parseReviewMarks(body: string): { runId?: string; marks: ReviewM
   return { ...(runId ? { runId } : {}), marks }
 }
 
+/**
+ * R062: a send back's marks for a card chip: counts per kind and the step names in checklist order, at most
+ * `max` named (`more` = how many were left out).
+ */
+export function summarizeMarks(marks: ReviewMark[], max = 3): { failed: number; doubt: number; steps: string[]; more: number } {
+  const sorted = [...marks].sort((a, b) => a.item - b.item)
+  return {
+    failed: marks.filter((m) => m.kind === "failed").length,
+    doubt: marks.filter((m) => m.kind === "doubt").length,
+    steps: sorted.slice(0, max).map((m) => m.step),
+    more: Math.max(0, sorted.length - max),
+  }
+}
+
 const ENTRY = /^###\s+(\S+)\s+—\s+(approved|changes requested)\s*$/
 
 /** Lines inside ``` fences, so a quoted example is never taken for the real section. */
