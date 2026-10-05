@@ -283,7 +283,7 @@ test('T138', async ({ page, step }) => {
 })
 ```
 
-Files go to `~/.vibedoc/runs/<project>/<taskId>/<runId>/` (`NN-<step>.png`, `video.webm`, `run.json`), outside the repo. `VIBEDOC_RUNS_DIR` moves that root (set it for the VibeDoc server too). Only the newest `runs.keep` runs per task are kept (`.vibedoc/settings.json`, default 5; `VIBEDOC_RUNS_KEEP` overrides). The task panel's **Runs** section shows the latest run: step thumbnails with ✓/✗, the video, and a picker for older kept runs. More in [Getting started](docs/getting-started.md#6-screenshots-and-video).
+Files go to `~/.vibedoc/runs/<project>/<taskId>/<runId>/` (`NN-<step>.png`, `video.webm`, `run.json`), outside the repo. `VIBEDOC_RUNS_DIR` moves that root (set it for the VibeDoc server too). Only the newest `runs.keep` runs per task are kept (`.vibedoc/settings.json`, default 5; `VIBEDOC_RUNS_KEEP` overrides). To re-run a task's spec without a terminal, press **Run tests** on `/manual-tests` (or Run in the task panel, or the play button on its card): VibeDoc reuses or starts the app, streams each step live, ticks the automated checklist items as they pass, and writes the result into the task (`Auto: passed|failed`). One run per project at a time; Stop cancels it. The task panel's **Runs** section shows the latest run: step thumbnails with ✓/✗, the video, and a picker for older kept runs. More in [Getting started](docs/getting-started.md#6-screenshots-and-video).
 
 ---
 

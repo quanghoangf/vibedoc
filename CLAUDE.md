@@ -37,6 +37,7 @@ src/
       tasks/manual-tests/route.ts ← Tick a task's manual test item
       tasks/review/route.ts ← Approve / send back a task in review
       tasks/[id]/evidence/route.ts ← A task's evidence doc (checklist × kept runs), ?run= for an older run
+      tasks/run/route.ts    ← Run a task's spec from VibeDoc (one per project, live SSE `test_run`); run/cancel stops it
       roadmap/*           ← Roadmap list + create/update/delete/layout
   components/
     roadmap/              ← Roadmap canvas, nodes, editor

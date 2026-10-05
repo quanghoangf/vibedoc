@@ -1,8 +1,12 @@
 # T162: e2e for Run from VibeDoc + docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R061 — Run tests from VibeDoc
 **Size:** M (2–3 hrs)
 **Depends on:** T160, T161
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 Prove the epic end to end: clicking Run replays the spec, the checklist ticks live, and the evidence doc updates. The docs say how it works.
@@ -44,3 +48,13 @@ pnpm lint && pnpm build
 PW_DIR=<dir with node_modules/playwright> node e2e/run-tests.mjs
 PW_DIR=<dir with node_modules/playwright> node e2e/evidence.mjs
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Read README "Screenshots and video" → it explains Run tests on /manual-tests, the panel and the card, live steps, the Auto: write-back, one run per project and Stop
+- [ ] Read CLAUDE.md → the API list has `tasks/run` (+ cancel), and the files VibeDoc writes include the test kit
+- [ ] Read MEMORY.md conventions → one Run from VibeDoc bullet: runner, reporter, kit, write-back, e2e
+- [ ] On a real app of yours with Playwright: open a UI task's card → play → it runs with live steps and the task gets `Auto: passed` (the e2e only covers a fixture app pointed at VibeDoc)
+### Regression risk
+- [ ] `node e2e/evidence.mjs` and `node e2e/manual-tests-review.mjs` parts 1–2 still pass (part 3, board drag, was already failing)
