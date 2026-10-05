@@ -51,6 +51,7 @@ import {
   currentSessionId,
   writeRunEpisode,
   getEvidence,
+  ensureFixtureKit,
   recallEntries,
   relatedEntries,
   getEntriesByIds,
@@ -814,7 +815,10 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const app = await detectFrontend(root);
       const notes = app ? frontendNotes(app, Number(process.env.PORT) || 3000, path.resolve(root) === process.cwd()) : [];
       const [playwright, auth] = await Promise.all([app ? detectPlaywright(root, app) : null, frontendAuthStatus(root)]);
-      return formatFrontend(app, notes, playwright, auth);
+      // R061: specs record screenshots / video / evidence through the fixture kit, written on demand (not in demo)
+      const kit = app && playwright?.installed && !isDemo() ? await ensureFixtureKit(root, app) : null;
+      return formatFrontend(app, notes, playwright, auth) +
+        (kit ? `\n**Test kit:** \`${kit.dir}\` — specs in its parent folder import \`{ test, expect } from '${kit.importPath}'\` and use \`step()\`` : "");
     }
 
     case "vibedoc_get_sessions": {

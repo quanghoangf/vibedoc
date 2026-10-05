@@ -1,7 +1,7 @@
 // Self-check: frontend app detection on fixture dirs. Run: node src/lib/frontend.check.mts
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { applyOverride, cleanOverride, smokeNotes, loginUnavailable, loginUrl, formatSteps, hasChromium, playwrightInstallSteps, playwrightStatus, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
+import { playwrightTestDir, applyOverride, cleanOverride, smokeNotes, loginUnavailable, loginUrl, formatSteps, hasChromium, playwrightInstallSteps, playwrightStatus, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
 
 // Same reads as core.detectFrontend(): root package.json + which files sit next to it.
 const fixture = (name: string) => {
@@ -162,3 +162,12 @@ assert.deepEqual(smokeNotes('http://localhost:3100/login', undefined, true), [],
 assert.match(smokeNotes('http://localhost:3100/', undefined, false).join(), /No saved session/)
 
 console.log('frontend.check: ok')
+
+// R061: testDir from playwright.config
+assert.equal(playwrightTestDir(null), 'e2e')
+assert.equal(playwrightTestDir("export default defineConfig({ testDir: './tests', use: {} })"), 'tests')
+assert.equal(playwrightTestDir('module.exports = { testDir: "e2e/specs/" }'), 'e2e/specs')
+assert.equal(playwrightTestDir('export default { testDir: path.join(__dirname, "x") }'), 'e2e')
+assert.equal(playwrightTestDir("export default { testDir: '../outside' }"), 'e2e')
+assert.equal(playwrightTestDir('export default { use: { baseURL: "x" } }'), 'e2e')
+console.log('ok playwrightTestDir')

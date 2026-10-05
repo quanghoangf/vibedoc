@@ -102,10 +102,10 @@ Agents get the same information from the `vibedoc_get_frontend` MCP tool.
 
 ## 6. Screenshots and video
 
-Browser tests that import `vibedoc/playwright` record what the browser did, so you can see a task working without running anything.
+Browser tests that use VibeDoc's fixture record what the browser did, so you can see a task working without running anything. `vibedoc_get_frontend` (or a Run from VibeDoc) copies the fixture into your app as a **test kit**, `<testDir>/vibedoc/kit/` (`testDir` from `playwright.config.*`, else `e2e`). Commit it with your specs. It uses your app's own `@playwright/test`, so the specs also run without VibeDoc and in CI. It is rewritten only when VibeDoc's version changes. Specs in `<testDir>/vibedoc/` import it:
 
 ```ts
-import { test, expect } from 'vibedoc/playwright'
+import { test, expect } from './kit/testing/playwright-fixture'
 
 test.use({ vibedocTask: 'T138' })
 test('T138', async ({ page, step }) => {
@@ -120,6 +120,7 @@ test('T138', async ({ page, step }) => {
 - **Video and `run.json`.** Every test records `video.webm` and writes `run.json` (status, commit, steps).
 - **Where files go.** `~/.vibedoc/runs/<project>/<taskId>/<runId>/`, outside the repo. The project folder is the project root's folder name.
 - **Env vars.** `VIBEDOC_TASK_ID` instead of `test.use({ vibedocTask })`. `VIBEDOC_RUNS_DIR` moves the runs root (set it for VibeDoc too). `VIBEDOC_PROJECT` is the project root when the tests don't run from it. `VIBEDOC_RUNS_KEEP` overrides `runs.keep`.
+- **Installed `vibedoc` as a dependency?** `import { test, expect } from 'vibedoc/playwright'` is the same fixture.
 - **`runs.keep`.** Only the newest N runs per task are kept: `"runs": { "keep": 5 }` in `.vibedoc/settings.json` (default 5).
 - **See a run.** Open the task: the **Runs** section shows each step's screenshot with ✓ or ✗ (click for the full image and the error), the video, and a picker for the kept runs.
 

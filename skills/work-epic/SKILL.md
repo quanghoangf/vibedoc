@@ -52,9 +52,9 @@ A checklist item a script can check should not wait for a human. After you draft
 
 **Only UI tasks.** Skip this section when the task changed nothing a user sees in the browser (an MCP tool, a CLI, a pure lib, docs). That task keeps an all-manual report and no `spec`.
 
-1. **Read the app.** Call `vibedoc_get_frontend`. Use what it reports, don't guess: **Dir** (the app folder), **URL**, **Playwright** and **Auth**. If it says no frontend is detected or Playwright is not installed, skip the spec and keep the report all-manual (say why in your summary). Don't install Playwright yourself.
+1. **Read the app.** Call `vibedoc_get_frontend`. Use what it reports, don't guess: **Dir** (the app folder), **URL**, **Playwright**, **Auth** and **Test kit** (VibeDoc's fixture, which that call writes into `<testDir>/vibedoc/kit/`; commit it with the spec). If it says no frontend is detected or Playwright is not installed, skip the spec and keep the report all-manual (say why in your summary). Don't install Playwright yourself.
 2. **Decide per item.** An item is automated only if its expected result (after `→`) can become a real `expect(...)`: visible text, the URL, an element's state (visible, checked, disabled, focused) or a count. It stays manual when it needs judgement ("looks right", "feels smooth", spacing, colours), an external system (email, payment, another service), or setup unrelated to this task (most **Regression risk** items). When unsure, leave it manual.
-3. **Write the spec** at `<testDir>/vibedoc/<task file name>.spec.ts` (`plans/tasks/T012-theme-toggle.md` → `T012-theme-toggle.spec.ts`), where `testDir` comes from the app's `playwright.config.*` (relative to the config file), else `e2e`, inside the app **Dir**. One spec per task, one `test()` per spec, one `test.step('<item text>')` per automated item, in checklist order, with the item text copied without the `🤖`. Writing again for the same task replaces the file.
+3. **Write the spec** at `<testDir>/vibedoc/<task file name>.spec.ts` (`plans/tasks/T012-theme-toggle.md` → `T012-theme-toggle.spec.ts`), where `testDir` comes from the app's `playwright.config.*` (relative to the config file), else `e2e`, inside the app **Dir**. Import `test` and `expect` from the **Test kit** path (`./kit/testing/playwright-fixture`), not from `@playwright/test`, and set `test.use({ vibedocTask: '<task id>' })`: the kit records a screenshot per step, a video and the task's evidence doc. One spec per task, one `test()` per spec taking `{ page, step }`, one `await step('<item text>', async () => …)` per automated item, in checklist order, with the item text copied without the `🤖` (VibeDoc matches steps to items by this text). Writing again for the same task replaces the file.
 4. **Mark the items.** Prefix exactly the automated items with `🤖 ` in the report (`- [ ] 🤖 Open /settings → …`). Manual items keep no mark.
 5. **Link it.** Pass `"spec": "<path>"` to `vibedoc_update_task`, relative to the repo root (with the app **Dir** in front in a monorepo, e.g. `apps/web/e2e/vibedoc/T012-theme-toggle.spec.ts`). The task's checklist header then shows the spec.
 
@@ -64,7 +64,7 @@ Then run it ([Run the spec](#run-the-spec)).
 
 - Locators by role, label or text (`getByRole`, `getByLabel`, `getByText`, `getByTestId` as a last resort), never CSS or XPath selectors.
 - No fixed sleeps (`waitForTimeout`, `setTimeout`). Playwright's `expect` and locators already wait.
-- Every `test.step` ends with an `expect`. A step without one proves nothing.
+- Every `step` ends with an `expect`. A step without one proves nothing.
 - Navigate with paths (`page.goto('/settings')`). If the config has no `use.baseURL`, add `test.use({ baseURL: '<URL from vibedoc_get_frontend>' })`.
 - Never script a login (no typed passwords, no secrets in the spec). If **Auth** shows a saved session, reuse it: `test.use({ storageState: '<path to .vibedoc/auth/storage-state.json, relative to the app Dir>' })` (Playwright resolves a relative path from the folder the test runs in, so it is run from the app **Dir**). Without a saved session, leave `storageState` out: a missing file fails every test. If the page needs a login and no session is saved, keep those items manual.
 - Assert this task's change only. Don't create or delete data the test doesn't own.
@@ -96,21 +96,21 @@ becomes this report (three items automated; the visual check and the unrelated r
 and `e2e/vibedoc/T012-theme-toggle.spec.ts` (Auth showed a saved session, so the spec reuses it):
 
 ```ts
-import { test, expect } from '@playwright/test'
+import { test, expect } from './kit/testing/playwright-fixture'
 
-test.use({ baseURL: 'http://localhost:5173', storageState: '.vibedoc/auth/storage-state.json' })
+test.use({ baseURL: 'http://localhost:5173', storageState: '.vibedoc/auth/storage-state.json', vibedocTask: 'T012' })
 
-test('T012 Theme toggle on settings', async ({ page }) => {
-  await test.step('Open /settings → a "Theme" switch shows, set to Dark', async () => {
+test('T012 Theme toggle on settings', async ({ page, step }) => {
+  await step('Open /settings → a "Theme" switch shows, set to Dark', async () => {
     await page.goto('/settings')
     await expect(page.getByRole('switch', { name: 'Theme' })).toBeVisible()
     await expect(page.getByText('Dark', { exact: true })).toBeVisible()
   })
-  await test.step('Click the Theme switch → the switch reads Light', async () => {
+  await step('Click the Theme switch → the switch reads Light', async () => {
     await page.getByRole('switch', { name: 'Theme' }).click()
     await expect(page.getByText('Light', { exact: true })).toBeVisible()
   })
-  await test.step('Reload → Light is still selected', async () => {
+  await step('Reload → Light is still selected', async () => {
     await page.reload()
     await expect(page.getByText('Light', { exact: true })).toBeVisible()
   })

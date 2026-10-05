@@ -1,6 +1,6 @@
 // T155: Evidence view on /manual-tests. Reads T138's kept runs (needs 2+: run e2e/fixtures/capture-demo.spec.ts twice
 // with VIBEDOC_TASK_ID=T138) on the VibeDoc dev server at :3000.
-import { test, expect } from '../../src/testing/playwright-fixture'
+import { test, expect } from './kit/testing/playwright-fixture'
 
 test.use({ baseURL: 'http://localhost:3000', vibedocTask: 'T155' })
 

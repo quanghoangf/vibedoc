@@ -333,3 +333,18 @@ export function smokeNotes(finalUrl: string, loginPath: string | undefined, hasS
   }
   return notes
 }
+
+/**
+ * R061: `testDir` from a playwright.config's text (relative to the config), else Playwright's default `e2e`
+ * convention VibeDoc uses for specs. A plain string literal only; anything computed falls back.
+ */
+export function playwrightTestDir(configText: string | null): string {
+  const m = configText?.match(/\btestDir\s*:\s*(['"`])([^'"`$]+)\1/)
+  const dir = m?.[2].trim().replace(/\\/g, '/').replace(/^\.\/+/, '').replace(/\/+$/, '')
+  return dir && !dir.startsWith('/') && !dir.split('/').includes('..') ? dir : 'e2e'
+}
+
+/** R061: the fixture kit's files, relative to VibeDoc's install dir and to `<testDir>/vibedoc/kit/` alike. */
+export const FIXTURE_KIT_FILES = ['testing/playwright-fixture.ts', 'lib/runs-paths.ts', 'lib/runs-retention.ts', 'lib/manual-tests.ts', 'lib/evidence.ts']
+/** How a spec in `<testDir>/vibedoc/` imports the kit. */
+export const FIXTURE_KIT_IMPORT = './kit/testing/playwright-fixture'

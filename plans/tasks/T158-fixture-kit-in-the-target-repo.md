@@ -1,8 +1,12 @@
 # T158: Fixture kit in the target repo + /work-epic specs use it
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R061 — Run tests from VibeDoc
 **Size:** M (2–3 hrs)
 **Depends on:** T157
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 Every spec an agent writes records step screenshots, video and evidence, so a Run from VibeDoc shows proof and not just pass/fail. Today `/work-epic` writes plain `@playwright/test` specs, which record nothing.
@@ -56,3 +60,15 @@ pnpm lint && pnpm build
 <scratchpad>/mcp.sh vibedoc_get_frontend '{}' | grep 'Test kit'
 npx playwright test e2e/vibedoc/T155-evidence-tab-in-test-review.spec.ts
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Delete `e2e/vibedoc/kit/`, then ask an agent to call `vibedoc_get_frontend` → the reply ends with a **Test kit:** line naming `e2e/vibedoc/kit` and the import path, and the folder holds testing/playwright-fixture.ts, lib/{runs-paths,runs-retention,manual-tests,evidence}.ts and VERSION (VibeDoc's version)
+- [ ] Call it again → no kit file changes (`git status` clean for the kit); put another version in VERSION → the next call rewrites the kit
+- [ ] `npx playwright test e2e/vibedoc/T155-evidence-tab-in-test-review.spec.ts` (it now imports the kit) → passes and a new run with screenshots, video and EVIDENCE.md lands in ~/.vibedoc/runs/vibedoc/T155/
+- [ ] Open skills/work-epic/SKILL.md → "Write the spec" says to import from the Test kit path with `step()` and `vibedocTask`, and the example spec does the same
+- [ ] In a project with `"type": "module"` and Playwright installed, a spec importing the kit runs and records (checked by the agent in a scratch ESM app)
+### Regression risk
+- [ ] Demo mode: `vibedoc_get_frontend` still answers and writes no kit
+- [ ] `npm pack --dry-run` lists src/testing/*.ts, src/lib/{runs-paths,runs-retention,manual-tests,evidence}.ts and all of dist/lib/, so an npm install can write the kit and run the reporter

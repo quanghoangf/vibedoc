@@ -273,10 +273,10 @@ A session that ends without a `vibedoc_update_memory` handoff still leaves a sum
 
 ## Screenshots and video
 
-Browser tests that import `vibedoc/playwright` record each step's screenshot and a video of the run:
+Browser tests that use VibeDoc's fixture record each step's screenshot and a video of the run. `vibedoc_get_frontend` copies it into your app as a test kit (`<testDir>/vibedoc/kit/`, commit it with the specs; `vibedoc/playwright` is the same fixture for installs that depend on `vibedoc`):
 
 ```ts
-import { test } from 'vibedoc/playwright'
+import { test } from './kit/testing/playwright-fixture'   // a spec in <testDir>/vibedoc/
 test.use({ vibedocTask: 'T138' })            // or env VIBEDOC_TASK_ID
 test('T138', async ({ page, step }) => {
   await step('Open /board → board loads', async () => { await page.goto('/board') })

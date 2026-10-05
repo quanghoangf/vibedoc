@@ -26,6 +26,7 @@ import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuse
 import { parseKeep } from './runs-retention'
 import { isRunFile, isRunId, isRunTaskId, parseRange, parseRunManifest, projectKey, runsRoot, type RunManifest } from './runs-paths'
 import { formatEvidence } from './evidence'
+import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallHit } from './recall'
@@ -38,7 +39,7 @@ import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, repl
 import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
 import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
 import { isDemo } from './demo'
-import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
+import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -301,6 +302,37 @@ export async function testReporterPath(): Promise<string | null> {
     if (await fs.stat(p).then(st => st.isFile(), () => false)) return p
   }
   return null
+}
+
+const PLAYWRIGHT_CONFIGS = ['ts', 'mts', 'js', 'mjs', 'cjs'].map(ext => `playwright.config.${ext}`)
+
+/**
+ * R061: VibeDoc's Playwright fixture copied into the app at `<testDir>/vibedoc/kit/` (TS sources; Playwright
+ * transpiles them and they use the app's own @playwright/test). Specs import FIXTURE_KIT_IMPORT and the kit is
+ * committed with them. Rewritten only when its VERSION differs from VibeDoc's or a file is missing; nothing else
+ * under `<testDir>/vibedoc/` is touched. Null when the app dir is outside the project or the sources are missing.
+ */
+export async function ensureFixtureKit(root: string, app: FrontendApp): Promise<{ dir: string; importPath: string; written: boolean } | null> {
+  const appDir = frontendAppDir(root, app)
+  if (!appDir) return null
+  let config: string | null = null
+  for (const name of PLAYWRIGHT_CONFIGS) {
+    config = await fs.readFile(path.join(appDir, name), 'utf8').catch(() => null)
+    if (config !== null) break
+  }
+  const dir = path.join(appDir, playwrightTestDir(config), 'vibedoc', 'kit')
+  const result = { dir: path.relative(root, dir) || '.', importPath: FIXTURE_KIT_IMPORT }
+  const stamp = await fs.readFile(path.join(dir, 'VERSION'), 'utf8').catch(() => null)
+  const present = await Promise.all(FIXTURE_KIT_FILES.map(f => fs.stat(path.join(dir, f)).then(() => true, () => false)))
+  if (stamp?.trim() === VIBEDOC_VERSION && present.every(Boolean)) return { ...result, written: false }
+  const sources = await Promise.all(FIXTURE_KIT_FILES.map(f => fs.readFile(path.join(process.cwd(), 'src', f), 'utf8').catch(() => null)))
+  if (sources.some(src => src === null)) return null
+  for (const [i, f] of FIXTURE_KIT_FILES.entries()) {
+    await fs.mkdir(path.dirname(path.join(dir, f)), { recursive: true })
+    await fs.writeFile(path.join(dir, f), sources[i]!, 'utf8')
+  }
+  await fs.writeFile(path.join(dir, 'VERSION'), `${VIBEDOC_VERSION}\n`, 'utf8')
+  return { ...result, written: true }
 }
 
 /** Sets (or, for null / all-empty, removes) `frontend` in .vibedoc/settings.json; every other key is kept. */

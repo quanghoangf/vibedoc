@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { detectFrontend, detectPlaywright, frontendAppDir, getTask, readFrontendStartTimeoutSec, rootFrom, testReporterPath } from '@/lib/core'
+import { detectFrontend, detectPlaywright, ensureFixtureKit, frontendAppDir, getTask, readFrontendStartTimeoutSec, rootFrom, testReporterPath } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
 import { runState, startRun } from '@/lib/test-runner'
@@ -56,6 +56,9 @@ export async function POST(req: NextRequest) {
   if (pw.browsersInstalled === false) return NextResponse.json({ error: 'Chromium isn’t installed for Playwright: Install it first' }, { status: 409 })
   const reporter = await testReporterPath()
   if (!reporter) return NextResponse.json({ error: 'VibeDoc’s test reporter is missing from this install' }, { status: 500 })
+
+  // Specs import the kit from the repo: make sure it's there and current before Playwright loads them
+  await ensureFixtureKit(root, app)
 
   try {
     const state = startRun({
