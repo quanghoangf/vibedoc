@@ -2,7 +2,7 @@
 **Parent:** R004
 **Status:** planned
 **Order:** 90
-**Tasks:** —
+**Tasks:** T176, T177, T178, T179, T180
 
 A failing test goes straight back to the agent with the evidence, and flaky tests are recognised instead of crying wolf.
 
