@@ -193,7 +193,9 @@ function TestReview() {
   const showDetail = !!selected && !!selectedRow
   // ?full=1: the selected task as a page (list and filters fold away); e or Collapse brings the list back
   const full = showDetail && params.get("full") === "1"
-  const view: DetailView = params.get("view") === "evidence" ? "evidence" : "review"
+  // R062: a task waiting in review opens on its proof; an explicit ?view= wins (v toggles both ways)
+  const defaultView: DetailView = selected?.task.status === "review" ? "evidence" : "review"
+  const view: DetailView = params.get("view") === "evidence" || params.get("view") === "review" ? params.get("view") as DetailView : defaultView
 
   // Page keys (TEST_REVIEW_KEYS): j/k (↓/↑ in the list) walk, x ticks, a a approves, s sends back, f next failure, / searches.
   // Capture phase so a / s / / win over the layout's page jumps; no deps: it reads this render's state.
@@ -247,7 +249,7 @@ function TestReview() {
           break
         case "o": if (selected) setParams({ full: full ? null : "1" }); break
         case "p": detail.current?.querySelector<HTMLButtonElement>("[data-run]:not(:disabled)")?.click(); break
-        case "v": if (selected) setParams({ view: view === "evidence" ? null : "evidence", run: null }); break
+        case "v": if (selected) { const next = view === "evidence" ? "review" : "evidence"; setParams({ view: next === defaultView ? null : next, run: null }) } break
         default: return
       }
       e.preventDefault()
@@ -405,7 +407,7 @@ function TestReview() {
               onExpand={(on) => setParams({ full: on ? "1" : null })}
               onClose={close}
               view={view}
-              onView={(v) => setParams({ view: v === "evidence" ? "evidence" : null, run: null })}
+              onView={(v) => setParams({ view: v === defaultView ? null : v, run: null })}
               run={params.get("run")}
               onRun={(r) => setParams({ run: r })}
               onDecided={() => {

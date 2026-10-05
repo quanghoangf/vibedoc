@@ -1,8 +1,12 @@
 # T163: Approve / Send back in the Evidence view; review tasks open on Evidence
-**Status:** 📋 Ready
+**Status:** ✅ Done
 **Phase:** R062 — Evidence-based review
 **Size:** M
 **Depends on:** T162
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
+**Done:** 2026-10-05
 
 ## Goal
 A task in review can be approved or sent back right where the evidence is, and every way into a review task (the Review column card, the task panel, /manual-tests) lands on the Evidence view first.
@@ -44,3 +48,16 @@ A task in review can be approved or sent back right where the evidence is, and e
 pnpm lint && pnpm build
 # move a task with runs (e.g. T155) to review via vibedoc_update_task, open /manual-tests?task=T155 → Evidence + actions
 ```
+
+## Manual tests
+_2026-10-05 — ai_
+### Steps
+- [ ] Move a task with runs (e.g. T155) to review, open /manual-tests?tab=all&task=T155 → it opens on Evidence (no view param) with "Waiting for your review · Reviewing the newest run · passed · <time> · <commit>" and Approve / Send back… on top; there is no second bar at the bottom
+- [ ] Pick an older run in History → an amber line "You're looking at an older run" appears in the bar
+- [ ] Send back… with an empty note → the Send back button stays disabled; type a note and send → the task goes to todo with a `changes requested` entry carrying the note, and the bar disappears
+- [ ] Approve from the bar → the task is done, `— approved` is appended under ## Review, the bar disappears without a reload
+- [ ] Board → click a Review card → the panel's review actions have "Open evidence →", which lands on the Evidence view
+- [ ] Press v on a review task → Review view (?view=review); v again → back to Evidence (no param)
+### Regression risk
+- [ ] A task that isn't in review still opens on the Review view, and its Evidence view has no action bar; a failed run on a done task still shows the bottom decision bar in the Review view
+- [ ] Key a (twice) still approves from the Evidence view's bar

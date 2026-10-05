@@ -150,7 +150,18 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
               </button>
             </div>}
 
-            {task.status === "review" && !demo && <ReviewActions key={`review-${task.id}`} taskId={task.id} onDone={onClose} />}
+            {task.status === "review" && !demo && (
+              <ReviewActions key={`review-${task.id}`} taskId={task.id} onDone={onClose}>
+                {/* R062: decide from the proof */}
+                <Link
+                  href={`/manual-tests?tab=all&task=${encodeURIComponent(task.id)}&view=evidence`}
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1.5 rounded-sm border border-accent/50 bg-accent/15 px-2.5 py-1 text-xs text-txt transition-colors hover:bg-accent/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  Open evidence →
+                </Link>
+              </ReviewActions>
+            )}
 
             {/* Body, then activity: one scroll area */}
             <div className="flex-1 overflow-y-auto">

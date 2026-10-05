@@ -54,6 +54,10 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
     { label: "Steps", items: manual.filter((i) => i.group === "steps") },
     { label: "Regression risk", items: manual.filter((i) => i.group === "regression") },
   ].filter((g) => g.items.length)
+  // R062: in the Evidence view a task in review is decided on top of the proof, not in the bottom bar
+  const reviewHere = view === "evidence" && task.status === "review" && !demo
+  const failedStep = task.lastRun?.status === "failed" ? task.lastRun.failed : null
+  const failedNote = failedStep ? sendBackNote(failedStep) : ""
   // R061: this task's Run from VibeDoc (live, or just finished until dismissed)
   const testRun = useTestRun()
   const [dismissed, setDismissed] = useState<string | null>(null)
@@ -175,7 +179,14 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
 
       {view === "evidence" ? (
         <section aria-label="Evidence" className="px-5 py-5 sm:px-7">
-          <TestEvidence key={task.id} taskId={task.id} latest={task.lastRun?.runId ?? null} run={run} onRun={onRun} />
+          <TestEvidence
+            key={task.id}
+            taskId={task.id}
+            latest={task.lastRun?.runId ?? null}
+            run={run}
+            onRun={onRun}
+            review={reviewHere ? { initialNote: failedNote, onDecided } : undefined}
+          />
         </section>
       ) : <>
       {showRun && (
@@ -222,7 +233,7 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
       </section>
       </>}
 
-      {decides && <Decision task={task} row={row} onDecided={onDecided} />}
+      {decides && !reviewHere && <Decision task={task} row={row} onDecided={onDecided} />}
     </article>
   )
 }

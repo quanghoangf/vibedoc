@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { timeAgo } from "@/components/activity/ActivityEventRow"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
+import { ReviewActions } from "@/components/board/TaskDetailPanel"
 
 type Evidence = { markdown: string; runId: string | null; runs: { runId: string; status: "passed" | "failed"; startedAt: string; commit: string | null }[] }
 
@@ -15,7 +16,14 @@ type Evidence = { markdown: string; runId: string | null; runs: { runId: string;
  * `latest` = the board's newest run id, so a new run refetches. A screenshot click opens it large; media links open
  * in a new tab.
  */
-export function TestEvidence({ taskId, latest, run, onRun }: { taskId: string; latest: string | null; run: string | null; onRun: (runId: string | null) => void }) {
+export function TestEvidence({ taskId, latest, run, onRun, review }: {
+  taskId: string
+  latest: string | null
+  run: string | null
+  onRun: (runId: string | null) => void
+  /** R062: the task waits in review → Approve / Send back on top of the proof (prefilled note, extra controls) */
+  review?: { initialNote: string; onDecided: () => void; children?: ReactNode }
+}) {
   const { rootParam } = useApp()
   const [data, setData] = useState<{ key: string; evidence: Evidence | null; error: string | null } | null>(null)
   const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null)
@@ -35,8 +43,33 @@ export function TestEvidence({ taskId, latest, run, onRun }: { taskId: string; l
   const loading = data?.key !== key
   const evidence = data?.evidence ?? null
 
+  const shown = evidence?.runs.find((r) => r.runId === evidence.runId) ?? null
+  const older = !!shown && evidence?.runs[0]?.runId !== shown.runId
+
   return (
     <div className="flex flex-col gap-4">
+      {review && (
+        <ReviewActions
+          key={taskId}
+          taskId={taskId}
+          onDone={review.onDecided}
+          initialNote={review.initialNote}
+          className="-mx-5 -mt-5 rounded-none border-b border-border px-5 py-3 sm:-mx-7 sm:px-7"
+          prompt={
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <p className="text-[13px] font-medium text-txt">Waiting for your review</p>
+              <p className="text-xs text-muted">
+                {shown
+                  ? <>Reviewing the {older ? "older" : "newest"} run · <span className={shown.status === "passed" ? "text-teal" : "text-danger"}>{shown.status}</span> · <span className="font-mono" title={shown.startedAt}>{timeAgo(shown.startedAt)}</span>{shown.commit && <> · <code className="font-mono">{shown.commit.slice(0, 7)}</code></>}</>
+                  : loading ? "Loading the evidence…" : "No recorded run: decide from the checklist."}
+              </p>
+              {older && <p role="note" className="text-xs text-amber">You&apos;re looking at an older run. The newest one is first in History.</p>}
+            </div>
+          }
+        >
+          {review.children}
+        </ReviewActions>
+      )}
       {(evidence?.runs.length ?? 0) > 1 && (
         <nav aria-label="Runs" className="flex flex-col gap-1">
           <h3 className="text-[13px] font-medium text-txt">History <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{evidence!.runs.length}</span></h3>
@@ -79,7 +112,7 @@ export function TestEvidence({ taskId, latest, run, onRun }: { taskId: string; l
       ) : evidence && (
         <div
           className={cn(
-            "min-w-0 transition-opacity duration-(--duration-fast) [&_h1]:hidden [&_ul]:list-none [&_ul]:pl-0 [&_img]:my-2 [&_img]:block [&_img]:max-w-full [&_img]:cursor-zoom-in [&_img]:rounded-md [&_img]:border [&_img]:border-border [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto",
+            "min-w-0 transition-opacity duration-(--duration-fast) [&_h1]:hidden [&_ul]:list-none [&_ul]:pl-0 [&_li]:list-none [&_img]:my-2 [&_img]:block [&_img]:max-w-full [&_img]:cursor-zoom-in [&_img]:rounded-md [&_img]:border [&_img]:border-border [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto",
             loading && "opacity-60",
           )}
           onClick={(e) => {
