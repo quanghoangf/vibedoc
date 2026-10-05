@@ -183,6 +183,8 @@ export function cancelRun(root: string): boolean {
   const entry = runs.get(root)
   if (!entry || !going(entry.state)) return false
   entry.cancelled = true
-  killGroup(entry.child)
+  // SIGKILL, not SIGTERM: with --retries Playwright treats a terminated worker as a failure and retries it, so a
+  // Stop would keep going. Nothing of a stopped run is kept anyway (its half-written run folder is removed).
+  killGroup(entry.child, 'SIGKILL')
   return true
 }

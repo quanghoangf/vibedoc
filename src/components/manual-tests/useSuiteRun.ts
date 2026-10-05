@@ -14,6 +14,8 @@ let snap: Snapshot = { root: null, suite: null }
 const listeners = new Set<() => void>()
 
 function set(suite: SuiteState | null, root = snap.root) {
+  // A late POST response never moves the same suite back to `starting` (SSE may already be past it)
+  if (suite?.state === "starting" && snap.suite?.startedAt === suite.startedAt && snap.suite.state !== "starting" && snap.root === root) return
   snap = { root, suite }
   for (const l of listeners) l()
 }
@@ -49,18 +51,19 @@ export function useSuiteRun() {
     return () => { live = false }
   }, [rootParam])
 
-  const post = useCallback(async (url: string) => {
+  // `keep`: take the response's state; a cancel's response predates the kill (SSE `cancelled` may already be in)
+  const post = useCallback(async (url: string, keep: boolean) => {
     const res = await fetch(`${url}${rootParam}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
     const json = await res.json().catch(() => null)
     if (!res.ok) toast(json?.error ?? `Request failed (${res.status})`)
-    else if (json?.suite) set(json.suite, rootParam)
+    else if (keep && json?.suite) set(json.suite, rootParam)
   }, [rootParam])
 
   const suite = s.root === rootParam ? s.suite : null
   return {
     suite,
     busy: isSuiteRunning(suite),
-    start: () => post("/api/suite/run"),
-    stop: () => post("/api/suite/run/cancel"),
+    start: () => post("/api/suite/run", true),
+    stop: () => post("/api/suite/run/cancel", false),
   }
 }

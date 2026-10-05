@@ -15,6 +15,8 @@ let snap: Snapshot = { root: null, run: null, began: {}, ended: {} }
 const listeners = new Set<() => void>()
 
 function set(run: RunState | null, root = snap.root) {
+  // A late POST response never moves the same run back to `starting` (SSE may already be past it)
+  if (run?.state === "starting" && snap.run?.startedAt === run.startedAt && snap.run.state !== "starting" && snap.root === root) return
   const fresh = !snap.run || !run || snap.run.startedAt !== run.startedAt || snap.root !== root
   const began = fresh ? {} : { ...snap.began }
   const ended = fresh ? {} : { ...snap.ended }
@@ -59,11 +61,13 @@ export function useTestRun() {
     return () => { live = false }
   }, [rootParam])
 
-  const post = useCallback(async (url: string, body: unknown) => {
+  // `keep`: take the response's state. A cancel's response is the state before the kill; the SSE `cancelled`
+  // can land first, so it must not be overwritten by it.
+  const post = useCallback(async (url: string, body: unknown, keep: boolean) => {
     const res = await fetch(`${url}${rootParam}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     const json = await res.json().catch(() => null)
     if (!res.ok) toast(json?.error ?? `Request failed (${res.status})`)
-    else if (json?.run) set(json.run, rootParam)
+    else if (keep && json?.run) set(json.run, rootParam)
   }, [rootParam])
 
   const run = s.root === rootParam ? s.run : null
@@ -73,7 +77,7 @@ export function useTestRun() {
     began: s.began,
     ended: s.ended,
     busy: isRunning(run),
-    start: (taskId: string) => post("/api/tasks/run", { id: taskId }),
-    stop: () => post("/api/tasks/run/cancel", {}),
+    start: (taskId: string) => post("/api/tasks/run", { id: taskId }, true),
+    stop: () => post("/api/tasks/run/cancel", {}, false),
   }
 }
