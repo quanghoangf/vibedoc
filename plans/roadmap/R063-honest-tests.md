@@ -1,6 +1,6 @@
 # R063: Honest tests
 **Parent:** R003
-**Status:** planned
+**Status:** done
 **Order:** 110
 **Tasks:** T167, T168, T169, T170, T171
 
