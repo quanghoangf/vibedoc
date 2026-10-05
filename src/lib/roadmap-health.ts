@@ -6,14 +6,14 @@
 
 import type { RoadmapItem, RoadmapStatus, Task } from './core'
 
-/** What health needs from a task: status for progress, due for at-risk. */
-export type TaskInfo = Pick<Task, 'status' | 'due'>
+/** What health needs from a task: status for progress, due for at-risk, covers for scenario coverage (R068). */
+export type TaskInfo = Pick<Task, 'status' | 'due'> & { covers?: string[] }
 
 export interface RoadmapProgress { done: number; total: number }
 
 export interface RoadmapDrift {
   id: string
-  kind: 'status-mismatch' | 'missing-task' | 'overdue' | 'at-risk'
+  kind: 'status-mismatch' | 'missing-task' | 'overdue' | 'at-risk' | 'uncovered-scenario'
   message: string
   suggestedStatus?: RoadmapStatus
 }
@@ -108,6 +108,14 @@ export function roadmapHealth(
       drift.push({ id: item.id, kind: 'at-risk', message: `${item.id} "${item.title}" at risk: ${risks.join('; ')}` })
     }
     if (!linked.length) continue
+    // R068: an epic being worked on whose scenarios aren't all covered by a task (no scenarios → nothing to check)
+    if ((item.status === 'planned' || item.status === 'in-progress') && item.scenarios?.length) {
+      const covered = new Set(linked.flatMap(t => tasks[t].covers ?? []))
+      const uncovered = item.scenarios.map(sc => sc.id).filter(id => !covered.has(id))
+      if (uncovered.length) {
+        drift.push({ id: item.id, kind: 'uncovered-scenario', message: `${item.id}: ${uncovered.join(', ')} not covered by any task` })
+      }
+    }
     const states: Started[] = linked.map(t =>
       tasks[t].status === 'done' ? 'done' : tasks[t].status === 'in-progress' || tasks[t].status === 'review' ? 'in-progress' : 'other')
     progress[item.id] = { done: states.filter(s => s === 'done').length, total: linked.length }

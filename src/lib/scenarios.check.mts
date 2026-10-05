@@ -1,6 +1,6 @@
 // Self-check for scenarios. Run: node src/lib/scenarios.check.mts
 import assert from 'node:assert/strict'
-import { coverageOf, parseCovers, parseScenarios, scenarioStep, seedSteps } from './scenarios.ts'
+import { coverage, coverageOf, parseCovers, parseScenarios, scenarioStep, seedSteps } from './scenarios.ts'
 
 const body = [
   'Intro text.',
@@ -50,5 +50,11 @@ assert.equal(scenarioStep(sc[1]), 'S2 — Bare')
 assert.equal(scenarioStep(sc[2]), 'S3 — THEN only')
 assert.equal(seedSteps(sc, ['S3', 'S1']), '### Steps\n- [ ] S1 — WHEN a AND b → THEN c AND d\n- [ ] S3 — THEN only')
 assert.equal(seedSteps(sc, ['S9']), '')
+
+// coverage: uncovered scenarios, untied tasks; cancelled ignored; no scenarios → nothing untied
+const three = parseScenarios('## Scenarios\n### S1: a\n### S2: b\n### S3: c')
+assert.deepEqual(coverage(three, [{ id: 'T1', covers: ['S1'] }, { id: 'T2', covers: ['S2'] }, { id: 'T3', covers: ['S3'], status: 'cancelled' }, { id: 'T4' }]),
+  { uncovered: ['S3'], untied: ['T4'] })
+assert.deepEqual(coverage([], [{ id: 'T1' }]), { uncovered: [], untied: [] })
 
 console.log('scenarios ok')

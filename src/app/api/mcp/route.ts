@@ -849,7 +849,7 @@ const PLANNING_PREAMBLE = `You are running this planning skill inside the VibeDo
 
 async function taskInfoMap(root: string): Promise<Record<string, TaskInfo>> {
   const { tasks } = await listTasks(root);
-  return Object.fromEntries(tasks.map((t) => [t.id, { status: t.status, due: t.due }]));
+  return Object.fromEntries(tasks.map((t) => [t.id, { status: t.status, due: t.due, covers: t.covers }]));
 }
 
 /** After a task move, point the agent at roadmap items linking it that are now out of sync. */

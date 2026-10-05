@@ -70,3 +70,13 @@ export function seedSteps(scenarios: Scenario[], ids: string[]): string {
   const picked = scenarios.filter(sc => ids.includes(sc.id))
   return picked.length ? ['### Steps', ...picked.map(sc => `- [ ] ${scenarioStep(sc)}`)].join('\n') : ''
 }
+
+/** Gaps between an epic's scenarios and its tasks: scenarios no task covers, tasks tied to no scenario (cancelled ignored). */
+export function coverage(scenarios: Scenario[], tasks: { id: string; covers?: string[]; status?: string }[]): { uncovered: string[]; untied: string[] } {
+  const live = tasks.filter(t => t.status !== 'cancelled')
+  const covered = new Set(live.flatMap(t => t.covers ?? []))
+  return {
+    uncovered: scenarios.map(sc => sc.id).filter(id => !covered.has(id)),
+    untied: scenarios.length ? live.filter(t => !t.covers?.length).map(t => t.id) : [],
+  }
+}

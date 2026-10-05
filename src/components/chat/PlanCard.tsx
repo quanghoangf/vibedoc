@@ -5,6 +5,7 @@ import { useApp } from "@/context/AppContext"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
 import type { Plan, PlanEpic, PlanTask } from "@/lib/plan"
+import { coverage, parseScenarios, type Scenario } from "@/lib/scenarios"
 
 export type PlanStatus = "pending" | "accepted" | "rejected"
 export interface PlanCreated { key: string; id: string; file: string }
@@ -28,6 +29,7 @@ export function PlanCard({ proposal, onResolve }: {
   const epicId = plan.kind === "breakdown" ? (plan.epic ?? "").trim().toUpperCase() : ""
   const newEpic = plan.kind === "breakdown" ? plan.newEpic : undefined
   const [titles, setTitles] = useState<Map<string, string>>(new Map())
+  const [scenarios, setScenarios] = useState<Map<string, Scenario[]>>(new Map())
   const [unchecked, setUnchecked] = useState<Set<string>>(new Set())
   const [open, setOpen] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -36,13 +38,22 @@ export function PlanCard({ proposal, onResolve }: {
   useEffect(() => {
     fetch(`/api/roadmap${rootParam}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => setTitles(new Map((d?.items ?? []).map((i: { id: string; title: string }) => [i.id, i.title]))))
+      .then((d) => {
+        const items: { id: string; title: string; scenarios?: Scenario[] }[] = d?.items ?? []
+        setTitles(new Map(items.map((i) => [i.id, i.title])))
+        setScenarios(new Map(items.map((i) => [i.id, i.scenarios ?? []])))
+      })
       .catch(() => setTitles(new Map()))
   }, [rootParam])
 
   const keys = plan.kind === "breakdown" ? tasks.map((t) => t.key) : [...horizons, ...epics].map((x) => x.key)
   const selected = keys.filter((k) => !unchecked.has(k))
   const pending = proposal.status === "pending"
+  // R068: scenarios the checked tasks leave uncovered, and checked tasks tied to no scenario (warnings, not blocking)
+  const targetScenarios = newEpic ? parseScenarios(newEpic.body ?? "") : scenarios.get(epicId) ?? []
+  const gaps = plan.kind === "breakdown" && pending
+    ? coverage(targetScenarios, tasks.filter((t) => !unchecked.has(t.key)).map((t) => ({ id: `"${t.title}"`, covers: (t.covers ?? []).map((c) => c.trim().toUpperCase()) })))
+    : { uncovered: [], untied: [] }
 
   // Roadmap: a horizon toggles its epics; checking an epic re-checks its horizon (never an epic without its horizon).
   const epicsOf = (h: string) => epics.filter((e) => e.parent.trim() === h).map((e) => e.key)
@@ -139,6 +150,12 @@ export function PlanCard({ proposal, onResolve }: {
         ])}
       </ul>
 
+      {(gaps.uncovered.length > 0 || gaps.untied.length > 0) && (
+        <div role="note" aria-label="Scenario coverage" className="px-2 py-1 text-xs text-amber border-t border-border">
+          {gaps.uncovered.length > 0 && <p>{gaps.uncovered.join(", ")} not covered by any task</p>}
+          {gaps.untied.length > 0 && <p>{gaps.untied.join(", ")} {gaps.untied.length === 1 ? "covers" : "cover"} no scenario</p>}
+        </div>
+      )}
       {error && <div className="px-2 py-1 text-xs text-red-400 whitespace-pre-wrap border-t border-border">{error}</div>}
 
       <div className="flex items-center gap-2 px-2 py-1.5 border-t border-border">

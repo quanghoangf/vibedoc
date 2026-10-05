@@ -98,4 +98,21 @@ assert.equal(dueState('2027-01-01', 'planned', '2026-12-30'), 'soon', 'across a 
   assert.ok(all.drift.some((d) => d.id === 'P' && d.suggestedStatus === 'done'))
 }
 
+// R068 uncovered-scenario: only epics with scenarios and tasks, planned / in-progress; cancelled tasks don't cover
+{
+  const sc = (...ids: string[]) => ids.map(id => ({ id, name: id, text: '' }))
+  const epic = (id: string, status: RoadmapItem['status'], tasks: string[], scenarios = sc('S1', 'S2', 'S3')) =>
+    ({ ...item(id, 'R001', status, tasks), scenarios })
+  const tk = (covers: string[], status: TaskInfo['status'] = 'todo'): TaskInfo => ({ status, due: null, covers })
+  const tasks = { T1: tk(['S1']), T2: tk(['S2']), T3: tk(['S3'], 'cancelled'), T4: tk([]) }
+  const kinds = (es: RoadmapItem[]) => roadmapHealth([item('R001', null, 'planned'), ...es], tasks, '2026-10-01').drift.filter(d => d.kind === 'uncovered-scenario')
+  assert.deepEqual(kinds([epic('R010', 'in-progress', ['T1', 'T2', 'T3'])]).map(d => d.message), ['R010: S3 not covered by any task'])
+  assert.deepEqual(kinds([epic('R011', 'planned', ['T4'])]).map(d => d.message), ['R011: S1, S2, S3 not covered by any task'])
+  assert.deepEqual(kinds([epic('R012', 'planned', ['T1', 'T2'], sc('S1', 'S2'))]), [])
+  assert.deepEqual(kinds([epic('R013', 'planned', [])]), []) // no tasks yet: breakdown hasn't happened
+  assert.deepEqual(kinds([epic('R014', 'done', ['T1'])]), [])
+  assert.deepEqual(kinds([{ ...item('R015', 'R001', 'planned', ['T4']), scenarios: [] }]), []) // scenarios stay optional
+  assert.deepEqual(kinds([item('R016', 'R001', 'planned', ['T4'])]), []) // an item without the field at all
+}
+
 console.log('roadmap-health: ok')
