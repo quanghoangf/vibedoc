@@ -13,7 +13,8 @@ export const VERIFICATION_HEADING = "## Verification"
 export const SEVERITIES = ["critical", "major", "minor"] as const
 export type Severity = (typeof SEVERITIES)[number]
 export type Finding = { severity: Severity; criterion: string; message: string; file?: string }
-export type Verification = { at: string; by: string; sha?: string; findings: Finding[] }
+/** `outdated`: set by core on read (never stored): a commit naming the task landed after `sha`. */
+export type Verification = { at: string; by: string; sha?: string; findings: Finding[]; outdated?: boolean }
 
 const NOTHING_FOUND = "Verified: nothing found."
 const STAMP = /^_(\S+) — (.+?)(?: · at ([0-9a-f]{4,40}))?_$/
@@ -38,12 +39,32 @@ function sectionRange(lines: string[]): [number, number] | null {
   return [start, next < 0 ? lines.length : next]
 }
 
+// " — " separates criterion from message, so it can't appear inside the criterion
+const findingLine = (f: Finding) =>
+  `- [${f.severity}] ${oneLine(f.criterion).replace(/ — /g, " - ")} — ${oneLine(f.message)}${f.file ? ` · \`${oneLine(f.file).replace(/`/g, "")}\`` : ""}`
+
 export function formatVerification(v: Verification): string {
   const stamp = `_${v.at} — ${v.by}${v.sha ? ` · at ${v.sha}` : ""}_`
-  // " — " separates criterion from message, so it can't appear inside the criterion
-  const rows = v.findings.map((f) =>
-    `- [${f.severity}] ${oneLine(f.criterion).replace(/ — /g, " - ")} — ${oneLine(f.message)}${f.file ? ` · \`${oneLine(f.file).replace(/`/g, "")}\`` : ""}`)
+  const rows = v.findings.map(findingLine)
   return [VERIFICATION_HEADING, stamp, ...(rows.length ? rows : [NOTHING_FOUND])].join("\n")
+}
+
+/** The send-back note for the findings a human picked (R067): one line each, in the section's own format. */
+export function formatFindingsNote(findings: Finding[]): string {
+  if (!findings.length) return ""
+  return [`Fix ${findings.length === 1 ? "this verification finding" : `these ${findings.length} verification findings`}:`, ...findings.map(findingLine)].join("\n")
+}
+
+/**
+ * True when a commit naming `taskId` landed after the report's `sha`. `log` = commits newest first (sha, subject).
+ * No sha, or a sha not in `log` (another branch, history cut) → never outdated.
+ */
+export function isOutdated(sha: string | undefined, taskId: string, log: { sha: string; subject: string }[]): boolean {
+  if (!sha) return false
+  const at = log.findIndex((c) => c.sha.startsWith(sha))
+  if (at < 0) return false
+  const id = new RegExp(`\\b${taskId}\\b`)
+  return log.slice(0, at).some((c) => id.test(c.subject))
 }
 
 /** The report in a task file, or null when it has no `## Verification` section (or the section has no stamp). */

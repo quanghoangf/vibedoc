@@ -1024,7 +1024,9 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
     case "vibedoc_get_task": {
       const task = await getTask(String(args.taskId), root);
-      return `## ${task.file}\n\n${task.raw}` + withGap(await relatedEntries(task, root)) + withGap(await relatedSpecs(task, root));
+      return `## ${task.file}\n\n${task.raw}` +
+        (task.verification?.outdated ? "\n\n⚠️ The Verification findings above are outdated: commits for this task landed after them. Re-verify with vibedoc_verify_context." : "") +
+        withGap(await relatedEntries(task, root)) + withGap(await relatedSpecs(task, root));
     }
 
     case "vibedoc_get_evidence": {

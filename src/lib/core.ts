@@ -32,7 +32,7 @@ import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
-import { formatVerifyContext, parseVerification, setVerification, type Finding, type Verification } from './verification'
+import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
@@ -615,6 +615,7 @@ export async function listTasks(root: string): Promise<{ tasks: Task[]; board: T
   }
 
   const lastRuns = await lastRunsByTask(root)
+  await markOutdatedVerifications(tasks, root)
   const board: TaskBoard = { todo: [], 'in-progress': [], review: [], blocked: [], paused: [], done: [], cancelled: [] }
   for (const t of tasks) {
     t.lastRun = lastRuns.get(t.id) ?? null
@@ -633,10 +634,34 @@ export async function getTask(taskId: string, root: string): Promise<Task> {
       const content = await fs.readFile(path.join(root, matches[0]), 'utf8')
       const task = parseTaskFile(matches[0], content, statuses)
       task.lastRun = toLastRun((await listRuns(task.id, root))[0])
+      await markOutdatedVerifications([task], root)
       return task
     }
   }
   throw new Error(`Task not found: ${taskId}`)
+}
+
+const OUTDATED_LOG_MAX = 2000
+
+/**
+ * R067: a verification report is outdated once a commit naming its task lands after the report's sha. One git log
+ * per call, and only when some report has a sha; no git → nothing is outdated.
+ */
+async function markOutdatedVerifications(tasks: Task[], root: string): Promise<void> {
+  const withSha = tasks.filter(t => t.verification?.sha)
+  if (!withSha.length) return
+  let log: { sha: string; subject: string }[]
+  try {
+    // ponytail: the newest 2000 commits; a report older than that never shows as outdated
+    log = (await git(['log', '-n', String(OUTDATED_LOG_MAX), '--format=%H%x1f%s'], root))
+      .split('\n').filter(Boolean).map(l => { const [sha, subject] = l.split('\x1f'); return { sha, subject } })
+  } catch (e) {
+    console.warn('verification: git log unavailable', e instanceof Error ? e.message : e)
+    return
+  }
+  for (const t of withSha) {
+    if (t.verification && isOutdated(t.verification.sha, t.id, log)) t.verification.outdated = true
+  }
 }
 
 // ─── Test runs (R059) ─────────────────────────────────────────────────────────

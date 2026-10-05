@@ -27,7 +27,7 @@ import { toast } from "@/components/ui/toast"
 import { useChats } from "@/context/ChatContext"
 import { chatFor } from "@/lib/chats"
 import { latestReview, reviewHistory, type ReviewEntry, type ReviewMark } from "@/lib/review"
-import { SEVERITIES, type Verification } from "@/lib/verification"
+import { SEVERITIES, formatFindingsNote, type Verification } from "@/lib/verification"
 import { verifyTask } from "@/lib/ask-agent"
 import type { AutoRun } from "@/lib/manual-tests"
 
@@ -214,7 +214,15 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                   <AutoTestsLine spec={task.manualTests.spec} autoRun={task.manualTests.autoRun} />
                 )}
 
-                {task.verification && <VerificationBlock verification={task.verification} />}
+                {task.verification && (
+                  <VerificationBlock
+                    key={`verify-${task.id}-${task.verification.at}-${task.verification.findings.length}`}
+                    taskId={task.id}
+                    verification={task.verification}
+                    canSendBack={!demo && (task.status === "review" || task.status === "done")}
+                    onSent={onClose}
+                  />
+                )}
 
                 <TaskRuns key={`runs-${task.id}`} taskId={task.id} latest={task.lastRun?.runId ?? null} spec={task.manualTests?.spec ?? null} onNavigate={onClose} />
 
@@ -501,31 +509,85 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
 const SEVERITY_STYLE = { critical: "text-danger", major: "text-amber", minor: "text-muted" } as const
 
 /** R067: what an agent found the task gets wrong against what was asked, grouped by severity. */
-function VerificationBlock({ verification: v }: { verification: Verification }) {
+function VerificationBlock({ taskId, verification: v, canSendBack, onSent }: { taskId: string; verification: Verification; canSendBack: boolean; onSent: () => void }) {
+  const { rootParam } = useApp()
+  // critical + major start checked: those are the ones worth a fix request
+  const [picked, setPicked] = useState(() => new Set(v.findings.flatMap((f, i) => (f.severity === "minor" ? [] : [i]))))
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const pickable = canSendBack && !v.outdated && v.findings.length > 0
+  const toggle = (i: number) => setPicked((p) => { const n = new Set(p); if (n.has(i)) n.delete(i); else n.add(i); return n })
+
+  async function sendBack() {
+    setBusy(true)
+    setError(null)
+    try {
+      const note = formatFindingsNote(v.findings.filter((_, i) => picked.has(i)))
+      const res = await fetch(`/api/tasks/review${rootParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: taskId, action: "send-back", note }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Request failed (${res.status})`)
+      toast(`Sent back ${taskId} → todo with ${picked.size} ${picked.size === 1 ? "finding" : "findings"}`)
+      onSent()
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
+
   return (
     <section aria-label="Verification" className="flex flex-col gap-2 px-5 py-3 border-b border-border shrink-0">
       <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted">
         Verification
         <span className="normal-case tracking-normal">{v.at} · {v.by}{v.sha ? ` · at ${v.sha}` : ""}</span>
+        {v.outdated && <span className="normal-case tracking-normal text-amber">outdated — re-verify</span>}
       </p>
       {!v.findings.length && <p className="text-xs text-teal">Verified: nothing found.</p>}
-      {SEVERITIES.map((sev) => {
-        const rows = v.findings.filter((f) => f.severity === sev)
-        if (!rows.length) return null
-        return (
-          <div key={sev} className="flex flex-col gap-1">
-            <p className={cn("text-xs font-medium capitalize", SEVERITY_STYLE[sev])}>{sev} · {rows.length}</p>
-            <ul className="flex flex-col gap-1.5">
-              {rows.map((f, i) => (
-                <li key={i} className="flex flex-col gap-0.5 text-xs">
-                  <span className="text-txt">{f.criterion}</span>
-                  <span className="text-muted">{f.message}{f.file && <> · <code className="font-mono text-[11px]">{f.file}</code></>}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )
-      })}
+      <div className={cn("flex flex-col gap-2", v.outdated && "opacity-60")}>
+        {SEVERITIES.map((sev) => {
+          const rows = v.findings.map((f, i) => ({ f, i })).filter(({ f }) => f.severity === sev)
+          if (!rows.length) return null
+          return (
+            <div key={sev} className="flex flex-col gap-1">
+              <p className={cn("text-xs font-medium capitalize", v.outdated ? "text-muted" : SEVERITY_STYLE[sev])}>{sev} · {rows.length}</p>
+              <ul className="flex flex-col gap-1.5">
+                {rows.map(({ f, i }) => (
+                  <li key={i} className="flex items-start gap-2 text-xs">
+                    {pickable && (
+                      <input
+                        type="checkbox"
+                        checked={picked.has(i)}
+                        onChange={() => toggle(i)}
+                        aria-label={`Send back: ${f.criterion}`}
+                        className="mt-0.5 size-3.5 shrink-0 accent-[rgb(var(--rgb-accent))]"
+                      />
+                    )}
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-txt">{f.criterion}</span>
+                      <span className="text-muted">{f.message}{f.file && <> · <code className="font-mono text-[11px]">{f.file}</code></>}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        })}
+      </div>
+      {pickable && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={sendBack}
+            disabled={busy || !picked.size}
+            className="inline-flex items-center gap-1.5 rounded-sm border border-amber/40 bg-amber/5 px-2.5 py-1 text-xs text-amber transition-colors hover:bg-amber/10 disabled:opacity-50"
+          >
+            <CornerUpLeft className="size-3.5" aria-hidden /> Send back {picked.size} {picked.size === 1 ? "finding" : "findings"}
+          </button>
+          {error && <p role="alert" className="text-xs text-danger">{error}</p>}
+        </div>
+      )}
     </section>
   )
 }

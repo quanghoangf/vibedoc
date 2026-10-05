@@ -1,6 +1,6 @@
 // Self-check for verification. Run: node src/lib/verification.check.mts
 import assert from 'node:assert/strict'
-import { blockingCount, formatVerification, parseVerification, setVerification, validateFindings, type Verification } from './verification.ts'
+import { blockingCount, formatFindingsNote, formatVerification, isOutdated, parseVerification, setVerification, validateFindings, type Verification } from './verification.ts'
 
 const v: Verification = {
   at: '2026-10-06', by: 'ai:claude-code', sha: '3f2a91c', findings: [
@@ -60,5 +60,28 @@ assert.match(validateFindings('x') as string, /must be an array/)
 // blockingCount
 assert.equal(blockingCount(v), 1)
 assert.equal(blockingCount(null), 0)
+
+// formatFindingsNote: the picked findings, one line each in the section's format
+assert.equal(formatFindingsNote([]), '')
+assert.equal(formatFindingsNote(v.findings), [
+  'Fix these 2 verification findings:',
+  '- [critical] AC2 "Unknown plan → 400" — route returns 500 · `src/app/api/checkout/route.ts:41`',
+  '- [minor] Scope "update the stale comment" — comment still says R060',
+].join('\n'))
+assert.match(formatFindingsNote([v.findings[1]]), /^Fix this verification finding:\n- \[minor\]/)
+
+// isOutdated: a later commit naming the task → outdated; anything else → not
+const log = [
+  { sha: 'ccc3333', subject: 'fix(x): handle 400 (T186)' },
+  { sha: 'bbb2222', subject: 'chore: other work (T1860)' },
+  { sha: '3f2a91cdeadbeef', subject: 'feat(x): first try (T186)' },
+]
+assert.equal(isOutdated('3f2a91c', 'T186', log), true)
+assert.equal(isOutdated('3f2a91c', 'T999', log), false)
+assert.equal(isOutdated('ccc3333', 'T186', log), false)
+assert.equal(isOutdated('bbb2222', 'T186', log), true)
+assert.equal(isOutdated('bbb2222', 'T18', log), false) // T1860 / T186 are other tasks
+assert.equal(isOutdated(undefined, 'T186', log), false)
+assert.equal(isOutdated('0000000', 'T186', log), false)
 
 console.log('verification ok')

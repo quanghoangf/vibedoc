@@ -1,8 +1,11 @@
 # T188: Send back selected findings; mark findings outdated
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R067 — Spec verification review
 **Size:** M (2–3 hrs)
 **Depends on:** T186
+**Owner:** ai:claude-code
+**Due:** 2026-10-08
+**Started:** 2026-10-05
 
 ## Goal
 The human turns findings into a fix request in one action, and stale findings stop looking current once the agent has pushed new work.
@@ -33,3 +36,14 @@ The human turns findings into a fix request in one action, and stale findings st
 node src/lib/verification.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-05 — ai · Spec: `e2e/vibedoc/T188-send-back-findings-outdated.spec.ts` · Auto: passed 2026-10-05_
+### Steps
+- [x] 🤖 Open a task in review with a critical, a major and a minor finding → critical and major are checked, minor is not, and the button reads "Send back 2 findings"
+- [x] 🤖 Click Send back 2 findings → the panel closes and the task's card in Todo shows "changes requested"
+- [x] 🤖 Reopen the task → the Review history note lists the two picked findings and not the minor one
+- [ ] Claim that task with vibedoc_next_task (on its epic) → the reply starts with "⚠️ Changes requested" and the two findings
+- [ ] Report findings on a task with sha = an older commit, then commit again with the task id in the message → the panel greys the findings with "outdated — re-verify" (no checkboxes) and vibedoc_get_task says they are outdated
+### Regression risk
+- [ ] The regular Send back with a note (Review actions at the top of the panel) still works and records the same Review entry format
