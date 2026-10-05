@@ -154,7 +154,7 @@ test.describe('stars, footer and SEO (T206)', () => {
   test('S3: the footer leads to docs, changelog, npm and GitHub', async ({ page }) => {
     await page.goto('./')
     const footer = page.getByRole('contentinfo')
-    await expect(footer.getByRole('link', { name: 'Docs' })).toHaveAttribute('href', 'https://github.com/quanghoangf/vibedoc#readme')
+    await expect(footer.getByRole('link', { name: 'Docs' })).toHaveAttribute('href', '/vibedoc/docs/')
     await expect(footer.getByRole('link', { name: 'Changelog' })).toHaveAttribute('href', /CHANGELOG\.md$/)
     await expect(footer.getByRole('link', { name: 'npm' })).toHaveAttribute('href', 'https://www.npmjs.com/package/vibedoc')
     await expect(footer.getByRole('link', { name: 'VibeDoc on GitHub' })).toHaveAttribute('href', 'https://github.com/quanghoangf/vibedoc')

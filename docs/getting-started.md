@@ -139,5 +139,5 @@ test('T138', async ({ page, step }) => {
 
 ## Next
 
-- [MCP tools reference](https://github.com/quanghoangf/vibedoc/blob/main/docs/architecture/mcp-tools.md): every tool and its parameters.
+- [Docs site](https://quanghoangf.github.io/vibedoc/docs/): concepts, skills, troubleshooting, and a page for every MCP tool with its parameters.
 - In the app: **Roadmap** for epics, **Memory** for knowledge entries, **Graph** for links between docs.

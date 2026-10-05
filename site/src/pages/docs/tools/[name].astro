@@ -1,0 +1,29 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
+import { tools, summary, type Tool } from '../../../data/tools'
+
+export function getStaticPaths() {
+  return tools.map((tool) => ({ params: { name: tool.name }, props: { tool } }))
+}
+const { tool } = Astro.props as { tool: Tool }
+const paragraphs = tool.description.split(/\n{2,}/)
+---
+<StarlightPage
+  frontmatter={{ title: tool.name, description: summary(tool.description) }}
+  headings={[{ depth: 2, slug: 'parameters', text: 'Parameters' }, { depth: 2, slug: 'call', text: 'Call it' }]}
+>
+  {paragraphs.map((p) => <p style="white-space: pre-line">{p}</p>)}
+  <h2 id="parameters">Parameters</h2>
+  {tool.params.length === 0 ? <p>None.</p> : (
+    <table>
+      <thead><tr><th>Name</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+      <tbody>
+        {tool.params.map((p) => (
+          <tr><td><code>{p.name}</code></td><td>{p.values.length ? <>one of {p.values.map((v) => <code>{v}</code>).reduce((a, c) => [...a, ' ', c], [] as unknown[])}</> : <code>{p.type}</code>}</td><td>{p.required ? 'yes' : 'no'}</td><td>{p.description}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  )}
+  <h2 id="call">Call it</h2>
+  <pre><code>{JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: tool.name, arguments: Object.fromEntries(tool.params.filter((p) => p.required).map((p) => [p.name, `<${p.type}>`])) } }, null, 2)}</code></pre>
+</StarlightPage>

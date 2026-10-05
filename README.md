@@ -136,7 +136,7 @@ Working on the skills themselves: start Claude Code with `claude --plugin-dir ./
 
 ## MCP tools
 
-45 tools your AI agent can call, grouped by category.
+45 tools your AI agent can call, grouped by category. The [docs site](https://quanghoangf.github.io/vibedoc/docs/tools/) has a page for each, generated from the definitions in `src/lib/mcp-tools.ts`.
 
 ### Session & status
 

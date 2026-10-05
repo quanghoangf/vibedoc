@@ -1,5 +1,7 @@
 # T210: Docs site with Starlight and a generated MCP tool reference
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-05
 **Phase:** R074 — Docs site
 **Size:** L (half a day)
 **Depends on:** T209
@@ -38,3 +40,15 @@ A new user goes from the landing page to a working setup using only the docs, an
 pnpm build && pnpm lint
 pnpm --dir site build && pnpm --dir site exec playwright test
 ```
+
+## Manual tests
+### Steps
+- [x] 🤖 Open the landing page and click Docs in the header → Getting started opens at /vibedoc/docs/
+- [x] 🤖 The docs sidebar lists Getting started, Skills, Troubleshooting and the five concept pages
+- [x] 🤖 Click Search and type vibedoc_next_task → the tool's page is in the results
+- [x] 🤖 Open MCP tools → All tools → every tool is listed, and each has its own page with a Parameters section
+- [x] 🤖 Open vibedoc_update_task → taskId is listed as required
+- [ ] Read Getting started end to end on a fresh project → you get VibeDoc running and connected with nothing else open
+- [ ] Toggle light / dark with the theme picker → both read well, violet accent, Geist font
+### Regression risk
+- [ ] An agent connected to /api/mcp still gets all 45 tools from tools/list (the definitions moved to `src/lib/mcp-tools.ts`)

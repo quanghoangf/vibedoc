@@ -1,0 +1,20 @@
+/* Docs (Starlight) in the landing page's look: Geist, violet accent, ink on paper. */
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+
+:root {
+  --sl-font: 'Geist', system-ui, sans-serif;
+  --sl-font-mono: 'Geist Mono', ui-monospace, monospace;
+  /* dark (Starlight's default theme) */
+  --sl-color-accent-low: #241f4d;
+  --sl-color-accent: #7c6af7;
+  --sl-color-accent-high: #c9c1ff;
+  --sl-color-black: #0a0a0f;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #e6e2fe;
+  --sl-color-accent: #5341d6;
+  --sl-color-accent-high: #2e2380;
+  --sl-color-white: rgb(26 26 46);
+  --sl-color-gray-7: rgb(248 248 252);
+  --sl-color-black: rgb(255 255 255);
+}

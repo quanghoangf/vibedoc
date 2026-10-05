@@ -1,11 +1,11 @@
-# Builds the landing page (site/) and publishes it to GitHub Pages: https://quanghoangf.github.io/vibedoc/
+# Builds the landing page and docs (site/; the MCP tool pages come from src/lib/mcp-tools.ts) and publishes it to GitHub Pages: https://quanghoangf.github.io/vibedoc/
 # One-time setup: repo Settings → Pages → Source: GitHub Actions.
 name: Site
 
 on:
   push:
     branches: [main]
-    paths: ['site/**', '.github/workflows/site.yml']
+    paths: ['site/**', 'src/lib/mcp-tools.ts', 'src/lib/entries.ts', 'src/lib/verification.ts', 'src/lib/doc-priority.ts', '.github/workflows/site.yml']
   workflow_dispatch:
 
 permissions:

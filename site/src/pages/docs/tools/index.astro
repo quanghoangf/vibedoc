@@ -1,0 +1,19 @@
+---
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
+import { tools, summary } from '../../../data/tools'
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+---
+<StarlightPage frontmatter={{ title: 'MCP tools', description: `All ${tools.length} tools an AI agent can call on VibeDoc's MCP server.` }}>
+  <p>
+    VibeDoc's MCP server (<code>http://localhost:&lt;port&gt;/api/mcp</code>) has {tools.length} tools.
+    Every page here is generated from the tool definitions the server sends, so it matches the version you run.
+  </p>
+  <table>
+    <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+    <tbody>
+      {tools.map((t) => (
+        <tr><td><a href={`${base}/docs/tools/${t.name}/`}><code>{t.name}</code></a></td><td>{summary(t.description)}</td></tr>
+      ))}
+    </tbody>
+  </table>
+</StarlightPage>
