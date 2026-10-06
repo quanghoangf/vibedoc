@@ -8,6 +8,8 @@ import {
   depOutline, foldAxis, groupTasks, timelineBars,
   type AxisSegment, type TimelineBar, type TimelineScale, type ViewState,
 } from "@/lib/board-views"
+import { useLang } from "@/context/LanguageContext"
+import { formatDate, type Lang } from "@/lib/i18n"
 
 interface ViewProps {
   tasks: Task[]
@@ -46,8 +48,9 @@ const SCALES: { value: TimelineScale; label: string }[] = [
 /** A laid-out axis stretch: [startMs, endMs] drawn at x … x + width. */
 interface Seg extends AxisSegment { x: number; width: number }
 
-const hm = (ms: number) => new Date(ms).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
-const md = (ms: number) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+// English keeps the formats it had before R078 (24h en-GB clock, en-US "Oct 6"); other languages use their own
+const hm = (lang: Lang, ms: number) => formatDate(lang, ms, { hour: "2-digit", minute: "2-digit", hour12: false }, "en-GB")
+const md = (lang: Lang, ms: number) => formatDate(lang, ms, { month: "short", day: "numeric" }, "en-US")
 const startOfDay = (ms: number) => { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime() }
 
 function gapLabel(ms: number) {
@@ -58,10 +61,10 @@ function gapLabel(ms: number) {
   return m % 60 ? `${h}h ${m % 60}m` : `${h}h`
 }
 
-function segLabel(s: AxisSegment) {
-  return md(s.startMs) === md(s.endMs)
-    ? `${md(s.startMs)} · ${hm(s.startMs)}–${hm(s.endMs)}`
-    : `${md(s.startMs)} ${hm(s.startMs)} – ${md(s.endMs)} ${hm(s.endMs)}`
+function segLabel(lang: Lang, s: AxisSegment) {
+  return md(lang, s.startMs) === md(lang, s.endMs)
+    ? `${md(lang, s.startMs)} · ${hm(lang, s.startMs)}–${hm(lang, s.endMs)}`
+    : `${md(lang, s.startMs)} ${hm(lang, s.startMs)} – ${md(lang, s.endMs)} ${hm(lang, s.endMs)}`
 }
 
 /** `**Due:** YYYY-MM-DD` is a local calendar date: build it from parts, never `new Date("YYYY-MM-DD")`. */
@@ -101,7 +104,7 @@ function xAt(segs: Seg[], ms: number): number | null {
   return null
 }
 
-function ticks(segs: Seg[], scale: TimelineScale): { x: number; label: string | null }[] {
+function ticks(lang: Lang, segs: Seg[], scale: TimelineScale): { x: number; label: string | null }[] {
   const out: { x: number; label: string | null }[] = []
   for (const s of segs) {
     const dur = s.endMs - s.startMs
@@ -111,7 +114,7 @@ function ticks(segs: Seg[], scale: TimelineScale): { x: number; label: string | 
     for (let t = first; t <= s.endMs; t += step) {
       const x = xAt([s], t)
       if (x == null) continue
-      out.push({ x, label: scale === "week" ? md(t) : scale === "day" ? (hm(t) === "00:00" ? md(t) : hm(t)) : null })
+      out.push({ x, label: scale === "week" ? md(lang, t) : scale === "day" ? (hm(lang, t) === "00:00" ? md(lang, t) : hm(lang, t)) : null })
     }
   }
   return out
@@ -128,11 +131,12 @@ function useNow(intervalMs = 30_000) {
 
 export default function TimelineView({ tasks, state, agentTasks, onOpenTask, events, loading, onScale }: TimelineViewProps) {
   const now = useNow()
+  const { lang } = useLang()
   const scale = state.scale
 
   const bars = useMemo(() => timelineBars(tasks, events, now), [tasks, events, now])
   const segs = useMemo(() => layoutAxis(bars, scale, now), [bars, scale, now])
-  const tickList = useMemo(() => ticks(segs, scale), [segs, scale])
+  const tickList = useMemo(() => ticks(lang, segs, scale), [lang, segs, scale])
   const lanes = useMemo(() => {
     const barBy = new Map(bars.map((b) => [b.taskId, b]))
     return groupTasks(tasks, state.group).map((g) => {
@@ -242,7 +246,7 @@ export default function TimelineView({ tasks, state, agentTasks, onOpenTask, eve
                       className="absolute bottom-0 truncate border-b border-border2 font-mono text-[11px] text-txt"
                       style={{ left: s.x, width: s.width, height: HEAD_H }}
                     >
-                      {segLabel(s)}
+                      {segLabel(lang, s)}
                     </div>
                   )}
                   {scale === "active" && i > 0 && (
@@ -270,7 +274,7 @@ export default function TimelineView({ tasks, state, agentTasks, onOpenTask, eve
                   className="absolute top-0 z-10 -translate-x-1/2 rounded bg-accent px-1.5 py-0.5 font-mono text-[10px] text-accent-fg"
                   style={{ left: nowX }}
                 >
-                  {hm(now)}
+                  {hm(lang, now)}
                 </span>
               )}
             </div>
@@ -308,10 +312,10 @@ export default function TimelineView({ tasks, state, agentTasks, onOpenTask, eve
                     const agent = agentTasks.has(task.id)
                     const live = bar.open && bar.status === "in-progress"
                     const label = live
-                      ? `${task.id} · in progress since ${hm(bar.startMs)}`
+                      ? `${task.id} · in progress since ${hm(lang, bar.startMs)}`
                       : bar.open
-                      ? `${task.id} · ${STATUS_META[bar.status].label.toLowerCase()}, first moved ${md(bar.startMs)} ${hm(bar.startMs)}`
-                      : `${task.id} · worked ${md(bar.startMs)} ${hm(bar.startMs)}–${hm(bar.endMs)}`
+                      ? `${task.id} · ${STATUS_META[bar.status].label.toLowerCase()}, first moved ${md(lang, bar.startMs)} ${hm(lang, bar.startMs)}`
+                      : `${task.id} · worked ${md(lang, bar.startMs)} ${hm(lang, bar.startMs)}–${hm(lang, bar.endMs)}`
                     const due = dueMs(task.due)
                     const dueX = due == null ? null : xAt(segs, due)
                     return (

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } fr
 import { Check, Film, ImageOff, Pause, Play, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
-import { clock, timeAgo } from "@/components/activity/ActivityEventRow"
+import { useFormat } from "@/context/LanguageContext"
 import { runClock, stepAt, stepSpans } from "@/lib/test-review"
 import type { RunManifest, RunStep } from "@/lib/runs-paths"
 
@@ -17,6 +17,7 @@ import type { RunManifest, RunStep } from "@/lib/runs-paths"
  */
 export function RunPlayer({ taskId, latest }: { taskId: string; latest: string | null }) {
   const { rootParam } = useApp()
+  const f = useFormat()
   const [runs, setRuns] = useState<RunManifest[] | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
   // null = the video; a step = its screenshot on the stage
@@ -178,7 +179,7 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
         </span>
         <span className="text-xs text-muted">
           <span className="font-mono text-txt tabular-nums">{passed}/{run.steps.length}</span> steps ·{" "}
-          <span className="font-mono" title={run.endedAt}>{timeAgo(run.endedAt || run.startedAt)}</span>
+          <span className="font-mono" title={run.endedAt}>{f.timeAgo(run.endedAt || run.startedAt)}</span>
           {run.commit && <> · <span className="font-mono" title={run.commit}>{run.commit.slice(0, 7)}</span></>}
         </span>
         {runs.length > 1 && (
@@ -189,7 +190,7 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
             className="ml-auto max-w-full rounded-md border border-border bg-bg px-2 py-1 font-mono text-xs text-txt hover:border-border2 focus-visible:outline-2 focus-visible:outline-accent"
           >
             {runs.map((r, i) => (
-              <option key={r.runId} value={r.runId} title={r.startedAt}>{i === 0 ? "Latest · " : ""}{timeAgo(r.startedAt)} · {clock(r.startedAt)} · {r.status}</option>
+              <option key={r.runId} value={r.runId} title={r.startedAt}>{i === 0 ? "Latest · " : ""}{f.timeAgo(r.startedAt)} · {f.clock(r.startedAt)} · {r.status}</option>
             ))}
           </select>
         )}

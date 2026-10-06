@@ -4,18 +4,26 @@
 //      with every English message (src/i18n/*.ts) whose Vietnamese differs. Messages with {placeholders} are matched
 //      as patterns. User content, ids and keys aren't messages, so they never count.
 //   3. A reload stays Vietnamese, and the server already renders lang="vi" (no English flash).
-//   4. Switching back to English restores it without a reload.
+//   4. Dates read the Vietnamese way (Activity day heading, roadmap timeline months) (T216).
+//   5. Every Settings font has Vietnamese letters (a @font-face covering U+1EA1 "ạ") unless settings.ts flags it
+//      `noVietnamese`, and the flag shows in Vietnamese (T216).
+//   6. Switching back to English restores it without a reload.
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
 //   PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 //
 // Each R078 area task adds its pages to PAGES (`open` shows panels/dialogs whose text should be checked too).
 import assert from "node:assert/strict"
-import { readdirSync, rmSync } from "node:fs"
+import { readdirSync, rmSync, writeFileSync } from "node:fs"
+import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const fx = makeFixture()
+// A task with a due date and one status change, so Activity has an event and the roadmap timeline has a marker
+writeFileSync(path.join(fx, "plans/tasks/T001-sample.md"), "# T001: Sample\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n\n## Goal\nA sample.\n")
+writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Due:** 2026-12-15\n**Tasks:** T001\n")
+const { SANS_FONTS, MONO_FONTS } = await import("../src/lib/settings.ts")
 
 // `scope`: CSS selectors to check instead of the whole page (the shell while page content isn't translated yet)
 /** @type {{ path: string, name: string, scope?: string, open?: (page: import("playwright").Page) => Promise<void> }[]} */
@@ -98,6 +106,39 @@ try {
     await assertVietnamese(page, p.name, p.scope)
     console.log(`ok  ${p.name}: no English UI text`)
   }
+
+  // Dates (S4): an event today → "Hôm nay"; the roadmap timeline's months are Vietnamese
+  const mcp = await page.request.post(`${BASE}/api/mcp?root=${encodeURIComponent(fx)}`, {
+    data: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_update_task", arguments: { taskId: "T001", status: "in-progress" } } },
+  })
+  assert.ok(mcp.ok())
+  await page.goto(`${BASE}/activity`)
+  await page.getByRole("heading", { name: "Hôm nay" }).first().waitFor()
+  await page.goto(`${BASE}/roadmap?view=timeline`)
+  await page.getByText(/^thg \d+ \d{4}$/).first().waitFor()
+  assert.equal(await page.getByText(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)( \d{4})?$/).count(), 0, "no English month on the axis")
+  await page.getByText(/^15 thg 12$/).first().waitFor()
+  console.log("ok  dates in Vietnamese: Activity says Hôm nay, the timeline shows thg months and 15 thg 12")
+
+  // Fonts (S5): which Settings fonts have a face covering ạ (U+1EA1)
+  await page.goto(`${BASE}/settings`)
+  await page.getByRole("radiogroup", { name: "Ngôn ngữ" }).waitFor()
+  const fonts = [...SANS_FONTS, ...MONO_FONTS].filter((f) => f.id !== "system")
+  const covered = await page.evaluate((ids) => {
+    const css = getComputedStyle(document.documentElement)
+    const faces = [...document.fonts]
+    return Object.fromEntries(ids.map((id) => {
+      const family = css.getPropertyValue(`--font-${id}`).split(",")[0].trim().replace(/^['"]|['"]$/g, "")
+      return [id, faces.some((f) => f.family.replace(/^['"]|['"]$/g, "") === family && f.unicodeRange.split(",").some((r) => {
+        const [lo, hi = lo] = r.trim().replace(/^U\+/i, "").split("-").map((h) => parseInt(h.replace(/\?/g, "0"), 16))
+        return lo <= 0x1ea1 && 0x1ea1 <= (r.includes("?") ? lo + 0xff : hi)
+      }))]
+    }))
+  }, fonts.map((f) => f.id))
+  for (const f of fonts) assert.equal(covered[f.id], !f.noVietnamese, `${f.label}: Vietnamese letters ${covered[f.id] ? "present" : "missing"} but settings.ts says noVietnamese=${!!f.noVietnamese}`)
+  await page.getByText("Không có chữ tiếng Việt", { exact: false }).first().waitFor()
+  assert.equal(await page.getByText("Không có chữ tiếng Việt", { exact: false }).count(), fonts.filter((f) => f.noVietnamese).length)
+  console.log(`ok  fonts: ${fonts.filter((f) => !f.noVietnamese).length} have Vietnamese letters; the ${fonts.filter((f) => f.noVietnamese).length} without say so`)
 
   // 3. Reload keeps it; the server renders it (first paint is already Vietnamese)
   await page.reload()

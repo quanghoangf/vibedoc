@@ -1,7 +1,10 @@
 // Self-check for UI languages (R078). Run: node src/lib/i18n.check.mts
 import assert from 'node:assert/strict'
 import { readdirSync } from 'node:fs'
-import { interpolate, langCookie, parseLang, placeholderMismatches, placeholders, pluralSuffix } from './i18n.ts'
+import {
+  agoShort, dayHeading, formatDate, formatDay, formatNumber, interpolate, langCookie, monthName, parseLang,
+  placeholderMismatches, placeholders, pluralSuffix, timeAgo,
+} from './i18n.ts'
 
 assert.equal(parseLang('vi'), 'vi')
 assert.equal(parseLang('en'), 'en')
@@ -24,6 +27,32 @@ assert.deepEqual(placeholders('{b} {a} {b}'), ['a', 'b'])
 assert.deepEqual(placeholderMismatches({ a: '{n} x', b: 'y' }, { a: '{count} x', b: 'z' }), ['a'])
 
 assert.match(langCookie('vi'), /^vibedoc-lang=vi; path=\/;/)
+
+// Dates and numbers (T216)
+const now = Date.parse('2026-10-06T12:00:00Z')
+const min = 60_000
+assert.equal(timeAgo('en', now - 20_000, now), 'just now')
+assert.equal(timeAgo('en', now - 5 * min, now), '5m ago', 'English keeps its compact format')
+assert.equal(timeAgo('en', now - 3 * 60 * min, now), '3h ago')
+assert.equal(timeAgo('en', now - 2 * 1440 * min, now), '2d ago')
+assert.equal(timeAgo('vi', now - 20_000, now), 'vừa xong')
+assert.equal(timeAgo('vi', now - 5 * min, now), '5 phút trước')
+assert.equal(timeAgo('vi', now - 2 * 1440 * min, now), '2 ngày trước', 'numeric, never "hôm kia"')
+assert.equal(agoShort('en', now - 3 * 60 * min, now), '3h')
+assert.equal(agoShort('en', now, now), 'now')
+assert.equal(agoShort('vi', now - 3 * 60 * min, now), '3 giờ')
+assert.equal(monthName('en', 10), 'Oct')
+assert.equal(monthName('vi', 10), 'thg 10')
+assert.equal(formatDay('en', '2026-10-15'), '15 Oct')
+assert.equal(formatDay('vi', '2026-10-15'), '15 thg 10')
+assert.equal(formatDay('vi', '2026-01-01'), '1 thg 1', 'a calendar date never shifts a day')
+assert.equal(formatNumber('vi', 12345.6), '12.345,6')
+assert.equal(formatDate('vi', now, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }), '6 thg 10, 2026')
+assert.equal(formatDate('en', now, { month: 'short', day: 'numeric', timeZone: 'UTC' }, 'en-US'), 'Oct 6', 'English keeps the locale a call named')
+assert.equal(dayHeading('en', now, now), 'Today')
+assert.equal(dayHeading('vi', now, now), 'Hôm nay')
+assert.equal(dayHeading('vi', now - 1440 * min, now), 'Hôm qua')
+assert.match(dayHeading('vi', now - 5 * 1440 * min, now), /thg 10/)
 
 // Every area: same keys, same {placeholders}, a _one/_other pair complete, nothing left empty
 const dir = new URL('../i18n/', import.meta.url)

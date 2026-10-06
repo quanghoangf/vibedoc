@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Check, ImageOff, Loader2, Play, Square, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
-import { timeAgo } from "@/components/activity/ActivityEventRow"
+import { useFormat } from "@/context/LanguageContext"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import type { RunManifest, RunStep } from "@/lib/runs-paths"
 import { useTestRun } from "@/components/manual-tests/useTestRun"
@@ -19,6 +19,7 @@ import { isRunning } from "@/lib/test-run-events"
  */
 export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string; latest: string | null; spec?: string | null; onNavigate?: () => void }) {
   const { rootParam, demo } = useApp()
+  const f = useFormat()
   // R061: Run / Stop this task's spec; while it runs, one live line replaces the picked run
   const testRun = useTestRun()
   const live = testRun.run?.taskId === taskId && isRunning(testRun.run) ? testRun.run : null
@@ -94,7 +95,7 @@ export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string;
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             <span className={cn("rounded-sm px-1.5 py-0.5 font-mono", run.status === "passed" ? "bg-teal/15 text-teal" : "bg-danger/15 text-danger")}>{run.status}</span>
-            <span className="font-mono text-muted" title={run.endedAt}>{timeAgo(run.endedAt || run.startedAt)}</span>
+            <span className="font-mono text-muted" title={run.endedAt}>{f.timeAgo(run.endedAt || run.startedAt)}</span>
             <span className="text-muted"><span className="font-mono text-txt">{passed}/{run.steps.length}</span> steps passed</span>
             <select
               aria-label="Run"
@@ -103,7 +104,7 @@ export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string;
               className="ml-auto max-w-full rounded-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-xs text-txt focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
             >
               {runs.map(r => (
-                <option key={r.runId} value={r.runId}>{new Date(r.startedAt).toLocaleString()} · {r.status}</option>
+                <option key={r.runId} value={r.runId}>{f.dateTime(r.startedAt)} · {r.status}</option>
               ))}
             </select>
           </div>

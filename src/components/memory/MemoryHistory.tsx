@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { lineDiff, visibleHunks } from "@/lib/diff"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { parseOwner } from "@/lib/owner"
-import { timeAgo } from "@/components/activity/ActivityEventRow"
+import { useFormat } from "@/context/LanguageContext"
 import type { MemoryVersion } from "@/lib/core"
 import { useApp } from "@/context/AppContext"
 
@@ -29,6 +29,7 @@ interface MemoryHistoryProps {
  */
 export function MemoryHistory({ versions, current, rootParam, selectedId, onSelect, onClose, onRestore }: MemoryHistoryProps) {
   const { demo } = useApp()
+  const f = useFormat()
   const [loaded, setLoaded] = useState<{ id: string; content: string } | { id: string; error: string } | null>(null)
   const [restoring, setRestoring] = useState(false)
   const selected = versions?.find((v) => v.id === selectedId) ?? null
@@ -93,7 +94,7 @@ export function MemoryHistory({ versions, current, rootParam, selectedId, onSele
               >
                 <span className="flex min-w-0 items-center gap-2">
                   <History className="size-3.5 shrink-0 text-muted" aria-hidden />
-                  <time dateTime={v.at} title={new Date(v.at).toLocaleString()} className="shrink-0 font-mono text-[11px] text-muted">{timeAgo(v.at)}</time>
+                  <time dateTime={v.at} title={f.dateTime(v.at)} className="shrink-0 font-mono text-[11px] text-muted">{f.timeAgo(v.at)}</time>
                   <OwnerChip owner={parseOwner(v.actor)} className="shrink-0" />
                   <span className="shrink-0 font-mono text-[11px] text-muted">{v.reason === "restore" ? "before restore" : "before update"}</span>
                 </span>
@@ -111,7 +112,7 @@ export function MemoryHistory({ versions, current, rootParam, selectedId, onSele
         <div className="overflow-hidden rounded-xl border border-border bg-bg">
           <div className="flex items-start gap-2 border-b border-border bg-surface2 px-3 py-1.5 font-mono text-[11px] text-muted">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span title={new Date(selected.at).toLocaleString()}>{selected.at.slice(0, 16).replace("T", " ")}Z</span>
+              <span title={f.dateTime(selected.at)}>{selected.at.slice(0, 16).replace("T", " ")}Z</span>
               <span><span className="text-danger">− now</span> <span className="text-teal">+ this version</span></span>
               {version && "content" in version && (
                 <span className="ml-auto"><span className="text-teal">+{added}</span> <span className="text-danger">−{removed}</span></span>

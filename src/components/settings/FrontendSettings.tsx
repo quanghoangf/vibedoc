@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import { formatSteps, playwrightInstallSteps, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus, type SmokeResult } from "@/lib/frontend"
 import { toast } from "@/components/ui/toast"
+import { useFormat } from "@/context/LanguageContext"
 
 const FIELD = "h-8 min-w-0 rounded-md border border-border bg-bg px-2 font-mono text-sm text-txt focus:outline-hidden focus:ring-1 focus:ring-accent disabled:opacity-50"
 
@@ -340,6 +341,7 @@ function ServerRow({ url, rootParam }: { url: string; rootParam: string }) {
 
 /** T143: Log in opens the app in a headed Chromium; closing it saves the session for every later test. */
 function LoginRow({ data, rootParam, onChange }: { data: FrontendData; rootParam: string; onChange: (d: FrontendData) => void }) {
+  const f = useFormat()
   const [busy, setBusy] = useState<"open" | "clear" | null>(null)
   const { auth, login, playwright } = data
   const blocked = login.unavailable
@@ -364,7 +366,7 @@ function LoginRow({ data, rootParam, onChange }: { data: FrontendData; rootParam
   const status = login.running
     ? "Browser open: log in, then close the window to save the session."
     : auth.saved
-      ? `Session saved ${auth.savedAt ? new Date(auth.savedAt).toLocaleString() : ""}`.trim()
+      ? `Session saved ${auth.savedAt ? f.dateTime(auth.savedAt) : ""}`.trim()
       : "No session saved. Tests run logged out."
 
   return (

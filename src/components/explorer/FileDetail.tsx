@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { ExplorerFile } from "@/types"
 import { useApp } from "@/context/AppContext"
+import { useFormat } from "@/context/LanguageContext"
 
 const SOURCE_LABEL: Record<ExplorerFile['source'], string> = { ai: 'AI', extracted: 'Auto' }
 const SOURCE_VARIANT: Record<ExplorerFile['source'], 'default' | 'secondary'> = { ai: 'default', extracted: 'secondary' }
@@ -20,6 +21,7 @@ interface FileDetailProps {
 
 export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProps) {
   const { demo } = useApp()
+  const f = useFormat()
   const [enriching, setEnriching] = useState(false)
   const [flashGreen, setFlashGreen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,8 +94,8 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
         <Badge variant={SOURCE_VARIANT[file.source]} className="text-[10px]">
           {SOURCE_LABEL[file.source]}
         </Badge>
-        <span>Updated {new Date(file.updatedAt).toLocaleDateString()}</span>
-        <span className="ml-auto">Modified {new Date(file.mtime).toLocaleDateString()}</span>
+        <span>Updated {f.date(file.updatedAt, { dateStyle: "short" })}</span>
+        <span className="ml-auto">Modified {f.date(file.mtime, { dateStyle: "short" })}</span>
       </div>
 
       <div className="flex gap-2 pt-2">

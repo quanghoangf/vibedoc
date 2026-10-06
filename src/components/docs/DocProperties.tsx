@@ -6,7 +6,7 @@ import { PropertyRows, type ItemProperty } from "@/components/shared/ItemPanelHe
 import { PriorityBadge, PriorityField } from "@/components/shared/PriorityBadge"
 import { InlineText } from "@/components/shared/InlineProperty"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { timeAgo } from "@/components/activity/ActivityEventRow"
+import { useFormat } from "@/context/LanguageContext"
 import { toast } from "@/components/ui/toast"
 import { useApp } from "@/context/AppContext"
 import { PRIORITIES, PROPERTY_KEY, docProperties, parsePriority } from "@/lib/doc-priority"
@@ -28,6 +28,7 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
   minutes: number
 }) {
   const { rootParam, demo } = useApp()
+  const f = useFormat()
   // Shown right away; the file write comes back through the editor buffer a moment later
   const [pending, setPending] = useState<Record<string, string | null>>({})
   // A property being named ("Add a property → Text"), then the key whose value input opens on its own
@@ -95,15 +96,15 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
     rows.push({
       id: "edited", icon: Clock, label: "Last edited",
       value: (
-        <span className="inline-flex min-w-0 items-center gap-1.5" title={new Date(lastEdit.at).toLocaleString()}>
+        <span className="inline-flex min-w-0 items-center gap-1.5" title={f.dateTime(lastEdit.at)}>
           {lastEdit.actor === "ai" ? <Bot className="size-3.5 text-accent" aria-hidden /> : <User className="size-3.5 text-muted" aria-hidden />}
           {lastEdit.actor === "ai" ? "AI" : "You"}
-          <span className="font-mono text-[11px] text-muted">{timeAgo(lastEdit.at)}</span>
+          <span className="font-mono text-[11px] text-muted">{f.timeAgo(lastEdit.at)}</span>
         </span>
       ),
     })
   }
-  rows.push({ id: "length", icon: BookOpen, label: "Length", value: <span className="font-mono text-[11px] text-muted">{words.toLocaleString()} words · {minutes} min read</span> })
+  rows.push({ id: "length", icon: BookOpen, label: "Length", value: <span className="font-mono text-[11px] text-muted">{f.number(words)} words · {minutes} min read</span> })
 
   return (
     <PropertyRows properties={rows}>

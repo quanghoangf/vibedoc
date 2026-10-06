@@ -12,9 +12,8 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useOrigin } from "@/hooks/use-origin"
 import { cn } from "@/lib/utils"
-import { ago } from "@/lib/chats"
 import { groupSessions, isLive } from "@/lib/sessions"
-import { useT } from "@/context/LanguageContext"
+import { useFormat, useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
 
 const PAGE_TITLES: Record<string, MessageKey> = {
@@ -194,11 +193,11 @@ function AgentStatus({ liveIndicator, activity, now }: { liveIndicator: boolean;
 /** The MCP endpoint an agent connects to, the `claude mcp add` line, and when an agent last called in. */
 function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number }) {
   const { t } = useT()
+  const f = useFormat()
   const endpoint = `${useOrigin()}/api/mcp`
   const command = `claude mcp add --transport http vibedoc ${endpoint}`
   const [copied, setCopied] = useState<string | null>(null)
   const lastCall = activity.filter((e) => e.actor === "ai").reduce<string | null>((t, e) => (!t || e.timestamp > t ? e.timestamp : t), null)
-  const lastAgo = lastCall && ago(lastCall, now)
 
   async function copy(text: string) {
     try {
@@ -241,7 +240,7 @@ function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number
         {row(endpoint, t("shell.copyEndpoint"))}
         {row(command, t("shell.copyCommand"))}
         <p className="mt-3 font-mono text-[11px] text-muted">
-          {t("shell.lastAgentCall", { when: lastAgo ? (lastAgo === "now" ? t("shell.justNow") : t("shell.ago", { time: lastAgo })) : t("shell.noneYet") })}
+          {t("shell.lastAgentCall", { when: lastCall ? f.timeAgo(lastCall, now) : t("shell.noneYet") })}
         </p>
         <DropdownMenuItem asChild className="mt-1 -mx-2 text-xs text-muted focus:text-txt">
           <Link href="/settings">{t("shell.connectSettings")} <span className="text-accent">{t("shell.connectSettingsLink")}</span></Link>

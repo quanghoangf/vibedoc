@@ -4,12 +4,13 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Bot, User } from "lucide-react"
 import { useApp } from "@/context/AppContext"
-import { timeAgo } from "@/components/activity/ActivityEventRow"
+import { useFormat } from "@/context/LanguageContext"
 import type { Session } from "@/types"
 
 // Sessions that moved this task; mount with key={taskId} so state resets per task.
 export function TaskSessions({ taskId, onNavigate }: { taskId: string; onNavigate: () => void }) {
   const { rootParam } = useApp()
+  const f = useFormat()
   const router = useRouter()
   const [sessions, setSessions] = useState<Session[] | null>(null)
 
@@ -36,7 +37,7 @@ export function TaskSessions({ taskId, onNavigate }: { taskId: string; onNavigat
             >
               {s.actor === "ai" ? <Bot aria-hidden className="size-3.5 shrink-0 text-muted" /> : <User aria-hidden className="size-3.5 shrink-0 text-muted" />}
               <span className="sr-only">{s.actor === "ai" ? "Agent session" : "Human session"}</span>
-              <span className="shrink-0 font-mono text-muted">{timeAgo(s.start)}</span>
+              <span className="shrink-0 font-mono text-muted">{f.timeAgo(s.start)}</span>
               <span className="truncate text-txt">{s.headline}</span>
             </button>
           ))}

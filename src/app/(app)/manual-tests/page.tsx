@@ -10,7 +10,7 @@ import { parsePriority } from "@/lib/doc-priority"
 import { PriorityBadge } from "@/components/shared/PriorityBadge"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { shouldHandleShortcut } from "@/lib/shortcuts"
-import { timeAgo } from "@/components/activity/ActivityEventRow"
+import { useFormat } from "@/context/LanguageContext"
 import { TestDetail, type DetailView } from "@/components/manual-tests/TestDetail"
 import { SuiteTab } from "@/components/manual-tests/SuiteTab"
 import { TestBulkBar } from "@/components/manual-tests/TestBulkBar"
@@ -508,6 +508,7 @@ function Row({ row: r, selected, picked, picking, tabStop, onSelect }: {
   tabStop: boolean
   onSelect: (e: React.MouseEvent) => void
 }) {
+  const f = useFormat()
   const priority = parsePriority(r.priority)
   return (
     <button
@@ -540,8 +541,8 @@ function Row({ row: r, selected, picked, picking, tabStop, onSelect }: {
         {/* Owner as its icon only (name in the tooltip) and "updated" as a pencil + short time: the epic keeps the room */}
         <OwnerChip owner={r.owner} iconOnly className="shrink-0 [&_svg]:size-3" />
         {r.updatedAt && (
-          <span className="inline-flex shrink-0 items-center gap-0.5 font-mono" title={`Updated ${new Date(r.updatedAt).toLocaleString()}`}>
-            <Pencil className="size-3" aria-hidden /><span className="sr-only">updated </span>{timeAgo(r.updatedAt).replace(" ago", "")}
+          <span className="inline-flex shrink-0 items-center gap-0.5 font-mono" title={`Updated ${f.dateTime(r.updatedAt)}`}>
+            <Pencil className="size-3" aria-hidden /><span className="sr-only">updated </span>{f.agoShort(r.updatedAt)}
           </span>
         )}
       </span>
@@ -550,7 +551,7 @@ function Row({ row: r, selected, picked, picking, tabStop, onSelect }: {
         {r.steps ? <span className={r.result === "failed" ? "text-danger" : "text-txt"}>{r.steps.passed}/{r.steps.total}</span>
           : r.result !== "none" ? <span className={r.result === "failed" ? "text-danger" : "text-txt"}>{r.result}</span>
           : <span className="text-muted">no run</span>}
-        {r.result !== "none" && r.at && <span className="text-muted">{timeAgo(r.at)}</span>}
+        {r.result !== "none" && r.at && <span className="text-muted">{f.timeAgo(r.at)}</span>}
       </span>
     </button>
   )

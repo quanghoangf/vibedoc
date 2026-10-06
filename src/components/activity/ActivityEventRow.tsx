@@ -3,6 +3,7 @@ import type { ActivityEvent } from "@/types"
 import { StatusIcon, useStatusMeta } from "@/components/shared/StatusIcon"
 import { eventAction, eventTarget, type EventAction, type EventTarget } from "@/lib/activity"
 import { cn } from "@/lib/utils"
+import { useFormat } from "@/context/LanguageContext"
 
 const TYPE_ICON: Record<ActivityEvent["type"], LucideIcon> = {
   task_updated: ListChecks,
@@ -18,15 +19,6 @@ const TYPE_ICON: Record<ActivityEvent["type"], LucideIcon> = {
   roadmap_updated: MapIcon,
 }
 
-export function timeAgo(ts: string): string {
-  const d = (Date.now() - new Date(ts).getTime()) / 1000
-  if (d < 60) return "just now"
-  if (d < 3600) return `${Math.floor(d / 60)}m ago`
-  if (d < 86400) return `${Math.floor(d / 3600)}h ago`
-  return `${Math.floor(d / 86400)}d ago`
-}
-
-export const clock = (ts: string) => new Date(ts).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
 
 const ACTION_TONE: Partial<Record<EventAction, string>> = {
   created: "border-teal/30 bg-teal/5 text-teal",
@@ -53,13 +45,14 @@ export function ActivityEventRow({ event, showActor = false, onOpen }: {
   showActor?: boolean
   onOpen?: (target: EventTarget) => void
 }) {
+  const f = useFormat()
   const Icon = TYPE_ICON[event.type] ?? FileText
   const target = onOpen ? eventTarget(event) : null
   const titleClass = "min-w-0 text-left text-sm leading-5 text-txt sm:shrink-0 sm:max-w-[60%] sm:truncate"
   return (
     <div className="grid grid-cols-[2.75rem_1.5rem_minmax(0,1fr)] items-start py-1.5">
-      <time dateTime={event.timestamp} title={new Date(event.timestamp).toLocaleString()} className="pt-px text-right font-mono text-[11px] leading-5 text-muted tabular-nums">
-        {clock(event.timestamp)}
+      <time dateTime={event.timestamp} title={f.dateTime(event.timestamp)} className="pt-px text-right font-mono text-[11px] leading-5 text-muted tabular-nums">
+        {f.clock(event.timestamp)}
       </time>
       <span className="flex justify-center pt-[3px]">
         {event.type === "task_updated" && event.taskStatus

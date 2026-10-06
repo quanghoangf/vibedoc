@@ -1,9 +1,12 @@
 # T216: Dates and numbers by language, and Vietnamese letters in every font
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R078 — i18n support
 **Size:** M (2–3 hrs)
 **Depends on:** T215
 **Covers:** S4, S5
+**Owner:** ai:claude-code
+**Due:** 2026-10-09
+**Started:** 2026-10-06
 
 ## Goal
 In Vietnamese, dates, times and numbers read the Vietnamese way (`6 thg 10, 2026`), and letters like ạ, ế, ữ render in the chosen font instead of falling back to another one.
@@ -49,5 +52,13 @@ PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 ```
 
 ## Manual tests
-- [ ] S4 — WHEN the app is in Vietnamese and the user opens Activity and the board Timeline → THEN dates and month names are Vietnamese
-- [ ] S5 — WHEN the user picks each font in Settings with Vietnamese on → THEN Vietnamese letters render in that font, or the font says it has none
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T216-dates-numbers-vietnamese-glyphs.spec.ts` · Auto: passed 2026-10-06_
+### Steps
+- [x] 🤖 With Vietnamese on, open /activity → today's events sit under the heading "Hôm nay"
+- [x] 🤖 Open /roadmap?view=timeline → the month axis reads "thg 10 2026", "thg 11" … with no English month names
+- [x] 🤖 Open /settings → Atkinson Hyperlegible, DM Sans and DM Mono each say "Không có chữ tiếng Việt"
+- [x] 🤖 Switch to English and open /activity → the heading reads "Today"
+- [ ] In Vietnamese, open a task's Runs, the Test review list and Memory → History → times read "5 phút trước", dates "6 thg 10", and hover titles show Vietnamese date-times
+- [ ] In Vietnamese, pick Inter, IBM Plex Sans and JetBrains Mono in Settings → Vietnamese letters (ạ, ế, ữ) look like the rest of the font, not a different fallback
+### Regression risk
+- [ ] In English, the board Timeline view (Active / Day / Week), the roadmap timeline and activity times look exactly as before (e.g. "5m ago", "Oct 6", 24-hour clock)

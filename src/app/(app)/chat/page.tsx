@@ -7,9 +7,10 @@ import { useChats, type ChatTab } from "@/context/ChatContext"
 import { ChatView } from "@/components/chat/ChatView"
 import { ChatContextRail } from "@/components/chat/ChatContextRail"
 import { AttachLabel, StatusMarker } from "@/components/chat/StatusMarker"
-import { ago, defaultChat, groupChats, shellStatus, suggestions } from "@/lib/chats"
+import { defaultChat, groupChats, shellStatus, suggestions } from "@/lib/chats"
 import { useMinute } from "@/hooks/use-minute"
 import { cn } from "@/lib/utils"
+import { useFormat } from "@/context/LanguageContext"
 
 export default function ChatPage() {
   // main has no fixed height; the columns need one (viewport minus the h-12 AppHeader)
@@ -116,6 +117,7 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
 function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
   const { show, remove, now: clock } = useChats()
   const now = useMinute()
+  const f = useFormat()
   const status = shellStatus(chat, clock)
   const lastText = [...chat.messages].reverse().find((m) => m.text)?.text.replace(/\s+/g, " ").trim()
   return (
@@ -132,7 +134,7 @@ function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
         <span className="flex items-center gap-2 pr-5">
           <StatusMarker status={status} showIdle />
           <span className={cn("min-w-0 flex-1 truncate text-[13px]", status === "idle" && !active ? "text-txt/80" : "text-txt")}>{chat.title}</span>
-          {now > 0 && <span className="shrink-0 font-mono text-[10px] text-muted group-hover:opacity-0">{ago(chat.updatedAt, now)}</span>}
+          {now > 0 && <span className="shrink-0 font-mono text-[10px] text-muted group-hover:opacity-0">{f.agoShort(chat.updatedAt, now)}</span>}
         </span>
         {(chat.attach || lastText) && (
           <span className="flex items-center gap-2 pl-5 text-[11px] text-muted">

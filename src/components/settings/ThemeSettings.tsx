@@ -175,6 +175,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
                   </div>
                   <div className={cn("mt-1 text-xs", isActive ? "text-accent font-medium" : "text-txt")}>{font.label}</div>
                   <div className="text-xs text-muted">{font.note}</div>
+                  {lang === "vi" && "noVietnamese" in font && <div className="mt-1 text-xs text-amber">{t("shell.fontNoVietnamese")}</div>}
                 </button>
               )
             })}

@@ -11,14 +11,15 @@ import './globals.css'
 
 // Every choice in Settings → Appearance → Font. Only the defaults are preloaded;
 // the browser downloads the others only once their data-font-* selector is active.
-const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
-const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' })
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter', preload: false })
-const plexSans = IBM_Plex_Sans({ subsets: ['latin'], variable: '--font-ibm-plex-sans', preload: false })
+// Vietnamese letters (R078) wherever Google has them; Atkinson, DM Sans and DM Mono don't (`noVietnamese` in settings.ts).
+const geist = Geist({ subsets: ['latin', 'vietnamese'], variable: '--font-geist' })
+const geistMono = Geist_Mono({ subsets: ['latin', 'vietnamese'], variable: '--font-geist-mono' })
+const inter = Inter({ subsets: ['latin', 'vietnamese'], variable: '--font-inter', preload: false })
+const plexSans = IBM_Plex_Sans({ subsets: ['latin', 'vietnamese'], variable: '--font-ibm-plex-sans', preload: false })
 const atkinson = Atkinson_Hyperlegible({ subsets: ['latin'], weight: ['400', '700'], variable: '--font-atkinson', preload: false })
 const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-dm-sans', preload: false })
-const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-jetbrains-mono', preload: false })
-const plexMono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-ibm-plex-mono', preload: false })
+const jetbrainsMono = JetBrains_Mono({ subsets: ['latin', 'vietnamese'], variable: '--font-jetbrains-mono', preload: false })
+const plexMono = IBM_Plex_Mono({ subsets: ['latin', 'vietnamese'], weight: ['400', '500'], variable: '--font-ibm-plex-mono', preload: false })
 const dmMono = DM_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-dm-mono', preload: false })
 
 const fontVars = [geist, geistMono, inter, plexSans, atkinson, dmSans, jetbrainsMono, plexMono, dmMono]

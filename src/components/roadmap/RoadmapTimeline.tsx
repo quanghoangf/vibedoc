@@ -6,7 +6,8 @@ import type { RoadmapItem } from "@/types"
 import type { RoadmapProgress } from "@/lib/roadmap-health"
 import { StatusDot } from "./RoadmapNodes"
 import { AgentDot } from "@/components/chat/AgentMark"
-import { LANE_ROW_H, buildTimeline, formatDay } from "./timeline"
+import { LANE_ROW_H, buildTimeline } from "./timeline"
+import { useFormat } from "@/context/LanguageContext"
 
 const LANE_LABEL_W = 200
 const HEADER_H = 36
@@ -22,7 +23,8 @@ interface RoadmapTimelineProps {
 export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, progressById }: RoadmapTimelineProps) {
   // same chapter numbers as the map: real horizons by order
   const chapters = new Map(items.filter((i) => i.parent === null).sort((a, b) => a.order - b.order).map((h, i) => [h.id, i + 1]))
-  const tl = useMemo(() => buildTimeline(items, today), [items, today])
+  const f = useFormat()
+  const tl = useMemo(() => buildTimeline(items, today, f.month), [items, today, f.month])
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // open with today about a third from the left
@@ -112,7 +114,7 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
                           mk.state === "overdue" ? "text-danger" : mk.state === "soon" ? "text-amber" : "text-muted",
                         )}
                       >
-                        {formatDay(mk.item.due as string)}
+                        {f.day(mk.item.due as string)}
                       </span>
                     </span>
                   </button>

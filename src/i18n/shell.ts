@@ -83,8 +83,6 @@ export const en = {
   copyEndpoint: "Copy endpoint",
   copyCommand: "Copy claude mcp add command",
   lastAgentCall: "Last agent call: {when}",
-  justNow: "just now",
-  ago: "{time} ago",
   noneYet: "none yet",
   connectSettings: "Agent configs and connection test in",
   connectSettingsLink: "Settings → MCP",
@@ -108,6 +106,7 @@ export const en = {
   // Settings → Appearance → Language
   language: "Language",
   languageHint: "Saved in this browser only, so everyone on the project can pick their own.",
+  fontNoVietnamese: "No Vietnamese letters: they show in a fallback font.",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -178,8 +177,6 @@ export const vi: Messages<typeof en> = {
   copyEndpoint: "Sao chép endpoint",
   copyCommand: "Sao chép lệnh claude mcp add",
   lastAgentCall: "Lần gọi gần nhất: {when}",
-  justNow: "vừa xong",
-  ago: "{time} trước",
   noneYet: "chưa có",
   connectSettings: "Cấu hình agent và kiểm tra kết nối ở",
   connectSettingsLink: "Cài đặt → MCP",
@@ -200,4 +197,5 @@ export const vi: Messages<typeof en> = {
 
   language: "Ngôn ngữ",
   languageHint: "Chỉ lưu trong trình duyệt này, nên mỗi người trong dự án có thể chọn ngôn ngữ riêng.",
+  fontNoVietnamese: "Không có chữ tiếng Việt: các chữ này hiện bằng phông dự phòng.",
 }

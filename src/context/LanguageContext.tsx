@@ -1,7 +1,10 @@
 "use client"
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react"
-import { interpolate, langCookie, pluralSuffix, DEFAULT_LANG, type Lang } from "@/lib/i18n"
+import {
+  agoShort, dayHeading, formatClock, formatDate, formatDateTime, formatDay, formatNumber, interpolate, langCookie, monthName,
+  pluralSuffix, timeAgo, DEFAULT_LANG, type Lang,
+} from "@/lib/i18n"
 import { MESSAGES, type MessageKey, type PluralKey } from "@/i18n"
 
 type Vars = Record<string, string | number>
@@ -41,4 +44,25 @@ export function useT() {
     }
     return { t, tn, lang }
   }, [lang])
+}
+
+type When = string | number | Date
+
+export type Format = ReturnType<typeof useFormat>
+
+/** The date/number formatters of src/lib/i18n.ts bound to the current language (T216). */
+export function useFormat() {
+  const { lang } = useContext(LanguageContext)
+  return useMemo(() => ({
+    lang,
+    timeAgo: (v: When, now?: number) => timeAgo(lang, v, now),
+    agoShort: (v: When, now?: number) => agoShort(lang, v, now),
+    clock: (v: When) => formatClock(lang, v),
+    dateTime: (v: When) => formatDateTime(lang, v),
+    date: (v: When, opts: Intl.DateTimeFormatOptions, en?: string) => formatDate(lang, v, opts, en),
+    number: (n: number) => formatNumber(lang, n),
+    day: (ymd: string) => formatDay(lang, ymd),
+    month: (m: number) => monthName(lang, m),
+    dayHeading: (v: When) => dayHeading(lang, v),
+  }), [lang])
 }

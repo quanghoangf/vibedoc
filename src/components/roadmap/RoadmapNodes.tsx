@@ -5,7 +5,7 @@ import { AlertTriangle, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { RoadmapItem, RoadmapStatus, TaskStatus } from "@/types"
 import type { DueState, TaskDueSummary } from "@/lib/roadmap-health"
-import { formatDay } from "./timeline"
+import { useFormat } from "@/context/LanguageContext"
 import { FEATURE_W, HORIZON_W } from "./layout"
 import { AgentMark } from "@/components/chat/AgentMark"
 import { useItemAgent } from "@/context/ChatContext"
@@ -131,6 +131,7 @@ export function Progress({ progress }: { progress?: RoadmapNodeData["progress"] 
 }
 
 export function DueChip({ due, state }: { due: string | null; state?: DueState | null }) {
+  const f = useFormat()
   if (!due) return null
   return (
     <span
@@ -139,19 +140,20 @@ export function DueChip({ due, state }: { due: string | null; state?: DueState |
         state === "overdue" ? "text-danger" : state === "soon" ? "text-amber" : "text-muted",
       )}
     >
-      Due {formatDay(due)}
+      Due {f.day(due)}
     </span>
   )
 }
 
 /** The single most urgent date line for a card: overdue tasks, then the epic's own due, then the next task due. */
 function DueNote({ data }: { data: RoadmapNodeData }) {
+  const f = useFormat()
   const s = data.taskDue
   if (s && s.overdue > 0) {
     return <span className="font-mono text-[10px] text-danger">{s.overdue} {s.overdue === 1 ? "task" : "tasks"} overdue</span>
   }
   if (data.item.due) return <DueChip due={data.item.due} state={data.dueState} />
-  if (s?.next) return <span className={cn("font-mono text-[10px]", data.taskDueSoon ? "text-amber" : "text-muted")}>Next due {formatDay(s.next)}</span>
+  if (s?.next) return <span className={cn("font-mono text-[10px]", data.taskDueSoon ? "text-amber" : "text-muted")}>Next due {f.day(s.next)}</span>
   return null
 }
 

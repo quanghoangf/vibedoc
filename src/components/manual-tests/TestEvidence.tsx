@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
-import { clock, timeAgo } from "@/components/activity/ActivityEventRow"
+import { useFormat, type Format } from "@/context/LanguageContext"
 import { MarkdownRenderer, flashElement } from "@/components/docs/MarkdownRenderer"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { ReviewActions } from "@/components/board/TaskDetailPanel"
@@ -31,9 +31,9 @@ export function UnverifiedChip({ reasons }: { reasons: string[] }) {
 }
 
 /** `07:43`, or `Oct 4 07:43` when not today (local time) */
-const stamp = (iso: string) => {
+const stamp = (f: Format, iso: string) => {
   const d = new Date(iso)
-  return d.toDateString() === new Date().toDateString() ? clock(iso) : `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} ${clock(iso)}`
+  return d.toDateString() === new Date().toDateString() ? f.clock(iso) : `${f.date(d, { month: "short", day: "numeric" })} ${f.clock(iso)}`
 }
 
 // Classes set from enhance() below; literal here so Tailwind generates them (RunPlayer's step thumbnail)
@@ -103,6 +103,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
   review?: { initialNote: string; onDecided: () => void; children?: ReactNode }
 }) {
   const { rootParam } = useApp()
+  const f = useFormat()
   // gone = the ?run= isn't kept (pruned or malformed); runs then lists the kept ones so History stays
   const [data, setData] = useState<{ key: string; evidence: Evidence | null; error: string | null; gone?: boolean; runs?: Run[] } | null>(null)
   const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null)
@@ -132,7 +133,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
   const head = (evidence ? (cut < 0 ? evidence.markdown : evidence.markdown.slice(0, cut)) : "")
     .replace("[▶ Video of this run](", newer ? "[Open video (.webm) ↗](" : "[▶ Play this run in Review](")
     // The doc keeps UTC (EVIDENCE.md / MCP); here the run line matches History's local time
-    .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/, (t) => (shown ? stamp(shown.startedAt) : t))
+    .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/, (t) => (shown ? stamp(f, shown.startedAt) : t))
   // The doc's own `## History` table (always last) is for EVIDENCE.md / MCP; here the History nav above replaces it
   const body = evidence && cut >= 0 ? evidence.markdown.slice(cut).replace(/^## History\n[\s\S]*$/m, "") : ""
   const runs = evidence?.runs ?? (loading ? [] : data?.runs ?? [])
@@ -158,7 +159,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
           head={
             <p className="text-xs text-muted">
               {shown
-                ? <>Reviewing the {older ? "older" : "newest"} run · <span className={shown.status === "passed" ? "text-teal" : "text-danger"}>{shown.status}</span> · <span className="font-mono" title={shown.startedAt}>{timeAgo(shown.startedAt)}</span>{shown.commit && <> · <code className="font-mono">{shown.commit.slice(0, 7)}</code></>}</>
+                ? <>Reviewing the {older ? "older" : "newest"} run · <span className={shown.status === "passed" ? "text-teal" : "text-danger"}>{shown.status}</span> · <span className="font-mono" title={shown.startedAt}>{f.timeAgo(shown.startedAt)}</span>{shown.commit && <> · <code className="font-mono">{shown.commit.slice(0, 7)}</code></>}</>
                 : loading ? "Loading the evidence…" : "No recorded run: decide from the checklist."}
             </p>
           }
@@ -208,7 +209,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
       >
         {/* Announces a run pick (History, [ ], Show newest): the region stays, its text changes */}
         <p className="sr-only" aria-live="polite" aria-atomic>
-          {!loading && shown ? `Showing ${shown === newest ? "the newest run" : "run"} from ${stamp(shown.startedAt)}, ${shown.status}` : ""}
+          {!loading && shown ? `Showing ${shown === newest ? "the newest run" : "run"} from ${stamp(f, shown.startedAt)}, ${shown.status}` : ""}
         </p>
 
         {evidence && <MarkdownRenderer content={head} className="prose-evidence" />}
@@ -234,7 +235,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
           <p className="-mt-2 flex flex-wrap items-baseline gap-x-1.5 text-xs text-muted">
             <span className="text-txt">Older run</span>
             <span aria-hidden>·</span>
-            <span>newest <span className={newer.status === "passed" ? "text-teal" : "text-danger"}>{newer.status}</span> <span className="font-mono text-[11px] tabular-nums" title={newer.startedAt}>{timeAgo(newer.startedAt)}</span></span>
+            <span>newest <span className={newer.status === "passed" ? "text-teal" : "text-danger"}>{newer.status}</span> <span className="font-mono text-[11px] tabular-nums" title={newer.startedAt}>{f.timeAgo(newer.startedAt)}</span></span>
             <button type="button" onClick={() => onRun(null)} className="rounded-sm text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Show newest →</button>
           </p>
         )}
@@ -259,8 +260,8 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
                     >
                       <span className={cn("size-2 shrink-0 rounded-full", r.status === "passed" ? "bg-teal" : "bg-danger")} aria-hidden />
                       <span className={cn("w-12 shrink-0", r.status === "passed" ? "text-teal" : "text-danger")}>{r.status}</span>
-                      <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-muted tabular-nums" title={r.startedAt}>{timeAgo(r.startedAt)}</span>
-                      <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-muted tabular-nums max-sm:hidden">{stamp(r.startedAt)}</span>
+                      <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-muted tabular-nums" title={r.startedAt}>{f.timeAgo(r.startedAt)}</span>
+                      <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-muted tabular-nums max-sm:hidden">{stamp(f, r.startedAt)}</span>
                       {r.commit && <code className="font-mono text-[11px] text-muted">{r.commit.slice(0, 7)}</code>}
                       {i === 0 && <span className="shrink-0 whitespace-nowrap text-muted">· newest</span>}
                       {current && <span className="ml-auto text-[11px] text-txt">shown</span>}
