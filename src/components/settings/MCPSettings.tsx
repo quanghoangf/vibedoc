@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { resolveMcpEndpoint, type AppSettings } from "@/lib/settings"
 import { useOrigin } from "@/hooks/use-origin"
+import { useT } from "@/context/LanguageContext"
 
 interface MCPSettingsProps {
   settings: AppSettings
@@ -54,6 +55,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<"success" | "error" | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const { t } = useT()
   const endpoint = resolveMcpEndpoint(settings.mcp.endpoint, useOrigin())
 
   const updateMcp = (key: keyof AppSettings["mcp"], value: string) => {
@@ -98,13 +100,13 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-semibold text-txt mb-1">MCP Connection</h2>
-        <p className="text-sm text-muted">Configure the Model Context Protocol server for AI agents.</p>
+        <h2 className="text-xl font-semibold text-txt mb-1">{t("settings.mcpTitle")}</h2>
+        <p className="text-sm text-muted">{t("settings.mcpHint")}</p>
       </div>
 
       {/* Endpoint */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-txt">MCP Endpoint</label>
+        <label className="block text-sm font-medium text-txt">{t("settings.mcpEndpoint")}</label>
         <div className="flex gap-2">
           <Input
             value={endpoint}
@@ -121,7 +123,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
             ) : (
               <Plug className="w-4 h-4" />
             )}
-            Test
+            {t("settings.test")}
           </button>
         </div>
         {testResult && (
@@ -132,12 +134,12 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
             {testResult === "success" ? (
               <>
                 <Check className="w-4 h-4" />
-                Connection successful
+                {t("settings.connOk")}
               </>
             ) : (
               <>
                 <X className="w-4 h-4" />
-                Connection failed
+                {t("settings.connFailed")}
               </>
             )}
           </div>
@@ -146,8 +148,8 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
 
       {/* Agent Configs */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-txt">Agent Configuration</label>
-        <p className="text-xs text-muted">Copy the configuration for your coding agent:</p>
+        <label className="block text-sm font-medium text-txt">{t("settings.agentConfig")}</label>
+        <p className="text-xs text-muted">{t("settings.agentConfigHint")}</p>
         <div className="space-y-2">
           {Object.entries(AGENT_CONFIGS).map(([id, agent]) => (
             <div
@@ -170,12 +172,12 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
                 {copied === id ? (
                   <>
                     <Check className="w-3.5 h-3.5" />
-                    Copied
+                    {t("settings.copied")}
                   </>
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    Copy
+                    {t("settings.copy")}
                   </>
                 )}
               </button>

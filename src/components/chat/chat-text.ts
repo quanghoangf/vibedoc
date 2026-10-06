@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
 import { TOO_MANY_CHATS, type ChatStatus } from "@/lib/chats"
@@ -32,7 +33,7 @@ const SUGGESTION_KEY: Record<string, MessageKey> = {
 
 export function useChatText() {
   const { t } = useT()
-  return {
+  return useMemo(() => ({
     status: (s: ChatStatus) => t(STATUS_KEY[s]),
     agent: (s: keyof typeof AGENT_KEY) => t(AGENT_KEY[s]),
     suggestion: (s: string) => {
@@ -49,5 +50,5 @@ export function useChatText() {
     },
     /** A notice from the store: the running-chat cap is translated, anything else (a server error) shows as sent. */
     notice: (n: string) => (n === TOO_MANY_CHATS ? t("chat.tooMany", { n: n.match(/\d+/)?.[0] ?? "" }) : n),
-  }
+  }), [t])
 }

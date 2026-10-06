@@ -3,13 +3,15 @@ import type { Lang } from "../lib/i18n"
 import * as board from "./board"
 import * as chat from "./chat"
 import * as docs from "./docs"
+import * as help from "./help"
 import * as memory from "./memory"
 import * as roadmap from "./roadmap"
+import * as settings from "./settings"
 import * as shell from "./shell"
 import * as templates from "./templates"
 import * as tests from "./tests"
 
-export const AREAS = { shell, board, roadmap, docs, templates, memory, tests, chat }
+export const AREAS = { shell, board, roadmap, docs, templates, memory, tests, chat, settings, help }
 
 type Areas = typeof AREAS
 type AreaKey<A extends keyof Areas> = keyof Areas[A]["en"] & string

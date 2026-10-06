@@ -1,9 +1,12 @@
 # T223: Settings, help, shortcuts, ⌘K and shared UI in Vietnamese
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R078 — i18n support
 **Size:** L (half a day)
 **Depends on:** T215
 **Covers:** S1
+**Owner:** ai:claude-code
+**Due:** 2026-10-13
+**Started:** 2026-10-06
 
 ## Goal
 With Tiếng Việt chosen, every piece of interface text in this area is Vietnamese: headings, buttons, menus, dialogs, empty states, toasts, tooltips, `aria-label`s and placeholders. English looks exactly as it does today.
@@ -47,4 +50,16 @@ PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 ```
 
 ## Manual tests
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T223-settings-help-vietnamese.spec.ts` · Auto: passed 2026-10-06_
+### Steps
 - [ ] S1 — WHEN the app is in Vietnamese and the user opens /settings (every section), the Help panel, ⌘K and Quick open → THEN every interface text is Vietnamese
+- [x] 🤖 With Vietnamese on, open /settings → the heading reads "Cài đặt" and the sections Giao diện / Trình soạn thảo / Dự án / Trạng thái / Kỹ năng
+- [x] 🤖 Click "Trạng thái" → the section explains "Các cột của bảng, theo thứ tự…"
+- [x] 🤖 On /board press ? → the Help panel "Trợ giúp" opens
+- [x] 🤖 Press ⌘K and type "bang" → the "Điều hướng" group offers "Bảng"
+- [ ] In Vietnamese, ⌘K still finds "Board" when you type the English word
+- [ ] Settings → Frontend app on a project with a detected app: the server, Playwright, Log in and smoke rows read Vietnamese and nothing overflows
+- [ ] Delete a task on the board → the Undo toast reads "Hoàn tác" and Undo brings the task back
+### Regression risk
+- [ ] In English, the Help panel, ⌘K and every Settings section read exactly as before
+- [ ] Keyboard shortcuts (board v/1–4/f/n, graph keys, test review keys) still work

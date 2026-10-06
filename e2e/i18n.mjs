@@ -59,7 +59,6 @@ const { SANS_FONTS, MONO_FONTS } = await import("../src/lib/settings.ts")
 /** @type {{ path: string, name: string, scope?: string, open?: (page: import("playwright").Page) => Promise<void> }[]} */
 const PAGES = [
   { path: "/board", name: "app shell on /board", scope: 'header.sticky, [data-sidebar="sidebar"], [aria-keyshortcuts="?"]',
-    // the Help panel's content (page title, keys, tips) is src/lib/shortcuts.ts: T223 opens it
   },
   // T217: the board, all four views, its popovers, the bulk bar, the task panel and the new-task dialog
   { path: "/board?v=board", name: "board: Board view + filter", open: async (page) => {
@@ -224,6 +223,42 @@ const PAGES = [
     await page.getByRole("button", { name: /^Tạo/ }).click()
     await page.getByText(/Tệp sẽ tạo|Không có tệp nào được tạo/).first().waitFor()
   } },
+  // T223: every Settings section (/settings has no URL state: a click on its nav button)
+  ...[
+    ["Giao diện"], ["Trình soạn thảo"], ["Dự án"],
+    ["Trạng thái", async (page) => { await page.getByRole("textbox").last().fill("Đang thử") }],
+    ["Ứng dụng frontend", async (page) => { await page.getByText("Không tìm thấy frontend web").waitFor() }],
+    ["MCP", async (page) => { await page.getByRole("button", { name: "Kiểm tra" }).click(); await page.waitForLoadState("networkidle") }],
+    ["Kỹ năng", async (page) => { await page.getByRole("button", { name: /Thêm kỹ năng/ }).click() }],
+    ["Agent", async (page) => { await page.getByRole("button", { name: /Thêm agent/ }).click() }],
+  ].map(([section, then]) => ({ path: "/settings", name: `settings: ${section}`, open: async (page) => {
+    await page.getByRole("button", { name: section, exact: true }).click()
+    await page.waitForLoadState("networkidle")
+    if (then) await then(page)
+  } })),
+  // T223: the pinned Help panel on two pages, ⌘K with a query, Quick open, an Undo toast (Arrange only rewrites layout.json)
+  ...["/board", "/manual-tests"].map((p) => ({ path: p, name: `help panel on ${p}`, open: async (page) => {
+    await page.locator('[aria-keyshortcuts="?"]').first().click()
+    await page.getByRole("region", { name: "Trợ giúp" }).waitFor()
+  } })),
+  { path: "/board", name: "⌘K with a query", open: async (page) => {
+    await page.keyboard.press("ControlOrMeta+k")
+    await page.getByRole("dialog").getByRole("combobox").or(page.getByRole("dialog").getByRole("textbox")).first().fill("T00")
+    await page.getByText("Việc & epic").first().waitFor()
+  } },
+  { path: "/board", name: "⌘K empty", open: async (page) => {
+    await page.keyboard.press("ControlOrMeta+k")
+    await page.getByText("Điều hướng").first().waitFor()
+  } },
+  { path: "/board", name: "Quick open", open: async (page) => {
+    await page.keyboard.press("ControlOrMeta+p")
+    await page.getByRole("dialog").getByRole("combobox").or(page.getByRole("dialog").getByRole("textbox")).first().fill("zzzz")
+    await page.getByText("Không có tệp nào khớp").waitFor()
+  } },
+  { path: "/roadmap", name: "Undo toast", open: async (page) => {
+    await page.getByRole("button", { name: "Sắp xếp", exact: true }).first().click()
+    await page.getByRole("button", { name: "Hoàn tác" }).waitFor()
+  } },
   { path: "/getting-started", name: "getting started", open: async (page) => {
     await page.locator("article [data-user-content], article p").first().waitFor()
   } },
@@ -237,9 +272,9 @@ for (const file of readdirSync(dir).filter((f) => f.endsWith(".ts") && f !== "in
   const { en, vi } = await import(new URL(file, dir).href)
   for (const [k, v] of Object.entries(en)) {
     if (v === vi[k]) continue
-    // count placeholders only match digits, so "{n} step" doesn't flag a task titled "Next step"
+    // count placeholders only match digits, so "{n} step" doesn't flag a task titled "Next step"; {id} only an item id (T001)
     const pattern = v.includes("{")
-      ? new RegExp(`^${v.replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\\?\{(\w+)\\?\}/g, (_, name) => (NUMERIC.has(name) ? "\\d+" : ".+"))}$`)
+      ? new RegExp(`^${v.replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\\?\{(\w+)\\?\}/g, (_, name) => (NUMERIC.has(name) ? "\\d+" : name === "id" ? "[A-Z]+\\d+" : ".+"))}$`)
       : null
     english.push({ key: `${file.slice(0, -3)}.${k}`, text: v, pattern })
   }
@@ -263,7 +298,8 @@ async function uiStrings(page, scope) {
     for (const el of roots.flatMap((r) => [r, ...r.querySelectorAll("[title],[aria-label],[placeholder]")])) {
       for (const a of ["title", "aria-label", "placeholder"]) {
         const v = el.getAttribute(a)?.trim()
-        if (v) out.add(v)
+        // a user-content element's title repeats its content (a path, an id); its aria-label / placeholder are still UI
+        if (v && !(a === "title" && el.closest("[data-user-content]"))) out.add(v)
       }
     }
     return [...out]

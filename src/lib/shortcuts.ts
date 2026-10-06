@@ -1,27 +1,29 @@
 // Keyboard shortcuts: one list for the global key handler ((app)/layout.tsx), the `?` help sheet,
-// the ⌘K palette and the sidebar hints. Pure data, no React.
+// the ⌘K palette and the sidebar hints. Pure data, no React. Text is message keys (src/i18n, R078): the Help panel and
+// the tab title resolve them with t(); the type import is erased, so `node shortcuts.check.mts` still runs.
+import type { MessageKey } from "../i18n"
 
 export interface PageShortcut {
   href: string
   /** Single key, as KeyboardEvent.key reports it */
   key: string
-  label: string
+  label: MessageKey
   /** Help-sheet wording when `label` alone is ambiguous (label still names the page in the tab title) */
-  help?: string
+  help?: MessageKey
 }
 
 /** Single-key page jumps. Only fire outside text fields and without ⌘/Ctrl/Alt. */
 export const PAGE_SHORTCUTS: readonly PageShortcut[] = [
-  { href: "/board", key: "b", label: "Board" },
-  { href: "/roadmap", key: "r", label: "Roadmap" },
-  { href: "/docs", key: "d", label: "Docs" },
-  { href: "/activity", key: "a", label: "Activity" },
-  { href: "/memory", key: "m", label: "Memory" },
-  { href: "/explorer", key: "e", label: "Explorer" },
-  { href: "/graph", key: "l", label: "Graph", help: "Link graph" },
-  { href: "/manual-tests", key: "t", label: "Manual tests" },
-  { href: "/settings", key: "s", label: "Settings" },
-  { href: "/chat", key: "g", label: "Chats", help: "Chats page" },
+  { href: "/board", key: "b", label: "shell.board" },
+  { href: "/roadmap", key: "r", label: "shell.roadmap" },
+  { href: "/docs", key: "d", label: "shell.docs" },
+  { href: "/activity", key: "a", label: "shell.activity" },
+  { href: "/memory", key: "m", label: "shell.memory" },
+  { href: "/explorer", key: "e", label: "shell.explorer" },
+  { href: "/graph", key: "l", label: "shell.graph", help: "help.linkGraph" },
+  { href: "/manual-tests", key: "t", label: "shell.manualTests" },
+  { href: "/settings", key: "s", label: "shell.settings" },
+  { href: "/chat", key: "g", label: "shell.chats", help: "help.chatsPage" },
 ]
 
 /** Opens the head of the attention queue (needs you, then errors); again on the head walks to the next. */
@@ -32,11 +34,11 @@ export const CHAT_KEY = "c"
  * Shift + letter so they never collide with the bare-letter page jumps above.
  */
 export const ITEM_KEYS = {
-  edit: { key: "E", label: "⇧E", help: "Edit / rename" },
-  status: { key: "S", label: "⇧S", help: "Change status" },
-  duplicate: { key: "D", label: "⇧D", help: "Duplicate" },
-  chat: { key: "C", label: "⇧C", help: "Chat about it" },
-  remove: { key: "Backspace", label: "⌫", help: "Delete (Undo in the toast)" },
+  edit: { key: "E", label: "⇧E", help: "help.itemEdit" },
+  status: { key: "S", label: "⇧S", help: "help.itemStatus" },
+  duplicate: { key: "D", label: "⇧D", help: "docs.duplicate" },
+  chat: { key: "C", label: "⇧C", help: "help.itemChat" },
+  remove: { key: "Backspace", label: "⌫", help: "help.itemRemove" },
 } as const
 export type ItemAction = keyof typeof ITEM_KEYS
 
@@ -52,13 +54,13 @@ export const TOGGLE_DOCS_LIST_EVENT = "vibedoc:toggle-docs-list"
 
 /** Keys on /graph: the help sheet's Graph section and the selected-file card's kbd strip read this one list. */
 export const GRAPH_KEYS = {
-  search: { key: "/", label: "Find a file" },
-  matches: { key: "↵ ⇧↵", label: "In search: frame matches, then next / previous" },
-  tab: { key: "Tab", label: "Next file, then the unlinked shelf" },
-  select: { key: "↵", label: "Select file; again to open" },
-  open: { key: "o", label: "Open the focused file" },
-  move: { key: "←→↑↓", label: "Move to a linked file" },
-  clear: { key: "Esc", label: "Clear the search, then the selection" },
+  search: { key: "/", label: "help.graphFind" },
+  matches: { key: "↵ ⇧↵", label: "help.graphMatches" },
+  tab: { key: "Tab", label: "help.graphTab" },
+  select: { key: "↵", label: "help.graphSelect" },
+  open: { key: "o", label: "help.graphOpen" },
+  move: { key: "←→↑↓", label: "help.graphMove" },
+  clear: { key: "Esc", label: "help.graphClear" },
 } as const
 
 /**
@@ -66,53 +68,62 @@ export const GRAPH_KEYS = {
  * `a` and `s` shadow the Activity / Settings jumps on that page only.
  */
 export const TEST_REVIEW_KEYS = {
-  move: { key: "j k", label: "Next / previous task" },
-  tick: { key: "x", label: "Tick the next manual check" },
-  approve: { key: "a", label: "Approve (in review): focus it, a again confirms" },
-  sendBack: { key: "s", label: "Send back with a note" },
-  failed: { key: "f", label: "Next failed task" },
-  pick: { key: "⇧/⌘-click", label: "Select several tasks (bulk tick, approve, send back); Esc clears" },
-  run: { key: "p", label: "Run the task's spec now / stop it" },
-  suite: { key: "u", label: "Run / stop the regression suite (Suite tab)" },
-  view: { key: "v", label: "Switch Review / Evidence (the evidence doc and run history)" },
-  runs: { key: "[ ]", label: "Older / newer run (Evidence)" },
-  expand: { key: "o", label: "Open the task as a page / collapse back to the list" },
-  play: { key: "Space", label: "Play / pause (player focused)" },
+  move: { key: "j k", label: "help.trMove" },
+  tick: { key: "x", label: "help.trTick" },
+  approve: { key: "a", label: "help.trApprove" },
+  sendBack: { key: "s", label: "help.trSendBack" },
+  failed: { key: "f", label: "help.trFailed" },
+  pick: { key: "⇧/⌘-click", label: "help.trPick" },
+  run: { key: "p", label: "help.trRun" },
+  suite: { key: "u", label: "help.trSuite" },
+  view: { key: "v", label: "help.trView" },
+  runs: { key: "[ ]", label: "help.trRuns" },
+  expand: { key: "o", label: "help.trExpand" },
+  play: { key: "Space", label: "help.trPlay" },
 } as const
 
 /** Everything else the help sheet lists, after the page jumps, grouped by `section`. */
-export const OTHER_SHORTCUTS: readonly { key: string; label: string; section: "Open" | "Board" | "Graph" | "Test review" | "Open item" | "Editing & other" }[] = [
-  { key: "⌘K", label: "Command palette", section: "Open" },
-  { key: "⌘P", label: "Go to file", section: "Open" },
-  { key: CHAT_KEY, label: "Open next chat", section: "Open" },
-  { key: "n", label: "New task", section: "Board" },
-  { key: "v", label: "Next view", section: "Board" },
-  { key: "1–4", label: "Board · Table · By epic · Timeline", section: "Board" },
-  { key: "f", label: "Open filters", section: "Board" },
-  { key: "⇧-click", label: "Select tasks (bulk actions)", section: "Board" },
+export const OTHER_SHORTCUTS: readonly { key: string; label: MessageKey; section: "Open" | "Board" | "Graph" | "Test review" | "Open item" | "Editing & other" }[] = [
+  { key: "⌘K", label: "help.commandPalette", section: "Open" },
+  { key: "⌘P", label: "help.goToFile", section: "Open" },
+  { key: CHAT_KEY, label: "help.openNextChat", section: "Open" },
+  { key: "n", label: "board.newTask", section: "Board" },
+  { key: "v", label: "help.nextView", section: "Board" },
+  { key: "1–4", label: "help.boardViews", section: "Board" },
+  { key: "f", label: "help.openFilters", section: "Board" },
+  { key: "⇧-click", label: "help.selectTasks", section: "Board" },
   ...Object.values(GRAPH_KEYS).map(({ key, label }) => ({ key, label, section: "Graph" as const })),
   ...Object.values(TEST_REVIEW_KEYS).map(({ key, label }) => ({ key, label, section: "Test review" as const })),
   ...Object.values(ITEM_KEYS).map(({ label, help }) => ({ key: label, label: help, section: "Open item" as const })),
-  { key: "/", label: "Focus search (docs, board)", section: "Editing & other" },
-  { key: DOCS_LIST_KEY.label, label: "Hide / show the docs list", section: "Editing & other" },
-  { key: "⌘B", label: "Toggle sidebar", section: "Editing & other" },
-  { key: "?", label: "Pin the Help panel open / close it", section: "Editing & other" },
-  { key: "Esc", label: "Close panel or modal", section: "Editing & other" },
+  { key: "/", label: "help.focusSearchWhere", section: "Editing & other" },
+  { key: DOCS_LIST_KEY.label, label: "help.toggleDocsList", section: "Editing & other" },
+  { key: "⌘B", label: "help.toggleSidebar", section: "Editing & other" },
+  { key: "?", label: "help.pinHelp", section: "Editing & other" },
+  { key: "Esc", label: "help.closePanel", section: "Editing & other" },
 ]
 
 /** The full list, by section: the Help panel's "All shortcuts" view. */
-export const SHORTCUT_SECTIONS: readonly { title: string; rows: readonly { key: string; description: string }[] }[] = [
-  { title: "Go to", rows: PAGE_SHORTCUTS.map(({ key, label, help }) => ({ key, description: help ?? label })) },
-  ...(["Open", "Board", "Graph", "Test review", "Open item", "Editing & other"] as const).map((title) => ({
-    title, rows: OTHER_SHORTCUTS.filter((s) => s.section === title).map(({ key, label }) => ({ key, description: label })),
+const SECTION_TITLE: Record<(typeof OTHER_SHORTCUTS)[number]["section"], MessageKey> = {
+  Open: "help.sectionOpen",
+  Board: "shell.board",
+  Graph: "shell.graph",
+  "Test review": "tests.title",
+  "Open item": "help.sectionItem",
+  "Editing & other": "help.sectionOther",
+}
+
+export const SHORTCUT_SECTIONS: readonly { title: MessageKey; rows: readonly { key: string; description: MessageKey }[] }[] = [
+  { title: "help.goTo", rows: PAGE_SHORTCUTS.map(({ key, label, help }) => ({ key, description: help ?? label })) },
+  ...(["Open", "Board", "Graph", "Test review", "Open item", "Editing & other"] as const).map((section) => ({
+    title: SECTION_TITLE[section], rows: OTHER_SHORTCUTS.filter((s) => s.section === section).map(({ key, label }) => ({ key, description: label })),
   })),
 ]
 
 export interface PageHelp {
-  title: string
+  title: MessageKey
   /** This page's keys; every one also appears in the full list above */
-  keys: readonly { key: string; label: string }[]
-  tips: readonly string[]
+  keys: readonly { key: string; label: MessageKey }[]
+  tips: readonly MessageKey[]
 }
 
 const itemKeys = Object.values(ITEM_KEYS).map(({ label, help }) => ({ key: label, label: help }))
@@ -124,84 +135,84 @@ const board = (k: string) => OTHER_SHORTCUTS.find((s) => s.section === "Board" &
  */
 export const PAGE_HELP: Readonly<Record<string, PageHelp>> = {
   "/board": {
-    title: "Board",
-    keys: [board("n"), board("v"), board("1–4"), board("f"), { key: "/", label: "Focus search" }, board("⇧-click"), ...itemKeys],
+    title: "shell.board",
+    keys: [board("n"), board("v"), board("1–4"), board("f"), { key: "/", label: "help.focusSearch" }, board("⇧-click"), ...itemKeys],
     tips: [
-      "Drag a card to another column to change its status.",
-      "Change filters, sort or grouping, then Save view to keep them as a tab.",
-      "Hover a card with a spec and press its play button to run its tests.",
+      "help.tipBoardDrag",
+      "help.tipBoardView",
+      "help.tipBoardPlay",
     ],
   },
   "/roadmap": {
-    title: "Roadmap",
+    title: "shell.roadmap",
     keys: itemKeys,
     tips: [
-      "Right-click an epic on the map or the timeline for its actions.",
-      "Arrange lays the whole map out again; Undo in the toast puts it back.",
-      "Map and Timeline switch in the header; the timeline lays epics out by month.",
-      "A done epic with spec changes offers Merge into capability spec on its sheet.",
+      "help.tipRoadmapMenu",
+      "help.tipRoadmapArrange",
+      "help.tipRoadmapViews",
+      "help.tipRoadmapMerge",
     ],
   },
   "/docs": {
-    title: "Docs",
-    keys: [{ key: "/", label: "Focus search" }, { key: "⌘P", label: "Go to file" }, { key: DOCS_LIST_KEY.label, label: "Hide / show the docs list" }, ...itemKeys],
+    title: "shell.docs",
+    keys: [{ key: "/", label: "help.focusSearch" }, { key: "⌘P", label: "help.goToFile" }, { key: DOCS_LIST_KEY.label, label: "help.toggleDocsList" }, ...itemKeys],
     tips: [
-      "Hover a link in a doc to preview the file it points to.",
-      "The link-count button in the doc header lists what links here and what it links to.",
-      "Right-click a doc in the list to rename, move or delete it.",
+      "help.tipDocsPreview",
+      "help.tipDocsLinks",
+      "help.tipDocsMenu",
     ],
   },
   "/graph": {
-    title: "Graph",
+    title: "shell.graph",
     keys: Object.values(GRAPH_KEYS),
     tips: [
-      "Drag a dot; its linked files follow on springs.",
-      "Recent dims everything but the files changed in the last 24 hours.",
-      "Files with no visible link sit on the Unlinked shelf at the bottom.",
+      "help.tipGraphDrag",
+      "help.tipGraphRecent",
+      "help.tipGraphShelf",
     ],
   },
   "/manual-tests": {
-    title: "Test review",
+    title: "tests.title",
     keys: Object.values(TEST_REVIEW_KEYS),
     tips: [
-      "Sort by priority or by recently updated next to the epic filter.",
-      "A task in review opens on its Evidence; flag a passed step with Doubt before sending it back.",
-      "⇧-click rows to tick, approve or send back several tasks at once.",
+      "help.tipTrSort",
+      "help.tipTrEvidence",
+      "help.tipTrBulk",
     ],
   },
   "/memory": {
-    title: "Memory",
+    title: "shell.memory",
     keys: [],
     tips: [
-      "Search ranks entries the same way agents recall them.",
-      "Deleting an entry shows Undo in the toast for a few seconds.",
-      "History lists earlier handoffs with a diff, and restores one.",
+      "help.tipMemorySearch",
+      "help.tipMemoryUndo",
+      "help.tipMemoryHistory",
     ],
   },
   "/activity": {
-    title: "Activity",
+    title: "shell.activity",
     keys: [],
     tips: [
-      "All events filters the log by kind and by who (agents or you).",
-      "Click an event's title to open the task, epic, entry or doc it is about.",
+      "help.tipActivityFilter",
+      "help.tipActivityOpen",
     ],
   },
   "/chat": {
-    title: "Chats",
-    keys: [{ key: CHAT_KEY, label: "Open next chat" }],
+    title: "shell.chats",
+    keys: [{ key: CHAT_KEY, label: "help.openNextChat" }],
     tips: [
-      "Each chat is its own agent session; up to four run at once.",
-      "A chat attached to an epic or a task shows its status on that item.",
+      "help.tipChatSessions",
+      "help.tipChatAttach",
     ],
   },
 }
 
 /** Keys that work on every page: the Help panel's last section. */
-export const GLOBAL_HELP_KEYS: readonly { key: string; label: string }[] = [
-  { key: "⌘K", label: "Command palette" },
-  { key: "⌘P", label: "Go to file" },
-  { key: CHAT_KEY, label: "Open next chat" },
-  { key: "?", label: "Pin this help open / close it" },
+export const GLOBAL_HELP_KEYS: readonly { key: string; label: MessageKey }[] = [
+  { key: "⌘K", label: "help.commandPalette" },
+  { key: "⌘P", label: "help.goToFile" },
+  { key: CHAT_KEY, label: "help.openNextChat" },
+  { key: "?", label: "help.pinThisHelp" },
 ]
 
 /** The Help panel's content for a pathname (nested routes match their page), or null for pages without one. */
@@ -219,8 +230,8 @@ export function pageForKey(key: string): string | undefined {
   return PAGE_SHORTCUTS.find((s) => s.key === key)?.href
 }
 
-/** Page name for a pathname (document.title), matching nested routes too. */
-export function pageTitle(pathname: string): string | undefined {
+/** Page name (a message key) for a pathname (document.title), matching nested routes too. */
+export function pageTitle(pathname: string): MessageKey | undefined {
   return PAGE_SHORTCUTS.find((s) => pathname === s.href || pathname.startsWith(`${s.href}/`))?.label
 }
 

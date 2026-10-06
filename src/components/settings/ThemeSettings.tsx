@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { SANS_FONTS, MONO_FONTS, type AppSettings } from "@/lib/settings"
 import { useLang, useT } from "@/context/LanguageContext"
 import type { Lang } from "@/lib/i18n"
+import type { MessageKey } from "@/i18n"
 
 interface ThemeSettingsProps {
   settings: AppSettings
@@ -12,17 +13,32 @@ interface ThemeSettingsProps {
 }
 
 const ACCENT_COLORS = [
-  { id: "blue", label: "Blue", class: "bg-blue-500" },
-  { id: "purple", label: "Purple", class: "bg-purple-500" },
-  { id: "green", label: "Green", class: "bg-green-500" },
-  { id: "orange", label: "Orange", class: "bg-orange-500" },
+  { id: "blue", label: "settings.blue", class: "bg-blue-500" },
+  { id: "purple", label: "settings.purple", class: "bg-purple-500" },
+  { id: "green", label: "settings.green", class: "bg-green-500" },
+  { id: "orange", label: "settings.orange", class: "bg-orange-500" },
 ] as const
 
 const FONT_SIZES = [
-  { id: "small", label: "Small" },
-  { id: "medium", label: "Medium" },
-  { id: "large", label: "Large" },
+  { id: "small", label: "settings.small" },
+  { id: "medium", label: "settings.medium" },
+  { id: "large", label: "settings.large" },
 ] as const
+
+// A font's note by group and id (the notes in src/lib/settings.ts stay English for other readers)
+const FONT_NOTES: Record<string, MessageKey> = {
+  "sans:geist": "settings.noteGeist",
+  "sans:inter": "settings.noteInter",
+  "sans:ibm-plex-sans": "settings.notePlexSans",
+  "sans:atkinson": "settings.noteAtkinson",
+  "sans:dm-sans": "settings.noteDmSans",
+  "sans:system": "settings.noteSystemSans",
+  "mono:geist-mono": "settings.noteGeistMono",
+  "mono:jetbrains-mono": "settings.noteJetbrains",
+  "mono:ibm-plex-mono": "settings.notePlexMono",
+  "mono:dm-mono": "settings.noteDmMono",
+  "mono:system": "settings.noteSystemMono",
+}
 
 // Each language names itself, so it can be found whatever language is on (not translated)
 const LANGUAGES: { id: Lang; label: string }[] = [
@@ -36,18 +52,18 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-semibold text-txt mb-1">Appearance</h2>
-        <p className="text-sm text-muted">Customize the look and feel of the app.</p>
+        <h2 className="text-xl font-semibold text-txt mb-1">{t("settings.tabAppearance")}</h2>
+        <p className="text-sm text-muted">{t("settings.appearanceHint")}</p>
       </div>
 
       {/* Theme */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-txt">Theme</label>
+        <label className="block text-sm font-medium text-txt">{t("settings.theme")}</label>
         <div className="grid grid-cols-3 gap-3">
           {[
-            { id: "dark", label: "Dark", icon: Moon },
-            { id: "light", label: "Light", icon: Sun },
-            { id: "system", label: "System", icon: Monitor },
+            { id: "dark", label: t("settings.dark"), icon: Moon },
+            { id: "light", label: t("settings.light"), icon: Sun },
+            { id: "system", label: t("settings.system"), icon: Monitor },
           ].map(theme => {
             const Icon = theme.icon
             const isActive = settings.theme === theme.id
@@ -102,7 +118,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
 
       {/* Accent Color */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-txt">Accent Color</label>
+        <label className="block text-sm font-medium text-txt">{t("settings.accentColor")}</label>
         <div className="flex gap-3">
           {ACCENT_COLORS.map(color => {
             const isActive = settings.accentColor === color.id
@@ -115,7 +131,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
                   color.class,
                   isActive ? "ring-2 ring-offset-2 ring-offset-bg ring-white scale-110" : "hover:scale-105"
                 )}
-                title={color.label}
+                title={t(color.label)}
               >
                 {isActive && <Check className="w-5 h-5 text-white" />}
               </button>
@@ -126,7 +142,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
 
       {/* Font Size */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-txt">Font Size</label>
+        <label className="block text-sm font-medium text-txt">{t("settings.fontSize")}</label>
         <div className="flex gap-2">
           {FONT_SIZES.map(size => {
             const isActive = settings.fontSize === size.id
@@ -141,7 +157,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
                     : "border-border text-muted hover:border-accent/50"
                 )}
               >
-                {size.label}
+                {t(size.label)}
               </button>
             )
           })}
@@ -150,8 +166,8 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
 
       {/* Font family — each option previews in its own font */}
       {([
-        { key: "fontSans", label: "Interface Font", fonts: SANS_FONTS, fallback: "system-ui", sample: "Ship the roadmap by Friday" },
-        { key: "fontMono", label: "Code Font", fonts: MONO_FONTS, fallback: "ui-monospace, Menlo, Consolas, monospace", sample: "const id = 0O1lI;" },
+        { key: "fontSans", group: "sans", label: t("settings.interfaceFont"), fonts: SANS_FONTS, fallback: "system-ui", sample: t("settings.fontSample") },
+        { key: "fontMono", group: "mono", label: t("settings.codeFont"), fonts: MONO_FONTS, fallback: "ui-monospace, Menlo, Consolas, monospace", sample: "const id = 0O1lI;" },
       ] as const).map(group => (
         <div key={group.key} className="space-y-3">
           <label className="block text-sm font-medium text-txt">{group.label}</label>
@@ -173,8 +189,8 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
                   >
                     {group.sample}
                   </div>
-                  <div className={cn("mt-1 text-xs", isActive ? "text-accent font-medium" : "text-txt")}>{font.label}</div>
-                  <div className="text-xs text-muted">{font.note}</div>
+                  <div className={cn("mt-1 text-xs", isActive ? "text-accent font-medium" : "text-txt")}>{font.id === "system" ? t("settings.system") : font.label}</div>
+                  <div className="text-xs text-muted">{FONT_NOTES[`${group.group}:${font.id}`] ? t(FONT_NOTES[`${group.group}:${font.id}`]) : font.note}</div>
                   {lang === "vi" && "noVietnamese" in font && <div className="mt-1 text-xs text-amber">{t("shell.fontNoVietnamese")}</div>}
                 </button>
               )

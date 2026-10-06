@@ -17,6 +17,7 @@ import { ChatProvider, useChats } from "@/context/ChatContext"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { HelpLauncher } from "@/components/layout/HelpLauncher"
 import { CHAT_KEY, pageForKey, pageTitle, shouldHandleShortcut } from "@/lib/shortcuts"
+import { useT } from "@/context/LanguageContext"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -43,6 +44,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [quickOpen, setQuickOpen] = useState(false)
   const [newDocOpen, setNewDocOpen] = useState(false)
   const { showDefault } = useChats()
+  const { t } = useT()
   const keyboardRef = useRef(false)
   const prevPathRef = useRef(pathname)
 
@@ -50,14 +52,15 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   // #main so screen readers land on the new page. Keeps ChatContext's "(n) " waiting prefix.
   const projectName = summary?.name
   useEffect(() => {
-    const page = pageTitle(pathname)
+    const key = pageTitle(pathname)
+    const page = key && t(key)
     const base = [page, projectName].filter(Boolean).join(" · ")
     const prefix = document.title.match(/^\(\d+\) /)?.[0] ?? ""
     document.title = `${prefix}${base ? `${base} — ` : ""}VibeDoc`
     if (prevPathRef.current === pathname) return // initial load or project name change: don't steal focus
     prevPathRef.current = pathname
     if (keyboardRef.current) document.getElementById("main")?.focus({ preventScroll: true })
-  }, [pathname, projectName])
+  }, [pathname, projectName, t])
 
   // Last input was a key (not a pointer)? Decides whether a route change moves focus.
   useEffect(() => {

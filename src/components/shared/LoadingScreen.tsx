@@ -1,4 +1,9 @@
+"use client"
+
+import { useT } from "@/context/LanguageContext"
+
 export function LoadingScreen() {
+  const { t } = useT()
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
@@ -11,7 +16,7 @@ export function LoadingScreen() {
             />
           ))}
         </div>
-        <p className="text-muted text-sm font-mono">Loading project...</p>
+        <p className="text-muted text-sm font-mono">{t("help.loadingProject")}</p>
       </div>
     </div>
   )

@@ -120,26 +120,26 @@ function PanelBody({ pathname }: { pathname: string }) {
     return (
       <>
         <button type="button" onClick={() => setAll(false)} className="mb-3 inline-flex items-center gap-1 self-start text-muted hover:text-txt focus-visible:outline-2 focus-visible:outline-accent">
-          <ArrowLeft className="size-3.5" aria-hidden /> {help ? help.title : t("shell.help")}
+          <ArrowLeft className="size-3.5" aria-hidden /> {help ? t(help.title) : t("shell.help")}
         </button>
         <p className="mb-2 font-display text-sm font-semibold text-txt">{t("shell.allShortcuts")}</p>
-        {SHORTCUT_SECTIONS.map(({ title, rows }) => <KeyTable key={title} title={title} rows={rows.map((r) => ({ key: r.key, label: r.description }))} />)}
+        {SHORTCUT_SECTIONS.map(({ title, rows }) => <KeyTable key={title} title={t(title)} rows={rows.map((r) => ({ key: r.key, label: t(r.description) }))} />)}
       </>
     )
   }
   return (
     <>
-      <p className="font-display text-sm font-semibold text-txt">{help ? help.title : t("shell.help")}</p>
-      {help && help.keys.length > 0 && <KeyTable title={t("shell.keys")} rows={help.keys} />}
+      <p className="font-display text-sm font-semibold text-txt">{help ? t(help.title) : t("shell.help")}</p>
+      {help && help.keys.length > 0 && <KeyTable title={t("shell.keys")} rows={help.keys.map((k) => ({ key: k.key, label: t(k.label) }))} />}
       {help && help.tips.length > 0 && (
         <section aria-label={t("shell.tips")} className="mt-3">
           <p className="pb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-muted">{t("shell.tips")}</p>
           <ul className="flex flex-col gap-1.5 text-muted">
-            {help.tips.map((t) => <li key={t} className="leading-relaxed">{t}</li>)}
+            {help.tips.map((tip) => <li key={tip} className="leading-relaxed">{t(tip)}</li>)}
           </ul>
         </section>
       )}
-      <KeyTable title={t("shell.everywhere")} rows={GLOBAL_HELP_KEYS} />
+      <KeyTable title={t("shell.everywhere")} rows={GLOBAL_HELP_KEYS.map((k) => ({ key: k.key, label: t(k.label) }))} />
       <button type="button" onClick={() => setAll(true)} className="mt-3 self-start text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent">
         {t("shell.allShortcutsLink")}
       </button>
