@@ -26,6 +26,9 @@ writeFileSync(path.join(fx, "plans/tasks/T001-sample.md"), "# T001: Sample\n**St
 writeFileSync(path.join(fx, "plans/tasks/T002-next.md"), "# T002: Next step\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n**Depends on:** T001\n**Size:** M (2–3 hrs)\n\n## Goal\nAfter the sample.\n")
 writeFileSync(path.join(fx, "plans/roadmap/R003-shipped.md"), "# R003: Shipped thing\n**Parent:** R001\n**Status:** done\n**Order:** 20\n**Tasks:** T099\n")
 mkdirSync(path.join(fx, "docs"), { recursive: true })
+mkdirSync(path.join(fx, "memory/entries"), { recursive: true })
+writeFileSync(path.join(fx, "memory/MEMORY.md"), "# Project Memory\n\n## Working on now\nT001 sample, see T999.\n")
+writeFileSync(path.join(fx, "memory/entries/E001-only-core-touches-fs.md"), "# E001: Only core.ts touches the file system\n**Type:** convention\n**Updated:** 2026-10-01\n\nAPI routes import from core, see T001.\n")
 writeFileSync(path.join(fx, "docs/a.md"), "# A\n\nSee [B](b.md) and [missing](gone.md).\n")
 writeFileSync(path.join(fx, "docs/b.md"), "# B\n\nBack to [A](a.md).\n")
 writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Due:** 2026-12-15\n**Tasks:** T001, T002\n")
@@ -111,6 +114,28 @@ const PAGES = [
     await page.getByText("Sao chép ngữ cảnh").waitFor()
   } },
   { path: "/explorer", name: "explorer" },
+  // T220: memory (handoff, entries, entry detail + edit, cleanup, history, graph) and activity (sessions, all events)
+  { path: "/memory", name: "memory: handoff + entries" },
+  { path: "/memory?entry=E001", name: "memory: entry detail + history", open: async (page) => {
+    await page.getByRole("button", { name: "Lịch sử" }).last().click()
+    await page.getByText(/Đang tải lịch sử|Chưa được commit|Lịch sử cần git|Thay đổi chưa commit/).first().waitFor()
+  } },
+  { path: "/memory?entry=E001", name: "memory: entry edit form", open: async (page) => {
+    await page.getByRole("button", { name: "Sửa" }).click()
+    await page.getByText("Tóm tắt (một dòng)").waitFor()
+  } },
+  { path: "/memory?cleanup=1", name: "memory: cleanup", open: async (page) => {
+    await page.getByText(/không tồn tại/).first().waitFor()
+  } },
+  { path: "/memory?history=1", name: "memory: MEMORY.md history" },
+  { path: "/memory?view=graph", name: "memory: graph" },
+  { path: "/activity", name: "activity: sessions", open: async (page) => {
+    await page.getByRole("button", { name: /Agent/ }).first().waitFor()
+  } },
+  { path: "/activity", name: "activity: all events", open: async (page) => {
+    await page.getByRole("button", { name: "Mọi sự kiện" }).click()
+    await page.getByRole("group", { name: "Lọc theo loại" }).waitFor()
+  } },
 ]
 
 // English messages that differ in Vietnamese → a matcher per message
@@ -179,6 +204,12 @@ try {
   assert.equal(await page.evaluate(() => window.__noReload), true, "switching doesn't reload")
   console.log("ok  Settings → Tiếng Việt switches the sidebar at once, <html lang=vi>")
 
+  // An agent move, so Activity has a session and an event to show
+  const mcp = await page.request.post(`${BASE}/api/mcp?root=${encodeURIComponent(fx)}`, {
+    data: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_update_task", arguments: { taskId: "T001", status: "in-progress" } } },
+  })
+  assert.ok(mcp.ok())
+
   // 2. No English left on each page
   for (const p of PAGES) {
     await page.goto(`${BASE}${p.path}`)
@@ -190,11 +221,7 @@ try {
     console.log(`ok  ${p.name}: no English UI text`)
   }
 
-  // Dates (S4): an event today → "Hôm nay"; the roadmap timeline's months are Vietnamese
-  const mcp = await page.request.post(`${BASE}/api/mcp?root=${encodeURIComponent(fx)}`, {
-    data: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_update_task", arguments: { taskId: "T001", status: "in-progress" } } },
-  })
-  assert.ok(mcp.ok())
+  // Dates (S4): an event today (the task move before the pages) → "Hôm nay"; the roadmap timeline's months are Vietnamese
   await page.goto(`${BASE}/activity`)
   await page.getByRole("heading", { name: "Hôm nay" }).first().waitFor()
   await page.goto(`${BASE}/roadmap?view=timeline`)

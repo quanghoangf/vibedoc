@@ -2,11 +2,21 @@
 // Self-check: node src/lib/memory-health.check.mts
 
 export type HealthKind = 'contradiction' | 'dangling-ref' | 'duplicate' | 'stale'
+/** What `message` says, as data, for a UI that words it in its own language (R078). `who` null = the handoff. */
+export type HealthDetail =
+  | { is: 'dangling'; who: string | null; id: string }
+  | { is: 'not-done'; id: string; status: string }
+  | { is: 'says'; id: string; says: 'in-progress' | 'up-next'; status: string }
+  | { is: 'duplicate'; ids: string[]; percent: number }
+  | { is: 'stale-recalled'; id: string; days: number }
+  | { is: 'stale-never'; id: string; days: number }
+
 export type HealthFlag = {
   id: string            // stable key, e.g. "contradiction:working-on:T055", used for dismissing
   kind: HealthKind
   severity: 'warn' | 'info'
-  message: string       // one line, shown as is in the UI and MCP output
+  message: string       // one line in English: MCP output (the UI words `detail` itself)
+  detail: HealthDetail
   refs: string[]        // item ids involved (T055, E012, …)
   suggestion?: { action: 'merge' | 'delete'; ids: string[] }
 }
@@ -65,7 +75,7 @@ export function findContradictions(
   const dangling = (source: string, who: string, text: string, kinds: { board: boolean; entry: boolean }) => {
     for (const id of refsOf(prose(text))) {
       const missing = (kinds.board && isBoardId(id) && !status.has(id)) || (kinds.entry && isEntryId(id) && !entryIds.has(id))
-      if (missing) add({ id: `dangling-ref:${source}:${id}`, kind: 'dangling-ref', severity: 'info', message: `${who} mentions ${id}, which doesn't exist`, refs: [id] })
+      if (missing) add({ id: `dangling-ref:${source}:${id}`, kind: 'dangling-ref', severity: 'info', message: `${who} mentions ${id}, which doesn't exist`, detail: { is: 'dangling', who: source === 'handoff' ? null : who, id }, refs: [id] })
     }
   }
   // a project without entries has no merged/deleted ids to point at; its E-ids are format examples, so skip them
@@ -81,11 +91,11 @@ export function findContradictions(
       if (section === 'just-completed') {
         // epics named here are usually context ("T117 of R051"), so only tasks must be done
         if (id.startsWith('T') && s !== 'done') {
-          add({ id: `contradiction:${section}:${id}`, kind: 'contradiction', severity: 'warn', message: `Handoff says ${id} is done, but it is ${s}`, refs: [id] })
+          add({ id: `contradiction:${section}:${id}`, kind: 'contradiction', severity: 'warn', message: `Handoff says ${id} is done, but it is ${s}`, detail: { is: 'not-done', id, status: s }, refs: [id] })
         }
       } else if (CLOSED.has(s)) {
         const says = section === 'working-on' ? 'in progress' : 'up next'
-        add({ id: `contradiction:${section}:${id}`, kind: 'contradiction', severity: 'warn', message: `Handoff says ${id} is ${says}, but it is ${s}`, refs: [id] })
+        add({ id: `contradiction:${section}:${id}`, kind: 'contradiction', severity: 'warn', message: `Handoff says ${id} is ${says}, but it is ${s}`, detail: { is: 'says', id, says: section === 'working-on' ? 'in-progress' : 'up-next', status: s }, refs: [id] })
       }
     }
   }
@@ -181,6 +191,7 @@ export function findDuplicates(entries: DupEntry[], tokenize: Tokenize, opts: { 
     return {
       id: `duplicate:${ids.join('+')}`, kind: 'duplicate' as const, severity: 'info' as const,
       message: `${names} look like duplicates (${Math.round(score * 100)}%)`,
+      detail: { is: 'duplicate' as const, ids, percent: Math.round(score * 100) },
       refs: ids, suggestion: { action: 'merge' as const, ids },
     }
   }).sort((a, b) => byId(a.refs[0], b.refs[0]))
@@ -211,10 +222,12 @@ export function findStale(
     if (!since) continue
     const age = dayNumber(today) - dayNumber(since)
     if (age <= days) continue
-    const ago = (d: string) => { const n = dayNumber(today) - dayNumber(d); return `${n} ${n === 1 ? 'day' : 'days'} ago` }
+    const daysSince = (d: string) => dayNumber(today) - dayNumber(d)
+    const ago = (d: string) => { const n = daysSince(d); return `${n} ${n === 1 ? 'day' : 'days'} ago` }
     flags.push({
       id: `stale:${e.id}`, kind: 'stale', severity: 'info',
       message: recalled ? `${e.id} last recalled ${ago(recalled)}` : `${e.id} never recalled (updated ${ago(since)})`,
+      detail: recalled ? { is: 'stale-recalled', id: e.id, days: daysSince(recalled) } : { is: 'stale-never', id: e.id, days: daysSince(since) },
       refs: [e.id], suggestion: { action: 'delete', ids: [e.id] },
     })
   }

@@ -18,6 +18,9 @@ export interface Session {
   docs: string[]
   decisions: string[]
   memoryUpdated: boolean
+  /** roadmap_updated events (R078: the UI builds its own headline from these fields) */
+  roadmapEdits: number
+  /** English summary for MCP and episodes */
   headline: string
 }
 
@@ -67,6 +70,7 @@ function summarize(id: string, events: ActivityEvent[]): Session {
     docs: [...docs],
     decisions,
     memoryUpdated,
+    roadmapEdits,
     headline: parts.join(' · ') || plural(events.length, 'event'),
   }
 }

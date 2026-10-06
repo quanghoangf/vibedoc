@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Bot, User } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
+import { useSessionHeadline } from "@/components/activity/session-text"
 import type { Session } from "@/types"
 
 // Sessions that moved this task; mount with key={taskId} so state resets per task.
@@ -12,6 +13,7 @@ export function TaskSessions({ taskId, onNavigate }: { taskId: string; onNavigat
   const { rootParam } = useApp()
   const f = useFormat()
   const { t } = useT()
+  const headline = useSessionHeadline()
   const router = useRouter()
   const [sessions, setSessions] = useState<Session[] | null>(null)
 
@@ -39,7 +41,7 @@ export function TaskSessions({ taskId, onNavigate }: { taskId: string; onNavigat
               {s.actor === "ai" ? <Bot aria-hidden className="size-3.5 shrink-0 text-muted" /> : <User aria-hidden className="size-3.5 shrink-0 text-muted" />}
               <span className="sr-only">{s.actor === "ai" ? t("board.agentSession") : t("board.humanSession")}</span>
               <span className="shrink-0 font-mono text-muted">{f.timeAgo(s.start)}</span>
-              <span className="truncate text-txt">{s.headline}</span>
+              <span className="truncate text-txt">{headline(s)}</span>
             </button>
           ))}
         </div>

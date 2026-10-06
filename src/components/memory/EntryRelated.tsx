@@ -76,7 +76,7 @@ export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpen
         >
           {status ? <StatusIcon status={status} className="size-3.5 shrink-0" /> : <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />}
           {n.id !== n.path && <span className="shrink-0 font-mono text-[11px] text-muted">{n.id}</span>}
-          <span className="min-w-0 truncate text-txt">{n.label}</span>
+          <span data-user-content className="min-w-0 truncate text-txt">{n.label}</span>
         </button>
       </li>
     )
@@ -99,16 +99,16 @@ export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpen
   )
 
   return (
-    <section aria-label="Related" className="mt-5 flex flex-col gap-3 border-t border-border pt-4">
-      <h3 className="text-xs font-semibold text-txt">Related</h3>
+    <section aria-label={t("memory.related")} className="mt-5 flex flex-col gap-3 border-t border-border pt-4">
+      <h3 className="text-xs font-semibold text-txt">{t("memory.related")}</h3>
       {graph === null ? (
-        <p className="text-xs text-muted">Loading links…</p>
+        <p className="text-xs text-muted">{t("memory.loadingLinks")}</p>
       ) : !linksTo.length && !linkedFrom.length ? (
-        <p className="text-xs text-muted">No links yet. Mention a task, epic or doc in the entry to link it.</p>
+        <p className="text-xs text-muted">{t("memory.noLinksYet")}</p>
       ) : (
         <>
-          {linksTo.length > 0 && section("Links to", linksTo)}
-          {linkedFrom.length > 0 && section("Linked from", linkedFrom)}
+          {linksTo.length > 0 && section(t("docs.linksTo"), linksTo)}
+          {linkedFrom.length > 0 && section(t("docs.linkedFrom"), linkedFrom)}
         </>
       )}
     </section>

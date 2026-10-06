@@ -9,6 +9,8 @@ import { OwnerChip } from "@/components/shared/OwnerChip"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { ENTRY_TYPES, validateEntryInput, type Entry, type EntryType } from "@/lib/entries"
 import { useApp } from "@/context/AppContext"
+import { useT } from "@/context/LanguageContext"
+import { useEntryTypeLabel } from "./entry-type"
 
 type Draft = { type: EntryType; summary: string; body: string }
 
@@ -25,6 +27,8 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
   children?: ReactNode
 }) {
   const { demo } = useApp()
+  const { t } = useT()
+  const typeLabel = useEntryTypeLabel()
   const [editing, setEditing] = useState(entry === null)
   const [draft, setDraft] = useState<Draft>(() => toDraft(entry))
   const [error, setError] = useState<string | null>(null)
@@ -46,7 +50,7 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
         body: JSON.stringify({ ...(entry ? { id: entry.id } : {}), ...draft }),
       })
       const data = (await res.json().catch(() => ({}))) as { entry?: Entry; error?: string }
-      if (!res.ok || !data.entry) throw new Error(data.error ?? `Save failed (${res.status})`)
+      if (!res.ok || !data.entry) throw new Error(data.error ?? t("memory.saveFailed", { status: res.status }))
       setEditing(false)
       onSaved(data.entry)
     } catch (e) {
@@ -72,14 +76,14 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
   }, [editing, entry, onDelete, demo])
 
   const closeButton = (
-    <button type="button" onClick={onClose} aria-label="Close entry" className="rounded p-1 text-muted hover:bg-surface2 hover:text-txt">
+    <button type="button" onClick={onClose} aria-label={t("memory.closeEntry")} className="rounded p-1 text-muted hover:bg-surface2 hover:text-txt">
       <X className="size-3.5" />
     </button>
   )
 
   if (editing) {
     return (
-      <section aria-label={entry ? `Edit ${entry.id}` : "New entry"} className="rounded-xl border border-border bg-surface">
+      <section aria-label={entry ? t("memory.editEntry", { id: entry.id }) : t("memory.newEntry")} className="rounded-xl border border-border bg-surface">
         <form
           onSubmit={(e) => { e.preventDefault(); void save() }}
           onKeyDown={(e) => {
@@ -89,21 +93,21 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
           className="flex flex-col gap-3 p-5"
         >
           <div className="flex items-center justify-between font-mono text-[11px] text-muted">
-            <span>{entry ? `${entry.id} · editing` : "New entry"}</span>
+            <span>{entry ? t("memory.editingKicker", { id: entry.id }) : t("memory.newEntry")}</span>
             {closeButton}
           </div>
           <label className="flex flex-col gap-1 text-xs text-muted">
-            Type
+            {t("memory.type")}
             <select
               value={draft.type}
               onChange={(e) => setDraft({ ...draft, type: e.target.value as EntryType })}
               className="h-8 rounded-md border border-border bg-bg px-2 text-sm text-txt focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
             >
-              {ENTRY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {ENTRY_TYPES.map((type) => <option key={type} value={type}>{typeLabel(type)}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-muted">
-            Summary (one line)
+            {t("memory.summaryLine")}
             <Input
               autoFocus
               value={draft.summary}
@@ -113,7 +117,7 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-muted">
-            Details (markdown)
+            {t("memory.detailsMarkdown")}
             <textarea
               value={draft.body}
               onChange={(e) => setDraft({ ...draft, body: e.target.value })}
@@ -123,9 +127,9 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
           </label>
           {error && <p role="alert" className="text-xs text-danger">{error}</p>}
           <div className="flex items-center justify-end gap-2">
-            <span className="mr-auto text-[11px] text-muted">⌘↵ save · Esc cancel</span>
-            <Button type="button" variant="ghost" size="sm" onClick={cancel}>Cancel</Button>
-            <Button type="submit" size="sm" disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+            <span className="mr-auto text-[11px] text-muted">{t("memory.saveHint")}</span>
+            <Button type="button" variant="ghost" size="sm" onClick={cancel}>{t("board.cancel")}</Button>
+            <Button type="submit" size="sm" disabled={saving}>{saving ? t("memory.saving") : t("board.save")}</Button>
           </div>
         </form>
       </section>
@@ -136,30 +140,30 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
   return (
     <section aria-label={entry.id} className="rounded-xl border border-border bg-surface">
       <ItemPanelHeader
-        kicker={<span>{entry.id} · entry</span>}
+        kicker={<span>{t("memory.entryKicker", { id: entry.id })}</span>}
         menu={
           <span className="flex items-center gap-1">
             {!demo && <>
             <Button variant="ghost" size="sm" onClick={startEdit} className="h-7 px-2 text-xs">
-              <Pencil className="size-3.5" /> Edit
+              <Pencil className="size-3.5" /> {t("board.edit")}
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => onDelete(entry)} title="Delete (⌫)" className="h-7 px-2 text-xs hover:text-danger">
-              <Trash2 className="size-3.5" /> Delete
+            <Button variant="ghost" size="sm" onClick={() => onDelete(entry)} title={t("memory.deleteKey")} className="h-7 px-2 text-xs hover:text-danger">
+              <Trash2 className="size-3.5" /> {t("board.delete")}
             </Button>
             </>}
             {closeButton}
           </span>
         }
-        title={entry.summary}
+        title={<span data-user-content>{entry.summary}</span>}
         properties={[
-          { label: "Type", value: entry.type },
-          { label: "Updated", value: entry.updatedAt || null },
-          { label: "Changed by", value: entry.by ? <OwnerChip owner={entry.by} className="text-xs text-txt" /> : null },
-          { label: "File", value: <span className="truncate font-mono text-[11px] text-muted">{entry.file}</span> },
+          { label: t("memory.type"), id: "type", value: typeLabel(entry.type) },
+          { label: t("memory.updated"), id: "updated", value: entry.updatedAt || null },
+          { label: t("memory.changedBy"), id: "by", value: entry.by ? <OwnerChip owner={entry.by} className="text-xs text-txt" /> : null },
+          { label: t("memory.file"), id: "file", value: <span className="truncate font-mono text-[11px] text-muted">{entry.file}</span> },
         ]}
       />
       <div className="p-5">
-        {entry.body ? <MarkdownRenderer content={entry.body} /> : <p className="text-sm text-muted">No details.</p>}
+        {entry.body ? <MarkdownRenderer content={entry.body} /> : <p className="text-sm text-muted">{t("memory.noDetails")}</p>}
         {children}
       </div>
     </section>

@@ -1,9 +1,12 @@
 # T220: Memory and activity in Vietnamese
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R078 — i18n support
 **Size:** M (2–3 hrs)
 **Depends on:** T215
 **Covers:** S1
+**Owner:** ai:claude-code
+**Due:** 2026-10-09
+**Started:** 2026-10-06
 
 ## Goal
 With Tiếng Việt chosen, every piece of interface text in this area is Vietnamese: headings, buttons, menus, dialogs, empty states, toasts, tooltips, `aria-label`s and placeholders. English looks exactly as it does today.
@@ -45,4 +48,13 @@ PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN the app is in Vietnamese and the user opens /memory (entries, handoff, history, graph) and /activity → THEN every interface text is Vietnamese
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T220-memory-activity-vietnamese.spec.ts` · Auto: passed 2026-10-06_
+### Steps
+- [x] 🤖 With Vietnamese on, open /memory → the page reads "Bộ nhớ", the list "Mục ghi nhớ" with the type chips quy ước / cạm bẫy / quyết định / sở thích
+- [x] 🤖 Click "Dọn dẹp" → the panel is titled "Dọn dẹp" and its flags read as Vietnamese sentences ("Bàn giao ghi …")
+- [x] 🤖 Open /activity → the heading reads "Hoạt động", the toggle "Phiên" / "Mọi sự kiện", and a session headline like "… việc được chuyển"
+- [x] 🤖 Click "Mọi sự kiện" → the kind filter offers "Việc" and the actor filter "Mọi người" / "Agent" / "Bạn"
+- [ ] In Vietnamese, open an entry, Sửa it, open its Lịch sử, and open MEMORY.md Lịch sử with a version → labels, buttons, diff header and restore hint read naturally; entry text and activity titles stay as written
+- [ ] In Vietnamese, trigger a merge suggestion (two near-identical entries) and open Gộp… → the dialog reads naturally and Gộp vào E… works
+### Regression risk
+- [ ] In English, the Cleanup panel's messages, MCP vibedoc_read_memory warnings and session headlines read exactly as before (the English text still comes from memory-health / sessions)

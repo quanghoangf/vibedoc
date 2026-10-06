@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react"
 import {
-  agoShort, dayHeading, formatClock, formatDate, formatDateTime, formatDay, formatNumber, interpolate, langCookie, monthName,
+  agoShort, dayHeading, formatClock, formatDuration, formatDate, formatDateTime, formatDay, formatNumber, interpolate, langCookie, monthName,
   parseLang, pluralSuffix, timeAgo, DEFAULT_LANG, type Lang,
 } from "@/lib/i18n"
 import { MESSAGES, type MessageKey, type PluralKey } from "@/i18n"
@@ -82,5 +82,6 @@ export function useFormat() {
     day: (ymd: string) => formatDay(lang, ymd),
     month: (m: number) => monthName(lang, m),
     dayHeading: (v: When) => dayHeading(lang, v),
+    duration: (minutes: number) => formatDuration(lang, minutes),
   }), [lang])
 }

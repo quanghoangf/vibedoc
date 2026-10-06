@@ -8,6 +8,7 @@ import { toast, undoToast } from "@/components/ui/toast"
 import type { Entry } from "@/lib/entries"
 import type { CleanupFlag, MemoryVersion } from "@/lib/core"
 import type { MergeInput } from "@/components/memory/MergeDialog"
+import { tNow } from "@/context/LanguageContext"
 
 export default function MemoryPage() {
   return (
@@ -87,9 +88,9 @@ function MemoryPageInner() {
     try {
       const res = await fetch(`/api/memory/health/dismiss${rootParam}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: flag.id }) })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`)
+      if (!res.ok) throw new Error(data.error ?? tNow("board.requestFailed", { status: res.status }))
     } catch (e) {
-      toast(`Dismiss failed: ${e instanceof Error ? e.message : String(e)}`)
+      toast(tNow("memory.dismissFailed", { error: e instanceof Error ? e.message : String(e) }))
       loadFlags()
     }
   }, [rootParam, loadFlags])
@@ -112,7 +113,7 @@ function MemoryPageInner() {
   const post = useCallback(async (url: string, body: object) => {
     const res = await fetch(`${url}${rootParam}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`)
+    if (!res.ok) throw new Error(data.error ?? tNow("board.requestFailed", { status: res.status }))
     return data
   }, [rootParam])
 
@@ -122,13 +123,13 @@ function MemoryPageInner() {
       const { file, raw } = await post("/api/memory/entries/delete", { id: entry.id })
       setEntries((list) => (list ?? []).filter((e) => e.id !== entry.id))
       select(null)
-      undoToast(`Deleted ${entry.id}`, async () => {
+      undoToast(tNow("memory.deletedId", { id: entry.id }), async () => {
         await post("/api/memory/entries/restore", { file, raw })
         load()
         select(entry.id)
       })
     } catch (e) {
-      toast(`Delete failed: ${e instanceof Error ? e.message : String(e)}`)
+      toast(tNow("memory.deleteFailed", { error: e instanceof Error ? e.message : String(e) }))
     }
   }, [post, select, load])
 
@@ -138,12 +139,12 @@ function MemoryPageInner() {
       const { file, raw } = await post("/api/memory/entries/delete", { id })
       setEntries((list) => (list ?? []).filter((e) => e.id !== id))
       setFlags((list) => (list ?? []).filter((f) => !(f.kind === "stale" && f.refs.includes(id))))
-      undoToast(`Deleted ${id}`, async () => {
+      undoToast(tNow("memory.deletedId", { id }), async () => {
         await post("/api/memory/entries/restore", { file, raw })
         load()
       })
     } catch (e) {
-      toast(`Delete failed: ${e instanceof Error ? e.message : String(e)}`)
+      toast(tNow("memory.deleteFailed", { error: e instanceof Error ? e.message : String(e) }))
     }
   }, [post, load])
 
@@ -153,7 +154,7 @@ function MemoryPageInner() {
       const { entry, before } = await post("/api/memory/entries/merge", input)
       setEntries((list) => [...(list ?? []).filter((e) => e.id !== entry.id && !input.dropIds.includes(e.id)), entry])
       select(entry.id)
-      undoToast(`Merged into ${entry.id}`, async () => {
+      undoToast(tNow("memory.mergedInto", { id: entry.id }), async () => {
         await post("/api/memory/entries/merge/undo", { before })
         load()
         select(entry.id)
@@ -176,10 +177,10 @@ function MemoryPageInner() {
         await refresh()
         loadVersions()
       }
-      if (replacedId) undoToast("Restored MEMORY.md", undo)
-      else toast("Restored MEMORY.md")
+      if (replacedId) undoToast(tNow("memory.restoredMemory"), undo)
+      else toast(tNow("memory.restoredMemory"))
     } catch (e) {
-      toast(`Restore failed: ${e instanceof Error ? e.message : String(e)}`)
+      toast(tNow("memory.restoreFailed", { error: e instanceof Error ? e.message : String(e) }))
     }
   }, [post, go, view, refresh, loadVersions])
 

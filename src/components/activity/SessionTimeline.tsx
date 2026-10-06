@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { isLive } from "@/lib/sessions"
 import { SessionCard } from "./SessionCard"
 import type { EventTarget } from "@/lib/activity"
-import { useFormat } from "@/context/LanguageContext"
+import { useFormat, useT } from "@/context/LanguageContext"
 
 /** Sticky day heading shared by the sessions timeline and the event feed. */
 export function DayLabel({ label }: { label: string }) {
@@ -32,6 +32,7 @@ interface SessionTimelineProps {
 
 export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpen, focusSessionId }: SessionTimelineProps) {
   const f = useFormat()
+  const { t } = useT()
   const [actor, setActor] = useState<ActorFilter>("all")
   // Ticking clock: expires "working" badges without new events
   const [now, setNow] = useState(() => Date.now())
@@ -44,7 +45,7 @@ export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpe
 
   return (
     <div>
-      <div className="mb-3 flex items-center gap-1 text-xs" role="group" aria-label="Filter by actor">
+      <div className="mb-3 flex items-center gap-1 text-xs" role="group" aria-label={t("memory.filterByActor")}>
         {(["all", "ai", "human"] as const).map(a => {
           const Icon = a === "ai" ? Bot : a === "human" ? User : null
           return (
@@ -58,7 +59,7 @@ export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpe
               )}
             >
               {Icon && <Icon className="size-3.5" aria-hidden />}
-              {a === "all" ? "All" : a === "ai" ? "Agent" : "Human"}
+              {a === "all" ? t("memory.all") : a === "ai" ? t("memory.agent") : t("memory.human")}
               <span className="font-mono text-[11px] text-muted tabular-nums">{counts[a]}</span>
             </button>
           )
@@ -66,7 +67,7 @@ export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpe
       </div>
 
       {shown.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted">No {actor === "ai" ? "agent" : "human"} sessions yet.</p>
+        <p className="py-10 text-center text-sm text-muted">{actor === "ai" ? t("memory.noAgentSessions") : t("memory.noHumanSessions")}</p>
       ) : (
         <ol className="relative">
           {/* Rail runs behind the dots, between the clock gutter and the cards */}

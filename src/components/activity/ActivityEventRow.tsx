@@ -3,7 +3,8 @@ import type { ActivityEvent } from "@/types"
 import { StatusIcon, useStatusMeta } from "@/components/shared/StatusIcon"
 import { eventAction, eventTarget, type EventAction, type EventTarget } from "@/lib/activity"
 import { cn } from "@/lib/utils"
-import { useFormat } from "@/context/LanguageContext"
+import { useFormat, useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 
 const TYPE_ICON: Record<ActivityEvent["type"], LucideIcon> = {
   task_updated: ListChecks,
@@ -25,13 +26,21 @@ const ACTION_TONE: Partial<Record<EventAction, string>> = {
   restored: "border-teal/30 bg-teal/5 text-teal",
   deleted: "border-danger/30 bg-danger/5 text-danger",
 }
+const ACTION_KEY: Record<EventAction, MessageKey> = {
+  created: "memory.actCreated", edited: "memory.actEdited", moved: "memory.actMoved", deleted: "memory.actDeleted",
+  restored: "memory.actRestored", renamed: "memory.actRenamed", saved: "memory.actSaved", merged: "memory.actMerged",
+  undone: "memory.actUndone", dismissed: "memory.actDismissed", logged: "memory.actLogged", connected: "memory.actConnected",
+  rebuilt: "memory.actRebuilt", read: "memory.actRead", updated: "memory.actUpdated",
+}
+
 const badge = "inline-flex shrink-0 items-center rounded-sm border px-1.5 py-0.5 text-[10px] leading-none font-medium"
 
 /** The verb of an event; a task move shows the status it landed in. */
 function ActionBadge({ event }: { event: ActivityEvent }) {
   const action = eventAction(event)
+  const { t } = useT()
   if (action === "moved" && event.taskStatus) return <MovedBadge status={event.taskStatus} />
-  return <span className={cn(badge, ACTION_TONE[action] ?? "border-border2 text-muted")}>{action}</span>
+  return <span className={cn(badge, ACTION_TONE[action] ?? "border-border2 text-muted")}>{ACTION_KEY[action] ? t(ACTION_KEY[action]) : action}</span>
 }
 
 function MovedBadge({ status }: { status: string }) {
@@ -46,6 +55,7 @@ export function ActivityEventRow({ event, showActor = false, onOpen }: {
   onOpen?: (target: EventTarget) => void
 }) {
   const f = useFormat()
+  const { t } = useT()
   const Icon = TYPE_ICON[event.type] ?? FileText
   const target = onOpen ? eventTarget(event) : null
   const titleClass = "min-w-0 text-left text-sm leading-5 text-txt sm:shrink-0 sm:max-w-[60%] sm:truncate"
@@ -66,19 +76,20 @@ export function ActivityEventRow({ event, showActor = false, onOpen }: {
             <button
               type="button"
               onClick={() => onOpen(target)}
+              data-user-content
               className={cn(titleClass, "rounded-sm underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60")}
             >
               {event.title}
             </button>
           ) : (
-            <span className={titleClass}>{event.title}</span>
+            <span data-user-content className={titleClass}>{event.title}</span>
           )}
         </span>
-        {event.detail && <span className="min-w-0 truncate text-xs leading-5 text-muted">{event.detail}</span>}
+        {event.detail && <span data-user-content className="min-w-0 truncate text-xs leading-5 text-muted">{event.detail}</span>}
         {showActor && (
           <span className="flex shrink-0 items-center gap-1 font-mono text-[10px] text-muted sm:ml-auto">
             {event.actor === "human"
-              ? <><User className="size-3" aria-hidden />you</>
+              ? <><User className="size-3" aria-hidden />{t("memory.actorYou")}</>
               : <><Bot className="size-3" aria-hidden />AI</>}
           </span>
         )}

@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ENTRY_TYPES, type Entry, type EntryType } from "@/lib/entries"
 import { cn } from "@/lib/utils"
+import { useT } from "@/context/LanguageContext"
+import { useEntryTypeLabel } from "./entry-type"
 
 export type MergeInput = { keepId: string; dropIds: string[]; type: EntryType; summary: string; body: string }
 
@@ -30,6 +32,8 @@ export function MergeDialog({ group, onClose, onApprove, returnFocus }: {
   const [draft, setDraft] = useState(() => draftFor(sorted[0], sorted))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const { t } = useT()
+  const typeLabel = useEntryTypeLabel()
 
   const pick = (id: string) => {
     setKeepId(id)
@@ -53,9 +57,9 @@ export function MergeDialog({ group, onClose, onApprove, returnFocus }: {
           if (el?.isConnected) { e.preventDefault(); el.focus() }
         }}
         className="max-h-[90vh] max-w-3xl overflow-y-auto border-border bg-surface text-txt shadow-xl shadow-black/20">
-        <DialogTitle className="text-sm font-semibold text-txt">Merge entries</DialogTitle>
+        <DialogTitle className="text-sm font-semibold text-txt">{t("memory.mergeEntries")}</DialogTitle>
         <DialogDescription className="text-xs text-muted">
-          Pick the entry to keep and edit the merged text. The others are deleted; mentions of them point to the kept id.
+          {t("memory.mergeDescription")}
         </DialogDescription>
         <form
           onSubmit={(e) => { e.preventDefault(); void approve() }}
@@ -63,7 +67,7 @@ export function MergeDialog({ group, onClose, onApprove, returnFocus }: {
           className="flex min-w-0 flex-col gap-3"
         >
           <fieldset className="grid min-w-0 gap-2 sm:grid-cols-2">
-            <legend className="sr-only">Entry to keep</legend>
+            <legend className="sr-only">{t("memory.entryToKeep")}</legend>
             {sorted.map((e) => (
               <label
                 key={e.id}
@@ -82,30 +86,30 @@ export function MergeDialog({ group, onClose, onApprove, returnFocus }: {
                     className="size-3.5 accent-accent focus-visible:outline-2 focus-visible:outline-accent"
                   />
                   <span className="font-mono text-[11px] text-muted">{e.id}</span>
-                  <span className="font-mono text-[10px] text-muted">{e.type}</span>
-                  <span className="ml-auto text-muted">{e.id === keepId ? "Keep" : "Delete"}</span>
+                  <span className="font-mono text-[10px] text-muted">{typeLabel(e.type)}</span>
+                  <span className="ml-auto text-muted">{e.id === keepId ? t("memory.keep") : t("board.delete")}</span>
                 </span>
-                <span className="text-[13px] font-medium text-txt">{e.summary}</span>
-                {e.body && <span className="line-clamp-6 whitespace-pre-wrap font-mono text-[11px] text-muted">{e.body}</span>}
+                <span data-user-content className="text-[13px] font-medium text-txt">{e.summary}</span>
+                {e.body && <span data-user-content className="line-clamp-6 whitespace-pre-wrap font-mono text-[11px] text-muted">{e.body}</span>}
               </label>
             ))}
           </fieldset>
           <label className="flex flex-col gap-1 text-xs text-muted">
-            Type
+            {t("memory.type")}
             <select
               value={draft.type}
               onChange={(e) => setDraft({ ...draft, type: e.target.value as EntryType })}
               className="h-8 rounded-md border border-border bg-bg px-2 text-sm text-txt focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
             >
-              {ENTRY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {ENTRY_TYPES.map((type) => <option key={type} value={type}>{typeLabel(type)}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1 text-xs text-muted">
-            Merged summary (one line)
+            {t("memory.mergedSummary")}
             <Input value={draft.summary} onChange={(e) => setDraft({ ...draft, summary: e.target.value })} maxLength={200} className="h-8 text-txt" />
           </label>
           <label className="flex flex-col gap-1 text-xs text-muted">
-            Merged details (markdown)
+            {t("memory.mergedDetails")}
             <textarea
               value={draft.body}
               onChange={(e) => setDraft({ ...draft, body: e.target.value })}
@@ -115,10 +119,10 @@ export function MergeDialog({ group, onClose, onApprove, returnFocus }: {
           </label>
           {error && <p role="alert" className="text-xs text-danger">{error}</p>}
           <div className="flex items-center justify-end gap-2">
-            <span className="mr-auto font-mono text-[11px] text-muted">⌘↵ approve · Esc cancel</span>
-            <Button type="button" variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+            <span className="mr-auto font-mono text-[11px] text-muted">{t("memory.approveHint")}</span>
+            <Button type="button" variant="ghost" size="sm" onClick={onClose}>{t("board.cancel")}</Button>
             <Button type="submit" size="sm" disabled={busy || !draft.summary.trim()}>
-              {busy ? "Merging…" : `Merge into ${keepId}`}
+              {busy ? t("memory.merging") : t("memory.mergeIntoId", { id: keepId })}
             </Button>
           </div>
         </form>

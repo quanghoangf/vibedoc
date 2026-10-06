@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { readdirSync } from 'node:fs'
 import {
-  agoShort, dayHeading, formatDate, formatDay, formatNumber, interpolate, langCookie, monthName, parseLang,
+  agoShort, dayHeading, formatDate, formatDuration, formatDay, formatNumber, interpolate, langCookie, monthName, parseLang,
   placeholderMismatches, placeholders, pluralSuffix, timeAgo,
 } from './i18n.ts'
 
@@ -53,6 +53,11 @@ assert.equal(dayHeading('en', now, now), 'Today')
 assert.equal(dayHeading('vi', now, now), 'Hôm nay')
 assert.equal(dayHeading('vi', now - 1440 * min, now), 'Hôm qua')
 assert.match(dayHeading('vi', now - 5 * 1440 * min, now), /thg 10/)
+
+assert.equal(formatDuration('en', 0), '<1m')
+assert.equal(formatDuration('en', 5), '5m')
+assert.equal(formatDuration('en', 65), '1h 5m')
+assert.equal(formatDuration('vi', 65), '1 giờ 5 phút')
 
 // Every area: same keys, same {placeholders}, a _one/_other pair complete, nothing left empty
 const dir = new URL('../i18n/', import.meta.url)

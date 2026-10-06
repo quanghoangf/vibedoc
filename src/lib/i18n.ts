@@ -119,3 +119,11 @@ export function dayHeading(lang: Lang, value: When, nowMs = Date.now()): string 
   const s = new Intl.RelativeTimeFormat(lang, { numeric: "auto" }).format(rel, "day")
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
+
+/** A length of time in whole minutes: "<1m", "5m", "1h 5m" · "<1 phút", "5 phút", "1 giờ 5 phút". */
+export function formatDuration(lang: Lang, minutes: number): string {
+  const unit = (n: number, u: "minute" | "hour") => new Intl.NumberFormat(lang, { style: "unit", unit: u, unitDisplay: "narrow" }).format(n)
+  if (minutes < 1) return `<${unit(1, "minute")}`
+  if (minutes < 60) return unit(minutes, "minute")
+  return `${unit(Math.floor(minutes / 60), "hour")} ${unit(minutes % 60, "minute")}`
+}

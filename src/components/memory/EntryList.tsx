@@ -8,6 +8,8 @@ import { OwnerChip } from "@/components/shared/OwnerChip"
 import { ENTRY_TYPES, type Entry, type EntryType } from "@/lib/entries"
 import { filterEntries, tokenize } from "@/lib/recall"
 import { useApp } from "@/context/AppContext"
+import { useT } from "@/context/LanguageContext"
+import { useEntryTypeLabel } from "./entry-type"
 
 /** Knowledge entries (R046) with search (ranked like vibedoc_recall) and a type filter. */
 export function EntryList({ entries, selectedId, onOpen, onNew }: {
@@ -17,6 +19,8 @@ export function EntryList({ entries, selectedId, onOpen, onNew }: {
   onNew: () => void
 }) {
   const { demo } = useApp()
+  const { t } = useT()
+  const typeLabel = useEntryTypeLabel()
   const [query, setQuery] = useState("")
   const [type, setType] = useState<EntryType | null>(null)
   const shown = useMemo(() => filterEntries(entries, { query, type }), [entries, query, type])
@@ -44,15 +48,15 @@ export function EntryList({ entries, selectedId, onOpen, onNew }: {
   )
 
   return (
-    <section aria-label="Knowledge entries" className="flex min-w-0 flex-col gap-3">
+    <section aria-label={t("memory.knowledgeEntries")} className="flex min-w-0 flex-col gap-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="font-display text-base font-semibold tracking-tight">Knowledge entries</h2>
+        <h2 className="font-display text-base font-semibold tracking-tight">{t("memory.knowledgeEntries")}</h2>
         {!demo && <button
           type="button"
           onClick={onNew}
           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted outline-none hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent"
         >
-          <Plus className="size-3.5" aria-hidden /> New entry
+          <Plus className="size-3.5" aria-hidden /> {t("memory.newEntry")}
         </button>}
       </div>
 
@@ -63,24 +67,24 @@ export function EntryList({ entries, selectedId, onOpen, onNew }: {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search entries…"
-          aria-label="Search entries"
+          placeholder={t("memory.searchEntries")}
+          aria-label={t("memory.searchEntriesLabel")}
           className="h-8 pl-8"
         />
       </div>
 
-      <div role="group" aria-label="Filter by type" className="flex flex-wrap gap-1">
-        {chip(null, "All", entries.length)}
-        {ENTRY_TYPES.map((t) => chip(t, t, counts[t] ?? 0))}
+      <div role="group" aria-label={t("memory.filterByType")} className="flex flex-wrap gap-1">
+        {chip(null, t("memory.all"), entries.length)}
+        {ENTRY_TYPES.map((type) => chip(type, typeLabel(type), counts[type] ?? 0))}
       </div>
 
       {entries.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
-          No knowledge entries yet. Agents save them with <code className="font-mono text-xs">vibedoc_save_entry</code>.
+          {t("memory.noEntriesLead")} <code className="font-mono text-xs">vibedoc_save_entry</code>.
         </p>
       ) : shown.length === 0 ? (
         <p className="p-2 text-sm text-muted">
-          No entries match {searching ? `"${query.trim()}"` : "this filter"}.
+          {searching ? t("memory.noMatchQuery", { query: query.trim() }) : t("memory.noMatchFilter")}
         </p>
       ) : (
         <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-surface">
@@ -98,13 +102,13 @@ export function EntryList({ entries, selectedId, onOpen, onNew }: {
                 <span className="flex items-center gap-2 font-mono text-[11px] text-muted">
                   <span>{e.id}</span>
                   <span>·</span>
-                  <span>{e.type}</span>
+                  <span>{typeLabel(e.type)}</span>
                   <span className="ml-auto flex items-center gap-2">
                     <OwnerChip owner={e.by} className="font-sans" />
                     {e.updatedAt}
                   </span>
                 </span>
-                <span className="text-sm text-txt">{e.summary}</span>
+                <span data-user-content className="text-sm text-txt">{e.summary}</span>
               </button>
             </li>
           ))}
