@@ -19,6 +19,7 @@ import { latestReview, summarizeMarks } from "@/lib/review"
 import { blockingCount } from "@/lib/verification"
 import { verifyTask } from "@/lib/ask-agent"
 import { epicOf, sizeOf, type PropertyKey } from "@/lib/board-views"
+import { useT } from "@/context/LanguageContext"
 
 const ALL_PROPERTIES: PropertyKey[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "owner"]
 
@@ -39,6 +40,7 @@ interface TaskCardProps {
 export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected = false, onSelect }: TaskCardProps) {
   const [isDragging, setIsDragging] = useState(false)
   const { demo } = useApp()
+  const { t, tn } = useT()
   const show = (p: PropertyKey) => properties.includes(p)
   const epic = show("epic") && task.phase ? epicOf(task.phase) : null
   const sentBack = task.status === "todo" && task.raw ? latestReview(task.raw) : null
@@ -85,7 +87,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
           <TaskOwnerField task={task}><OwnerChip owner={task.owner} className="text-[10px] [&_svg]:size-3" /></TaskOwnerField>
         )}
         <span className="flex-1" />
-        {show("due") && task.due && !done && <TaskDueField task={task}><span title="Due">{task.due.slice(5)}</span></TaskDueField>}
+        {show("due") && task.due && !done && <TaskDueField task={task}><span title={t("board.due")}>{task.due.slice(5)}</span></TaskDueField>}
         {size && <TaskSizeField task={task}><span title={task.size} className="rounded-sm bg-surface2 px-1 text-[10px]">{size}</span></TaskSizeField>}
         {task.status === "review" && !demo && <CardVerify taskId={task.id} />}
         {!demo && <CardMenu task={task} onOpen={onOpen} />}
@@ -104,25 +106,28 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
           {changesRequested && (
             <span
               title={marked
-                ? `Flagged: ${[...marked.steps, ...(marked.more ? [`+${marked.more} more`] : [])].join(" · ")}`
+                ? t("board.flagged", { steps: [...marked.steps, ...(marked.more ? [t("board.moreSteps", { n: marked.more })] : [])].join(" · ") })
                 : sentBack?.note}
               className="inline-flex items-center gap-1 rounded-sm border border-amber/40 bg-amber/5 px-1.5 py-0.5 text-[10px] text-amber"
             >
-              <CornerUpLeft className="size-3" aria-hidden /> changes requested
-              {marked && <> · {marked.failed + marked.doubt} {marked.failed + marked.doubt === 1 ? "step" : "steps"}</>}
+              <CornerUpLeft className="size-3" aria-hidden /> {t("board.changesRequested")}
+              {marked && <> · {tn("board.steps", marked.failed + marked.doubt)}</>}
             </span>
           )}
           {needsHuman && (
-            <span title="The agent couldn't make the test pass after its automatic fixes" className="inline-flex items-center gap-1 rounded-sm border border-danger/40 bg-danger/5 px-1.5 py-0.5 text-[10px] text-danger">
-              <CornerUpLeft className="size-3" aria-hidden /> needs a human
+            <span title={t("board.needsHumanTitle")} className="inline-flex items-center gap-1 rounded-sm border border-danger/40 bg-danger/5 px-1.5 py-0.5 text-[10px] text-danger">
+              <CornerUpLeft className="size-3" aria-hidden /> {t("board.needsHuman")}
             </span>
           )}
           {findings > 0 && (
             <span
-              title={`Verification: ${task.verification?.findings.filter((f) => f.severity === "critical").length ?? 0} critical, ${task.verification?.findings.filter((f) => f.severity === "major").length ?? 0} major`}
+              title={t("board.verificationCounts", {
+                critical: task.verification?.findings.filter((f) => f.severity === "critical").length ?? 0,
+                major: task.verification?.findings.filter((f) => f.severity === "major").length ?? 0,
+              })}
               className="inline-flex items-center gap-1 rounded-sm border border-danger/40 bg-danger/5 px-1.5 py-0.5 text-[10px] text-danger"
             >
-              <ScanSearch className="size-3" aria-hidden /> {findings} {findings === 1 ? "finding" : "findings"}
+              <ScanSearch className="size-3" aria-hidden /> {tn("board.findings", findings)}
             </span>
           )}
           {task.status === "review" && task.lastRun && (
@@ -132,7 +137,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
               onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
-              title="Last run · open the evidence"
+              title={t("board.lastRunEvidence")}
               className={cn(
                 "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
                 task.lastRun.status !== "passed" ? "border-danger/40 text-danger"
@@ -141,13 +146,13 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
               )}
             >
               {task.lastRun.status === "passed"
-                ? <><Check className="size-3" aria-hidden /> {task.lastRun.passed}/{task.lastRun.steps}{tests?.autoRun?.flaky ? ` · ${tests.autoRun.flaky} flaky` : ""}</>
-                : <><X className="size-3" aria-hidden /> {task.lastRun.steps - task.lastRun.passed} failed</>}
+                ? <><Check className="size-3" aria-hidden /> {task.lastRun.passed}/{task.lastRun.steps}{tests?.autoRun?.flaky ? ` · ${t("board.flakyCount", { n: tests.autoRun.flaky })}` : ""}</>
+                : <><X className="size-3" aria-hidden /> {t("board.failedCount", { n: task.lastRun.steps - task.lastRun.passed })}</>}
             </Link>
           )}
           {deps.length > 0 && (
-            <span title={`Depends on ${deps.join(", ")}`} className="inline-flex items-center gap-1 font-mono text-[10px] text-muted">
-              <CornerDownRight className="size-3" aria-label="Depends on" />
+            <span title={t("board.dependsOnIds", { ids: deps.join(", ") })} className="inline-flex items-center gap-1 font-mono text-[10px] text-muted">
+              <CornerDownRight className="size-3" aria-label={t("board.dependsOn")} />
               {deps.join(", ")}
             </span>
           )}
@@ -158,10 +163,10 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation() /* the card's Enter would open the panel instead */}
               onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
-              title={`Manual tests: ${tests.done} of ${tests.total} ticked` +
-                (tests.auto ? `, ${tests.auto} automated` : "") +
-                (tests.autoRun ? ` (last run ${tests.autoRun.result} ${tests.autoRun.date}${tests.autoRun.flaky ? `, ${tests.autoRun.flaky} flaky` : ""})` : "") +
-                " · click for evidence"}
+              title={t("board.testsTicked", { done: tests.done, total: tests.total }) +
+                (tests.auto ? `, ${t("board.testsAutomated", { n: tests.auto })}` : "") +
+                (tests.autoRun ? ` (${t("board.testsLastRun", { result: tests.autoRun.result === "failed" ? t("board.runFailed") : t("board.runPassed"), date: tests.autoRun.date })}${tests.autoRun.flaky ? `, ${t("board.flakyCount", { n: tests.autoRun.flaky })}` : ""})` : "") +
+                ` · ${t("board.testsEvidence")}`}
               className={cn(
                 "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
                 tests.autoRun?.result === "failed" ? "border-danger/40 text-danger"
@@ -172,7 +177,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
               <FlaskConical className="size-3" aria-hidden />
               {tests.done}/{tests.total}
               {tests.auto > 0 && <> · <Bot className="size-3" aria-hidden />{tests.auto}</>}
-              {tests.autoRun?.result === "failed" && <span className="size-1.5 rounded-full bg-danger" aria-label="last auto run failed" />}
+              {tests.autoRun?.result === "failed" && <span className="size-1.5 rounded-full bg-danger" aria-label={t("board.lastAutoRunFailed")} />}
             </Link>
           )}
           {tests?.spec && !demo && <CardRun taskId={task.id} />}
@@ -190,7 +195,8 @@ function CardRun({ taskId }: { taskId: string }) {
   const testRun = useTestRun()
   const running = testRun.run?.taskId === taskId && isRunning(testRun.run)
   const suiteRun = useSuiteRun()
-  const other = suiteRun.busy ? "The suite" : testRun.busy && !running ? testRun.run!.taskId : null
+  const { t } = useT()
+  const other = suiteRun.busy ? t("board.theSuite") : testRun.busy && !running ? testRun.run!.taskId : null
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
   return (
     <button
@@ -200,8 +206,8 @@ function CardRun({ taskId }: { taskId: string }) {
       onKeyDown={stop}
       onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
       disabled={!!other}
-      aria-label={running ? `Stop ${taskId} tests` : `Run ${taskId} tests`}
-      title={other ? `${other} is running` : running ? "Running · click to stop" : "Run the spec now"}
+      aria-label={running ? t("board.stopTests", { id: taskId }) : t("board.runTests", { id: taskId })}
+      title={other ? t("board.isRunning", { name: other }) : running ? t("board.runningClickToStop") : t("board.runSpecNow")}
       className={cn(
         "inline-flex size-5 items-center justify-center rounded-sm text-muted transition-[opacity,color] hover:text-accent focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed",
         running ? "text-accent opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
@@ -214,6 +220,7 @@ function CardRun({ taskId }: { taskId: string }) {
 
 /** R067: Verify on a card in review (on hover / focus): a new agent chat checks it and reports findings. */
 function CardVerify({ taskId }: { taskId: string }) {
+  const { t } = useT()
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
   return (
     <button
@@ -222,8 +229,8 @@ function CardVerify({ taskId }: { taskId: string }) {
       onClick={(e) => { e.stopPropagation(); verifyTask(taskId) }}
       onKeyDown={stop}
       onDragStart={(e) => { e.preventDefault(); e.stopPropagation() }}
-      aria-label={`Verify ${taskId}`}
-      title="Verify: an agent checks it against the acceptance criteria"
+      aria-label={t("board.verifyId", { id: taskId })}
+      title={t("board.verifyTitle")}
       className="inline-flex size-5 items-center justify-center rounded-sm text-muted opacity-0 transition-[opacity,color] hover:text-accent group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
     >
       <ScanSearch className="size-3" aria-hidden />
@@ -234,6 +241,7 @@ function CardVerify({ taskId }: { taskId: string }) {
 /** ⋯ on the card (on hover / focus). Events are stopped so the card doesn't open or drag underneath. */
 function CardMenu({ task, onOpen }: { task: Task; onOpen: () => void }) {
   const { rootParam } = useApp()
+  const { t } = useT()
   const stop = (e: React.SyntheticEvent) => e.stopPropagation()
   return (
     <DropdownMenu>
@@ -241,7 +249,7 @@ function CardMenu({ task, onOpen }: { task: Task; onOpen: () => void }) {
         <button
           type="button"
           draggable={false}
-          aria-label={`Actions for ${task.id}`}
+          aria-label={t("board.actionsFor", { id: task.id })}
           onClick={stop}
           onKeyDown={stop}
           className="-my-1 -mr-1 grid size-5 place-items-center rounded-sm text-muted opacity-0 transition-opacity hover:bg-surface2 hover:text-txt focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
@@ -251,13 +259,13 @@ function CardMenu({ task, onOpen }: { task: Task; onOpen: () => void }) {
       </DropdownMenuTrigger>
       {/* React events bubble through the portal to the card: stop them here */}
       <DropdownMenuContent align="end" className="w-40" onClick={stop} onKeyDown={stop}>
-        <DropdownMenuItem onSelect={onOpen}><PanelRightOpen /> Open</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onOpen}><PanelRightOpen /> {t("board.open")}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() => { deleteTaskWithUndo(task, rootParam).catch((e: Error) => toast(e.message)) }}
           className="text-danger focus:text-danger"
         >
-          <Trash2 /> Delete
+          <Trash2 /> {t("board.delete")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -3,6 +3,12 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useT } from "@/context/LanguageContext"
+
+/** The close button's screen-reader name, in the UI language (a component: the content is a forwardRef). */
+function CloseLabel() {
+  return <span className="sr-only">{useT().t("shell.close")}</span>
+}
 
 const Dialog = DialogPrimitive.Root
 
@@ -44,7 +50,7 @@ const DialogContent = React.forwardRef<
       {children}
       <DialogPrimitive.Close className="absolute right-4 top-4 rounded-xs opacity-70 ring-offset-bg transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-surface2 data-[state=open]:text-muted">
         <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
+        <CloseLabel />
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>
   </DialogPortal>

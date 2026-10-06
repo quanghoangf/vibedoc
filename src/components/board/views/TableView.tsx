@@ -3,10 +3,12 @@
 import { useState, type MouseEvent } from "react"
 import { ArrowDown, ArrowUp, Bot, Check, ChevronRight, FlaskConical, Minus } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useStatusDefs } from "@/components/shared/status-defs"
+import { useTaskGroups } from "./useTaskGroups"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 import { localToday } from "@/lib/roadmap-health"
 import { TaskDueField, TaskOwnerField, TaskSizeField, TaskStatusField } from "../TaskFields"
-import { epicOf, groupTasks, type PropertyKey, type SortProp, type SortRule, type TaskGroup, type ViewState } from "@/lib/board-views"
+import { epicOf, type PropertyKey, type SortProp, type SortRule, type TaskGroup, type ViewState } from "@/lib/board-views"
 import type { Task, TaskStatus } from "@/types"
 
 interface ViewProps {
@@ -22,8 +24,8 @@ interface ViewProps {
 type TableViewProps = ViewProps & { onSort: (sorts: SortRule[]) => void }
 
 const ORDER: PropertyKey[] = ["status", "epic", "owner", "size", "due", "deps", "tests", "agent"]
-const LABEL: Record<PropertyKey, string> = {
-  status: "Status", epic: "Epic", size: "Size", due: "Due", deps: "Depends on", tests: "Tests", agent: "Agent", owner: "Owner",
+const LABEL: Record<PropertyKey, MessageKey> = {
+  status: "board.status", epic: "board.epic", size: "board.size", due: "board.due", deps: "board.dependsOn", tests: "board.tests", agent: "board.agent", owner: "board.owner",
 }
 const WIDTH: Record<PropertyKey, string> = {
   status: "w-[120px]", epic: "w-[170px]", size: "w-[56px]", due: "w-[92px]", deps: "w-[140px]", tests: "w-[72px]", agent: "w-[88px]", owner: "w-[104px]",
@@ -49,10 +51,11 @@ export function nextSorts(sorts: SortRule[], prop: SortProp, additive: boolean):
 }
 
 export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, selected = new Set(), onToggleSelect }: TableViewProps) {
-  const defs = useStatusDefs()
+  const groupTasks = useTaskGroups()
+  const { t } = useT()
   const props = ORDER.filter((p) => state.properties.includes(p))
   const groups: TaskGroup[] =
-    state.group === "none" ? [{ key: "all", label: "All tasks", epicId: null, tasks }] : groupTasks(tasks, state.group, defs)
+    state.group === "none" ? [{ key: "all", label: t("board.allTasks"), epicId: null, tasks }] : groupTasks(tasks, state.group)
   // Groups whose tasks are all done start collapsed; the user's toggles override.
   const [toggled, setToggled] = useState<Record<string, boolean>>({})
   const today = localToday()
@@ -60,8 +63,8 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
   if (tasks.length === 0) {
     return (
       <div className="rounded-lg border border-border px-4 py-12 text-center">
-        <p className="text-sm text-txt">No tasks match these filters.</p>
-        <p className="mt-1 text-xs text-muted">Remove a filter or clear the search to see more.</p>
+        <p className="text-sm text-txt">{t("board.noMatch")}</p>
+        <p className="mt-1 text-xs text-muted">{t("board.noMatchHint")}</p>
       </div>
     )
   }
@@ -87,7 +90,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
       >
         <button
           type="button"
-          title="Click to sort · Shift-click to add a sort"
+          title={t("board.sortHint")}
           onClick={(e) => onSort(nextSorts(state.sorts, key as SortProp, e.shiftKey))}
           className={cn(
             "inline-flex h-7 items-center gap-1 rounded-sm px-1.5 transition-colors duration-(--duration-fast) ease-out-soft hover:bg-surface2 hover:text-txt",
@@ -162,7 +165,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
           <td key={p} className={cls}>
             {agentTasks.has(task.id) ? (
               <span className="inline-flex items-center gap-1 text-[11px] text-txt">
-                <Bot className="size-3.5 text-accent" aria-hidden />working
+                <Bot className="size-3.5 text-accent" aria-hidden />{t("board.working")}
               </span>
             ) : <span className={cellMono}>—</span>}
           </td>
@@ -186,7 +189,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
         )}
       >
         <td className="pl-3" onClick={(e) => e.stopPropagation()}>
-          {onToggleSelect && <SelectBox label={`Select ${task.id}`} checked={selected.has(task.id)} onChange={() => onToggleSelect([task.id])} />}
+          {onToggleSelect && <SelectBox label={t("board.selectId", { id: task.id })} checked={selected.has(task.id)} onChange={() => onToggleSelect([task.id])} />}
         </td>
         <td className={cn("px-2.5", cellMono)}>{task.id}</td>
         <td className="min-w-0 px-1">
@@ -217,15 +220,15 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
           <tr className="h-[34px] border-b border-border2 bg-bg text-[11px] text-muted">
             <th scope="col" className="pl-3 text-left">
               {onToggleSelect && <SelectBox
-                label="Select all shown tasks"
+                label={t("board.selectAllShown")}
                 checked={allPicked}
                 mixed={somePicked}
                 onChange={() => onToggleSelect(tasks.map((t) => t.id), !allPicked)}
               />}
             </th>
-            {header("id", "ID")}
-            {header("title", "Title")}
-            {props.map((p) => header(p, LABEL[p], hideSm(p)))}
+            {header("id", t("board.id"))}
+            {header("title", t("board.title"))}
+            {props.map((p) => header(p, t(LABEL[p]), hideSm(p)))}
           </tr>
         </thead>
         {groups.map((g) => {

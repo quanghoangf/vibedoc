@@ -1,7 +1,10 @@
+import { useCallback } from "react"
 import { Circle, CircleCheck, CircleDot, CirclePause, CircleSlash, CircleX, Eye, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { TaskStatus } from "@/types"
-import type { StatusColor } from "@/lib/statuses"
+import { DEFAULT_STATUSES, type StatusColor, type StatusDef } from "@/lib/statuses"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 import { statusDefIn, useStatusDefs } from "./status-defs"
 
 /** One look per task status, used everywhere a status is shown (the task files keep their emoji; the UI doesn't). */
@@ -29,16 +32,41 @@ export const STATUS_COLOR_CLASS: Record<StatusColor, { text: string; chip: strin
   orange: { text: "text-orange-600 dark:text-orange-400", chip: "border-orange-600/30 bg-orange-600/5 text-orange-600 dark:border-orange-400/30 dark:bg-orange-400/5 dark:text-orange-400", bg: "bg-orange-500 dark:bg-orange-400" },
 }
 
+/** R078: built-in status names in the UI language; STATUS_META's English labels stay for code that isn't UI. */
+export const STATUS_KEYS: Record<TaskStatus, MessageKey> = {
+  todo: "board.statusTodo",
+  "in-progress": "board.statusInProgress",
+  review: "board.statusReview",
+  blocked: "board.statusBlocked",
+  paused: "board.statusPaused",
+  done: "board.statusDone",
+  cancelled: "board.statusCancelled",
+}
+
+/** A def's label: a built-in the project didn't rename is translated, any other label is the project's own words. */
+function defLabel(def: StatusDef, t: (key: MessageKey) => string): string {
+  const builtin = DEFAULT_STATUSES.find((d) => d.id === def.id)
+  return builtin && builtin.label === def.label ? t(STATUS_KEYS[def.id as TaskStatus]) : def.label
+}
+
+/** A built-in category's name (an epic's derived status, a timeline bar). */
+export function useCategoryLabel(): (status: TaskStatus) => string {
+  const { t } = useT()
+  return (status) => t(STATUS_KEYS[status])
+}
+
 /** Label, icon (from the category) and color classes for any status key, built-in or custom. */
 export function useStatusMeta(key: string) {
+  const { t } = useT()
   const def = statusDefIn(useStatusDefs(), key)
-  return { def, label: def.label, icon: STATUS_META[def.category].icon, ...STATUS_COLOR_CLASS[def.color] }
+  return { def, label: defLabel(def, t), icon: STATUS_META[def.category].icon, ...STATUS_COLOR_CLASS[def.color] }
 }
 
 /** A status key's label (for strings: titles, aria labels). */
 export function useStatusLabel(): (key: string) => string {
   const list = useStatusDefs()
-  return (key) => statusDefIn(list, key).label
+  const { t } = useT()
+  return useCallback((key: string) => defLabel(statusDefIn(list, key), t), [list, t])
 }
 
 export function StatusIcon({ status, className }: { status: string; className?: string }) {

@@ -5,7 +5,7 @@ import { AlertTriangle, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { RoadmapItem, RoadmapStatus, TaskStatus } from "@/types"
 import type { DueState, TaskDueSummary } from "@/lib/roadmap-health"
-import { useFormat } from "@/context/LanguageContext"
+import { useFormat, useT } from "@/context/LanguageContext"
 import { FEATURE_W, HORIZON_W } from "./layout"
 import { AgentMark } from "@/components/chat/AgentMark"
 import { useItemAgent } from "@/context/ChatContext"
@@ -132,6 +132,7 @@ export function Progress({ progress }: { progress?: RoadmapNodeData["progress"] 
 
 export function DueChip({ due, state }: { due: string | null; state?: DueState | null }) {
   const f = useFormat()
+  const { t } = useT()
   if (!due) return null
   return (
     <span
@@ -140,7 +141,7 @@ export function DueChip({ due, state }: { due: string | null; state?: DueState |
         state === "overdue" ? "text-danger" : state === "soon" ? "text-amber" : "text-muted",
       )}
     >
-      Due {f.day(due)}
+      {t("board.dueOn", { date: f.day(due) })}
     </span>
   )
 }

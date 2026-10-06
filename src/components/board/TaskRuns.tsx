@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Check, ImageOff, Loader2, Play, Square, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
-import { useFormat } from "@/context/LanguageContext"
+import { useFormat, useT } from "@/context/LanguageContext"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import type { RunManifest, RunStep } from "@/lib/runs-paths"
 import { useTestRun } from "@/components/manual-tests/useTestRun"
@@ -20,11 +20,12 @@ import { isRunning } from "@/lib/test-run-events"
 export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string; latest: string | null; spec?: string | null; onNavigate?: () => void }) {
   const { rootParam, demo } = useApp()
   const f = useFormat()
+  const { t } = useT()
   // R061: Run / Stop this task's spec; while it runs, one live line replaces the picked run
   const testRun = useTestRun()
   const live = testRun.run?.taskId === taskId && isRunning(testRun.run) ? testRun.run : null
   const suiteRun = useSuiteRun()
-  const otherRun = suiteRun.busy ? "The suite" : testRun.busy && !live ? testRun.run!.taskId : null
+  const otherRun = suiteRun.busy ? t("board.theSuite") : testRun.busy && !live ? testRun.run!.taskId : null
   const current = live?.steps.at(-1)
   const [runs, setRuns] = useState<RunManifest[] | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
@@ -55,21 +56,21 @@ export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string;
   const passed = run?.steps.filter(s => s.status === "passed").length ?? 0
 
   return (
-    <section aria-label="Test runs" className="px-5 py-3 border-b border-border shrink-0">
+    <section aria-label={t("board.testRuns")} className="px-5 py-3 border-b border-border shrink-0">
       <div className="mb-2 flex items-center gap-2">
-        <p className="text-xs font-mono uppercase tracking-wide text-muted">Runs</p>
+        <p className="text-xs font-mono uppercase tracking-wide text-muted">{t("board.runs")}</p>
         {spec && !demo && (
           <button
             type="button"
             onClick={() => void (live ? testRun.stop() : testRun.start(taskId))}
             disabled={!!otherRun}
-            title={otherRun ? `${otherRun} is running` : live ? "Stop the run" : `Run ${spec} now`}
+            title={otherRun ? t("board.isRunning", { name: otherRun }) : live ? t("board.stopRun") : t("board.runSpec", { spec })}
             className={cn(
               "inline-flex h-6 items-center gap-1 rounded-sm border px-1.5 text-xs transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40",
               live ? "border-danger/40 text-danger hover:bg-danger/10" : "border-border text-txt hover:border-accent/50",
             )}
           >
-            {live ? <><Square className="size-3" aria-hidden /> Stop</> : <><Play className="size-3" aria-hidden /> Run</>}
+            {live ? <><Square className="size-3" aria-hidden /> {t("board.stop")}</> : <><Play className="size-3" aria-hidden /> {t("board.run")}</>}
           </button>
         )}
         <Link
@@ -77,34 +78,34 @@ export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string;
           onClick={onNavigate}
           className="ml-auto rounded-sm text-xs text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
         >
-          Evidence →
+          {t("board.evidenceLink")}
         </Link>
       </div>
       {live ? (
         <p aria-live="polite" className="flex min-w-0 items-center gap-1.5 text-xs text-txt">
           <Loader2 className="size-3.5 shrink-0 animate-spin text-accent" aria-hidden />
           {current
-            ? <><span className="shrink-0 font-mono text-muted">Step {current.index}</span><span className="truncate" title={current.name}>{current.name}</span></>
-            : <span className="text-muted">Starting the app…</span>}
+            ? <><span className="shrink-0 font-mono text-muted">{t("board.stepN", { n: current.index })}</span><span className="truncate" title={current.name}>{current.name}</span></>
+            : <span className="text-muted">{t("board.startingApp")}</span>}
         </p>
       ) : runs === null ? null : !run ? (
         <p className="text-xs text-muted">
-          No recorded runs yet. Specs that import VibeDoc&apos;s test kit (<code className="font-mono text-txt">vibedoc_get_frontend</code> writes it) and use <code className="font-mono text-txt">step()</code> record one.
+          {t("board.noRunsLead")}<code className="font-mono text-txt">vibedoc_get_frontend</code> {t("board.noRunsMiddle")} <code className="font-mono text-txt">step()</code> {t("board.noRunsEnd")}
         </p>
       ) : (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-            <span className={cn("rounded-sm px-1.5 py-0.5 font-mono", run.status === "passed" ? "bg-teal/15 text-teal" : "bg-danger/15 text-danger")}>{run.status}</span>
+            <span className={cn("rounded-sm px-1.5 py-0.5 font-mono", run.status === "passed" ? "bg-teal/15 text-teal" : "bg-danger/15 text-danger")}>{run.status === "passed" ? t("board.runPassed") : t("board.runFailed")}</span>
             <span className="font-mono text-muted" title={run.endedAt}>{f.timeAgo(run.endedAt || run.startedAt)}</span>
-            <span className="text-muted"><span className="font-mono text-txt">{passed}/{run.steps.length}</span> steps passed</span>
+            <span className="text-muted"><span className="font-mono text-txt">{passed}/{run.steps.length}</span> {t("board.stepsPassed")}</span>
             <select
-              aria-label="Run"
+              aria-label={t("board.pickRun")}
               value={run.runId}
               onChange={e => setPicked(e.target.value)}
               className="ml-auto max-w-full rounded-sm border border-border bg-surface px-1.5 py-0.5 font-mono text-xs text-txt focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
             >
               {runs.map(r => (
-                <option key={r.runId} value={r.runId}>{f.dateTime(r.startedAt)} · {r.status}</option>
+                <option key={r.runId} value={r.runId}>{f.dateTime(r.startedAt)} · {r.status === "passed" ? t("board.runPassed") : t("board.runFailed")}</option>
               ))}
             </select>
           </div>
@@ -123,12 +124,12 @@ export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string;
                       // eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API, not a static asset
                       <img src={media(s.screenshot)} alt={s.name} loading="lazy" className="aspect-video w-full bg-surface2 object-cover object-top" />
                     ) : (
-                      <span className="flex aspect-video w-full items-center justify-center bg-surface2 text-muted"><ImageOff className="size-4" aria-label="No screenshot" /></span>
+                      <span className="flex aspect-video w-full items-center justify-center bg-surface2 text-muted"><ImageOff className="size-4" aria-label={t("board.noScreenshot")} /></span>
                     )}
                     <span className="flex items-start gap-1 px-1.5 py-1 text-[11px] leading-tight">
                       {s.status === "passed"
-                        ? <Check className="mt-px size-3 shrink-0 text-teal" aria-label="passed" />
-                        : <X className="mt-px size-3 shrink-0 text-danger" aria-label="failed" />}
+                        ? <Check className="mt-px size-3 shrink-0 text-teal" aria-label={t("board.runPassed")} />
+                        : <X className="mt-px size-3 shrink-0 text-danger" aria-label={t("board.runFailed")} />}
                       <span className="line-clamp-2 text-txt">{s.name}</span>
                     </span>
                   </button>
@@ -152,13 +153,13 @@ export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string;
                 {open.name}
               </DialogTitle>
               <DialogDescription className={cn("text-xs", open.error ? "whitespace-pre-wrap font-mono text-danger" : "sr-only")}>
-                {open.error ?? `Step ${open.index} passed`}
+                {open.error ?? t("board.stepPassed", { n: open.index })}
               </DialogDescription>
               {open.screenshot ? (
                 // eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API, not a static asset
                 <img src={media(open.screenshot)} alt={open.name} className="w-full rounded-sm border border-border" />
               ) : (
-                <p className="text-xs text-muted">No screenshot was saved for this step.</p>
+                <p className="text-xs text-muted">{t("board.noScreenshotSaved")}</p>
               )}
             </>
           )}

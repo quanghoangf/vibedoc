@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react"
 import {
   agoShort, dayHeading, formatClock, formatDate, formatDateTime, formatDay, formatNumber, interpolate, langCookie, monthName,
-  pluralSuffix, timeAgo, DEFAULT_LANG, type Lang,
+  parseLang, pluralSuffix, timeAgo, DEFAULT_LANG, type Lang,
 } from "@/lib/i18n"
 import { MESSAGES, type MessageKey, type PluralKey } from "@/i18n"
 
@@ -32,16 +32,34 @@ export function useLang(): LanguageValue {
   return useContext(LanguageContext)
 }
 
-/** t("shell.board"), t("shell.ago", { time }); tn("shell.agentsWorking", n) picks the _one / _other message. */
+function translate(lang: Lang, key: MessageKey, vars?: Vars): string {
+  return interpolate(MESSAGES[lang][key] ?? key, vars)
+}
+
+function translatePlural(lang: Lang, key: PluralKey, n: number, vars?: Vars): string {
+  const dict = MESSAGES[lang]
+  const suffix = pluralSuffix(lang, n, (s) => `${key}_${s}` in dict)
+  return interpolate(dict[`${key}_${suffix}`] ?? key, { n, ...vars })
+}
+
+/**
+ * For code outside React (a toast from a fetch helper): the language the page shows now, from <html lang>.
+ * Components use useT(), which re-renders when the language changes.
+ */
+export function tNow(key: MessageKey, vars?: Vars): string {
+  return translate(parseLang(typeof document === "undefined" ? null : document.documentElement.lang), key, vars)
+}
+
+export function tnNow(key: PluralKey, n: number, vars?: Vars): string {
+  return translatePlural(parseLang(typeof document === "undefined" ? null : document.documentElement.lang), key, n, vars)
+}
+
+/** t("shell.board"), t("board.dueOn", { date }); tn("shell.agentsWorking", n) picks the _one / _other message. */
 export function useT() {
   const { lang } = useContext(LanguageContext)
   return useMemo(() => {
-    const dict = MESSAGES[lang]
-    const t = (key: MessageKey, vars?: Vars) => interpolate(dict[key] ?? key, vars)
-    const tn = (key: PluralKey, n: number, vars?: Vars) => {
-      const suffix = pluralSuffix(lang, n, (s) => `${key}_${s}` in dict)
-      return interpolate(dict[`${key}_${suffix}`] ?? key, { n, ...vars })
-    }
+    const t = (key: MessageKey, vars?: Vars) => translate(lang, key, vars)
+    const tn = (key: PluralKey, n: number, vars?: Vars) => translatePlural(lang, key, n, vars)
     return { t, tn, lang }
   }, [lang])
 }

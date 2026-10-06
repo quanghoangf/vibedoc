@@ -6,6 +6,12 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useT } from "@/context/LanguageContext"
+
+/** The close button's screen-reader name, in the UI language (a component: the content is a forwardRef). */
+function CloseLabel() {
+  return <span className="sr-only">{useT().t("shell.close")}</span>
+}
 
 const Sheet = SheetPrimitive.Root
 
@@ -67,7 +73,7 @@ const SheetContent = React.forwardRef<
       {children}
       <SheetPrimitive.Close className="absolute right-4 top-4 rounded-xs opacity-70 ring-offset-bg transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-surface2">
         <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
+        <CloseLabel />
       </SheetPrimitive.Close>
     </SheetPrimitive.Content>
   </SheetPortal>

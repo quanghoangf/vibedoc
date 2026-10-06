@@ -1,9 +1,12 @@
 # T217: Board in Vietnamese: views, cards and the task panel
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R078 — i18n support
 **Size:** L (half a day)
 **Depends on:** T215
 **Covers:** S1
+**Owner:** ai:claude-code
+**Due:** 2026-10-13
+**Started:** 2026-10-06
 
 ## Goal
 With Tiếng Việt chosen, every piece of interface text in this area is Vietnamese: headings, buttons, menus, dialogs, empty states, toasts, tooltips, `aria-label`s and placeholders. English looks exactly as it does today.
@@ -46,4 +49,14 @@ PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN the app is in Vietnamese and the user opens /board (all four views) and the task panel → THEN every interface text is Vietnamese
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T217-board-vietnamese.spec.ts` · Auto: passed 2026-10-06_
+### Steps
+- [x] 🤖 With Vietnamese on, open /board → the heading reads "Bảng", the columns Cần làm / Đang làm / Chờ duyệt / Xong, and the button "Việc mới"
+- [x] 🤖 Click the "Dạng bảng" tab → the table headers read Tiêu đề, Trạng thái and Phụ trách
+- [x] 🤖 Open a task → the panel lists Trạng thái, Ưu tiên, Phụ trách and Hạn, with "Trò chuyện về việc này"
+- [x] 🤖 Press f → the filter popover says "Hiện việc khi" and offers "Thêm điều kiện"
+- [x] 🤖 Switch to English in Settings and open /board → the heading reads "Board" and the button "New task"
+- [ ] In Vietnamese, read the four views, the Sort / Group / Properties menus, a task in review (Duyệt / Trả lại…) and the bulk bar (tick two rows in Dạng bảng) → the wording reads naturally and nothing is cut off
+- [ ] Rename a built-in status in Settings → Statuses (e.g. "Done" → "Shipped") → the board shows your name in both languages; untouched statuses are translated
+### Regression risk
+- [ ] In English, dragging a card between columns, the saved views (Save view, rename, delete) and Approve / Send back on a review task work as before

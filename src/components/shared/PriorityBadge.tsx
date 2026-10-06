@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils"
 import { PRIORITIES, type Priority } from "@/lib/doc-priority"
 import { InlineSelect } from "./InlineProperty"
+import { useT } from "@/context/LanguageContext"
 
 // Colour only where it asks for attention: P0 red, P1 amber, P2/P3 stay neutral.
 const TONE: Record<Priority, string> = {
@@ -20,10 +21,6 @@ export function PriorityBadge({ priority, className }: { priority: Priority; cla
   )
 }
 
-const OPTIONS = [
-  ...PRIORITIES.map((p) => ({ value: p, label: p, node: <PriorityBadge priority={p} /> })),
-  { value: "", label: "No priority", node: <span className="text-muted">No priority</span> },
-]
 
 /** P0–P3 picker for any item (task, epic, doc); "" in the menu clears it. */
 export function PriorityField({ label, value, onChange, empty }: {
@@ -33,8 +30,13 @@ export function PriorityField({ label, value, onChange, empty }: {
   /** Shown when unset */
   empty?: React.ReactNode
 }) {
+  const { t } = useT()
+  const options = [
+    ...PRIORITIES.map((p) => ({ value: p, label: p, node: <PriorityBadge priority={p} /> })),
+    { value: "", label: t("board.noPriority"), node: <span className="text-muted">{t("board.noPriority")}</span> },
+  ]
   return (
-    <InlineSelect label={label} value={value ?? ""} options={OPTIONS} onChange={(v) => onChange((v || null) as Priority | null)}>
+    <InlineSelect label={label} value={value ?? ""} options={options} onChange={(v) => onChange((v || null) as Priority | null)}>
       {value ? <PriorityBadge priority={value} /> : (empty ?? <span className="text-muted">—</span>)}
     </InlineSelect>
   )

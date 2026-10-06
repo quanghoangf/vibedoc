@@ -22,7 +22,8 @@ const BASE = process.env.BASE ?? "http://localhost:3000"
 const fx = makeFixture()
 // A task with a due date and one status change, so Activity has an event and the roadmap timeline has a marker
 writeFileSync(path.join(fx, "plans/tasks/T001-sample.md"), "# T001: Sample\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n\n## Goal\nA sample.\n")
-writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Due:** 2026-12-15\n**Tasks:** T001\n")
+writeFileSync(path.join(fx, "plans/tasks/T002-next.md"), "# T002: Next step\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n**Depends on:** T001\n**Size:** M (2–3 hrs)\n\n## Goal\nAfter the sample.\n")
+writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Due:** 2026-12-15\n**Tasks:** T001, T002\n")
 const { SANS_FONTS, MONO_FONTS } = await import("../src/lib/settings.ts")
 
 // `scope`: CSS selectors to check instead of the whole page (the shell while page content isn't translated yet)
@@ -31,17 +32,42 @@ const PAGES = [
   { path: "/board", name: "app shell on /board", scope: 'header.sticky, [data-sidebar="sidebar"], [aria-keyshortcuts="?"]',
     // the Help panel's content (page title, keys, tips) is src/lib/shortcuts.ts: T223 opens it
   },
+  // T217: the board, all four views, its popovers, the bulk bar, the task panel and the new-task dialog
+  { path: "/board?v=board", name: "board: Board view + filter", open: async (page) => {
+    await page.keyboard.press("f")
+    await page.getByRole("dialog", { name: "Lọc" }).waitFor()
+    await page.getByRole("button", { name: "Thêm điều kiện" }).click()
+  } },
+  { path: "/board?v=table", name: "board: Table view + bulk bar", open: async (page) => {
+    await page.getByRole("checkbox", { name: "Chọn mọi việc đang hiện" }).check()
+    await page.getByRole("toolbar", { name: "Thao tác hàng loạt" }).waitFor()
+  } },
+  { path: "/board?v=epic", name: "board: By epic view" },
+  { path: "/board?v=timeline", name: "board: Timeline view" },
+  { path: "/board?v=table&s=status", name: "board: sort popover", open: async (page) => {
+    await page.getByRole("button", { name: /^Sắp xếp/ }).click()
+    await page.getByRole("dialog", { name: "Sắp xếp" }).waitFor()
+  } },
+  { path: "/board?task=T001", name: "board: task panel", open: async (page) => {
+    await page.getByRole("dialog").getByText("Sample", { exact: true }).waitFor()
+  } },
+  { path: "/board", name: "board: new task dialog", open: async (page) => {
+    await page.getByRole("button", { name: /^Việc mới/ }).click()
+    await page.getByRole("dialog", { name: "Việc mới" }).waitFor()
+  } },
 ]
 
 // English messages that differ in Vietnamese → a matcher per message
+const NUMERIC = new Set(["n", "done", "total", "critical", "major", "status"])
 const dir = new URL("../src/i18n/", import.meta.url)
 const english = []
 for (const file of readdirSync(dir).filter((f) => f.endsWith(".ts") && f !== "index.ts")) {
   const { en, vi } = await import(new URL(file, dir).href)
   for (const [k, v] of Object.entries(en)) {
     if (v === vi[k]) continue
+    // count placeholders only match digits, so "{n} step" doesn't flag a task titled "Next step"
     const pattern = v.includes("{")
-      ? new RegExp(`^${v.replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\\?\{\w+\\?\}/g, ".+")}$`)
+      ? new RegExp(`^${v.replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\\?\{(\w+)\\?\}/g, (_, name) => (NUMERIC.has(name) ? "\\d+" : ".+"))}$`)
       : null
     english.push({ key: `${file.slice(0, -3)}.${k}`, text: v, pattern })
   }
@@ -100,7 +126,8 @@ try {
   // 2. No English left on each page
   for (const p of PAGES) {
     await page.goto(`${BASE}${p.path}`)
-    await page.getByRole("link", { name: "Bảng" }).first().waitFor()
+    // the sidebar is in the DOM (a modal sheet hides it from role queries, so not getByRole)
+    await page.locator('[data-sidebar="sidebar"] a[href="/board"]').first().waitFor({ state: "attached" })
     await page.waitForLoadState("networkidle")
     if (p.open) await p.open(page)
     await assertVietnamese(page, p.name, p.scope)

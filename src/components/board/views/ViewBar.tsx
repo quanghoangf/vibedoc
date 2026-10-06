@@ -5,9 +5,18 @@ import { Bookmark, ChartGantt, ChevronDown, ListTree, Pencil, Plus, RotateCcw, S
 import { cn } from "@/lib/utils"
 import type { SavedView, ViewKind } from "@/lib/board-views"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 
 const KIND_ICON: Record<ViewKind, LucideIcon> = { board: SquareKanban, table: Table2, epic: ListTree, timeline: ChartGantt }
 const BUILT_IN = ["board", "table", "epic", "timeline"]
+/** R078: a built-in view still under its default name shows that name in the UI language */
+const BUILT_IN_NAME: Record<string, { name: string; key: MessageKey }> = {
+  board: { name: "Board", key: "board.viewBoard" },
+  table: { name: "Table", key: "board.viewTable" },
+  epic: { name: "By epic", key: "board.viewEpic" },
+  timeline: { name: "Timeline", key: "board.viewTimeline" },
+}
 
 const focusRing = "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
 const tabClass = cn(
@@ -31,6 +40,8 @@ export interface ViewBarProps {
 }
 
 export function ViewBar({ views, activeId, onSelect, onNew, onRename, onDelete, customizedIds, onRestore }: ViewBarProps) {
+  const { t } = useT()
+  const viewName = (v: SavedView) => (BUILT_IN_NAME[v.id]?.name === v.name ? t(BUILT_IN_NAME[v.id].key) : v.name)
   const ordered = [...views.filter(v => BUILT_IN.includes(v.id)), ...views.filter(v => !BUILT_IN.includes(v.id))]
   const [renaming, setRenaming] = useState<string | null>(null)
   // After rename / delete / restore the focused control unmounts; put focus back on a tab instead of <body>.
@@ -46,7 +57,7 @@ export function ViewBar({ views, activeId, onSelect, onNew, onRename, onDelete, 
   })
 
   return (
-    <div role="group" aria-label="Views" className="flex items-center gap-4 overflow-x-auto border-b border-border [scrollbar-width:none]">
+    <div role="group" aria-label={t("board.views")} className="flex items-center gap-4 overflow-x-auto border-b border-border [scrollbar-width:none]">
       {ordered.map(v => {
         const builtIn = BUILT_IN.includes(v.id)
         const Icon = builtIn ? KIND_ICON[v.kind] : Bookmark
@@ -70,19 +81,19 @@ export function ViewBar({ views, activeId, onSelect, onNew, onRename, onDelete, 
               ref={el => { if (el) tabs.current.set(v.id, el); else tabs.current.delete(v.id) }}
               type="button"
               aria-pressed={active}
-              title={builtIn ? undefined : `Saved view: ${v.name}`}
+              title={builtIn ? undefined : t("board.savedView", { name: v.name })}
               onClick={() => onSelect(v.id)}
               className={cn(tabClass, active ? "text-txt" : "text-muted hover:text-txt")}
             >
               <Icon aria-hidden className={builtIn ? "size-[15px]" : "size-3.5"} />
-              {v.name}
+              {viewName(v)}
               {/* One named underline: it glides to the new tab when the view changes (a View Transition) */}
               {active && <span aria-hidden className="absolute inset-x-0 -bottom-0.5 h-0.5 bg-accent [view-transition-name:board-view-tab]" />}
             </button>
             {active && (!builtIn || customizedIds.includes(v.id)) && (
               <DropdownMenu>
                 <DropdownMenuTrigger
-                  aria-label={`View options for ${v.name}`}
+                  aria-label={t("board.viewOptions", { name: viewName(v) })}
                   className={cn("ml-0.5 inline-flex size-6 items-center justify-center rounded-sm text-muted hover:bg-surface2 hover:text-txt", focusRing)}
                 >
                   <ChevronDown aria-hidden className="size-3.5" />
@@ -90,18 +101,18 @@ export function ViewBar({ views, activeId, onSelect, onNew, onRename, onDelete, 
                 <DropdownMenuContent align="start">
                   {builtIn ? (
                     <DropdownMenuItem onSelect={() => { pendingFocus.current = v.id; onRestore(v.id) }}>
-                      <RotateCcw aria-hidden className="size-3.5" />Restore default
+                      <RotateCcw aria-hidden className="size-3.5" />{t("board.restoreDefault")}
                     </DropdownMenuItem>
                   ) : (
                     <>
                       <DropdownMenuItem onSelect={() => setRenaming(v.id)}>
-                        <Pencil aria-hidden className="size-3.5" />Rename
+                        <Pencil aria-hidden className="size-3.5" />{t("board.rename")}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onSelect={() => { if (onDelete(v.id)) pendingFocus.current = v.kind }}
                         className="text-danger focus:text-danger"
                       >
-                        <Trash2 aria-hidden className="size-3.5" />Delete view
+                        <Trash2 aria-hidden className="size-3.5" />{t("board.deleteView")}
                       </DropdownMenuItem>
                     </>
                   )}
@@ -113,8 +124,8 @@ export function ViewBar({ views, activeId, onSelect, onNew, onRename, onDelete, 
       })}
       <button
         type="button"
-        aria-label="New view"
-        title="New view"
+        aria-label={t("board.newViewName")}
+        title={t("board.newViewName")}
         onClick={onNew}
         className={cn(tabClass, "border-transparent text-muted hover:text-txt")}
       >
@@ -122,7 +133,7 @@ export function ViewBar({ views, activeId, onSelect, onNew, onRename, onDelete, 
       </button>
       <span className="grow" />
       <span className="hidden shrink-0 items-center gap-1.5 pb-1.5 text-[11px] text-muted sm:flex">
-        <kbd className={kbdClass}>v</kbd>next view
+        <kbd className={kbdClass}>v</kbd>{t("board.nextView")}
         <kbd className={cn(kbdClass, "ml-1.5")}>1</kbd>–<kbd className={kbdClass}>4</kbd>
       </span>
     </div>
@@ -131,6 +142,7 @@ export function ViewBar({ views, activeId, onSelect, onNew, onRename, onDelete, 
 
 /** `byKey`: finished with Enter / Esc (focus returns to the tab), not by clicking away. */
 function RenameInput({ initial, onDone }: { initial: string; onDone: (name: string, byKey: boolean) => void }) {
+  const { t } = useT()
   const [name, setName] = useState(initial)
   const ref = useRef<HTMLInputElement>(null)
   const done = useRef(false)
@@ -147,7 +159,7 @@ function RenameInput({ initial, onDone }: { initial: string; onDone: (name: stri
   return (
     <input
       ref={ref}
-      aria-label="View name"
+      aria-label={t("board.viewName")}
       value={name}
       maxLength={60}
       onChange={e => setName(e.target.value)}

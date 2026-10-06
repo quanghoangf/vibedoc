@@ -15,12 +15,14 @@ import { toast, undoToast } from "@/components/ui/toast"
 import { useApp } from "@/context/AppContext"
 import type { RoadmapItem, Task } from "@/types"
 import { useItemCommands } from "@/components/shared/item-commands"
+import { useStatusLabel } from "@/components/shared/StatusIcon"
+import { tNow, useT } from "@/context/LanguageContext"
 
 
 async function post<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
   const json = await res.json().catch(() => null)
-  if (!res.ok) throw new Error(json?.error ?? `Request failed (${res.status})`)
+  if (!res.ok) throw new Error(json?.error ?? tNow("board.requestFailed", { status: res.status }))
   return json as T
 }
 
@@ -33,6 +35,8 @@ export function BulkBar({ ids, onClear }: { ids: string[]; onClear: () => void }
   const [busy, setBusy] = useState(false)
   const [statusOpen, setStatusOpen] = useState(false)
   const defs = useStatusDefs()
+  const label = useStatusLabel()
+  const { t, tn } = useT()
 
   useEffect(() => {
     fetch(`/api/roadmap${rootParam}`)
@@ -55,7 +59,7 @@ export function BulkBar({ ids, onClear }: { ids: string[]; onClear: () => void }
   }
 
   const remove = () => run({ delete: true }, ({ deleted }) => {
-    undoToast(`Deleted ${deleted.length} task${deleted.length === 1 ? "" : "s"}`, async () => {
+    undoToast(tn("board.deletedTasks", deleted.length), async () => {
       // Reverse order: each delete recorded its index after the earlier ones were already gone
       for (const { task, links } of [...deleted].reverse()) {
         await post(`/api/tasks/restore${rootParam}`, { file: task.file, raw: task.raw, links })
@@ -63,33 +67,33 @@ export function BulkBar({ ids, onClear }: { ids: string[]; onClear: () => void }
     })
   })
 
-  useItemCommands(`${ids.length} selected task${ids.length === 1 ? "" : "s"}`, [
-    { action: "status", label: "Change status…", run: () => setStatusOpen(true) },
-    { action: "remove", label: `Delete ${ids.length} task${ids.length === 1 ? "" : "s"}`, run: remove },
+  useItemCommands(tn("board.selectedTasks", ids.length), [
+    { action: "status", label: t("board.changeStatus"), run: () => setStatusOpen(true) },
+    { action: "remove", label: tn("board.deleteTasks", ids.length), run: remove },
   ])
 
   return (
     <div
       role="toolbar"
-      aria-label="Bulk actions"
+      aria-label={t("board.bulkActions")}
       className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 animate-slide-in items-center gap-1 rounded-lg border border-border bg-surface2 p-1 pl-3 shadow-xl"
     >
-      <span className="mr-1 font-mono text-xs tabular-nums text-txt">{ids.length} selected</span>
+      <span className="mr-1 font-mono text-xs tabular-nums text-txt">{t("board.selectedCount", { n: ids.length })}</span>
       <DropdownMenu open={statusOpen} onOpenChange={setStatusOpen}>
         <DropdownMenuTrigger asChild>
-          <button type="button" disabled={busy} className={pill}>Status <ChevronUp className="size-3.5 text-muted" /></button>
+          <button type="button" disabled={busy} className={pill}>{t("board.status")} <ChevronUp className="size-3.5 text-muted" /></button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" className="w-44">
           {defs.map((d) => (
             <DropdownMenuItem key={d.id} onSelect={() => run({ status: d.id })}>
-              <StatusIcon status={d.id} /> {d.label}
+              <StatusIcon status={d.id} /> {label(d.id)}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" disabled={busy} className={pill}><FolderInput className="size-3.5 text-muted" /> Epic <ChevronUp className="size-3.5 text-muted" /></button>
+          <button type="button" disabled={busy} className={pill}><FolderInput className="size-3.5 text-muted" /> {t("board.epic")} <ChevronUp className="size-3.5 text-muted" /></button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" className="max-h-72 w-64 overflow-y-auto">
           {epics.map((e) => (
@@ -98,13 +102,13 @@ export function BulkBar({ ids, onClear }: { ids: string[]; onClear: () => void }
             </DropdownMenuItem>
           ))}
           {epics.length > 0 && <DropdownMenuSeparator />}
-          <DropdownMenuItem onSelect={() => run({ epic: null })}>No epic</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => run({ epic: null })}>{t("board.noEpic")}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <button type="button" disabled={busy} onClick={remove} className={`${pill} text-danger hover:text-danger`}>
-        <Trash2 className="size-3.5" /> Delete
+        <Trash2 className="size-3.5" /> {t("board.delete")}
       </button>
-      <button type="button" aria-label="Clear selection" onClick={onClear} className="grid size-8 place-items-center rounded-md text-muted hover:bg-surface hover:text-txt">
+      <button type="button" aria-label={t("board.clearSelection")} onClick={onClear} className="grid size-8 place-items-center rounded-md text-muted hover:bg-surface hover:text-txt">
         <X className="size-4" />
       </button>
     </div>

@@ -10,47 +10,50 @@ import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 
 // ── vocabulary ────────────────────────────────────────────────────────────────
 
 type Op = FilterRule["op"]
 
-const FILTER_PROPS: { prop: FilterProp; label: string }[] = [
-  { prop: "status", label: "Status" }, { prop: "epic", label: "Epic" }, { prop: "size", label: "Size" },
-  { prop: "due", label: "Due" }, { prop: "deps", label: "Depends on" }, { prop: "tests", label: "Tests" },
-  { prop: "agent", label: "Agent" }, { prop: "ready", label: "Ready" }, { prop: "owner", label: "Owner" },
+// Labels are message keys (R078), read with t() where they render.
+const FILTER_PROPS: { prop: FilterProp; label: MessageKey }[] = [
+  { prop: "status", label: "board.status" }, { prop: "epic", label: "board.epic" }, { prop: "size", label: "board.size" },
+  { prop: "due", label: "board.due" }, { prop: "deps", label: "board.dependsOn" }, { prop: "tests", label: "board.tests" },
+  { prop: "agent", label: "board.agent" }, { prop: "ready", label: "board.ready" }, { prop: "owner", label: "board.owner" },
 ]
-const PROP_LABEL = Object.fromEntries(FILTER_PROPS.map(p => [p.prop, p.label])) as Record<FilterProp, string>
+const PROP_LABEL = Object.fromEntries(FILTER_PROPS.map(p => [p.prop, p.label])) as Record<FilterProp, MessageKey>
 
 /** Ops offered per prop, with how each reads after the prop name. */
-const OPS: Record<FilterProp, Partial<Record<Op, string>>> = {
-  status: { is: "is", "is-not": "is not" },
-  epic: { is: "is", "is-not": "is not" },
-  size: { is: "is", "is-not": "is not" },
-  due: { before: "is before", after: "is after", "is-set": "is set", "not-set": "is not set" },
-  deps: { "is-set": "anything", "not-set": "nothing" },
-  tests: { "is-set": "reported", "not-set": "not reported" },
-  agent: { "is-set": "is active", "not-set": "is not active" },
-  ready: { "is-set": "yes", "not-set": "no" },
-  owner: { is: "is", "is-not": "is not" },
+const OPS: Record<FilterProp, Partial<Record<Op, MessageKey>>> = {
+  status: { is: "board.opIs", "is-not": "board.opIsNot" },
+  epic: { is: "board.opIs", "is-not": "board.opIsNot" },
+  size: { is: "board.opIs", "is-not": "board.opIsNot" },
+  due: { before: "board.opBefore", after: "board.opAfter", "is-set": "board.opIsSet", "not-set": "board.opNotSet" },
+  deps: { "is-set": "board.opAnything", "not-set": "board.opNothing" },
+  tests: { "is-set": "board.opReported", "not-set": "board.opNotReported" },
+  agent: { "is-set": "board.opActive", "not-set": "board.opNotActive" },
+  ready: { "is-set": "board.opYes", "not-set": "board.opNo" },
+  owner: { is: "board.opIs", "is-not": "board.opIsNot" },
 }
 const LIST_PROPS: FilterProp[] = ["status", "epic", "size", "owner"]
-const OWNER_LABEL: Record<string, string> = { human: "Human", ai: "AI agent", none: "No owner" }
+const OWNER_LABEL: Record<string, MessageKey> = { human: "board.human", ai: "board.aiAgent", none: "board.noOwner" }
 const SIZES = ["XS", "S", "M", "L", "XL"]
 
-const SORT_PROPS: { prop: SortProp; label: string }[] = [
-  { prop: "status", label: "Status" }, { prop: "id", label: "ID" }, { prop: "epic", label: "Epic" },
-  { prop: "size", label: "Size" }, { prop: "due", label: "Due" }, { prop: "title", label: "Title" },
+const SORT_PROPS: { prop: SortProp; label: MessageKey }[] = [
+  { prop: "status", label: "board.status" }, { prop: "id", label: "board.id" }, { prop: "epic", label: "board.epic" },
+  { prop: "size", label: "board.size" }, { prop: "due", label: "board.due" }, { prop: "title", label: "board.title" },
 ]
-const GROUPS: { value: GroupBy; label: string }[] = [
-  { value: "status", label: "Status" }, { value: "epic", label: "Epic" }, { value: "size", label: "Size" }, { value: "owner", label: "Owner" }, { value: "none", label: "None" },
+const GROUPS: { value: GroupBy; label: MessageKey }[] = [
+  { value: "status", label: "board.status" }, { value: "epic", label: "board.epic" }, { value: "size", label: "board.size" }, { value: "owner", label: "board.owner" }, { value: "none", label: "board.none" },
 ]
-const LANES: { value: ViewState["subGroup"]; label: string }[] = [
-  { value: "epic", label: "Epic" }, { value: "size", label: "Size" }, { value: "none", label: "None" },
+const LANES: { value: ViewState["subGroup"]; label: MessageKey }[] = [
+  { value: "epic", label: "board.epic" }, { value: "size", label: "board.size" }, { value: "none", label: "board.none" },
 ]
-const PROPERTIES: { key: PropertyKey; label: string }[] = [
-  { key: "status", label: "Status" }, { key: "epic", label: "Epic" }, { key: "size", label: "Size" }, { key: "due", label: "Due" },
-  { key: "deps", label: "Depends on" }, { key: "tests", label: "Tests" }, { key: "agent", label: "Agent" }, { key: "owner", label: "Owner" },
+const PROPERTIES: { key: PropertyKey; label: MessageKey }[] = [
+  { key: "status", label: "board.status" }, { key: "epic", label: "board.epic" }, { key: "size", label: "board.size" }, { key: "due", label: "board.due" },
+  { key: "deps", label: "board.dependsOn" }, { key: "tests", label: "board.tests" }, { key: "agent", label: "board.agent" }, { key: "owner", label: "board.owner" },
 ]
 
 function localToday(): string {
@@ -185,6 +188,7 @@ export function ViewToolbar({
   state, onChange, epics, dirty, activeIsBuiltIn, onSave, onSaveAs, onReset, searchInputId, filterOpen, onFilterOpenChange,
 }: ViewToolbarProps) {
   const [sortOpen, setSortOpen] = useState(false)
+  const { t } = useT()
   const set = (patch: Partial<ViewState>) => onChange({ ...state, ...patch })
 
   // The input owns its value: the URL (state.q) syncs a tick late, which would jump the caret.
@@ -205,8 +209,8 @@ export function ViewToolbar({
   const timeline = state.kind === "timeline"
   const board = state.kind === "board"
   const groups = timeline ? GROUPS.filter(g => g.value === "epic" || g.value === "none") : GROUPS
-  const groupLabel = GROUPS.find(g => g.value === state.group)?.label ?? "None"
-  const laneLabel = LANES.find(l => l.value === state.subGroup)?.label ?? "None"
+  const groupLabel = t(GROUPS.find(g => g.value === state.group)?.label ?? "board.none")
+  const laneLabel = t(LANES.find(l => l.value === state.subGroup)?.label ?? "board.none")
   const mobileBtn = "max-sm:h-9 max-sm:flex-1 max-sm:justify-center max-sm:border-border"
 
   return (
@@ -214,12 +218,12 @@ export function ViewToolbar({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-1">
         <label className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-bg px-2.5 text-[13px] text-muted focus-within:border-accent sm:w-65 max-sm:h-9">
           <Search aria-hidden className="size-3.5 shrink-0" />
-          <span className="sr-only">Filter by title or ID</span>
+          <span className="sr-only">{t("board.filterByTitle")}</span>
           <input
             id={searchInputId}
             type="search"
             value={q}
-            placeholder="Filter by title or ID…"
+            placeholder={t("board.filterPlaceholder")}
             onChange={e => typeQ(e.target.value)}
             onKeyDown={e => {
               if (e.key !== "Escape") return
@@ -236,11 +240,11 @@ export function ViewToolbar({
           <Popover
             open={filterOpen}
             onOpenChange={onFilterOpenChange}
-            label="Filter"
+            label={t("board.filter")}
             triggerClassName={cn(btn, mobileBtn, (filterOpen || state.filters.length > 0) && btnOn)}
             panelClassName="inset-x-0 sm:left-auto sm:right-0 sm:w-140"
             trigger={<>
-              <ListFilter aria-hidden className="size-3.5" />Filter
+              <ListFilter aria-hidden className="size-3.5" />{t("board.filter")}
               {state.filters.length > 0 && <span className="font-mono text-txt">{state.filters.length}</span>}
               <kbd className={cn(kbdClass, "ml-0.5 max-sm:hidden")}>f</kbd>
             </>}
@@ -251,11 +255,11 @@ export function ViewToolbar({
           <Popover
             open={sortOpen}
             onOpenChange={setSortOpen}
-            label="Sort"
+            label={t("board.sort")}
             triggerClassName={cn(btn, mobileBtn, (sortOpen || state.sorts.length > 0) && btnOn)}
             panelClassName="inset-x-0 sm:left-auto sm:right-0 sm:w-95"
             trigger={<>
-              <ArrowUpDown aria-hidden className="size-3.5" />Sort
+              <ArrowUpDown aria-hidden className="size-3.5" />{t("board.sort")}
               {state.sorts.length > 0 && <span className="font-mono text-txt">{state.sorts.length}</span>}
             </>}
           >
@@ -266,9 +270,9 @@ export function ViewToolbar({
             {/* The phone board stacks status sections (no swimlanes), so the control would do nothing there. */}
             <DropdownMenuTrigger className={cn(btn, mobileBtn, board && "max-md:hidden")}>
               <Rows3 aria-hidden className="size-3.5" />
-              <span className="max-sm:hidden">Group</span>
+              <span className="max-sm:hidden">{t("board.group")}</span>
               {board ? (
-                <span className="text-txt">Status{state.subGroup !== "none" && <><span className="px-1 text-muted">›</span>{laneLabel}</>}</span>
+                <span className="text-txt">{t("board.status")}{state.subGroup !== "none" && <><span className="px-1 text-muted">›</span>{laneLabel}</>}</span>
               ) : (
                 <span className="text-txt">{groupLabel}</span>
               )}
@@ -276,16 +280,16 @@ export function ViewToolbar({
             <DropdownMenuContent align="end">
               {board ? (
                 <>
-                  <DropdownMenuLabel className="text-xs text-muted">Swimlanes</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs text-muted">{t("board.swimlanes")}</DropdownMenuLabel>
                   <DropdownMenuRadioGroup value={state.subGroup} onValueChange={v => set({ subGroup: v as ViewState["subGroup"] })}>
-                    {LANES.map(l => <DropdownMenuRadioItem key={l.value} value={l.value}>{l.label}</DropdownMenuRadioItem>)}
+                    {LANES.map(l => <DropdownMenuRadioItem key={l.value} value={l.value}>{t(l.label)}</DropdownMenuRadioItem>)}
                   </DropdownMenuRadioGroup>
                 </>
               ) : (
                 <>
-                  <DropdownMenuLabel className="text-xs text-muted">Group by</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs text-muted">{t("board.groupBy")}</DropdownMenuLabel>
                   <DropdownMenuRadioGroup value={state.group} onValueChange={v => set({ group: v as GroupBy })}>
-                    {groups.map(g => <DropdownMenuRadioItem key={g.value} value={g.value}>{g.label}</DropdownMenuRadioItem>)}
+                    {groups.map(g => <DropdownMenuRadioItem key={g.value} value={g.value}>{t(g.label)}</DropdownMenuRadioItem>)}
                   </DropdownMenuRadioGroup>
                 </>
               )}
@@ -295,10 +299,10 @@ export function ViewToolbar({
           {!timeline && (
             <DropdownMenu>
               <DropdownMenuTrigger className={cn(btn, "max-sm:hidden")}>
-                <SlidersHorizontal aria-hidden className="size-3.5" />Properties
+                <SlidersHorizontal aria-hidden className="size-3.5" />{t("board.properties")}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuLabel className="text-xs text-muted">Show</DropdownMenuLabel>
+                <DropdownMenuLabel className="text-xs text-muted">{t("board.show")}</DropdownMenuLabel>
                 {PROPERTIES.map(p => (
                   <DropdownMenuCheckboxItem
                     key={p.key}
@@ -308,7 +312,7 @@ export function ViewToolbar({
                       properties: PROPERTIES.map(x => x.key).filter(k => (k === p.key ? on === true : state.properties.includes(k))),
                     })}
                   >
-                    {p.label}
+                    {t(p.label)}
                   </DropdownMenuCheckboxItem>
                 ))}
               </DropdownMenuContent>
@@ -322,7 +326,7 @@ export function ViewToolbar({
           <FilterChip key={i} rule={rule} onRemove={() => set({ filters: state.filters.filter((_, j) => j !== i) })} />
         ))}
         <button type="button" onClick={() => onFilterOpenChange(true)} className={cn(btn, "h-6.5 px-2")}>
-          <Plus aria-hidden className="size-3.25" />Add filter
+          <Plus aria-hidden className="size-3.25" />{t("board.addFilter")}
         </button>
         <span className="grow" />
         {dirty && (
@@ -335,29 +339,33 @@ export function ViewToolbar({
 
 // ── chips ─────────────────────────────────────────────────────────────────────
 
-function valueText(rule: FilterRule, label: (key: string) => string): { text: string; mono: boolean } {
+type T = (key: MessageKey) => string
+
+function valueText(rule: FilterRule, label: (key: string) => string, t: T): { text: string; mono: boolean } {
   if (rule.prop === "status") return { text: rule.value.map(label).join(", "), mono: false }
-  if (rule.prop === "epic") return { text: rule.value.map(v => (v === "none" ? "No epic" : v)).join(", "), mono: !rule.value.includes("none") }
-  if (rule.prop === "owner") return { text: rule.value.map(v => OWNER_LABEL[v] ?? v).join(", "), mono: false }
+  if (rule.prop === "epic") return { text: rule.value.map(v => (v === "none" ? t("board.noEpic") : v)).join(", "), mono: !rule.value.includes("none") }
+  if (rule.prop === "owner") return { text: rule.value.map(v => (OWNER_LABEL[v] ? t(OWNER_LABEL[v]) : v)).join(", "), mono: false }
   return { text: rule.value.join(", "), mono: true }
 }
 
-function opText(rule: FilterRule): string {
-  if (rule.op === "is" && rule.value.length > 1) return "is any of"
-  return OPS[rule.prop][rule.op] ?? rule.op
+function opText(rule: FilterRule, t: T): string {
+  if (rule.op === "is" && rule.value.length > 1) return t("board.opIsAnyOf")
+  const key = OPS[rule.prop][rule.op]
+  return key ? t(key) : rule.op
 }
 
 function FilterChip({ rule, onRemove }: { rule: FilterRule; onRemove: () => void }) {
+  const { t } = useT()
   const hasValue = !(rule.op === "is-set" || rule.op === "not-set")
-  const v = valueText(rule, useStatusLabel())
-  const text = `${PROP_LABEL[rule.prop]} ${opText(rule)}${hasValue ? ` ${v.text}` : ""}`
+  const v = valueText(rule, useStatusLabel(), t)
+  const text = `${t(PROP_LABEL[rule.prop])} ${opText(rule, t)}${hasValue ? ` ${v.text}` : ""}`
   return (
     <span className="inline-flex h-6.5 max-w-full items-center gap-1.5 rounded-sm border border-border2 bg-surface pl-2.25 pr-1 text-xs text-txt">
       <span className="truncate">
-        <b className="font-medium text-muted">{PROP_LABEL[rule.prop]}</b> {opText(rule)}
+        <b className="font-medium text-muted">{t(PROP_LABEL[rule.prop])}</b> {opText(rule, t)}
         {hasValue && <> <span className={cn("text-txt", v.mono && "font-mono text-[11px]")}>{v.text || "—"}</span></>}
       </span>
-      <button type="button" aria-label={`Remove filter: ${text}`} onClick={onRemove} className={cn("inline-flex rounded-xs p-0.75 text-muted hover:text-txt", focusRing)}>
+      <button type="button" aria-label={t("board.removeFilter", { text })} onClick={onRemove} className={cn("inline-flex rounded-xs p-0.75 text-muted hover:text-txt", focusRing)}>
         <X aria-hidden className="size-3" />
       </button>
     </span>
@@ -365,6 +373,7 @@ function FilterChip({ rule, onRemove }: { rule: FilterRule; onRemove: () => void
 }
 
 function SaveArea({ activeIsBuiltIn, onSave, onSaveAs, onReset }: { activeIsBuiltIn: boolean; onSave: () => void; onSaveAs: (name: string) => void; onReset: () => void }) {
+  const { t } = useT()
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState("")
   const submit = () => {
@@ -379,28 +388,28 @@ function SaveArea({ activeIsBuiltIn, onSave, onSaveAs, onReset }: { activeIsBuil
       <form className="flex items-center gap-1.5" onSubmit={e => { e.preventDefault(); submit() }}>
         <input
           autoFocus
-          aria-label="New view name"
-          placeholder="View name"
+          aria-label={t("board.newViewNameLabel")}
+          placeholder={t("board.viewName")}
           value={name}
           maxLength={60}
           onChange={e => setName(e.target.value)}
           onKeyDown={e => { if (e.key === "Escape") { e.stopPropagation(); setNaming(false) } }}
           className="h-7 w-44 rounded-md border border-accent bg-bg px-2 text-[13px] text-txt outline-hidden placeholder:text-muted"
         />
-        <button type="submit" disabled={!name.trim()} className={cn(btn, btnOn, "h-7 disabled:opacity-40")}>Save</button>
-        <button type="button" onClick={() => setNaming(false)} className={cn(btn, "h-7")}>Cancel</button>
+        <button type="submit" disabled={!name.trim()} className={cn(btn, btnOn, "h-7 disabled:opacity-40")}>{t("board.save")}</button>
+        <button type="button" onClick={() => setNaming(false)} className={cn(btn, "h-7")}>{t("board.cancel")}</button>
       </form>
     )
   }
   return (
     <div className="flex items-center gap-1">
-      <span className="mr-1 text-xs text-muted">Unsaved changes</span>
-      <button type="button" onClick={onReset} className={cn(btn, "text-txt")}>Reset</button>
+      <span className="mr-1 text-xs text-muted">{t("board.unsaved")}</span>
+      <button type="button" onClick={onReset} className={cn(btn, "text-txt")}>{t("board.reset")}</button>
       <button type="button" onClick={() => setNaming(true)} className={cn(btn, "text-txt")}>
-        {activeIsBuiltIn ? "Save as new view" : "Save as new"}
+        {activeIsBuiltIn ? t("board.saveAsNewView") : t("board.saveAsNew")}
       </button>
       <button type="button" onClick={onSave} className={cn(btn, btnOn)}>
-        <Bookmark aria-hidden className="size-3.25" />Save view
+        <Bookmark aria-hidden className="size-3.25" />{t("board.saveView")}
       </button>
     </div>
   )
@@ -411,27 +420,28 @@ function SaveArea({ activeIsBuiltIn, onSave, onSaveAs, onReset }: { activeIsBuil
 function FilterBuilder({ filters, epics, onChange }: { filters: FilterRule[]; epics: EpicOption[]; onChange: (f: FilterRule[]) => void }) {
   const update = (i: number, rule: FilterRule) => onChange(filters.map((r, j) => (j === i ? rule : r)))
   const labelId = useId()
+  const { t } = useT()
   return (
     <div>
-      <p id={labelId} className="mb-2.5 ml-0.5 text-xs font-semibold">Show tasks where</p>
-      {filters.length === 0 && <p className="mb-1 ml-0.5 text-xs text-muted">No filters yet. Every task shows except cancelled ones.</p>}
+      <p id={labelId} className="mb-2.5 ml-0.5 text-xs font-semibold">{t("board.showTasksWhere")}</p>
+      {filters.length === 0 && <p className="mb-1 ml-0.5 text-xs text-muted">{t("board.noFilters")}</p>}
       <ul aria-labelledby={labelId} className="flex flex-col gap-1.5">
         {filters.map((rule, i) => {
-          const ops = Object.entries(OPS[rule.prop]) as [Op, string][]
+          const ops = Object.entries(OPS[rule.prop]) as [Op, MessageKey][]
           const n = i + 1
           return (
             <li key={i} className="flex flex-wrap items-center gap-1.5 text-xs text-muted sm:grid sm:grid-cols-[48px_120px_100px_minmax(0,1fr)_28px]">
-              <span className="w-10 pl-1 sm:w-auto">{i === 0 ? "Where" : "and"}</span>
+              <span className="w-10 pl-1 sm:w-auto">{i === 0 ? t("board.where") : t("board.and")}</span>
               <select
-                aria-label={`Rule ${n} property`}
+                aria-label={t("board.ruleProperty", { n })}
                 value={rule.prop}
                 onChange={e => update(i, newRule(e.target.value as FilterProp, epics))}
                 className={cn(sel, "w-32.5 sm:w-auto")}
               >
-                {FILTER_PROPS.map(p => <option key={p.prop} value={p.prop}>{p.label}</option>)}
+                {FILTER_PROPS.map(p => <option key={p.prop} value={p.prop}>{t(p.label)}</option>)}
               </select>
               <select
-                aria-label={`Rule ${n} condition`}
+                aria-label={t("board.ruleCondition", { n })}
                 value={rule.op}
                 onChange={e => {
                   const op = e.target.value as Op
@@ -440,12 +450,12 @@ function FilterBuilder({ filters, epics, onChange }: { filters: FilterRule[]; ep
                 }}
                 className={cn(sel, "w-27.5 sm:w-auto")}
               >
-                {ops.map(([op, label]) => <option key={op} value={op}>{label}</option>)}
+                {ops.map(([op, label]) => <option key={op} value={op}>{t(label)}</option>)}
               </select>
               <span className="min-w-0 grow basis-40 sm:basis-auto">
                 <ValueControl rule={rule} n={n} epics={epics} onChange={value => update(i, { ...rule, value })} />
               </span>
-              <button type="button" aria-label={`Remove rule ${n}`} onClick={() => onChange(filters.filter((_, j) => j !== i))} className={iconBtn}>
+              <button type="button" aria-label={t("board.removeRule", { n })} onClick={() => onChange(filters.filter((_, j) => j !== i))} className={iconBtn}>
                 <X aria-hidden className="size-3.5" />
               </button>
             </li>
@@ -454,22 +464,23 @@ function FilterBuilder({ filters, epics, onChange }: { filters: FilterRule[]; ep
       </ul>
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
         <button type="button" onClick={() => onChange([...filters, newRule("status", epics)])} className={btn}>
-          <Plus aria-hidden className="size-3.5" />Add rule
+          <Plus aria-hidden className="size-3.5" />{t("board.addRule")}
         </button>
         <span className="grow" />
-        <span className="text-[11px] text-muted max-sm:hidden">Rules combine with and</span>
+        <span className="text-[11px] text-muted max-sm:hidden">{t("board.rulesCombine")}</span>
       </div>
     </div>
   )
 }
 
 function ValueControl({ rule, n, epics, onChange }: { rule: FilterRule; n: number; epics: EpicOption[]; onChange: (v: string[]) => void }) {
+  const { t } = useT()
   if (rule.op === "is-set" || rule.op === "not-set") return null
   if (rule.prop === "due") {
     return (
       <input
         type="date"
-        aria-label={`Rule ${n} date`}
+        aria-label={t("board.ruleDate", { n })}
         value={rule.value[0] ?? ""}
         onChange={e => onChange(e.target.value ? [e.target.value] : [])}
         className={cn(sel, "w-full scheme-dark")}
@@ -484,35 +495,36 @@ function MultiSelect({ rule, n, epics, onChange }: { rule: FilterRule; n: number
   const [open, setOpen] = useState(false)
   const defs = useStatusDefs()
   const label = useStatusLabel()
+  const { t } = useT()
   const options: { value: string; node: ReactNode }[] =
     rule.prop === "status"
-      ? defs.map(d => ({ value: d.id, node: <><StatusIcon status={d.id} />{d.label}</> }))
+      ? defs.map(d => ({ value: d.id, node: <><StatusIcon status={d.id} />{label(d.id)}</> }))
       : rule.prop === "epic"
         ? [
-            { value: "none", node: <span className="text-muted">No epic</span> },
+            { value: "none", node: <span className="text-muted">{t("board.noEpic")}</span> },
             ...epics.map(e => ({ value: e.id, node: <><span className="font-mono text-[11px] text-muted">{e.id}</span><span className="truncate">{e.title}</span></> })),
           ]
         : rule.prop === "owner"
-          ? Object.entries(OWNER_LABEL).map(([value, label]) => ({ value, node: <span>{label}</span> }))
+          ? Object.entries(OWNER_LABEL).map(([value, key]) => ({ value, node: <span>{t(key)}</span> }))
           : SIZES.map(s => ({ value: s, node: <span className="font-mono">{s}</span> }))
   const first = rule.value[0]
   const summary =
-    !first ? <span className="text-muted">Choose…</span>
+    !first ? <span className="text-muted">{t("board.choose")}</span>
     : rule.prop === "status" ? <><StatusIcon status={first} /><span className="truncate">{label(first)}</span></>
-    : rule.prop === "owner" ? <span className="truncate">{OWNER_LABEL[first] ?? first}</span>
+    : rule.prop === "owner" ? <span className="truncate">{OWNER_LABEL[first] ? t(OWNER_LABEL[first]) : first}</span>
     : rule.prop === "epic" && first !== "none" ? <><span className="font-mono text-[11px] text-muted">{first}</span><span className="truncate">{epics.find(e => e.id === first)?.title ?? ""}</span></>
-    : <span className={cn("truncate", rule.prop === "size" && "font-mono")}>{first === "none" ? "No epic" : first}</span>
+    : <span className={cn("truncate", rule.prop === "size" && "font-mono")}>{first === "none" ? t("board.noEpic") : first}</span>
 
   return (
     <Popover
       open={open}
       onOpenChange={setOpen}
-      label={`${PROP_LABEL[rule.prop]} values`}
+      label={t("board.propValues", { prop: t(PROP_LABEL[rule.prop]) })}
       anchorClassName="relative"
       triggerClassName={cn(sel, "flex w-full items-center gap-1.5 text-left")}
       panelClassName="left-0 z-40 max-h-64 w-64 overflow-y-auto p-1"
       trigger={<>
-        <span className="sr-only">Rule {n} values: </span>
+        <span className="sr-only">{t("board.ruleValues", { n })} </span>
         {summary}
         {rule.value.length > 1 && <span className="font-mono text-[11px] text-muted">+{rule.value.length - 1}</span>}
         <span className="grow" />
@@ -548,42 +560,45 @@ function SortBuilder({ sorts, onChange }: { sorts: SortRule[]; onChange: (s: Sor
     onChange(next)
   }
   const unused = SORT_PROPS.filter(p => !sorts.some(s => s.prop === p.prop))
+  const { t } = useT()
+  const statusLabel = useStatusLabel()
   return (
     <div>
-      <p className="mb-2.5 ml-0.5 text-xs font-semibold">Sort by</p>
-      {sorts.length === 0 && <p className="mb-1 ml-0.5 text-xs text-muted">Default order: by ID.</p>}
+      <p className="mb-2.5 ml-0.5 text-xs font-semibold">{t("board.sortBy")}</p>
+      {sorts.length === 0 && <p className="mb-1 ml-0.5 text-xs text-muted">{t("board.defaultOrder")}</p>}
       <ol className="flex flex-col gap-1.5">
         {sorts.map((rule, i) => {
           const n = i + 1
-          const label = SORT_PROPS.find(p => p.prop === rule.prop)?.label ?? rule.prop
+          const key = SORT_PROPS.find(p => p.prop === rule.prop)?.label
+          const label = key ? t(key) : rule.prop
           return (
             <li key={rule.prop} className="flex items-center gap-1">
-              <button type="button" aria-label={`Move ${label} sort up`} disabled={i === 0} onClick={() => move(i, -1)} className={iconBtn}>
+              <button type="button" aria-label={t("board.moveSortUp", { name: label })} disabled={i === 0} onClick={() => move(i, -1)} className={iconBtn}>
                 <ArrowUp aria-hidden className="size-3.5" />
               </button>
-              <button type="button" aria-label={`Move ${label} sort down`} disabled={i === sorts.length - 1} onClick={() => move(i, 1)} className={iconBtn}>
+              <button type="button" aria-label={t("board.moveSortDown", { name: label })} disabled={i === sorts.length - 1} onClick={() => move(i, 1)} className={iconBtn}>
                 <ArrowDown aria-hidden className="size-3.5" />
               </button>
               <select
-                aria-label={`Sort ${n} property`}
+                aria-label={t("board.sortProperty", { n })}
                 value={rule.prop}
                 onChange={e => update(i, { ...rule, prop: e.target.value as SortProp })}
                 className={cn(sel, "ml-0.5 grow")}
               >
                 {SORT_PROPS.filter(p => p.prop === rule.prop || !sorts.some(s => s.prop === p.prop)).map(p => (
-                  <option key={p.prop} value={p.prop}>{p.label}</option>
+                  <option key={p.prop} value={p.prop}>{t(p.label)}</option>
                 ))}
               </select>
               <select
-                aria-label={`Sort ${n} direction`}
+                aria-label={t("board.sortDirection", { n })}
                 value={rule.dir}
                 onChange={e => update(i, { ...rule, dir: e.target.value as SortRule["dir"] })}
                 className={cn(sel, "w-37.5")}
               >
-                <option value="asc">{rule.prop === "status" ? "Workflow order" : "Ascending"}</option>
-                <option value="desc">{rule.prop === "status" ? "Reverse workflow" : "Descending"}</option>
+                <option value="asc">{rule.prop === "status" ? t("board.workflowOrder") : t("board.ascending")}</option>
+                <option value="desc">{rule.prop === "status" ? t("board.reverseWorkflow") : t("board.descending")}</option>
               </select>
-              <button type="button" aria-label={`Remove ${label} sort`} onClick={() => onChange(sorts.filter((_, j) => j !== i))} className={iconBtn}>
+              <button type="button" aria-label={t("board.removeSort", { name: label })} onClick={() => onChange(sorts.filter((_, j) => j !== i))} className={iconBtn}>
                 <X aria-hidden className="size-3.5" />
               </button>
             </li>
@@ -592,10 +607,10 @@ function SortBuilder({ sorts, onChange }: { sorts: SortRule[]; onChange: (s: Sor
       </ol>
       <div className="mt-2.5 border-t border-border pt-2.5">
         <button type="button" disabled={!unused.length} onClick={() => onChange([...sorts, { prop: unused[0].prop, dir: "asc" }])} className={cn(btn, "disabled:opacity-40")}>
-          <Plus aria-hidden className="size-3.5" />Add sort
+          <Plus aria-hidden className="size-3.5" />{t("board.addSort")}
         </button>
       </div>
-      <p className="mx-0.5 mt-2 text-[11px] leading-normal text-muted">Workflow order: In progress → Review → Todo → Blocked → Done. Ties fall back to ID.</p>
+      <p className="mx-0.5 mt-2 text-[11px] leading-normal text-muted">{t("board.workflowHint", { order: ["in-progress", "review", "todo", "blocked", "done"].map(statusLabel).join(" → ") })}</p>
     </div>
   )
 }

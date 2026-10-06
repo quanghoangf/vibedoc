@@ -94,6 +94,9 @@ export const en = {
   noProjectMatches: "No project matches “{query}”",
   noProjects: "No projects found",
 
+  // Shared UI parts (components/ui)
+  close: "Close",
+
   // Help frame (its content is in src/lib/shortcuts.ts)
   help: "Help",
   helpButton: "Help and shortcuts (?)",
@@ -186,6 +189,8 @@ export const vi: Messages<typeof en> = {
   filterProjectsPlaceholder: "Lọc dự án…",
   noProjectMatches: "Không có dự án nào khớp “{query}”",
   noProjects: "Không tìm thấy dự án",
+
+  close: "Đóng",
 
   help: "Trợ giúp",
   helpButton: "Trợ giúp và phím tắt (?)",
