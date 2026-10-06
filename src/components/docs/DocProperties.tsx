@@ -6,7 +6,7 @@ import { PropertyRows, type ItemProperty } from "@/components/shared/ItemPanelHe
 import { PriorityBadge, PriorityField } from "@/components/shared/PriorityBadge"
 import { InlineText } from "@/components/shared/InlineProperty"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { useFormat } from "@/context/LanguageContext"
+import { useFormat, useT } from "@/context/LanguageContext"
 import { toast } from "@/components/ui/toast"
 import { useApp } from "@/context/AppContext"
 import { PRIORITIES, PROPERTY_KEY, docProperties, parsePriority } from "@/lib/doc-priority"
@@ -29,6 +29,7 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
 }) {
   const { rootParam, demo } = useApp()
   const f = useFormat()
+  const { t } = useT()
   // Shown right away; the file write comes back through the editor buffer a moment later
   const [pending, setPending] = useState<Record<string, string | null>>({})
   // A property being named ("Add a property → Text"), then the key whose value input opens on its own
@@ -50,7 +51,7 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path, properties: { [key]: value } }),
     }).catch(() => null)
-    if (!res?.ok) toast((await res?.json().catch(() => null))?.error ?? `Could not save ${labelOf(key).toLowerCase()}`)
+    if (!res?.ok) toast((await res?.json().catch(() => null))?.error ?? t("docs.couldNotSave", { name: labelOf(key).toLowerCase() }))
     setPending((p) => { const next = { ...p }; delete next[key]; return next })
   }
 
@@ -58,8 +59,8 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
     setNaming(false)
     const key = name?.trim().toLowerCase().replace(/\s+/g, "-")
     if (!key) return
-    if (!PROPERTY_KEY.test(key)) return toast("Property names use letters, digits, - and _, and start with a letter")
-    if (props.has(key.toLowerCase())) return toast(`${labelOf(key)} is already a property`)
+    if (!PROPERTY_KEY.test(key)) return toast(t("docs.badPropertyName"))
+    if (props.has(key.toLowerCase())) return toast(t("docs.alreadyProperty", { name: labelOf(key) }))
     setFresh(key)
   }
 
@@ -70,64 +71,64 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-48">
         <DropdownMenuLabel className="font-mono text-[10px] font-medium text-muted">{key}</DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => save(key, null)} className="text-danger focus:text-danger"><Trash2 /> Remove property</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => save(key, null)} className="text-danger focus:text-danger"><Trash2 /> {t("docs.removeProperty")}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 
   const rows: ItemProperty[] = []
   if (priority) {
-    rows.push({ id: "priority", icon: Flag, label: nameMenu("priority", "Priority"), value: <PriorityField label={`Priority of ${path}`} value={priority} onChange={(v) => save("priority", v)} /> })
+    rows.push({ id: "priority", icon: Flag, label: nameMenu("priority", t("board.priority")), value: <PriorityField label={t("board.priorityOf", { id: path })} value={priority} onChange={(v) => save("priority", v)} /> })
   }
   for (const p of props.values()) {
     if (p.key.toLowerCase() === "priority") continue
     rows.push({
       id: p.key, icon: Type, label: nameMenu(p.key, labelOf(p.key)),
-      value: <InlineText key={p.value} label={`${labelOf(p.key)} of ${path}`} value={p.value} onChange={(v) => save(p.key, v)} className="w-full py-1"><span className="truncate">{p.value}</span></InlineText>,
+      value: <InlineText key={p.value} label={t("docs.propertyOf", { name: labelOf(p.key), path })} value={p.value} onChange={(v) => save(p.key, v)} className="w-full py-1"><span className="truncate">{p.value}</span></InlineText>,
     })
   }
   if (fresh && !props.has(fresh.toLowerCase())) {
     rows.push({
       id: `new:${fresh}`, icon: Type, label: labelOf(fresh),
-      value: <InlineText startEditing label={`${labelOf(fresh)} of ${path}`} value={null} placeholder="Empty" onChange={(v) => { setFresh(null); if (v) save(fresh, v) }} onCancel={() => setFresh(null)}><span /></InlineText>,
+      value: <InlineText startEditing label={t("docs.propertyOf", { name: labelOf(fresh), path })} value={null} placeholder={t("docs.empty")} onChange={(v) => { setFresh(null); if (v) save(fresh, v) }} onCancel={() => setFresh(null)}><span /></InlineText>,
     })
   }
   if (lastEdit) {
     rows.push({
-      id: "edited", icon: Clock, label: "Last edited",
+      id: "edited", icon: Clock, label: t("docs.lastEdited"),
       value: (
         <span className="inline-flex min-w-0 items-center gap-1.5" title={f.dateTime(lastEdit.at)}>
           {lastEdit.actor === "ai" ? <Bot className="size-3.5 text-accent" aria-hidden /> : <User className="size-3.5 text-muted" aria-hidden />}
-          {lastEdit.actor === "ai" ? "AI" : "You"}
+          {lastEdit.actor === "ai" ? "AI" : t("docs.you")}
           <span className="font-mono text-[11px] text-muted">{f.timeAgo(lastEdit.at)}</span>
         </span>
       ),
     })
   }
-  rows.push({ id: "length", icon: BookOpen, label: "Length", value: <span className="font-mono text-[11px] text-muted">{f.number(words)} words · {minutes} min read</span> })
+  rows.push({ id: "length", icon: BookOpen, label: t("docs.length"), value: <span className="font-mono text-[11px] text-muted">{t("docs.wordsRead", { words: f.number(words), minutes })}</span> })
 
   return (
     <PropertyRows properties={rows}>
       {demo ? null : naming ? (
         <div className="flex w-full items-center gap-2">
           <Type className="size-3.5 shrink-0 text-muted" aria-hidden />
-          <div className="w-40"><InlineText startEditing label="New property name" value={null} placeholder="Property name" onChange={addNamed} onCancel={() => setNaming(false)}><span /></InlineText></div>
+          <div className="w-40"><InlineText startEditing label={t("docs.newPropertyName")} value={null} placeholder={t("docs.propertyName")} onChange={addNamed} onCancel={() => setNaming(false)}><span /></InlineText></div>
         </div>
       ) : (
         <DropdownMenu>
           <DropdownMenuTrigger className={addRow}>
-            <Plus className="size-3.5" aria-hidden /> Add a property
+            <Plus className="size-3.5" aria-hidden /> {t("docs.addProperty")}
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-52">
             {!priority && (
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger><Flag /> Priority</DropdownMenuSubTrigger>
+                <DropdownMenuSubTrigger><Flag /> {t("board.priority")}</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
                   {PRIORITIES.map((p) => <DropdownMenuItem key={p} onSelect={() => save("priority", p)}><PriorityBadge priority={p} /></DropdownMenuItem>)}
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
-            <DropdownMenuItem onSelect={() => setNaming(true)}><Type /> Text…</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setNaming(true)}><Type /> {t("docs.text")}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       )}

@@ -10,6 +10,8 @@ import { FileTree } from "./FileTree"
 import { FileTreemap } from "./FileTreemap"
 import { FileDetail } from "./FileDetail"
 import type { ExplorerFile } from "@/types"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 
 type ViewMode = "tree" | "treemap" | "heatmap"
 type SortMode = "name" | "mtime" | "updated"
@@ -23,16 +25,17 @@ interface ExplorerTabProps {
   onOpenDoc: (path: string) => Promise<void>
 }
 
-const VIEWS: { id: ViewMode; Icon: LucideIcon; label: string }[] = [
-  { id: "tree", Icon: TreePine, label: "Tree" },
-  { id: "treemap", Icon: SquareStack, label: "Treemap" },
-  { id: "heatmap", Icon: Flame, label: "Heatmap" },
+const VIEWS: { id: ViewMode; Icon: LucideIcon; label: MessageKey }[] = [
+  { id: "tree", Icon: TreePine, label: "docs.viewTree" },
+  { id: "treemap", Icon: SquareStack, label: "docs.viewTreemap" },
+  { id: "heatmap", Icon: Flame, label: "docs.viewHeatmap" },
 ]
 
 export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc }: ExplorerTabProps) {
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const { t } = useT()
   const [activeSection, setActiveSection] = useState<string>("all")
   const [sort, setSort] = useState<SortMode>("name")
   const [missingOnly, setMissingOnly] = useState(false)
@@ -89,10 +92,10 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
     <div className="flex flex-col h-full">
       {/* Header row 1 */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
-        <span className="font-display font-semibold text-txt text-sm shrink-0">Explorer</span>
+        <span className="font-display font-semibold text-txt text-sm shrink-0">{t("shell.explorer")}</span>
         <Input
           id="explorer-search"
-          placeholder="Search files and descriptions…"
+          placeholder={t("docs.searchFiles")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="flex-1 h-7 text-xs"
@@ -107,7 +110,7 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
               onClick={() => setView(id)}
             >
               <Icon className="w-3 h-3" />
-              {label}
+              {t(label)}
             </Button>
           ))}
           <select
@@ -115,9 +118,9 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
             onChange={e => setSort(e.target.value as SortMode)}
             className="h-7 px-2 text-xs bg-surface2 border border-border rounded-sm text-txt focus:outline-hidden focus:border-accent ml-1"
           >
-            <option value="name">Name</option>
-            <option value="mtime">Modified</option>
-            <option value="updated">Described</option>
+            <option value="name">{t("docs.sortName")}</option>
+            <option value="mtime">{t("docs.sortModified")}</option>
+            <option value="updated">{t("docs.sortDescribed")}</option>
           </select>
           <button
             onClick={() => setMissingOnly(v => !v)}
@@ -128,7 +131,7 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
                 : "bg-surface2 text-muted border-border hover:text-txt"
             )}
           >
-            No desc
+            {t("docs.noDesc")}
           </button>
         </div>
       </div>
@@ -147,7 +150,7 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
                   : "bg-surface2 text-muted hover:text-txt"
               )}
             >
-              {s === "all" ? "All" : s}
+              {s === "all" ? t("docs.all") : <span data-user-content>{s}</span>}
             </button>
           ))}
         </div>
@@ -156,7 +159,7 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
       {/* Content */}
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-muted text-sm">
-          Loading…
+          {t("docs.loading")}
         </div>
       ) : view === "treemap" ? (
         <div className="flex-1 flex overflow-hidden">
@@ -179,7 +182,7 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
           <div className="w-72 border-r border-border flex flex-col overflow-hidden">
             {filteredFiles.length === 0 ? (
               <div className="flex-1 flex items-center justify-center text-muted text-sm">
-                No files match your search
+                {t("docs.noFilesMatch")}
               </div>
             ) : (
               <FileTree

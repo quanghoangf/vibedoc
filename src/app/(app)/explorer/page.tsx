@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { ExplorerTab } from "@/components/explorer/ExplorerTab"
 import type { ExplorerFile } from "@/types"
+import { useT } from "@/context/LanguageContext"
 
 function ExplorerContent() {
   const { rootParam, activeProject, openDoc } = useApp()
@@ -51,12 +52,13 @@ function ExplorerContent() {
 }
 
 export default function ExplorerPage() {
+  const { t } = useT()
   return (
     <div className="flex flex-col h-full">
       <Suspense
         fallback={
           <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-            Loading…
+            {t("docs.loading")}
           </div>
         }
       >

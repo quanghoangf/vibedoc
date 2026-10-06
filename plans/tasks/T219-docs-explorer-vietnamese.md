@@ -1,9 +1,12 @@
 # T219: Docs and file explorer in Vietnamese
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R078 — i18n support
 **Size:** M (2–3 hrs)
 **Depends on:** T215, T217
 **Covers:** S1
+**Owner:** ai:claude-code
+**Due:** 2026-10-09
+**Started:** 2026-10-06
 
 ## Goal
 With Tiếng Việt chosen, every piece of interface text in this area is Vietnamese: headings, buttons, menus, dialogs, empty states, toasts, tooltips, `aria-label`s and placeholders. English looks exactly as it does today.
@@ -45,4 +48,13 @@ PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN the app is in Vietnamese and the user opens /docs (list, viewer, editor) and /explorer → THEN every interface text is Vietnamese
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T219-docs-explorer-vietnamese.spec.ts` · Auto: passed 2026-10-06_
+### Steps
+- [x] 🤖 With Vietnamese on, open /docs → the list says "Tìm tài liệu..." and the empty pane counts "… tệp · … tài liệu"
+- [x] 🤖 Open the HLD doc → the bar shows "Đã lưu" and the tabs Xem / Chia đôi / Sửa, the side column "Liên kết tới"
+- [x] 🤖 Click "Tài liệu mới" in the list → the dialog says "Chọn mẫu" and the Blank template reads "Tài liệu trống"
+- [x] 🤖 Open /explorer → the views read Cây / Treemap / Bản đồ nhiệt and the pane says "Chọn một tệp để xem chi tiết"
+- [ ] In Vietnamese, hover a link in a doc, open the ⋯ menu, rename a doc, add a property and switch to Sửa → the preview card, menu, dialog, properties and editor toolbar tooltips read naturally; the document text itself stays as written
+- [ ] In Vietnamese, scroll the template list in Tài liệu mới → each description reads naturally; file-name templates (CLAUDE.md, Dockerfile) keep their names
+### Regression risk
+- [ ] In English, autosave (Saving… → Saved), live edits from an agent, broken / stale link marks and the Copy context select mode work as before

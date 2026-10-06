@@ -2,7 +2,8 @@
 //   1. Settings → Appearance → Language → Tiếng Việt switches the UI at once (no reload), <html lang="vi">.
 //   2. Every page in PAGES shows no English UI text: visible text and title / aria-label / placeholder are compared
 //      with every English message (src/i18n/*.ts) whose Vietnamese differs. Messages with {placeholders} are matched
-//      as patterns. User content, ids and keys aren't messages, so they never count.
+//      as patterns. User content, ids and keys aren't messages, so they never count; user content that could equal
+//      a message (a folder named "Docs", a document's text) is marked data-user-content in the UI and skipped here.
 //   3. A reload stays Vietnamese, and the server already renders lang="vi" (no English flash).
 //   4. Dates read the Vietnamese way (Activity day heading, roadmap timeline months) (T216).
 //   5. Every Settings font has Vietnamese letters (a @font-face covering U+1EA1 "ạ") unless settings.ts flags it
@@ -84,6 +85,32 @@ const PAGES = [
   { path: "/graph?node=docs%2Fa.md", name: "graph: map, legend, selected file", open: async (page) => {
     await page.getByRole("complementary", { name: "Tệp đang chọn" }).waitFor()
   } },
+  // T219: docs (empty state, viewer with properties + linked docs, menus, new document, select mode) and the explorer
+  { path: "/docs", name: "docs: empty state + sort menu", open: async (page) => {
+    await page.getByRole("heading", { name: /tài liệu/ }).first().waitFor()
+    await page.getByRole("button", { name: "Sắp xếp và lọc theo ưu tiên" }).click()
+    await page.getByRole("menuitemradio", { name: "Thư mục" }).waitFor()
+  } },
+  { path: "/docs?doc=docs%2Fa.md", name: "docs: viewer, properties, linked docs, doc menu", open: async (page) => {
+    await page.getByRole("heading", { level: 1, name: "A" }).first().waitFor()
+    await page.getByText("Liên kết tới").first().waitFor()
+    await page.getByRole("button", { name: "Thao tác cho docs/a.md" }).last().click()
+    await page.getByRole("menuitem", { name: /Chuyển vào thư mục/ }).waitFor()
+  } },
+  { path: "/docs?doc=docs%2Fa.md", name: "docs: edit mode toolbar", open: async (page) => {
+    await page.getByRole("heading", { level: 1, name: "A" }).first().waitFor()
+    await page.getByRole("tab", { name: "Sửa" }).click()
+    await page.getByRole("button", { name: "In đậm" }).waitFor()
+  } },
+  { path: "/docs", name: "docs: new document dialog", open: async (page) => {
+    await page.getByRole("button", { name: "Tài liệu mới" }).first().click()
+    await page.getByRole("dialog", { name: "Chọn mẫu" }).waitFor()
+  } },
+  { path: "/docs", name: "docs: select mode", open: async (page) => {
+    await page.getByRole("button", { name: "Chọn tài liệu" }).click()
+    await page.getByText("Sao chép ngữ cảnh").waitFor()
+  } },
+  { path: "/explorer", name: "explorer" },
 ]
 
 // English messages that differ in Vietnamese → a matcher per message
@@ -114,7 +141,7 @@ async function uiStrings(page, scope) {
       for (let n = walker.nextNode(); n; n = walker.nextNode()) {
         const s = n.textContent.replace(/\s+/g, " ").trim()
         const el = n.parentElement
-        if (s && el && !el.closest("script,style") && (visible(el) || el.closest(".sr-only"))) out.add(s)
+        if (s && el && !el.closest("script,style,[data-user-content]") && (visible(el) || el.closest(".sr-only"))) out.add(s)
       }
     }
     for (const el of roots.flatMap((r) => [r, ...r.querySelectorAll("[title],[aria-label],[placeholder]")])) {

@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TEMPLATES, type Template } from "@/lib/templates"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 
 interface NewDocModalProps {
   open: boolean
@@ -27,6 +29,13 @@ export function NewDocModal({ open, onOpenChange, rootParam, onDocCreated }: New
   const [docPath, setDocPath] = useState("")
   const [error, setError] = useState("")
   const [creating, setCreating] = useState(false)
+  const { t } = useT()
+  // a template's name / description in the UI language (src/i18n/templates.ts), else its own English
+  const tpl = (id: string, field: "name" | "description", fallback: string) => {
+    const key = (field === "name" ? `templates.${id}:name` : `templates.${id}`) as MessageKey
+    const text = t(key)
+    return text === key ? fallback : text
+  }
 
   useEffect(() => {
     if (open) {
@@ -56,20 +65,20 @@ export function NewDocModal({ open, onOpenChange, rootParam, onDocCreated }: New
         body: JSON.stringify({ path: docPath.trim(), content: selected.content }),
       })
       if (res.status === 409) {
-        setError("File already exists")
+        setError(t("docs.fileExists"))
         setCreating(false)
         return
       }
       if (!res.ok) {
         const data = await res.json()
-        setError(data.error || "Failed to create file")
+        setError(data.error || t("docs.createFailed"))
         setCreating(false)
         return
       }
       onOpenChange(false)
       onDocCreated(docPath.trim())
     } catch {
-      setError("Network error")
+      setError(t("docs.networkError"))
       setCreating(false)
     }
   }
@@ -79,7 +88,7 @@ export function NewDocModal({ open, onOpenChange, rootParam, onDocCreated }: New
       <DialogContent className="max-w-2xl bg-surface border-border">
         <DialogHeader>
           <DialogTitle className="text-txt text-sm font-semibold">
-            {step === 1 ? "Choose a template" : "Confirm file path"}
+            {step === 1 ? t("docs.chooseTemplate") : t("docs.confirmPath")}
           </DialogTitle>
         </DialogHeader>
 
@@ -97,9 +106,9 @@ export function NewDocModal({ open, onOpenChange, rootParam, onDocCreated }: New
                 >
                   <div className="flex items-center gap-2">
                     <FileText className="h-3.5 w-3.5 text-accent shrink-0" />
-                    <span className="text-xs font-medium text-txt">{template.name}</span>
+                    <span className="text-xs font-medium text-txt">{tpl(template.id, "name", template.name)}</span>
                   </div>
-                  <p className="text-[11px] text-muted leading-relaxed">{template.description}</p>
+                  <p className="text-[11px] text-muted leading-relaxed">{tpl(template.id, "description", template.description)}</p>
                   <p className="text-[10px] text-muted/60 font-mono truncate w-full">{template.defaultPath}</p>
                 </button>
               ))}
@@ -112,13 +121,13 @@ export function NewDocModal({ open, onOpenChange, rootParam, onDocCreated }: New
             <div className="flex items-start gap-3 p-3 rounded-lg bg-surface2 border border-border">
               <FileText className="h-4 w-4 text-accent shrink-0 mt-0.5" />
               <div>
-                <p className="text-xs font-medium text-txt">{selected.name}</p>
-                <p className="text-[11px] text-muted mt-0.5">{selected.description}</p>
+                <p className="text-xs font-medium text-txt">{tpl(selected.id, "name", selected.name)}</p>
+                <p className="text-[11px] text-muted mt-0.5">{tpl(selected.id, "description", selected.description)}</p>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-medium text-muted uppercase tracking-wider">File path</label>
+              <label className="block text-[11px] font-medium text-muted uppercase tracking-wider">{t("docs.filePath")}</label>
               <Input
                 autoFocus
                 value={docPath}
@@ -138,7 +147,7 @@ export function NewDocModal({ open, onOpenChange, rootParam, onDocCreated }: New
                 className="h-7 text-xs text-muted hover:text-txt gap-1.5"
               >
                 <ArrowLeft className="h-3 w-3" />
-                Back
+                {t("docs.back")}
               </Button>
               <Button
                 size="sm"
@@ -146,7 +155,7 @@ export function NewDocModal({ open, onOpenChange, rootParam, onDocCreated }: New
                 disabled={creating || !docPath.trim()}
                 className="h-7 text-xs bg-accent hover:bg-accent/90 text-accent-fg"
               >
-                {creating ? "Creating…" : "Create"}
+                {creating ? t("docs.creating") : t("docs.create")}
               </Button>
             </div>
           </div>

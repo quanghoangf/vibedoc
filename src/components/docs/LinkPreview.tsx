@@ -12,6 +12,7 @@ import { StatusChip } from "@/components/shared/StatusIcon"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { LINK_EVENTS } from "./useDocLinks"
+import { tNow, useT } from "@/context/LanguageContext"
 
 /** What a hovered link points at: a resolved file, or a broken raw target. */
 export type PreviewTarget = { path: string; kind: string; label: string } | { broken: string }
@@ -87,6 +88,7 @@ export function LinkPreview({ containerRef, resolve }: {
 }) {
   const { rootParam } = useApp()
   const statusDefs = useStatusDefs()
+  const { t } = useT()
   const id = useId()
   const [card, setCard] = useState<Card | null>(null)
   // pending show/hide; shared with the card so hovering it cancels the hide
@@ -126,7 +128,7 @@ export function LinkPreview({ containerRef, resolve }: {
           })
           .catch((e) => {
             console.warn("Link preview failed", e)
-            setCard((c) => (c?.key === key ? { ...c, data: { title: target.label, text: "Preview unavailable" } } : c))
+            setCard((c) => (c?.key === key ? { ...c, data: { title: target.label, text: tNow("docs.previewUnavailable") } } : c))
           })
       }, cached && !always ? 0 : delay)
     }
@@ -232,7 +234,7 @@ export function LinkPreview({ containerRef, resolve }: {
     >
       <div className="flex min-w-0 items-center gap-2">
         <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />
-        <span className="min-w-0 truncate font-medium">{broken ? "Not found" : data?.title ?? target.label}</span>
+        <span className="min-w-0 truncate font-medium">{broken ? t("docs.notFound") : data?.title ?? target.label}</span>
       </div>
       <span className="truncate font-mono text-[11px] text-muted">{broken ? target.broken : target.path}</span>
       {(status || (!broken && data?.owner)) && (
@@ -243,7 +245,7 @@ export function LinkPreview({ containerRef, resolve }: {
       )}
       {!broken && (
         <p className="line-clamp-6 text-xs leading-relaxed text-muted">
-          {!data ? "Loading…" : !data.text ? "Empty file" : data.text.split(/`([^`]+)`/).map((part, i) => (i % 2
+          {!data ? t("docs.loading") : !data.text ? t("docs.emptyFile") : data.text.split(/`([^`]+)`/).map((part, i) => (i % 2
             ? <code key={i} className="rounded-sm bg-surface2 px-1 font-mono text-[11px] text-txt">{part}</code>
             : part))}
         </p>

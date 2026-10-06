@@ -7,13 +7,16 @@ import { useApp } from "@/context/AppContext"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { displayStatus } from "@/lib/statuses"
 import type { GraphNode, MemoryGraph, NodeKind } from "@/lib/memory-graph"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 
-export const GROUPS: { kind: NodeKind; label: string }[] = [
-  { kind: "task", label: "Tasks" },
-  { kind: "epic", label: "Epics" },
-  { kind: "adr", label: "ADRs" },
-  { kind: "doc", label: "Docs" },
-  { kind: "entry", label: "Entries" },
+/** `label` is a message key (R078): render it with t() */
+export const GROUPS: { kind: NodeKind; label: MessageKey }[] = [
+  { kind: "task", label: "roadmap.kindTasks" },
+  { kind: "epic", label: "roadmap.kindEpics" },
+  { kind: "adr", label: "roadmap.kindAdrs" },
+  { kind: "doc", label: "roadmap.kindDocs" },
+  { kind: "entry", label: "roadmap.kindEntries" },
 ]
 export const KIND_ICON = { epic: Flag, adr: Scale, doc: FileText, entry: Lightbulb, task: BookOpen, spec: ListChecks } as const
 
@@ -36,6 +39,7 @@ export function useOpenNode(onOpenEntry: (id: string) => void) {
 export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpenEntry: (id: string) => void }) {
   const { rootParam, summary, board } = useApp()
   const open = useOpenNode(onOpenEntry)
+  const { t } = useT()
   const [graph, setGraph] = useState<MemoryGraph | null>(null)
 
   // refetch when the entry changes and on every memory_updated SSE event (AppContext replaces `summary`)
@@ -86,7 +90,7 @@ export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpen
         if (!group.length) return null
         return (
           <div key={kind}>
-            <p className="px-2 text-[11px] text-muted">{label}</p>
+            <p className="px-2 text-[11px] text-muted">{t(label)}</p>
             <ul>{group.map(row)}</ul>
           </div>
         )

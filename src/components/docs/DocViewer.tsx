@@ -19,6 +19,7 @@ import { DOCS_LIST_KEY } from "@/lib/shortcuts"
 import { stripFrontmatter } from "@/lib/doc-priority"
 import { DocProperties } from "./DocProperties"
 import { graphHref } from "@/lib/doc-links"
+import { useT } from "@/context/LanguageContext"
 
 const kbdClass = "rounded-sm border border-border bg-surface2 px-1 font-mono text-[10px] leading-4 text-txt"
 
@@ -43,39 +44,36 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
   // ≥xl: the linked docs column beside the preview (toggled here); below xl: the same lists in a sheet
   const [linksColumn, setLinksColumn] = useState(true)
   const [linksSheet, setLinksSheet] = useState(false)
+  const { t, tn } = useT()
   useItemCommands(doc && docActions ? path : null, docActions ? [
-    { action: "edit", label: "Rename", run: () => docActions.rename(path) },
-    { action: "duplicate", label: "Duplicate", run: () => docActions.duplicate(path) },
-    { action: "chat", label: "Chat about this doc", run: () => docActions.chat(path) },
-    { action: "remove", label: "Delete", run: () => docActions.remove(path) },
+    { action: "edit", label: t("docs.rename"), run: () => docActions.rename(path) },
+    { action: "duplicate", label: t("docs.duplicate"), run: () => docActions.duplicate(path) },
+    { action: "chat", label: t("docs.chatAboutDoc"), run: () => docActions.chat(path) },
+    { action: "remove", label: t("board.delete"), run: () => docActions.remove(path) },
   ] : [])
 
   if (!doc) {
     return (
       <div className="mx-auto flex max-w-xl flex-col gap-4 px-6 pt-[18vh] pb-12">
         <h2 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-balance text-txt">
-          {docCount === undefined ? "Pick a doc to read" : docCount.files === 0 ? "No docs yet" : docCount.files === docCount.docs ? (
-            <><span className="font-mono">{docCount.files}</span> docs in this project</>
-          ) : (
-            <><span className="font-mono">{docCount.files}</span> files · <span className="font-mono">{docCount.docs}</span> docs</>
-          )}
+          {docCount === undefined ? t("docs.pickDoc") : docCount.files === 0 ? t("docs.noDocs") : docCount.files === docCount.docs
+            ? tn("docs.docsInProject", docCount.files)
+            : t("docs.filesAndDocs", { files: docCount.files, docs: docCount.docs })}
         </h2>
         <p className="text-sm leading-relaxed text-muted">
-          {docCount?.files === 0
-            ? "Docs are plain markdown files in your repo. Your agent reads and edits the same files."
-            : "Choose one from the list. Your agent reads and edits the same files, and its changes show up here live."}
+          {docCount?.files === 0 ? t("docs.noDocsHint") : t("docs.pickDocHint")}
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-3">
           {onNewDocClick && (
             <Button size="sm" onClick={onNewDocClick}>
-              <Plus className="size-4" aria-hidden /> New doc
+              <Plus className="size-4" aria-hidden /> {t("docs.newDoc")}
             </Button>
           )}
           <span className="flex items-center gap-1.5 text-xs text-muted">
-            <kbd className={kbdClass}>⌘P</kbd> jump to a doc
+            <kbd className={kbdClass}>⌘P</kbd> {t("docs.jumpToDoc")}
           </span>
           <span className="flex items-center gap-1.5 text-xs text-muted">
-            <kbd className={kbdClass}>⌘K</kbd> search content
+            <kbd className={kbdClass}>⌘K</kbd> {t("docs.searchContent")}
           </span>
         </div>
       </div>
@@ -90,7 +88,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
     })
     if (!res.ok) {
       const data = await res.json()
-      throw new Error(data.error ?? "Save failed")
+      throw new Error(data.error ?? t("docs.saveFailed"))
     }
     setSelectedDoc({ ...doc!, content, lastEdit: { actor: "human", at: new Date().toISOString() } })
   }
@@ -108,7 +106,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
   const brokenCount = links?.broken.length ?? 0
   const linksButton = (onClick: () => void, className: string, pressed?: boolean) => (
     <Button variant="ghost" size="sm" onClick={onClick} aria-pressed={pressed}
-      aria-label={`Linked docs${linkCount !== null ? `: ${linkCount} files` : ""}${brokenCount ? `, ${brokenCount} broken` : ""}`} title="Linked docs"
+      aria-label={[linkCount !== null ? t("docs.linkedDocsCount", { n: linkCount }) : t("docs.linkedDocs"), brokenCount ? t("docs.brokenSuffix", { n: brokenCount }) : ""].filter(Boolean).join(", ")} title={t("docs.linkedDocs")}
       className={`h-7 gap-1 px-1.5 text-muted hover:text-txt ${pressed ? "bg-surface2 text-txt" : ""} ${className}`}>
       <Link2 className="h-3.5 w-3.5" aria-hidden />
       {linkCount !== null && <span className="font-mono text-[11px]">{linkCount}</span>}
@@ -120,7 +118,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
     <div className="flex h-full flex-col">
       <Sheet open={linksSheet} onOpenChange={setLinksSheet}>
         <SheetContent side="right" aria-describedby={undefined} className="flex w-80 flex-col gap-4 overflow-y-auto border-border bg-surface p-5 text-txt sm:max-w-80">
-          <SheetTitle className="text-sm font-semibold text-txt">Linked docs</SheetTitle>
+          <SheetTitle className="text-sm font-semibold text-txt">{t("docs.linkedDocs")}</SheetTitle>
           <LinkedDocs links={links} path={doc.path} onNavigate={() => setLinksSheet(false)} />
         </SheetContent>
       </Sheet>
@@ -137,7 +135,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
             <button
               type="button"
               onClick={() => setSelectedDoc(null)}
-              aria-label="Back to docs"
+              aria-label={t("docs.backToDocs")}
               className="-ml-1.5 flex size-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-surface2 hover:text-txt md:hidden"
             >
               <ArrowLeft className="size-4" aria-hidden />
@@ -146,9 +144,9 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
               <button
                 type="button"
                 onClick={onToggleList}
-                aria-label={listCollapsed ? "Show docs list" : "Hide docs list"}
+                aria-label={listCollapsed ? t("docs.showList") : t("docs.hideList")}
                 aria-keyshortcuts="Meta+Backslash"
-                title={`${listCollapsed ? "Show" : "Hide"} docs list (${DOCS_LIST_KEY.label})`}
+                title={t(listCollapsed ? "docs.showListKey" : "docs.hideListKey", { key: DOCS_LIST_KEY.label })}
                 className="-ml-1.5 mr-0.5 flex size-7 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-surface2 hover:text-txt max-md:hidden"
               >
                 {listCollapsed ? <PanelLeftOpen className="size-4" aria-hidden /> : <PanelLeftClose className="size-4" aria-hidden />}
@@ -166,7 +164,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
             {/* Headings only exist to scroll to where the doc is rendered */}
             {mode !== "edit" && <div className="max-lg:hidden"><DocOutline headings={headings} /></div>}
             <Button variant="ghost" size="sm" asChild className="h-7 px-1.5 text-muted hover:text-txt">
-              <Link href={graphHref(doc.path)} aria-label="Show in graph" title="Show in graph">
+              <Link href={graphHref(doc.path)} aria-label={t("docs.showInGraph")} title={t("docs.showInGraph")}>
                 <Waypoints className="size-3.5" aria-hidden />
               </Link>
             </Button>
@@ -184,7 +182,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
               linksColumn ? "grid-cols-[18rem]" : "grid-cols-[0rem]",
             )}
           >
-            <aside aria-label="Linked docs" className="min-h-0 w-72 overflow-y-auto border-l border-border px-4 py-6">
+            <aside aria-label={t("docs.linkedDocs")} className="min-h-0 w-72 overflow-y-auto border-l border-border px-4 py-6">
               <LinkedDocs links={links} path={doc.path} />
             </aside>
           </div>
