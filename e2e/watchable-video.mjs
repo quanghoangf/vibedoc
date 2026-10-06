@@ -7,8 +7,7 @@
 //              VIBEDOC_PRESENT=0 → both pass with the same assertion counts and byte-identical step screenshots, and
 //              the presentation run is paced (each action waits out the annotation) with run.json presentation on.
 //              T229: each presentation step opens with a chapter card (counted back from the video's frames: one per
-//              step, none in the plain run), and holds before
-//              its screenshot.
+//              step, none in the plain run), and holds before its screenshot.
 //              The cursor itself is only in the video frames: that stays a manual check.
 //   S5 (T227): a plain run says why under the video (suite, CI, VIBEDOC_PRESENT=0, old Playwright); a presentation
 //              run and a run from before R079 say nothing.

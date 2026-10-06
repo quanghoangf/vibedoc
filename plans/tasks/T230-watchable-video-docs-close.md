@@ -1,9 +1,12 @@
 # T230: Watchable video docs, end-to-end check, close R079
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R079 — Watchable evidence videos
 **Size:** S (~1 hr)
 **Depends on:** T225, T226, T227, T228, T229
 **Covers:** S1, S2, S3, S4, S5
+**Owner:** ai:claude-code
+**Due:** 2026-10-07
+**Started:** 2026-10-06
 
 ## Goal
 Prove the epic's Done-when end to end and document how to use (and turn off) presentation recording.
@@ -42,8 +45,13 @@ PW_DIR=<dir with node_modules/playwright> node e2e/watchable-video.mjs
 ```
 
 ## Manual tests
+_2026-10-06 — ai_
+### Steps
 - [ ] S1 — WHEN a reviewer picks 0.5× on a run's video on Test review → THEN the video plays at half speed, and after a reload the player still starts at 0.5×
 - [ ] S2 — WHEN the video plays with auto-pause on and reaches the end of a step → THEN it pauses on that step's screenshot moment with the step's name shown over the video, and Play goes on to the next step
 - [ ] S3 — WHEN a single Run records a new video on a frontend app with Playwright 1.59 or newer → THEN the video shows an animated cursor, the target element highlighted, the action title, a chapter card with each step's name, and a short hold after each step
 - [ ] S4 — WHEN a run records in presentation mode → THEN its step screenshots carry no cursor, highlight or chapter, and its pass/fail, assertion counts and honesty verdict are the same as a plain run
 - [ ] S5 — WHEN the run is the regression suite, the blank-page check, CI, `VIBEDOC_PRESENT=0`, or the app's Playwright is older than 1.59 → THEN the video is recorded plain, and run.json and the player say why
+- [ ] The docs site's Evidence page explains the player controls, presentation recording and how to turn it off
+### Regression risk
+- [ ] The regression suite still runs at its old speed

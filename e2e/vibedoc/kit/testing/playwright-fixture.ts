@@ -16,6 +16,12 @@
  * `.vibedoc/settings.json`, else 5 (runs-retention.ts).
  * Runs inside the target repo's Playwright process, not the VibeDoc server, so it writes its own files.
  *
+ * R079 presentation recording (presentation.ts decides, recorded as `presentation` in run.json): on Playwright 1.59+
+ * the video gets `page.screencast` action annotations (cursor, highlight, title; each action waits ACTION_MS), a
+ * chapter card per step and a STEP_HOLD_MS hold before the step's screenshot. Off for the suite (VIBEDOC_TASK_MAP),
+ * the blank pass (VIBEDOC_BLANK), CI and VIBEDOC_PRESENT=0. Screenshots stay clean: annotations are gone by the time
+ * an action returns, and chapter cards by the time showChapter resolves.
+ *
  * The package export is the compiled `dist/testing/playwright-fixture.js` (`npm run build:playwright`, run by
  * prepublishOnly): Playwright won't transpile .ts under node_modules. Hence the `.js` extension on relative imports.
  */
