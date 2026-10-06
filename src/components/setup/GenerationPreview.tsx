@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FileText, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer";
+import { useT } from "@/context/LanguageContext";
 
 export interface GeneratedFile {
   path: string;
@@ -28,6 +29,7 @@ export function GenerationPreview({
   onModeChange,
 }: GenerationPreviewProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const { t, tn } = useT();
 
   const toggleExpand = (path: string) => {
     setExpanded((prev) => {
@@ -46,11 +48,9 @@ export function GenerationPreview({
       <div className="text-center py-12">
         <AlertCircle className="w-12 h-12 text-muted mx-auto mb-4" />
         <h3 className="text-lg font-medium text-txt mb-2">
-          No files generated
+          {t("chat.noFiles")}
         </h3>
-        <p className="text-muted">
-          Something went wrong. Please go back and try again.
-        </p>
+        <p className="text-muted">{t("chat.noFilesHint")}</p>
       </div>
     );
   }
@@ -59,8 +59,8 @@ export function GenerationPreview({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-txt mb-2">Preview</h2>
-          <p className="text-muted">Review the files that will be created.</p>
+          <h2 className="text-xl font-semibold text-txt mb-2">{t("chat.preview")}</h2>
+          <p className="text-muted">{t("chat.previewHint")}</p>
         </div>
         <div className="flex items-center gap-1 bg-surface2 rounded-lg p-1">
           <button
@@ -72,7 +72,7 @@ export function GenerationPreview({
                 : "text-muted hover:text-txt",
             )}
           >
-            Quick
+            {t("chat.quick")}
           </button>
           <button
             onClick={() => onModeChange("ai")}
@@ -91,7 +91,7 @@ export function GenerationPreview({
       {/* Files to write */}
       <div className="space-y-2">
         <h3 className="text-sm font-medium text-muted uppercase tracking-wider">
-          Files to create ({toWrite.length})
+          {t("chat.filesToCreate", { n: toWrite.length })}
         </h3>
         <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
           {toWrite.map((file) => {
@@ -116,15 +116,15 @@ export function GenerationPreview({
                 {isExpanded && (
                   <div className="px-3 pb-3">
                     {isMd ? (
-                      <div className="prose prose-invert max-w-none p-3 bg-surface2 rounded-lg max-h-64 overflow-y-auto text-sm">
+                      <div data-user-content className="prose prose-invert max-w-none p-3 bg-surface2 rounded-lg max-h-64 overflow-y-auto text-sm">
                         <MarkdownRenderer
                           content={file.content.slice(0, 3000)}
                         />
                       </div>
                     ) : (
-                      <pre className="p-3 bg-surface2 rounded-lg text-xs text-muted overflow-x-auto max-h-64 overflow-y-auto">
+                      <pre data-user-content className="p-3 bg-surface2 rounded-lg text-xs text-muted overflow-x-auto max-h-64 overflow-y-auto">
                         {file.content.slice(0, 2000)}
-                        {file.content.length > 2000 && "\n\n...(truncated)"}
+                        {file.content.length > 2000 && `\n\n${t("chat.truncated")}`}
                       </pre>
                     )}
                   </div>
@@ -139,7 +139,7 @@ export function GenerationPreview({
       {skipped.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-muted uppercase tracking-wider">
-            Skipped ({skipped.length})
+            {t("chat.skipped", { n: skipped.length })}
           </h3>
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 space-y-1">
             {skipped.map((file) => (
@@ -147,7 +147,7 @@ export function GenerationPreview({
                 <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
                 <span className="font-mono text-amber-400">{file.path}</span>
                 <span className="text-amber-400/70">
-                  — {file.reason || "already exists"}
+                  — {file.reason || t("chat.alreadyExists")}
                 </span>
               </div>
             ))}
@@ -156,8 +156,8 @@ export function GenerationPreview({
       )}
 
       <div className="text-sm text-muted">
-        {toWrite.length} file{toWrite.length !== 1 ? "s" : ""} will be created
-        {skipped.length > 0 && `, ${skipped.length} skipped`}
+        {tn("chat.willCreate", toWrite.length)}
+        {skipped.length > 0 && t("chat.skippedSuffix", { n: skipped.length })}
       </div>
     </div>
   );

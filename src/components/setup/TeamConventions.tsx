@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input"
 import { TechStackInput } from "./TechStackInput"
 import type { ProjectAnswers } from "./ProjectQuestionnaire"
 import { cn } from "@/lib/utils"
+import { useT } from "@/context/LanguageContext"
 
 interface TeamConventionsProps {
   answers: ProjectAnswers
@@ -11,14 +12,14 @@ interface TeamConventionsProps {
 }
 
 const TEAM_SIZES = [
-  { value: "solo", label: "Solo" },
+  { value: "solo", label: "chat.solo" },
   { value: "2-5", label: "2–5" },
   { value: "6-15", label: "6–15" },
   { value: "15+", label: "15+" },
 ]
 
 const TEST_FRAMEWORKS = [
-  { value: "", label: "Not sure / other" },
+  { value: "", label: "chat.notSure" },
   { value: "Jest", label: "Jest" },
   { value: "Vitest", label: "Vitest" },
   { value: "pytest", label: "pytest" },
@@ -27,10 +28,10 @@ const TEST_FRAMEWORKS = [
 ]
 
 const BRANCH_STRATEGIES = [
-  { value: "", label: "Not specified" },
-  { value: "trunk-based", label: "Trunk-based" },
+  { value: "", label: "chat.notSpecified" },
+  { value: "trunk-based", label: "chat.trunkBased" },
   { value: "gitflow", label: "Gitflow" },
-  { value: "feature-branch", label: "Feature branches" },
+  { value: "feature-branch", label: "chat.featureBranches" },
 ]
 
 const CI_CD_OPTIONS = ["GitHub Actions", "GitLab CI", "CircleCI", "Jenkins", "Buildkite", "Travis CI"]
@@ -38,6 +39,9 @@ const LINTING_OPTIONS = ["ESLint", "Prettier", "Biome", "Stylelint", "oxc", "Rom
 const DEPLOYMENT_OPTIONS = ["Vercel", "AWS", "GCP", "Azure", "Fly.io", "Railway", "Render", "Docker", "Kubernetes", "Heroku"]
 
 export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
+  const { t } = useT()
+  // Option labels that are message keys get translated; names (Jest, Gitflow, 2–5) show as written
+  const label = (l: string) => (l.startsWith("chat.") ? t(l as Parameters<typeof t>[0]) : l)
   const update = <K extends keyof ProjectAnswers>(key: K, value: ProjectAnswers[K]) => {
     onChange({ ...answers, [key]: value })
   }
@@ -45,14 +49,14 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-txt mb-2">Team & Conventions</h2>
-        <p className="text-muted">Help us tailor documentation to your team. All fields are optional.</p>
+        <h2 className="text-xl font-semibold text-txt mb-2">{t("chat.team")}</h2>
+        <p className="text-muted">{t("chat.teamHint")}</p>
       </div>
 
       <div className="space-y-5">
         {/* Team size */}
         <div>
-          <label className="block text-sm font-medium text-txt mb-2">Team Size</label>
+          <label className="block text-sm font-medium text-txt mb-2">{t("chat.teamSize")}</label>
           <div className="flex gap-2 flex-wrap">
             {TEAM_SIZES.map(size => (
               <button
@@ -66,7 +70,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
                     : "border-border text-txt hover:border-accent/50"
                 )}
               >
-                {size.label}
+                {label(size.label)}
               </button>
             ))}
           </div>
@@ -74,7 +78,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
 
         {/* Linting */}
         <div>
-          <label className="block text-sm font-medium text-txt mb-1.5">Linting & Formatting</label>
+          <label className="block text-sm font-medium text-txt mb-1.5">{t("chat.lintFormat")}</label>
           <div className="flex gap-2 flex-wrap mb-2">
             {LINTING_OPTIONS.map(opt => (
               <button
@@ -101,14 +105,14 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
 
         {/* Test framework */}
         <div>
-          <label className="block text-sm font-medium text-txt mb-1.5">Test Framework</label>
+          <label className="block text-sm font-medium text-txt mb-1.5">{t("chat.testFramework")}</label>
           <select
             value={answers.testFramework}
             onChange={(e) => update("testFramework", e.target.value)}
             className="w-full h-10 px-3 rounded-md border border-border bg-surface2 text-txt text-sm focus:outline-hidden focus:ring-2 focus:ring-accent/50"
           >
             {TEST_FRAMEWORKS.map(f => (
-              <option key={f.value} value={f.value}>{f.label}</option>
+              <option key={f.value} value={f.value}>{label(f.label)}</option>
             ))}
           </select>
         </div>
@@ -142,7 +146,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
 
         {/* Branch strategy */}
         <div>
-          <label className="block text-sm font-medium text-txt mb-2">Branch Strategy</label>
+          <label className="block text-sm font-medium text-txt mb-2">{t("chat.branchStrategy")}</label>
           <div className="flex gap-2 flex-wrap">
             {BRANCH_STRATEGIES.filter(b => b.value).map(b => (
               <button
@@ -156,7 +160,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
                     : "border-border text-txt hover:border-accent/50"
                 )}
               >
-                {b.label}
+                {label(b.label)}
               </button>
             ))}
           </div>
@@ -164,7 +168,7 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
 
         {/* Deployment target */}
         <div>
-          <label className="block text-sm font-medium text-txt mb-1.5">Deployment Target</label>
+          <label className="block text-sm font-medium text-txt mb-1.5">{t("chat.deployTarget")}</label>
           <div className="flex gap-2 flex-wrap">
             {DEPLOYMENT_OPTIONS.map(opt => (
               <button
@@ -192,12 +196,12 @@ export function TeamConventions({ answers, onChange }: TeamConventionsProps) {
         {/* Additional conventions */}
         <div>
           <label className="block text-sm font-medium text-txt mb-1.5">
-            Additional Conventions <span className="text-muted">(optional)</span>
+            {t("chat.moreConventions")} <span className="text-muted">{t("chat.optional")}</span>
           </label>
           <Input
             value={answers.conventions}
             onChange={(e) => update("conventions", e.target.value)}
-            placeholder="Conventional Commits, semantic versioning, etc."
+            placeholder={t("chat.conventionsPlaceholder")}
             className="bg-surface2"
           />
         </div>

@@ -33,6 +33,26 @@ writeFileSync(path.join(fx, "memory/entries/E001-only-core-touches-fs.md"), "# E
 writeFileSync(path.join(fx, "docs/a.md"), "# A\n\nSee [B](b.md) and [missing](gone.md).\n")
 writeFileSync(path.join(fx, "docs/b.md"), "# B\n\nBack to [A](a.md).\n")
 writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Due:** 2026-12-15\n**Tasks:** T001, T002, T003\n")
+// Saved chats (T222): one about R002 with a plan, an edit proposal and questions waiting; one about T001
+mkdirSync(path.join(fx, ".vibedoc/chats"), { recursive: true })
+const msg = (role, text, extra = {}) => ({ role, text, tools: [], proposals: [], plans: [], questions: [], ...extra })
+const at = new Date().toISOString()
+writeFileSync(path.join(fx, ".vibedoc/chats/c-fix1.json"), JSON.stringify({
+  id: "c-fix1", title: "Epic R002", sessionId: "s1", busy: false, notes: [], attach: { kind: "epic", id: "R002" }, createdAt: at, updatedAt: at,
+  messages: [msg("user", "Break down epic R002 into tasks."), msg("assistant", "Here is a plan.", {
+    tools: ["vibedoc_get_roadmap"],
+    plans: [{ id: "p1", status: "pending", plan: { kind: "breakdown", epic: "R002", tasks: [
+      { key: "t1", title: "First", size: "S (~1 hr)", body: "## Goal\nOne." },
+      { key: "t2", title: "Second", dependsOn: ["t1"], due: "2026-12-01", body: "## Goal\nTwo." },
+    ] } }],
+    proposals: [{ id: "e1", path: "docs/a.md", status: "pending", summary: "Reword", edits: [{ old_string: "See [B](b.md)", new_string: "Read [B](b.md)" }] }],
+    questions: [{ id: "q1", questions: [{ question: "Which one?", header: "Pick", multiSelect: false, options: [{ label: "Alpha" }, { label: "Beta" }] }] }],
+  })],
+}))
+writeFileSync(path.join(fx, ".vibedoc/chats/c-fix2.json"), JSON.stringify({
+  id: "c-fix2", title: "Task T001", sessionId: "s2", busy: false, notes: [], attach: { kind: "task", id: "T001" }, createdAt: at, updatedAt: at,
+  messages: [msg("user", "Refine this task's spec."), msg("assistant", "Done.")],
+}))
 const { SANS_FONTS, MONO_FONTS } = await import("../src/lib/settings.ts")
 
 // `scope`: CSS selectors to check instead of the whole page (the shell while page content isn't translated yet)
@@ -151,6 +171,61 @@ const PAGES = [
   } },
   { path: "/manual-tests?tab=suite", name: "test review: suite tab", open: async (page) => {
     await page.getByRole("heading", { name: "Bộ kiểm thử hồi quy" }).waitFor()
+  } },
+  // T222: chats (list, conversation with plan / edit / question cards, context rail, empty chat, modal), setup, guide
+  { path: "/chat?id=c-fix1", name: "chat: list, cards, epic context", open: async (page) => {
+    await page.getByText("Kế hoạch", { exact: true }).waitFor()
+    await page.getByText(/dòng không đổi|Không có thay đổi|\+1/).first().waitFor()
+    await page.getByRole("button", { name: "Chấp nhận", exact: true }).waitFor()
+  } },
+  { path: "/chat?id=c-fix1", name: "chat: question card Other", open: async (page) => {
+    await page.getByRole("radio", { name: "Khác" }).check()
+    await page.getByPlaceholder("Câu trả lời của bạn").waitFor()
+  } },
+  { path: "/chat?id=c-fix2", name: "chat: task context" , open: async (page) => {
+    await page.getByText("Việc · T001").waitFor()
+  } },
+  { path: "/chat?id=gone", name: "chat: deleted chat", open: async (page) => {
+    await page.getByText("Cuộc trò chuyện này đã bị xóa").waitFor()
+  } },
+  { path: "/chat?id=c-fix2", name: "chat: new empty chat", open: async (page) => {
+    await page.getByRole("button", { name: "Trò chuyện mới" }).first().click()
+    await page.getByRole("heading", { name: "Hỏi agent" }).waitFor()
+  } },
+  { path: "/board", name: "chat: modal", open: async (page) => {
+    await page.locator('[data-sidebar="sidebar"]').getByRole("button", { name: "Epic R002" }).first().click()
+    await page.getByRole("dialog").getByText("Kế hoạch", { exact: true }).waitFor()
+  } },
+  { path: "/setup", name: "setup: welcome", open: async (page) => {
+    await page.getByRole("heading", { name: "Chào mừng đến với VibeDoc" }).waitFor()
+  } },
+  { path: "/setup", name: "setup: basic info", open: async (page) => {
+    await page.getByRole("button", { name: /^Tối giản/ }).click()
+    await page.getByText("Thông tin cơ bản").first().waitFor()
+  } },
+  { path: "/setup", name: "setup: templates", open: async (page) => {
+    await page.getByRole("button", { name: /^Tối giản/ }).click()
+    await page.getByPlaceholder("Dự án tuyệt vời của tôi").fill("Demo")
+    await page.getByRole("button", { name: /^Tiếp/ }).click()
+    await page.getByRole("button", { name: "Tài liệu quy trình" }).click()
+    await page.getByRole("button", { name: /Chọn hết|Bỏ chọn hết/ }).waitFor()
+  } },
+  { path: "/setup", name: "setup: tech stack, team, preview", open: async (page) => {
+    await page.getByRole("button", { name: /^Tối giản/ }).click()
+    await page.getByPlaceholder("Dự án tuyệt vời của tôi").fill("Demo")
+    await page.getByRole("button", { name: /^Tiếp/ }).click()
+    await page.getByRole("button", { name: /^Tiếp/ }).click()
+    await page.getByPlaceholder("Tìm công nghệ...").fill("Zigzag")
+    await page.getByText(/để thêm/).waitFor()
+    await assertVietnamese(page, "setup: tech stack")
+    await page.getByRole("button", { name: /^Tiếp/ }).click()
+    await page.getByText("Quy mô nhóm").waitFor()
+    await assertVietnamese(page, "setup: team")
+    await page.getByRole("button", { name: /^Tạo/ }).click()
+    await page.getByText(/Tệp sẽ tạo|Không có tệp nào được tạo/).first().waitFor()
+  } },
+  { path: "/getting-started", name: "getting started", open: async (page) => {
+    await page.locator("article [data-user-content], article p").first().waitFor()
   } },
 ]
 

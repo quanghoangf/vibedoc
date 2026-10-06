@@ -26,6 +26,9 @@ import {
   type TemplateCategory,
 } from "@/lib/templates";
 import { PRESETS } from "@/lib/presets";
+import { useT } from "@/context/LanguageContext";
+import type { MessageKey } from "@/i18n";
+import { useSetupText } from "./setup-text";
 
 export interface TemplateSelection {
   id: string;
@@ -39,15 +42,16 @@ interface TemplateSelectorProps {
   projectType?: string;
 }
 
-const CATEGORY_DISPLAY_NAMES: Record<TemplateCategory, string> = {
-  "ai-agent": "AI Agent Config",
+// Message keys, or a product name shown as written
+const CATEGORY_DISPLAY_NAMES: Record<TemplateCategory, MessageKey | string> = {
+  "ai-agent": "chat.catAiAgent",
   github: "GitHub",
-  process: "Process Docs",
-  technical: "Technical Docs",
-  infrastructure: "Infrastructure",
+  process: "chat.catProcess",
+  technical: "chat.catTechnical",
+  infrastructure: "chat.catInfrastructure",
   "github-actions": "GitHub Actions",
-  "code-quality": "Code Quality",
-  monitoring: "Monitoring",
+  "code-quality": "chat.catCodeQuality",
+  monitoring: "chat.catMonitoring",
 };
 
 const CATEGORY_ICONS: Record<TemplateCategory, LucideIcon> = {
@@ -121,6 +125,9 @@ export function TemplateSelector({
   projectType,
 }: TemplateSelectorProps) {
   const [activeTab, setActiveTab] = useState<Tab>("recommended");
+  const { t: tr, tn } = useT();
+  const setupText = useSetupText();
+  const catName = (n: string) => (n.startsWith("chat.") ? tr(n as MessageKey) : n);
 
   const isSelected = (id: string) => selected.some((s) => s.id === id);
 
@@ -165,11 +172,9 @@ export function TemplateSelector({
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold text-txt mb-2">
-          Select Templates
+          {tr("chat.selectTemplates")}
         </h2>
-        <p className="text-muted">
-          Choose which documentation files to generate for your project.
-        </p>
+        <p className="text-muted">{tr("chat.selectTemplatesHint")}</p>
       </div>
 
       {/* Tab bar */}
@@ -183,7 +188,7 @@ export function TemplateSelector({
               : "text-muted hover:text-txt",
           )}
         >
-          ⭐ Recommended
+          {tr("chat.recommended")}
         </button>
         {GROUPED_TEMPLATES.map((group) => (
           <button
@@ -196,7 +201,7 @@ export function TemplateSelector({
                 : "text-muted hover:text-txt",
             )}
           >
-            {group.displayName}
+            {catName(group.displayName)}
           </button>
         ))}
       </div>
@@ -205,10 +210,7 @@ export function TemplateSelector({
       {activeTab === "recommended" && (
         <div className="space-y-4">
           {matchingPresets.length === 0 && (
-            <p className="text-muted text-sm">
-              No presets match your project type. Select templates manually from
-              the tabs above.
-            </p>
+            <p className="text-muted text-sm">{tr("chat.noPresetMatch")}</p>
           )}
           {matchingPresets.map((preset) => {
             const presetSelected = preset.templateIds.every((id) =>
@@ -221,12 +223,12 @@ export function TemplateSelector({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="font-medium text-txt">{preset.name}</div>
+                    <div className="font-medium text-txt">{setupText.presetName(preset)}</div>
                     <div className="text-sm text-muted mt-1">
-                      {preset.description}
+                      {setupText.presetDescription(preset)}
                     </div>
                     <div className="text-xs text-accent/70 mt-1">
-                      {preset.templateIds.length} templates
+                      {tr("chat.templatesCount", { n: preset.templateIds.length })}
                     </div>
                   </div>
                   <button
@@ -248,7 +250,7 @@ export function TemplateSelector({
                         : "border-border hover:border-accent text-txt",
                     )}
                   >
-                    {presetSelected ? "✓ Selected" : "Select bundle"}
+                    {presetSelected ? tr("chat.selected") : tr("chat.selectBundle")}
                   </button>
                 </div>
               </div>
@@ -266,15 +268,15 @@ export function TemplateSelector({
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-muted uppercase tracking-wider">
-                  {group.displayName}
+                  {catName(group.displayName)}
                 </h3>
                 <button
                   onClick={() => selectAll(group.category)}
                   className="text-xs text-accent hover:text-accent/80 transition-colors"
                 >
                   {group.items.every((i) => isSelected(i.id))
-                    ? "Deselect all"
-                    : "Select all"}
+                    ? tr("chat.deselectAll")
+                    : tr("chat.selectAll")}
                 </button>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -309,10 +311,10 @@ export function TemplateSelector({
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="font-medium text-sm text-txt truncate">
-                            {item.name}
+                            {setupText.template(item.id, "name", item.name)}
                           </div>
                           <div className="text-xs text-muted truncate">
-                            {item.description}
+                            {setupText.template(item.id, "description", item.description)}
                           </div>
                         </div>
                         {checked && (
@@ -328,7 +330,7 @@ export function TemplateSelector({
         })()}
 
       <div className="text-sm text-muted">
-        {selected.length} template{selected.length !== 1 ? "s" : ""} selected
+        {tn("chat.templatesSelected", selected.length)}
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useChats } from "@/context/ChatContext"
 import { AttachLabel, StatusMarker } from "@/components/chat/StatusMarker"
+import { useChatText } from "@/components/chat/chat-text"
 import { groupChats, isActionableError, shellStatus } from "@/lib/chats"
 import { cn } from "@/lib/utils"
 import { shortcutFor } from "@/lib/shortcuts"
@@ -31,6 +32,7 @@ export function SidebarChats() {
 
 function SidebarChatsInner() {
   const { chats, loaded, modalId, show, create, dismiss, waitingCount, runningCount, errorCount, now } = useChats()
+  const chatText = useChatText()
   const { t } = useT()
   const pathname = usePathname()
   const pageId = useSearchParams().get("id")
@@ -81,10 +83,10 @@ function SidebarChatsInner() {
                   onClick={() => show(c.id)}
                   isActive={isOpen(c.id)}
                   className={cn("h-8", status === "idle" && "text-muted", alarm && "pr-8")}
-                  title={c.title}
+                  title={chatText.title(c.title)}
                 >
                   <StatusMarker status={status} showIdle />
-                  <span className="min-w-0 flex-1 truncate">{c.title}</span>
+                  <span data-user-content className="min-w-0 flex-1 truncate">{chatText.title(c.title)}</span>
                   {alarm && <span aria-hidden className="shrink-0 font-mono text-[10px] text-danger">{t("shell.chatError")}</span>}
                   {/* "Break down R043" already names its epic */}
                   {c.attach && !c.title.includes(c.attach.id) && <AttachLabel attach={c.attach} className="shrink-0 text-muted" />}

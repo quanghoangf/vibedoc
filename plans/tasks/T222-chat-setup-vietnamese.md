@@ -1,9 +1,12 @@
 # T222: Chat, setup and getting started in Vietnamese
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R078 — i18n support
 **Size:** M (2–3 hrs)
 **Depends on:** T215
 **Covers:** S1
+**Owner:** ai:claude-code
+**Due:** 2026-10-09
+**Started:** 2026-10-06
 
 ## Goal
 With Tiếng Việt chosen, every piece of interface text in this area is Vietnamese: headings, buttons, menus, dialogs, empty states, toasts, tooltips, `aria-label`s and placeholders. English looks exactly as it does today.
@@ -47,4 +50,15 @@ PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 ```
 
 ## Manual tests
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T222-chat-setup-vietnamese.spec.ts` · Auto: passed 2026-10-06_
+### Steps
 - [ ] S1 — WHEN the app is in Vietnamese and the user opens /chat, the chat modal, /setup and /getting-started → THEN every interface text is Vietnamese
+- [x] 🤖 With Vietnamese on, open /chat → the list is titled "Trò chuyện" with the button "Trò chuyện mới"
+- [x] 🤖 Click "Trò chuyện mới" → the empty chat reads "Hỏi agent", suggests "Tôi nên làm gì tiếp theo?" and the box says "Hỏi agent… (Enter để gửi)"
+- [x] 🤖 Open /setup → "Trình thiết lập", "Bước 1/7" and "Chào mừng đến với VibeDoc"
+- [x] 🤖 Click the "Tối giản" preset → step "Thông tin cơ bản" asks for "Tên dự án"
+- [ ] Click a suggestion in Vietnamese → the message sent to the agent is the English prompt, and "Chia nhỏ epic R… thành các việc" still routes to that epic's chat
+- [ ] Ask the agent for a breakdown → the plan card reads Kế hoạch / Chấp nhận (n) / Từ chối and the rows fit without overflow
+### Regression risk
+- [ ] In English, the chat modal, plan card and setup wizard read exactly as before
+- [ ] A desktop notification while the tab is hidden says "Agent cần bạn trả lời" in Vietnamese

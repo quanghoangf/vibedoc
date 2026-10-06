@@ -2,15 +2,17 @@
 
 import { Loader2, Map as MapIcon, SquareCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { STATUS_LABEL, type Attach, type ChatStatus } from "@/lib/chats"
+import type { Attach, ChatStatus } from "@/lib/chats"
+import { useChatText } from "./chat-text"
 
 /**
  * Running = spinner; needs answers = pulsing amber dot; review = pulsing accent diamond; error = red dot; idle = hollow dot.
  * Shape and motion differ, not only hue: the accent can be green, close to the teal used for done.
  */
 export function StatusMarker({ status, showIdle = false, label, className }: { status: ChatStatus; showIdle?: boolean; label?: string; className?: string }) {
+  const chatText = useChatText()
   if (status === "idle" && !showIdle) return null
-  const text = label ?? STATUS_LABEL[status]
+  const text = label ?? chatText.status(status)
   return (
     <span role="img" aria-label={text} title={text} className={cn("inline-flex size-3 shrink-0 items-center justify-center", className)}>
       {status === "running" ? (

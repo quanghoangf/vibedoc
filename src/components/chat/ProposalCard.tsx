@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { useApp } from "@/context/AppContext"
+import { useT } from "@/context/LanguageContext"
 import { applyEdits, lineDiff, visibleHunks, type TextEdit } from "@/lib/diff"
 import { cn } from "@/lib/utils"
 
@@ -17,6 +18,7 @@ export interface Proposal {
 
 export function ProposalCard({ proposal, onResolve }: { proposal: Proposal; onResolve: (status: ProposalStatus) => void }) {
   const { rootParam, openDoc } = useApp()
+  const { t, tn } = useT()
   const [before, setBefore] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -48,7 +50,7 @@ export function ProposalCard({ proposal, onResolve }: { proposal: Proposal; onRe
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ path: proposal.path, edits: proposal.edits, actor: "ai" }),
       })
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Save failed")
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? t("chat.saveFailed"))
       onResolve("accepted")
     } catch (e) {
       setError((e as Error).message)
@@ -66,18 +68,19 @@ export function ProposalCard({ proposal, onResolve }: { proposal: Proposal; onRe
         <span className="text-[10px] font-mono text-teal-400">+{added}</span>
         <span className="text-[10px] font-mono text-red-400">-{removed}</span>
       </div>
-      {proposal.summary && <div className="px-2 py-1 text-xs text-muted border-b border-border">{proposal.summary}</div>}
+      {proposal.summary && <div data-user-content className="px-2 py-1 text-xs text-muted border-b border-border">{proposal.summary}</div>}
 
       <div className="max-h-72 overflow-auto text-[11px] font-mono leading-5">
-        {before === null && <div className="px-2 py-1 text-muted">Loading diff…</div>}
-        {stale && <div className="px-2 py-1 text-red-400">Doc changed since this proposal ({stale}). Ask the agent to propose again.</div>}
-        {before !== null && !stale && hunks.length === 0 && <div className="px-2 py-1 text-muted">No changes</div>}
+        {before === null && <div className="px-2 py-1 text-muted">{t("chat.loadingDiff")}</div>}
+        {stale && <div className="px-2 py-1 text-red-400">{t("chat.docChanged", { reason: stale })}</div>}
+        {before !== null && !stale && hunks.length === 0 && <div className="px-2 py-1 text-muted">{t("chat.noChanges")}</div>}
         {hunks.map((h, i) =>
           typeof h === "number" ? (
-            <div key={i} className="px-2 text-muted bg-surface2/50">⋯ {h} unchanged line{h > 1 ? "s" : ""}</div>
+            <div key={i} className="px-2 text-muted bg-surface2/50">{tn("chat.unchanged", h)}</div>
           ) : (
             <div
               key={i}
+              data-user-content
               className={cn(
                 "px-2 whitespace-pre-wrap break-words",
                 h.op === "+" && "bg-teal-500/10 text-teal-300",
@@ -98,15 +101,15 @@ export function ProposalCard({ proposal, onResolve }: { proposal: Proposal; onRe
               disabled={saving || before === null || !!stale}
               className="text-xs px-2 py-0.5 rounded-sm bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50"
             >
-              {saving ? "Applying…" : "Accept"}
+              {saving ? t("chat.applying") : t("chat.accept")}
             </button>
             <button onClick={() => onResolve("rejected")} disabled={saving} className="text-xs px-2 py-0.5 rounded-sm text-muted hover:text-txt">
-              Reject
+              {t("chat.reject")}
             </button>
           </>
         ) : (
           <span className={cn("text-xs", proposal.status === "accepted" ? "text-teal-400" : "text-muted")}>
-            {proposal.status === "accepted" ? "✓ Applied" : "Rejected"}
+            {proposal.status === "accepted" ? t("chat.applied") : t("chat.rejected")}
           </span>
         )}
         {error && <span className="text-xs text-red-400 truncate">{error}</span>}

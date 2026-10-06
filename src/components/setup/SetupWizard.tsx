@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useApp } from "@/context/AppContext";
+import { useT } from "@/context/LanguageContext";
+import type { MessageKey } from "@/i18n";
+import { useSetupText } from "./setup-text";
 import {
   ChevronLeft,
   ChevronRight,
@@ -19,14 +22,14 @@ import { GenerationPreview, type GeneratedFile } from "./GenerationPreview";
 import { PRESETS, type TemplatePreset } from "@/lib/presets";
 import { TEMPLATES, type Template } from "@/lib/templates";
 
-const STEPS = [
-  { id: "welcome", title: "Welcome" },
-  { id: "basic-info", title: "Basic Info" },
-  { id: "templates", title: "Templates" },
-  { id: "tech-stack", title: "Tech Stack" },
-  { id: "team", title: "Team" },
-  { id: "preview", title: "Preview" },
-  { id: "complete", title: "Complete" },
+const STEPS: { id: string; title: MessageKey }[] = [
+  { id: "welcome", title: "chat.stepWelcome" },
+  { id: "basic-info", title: "chat.stepBasic" },
+  { id: "templates", title: "chat.stepTemplates" },
+  { id: "tech-stack", title: "chat.stepTech" },
+  { id: "team", title: "chat.stepTeam" },
+  { id: "preview", title: "chat.stepPreview" },
+  { id: "complete", title: "chat.stepComplete" },
 ];
 
 const LAST_STEP = STEPS.length - 1;
@@ -37,6 +40,8 @@ const WRITE_STEP = 6;
 export function SetupWizard() {
   const { activeProject, rootParam, projects } = useApp();
   const currentProject = projects.find((p) => p.root === activeProject);
+  const { t, tn } = useT();
+  const setupText = useSetupText();
   const [step, setStep] = useState(0);
   const [selectedTemplates, setSelectedTemplates] = useState<
     TemplateSelection[]
@@ -143,9 +148,9 @@ export function SetupWizard() {
       <div className="border-b border-border bg-surface">
         <div className="max-w-3xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-lg font-semibold text-txt">Setup Wizard</h1>
+            <h1 className="text-lg font-semibold text-txt">{t("chat.setupWizard")}</h1>
             <span className="text-sm text-muted">
-              Step {step + 1} of {STEPS.length}
+              {t("chat.stepOf", { n: step + 1, total: STEPS.length })}
             </span>
           </div>
           <div className="flex gap-1">
@@ -163,7 +168,7 @@ export function SetupWizard() {
             {STEPS.map((s, i) => (
               <div key={s.id} className="flex-1 text-center">
                 {i === step && (
-                  <span className="text-xs text-accent">{s.title}</span>
+                  <span className="text-xs text-accent">{t(s.title)}</span>
                 )}
               </div>
             ))}
@@ -182,22 +187,20 @@ export function SetupWizard() {
                   <Sparkles className="w-8 h-8 text-accent" />
                 </div>
                 <h2 className="text-2xl font-bold text-txt">
-                  Welcome to VibeDoc
+                  {t("chat.welcome")}
                 </h2>
                 <p className="text-muted max-w-md mx-auto">
-                  Let&apos;s set up your project documentation. You can generate
-                  AI-optimized docs like CLAUDE.md, architecture overviews, and
-                  more.
+                  {t("chat.welcomeHint")}
                 </p>
               </div>
 
               {currentProject && (
                 <div className="bg-surface border border-border rounded-lg p-4">
-                  <div className="text-sm text-muted mb-1">Current Project</div>
-                  <div className="font-medium text-txt">
+                  <div className="text-sm text-muted mb-1">{t("chat.currentProject")}</div>
+                  <div data-user-content className="font-medium text-txt">
                     {currentProject.name}
                   </div>
-                  <div className="text-xs text-muted mt-1 font-mono">
+                  <div data-user-content className="text-xs text-muted mt-1 font-mono">
                     {currentProject.root}
                   </div>
                 </div>
@@ -206,18 +209,17 @@ export function SetupWizard() {
               {existingFiles.length > 0 && (
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
                   <div className="text-sm font-medium text-amber-400 mb-1">
-                    Existing files detected
+                    {t("chat.existingFiles")}
                   </div>
                   <div className="text-sm text-amber-400/80">
-                    {existingFiles.join(", ")} already exist. They will be
-                    skipped during generation.
+                    {t("chat.existingHint", { files: existingFiles.join(", ") })}
                   </div>
                 </div>
               )}
 
               <div>
                 <div className="text-sm font-medium text-txt mb-3">
-                  Quick Start with a Preset
+                  {t("chat.quickStart")}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   {[
@@ -235,10 +237,10 @@ export function SetupWizard() {
                         className="p-3 rounded-lg border border-border hover:border-accent/50 text-left transition-colors"
                       >
                         <div className="font-medium text-sm text-txt">
-                          {preset.name}
+                          {setupText.presetName(preset)}
                         </div>
                         <div className="text-xs text-muted mt-1">
-                          {preset.description}
+                          {setupText.presetDescription(preset)}
                         </div>
                       </button>
                     );
@@ -265,12 +267,9 @@ export function SetupWizard() {
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-semibold text-txt mb-2">
-                  Tech Stack
+                  {t("chat.techStack")}
                 </h2>
-                <p className="text-muted">
-                  Add the technologies your project uses. Search or type custom
-                  ones.
-                </p>
+                <p className="text-muted">{t("chat.techHint")}</p>
               </div>
               <TechStackInput
                 value={answers.techStackTags}
@@ -280,8 +279,7 @@ export function SetupWizard() {
               />
               {answers.techStackTags.length > 0 && (
                 <p className="text-sm text-muted">
-                  {answers.techStackTags.length} technolog
-                  {answers.techStackTags.length !== 1 ? "ies" : "y"} added
+                  {tn("chat.techAdded", answers.techStackTags.length)}
                 </p>
               )}
             </div>
@@ -309,20 +307,19 @@ export function SetupWizard() {
               <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
                 <Check className="w-8 h-8 text-green-500" />
               </div>
-              <h2 className="text-2xl font-bold text-txt">Setup Complete!</h2>
+              <h2 className="text-2xl font-bold text-txt">{t("chat.setupComplete")}</h2>
               <p className="text-muted max-w-md mx-auto">
-                Your documentation files have been created. You can now view and
-                edit them in the Docs tab.
+                {t("chat.completeHint")}
               </p>
 
               <div className="bg-surface border border-border rounded-lg p-4 text-left max-w-md mx-auto">
                 <div className="text-sm font-medium text-txt mb-2">
-                  Next steps:
+                  {t("chat.nextSteps")}
                 </div>
                 <ul className="text-sm text-muted space-y-2">
-                  <li>• Review generated files in the Docs tab</li>
-                  <li>• Edit content to match your project specifics</li>
-                  <li>• Connect your coding agent via MCP for AI assistance</li>
+                  <li>{t("chat.nextReview")}</li>
+                  <li>{t("chat.nextEdit")}</li>
+                  <li>{t("chat.nextConnect")}</li>
                 </ul>
               </div>
 
@@ -330,7 +327,7 @@ export function SetupWizard() {
                 href="/docs"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-accent-fg rounded-lg font-medium hover:bg-accent/90 transition-colors"
               >
-                Go to Docs
+                {t("chat.goToDocs")}
                 <ChevronRight className="w-4 h-4" />
               </a>
             </div>
@@ -353,7 +350,7 @@ export function SetupWizard() {
               )}
             >
               <ChevronLeft className="w-4 h-4" />
-              Back
+              {t("chat.back")}
             </button>
 
             {step === PREVIEW_STEP ? (
@@ -365,11 +362,11 @@ export function SetupWizard() {
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Writing...
+                    {t("chat.writing")}
                   </>
                 ) : (
                   <>
-                    Write Files
+                    {t("chat.writeFiles")}
                     <Check className="w-4 h-4" />
                   </>
                 )}
@@ -383,11 +380,11 @@ export function SetupWizard() {
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating...
+                    {t("chat.generating")}
                   </>
                 ) : (
                   <>
-                    {step === GENERATE_STEP ? "Generate" : "Next"}
+                    {step === GENERATE_STEP ? t("chat.generate") : t("chat.next")}
                     <ChevronRight className="w-4 h-4" />
                   </>
                 )}
