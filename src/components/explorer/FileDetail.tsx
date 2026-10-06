@@ -7,8 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { ExplorerFile } from "@/types"
 import { useApp } from "@/context/AppContext"
+import { useFormat, useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 
-const SOURCE_LABEL: Record<ExplorerFile['source'], string> = { ai: 'AI', extracted: 'Auto' }
+const SOURCE_LABEL: Record<ExplorerFile['source'], MessageKey> = { ai: 'docs.sourceAi', extracted: 'docs.sourceAuto' }
 const SOURCE_VARIANT: Record<ExplorerFile['source'], 'default' | 'secondary'> = { ai: 'default', extracted: 'secondary' }
 
 interface FileDetailProps {
@@ -20,6 +22,8 @@ interface FileDetailProps {
 
 export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProps) {
   const { demo } = useApp()
+  const f = useFormat()
+  const { t } = useT()
   const [enriching, setEnriching] = useState(false)
   const [flashGreen, setFlashGreen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +37,7 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
   if (!file) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted text-sm">
-        Select a file to see details
+        {t("docs.selectFile")}
       </div>
     )
   }
@@ -55,7 +59,7 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
         setFlashGreen(true)
         setTimeout(() => setFlashGreen(false), 1500)
       } else {
-        setError(data.error ?? 'Enrichment failed')
+        setError(data.error ?? t('docs.enrichFailed'))
       }
     } finally {
       setEnriching(false)
@@ -64,7 +68,7 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
 
   return (
     <div className="flex-1 p-6 flex flex-col gap-4 overflow-auto">
-      <div className="flex items-center gap-1.5 text-xs text-muted flex-wrap">
+      <div data-user-content className="flex items-center gap-1.5 text-xs text-muted flex-wrap">
         <FileText className="w-3.5 h-3.5 shrink-0" />
         {parts.map((part, i) => (
           <span key={i} className="flex items-center gap-1.5">
@@ -79,7 +83,7 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
       <p className={cn("text-sm leading-relaxed transition-colors duration-500", flashGreen ? "text-green-400" : "text-txt")}>
         {file.description || (
           <span className="text-muted italic">
-            No description yet — click Re-enrich to generate one
+            {t("docs.noDescriptionYet")}
           </span>
         )}
       </p>
@@ -90,20 +94,20 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
 
       <div className="flex items-center gap-2 text-xs text-muted">
         <Badge variant={SOURCE_VARIANT[file.source]} className="text-[10px]">
-          {SOURCE_LABEL[file.source]}
+          {t(SOURCE_LABEL[file.source])}
         </Badge>
-        <span>Updated {new Date(file.updatedAt).toLocaleDateString()}</span>
-        <span className="ml-auto">Modified {new Date(file.mtime).toLocaleDateString()}</span>
+        <span>{t("docs.updatedOn", { date: f.date(file.updatedAt, { dateStyle: "short" }) })}</span>
+        <span className="ml-auto">{t("docs.modifiedOn", { date: f.date(file.mtime, { dateStyle: "short" }) })}</span>
       </div>
 
       <div className="flex gap-2 pt-2">
         {!demo && <Button variant="outline" size="sm" onClick={handleEnrich} disabled={enriching}>
           <RefreshCw className={`w-3 h-3 mr-1.5 ${enriching ? "animate-spin" : ""}`} />
-          Re-enrich
+          {t("docs.reEnrich")}
         </Button>}
         <Button variant="outline" size="sm" onClick={() => onOpenDoc(file.path)}>
           <ExternalLink className="w-3 h-3 mr-1.5" />
-          Open in Docs
+          {t("docs.openInDocs")}
         </Button>
       </div>
     </div>

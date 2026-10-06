@@ -9,6 +9,12 @@ import { SessionTimeline } from "./SessionTimeline"
 import { Activity as ActivityIcon, Bot, User } from "lucide-react"
 import { catchUp } from "@/lib/sessions"
 import { EVENT_CATEGORIES, eventCategory, filterEvents, type EventCategory, type EventTarget } from "@/lib/activity"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey, PluralKey } from "@/i18n"
+
+const CATEGORY_KEY: Record<EventCategory, MessageKey> = {
+  task: "memory.catTask", doc: "memory.catDoc", epic: "memory.catEpic", memory: "memory.catMemory", decision: "memory.catDecision", session: "memory.catSession",
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -20,23 +26,28 @@ function Summary({ sessions }: { sessions: Session[] }) {
     const t = setInterval(() => setNow(Date.now()), 60_000)
     return () => clearInterval(t)
   }, [])
+  const { t, tn } = useT()
   const day = catchUp(sessions, now - DAY_MS)
   const parts = ([
-    [day.tasksDone, "task", "done"],
-    [day.decisions, "ADR", "logged"],
-    [day.docs, "doc", "changed"],
-    [day.sessions, "session", ""],
-  ] as const).filter(([n]) => n > 0)
-  if (!parts.length) return <>Quiet for the last 24 hours</>
+    [day.tasksDone, "memory.tasksDone"],
+    [day.decisions, "memory.adrsLogged"],
+    [day.docs, "memory.docsChanged"],
+    [day.sessions, "memory.sessionsCount"],
+  ] as [number, PluralKey][]).filter(([n]) => n > 0)
+  if (!parts.length) return <>{t("memory.quiet")}</>
   return (
     <>
-      {parts.map(([n, noun, verb], i) => (
-        <span key={noun}>
-          {i > 0 && <span className="text-muted"> · </span>}
-          <span className="font-mono tabular-nums">{n}</span> {noun}{n === 1 ? "" : "s"}{verb && ` ${verb}`}
-        </span>
-      ))}
-      <span className="font-normal text-muted"> in the last 24h</span>
+      {parts.map(([n, key], i) => {
+        // the count stays mono: split the message around it ("{n} tasks done" → [n] "tasks done")
+        const [before, after] = tn(key, n).split(String(n))
+        return (
+          <span key={key}>
+            {i > 0 && <span className="text-muted"> · </span>}
+            {before}<span className="font-mono tabular-nums">{n}</span>{after}
+          </span>
+        )
+      })}
+      <span className="font-normal text-muted"> {t("memory.inLast24h")}</span>
     </>
   )
 }
@@ -50,6 +61,7 @@ interface ActivityTabProps {
 }
 
 export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusSessionId }: ActivityTabProps) {
+  const { t } = useT()
   const [view, setView] = useState<"sessions" | "events">("sessions")
   // A new focus target (from a task's Sessions list) always lands on the Sessions view
   const [lastFocus, setLastFocus] = useState(focusSessionId)
@@ -96,14 +108,14 @@ export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusS
     <div className="mx-auto flex max-w-4xl flex-col px-6 py-8">
       <header className="mb-6 flex flex-wrap items-end gap-x-6 gap-y-4 border-b border-border pb-5">
         <div className="min-w-0 flex-1 basis-full sm:basis-0">
-          <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">Activity</h1>
+          <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">{t("shell.activity")}</h1>
           <p className="mt-2 text-[1.1rem] leading-snug font-semibold text-txt">
-            {sessions === null ? <span className="text-muted">Loading…</span> : <Summary sessions={sessions} />}
+            {sessions === null ? <span className="text-muted">{t("memory.loading")}</span> : <Summary sessions={sessions} />}
           </p>
-          <p className="mt-1 text-sm text-muted">Everything agents and you changed, read from <code className="font-mono text-[0.9em]">.vibedoc-activity.json</code>.</p>
+          <p className="mt-1 text-sm text-muted">{t("memory.readFrom")} <code className="font-mono text-[0.9em]">.vibedoc-activity.json</code>.</p>
         </div>
         {/* Segmented toggle with a sliding pill */}
-        <div className="relative grid grid-cols-2 rounded-md border border-border p-0.5 text-xs" role="group" aria-label="View">
+        <div className="relative grid grid-cols-2 rounded-md border border-border p-0.5 text-xs" role="group" aria-label={t("memory.view")}>
           <span
             aria-hidden
             className={cn(
@@ -118,7 +130,7 @@ export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusS
               aria-pressed={view === v}
               className={cn("relative rounded-sm px-3 py-1 transition-colors duration-(--duration-fast) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60", view === v ? "text-txt" : "text-muted hover:text-txt")}
             >
-              {v === "sessions" ? "Sessions" : "All events"}
+              {v === "sessions" ? t("memory.sessions") : t("memory.allEvents")}
             </button>
           ))}
         </div>
@@ -126,12 +138,12 @@ export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusS
 
       {failed && (
         <p className="mb-4 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-xs text-danger animate-fade-in">
-          Couldn&apos;t load sessions. Showing the last data we had; it retries on the next update.
+          {t("memory.loadFailed")}
         </p>
       )}
 
       {view === "sessions" && sessions === null ? (
-        <div className="flex flex-col gap-3" aria-busy="true" aria-label="Loading sessions">
+        <div className="flex flex-col gap-3" aria-busy="true" aria-label={t("memory.loadingSessions")}>
           {[0, 1, 2].map(i => (
             <div key={i} className="ml-[4.25rem] h-24 rounded-lg bg-surface animate-pulse" style={{ animationDelay: `${i * 120}ms` }} />
           ))}
@@ -139,9 +151,9 @@ export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusS
       ) : empty ? (
         <div className="flex flex-col items-start gap-2 rounded-lg border border-dashed border-border2 p-6 animate-fade-in">
           <ActivityIcon className="size-5 text-muted" aria-hidden />
-          <p className="text-sm text-txt">No activity yet</p>
+          <p className="text-sm text-txt">{t("memory.noActivity")}</p>
           <p className="max-w-lg text-xs leading-relaxed text-muted">
-            Moves on the board and every agent call through the MCP server show up here as they happen. Use Connect in the header to hook up Claude Code or Cursor.
+            {t("memory.noActivityHint")}
           </p>
         </div>
       ) : view === "sessions" ? (
@@ -161,6 +173,7 @@ const filterChip = (on: boolean) => cn(
 
 /** "All events" with a kind filter (Tasks, Docs, …) and a who filter (agents / you). */
 function FilteredFeed({ events, onOpen }: { events: ActivityEvent[]; onOpen: (t: EventTarget) => void }) {
+  const { t } = useT()
   const [category, setCategory] = useState<EventCategory | null>(null)
   const [actor, setActor] = useState<ActivityEvent["actor"] | null>(null)
   const shown = useMemo(() => filterEvents(events, { category, actor }), [events, category, actor])
@@ -177,23 +190,23 @@ function FilteredFeed({ events, onOpen }: { events: ActivityEvent[]; onOpen: (t:
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filter by kind">
+        <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("memory.filterByKind")}>
           <button type="button" aria-pressed={category === null} onClick={() => setCategory(null)} className={filterChip(category === null)}>
-            All <span className="font-mono text-[10px] opacity-70">{kindTotal}</span>
+            {t("memory.all")} <span className="font-mono text-[10px] opacity-70">{kindTotal}</span>
           </button>
           {EVENT_CATEGORIES.filter(c => kindCounts[c.id] || category === c.id).map(c => (
             <button key={c.id} type="button" aria-pressed={category === c.id} onClick={() => setCategory(category === c.id ? null : c.id)} className={filterChip(category === c.id)}>
-              {c.label} <span className="font-mono text-[10px] opacity-70">{kindCounts[c.id] ?? 0}</span>
+              {t(CATEGORY_KEY[c.id])} <span className="font-mono text-[10px] opacity-70">{kindCounts[c.id] ?? 0}</span>
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 sm:ml-auto" role="group" aria-label="Filter by actor">
+        <div className="flex items-center gap-1 sm:ml-auto" role="group" aria-label={t("memory.filterByActor")}>
           {([null, "ai", "human"] as const).map(a => {
             const Icon = a === "ai" ? Bot : a === "human" ? User : null
             return (
               <button key={a ?? "all"} type="button" aria-pressed={actor === a} onClick={() => setActor(a)} className={filterChip(actor === a)}>
                 {Icon && <Icon className="size-3" aria-hidden />}
-                {a === null ? "Everyone" : a === "ai" ? "Agents" : "You"}
+                {a === null ? t("memory.everyone") : a === "ai" ? t("memory.agents") : t("memory.you")}
                 <span className="font-mono text-[10px] opacity-70">{actorCount[a ?? "all"]}</span>
               </button>
             )
@@ -202,9 +215,9 @@ function FilteredFeed({ events, onOpen }: { events: ActivityEvent[]; onOpen: (t:
       </div>
       {shown.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-10 text-sm text-muted">
-          No matching events.
+          {t("memory.noMatchingEvents")}
           <button type="button" onClick={() => { setCategory(null); setActor(null) }} className="text-xs text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
-            Clear filters
+            {t("memory.clearFilters")}
           </button>
         </div>
       ) : (

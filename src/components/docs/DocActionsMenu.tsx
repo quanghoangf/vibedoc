@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { itemKeyLabel } from "@/components/shared/item-commands"
+import { useT } from "@/context/LanguageContext"
 
 /** What the docs page does for each entry; the menu holds no state. */
 export interface DocActions {
@@ -28,17 +29,18 @@ export interface DocActions {
 }
 
 export function DocMenuItems({ path, actions }: { path: string; actions: DocActions }) {
+  const { t } = useT()
   return (
     <>
-      <DropdownMenuItem onSelect={() => actions.rename(path)}><Pencil /> Rename<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => actions.move(path)}><FolderInput /> Move to folder</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => actions.duplicate(path)}><CopyPlus /> Duplicate<DropdownMenuShortcut>{itemKeyLabel("duplicate")}</DropdownMenuShortcut></DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.rename(path)}><Pencil /> {t("docs.rename")}<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.move(path)}><FolderInput /> {t("docs.moveToFolder")}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.duplicate(path)}><CopyPlus /> {t("docs.duplicate")}<DropdownMenuShortcut>{itemKeyLabel("duplicate")}</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={() => actions.copyPath(path)}><Copy /> Copy path</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => actions.copyLink(path)}><Link2 /> Copy link</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => actions.chat(path)}><MessageSquare /> Chat about this doc<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.copyPath(path)}><Copy /> {t("docs.copyPath")}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.copyLink(path)}><Link2 /> {t("docs.copyLink")}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.chat(path)}><MessageSquare /> {t("docs.chatAboutDoc")}<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={() => actions.remove(path)} className="text-danger focus:text-danger"><Trash2 /> Delete<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.remove(path)} className="text-danger focus:text-danger"><Trash2 /> {t("board.delete")}<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
     </>
   )
 }
@@ -51,12 +53,13 @@ export function DocActionsMenu({ path, actions, open, onOpenChange, className }:
   onOpenChange?: (open: boolean) => void
   className?: string
 }) {
+  const { t } = useT()
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={`Actions for ${path}`}
+          aria-label={t("board.actionsFor", { id: path })}
           onClick={(e) => e.stopPropagation()}
           className={cn("grid size-7 shrink-0 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt", className)}
         >
@@ -94,6 +97,7 @@ function PathForm({ mode, path, onSubmit, onClose }: { mode: "rename" | "move"; 
   const [value, setValue] = useState(mode === "rename" ? baseOf(path).replace(/\.md$/, "") : dirOf(path))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const { t } = useT()
 
   const clean = value.trim().replace(/^\/+|\/+$/g, "")
   const newPath = mode === "rename"
@@ -114,18 +118,18 @@ function PathForm({ mode, path, onSubmit, onClose }: { mode: "rename" | "move"; 
   return (
     <form onSubmit={(e) => { e.preventDefault(); submit() }} className="flex flex-col gap-3">
       <DialogHeader>
-        <DialogTitle className="text-txt">{mode === "rename" ? "Rename doc" : "Move to folder"}</DialogTitle>
+        <DialogTitle className="text-txt">{mode === "rename" ? t("docs.renameDoc") : t("docs.moveToFolder")}</DialogTitle>
       </DialogHeader>
       <label className="flex flex-col gap-1 text-xs text-muted">
-        {mode === "rename" ? "Name" : "Folder (empty = project root)"}
+        {mode === "rename" ? t("docs.name") : t("docs.folderHint")}
         <Input autoFocus value={value} onChange={(e) => setValue(e.target.value)} placeholder={mode === "move" ? "docs/guides" : undefined} className="bg-bg border-border text-txt" />
       </label>
       <p className="font-mono text-[11px] text-muted truncate" title={newPath}>→ {newPath || "—"}</p>
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       <div className="flex justify-end gap-2">
-        <Button type="button" size="sm" variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onClose} disabled={busy}>{t("board.cancel")}</Button>
         <Button type="submit" size="sm" disabled={busy || invalid} className="bg-accent text-accent-fg hover:bg-accent/90">
-          {mode === "rename" ? "Rename" : "Move"}
+          {mode === "rename" ? t("docs.rename") : t("docs.move")}
         </Button>
       </div>
     </form>

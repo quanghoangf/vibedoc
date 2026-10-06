@@ -3,6 +3,7 @@
 import { List } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { useT } from "@/context/LanguageContext"
 
 interface Heading { level: number; text: string; anchor: string }
 
@@ -12,6 +13,7 @@ interface DocOutlineProps {
 
 /** Doc bar button: hover or keyboard focus opens the heading list below it. */
 export function DocOutline({ headings }: DocOutlineProps) {
+  const { t, tn } = useT()
   function scrollTo(anchor: string) {
     document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -19,8 +21,8 @@ export function DocOutline({ headings }: DocOutlineProps) {
   if (headings.length === 0) return null
 
   return (
-    <nav aria-label="Outline" className="group relative">
-      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt" aria-label={`Outline, ${headings.length} headings`}>
+    <nav aria-label={t("docs.outline")} className="group relative">
+      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt" aria-label={tn("docs.outlineCount", headings.length)}>
         <List className="h-3.5 w-3.5" aria-hidden />
       </Button>
 
@@ -34,7 +36,7 @@ export function DocOutline({ headings }: DocOutlineProps) {
       )}>
         <div className="rounded-lg border border-border bg-surface shadow-xl shadow-black/20">
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border">
-            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">Outline</span>
+            <span className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">{t("docs.outline")}</span>
             <span className="ml-auto font-mono text-[10px] text-muted">{headings.length}</span>
           </div>
           <div className="overflow-y-auto max-h-[60vh] py-1.5">

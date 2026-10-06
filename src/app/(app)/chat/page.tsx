@@ -7,9 +7,11 @@ import { useChats, type ChatTab } from "@/context/ChatContext"
 import { ChatView } from "@/components/chat/ChatView"
 import { ChatContextRail } from "@/components/chat/ChatContextRail"
 import { AttachLabel, StatusMarker } from "@/components/chat/StatusMarker"
-import { ago, defaultChat, groupChats, shellStatus, suggestions } from "@/lib/chats"
+import { defaultChat, groupChats, shellStatus, suggestions } from "@/lib/chats"
 import { useMinute } from "@/hooks/use-minute"
 import { cn } from "@/lib/utils"
+import { useFormat, useT } from "@/context/LanguageContext"
+import { useChatText } from "@/components/chat/chat-text"
 
 export default function ChatPage() {
   // main has no fixed height; the columns need one (viewport minus the h-12 AppHeader)
@@ -27,6 +29,7 @@ function ChatPageInner() {
   const router = useRouter()
   const param = useSearchParams().get("id")
   const selected = chats.find((c) => c.id === param) ?? (param ? undefined : defaultChat(chats, now))
+  const { t } = useT()
 
   function startWith(text?: string) {
     const id = create()
@@ -52,7 +55,7 @@ function ChatPageInner() {
         ) : null}
       </section>
 
-      <aside className="hidden w-80 shrink-0 bg-surface xl:block" aria-label="Chat context">
+      <aside className="hidden w-80 shrink-0 bg-surface xl:block" aria-label={t("chat.chatContext")}>
         <ChatContextRail attach={selected?.attach ?? null} />
       </aside>
     </>
@@ -62,26 +65,27 @@ function ChatPageInner() {
 function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () => void }) {
   const { chats, now } = useChats()
   const [query, setQuery] = useState("")
+  const { t } = useT()
   const q = query.trim().toLowerCase()
   const shown = q ? chats.filter((c) => c.title.toLowerCase().includes(q) || c.attach?.id.toLowerCase().includes(q)) : chats
   const g = groupChats(shown, now)
   const sections = [
-    { label: "Needs you", items: g.needsYou, tone: "text-amber" },
-    { label: "Errors", items: g.errors, tone: "text-danger" },
-    { label: "Running", items: g.running, tone: "text-accent" },
-    { label: "Recent", items: g.recent, tone: "text-muted" },
+    { label: t("chat.groupNeedsYou"), items: g.needsYou, tone: "text-amber" },
+    { label: t("chat.groupErrors"), items: g.errors, tone: "text-danger" },
+    { label: t("chat.groupRunning"), items: g.running, tone: "text-accent" },
+    { label: t("chat.groupRecent"), items: g.recent, tone: "text-muted" },
   ]
 
   return (
-    <aside className="hidden w-72 shrink-0 flex-col border-r border-border bg-surface md:flex" aria-label="All chats">
+    <aside className="hidden w-72 shrink-0 flex-col border-r border-border bg-surface md:flex" aria-label={t("chat.allChats")}>
       <div className="flex items-center gap-2 px-4 pb-3 pt-4">
-        <h1 className="flex-1 text-sm font-semibold text-txt">Chats</h1>
+        <h1 className="flex-1 text-sm font-semibold text-txt">{t("chat.chats")}</h1>
         <button
           type="button"
           onClick={onNew}
           className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-medium text-accent-fg transition-[filter,transform] duration-(--duration-fast) hover:brightness-110 active:scale-[0.97]"
         >
-          <Plus className="size-3.5" /> New chat
+          <Plus className="size-3.5" /> {t("chat.newChat")}
         </button>
       </div>
       {chats.length > 3 && (
@@ -90,13 +94,13 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter by title or R/T id"
+            placeholder={t("chat.filterChats")}
             className="min-w-0 flex-1 bg-transparent text-txt placeholder:text-muted focus:outline-hidden"
           />
         </label>
       )}
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-        {chats.length === 0 && <p className="px-2 py-6 text-xs text-muted">No chats yet.</p>}
+        {chats.length === 0 && <p className="px-2 py-6 text-xs text-muted">{t("chat.noChats")}</p>}
         {sections.map((s) => s.items.length > 0 && (
           <div key={s.label} className="mt-3 first:mt-1">
             <p className={cn("px-2 pb-1 font-mono text-[10px] uppercase tracking-widest", s.tone)}>
@@ -107,7 +111,7 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
             </ul>
           </div>
         ))}
-        {q && shown.length === 0 && <p className="px-2 py-6 text-xs text-muted">No chat matches “{query}”.</p>}
+        {q && shown.length === 0 && <p className="px-2 py-6 text-xs text-muted">{t("chat.noChatMatches", { query })}</p>}
       </div>
     </aside>
   )
@@ -116,6 +120,9 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
 function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
   const { show, remove, now: clock } = useChats()
   const now = useMinute()
+  const f = useFormat()
+  const { t } = useT()
+  const text = useChatText()
   const status = shellStatus(chat, clock)
   const lastText = [...chat.messages].reverse().find((m) => m.text)?.text.replace(/\s+/g, " ").trim()
   return (
@@ -131,21 +138,21 @@ function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
       >
         <span className="flex items-center gap-2 pr-5">
           <StatusMarker status={status} showIdle />
-          <span className={cn("min-w-0 flex-1 truncate text-[13px]", status === "idle" && !active ? "text-txt/80" : "text-txt")}>{chat.title}</span>
-          {now > 0 && <span className="shrink-0 font-mono text-[10px] text-muted group-hover:opacity-0">{ago(chat.updatedAt, now)}</span>}
+          <span data-user-content className={cn("min-w-0 flex-1 truncate text-[13px]", status === "idle" && !active ? "text-txt/80" : "text-txt")}>{text.title(chat.title)}</span>
+          {now > 0 && <span className="shrink-0 font-mono text-[10px] text-muted group-hover:opacity-0">{f.agoShort(chat.updatedAt, now)}</span>}
         </span>
         {(chat.attach || lastText) && (
           <span className="flex items-center gap-2 pl-5 text-[11px] text-muted">
             {chat.attach && <AttachLabel attach={chat.attach} className="shrink-0" />}
-            {lastText && <span className="min-w-0 truncate">{lastText}</span>}
+            {lastText && <span data-user-content className="min-w-0 truncate">{lastText}</span>}
           </span>
         )}
       </button>
       <button
         type="button"
         onClick={() => remove(chat.id)}
-        aria-label={`Close ${chat.title}`}
-        title={chat.busy ? "Stop and delete chat" : "Delete chat"}
+        aria-label={t("chat.closeTitle", { title: chat.title })}
+        title={t(chat.busy ? "chat.stopAndDelete" : "chat.deleteChat")}
         className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-md text-muted opacity-0 transition-opacity duration-(--duration-fast) hover:bg-surface hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
       >
         <X className="size-3.5" />
@@ -155,27 +162,27 @@ function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
 }
 
 function NoChat({ missing, onStart, onBack }: { missing: boolean; onStart: (text?: string) => void; onBack: () => void }) {
+  const { t } = useT()
+  const text = useChatText()
   return (
     <div className="grid flex-1 place-items-center p-8">
       <div className="flex max-w-md flex-col items-start gap-4 animate-fade-in">
         <div className="grid size-10 place-items-center rounded-xl bg-linear-to-br from-accent to-teal text-white" aria-hidden>⬡</div>
         {missing ? (
           <>
-            <h2 className="text-lg font-semibold text-txt">This chat was deleted</h2>
-            <button type="button" onClick={onBack} className="text-sm text-accent hover:underline">Back to all chats</button>
+            <h2 className="text-lg font-semibold text-txt">{t("chat.chatDeleted")}</h2>
+            <button type="button" onClick={onBack} className="text-sm text-accent hover:underline">{t("chat.backToChats")}</button>
           </>
         ) : (
           <>
             <div>
-              <h2 className="text-lg font-semibold text-txt">Run chats side by side</h2>
-              <p className="mt-1 text-sm text-muted">
-                Each chat is its own Claude Code session, up to 4 at once. Start one here, or from an epic on the roadmap or a task on the board.
-              </p>
+              <h2 className="text-lg font-semibold text-txt">{t("chat.sideBySide")}</h2>
+              <p className="mt-1 text-sm text-muted">{t("chat.sideBySideHint")}</p>
             </div>
             <div className="flex flex-col gap-1.5">
               {suggestions(null).map((s) => (
                 <button key={s} type="button" onClick={() => onStart(s)} className="rounded-lg border border-border px-3 py-2 text-left text-sm text-txt/90 transition-colors hover:border-accent/50 hover:bg-accent/5">
-                  {s}
+                  {text.suggestion(s)}
                 </button>
               ))}
             </div>

@@ -17,6 +17,7 @@ import { TableView } from "./views/TableView"
 import { EpicView } from "./views/EpicView"
 import TimelineView from "./views/TimelineView"
 import { BulkBar } from "./BulkBar"
+import { useT } from "@/context/LanguageContext"
 
 interface BoardTabProps {
   tasks: Task[]
@@ -49,6 +50,7 @@ function customized(v: SavedView): boolean {
 export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabProps) {
   const { rootParam, demo } = useApp()
   const { agents } = useChats()
+  const { t } = useT()
   const params = useSearchParams()
   const [views, setViews] = useState<SavedView[]>(DEFAULT_VIEWS)
   const [filterOpen, setFilterOpen] = useState(false)
@@ -136,7 +138,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
   }
   const remove = (id: string) => {
     const v = views.find((x) => x.id === id)
-    if (!v || !window.confirm(`Delete the view "${v.name}"? Tasks are not affected.`)) return false
+    if (!v || !window.confirm(t("board.deleteViewConfirm", { name: v.name }))) return false
     persist(views.filter((x) => x.id !== id))
     if (active.id === id) writeUrl(v.kind, null)
     return true
@@ -226,12 +228,12 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
     <div className="flex min-w-0 flex-col">
       <header className="flex items-end gap-6 px-4 pt-8 sm:px-8">
         <div className="min-w-0 grow">
-          <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">Board</h1>
+          <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">{t("shell.board")}</h1>
           <p className="mt-2 text-[1.1rem] leading-snug font-semibold text-txt">
-            <span className="font-mono tabular-nums">{count("todo", "in-progress", "review", "blocked")}</span> open ·{" "}
-            <span className="font-mono tabular-nums">{count("in-progress")}</span> in progress{" "}
+            <span className="font-mono tabular-nums">{count("todo", "in-progress", "review", "blocked")}</span> {t("board.openSuffix")} ·{" "}
+            <span className="font-mono tabular-nums">{count("in-progress")}</span> {t("board.inProgressSuffix")}{" "}
             <span className="font-normal text-muted">
-              · <span className="font-mono tabular-nums">{count("done")}</span> done
+              · <span className="font-mono tabular-nums">{count("done")}</span> {t("board.doneSuffix")}
             </span>
           </p>
         </div>
@@ -241,13 +243,13 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
           className="inline-flex h-8.5 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-accent px-3 text-[13px] font-medium text-accent-fg transition-colors duration-(--duration-fast) ease-out-soft hover:bg-accent/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
         >
           <Plus aria-hidden className="size-[15px]" />
-          New task
+          {t("board.newTask")}
           <kbd className="rounded-sm border border-accent-fg/25 bg-accent-fg/15 px-1 py-0.5 font-mono text-[10px] leading-none max-sm:hidden">n</kbd>
         </button>}
       </header>
 
       <div className="mt-[18px] px-4 sm:px-8">
-        <ViewBar views={views} activeId={activeId} onSelect={select} onNew={() => saveAs("New view")} onRename={rename} onDelete={remove}
+        <ViewBar views={views} activeId={activeId} onSelect={select} onNew={() => saveAs(t("board.newViewName"))} onRename={rename} onDelete={remove}
           customizedIds={views.filter(customized).map((v) => v.id)} onRestore={restore} />
       </div>
       <div className="px-4 pt-3 sm:px-8">

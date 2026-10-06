@@ -38,7 +38,7 @@ assert.deepEqual(msgs(check(memo({ working: 'T001, T003 and R010' }))), [
   'Handoff says T003 is in progress, but it is cancelled',
 ])
 const w = check(memo({ working: 'T001' }))[0]
-assert.deepEqual(w, { id: 'contradiction:working-on:T001', kind: 'contradiction', severity: 'warn', message: 'Handoff says T001 is in progress, but it is done', refs: ['T001'] })
+assert.deepEqual(w, { id: 'contradiction:working-on:T001', kind: 'contradiction', severity: 'warn', message: 'Handoff says T001 is in progress, but it is done', detail: { is: 'says', id: 'T001', says: 'in-progress', status: 'done' }, refs: ['T001'] })
 assert.deepEqual(msgs(check(memo({ next: '1. R010' }))), ['Handoff says R010 is up next, but it is done'])
 
 // Just completed names a task that isn't done (epics there are context, not flagged)
@@ -52,6 +52,9 @@ assert.deepEqual(dang.map(f => [f.id, f.kind, f.severity, f.message]), [
   ['dangling-ref:E012:R999', 'dangling-ref', 'info', "E012 mentions R999, which doesn't exist"],
   ['dangling-ref:E012:T999', 'dangling-ref', 'info', "E012 mentions T999, which doesn't exist"],
   ['dangling-ref:handoff:T999', 'dangling-ref', 'info', "Handoff mentions T999, which doesn't exist"],
+])
+assert.deepEqual(dang.map(f => f.detail), [
+  { is: 'dangling', who: 'E012', id: 'R999' }, { is: 'dangling', who: 'E012', id: 'T999' }, { is: 'dangling', who: null, id: 'T999' },
 ])
 // E/ADR ids are not board ids
 assert.deepEqual(check(memo({ extra: 'E004 and ADR-5' })), [])
@@ -105,6 +108,7 @@ const fsB = ent('E011', 'Only core.ts may touch fs')
 const pair = dups([fsA, ent('E005', 'Tailwind only'), ent('E006', 'No database'), fsB])
 assert.deepEqual(pair, [{
   id: 'duplicate:E004+E011', kind: 'duplicate', severity: 'info', message: 'E004 and E011 look like duplicates (57%)',
+  detail: { is: 'duplicate', ids: ['E004', 'E011'], percent: 57 },
   refs: ['E004', 'E011'], suggestion: { action: 'merge', ids: ['E004', 'E011'] },
 }])
 // unrelated short entries never pair
@@ -178,8 +182,9 @@ assert.deepEqual(stale([e('E7', '2026-09-30'), e('E8', '')], { E7: 'yesterday', 
 // flag shape, messages, id order
 const sf = findStale([e('E10', '2026-01-01'), e('E9', '2026-07-05')], { E10: '2026-07-21' }, today)
 assert.deepEqual(sf.map(f => f.id), ['stale:E9', 'stale:E10'])
-assert.deepEqual(sf[0], { id: 'stale:E9', kind: 'stale', severity: 'info', message: 'E9 never recalled (updated 90 days ago)', refs: ['E9'], suggestion: { action: 'delete', ids: ['E9'] } })
+assert.deepEqual(sf[0], { id: 'stale:E9', kind: 'stale', severity: 'info', message: 'E9 never recalled (updated 90 days ago)', detail: { is: 'stale-never', id: 'E9', days: 90 }, refs: ['E9'], suggestion: { action: 'delete', ids: ['E9'] } })
 assert.equal(sf[1].message, 'E10 last recalled 74 days ago')
+assert.deepEqual(sf[1].detail, { is: 'stale-recalled', id: 'E10', days: 74 })
 assert.equal(formatHealthWarnings(sf), 'ℹ 2 memory cleanup suggestions on /memory')
 // markRecalled: null when nothing changes (no rewrite), sorted keys otherwise
 assert.equal(markRecalled({ E4: today }, ['E4'], today), null)

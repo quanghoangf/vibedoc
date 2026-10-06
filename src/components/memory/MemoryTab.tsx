@@ -13,6 +13,7 @@ import type { CleanupFlag, MemoryVersion } from "@/lib/core"
 import { cn } from "@/lib/utils"
 import { AlertTriangle } from "lucide-react"
 import { useApp } from "@/context/AppContext"
+import { useT } from "@/context/LanguageContext"
 
 interface MemoryTabProps {
   memory: { content: string; exists: boolean } | null
@@ -54,13 +55,14 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
   const warn = open.some((f) => f.severity === "warn")
   // Cleanup only dismisses, merges and deletes: none of it in the read-only demo (R042)
   const { demo } = useApp()
+  const { t } = useT()
   return (
     <div className={cn(
       "grid items-start gap-6 p-6",
       view === "graph" ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)]" : "lg:grid-cols-[minmax(280px,380px)_minmax(0,42rem)]",
     )}>
       <div className="flex items-center justify-between gap-4 lg:col-span-2">
-        <h1 className="font-display text-xl font-semibold tracking-tight">Memory</h1>
+        <h1 className="font-display text-xl font-semibold tracking-tight">{t("shell.memory")}</h1>
         <div className="flex items-center gap-2">
           {!demo && <button
             type="button"
@@ -73,9 +75,9 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
             )}
           >
             {warn && <AlertTriangle className="size-3.5 text-amber" aria-hidden />}
-            Cleanup <span className="font-mono text-[11px]">({open.length})</span>
+            {t("memory.cleanup")} <span className="font-mono text-[11px]">({open.length})</span>
           </button>}
-          <div role="group" aria-label="Entries view" className="flex rounded-md border border-border p-0.5">
+          <div role="group" aria-label={t("memory.entriesView")} className="flex rounded-md border border-border p-0.5">
             {(["list", "graph"] as const).map((v) => (
               <button
                 key={v}
@@ -83,12 +85,12 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
                 aria-pressed={view === v}
                 onClick={() => onView(v)}
                 className={cn(
-                  "h-6 rounded-[5px] border border-transparent px-2.5 text-xs font-medium capitalize text-muted outline-none transition-colors",
+                  "h-6 rounded-[5px] border border-transparent px-2.5 text-xs font-medium text-muted outline-none transition-colors",
                   "hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent",
                   view === v && "border-border2 bg-surface2 text-txt",
                 )}
               >
-                {v}
+                {v === "list" ? t("memory.viewList") : t("memory.viewGraph")}
               </button>
             ))}
           </div>
@@ -99,7 +101,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
       ) : entries ? (
         <EntryList entries={entries} selectedId={selectedId} onOpen={onOpen} onNew={onNew} />
       ) : (
-        <p className="text-sm text-muted">Loading entries…</p>
+        <p className="text-sm text-muted">{t("memory.loadingEntries")}</p>
       )}
       {creating || selected ? (
         <div className="min-w-0 lg:sticky lg:top-6">
@@ -118,13 +120,13 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
         </div>
       ) : selectedId && entries ? (
         <div role="alert" className="min-w-0 rounded-xl border border-dashed border-border p-5 text-sm text-muted">
-          Entry {selectedId} not found.{" "}
-          <button type="button" onClick={onClose} className="text-txt underline underline-offset-2">Show the handoff</button>
+          {t("memory.entryNotFound", { id: selectedId })}{" "}
+          <button type="button" onClick={onClose} className="text-txt underline underline-offset-2">{t("memory.showHandoff")}</button>
         </div>
       ) : (
         <div className="min-w-0">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <h2 className="font-display text-base font-semibold tracking-tight">Session handoff</h2>
+            <h2 className="font-display text-base font-semibold tracking-tight">{t("memory.sessionHandoff")}</h2>
             <div className="flex items-center gap-3">
               <span className="text-xs font-mono text-muted">memory/MEMORY.md</span>
               <button
@@ -137,7 +139,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
                   history && "border-border2 bg-surface2 text-txt",
                 )}
               >
-                History <span className="font-mono text-[11px]">({versions?.length ?? "…"})</span>
+                {t("memory.history")} <span className="font-mono text-[11px]">({versions?.length ?? "…"})</span>
               </button>
             </div>
           </div>
@@ -159,17 +161,17 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
           ) : (
             <EmptyState
               icon="🧠"
-              message="No MEMORY.md yet."
-              subMessage="AI will create one at the end of the first session."
+              message={t("memory.noMemory")}
+              subMessage={t("memory.noMemorySub")}
               bordered
             />
           )}
 
           <div className="mt-4 p-4 bg-surface2 border border-border rounded-xl">
             <p className="text-xs font-mono text-muted mb-2">
-              Add to your CLAUDE.md system prompt:
+              {t("memory.addToClaude")}
             </p>
-            <pre className="text-xs font-mono text-accent/80 whitespace-pre-wrap leading-relaxed">{`At session start:
+            <pre data-user-content className="text-xs font-mono text-accent/80 whitespace-pre-wrap leading-relaxed">{`At session start:
 1. Call vibedoc_read_memory
    If it shows ⚠ Memory warnings, fix the handoff with vibedoc_update_memory first
 2. Call vibedoc_get_status

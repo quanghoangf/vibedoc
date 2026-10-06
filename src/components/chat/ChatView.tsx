@@ -5,9 +5,11 @@ import { usePathname, useRouter } from "next/navigation"
 import { ArrowUp, ArrowUpRight, Maximize2, Square, Trash2 } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useChats, type ChatMessage, type ChatTab } from "@/context/ChatContext"
+import { useT } from "@/context/LanguageContext"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
-import { STATUS_LABEL, chatStatus, suggestions } from "@/lib/chats"
+import { chatStatus, suggestions } from "@/lib/chats"
+import { useChatText } from "./chat-text"
 import { ProposalCard, type ProposalStatus } from "./ProposalCard"
 import { PlanCard, type PlanCreated, type PlanProposal, type PlanStatus } from "./PlanCard"
 import { QuestionCard, type QuestionSet } from "./QuestionCard"
@@ -27,50 +29,52 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
 }) {
   const { chats, stop, remove, notice, dismissNotice } = useChats()
   const router = useRouter()
+  const { t } = useT()
+  const text = useChatText()
   const chat = chats.find((c) => c.id === chatId)
   // Adjust-state-during-render: remember every chat this view has shown
   const [mounted, setMounted] = useState<string[]>([chatId])
   if (!mounted.includes(chatId)) setMounted([...mounted, chatId])
 
   if (!chat) {
-    return <div className="grid h-full place-items-center p-8 text-sm text-muted">This chat was closed.</div>
+    return <div className="grid h-full place-items-center p-8 text-sm text-muted">{t("chat.chatClosed")}</div>
   }
 
   const status = chatStatus(chat)
   const go = (href: string) => { onNavigate?.(); router.push(href) }
 
   return (
-    <section aria-label={`Chat: ${chat.title}`} className="flex h-full min-h-0 flex-col">
+    <section aria-label={t("chat.chatLabel", { title: chat.title })} className="flex h-full min-h-0 flex-col">
       <header className={cn("flex h-14 shrink-0 items-center gap-3 border-b border-border px-5", variant === "modal" && "pr-14")}>
         <StatusMarker status={status} showIdle />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-sm font-medium text-txt">{chat.title}</h2>
-          <p className="font-mono text-[10px] text-muted">{STATUS_LABEL[status]}</p>
+          <h2 data-user-content className="truncate text-sm font-medium text-txt">{text.title(chat.title)}</h2>
+          <p className="font-mono text-[10px] text-muted">{text.status(status)}</p>
         </div>
         {chat.attach && (
           <button
             type="button"
             onClick={() => chat.attach && go(attachHref(chat.attach))}
-            title={`Open ${chat.attach.id} in the ${chat.attach.kind === "epic" ? "roadmap" : "board"}`}
+            title={t(chat.attach.kind === "epic" ? "chat.openInRoadmap" : "chat.openInBoard", { id: chat.attach.id })}
             className="rounded-full border border-border px-2 py-1 text-muted transition-colors duration-(--duration-fast) hover:border-accent/50 hover:text-accent"
           >
             <AttachLabel attach={chat.attach} />
           </button>
         )}
         {chat.busy && (
-          <button type="button" onClick={() => stop(chat.id)} title="Stop the agent" className={ICON_BTN}>
+          <button type="button" onClick={() => stop(chat.id)} title={t("chat.stopAgent")} className={ICON_BTN}>
             <Square className="size-3.5 fill-current" />
-            <span className="sr-only">Stop</span>
+            <span className="sr-only">{t("chat.stop")}</span>
           </button>
         )}
         {variant === "modal" && onExpand && (
-          <button type="button" onClick={onExpand} title="Open as page" className={ICON_BTN}>
+          <button type="button" onClick={onExpand} title={t("chat.openAsPage")} className={ICON_BTN}>
             <Maximize2 className="size-3.5" />
-            <span className="sr-only">Open as page</span>
+            <span className="sr-only">{t("chat.openAsPage")}</span>
           </button>
         )}
         {variant === "page" && (
-          <button type="button" onClick={() => remove(chat.id)} aria-label={`Delete ${chat.title}`} title="Delete chat" className={cn(ICON_BTN, "hover:text-danger")}>
+          <button type="button" onClick={() => remove(chat.id)} aria-label={t("chat.deleteTitle", { title: chat.title })} title={t("chat.deleteChat")} className={cn(ICON_BTN, "hover:text-danger")}>
             <Trash2 className="size-3.5" />
           </button>
         )}
@@ -83,8 +87,8 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
 
       {notice && (
         <div role="status" className="mx-5 mb-2 flex items-start gap-2 rounded-md border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber animate-fade-in">
-          <span className="flex-1">{notice}</span>
-          <button onClick={dismissNotice} aria-label="Dismiss" className="leading-none text-muted hover:text-txt">×</button>
+          <span className="flex-1">{text.notice(notice)}</span>
+          <button onClick={dismissNotice} aria-label={t("chat.dismiss")} className="leading-none text-muted hover:text-txt">×</button>
         </div>
       )}
       <Composer key={chat.id} chat={chat} wide={variant === "page"} />
@@ -133,10 +137,11 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers }: {
   onPlan: (p: PlanProposal, status: PlanStatus, created: PlanCreated[], unchecked: string[]) => void
   onAnswers: (set: QuestionSet, answers: string[]) => void
 }) {
+  const chatText = useChatText()
   if (m.role === "user") {
     return (
       <div className="flex justify-end animate-fade-in">
-        <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md border border-accent/20 bg-accent/10 px-3.5 py-2 text-txt">
+        <div data-user-content className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md border border-accent/20 bg-accent/10 px-3.5 py-2 text-txt">
           {m.text}
         </div>
       </div>
@@ -148,8 +153,8 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers }: {
       <div className="min-w-0 flex-1 space-y-2">
         {m.tools.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            {m.tools.map((t, j) => (
-              <span key={j} className="rounded-sm border border-border bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-muted animate-slide-in">{t}</span>
+            {m.tools.map((tool, j) => (
+              <span key={j} data-user-content className="rounded-sm border border-border bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-muted animate-slide-in">{tool}</span>
             ))}
           </div>
         )}
@@ -162,15 +167,16 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers }: {
         {m.questions.map((q) => (
           <QuestionCard key={q.id} set={q} disabled={busy} onSubmit={(answers) => onAnswers(q, answers)} />
         ))}
-        {m.text && <MarkdownRenderer content={m.text} className="text-sm" />}
+        {m.text && <div data-user-content><MarkdownRenderer content={m.text} className="text-sm" /></div>}
         {thinking && !m.text && !m.error && <Thinking />}
-        {m.error && <p className="whitespace-pre-wrap text-xs text-danger">{m.error}</p>}
+        {m.error && <p data-user-content className="whitespace-pre-wrap text-xs text-danger">{chatText.error(m.error)}</p>}
       </div>
     </div>
   )
 }
 
 function Thinking() {
+  const { t } = useT()
   return (
     <span className="inline-flex items-center gap-2 text-xs text-muted">
       <span className="inline-flex gap-1" aria-hidden>
@@ -178,22 +184,22 @@ function Thinking() {
           <span key={d} className="size-1.5 rounded-full bg-accent animate-pulse-dot" style={{ animationDelay: `${d}ms` }} />
         ))}
       </span>
-      Thinking…
+      {t("chat.thinking")}
     </span>
   )
 }
 
 function EmptyChat({ chat, onPick }: { chat: ChatTab; onPick: (s: string) => void }) {
   const a = chat.attach
+  const { t } = useT()
+  const text = useChatText()
   return (
     <div className="flex flex-col items-start gap-4 py-6 animate-fade-in">
       <div className="grid size-9 place-items-center rounded-lg bg-linear-to-br from-accent to-teal text-sm text-white" aria-hidden>⬡</div>
       <div>
-        <h3 className="text-lg font-semibold text-txt">{a ? `Ask about ${a.id}` : "Ask the agent"}</h3>
+        <h3 className="text-lg font-semibold text-txt">{a ? t("chat.askAbout", { id: a.id }) : t("chat.askAgent")}</h3>
         <p className="mt-1 max-w-md text-sm text-muted">
-          {a
-            ? `The agent reads ${a.kind === "epic" ? "the epic and its tasks" : "the task"} first. It proposes changes; nothing is written until you accept.`
-            : "It reads your docs, tasks and roadmap and proposes edits you review. Runs on your local Claude Code login."}
+          {t(a ? (a.kind === "epic" ? "chat.readsEpic" : "chat.readsTask") : "chat.readsAll")}
         </p>
       </div>
       <div className="flex flex-col gap-1.5">
@@ -206,7 +212,7 @@ function EmptyChat({ chat, onPick }: { chat: ChatTab; onPick: (s: string) => voi
             className="group flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-left text-sm text-txt/90 transition-colors duration-(--duration-fast) animate-slide-in [animation-fill-mode:both] hover:border-accent/50 hover:bg-accent/5"
           >
             <ArrowUpRight className="size-3.5 text-muted transition-transform duration-(--duration-fast) group-hover:-translate-y-px group-hover:translate-x-px group-hover:text-accent" />
-            {s}
+            {text.suggestion(s)}
           </button>
         ))}
       </div>
@@ -217,6 +223,7 @@ function EmptyChat({ chat, onPick }: { chat: ChatTab; onPick: (s: string) => voi
 function Composer({ chat, wide }: { chat: ChatTab; wide: boolean }) {
   const { send, stop, queue } = useChats()
   const { selectedDoc } = useApp()
+  const { t } = useT()
   const pathname = usePathname()
   const [input, setInput] = useState("")
   const docPath = pathname === "/docs" ? selectedDoc?.path : undefined
@@ -245,28 +252,28 @@ function Composer({ chat, wide }: { chat: ChatTab; wide: boolean }) {
             }
           }}
           rows={rows}
-          placeholder={chat.busy ? "Agent is working…" : questionsPending ? "Answer the questions above…" : "Ask the agent… (Enter to send)"}
+          placeholder={t(chat.busy ? "chat.agentIsWorking" : questionsPending ? "chat.answerAbove" : "chat.askPlaceholder")}
           className="block w-full resize-none bg-transparent px-3.5 pt-3 text-sm text-txt placeholder:text-muted focus:outline-hidden"
         />
         <div className="flex items-center gap-2 px-2.5 pb-2 pt-1">
           <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-muted">
-            {docPath ? `@ ${docPath}` : "Shift+Enter for a new line"}
+            {docPath ? `@ ${docPath}` : t("chat.newLineHint")}
           </span>
           {chat.busy ? (
-            <button type="button" onClick={() => stop(chat.id)} title="Stop the agent" className="grid size-7 place-items-center rounded-full border border-border text-muted transition-colors hover:text-txt">
+            <button type="button" onClick={() => stop(chat.id)} title={t("chat.stopAgent")} className="grid size-7 place-items-center rounded-full border border-border text-muted transition-colors hover:text-txt">
               <Square className="size-3 fill-current" />
-              <span className="sr-only">Stop</span>
+              <span className="sr-only">{t("chat.stop")}</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={submit}
               disabled={!input.trim()}
-              title="Send (Enter)"
+              title={t("chat.sendKey")}
               className="grid size-7 place-items-center rounded-full bg-accent text-accent-fg transition-[opacity,transform] duration-(--duration-fast) enabled:hover:scale-105 disabled:opacity-30"
             >
               <ArrowUp className="size-3.5" />
-              <span className="sr-only">Send</span>
+              <span className="sr-only">{t("chat.send")}</span>
             </button>
           )}
         </div>

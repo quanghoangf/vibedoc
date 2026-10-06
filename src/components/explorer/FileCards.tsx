@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
 import type { ExplorerFile } from "@/types"
+import { useT } from "@/context/LanguageContext"
 
 const SOURCE_LABEL: Record<ExplorerFile['source'], string> = { ai: 'AI', extracted: 'Auto' }
 const SOURCE_VARIANT: Record<ExplorerFile['source'], 'default' | 'secondary'> = { ai: 'default', extracted: 'secondary' }
@@ -17,6 +18,7 @@ interface FileCardsProps {
 }
 
 export function FileCards({ files, selectedPath, onSelect }: FileCardsProps) {
+  const { t } = useT()
   const grouped = useMemo(() => {
     const map = new Map<string, ExplorerFile[]>()
     for (const f of files) {
@@ -59,7 +61,7 @@ export function FileCards({ files, selectedPath, onSelect }: FileCardsProps) {
                       {file.description}
                     </p>
                   ) : (
-                    <p className="text-[10px] text-muted italic">No description</p>
+                    <p className="text-[10px] text-muted italic">{t("docs.noDescription")}</p>
                   )}
                 </button>
               ))}

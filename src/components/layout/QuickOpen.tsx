@@ -7,6 +7,7 @@ import { fuzzyFilter } from "@/lib/fuzzy"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import type { DocFile } from "@/types"
+import { useT } from "@/context/LanguageContext"
 
 const MAX_RESULTS = 50
 
@@ -23,6 +24,7 @@ export function QuickOpen({ open, onClose, onOpenDoc, rootParam }: QuickOpenProp
   const [query, setQuery] = useState("")
   const [activeIndex, setActiveIndex] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
+  const { t } = useT()
 
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
@@ -68,7 +70,7 @@ export function QuickOpen({ open, onClose, onOpenDoc, rootParam }: QuickOpenProp
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
       <DialogContent className="max-w-xl p-0 overflow-hidden bg-surface border-border gap-0 top-[20%] translate-y-0">
-        <DialogTitle className="sr-only">Go to file</DialogTitle>
+        <DialogTitle className="sr-only">{t("help.goToFile")}</DialogTitle>
         <Input
           autoFocus
           role="combobox"
@@ -79,10 +81,10 @@ export function QuickOpen({ open, onClose, onOpenDoc, rootParam }: QuickOpenProp
           value={query}
           onChange={(e) => { setQuery(e.target.value); setActiveIndex(0) }}
           onKeyDown={handleKeyDown}
-          placeholder="Go to file…"
+          placeholder={t("help.goToFilePlaceholder")}
           className="h-11 rounded-none border-0 border-b border-border bg-transparent px-4 text-sm shadow-none focus-visible:ring-0 placeholder:text-muted"
         />
-        <div ref={listRef} id="quick-open-list" role="listbox" aria-label="Files" className="max-h-80 overflow-y-auto py-1">
+        <div ref={listRef} id="quick-open-list" role="listbox" aria-label={t("help.files")} className="max-h-80 overflow-y-auto py-1">
           {shown.map((doc, i) => {
             const slash = doc.path.lastIndexOf("/")
             return (
@@ -100,14 +102,14 @@ export function QuickOpen({ open, onClose, onOpenDoc, rootParam }: QuickOpenProp
                 )}
               >
                 <FileText aria-hidden className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                <span className="truncate text-txt">{doc.path.slice(slash + 1)}</span>
-                {slash > 0 && <span className="truncate text-xs text-muted">{doc.path.slice(0, slash)}</span>}
+                <span data-user-content className="truncate text-txt">{doc.path.slice(slash + 1)}</span>
+                {slash > 0 && <span data-user-content className="truncate text-xs text-muted">{doc.path.slice(0, slash)}</span>}
               </div>
             )
           })}
-          {shown.length === 0 && <div role="presentation" className="px-4 py-6 text-center text-sm text-muted">No matching files</div>}
+          {shown.length === 0 && <div role="presentation" className="px-4 py-6 text-center text-sm text-muted">{t("help.noMatchingFiles")}</div>}
           {matches.length > MAX_RESULTS && (
-            <div className="px-4 py-1.5 text-xs text-muted">{matches.length - MAX_RESULTS} more — keep typing to narrow</div>
+            <div className="px-4 py-1.5 text-xs text-muted">{t("help.moreFiles", { n: matches.length - MAX_RESULTS })}</div>
           )}
         </div>
       </DialogContent>

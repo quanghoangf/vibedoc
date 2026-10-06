@@ -11,6 +11,7 @@ import { useOpenNode } from "@/components/memory/EntryRelated"
 import { toast } from "@/components/ui/toast"
 import { useDocLinks, type DocLinksData } from "./useDocLinks"
 import { LinkPreview } from "./LinkPreview"
+import { tNow } from "@/context/LanguageContext"
 
 // Configure marked for GitHub Flavored Markdown
 marked.setOptions({
@@ -154,6 +155,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
     <>
       <div
         ref={containerRef}
+        // the document is the user's own words: never translated (R078; e2e/i18n.mjs skips [data-user-content])
+        data-user-content
         className={cn("prose-dark", className)}
         dangerouslySetInnerHTML={{ __html: html }}
       />
@@ -163,8 +166,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
 })
 
 const EXTERNAL_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i
-const STALE_TITLE = "File not found"
-const STALE_ATTRS_RE = new RegExp(` data-broken=""| data-stale="" title="${STALE_TITLE}"`, "g")
+// the stale title is in the UI language (set when marking), so the signature strip matches any title
+const STALE_ATTRS_RE = / data-broken=""| data-stale="" title="[^"]*"/g
 
 /** Same slug rule as the heading renderer above; idempotent on a slug that is already one. */
 const slug = (h: string) => {
@@ -243,7 +246,7 @@ function DocLinks({ docPath, html, containerRef }: { docPath: string; html: stri
     const stale = new Set(links.stale.map((s) => s.path))
     const mentions = inlineCode(container).filter((c) => !links.targets[c.textContent ?? ""] && stale.has(c.textContent ?? ""))
     marked.forEach((a) => a.setAttribute("data-broken", ""))
-    mentions.forEach((c) => { c.setAttribute("data-stale", ""); c.setAttribute("title", STALE_TITLE) })
+    mentions.forEach((c) => { c.setAttribute("data-stale", ""); c.setAttribute("title", tNow("docs.fileNotFound")) })
     return () => {
       marked.forEach((a) => a.removeAttribute("data-broken"))
       mentions.forEach((c) => { c.removeAttribute("data-stale"); c.removeAttribute("title") })
@@ -286,7 +289,7 @@ function DocLinks({ docPath, html, containerRef }: { docPath: string; html: stri
       if (!links) return // still loading; a second click works
       const node = links.targets[t.raw]
       if (!node) {
-        toast(`Not found: ${t.raw}`)
+        toast(tNow("docs.notFoundTarget", { target: t.raw }))
         return
       }
       if (node.path === docPath) {

@@ -14,6 +14,7 @@ import type { NodeKind } from "@/lib/memory-graph"
 import type { DocLinksData } from "./useDocLinks"
 import { LinkPreview, type PreviewTarget } from "./LinkPreview"
 import { flashElement, revealLink } from "./MarkdownRenderer"
+import { useT } from "@/context/LanguageContext"
 
 /** Label Caps (DESIGN.md): mono 10px/500, 0.06em, uppercase. */
 const LABEL_CAPS = "flex items-center font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted"
@@ -40,6 +41,7 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
   const router = useRouter()
   const { board } = useApp()
   const open = useOpenNode((id) => router.push(`/memory?entry=${id}`))
+  const { t } = useT()
   const tasks = useMemo(() => new Map(Object.values(board ?? {}).flat().map((t) => [t.id, t])), [board])
   const ref = useRef<HTMLDivElement>(null)
   // What each row showed last time (data-sig), so a live update flashes only the rows it changed. Reset while the
@@ -100,7 +102,7 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
         if (!group.length) return null
         return (
           <div key={kind}>
-            <p className="px-2 text-[11px] text-muted">{label}</p>
+            <p className="px-2 text-[11px] text-muted">{t(label)}</p>
             <ul>{group.map((r) => row(r, withLine, title))}</ul>
           </div>
         )
@@ -120,7 +122,7 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
             <button
               type="button"
               onClick={() => { onNavigate?.(); const p = document.querySelector(".doc-preview"); if (p) revealLink(p, r.path) }}
-              {...(broken ? { "data-preview-path": r.path, "data-preview-broken": "" } : { title: "File not found" })}
+              {...(broken ? { "data-preview-path": r.path, "data-preview-broken": "" } : { title: t("docs.fileNotFound") })}
               className={cn("flex w-full items-center gap-2", ROW)}
             >
               {broken ? <Unlink className="size-3.5 shrink-0 text-muted" aria-hidden /> : <FileQuestion className="size-3.5 shrink-0 text-muted" aria-hidden />}
@@ -139,16 +141,16 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
   return (
     <div ref={ref} data-preview-bounds>
       <LinkPreview containerRef={ref} resolve={previewOf} />
-      {!links ? <p className="text-xs text-muted">Loading links…</p> : (
+      {!links ? <p className="text-xs text-muted">{t("docs.loadingLinks")}</p> : (
         <div className="flex flex-col gap-5">
-          {section("Links to", out, "No links yet", false)}
-          {section("Linked from", links.in, "Nothing links here", true)}
-          {missSection("Broken", links.broken, true)}
-          {missSection("Stale paths", links.stale, false)}
+          {section(t("docs.linksTo"), out, t("docs.noLinksYet"), false)}
+          {section(t("docs.linkedFrom"), links.in, t("docs.nothingLinksHere"), true)}
+          {missSection(t("docs.broken"), links.broken, true)}
+          {missSection(t("docs.stalePaths"), links.stale, false)}
           {path && (
             <Link href={graphHref(path)} onClick={onNavigate} className={cn("flex items-center gap-2 text-muted hover:text-txt", ROW)}>
               <Waypoints className="size-3.5 shrink-0" aria-hidden />
-              Show in graph
+              {t("docs.showInGraph")}
             </Link>
           )}
         </div>

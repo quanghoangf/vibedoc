@@ -17,6 +17,7 @@ import { ChatProvider, useChats } from "@/context/ChatContext"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { HelpLauncher } from "@/components/layout/HelpLauncher"
 import { CHAT_KEY, pageForKey, pageTitle, shouldHandleShortcut } from "@/lib/shortcuts"
+import { useT } from "@/context/LanguageContext"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -43,6 +44,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [quickOpen, setQuickOpen] = useState(false)
   const [newDocOpen, setNewDocOpen] = useState(false)
   const { showDefault } = useChats()
+  const { t } = useT()
   const keyboardRef = useRef(false)
   const prevPathRef = useRef(pathname)
 
@@ -50,14 +52,15 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   // #main so screen readers land on the new page. Keeps ChatContext's "(n) " waiting prefix.
   const projectName = summary?.name
   useEffect(() => {
-    const page = pageTitle(pathname)
+    const key = pageTitle(pathname)
+    const page = key && t(key)
     const base = [page, projectName].filter(Boolean).join(" · ")
     const prefix = document.title.match(/^\(\d+\) /)?.[0] ?? ""
     document.title = `${prefix}${base ? `${base} — ` : ""}VibeDoc`
     if (prevPathRef.current === pathname) return // initial load or project name change: don't steal focus
     prevPathRef.current = pathname
     if (keyboardRef.current) document.getElementById("main")?.focus({ preventScroll: true })
-  }, [pathname, projectName])
+  }, [pathname, projectName, t])
 
   // Last input was a key (not a pointer)? Decides whether a route change moves focus.
   useEffect(() => {
@@ -117,8 +120,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       {/* The sidebar precedes the header in the DOM (shadcn's peer selectors need it), so the agent strip gets its own skip link */}
-      <a href="#agent-status" className={skipLink}>Skip to agent status</a>
-      <a href="#main" className={skipLink}>Skip to content</a>
+      <a href="#agent-status" className={skipLink}>{t("shell.skipToAgents")}</a>
+      <a href="#main" className={skipLink}>{t("shell.skipToContent")}</a>
       <AppSidebar board={board} />
       <SidebarInset className="min-w-0">
         <AppHeader
@@ -132,7 +135,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         />
         <main id="main" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto outline-none">
           {demo && DEMO_BLOCKED.some((p) => pathname.startsWith(p)) ? (
-            <p className="p-8 text-sm text-muted">Not available in the read-only demo. Install VibeDoc with <code className="font-mono text-txt">npx vibedoc</code> to use it.</p>
+            <p className="p-8 text-sm text-muted">{t("shell.demoBlockedLead")} <code className="font-mono text-txt">npx vibedoc</code> {t("shell.demoBlockedEnd")}</p>
           ) : children}
         </main>
         {!demo && <ChatModal />}

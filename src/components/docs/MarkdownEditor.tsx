@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { EditorToolbar } from "./EditorToolbar"
+import { tNow, useT } from "@/context/LanguageContext"
 import { MarkdownRenderer } from "./MarkdownRenderer"
 import { useApp } from "@/context/AppContext"
 import { askAgent } from "@/lib/ask-agent"
@@ -19,7 +20,6 @@ import { setDocProperty, stripFrontmatter } from "@/lib/doc-priority"
 
 export type ViewMode = "edit" | "split" | "preview"
 
-const EMPTY_HINT = "# Title\n\nStart writing in markdown. It saves as you type."
 type SaveStatus = "saved" | "saving" | "unsaved"
 
 interface Props {
@@ -43,6 +43,7 @@ interface Props {
 export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, barStart, barEnd, titleBlock, aside }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
   const { rootParam, demo } = useApp()
+  const { t } = useT()
   const ytextRef = useRef<import("yjs").Text | null>(null)
   const awarenessRef = useRef<{ getStates: () => Map<number, unknown> } | null>(null)
   const [chosenMode, setViewMode] = useState<ViewMode>(initialContent.trim() ? "preview" : "edit")
@@ -113,7 +114,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
       if (destroyed) return
 
       // Phase 1: show editor immediately with syntax highlighting — no yCollab yet
-      const base: Extension[] = [markdown(), editorTheme, placeholder(EMPTY_HINT)]
+      const base: Extension[] = [markdown(), editorTheme, placeholder(tNow("docs.emptyHint"))]
       if (wordWrap) base.push(CMEditorView.lineWrapping)
       setBaseExtensions(base)
 
@@ -229,7 +230,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
           import("./editor-theme"),
           import("@codemirror/view"),
         ])
-      const base: Extension[] = [markdown(), editorTheme, placeholder(EMPTY_HINT)]
+      const base: Extension[] = [markdown(), editorTheme, placeholder(tNow("docs.emptyHint"))]
       if (wordWrap) base.push(CMEditorView.lineWrapping)
       if (lineNumbers) base.push(cmLineNumbers())
       setBaseExtensions(base)
@@ -299,7 +300,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
   const showEditor = viewMode !== "preview"
   const showPreview = viewMode !== "edit"
   const extensions = isSynced ? [...baseExtensions, ...collabExtensions] : baseExtensions
-  const statusText = saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : "Unsaved"
+  const statusText = saveStatus === "saving" ? t("docs.saving") : saveStatus === "saved" ? t("docs.saved") : t("docs.unsaved")
   const statusColor = saveStatus === "unsaved" ? "text-amber" : "text-muted"
 
   return (
@@ -314,36 +315,36 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         </span>
         <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
           <TabsList className="h-7 bg-surface2 p-0.5">
-            <TabsTrigger value="preview" className="h-6 px-2.5 text-xs">Preview</TabsTrigger>
-            <TabsTrigger value="split" className="h-6 px-2.5 text-xs max-md:hidden">Split</TabsTrigger>
-            <TabsTrigger value="edit" className="h-6 px-2.5 text-xs">Edit</TabsTrigger>
+            <TabsTrigger value="preview" className="h-6 px-2.5 text-xs">{t("docs.preview")}</TabsTrigger>
+            <TabsTrigger value="split" className="h-6 px-2.5 text-xs max-md:hidden">{t("docs.split")}</TabsTrigger>
+            <TabsTrigger value="edit" className="h-6 px-2.5 text-xs">{t("docs.edit")}</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="mx-1.5 h-4 w-px bg-border" aria-hidden />
         </>}
         {userCount > 1 && (
-          <Badge variant="secondary" className="h-5 gap-1 text-[10px] px-1.5 max-sm:hidden" title={`${userCount} tabs have this doc open`}>
+          <Badge variant="secondary" className="h-5 gap-1 text-[10px] px-1.5 max-sm:hidden" title={t("docs.tabsOpen", { n: userCount })}>
             <Users className="h-3 w-3" />{userCount}
           </Badge>
         )}
         {docPath.endsWith(".md") && !demo && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt max-sm:hidden" aria-label="Break down with agent"
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt max-sm:hidden" aria-label={t("docs.breakDownWithAgent")}
                 onClick={() => askAgent(`Break down the spec in ${docPath} into tasks.`)}>
                 <ListTodo className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">Break down with agent</TooltipContent>
+            <TooltipContent side="bottom">{t("docs.breakDownWithAgent")}</TooltipContent>
           </Tooltip>
         )}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt max-sm:hidden" onClick={handleDownload} aria-label="Download .md">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt max-sm:hidden" onClick={handleDownload} aria-label={t("docs.download")}>
               <Download className="h-3.5 w-3.5" aria-hidden />
             </Button>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Download .md</TooltipContent>
+          <TooltipContent side="bottom">{t("docs.download")}</TooltipContent>
         </Tooltip>
         {barEnd?.(viewMode)}
       </div>
@@ -363,7 +364,8 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         }`}
       >
         {showEditor && (
-          <div className={`animate-pane-in flex flex-col overflow-hidden min-h-0 ${showPreview ? "max-md:hidden" : ""}`}>
+          // the doc's own text (R078: never translated; e2e/i18n.mjs skips [data-user-content])
+          <div data-user-content className={`animate-pane-in flex flex-col overflow-hidden min-h-0 ${showPreview ? "max-md:hidden" : ""}`}>
             {baseExtensions.length === 0 ? (
               // Modules not yet loaded — show a plain fallback
               <div className="flex-1 overflow-auto whitespace-pre-wrap bg-bg px-4 py-3 font-mono text-sm text-txt">
@@ -392,9 +394,9 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
             {titleBlock && <div className="mx-auto w-full max-w-[72ch]">{titleBlock}</div>}
             {!previewContent.trim() && (
               <div className="mx-auto flex w-full max-w-[72ch] items-center gap-3 text-sm text-muted">
-                This doc is empty.
+                {t("docs.docEmpty")}
                 {!demo && <Button size="sm" variant="outline" onClick={() => setViewMode("edit")}>
-                  <Pencil className="size-3.5" aria-hidden /> Start writing
+                  <Pencil className="size-3.5" aria-hidden /> {t("docs.startWriting")}
                 </Button>}
               </div>
             )}

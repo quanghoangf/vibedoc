@@ -5,10 +5,11 @@ import { AlertTriangle, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { RoadmapItem, RoadmapStatus, TaskStatus } from "@/types"
 import type { DueState, TaskDueSummary } from "@/lib/roadmap-health"
-import { formatDay } from "./timeline"
+import { useFormat, useT } from "@/context/LanguageContext"
 import { FEATURE_W, HORIZON_W } from "./layout"
 import { AgentMark } from "@/components/chat/AgentMark"
 import { useItemAgent } from "@/context/ChatContext"
+import type { MessageKey } from "@/i18n"
 
 export type RoadmapNodeData = {
   item: RoadmapItem
@@ -40,12 +41,21 @@ function Handles() {
   )
 }
 
-export const STATUS_LABEL: Record<RoadmapStatus, string> = { "in-progress": "Active", paused: "Paused", done: "Done", planned: "Planned" }
+export const STATUS_KEY: Record<RoadmapStatus, MessageKey> = {
+  "in-progress": "roadmap.statusActive", paused: "roadmap.statusPaused", done: "roadmap.statusDone", planned: "roadmap.statusPlanned",
+}
+
+/** A roadmap status's name in the UI language. */
+export function useRoadmapStatusLabel(): (status: RoadmapStatus) => string {
+  const { t } = useT()
+  return (status) => t(STATUS_KEY[status])
+}
 
 /** Roadmap status as a dot: live = accent with a pulse, done = teal, planned = hollow. */
 export function StatusDot({ status, className }: { status: RoadmapStatus; className?: string }) {
+  const label = useRoadmapStatusLabel()(status)
   return (
-    <span title={STATUS_LABEL[status]} aria-label={STATUS_LABEL[status]} className={cn("relative inline-flex h-2 w-2 shrink-0", className)}>
+    <span title={label} aria-label={label} className={cn("relative inline-flex h-2 w-2 shrink-0", className)}>
       {status === "in-progress" && <span className="absolute inset-0 animate-ping rounded-full bg-accent/60" />}
       <span
         className={cn(
@@ -61,6 +71,7 @@ export function StatusDot({ status, className }: { status: RoadmapStatus; classN
 }
 
 export function StatusPill({ status }: { status: RoadmapStatus }) {
+  const label = useRoadmapStatusLabel()(status)
   return (
     <span
       className={cn(
@@ -72,7 +83,7 @@ export function StatusPill({ status }: { status: RoadmapStatus }) {
       )}
     >
       <StatusDot status={status} className="h-1.5 w-1.5" />
-      {STATUS_LABEL[status]}
+      {label}
     </span>
   )
 }
@@ -89,10 +100,11 @@ export const TASK_STATUS_BG: Record<TaskStatus, string> = {
 
 /** One segment per task, colored by its board status (same colors as the board). */
 export function SegmentedProgress({ statuses, className }: { statuses?: TaskStatus[]; className?: string }) {
+  const { t } = useT()
   if (!statuses?.length) return null
   const done = statuses.filter((s) => s === "done").length
   return (
-    <div className={cn("flex h-1.5 min-w-0 flex-1 gap-0.5", className)} title={`${done}/${statuses.length} tasks done`}>
+    <div className={cn("flex h-1.5 min-w-0 flex-1 gap-0.5", className)} title={t("roadmap.tasksDone", { done, total: statuses.length })}>
       {statuses.map((s, i) => (
         <span key={i} className={cn("h-full flex-1 rounded-[1px]", TASK_STATUS_BG[s])} />
       ))}
@@ -105,8 +117,9 @@ export function ProgressRing({ value, total, className }: { value: number; total
   const r = 14
   const c = 2 * Math.PI * r
   const pct = total > 0 ? value / total : 0
+  const { t } = useT()
   return (
-    <span className={cn("relative inline-flex h-9 w-9 shrink-0 items-center justify-center", className)} title={`${value}/${total} tasks done`}>
+    <span className={cn("relative inline-flex h-9 w-9 shrink-0 items-center justify-center", className)} title={t("roadmap.tasksDone", { done: value, total })}>
       <svg viewBox="0 0 36 36" className="absolute inset-0 -rotate-90">
         <circle cx="18" cy="18" r={r} fill="none" strokeWidth="3" className="stroke-border" />
         <circle cx="18" cy="18" r={r} fill="none" strokeWidth="3" stroke="currentColor" strokeLinecap="round"
@@ -118,10 +131,11 @@ export function ProgressRing({ value, total, className }: { value: number; total
 }
 
 export function Progress({ progress }: { progress?: RoadmapNodeData["progress"] }) {
+  const { t } = useT()
   if (!progress) return null
   const pct = Math.round((progress.done / progress.total) * 100)
   return (
-    <div className="flex items-center gap-1.5" title={`${progress.done}/${progress.total} done`}>
+    <div className="flex items-center gap-1.5" title={t("roadmap.doneOfTotal", { done: progress.done, total: progress.total })}>
       <div className="h-1 flex-1 overflow-hidden rounded-full bg-border">
         <div className="h-full rounded-full bg-teal" style={{ width: `${pct}%` }} />
       </div>
@@ -131,6 +145,8 @@ export function Progress({ progress }: { progress?: RoadmapNodeData["progress"] 
 }
 
 export function DueChip({ due, state }: { due: string | null; state?: DueState | null }) {
+  const f = useFormat()
+  const { t } = useT()
   if (!due) return null
   return (
     <span
@@ -139,22 +155,25 @@ export function DueChip({ due, state }: { due: string | null; state?: DueState |
         state === "overdue" ? "text-danger" : state === "soon" ? "text-amber" : "text-muted",
       )}
     >
-      Due {formatDay(due)}
+      {t("board.dueOn", { date: f.day(due) })}
     </span>
   )
 }
 
 /** The single most urgent date line for a card: overdue tasks, then the epic's own due, then the next task due. */
 function DueNote({ data }: { data: RoadmapNodeData }) {
+  const f = useFormat()
+  const { t, tn } = useT()
   const s = data.taskDue
   if (s && s.overdue > 0) {
-    return <span className="font-mono text-[10px] text-danger">{s.overdue} {s.overdue === 1 ? "task" : "tasks"} overdue</span>
+    return <span className="font-mono text-[10px] text-danger">{tn("roadmap.tasksOverdue", s.overdue)}</span>
   }
   if (data.item.due) return <DueChip due={data.item.due} state={data.dueState} />
-  if (s?.next) return <span className={cn("font-mono text-[10px]", data.taskDueSoon ? "text-amber" : "text-muted")}>Next due {formatDay(s.next)}</span>
+  if (s?.next) return <span className={cn("font-mono text-[10px]", data.taskDueSoon ? "text-amber" : "text-muted")}>{t("roadmap.nextDue", { date: f.day(s.next) })}</span>
   return null
 }
 
+/** `drift`: the item's needs-attention lines, already worded (RoadmapTab's driftText). */
 function DriftMark({ drift }: { drift?: string[] }) {
   if (!drift?.length) return null
   return (
@@ -167,6 +186,7 @@ function DriftMark({ drift }: { drift?: string[] }) {
 /** A horizon is a chapter: big number, title, epic count, and a ring for task progress. */
 export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
   const { item, progress, epics, chapter } = data
+  const { t } = useT()
   const status = item.status
   return (
     <div
@@ -192,7 +212,7 @@ export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase leading-snug tracking-wider text-txt">{item.title}</p>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-muted">
-          {epics && epics.total > 0 && <span>{epics.done}/{epics.total} epics</span>}
+          {epics && epics.total > 0 && <span>{t("roadmap.epicsCount", { done: epics.done, total: epics.total })}</span>}
           <DueChip due={item.due} state={data.dueState} />
         </p>
       </div>
@@ -211,6 +231,7 @@ export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
 export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
   const { item, taskStatuses, nextTaskId } = data
   const agent = useItemAgent({ kind: "epic", id: item.id })
+  const { t, tn } = useT()
   const drifting = !!data.drift?.length
   const ring = selected && "ring-2 ring-accent/60 ring-offset-2 ring-offset-bg"
 
@@ -250,9 +271,9 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
         {agent ? (
           <AgentMark attach={{ kind: "epic", id: item.id }} />
         ) : live ? (
-          <span className="flex items-center gap-1.5 uppercase tracking-wider text-accent"><StatusDot status="in-progress" className="h-1.5 w-1.5" />Live</span>
+          <span className="flex items-center gap-1.5 uppercase tracking-wider text-accent"><StatusDot status="in-progress" className="h-1.5 w-1.5" />{t("roadmap.live")}</span>
         ) : (
-          <span className="uppercase tracking-wider text-muted">{item.tasks.length ? `${item.tasks.length} tasks` : "No tasks yet"}</span>
+          <span className="uppercase tracking-wider text-muted">{item.tasks.length ? tn("roadmap.taskCount", item.tasks.length) : t("roadmap.noTasksYet")}</span>
         )}
       </div>
       <p className={cn("line-clamp-2 text-[13px] leading-snug", live ? "font-medium text-txt" : "text-txt/80")} title={item.title}>
@@ -262,7 +283,7 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
         <div className="flex items-center gap-2">
           <SegmentedProgress statuses={taskStatuses} />
           <span className="shrink-0 font-mono text-[10px] text-muted">
-            {live && nextTaskId ? <>next <span className="text-txt">{nextTaskId}</span></> : `${taskStatuses.filter((s) => s === "done").length}/${taskStatuses.length}`}
+            {live && nextTaskId ? <>{t("roadmap.nextTask")} <span className="text-txt">{nextTaskId}</span></> : `${taskStatuses.filter((s) => s === "done").length}/${taskStatuses.length}`}
           </span>
         </div>
       )}

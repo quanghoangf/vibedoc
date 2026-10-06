@@ -15,10 +15,13 @@ import { useTestRun } from "./useTestRun"
 import { useSuiteRun } from "./useSuiteRun"
 import { isRunning } from "@/lib/test-run-events"
 import type { ManualTestItem, ManualTests } from "@/lib/manual-tests"
-import { outstanding, sendBackNote, stepParts, type ReviewRow } from "@/lib/test-review"
+import { sendBackNote, stepParts, type ReviewRow } from "@/lib/test-review"
 import { REVIEWABLE } from "@/lib/review"
 import { TEST_REVIEW_KEYS } from "@/lib/shortcuts"
 import type { Task } from "@/types"
+import { useT } from "@/context/LanguageContext"
+import { useStatusLabel } from "@/components/shared/StatusIcon"
+import { useReviewText } from "./review-text"
 
 export type DetailView = "review" | "evidence"
 
@@ -48,13 +51,14 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
   onRun: (runId: string | null) => void
 }) {
   const { demo } = useApp()
+  const { t } = useT()
   // Kept runs, reported by the evidence view: `[` `]` only show when there is another run to step to
   const items = tests?.items ?? []
   const manual = items.filter((i) => !i.auto)
   const automated = items.filter((i) => i.auto)
   const groups = [
-    { label: "Steps", items: manual.filter((i) => i.group === "steps") },
-    { label: "Regression risk", items: manual.filter((i) => i.group === "regression") },
+    { id: "steps", label: t("tests.colManual"), items: manual.filter((i) => i.group === "steps") },
+    { id: "regression", label: t("tests.regression"), items: manual.filter((i) => i.group === "regression") },
   ].filter((g) => g.items.length)
   // R062: in the Evidence view a task in review is decided on top of the proof, not in the bottom bar
   const reviewHere = view === "evidence" && task.status === "review" && !demo
@@ -67,7 +71,7 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
   const going = isRunning(mine)
   const showRun = mine && mine.startedAt !== dismissed ? mine : null
   const suiteRun = useSuiteRun()
-  const otherRun = suiteRun.busy ? "The suite" : testRun.busy && !mine ? testRun.run!.taskId : null
+  const otherRun = suiteRun.busy ? t("board.theSuite") : testRun.busy && !mine ? testRun.run!.taskId : null
   // A run in progress re-proves the automated items: until it ends, only its live results count
   const proven = row.auto.result === "passed" && !row.unverified && !going
   const liveStatus = (item: ManualTestItem) => mine?.steps.find((s) => s.name.trim().replace(/\s+/g, " ") === item.text.trim().replace(/\s+/g, " "))?.status
@@ -80,17 +84,17 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
     return (
       <li key={item.index}>
         <label className={cn("-mx-2 grid grid-cols-[1rem_1.25rem_1fr] items-start gap-x-2.5 rounded-md px-2 py-2", !readOnly && "cursor-pointer hover:bg-surface2")}>
-          {live === "running" ? <Loader2 className="mt-0.5 size-4 animate-spin text-accent" aria-label="Running now" />
-            : live === "passed" ? <Check className="mt-0.5 size-4 text-teal" strokeWidth={2.5} aria-label="Passed in this run" />
-            : live === "failed" ? <X className="mt-0.5 size-4 text-danger" strokeWidth={2.5} aria-label="Failed in this run" />
+          {live === "running" ? <Loader2 className="mt-0.5 size-4 animate-spin text-accent" aria-label={t("tests.runningNow")} />
+            : live === "passed" ? <Check className="mt-0.5 size-4 text-teal" strokeWidth={2.5} aria-label={t("tests.passedInRun")} />
+            : live === "failed" ? <X className="mt-0.5 size-4 text-danger" strokeWidth={2.5} aria-label={t("tests.failedInRun")} />
             : readOnly
-            ? <Bot className="mt-0.5 size-4 text-teal" aria-label="Proven by the last run" />
+            ? <Bot className="mt-0.5 size-4 text-teal" aria-label={t("tests.provenByRun")} />
             : <Tick checked={checked} onChange={(c) => onToggle(item, c)} />}
           <span className="mt-px font-mono text-[11px] leading-5 text-muted tabular-nums" aria-hidden>{number}</span>
           <span className="flex min-w-0 items-start gap-2">
             <StepText text={item.text} checked={checked} />
             {/* R063: the last pass didn't prove this 🤖 item, so it waits for a human */}
-            {item.auto && !checked && !live && row.result === "passed" && row.unverified > 0 && <UnverifiedChip reasons={["the last run didn't prove it"]} />}
+            {item.auto && !checked && !live && row.result === "passed" && row.unverified > 0 && <UnverifiedChip reasons={[t("tests.didntProve")]} />}
           </span>
         </label>
       </li>
@@ -98,16 +102,16 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
   }
 
   return (
-    <article key={task.id} aria-label={`${task.id} test review`} className={cn("flex min-h-full flex-col animate-fade-in", expanded && "mx-auto w-full max-w-5xl")}>
+    <article key={task.id} aria-label={t("tests.testReviewOf", { id: task.id })} className={cn("flex min-h-full flex-col animate-fade-in", expanded && "mx-auto w-full max-w-5xl")}>
       <header className="flex flex-col gap-3 border-b border-border px-5 pt-4 pb-5 sm:px-7">
         <div className="flex items-center gap-2 font-mono text-[11px] text-muted">
           {expanded && (
             <button type="button" onClick={() => onExpand(false)} className="-ml-1 mr-1 hidden min-h-6 items-center gap-1 rounded-sm px-1 hover:text-txt focus-visible:outline-2 focus-visible:outline-accent lg:inline-flex">
-              <ArrowLeft className="size-3.5" aria-hidden /> All tests
+              <ArrowLeft className="size-3.5" aria-hidden /> {t("tests.allTests")}
             </button>
           )}
           <button type="button" onClick={onBack} className="-ml-1 mr-1 inline-flex min-h-6 items-center gap-1 rounded-sm px-1 hover:text-txt focus-visible:outline-2 focus-visible:outline-accent lg:hidden">
-            <ArrowLeft className="size-3.5" aria-hidden /> Back
+            <ArrowLeft className="size-3.5" aria-hidden /> {t("tests.back")}
           </button>
           {row.epic.id && <Link href={`/roadmap?item=${row.epic.id}`} className="inline-flex min-h-6 items-center rounded-sm hover:text-txt focus-visible:outline-2 focus-visible:outline-accent" title={row.epic.name}>{row.epic.id}</Link>}
           {row.epic.id && <span aria-hidden>›</span>}
@@ -117,25 +121,25 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
               type="button"
               onClick={() => onExpand(!expanded)}
               aria-pressed={expanded}
-              aria-label={expanded ? "Collapse back to the list" : "Open as a page"}
-              title={expanded ? "Collapse back to the list (o)" : "Open as a page (o)"}
+              aria-label={expanded ? t("tests.collapseToList") : t("tests.openAsPage")}
+              title={expanded ? t("tests.collapseKey") : t("tests.openAsPageKey")}
               className={ICON_BTN}
             >
               {expanded ? <Minimize2 className="size-4" aria-hidden /> : <Maximize2 className="size-4" aria-hidden />}
             </button>
-            <button type="button" onClick={onClose} aria-label="Close" title="Close (Esc)" className={ICON_BTN}>
+            <button type="button" onClick={onClose} aria-label={t("shell.close")} title={t("tests.closeEsc")} className={ICON_BTN}>
               <X className="size-4" aria-hidden />
             </button>
           </span>
         </div>
-        <h2 className="text-[1.1rem] leading-snug font-semibold text-balance text-txt">{task.title}</h2>
+        <h2 data-user-content className="text-[1.1rem] leading-snug font-semibold text-balance text-txt">{task.title}</h2>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <StatusChip status={displayStatus(task)} />
           <Link
             href={`/board?task=${task.id}`}
             className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-txt transition-colors hover:border-border2 hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent"
           >
-            Open task <ArrowUpRight className="size-3.5" aria-hidden />
+            {t("tests.openTask")} <ArrowUpRight className="size-3.5" aria-hidden />
           </Link>
           {tests?.spec && !demo && (
             <button
@@ -143,37 +147,37 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
               data-run
               onClick={() => void (going ? testRun.stop() : testRun.start(task.id))}
               disabled={!!otherRun}
-              title={otherRun ? `${otherRun} is running` : going ? `Stop the run (${TEST_REVIEW_KEYS.run.key})` : `Run this task's spec now (${TEST_REVIEW_KEYS.run.key})`}
+              title={otherRun ? t("board.isRunning", { name: otherRun }) : going ? t("tests.stopRunKey", { key: TEST_REVIEW_KEYS.run.key }) : t("tests.runSpecKey", { key: TEST_REVIEW_KEYS.run.key })}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-40",
                 going ? "border-danger/40 text-danger hover:bg-danger/10" : "border-accent/40 bg-accent/10 text-txt hover:bg-accent/20",
               )}
             >
-              {going ? <><Square className="size-3" aria-hidden /> Stop</> : <><Play className="size-3.5" aria-hidden /> Run tests</>}
+              {going ? <><Square className="size-3" aria-hidden /> {t("board.stop")}</> : <><Play className="size-3.5" aria-hidden /> {t("tests.runTests")}</>}
             </button>
           )}
           {tests?.spec && (
-            <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted" title="Playwright spec">
+            <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted" title={t("tests.playwrightSpec")}>
               <FileCode2 className="size-3.5 shrink-0" aria-hidden />
               <code className="truncate font-mono select-all">{tests.spec}</code>
             </span>
           )}
         </div>
         {/* A two-segment control (DESIGN.md): pressed buttons, not tabs */}
-        <div role="group" aria-label="View" className="flex w-fit items-center gap-0.5 rounded-md border border-border bg-bg p-0.5">
+        <div role="group" aria-label={t("memory.view")} className="flex w-fit items-center gap-0.5 rounded-md border border-border bg-bg p-0.5">
           {(["review", "evidence"] as const).map((v) => (
             <button
               key={v}
               type="button"
               aria-pressed={view === v}
               onClick={() => onView(v)}
-              title={`${v === "review" ? "Run replay and checklist" : "The evidence doc and run history"} (${TEST_REVIEW_KEYS.view.key})`}
+              title={t(v === "review" ? "tests.viewReviewTitle" : "tests.viewEvidenceTitle", { key: TEST_REVIEW_KEYS.view.key })}
               className={cn(
-                "rounded-sm px-2.5 py-1 text-xs capitalize transition-colors duration-(--duration-fast) focus-visible:outline-2 focus-visible:outline-accent",
+                "rounded-sm px-2.5 py-1 text-xs transition-colors duration-(--duration-fast) focus-visible:outline-2 focus-visible:outline-accent",
                 view === v ? "bg-surface2 text-txt" : "text-muted hover:text-txt",
               )}
             >
-              {v}
+              {v === "review" ? t("tests.viewReview") : t("tests.viewEvidence")}
             </button>
           ))}
         </div>
@@ -181,12 +185,12 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
 
       {/* The live Run strip shows in both views: a task in review opens on Evidence, where Run is pressed too */}
       {showRun && (
-        <section aria-label="Live run" className="border-b border-border px-5 py-5 sm:px-7">
+        <section aria-label={t("tests.liveRun")} className="border-b border-border px-5 py-5 sm:px-7">
           <RunLive run={showRun} began={testRun.began} ended={testRun.ended} unverified={row.unverified} onDismiss={() => setDismissed(showRun.startedAt)} />
         </section>
       )}
       {view === "evidence" ? (
-        <section aria-label="Evidence" className="px-5 py-5 sm:px-7">
+        <section aria-label={t("tests.evidence")} className="px-5 py-5 sm:px-7">
           <TestEvidence
             key={task.id}
             taskId={task.id}
@@ -199,24 +203,24 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
         </section>
       ) : <>
       {!going && (
-        <section aria-label="Run" className="border-b border-border px-5 py-5 sm:px-7">
+        <section aria-label={t("board.pickRun")} className="border-b border-border px-5 py-5 sm:px-7">
           <RunPlayer key={task.id} taskId={task.id} latest={task.lastRun?.runId ?? null} />
         </section>
       )}
 
-      <section aria-label="Checklist" className="flex flex-col gap-5 px-5 py-5 sm:px-7">
-        {!items.length ? <p className="text-sm text-muted">This task has no checklist. The run above is the whole record.</p> : (
+      <section aria-label={t("tests.checklist")} className="flex flex-col gap-5 px-5 py-5 sm:px-7">
+        {!items.length ? <p className="text-sm text-muted">{t("tests.noChecklist")}</p> : (
           <p className="-mb-2 text-xs leading-relaxed text-muted">
-            Ticking saves to the task file and never changes the status.
-            {tests?.date && <> Report from <span className="font-mono text-[11px]">{tests.date}</span>.</>}
+            {t("tests.tickingSaves")}
+            {tests?.date && <> {t("tests.reportFrom")} <span className="font-mono text-[11px]">{tests.date}</span>.</>}
           </p>
         )}
         {automated.length > 0 && (
           <div className="flex flex-col gap-1">
             <h3 className="flex flex-wrap items-baseline gap-x-1.5 text-[13px] font-medium text-txt">
-              Automated <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{automated.length}</span>
+              {t("tests.automated")} <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{automated.length}</span>
               <span className={cn("text-xs font-normal", going ? "text-accent" : proven ? "text-teal" : row.auto.result === "failed" ? "text-danger" : "")}>
-                {going ? "· running now" : proven ? "· proven by the last run" : row.result === "passed" && row.unverified ? `· ${row.unverified} unverified, check by hand` : row.auto.result === "failed" ? "· the last run failed" : "· not run yet"}
+                {going ? t("tests.autoRunningNow") : proven ? t("tests.autoProven") : row.result === "passed" && row.unverified ? t("tests.autoUnverified", { n: row.unverified }) : row.auto.result === "failed" ? t("tests.autoFailed") : t("tests.autoNotRun")}
               </span>
             </h3>
             <ol className="flex flex-col">{/* A passed run proves them; until then a human can still tick them */}
@@ -224,13 +228,13 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
           </div>
         )}
         {groups.map((g) => (
-          <div key={g.label} className="flex flex-col gap-1">
-            <h3 className={cn("flex items-baseline gap-x-1.5 text-[13px] font-medium", g.label === "Steps" ? "text-txt" : "text-amber")}>
-              {g.label === "Steps" ? "Manual" : g.label} <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{g.items.filter(checkedOf).length}/{g.items.length}</span>
+          <div key={g.id} className="flex flex-col gap-1">
+            <h3 className={cn("flex items-baseline gap-x-1.5 text-[13px] font-medium", g.id === "steps" ? "text-txt" : "text-amber")}>
+              {g.label} <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{g.items.filter(checkedOf).length}/{g.items.length}</span>
             </h3>
             <ol className="flex flex-col">
               {/* Steps are a sequence; regression checks aren't */}
-              {g.items.map((item, n) => line(item, g.label === "Steps" ? String(n + 1).padStart(2, "0") : ""))}
+              {g.items.map((item, n) => line(item, g.id === "steps" ? String(n + 1).padStart(2, "0") : ""))}
             </ol>
           </div>
         ))}
@@ -252,18 +256,21 @@ const OPEN_TASK = "inline-flex items-center gap-1 rounded-md border border-borde
  * task the agent still holds only links to it.
  */
 function Decision({ task, row, onDecided }: { task: Task; row: ReviewRow; onDecided: () => void }) {
+  const { t } = useT()
+  const statusLabel = useStatusLabel()
+  const { outstanding } = useReviewText()
   const failedRun = row.result === "failed"
   const step = task.lastRun?.status === "failed" ? task.lastRun.failed : null
-  const openTask = <Link href={`/board?task=${task.id}`} className={OPEN_TASK}>Open task <ArrowUpRight className="size-3.5" aria-hidden /></Link>
+  const openTask = <Link href={`/board?task=${task.id}`} className={OPEN_TASK}>{t("tests.openTask")} <ArrowUpRight className="size-3.5" aria-hidden /></Link>
   const prompt = (
     <div className="flex min-w-0 flex-col gap-0.5">
       {failedRun ? (
         <p className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-danger">
           <X className="size-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-          <span className="shrink-0">Last run failed{step && ` at step ${step.index}`}</span>
+          <span className="shrink-0">{step ? t("tests.lastRunFailedAtStep", { n: step.index }) : t("tests.lastRunFailed")}</span>
           {step && <><span className="text-muted" aria-hidden>·</span><span className="truncate font-normal text-txt" title={step.name}>{step.name}</span></>}
         </p>
-      ) : <p className="text-[13px] font-medium text-txt">Waiting for your review</p>}
+      ) : <p className="text-[13px] font-medium text-txt">{t("tests.waitingYourReview")}</p>}
       {/* A failed headline already names the run; then only the checks are news */}
       <p className="text-xs text-muted">{failedRun ? outstanding(row)[0] : outstanding(row).join(" · ")}</p>
     </div>
@@ -276,7 +283,7 @@ function Decision({ task, row, onDecided }: { task: Task; row: ReviewRow; onDeci
         {prompt}
         <div className="flex flex-wrap items-center gap-2">
           {openTask}
-          <span className="text-[11px] text-muted">It&apos;s {task.status}; the agent sees the failure on its next run.</span>
+          <span className="text-[11px] text-muted">{t("tests.itsStatus", { status: statusLabel(task.status).toLowerCase() })}</span>
         </div>
       </div>
     )
@@ -319,13 +326,14 @@ function StepText({ text, checked }: { text: string; checked: boolean }) {
   const at = text.indexOf(" → ")
   const action = at < 0 ? text : text.slice(0, at)
   const expected = at < 0 ? null : text.slice(at + 3)
+  const { t } = useT()
   return (
-    <span className={cn("flex min-w-0 flex-col gap-1 transition-colors duration-(--duration-base)", checked ? "text-muted line-through" : "text-txt")}>
+    <span data-user-content className={cn("flex min-w-0 flex-col gap-1 transition-colors duration-(--duration-base)", checked ? "text-muted line-through" : "text-txt")}>
       <span className="text-sm leading-snug"><Inline text={action} /></span>
       {expected && (
         <span className="flex items-start gap-1.5 text-[13px] leading-snug text-muted">
           <ArrowRight className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-          <span className="sr-only">Expected: </span>
+          <span className="sr-only">{t("tests.expected")} </span>
           <span><Inline text={expected} /></span>
         </span>
       )}

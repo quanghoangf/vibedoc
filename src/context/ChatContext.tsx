@@ -9,6 +9,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useApp } from "@/context/AppContext"
+import { tNow } from "@/context/LanguageContext"
 import type { Proposal, ProposalStatus } from "@/components/chat/ProposalCard"
 import type { PlanCreated, PlanProposal, PlanStatus } from "@/components/chat/PlanCard"
 import { formatAnswers, isRenderableQuestions, type Question, type QuestionSet } from "@/components/chat/QuestionCard"
@@ -181,7 +182,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     notifiedRef.current = Object.fromEntries(chats.map((c) => [c.id, chatStatus(c)]))
     if (!fresh.length || !document.hidden || !("Notification" in window) || Notification.permission !== "granted") return
     for (const { chat, status } of fresh) {
-      const n = new Notification(status === "needs-answer" ? "Agent needs your answer" : "Plan ready to review", { body: chat.title, tag: chat.id })
+      const n = new Notification(tNow(status === "needs-answer" ? "chat.notifyNeedsAnswer" : "chat.notifyPlanReady"), { body: chat.title, tag: chat.id })
       n.onclick = () => { window.focus(); openAgentChat(chat.id); n.close() }
     }
   }, [chats])
@@ -321,7 +322,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }))
       }
     } else if (ev.type === "result" && ev.is_error) {
-      patchLast(chatId, (m) => ({ ...m, error: ev.result ?? ev.subtype ?? "Agent error" }))
+      patchLast(chatId, (m) => ({ ...m, error: ev.result ?? ev.subtype ?? tNow("chat.agentError") }))
     } else if (ev.type === "error") {
       patchLast(chatId, (m) => ({ ...m, error: ev.message }))
     }

@@ -10,6 +10,8 @@ import { displayStatus } from "@/lib/statuses"
 import type { Entry } from "@/lib/entries"
 import { GRAPH_COL_W, graphLayout, type GraphNode, type MemoryGraph as Graph } from "@/lib/memory-graph"
 import { KIND_ICON, useOpenNode } from "./EntryRelated"
+import { useT } from "@/context/LanguageContext"
+import { useFlowAriaLabels } from "@/components/shared/flow-labels"
 
 type MemNodeData = { node: GraphNode; status?: string; unlinked: boolean; dim: boolean; active: boolean }
 type MemNode = Node<MemNodeData, "mem">
@@ -63,6 +65,8 @@ const nodeTypes = { mem: MemNodeView }
  */
 export function MemoryGraph({ entries, selectedId, onOpenEntry }: { entries: Entry[]; selectedId: string | null; onOpenEntry: (id: string) => void }) {
   const { rootParam, summary, board } = useApp()
+  const { t } = useT()
+  const flowLabels = useFlowAriaLabels()
   const open = useOpenNode(onOpenEntry)
   const [graph, setGraph] = useState<Graph | null>(null)
   const isDark = useSyncExternalStore(subscribeTheme, () => document.documentElement.classList.contains("dark"), () => true)
@@ -121,11 +125,11 @@ export function MemoryGraph({ entries, selectedId, onOpenEntry }: { entries: Ent
     return { nodes, edges }
   }, [graph, entries, board, selectedId])
 
-  if (!graph) return <p className="text-sm text-muted">Loading graph…</p>
-  if (!graph.nodes.length) return <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">No entries to draw yet.</p>
+  if (!graph) return <p className="text-sm text-muted">{t("memory.loadingGraph")}</p>
+  if (!graph.nodes.length) return <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">{t("memory.noEntriesToDraw")}</p>
 
   return (
-    <div aria-label="Memory graph" className="h-[70vh] min-h-[420px] overflow-hidden rounded-xl border border-border">
+    <div aria-label={t("memory.memoryGraph")} className="h-[70vh] min-h-[420px] overflow-hidden rounded-xl border border-border">
       <ReactFlow<MemNode>
         nodes={nodes}
         edges={edges}
@@ -139,6 +143,7 @@ export function MemoryGraph({ entries, selectedId, onOpenEntry }: { entries: Ent
         fitView
         fitViewOptions={{ padding: 0.1, minZoom: FIT_MIN_ZOOM, maxZoom: 1 }}
         minZoom={0.1}
+        ariaLabelConfig={flowLabels}
         style={FLOW_STYLE}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />

@@ -16,6 +16,12 @@
  * `.vibedoc/settings.json`, else 5 (runs-retention.ts).
  * Runs inside the target repo's Playwright process, not the VibeDoc server, so it writes its own files.
  *
+ * R079 presentation recording (presentation.ts decides, recorded as `presentation` in run.json): on Playwright 1.59+
+ * the video gets `page.screencast` action annotations (cursor, highlight, title; each action waits ACTION_MS), a
+ * chapter card per step and a STEP_HOLD_MS hold before the step's screenshot. Off for the suite (VIBEDOC_TASK_MAP),
+ * the blank pass (VIBEDOC_BLANK), CI and VIBEDOC_PRESENT=0. Screenshots stay clean: annotations are gone by the time
+ * an action returns, and chapter cards by the time showChapter resolves.
+ *
  * The package export is the compiled `dist/testing/playwright-fixture.js` (`npm run build:playwright`, run by
  * prepublishOnly): Playwright won't transpile .ts under node_modules. Hence the `.js` extension on relative imports.
  */
@@ -31,6 +37,7 @@ import { parseManualTests } from '../lib/manual-tests.js'
 import { formatEvidence } from '../lib/evidence.js'
 import { isPageSubject, stepVerdict } from '../lib/honesty.js'
 import { parseTaskMap, taskForFile } from '../lib/task-map.js'
+import { presentationMode } from '../lib/presentation.js'
 
 import type { RunManifest, RunStep, RunTest } from '../lib/runs-paths.js'
 export type { RunManifest, RunStep }
@@ -117,6 +124,20 @@ export const expect = counted(baseExpect)
  */
 const BLANK = process.env.VIBEDOC_BLANK === '1'
 const BLANK_PAGE = '<!doctype html><title>blank</title>'
+// R079 presentation recording: Playwright's own action annotations (1.59+). Each action waits out ACTION_MS, so a
+// person can follow the cursor; colours read on light and dark apps. The decorations are gone by the time an
+// action returns, so step screenshots (taken after the step) stay clean without hiding them first.
+const ACTION_MS = 600
+const ACTION_STYLE = {
+  point: 'width:22px;height:22px;border-radius:50%;background:rgba(124,92,255,.35);box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(20,20,30,.85)',
+  highlight: 'outline:2px solid #7c5cff;outline-offset:2px;background:rgba(124,92,255,.12);border-radius:4px',
+  title: 'font:600 14px system-ui,sans-serif;padding:6px 10px;border-radius:6px;background:rgba(20,20,30,.85);color:#fff',
+}
+// Each step opens with a chapter card naming it ("02 · <step>", numbered like the player's step list; the call
+// waits until the card is gone, so it never reaches a screenshot), and its result holds still before the screenshot
+// so the player's auto-pause lands on a still frame. A deliberate wait in the kit, never in specs.
+const CHAPTER_MS = 900
+const STEP_HOLD_MS = 700
 
 function readHonesty(dir: string) {
   try {
@@ -199,6 +220,12 @@ function writeEvidence(run: Run): void {
   }
 }
 
+/** The part of Playwright 1.59's `page.screencast` the kit uses; older apps' types don't have it. */
+type Screencast = {
+  showActions: (o: { cursor?: 'pointer' | 'none'; duration?: number; position?: string; style?: { point?: string; highlight?: string; title?: string } }) => Promise<unknown>
+  showChapter: (title: string, o?: { description?: string; duration?: number }) => Promise<void>
+}
+
 export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: Run; step: Step }>({
   vibedocTask: [undefined, { option: true }],
 
@@ -242,6 +269,12 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
         ? r.fulfill({ status: 200, contentType: 'text/html', body: BLANK_PAGE })
         : r.continue()))
     }
+    // R079: presentation recording, decided once; `page.screencast` exists from Playwright 1.59 (the app's own copy)
+    const screencast = (page as unknown as { screencast?: Screencast }).screencast
+    const presentation = presentationMode(process.env, typeof screencast?.showActions === 'function')
+    if (presentation.on && screencast) {
+      await screencast.showActions({ cursor: 'pointer', duration: ACTION_MS, position: 'top-right', style: ACTION_STYLE })
+    }
     // The page (and its video) exists by now, so offsets from here line up with the video's clock
     const t0 = Date.now()
     await provide(async (name, fn) => {
@@ -257,11 +290,22 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
           return null // page closed or crashed: the step still gets recorded
         }
       }
+      if (presentation.on && screencast) {
+        try {
+          // ponytail: Playwright draws chapters and action annotations in an overlay it injects per navigation;
+          // page.setContent() removes it for good, so a spec that builds its page with setContent records them only
+          // until then (page.goto, the normal case, is fine). Fix upstream if it matters.
+          await screencast.showChapter(`${String(index).padStart(2, '0')} · ${name}`, { duration: CHAPTER_MS })
+        } catch (e) {
+          console.warn(`vibedoc: no chapter card for step ${index}: ${e instanceof Error ? e.message : e}`)
+        }
+      }
       const assertions = { total: 0, onPage: 0 }
       tally = assertions
       try {
         const result = await base.step(name, fn)
         tally = null
+        if (presentation.on) await new Promise(r => setTimeout(r, STEP_HOLD_MS))
         steps.push({ index, name, status: 'passed', screenshot: await shoot(), error: null, startMs, endMs: Date.now() - t0, assertions })
         return result
       } catch (e) {
@@ -284,7 +328,7 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
     const manifest: RunManifest = {
       runId: vibedocRun.runId, taskId: vibedocRun.taskId, project: vibedocRun.project,
       startedAt: vibedocRun.startedAt, endedAt: new Date().toISOString(),
-      status: failed ? 'failed' : 'passed', commit: gitCommit(), video: videoFile, steps,
+      status: failed ? 'failed' : 'passed', commit: gitCommit(), video: videoFile, steps, presentation,
       ...foldRetries(vibedocRun, testInfo.testId, testInfo.retry, testInfo.title, !failed),
     }
     writeFileSync(path.join(vibedocRun.dir, 'run.json'), JSON.stringify(manifest, null, 2) + '\n')

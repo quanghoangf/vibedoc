@@ -30,6 +30,9 @@ import { latestReview, reviewHistory, type ReviewEntry, type ReviewMark } from "
 import { SEVERITIES, formatFindingsNote, type Verification } from "@/lib/verification"
 import { verifyTask } from "@/lib/ask-agent"
 import type { AutoRun } from "@/lib/manual-tests"
+import { useT } from "@/context/LanguageContext"
+import { useStatusLabel } from "@/components/shared/StatusIcon"
+import type { MessageKey } from "@/i18n"
 
 const NEXT_STATUS: Record<string, string[]> = {
   todo: ["in-progress", "paused"],
@@ -42,14 +45,14 @@ const NEXT_STATUS: Record<string, string[]> = {
   cancelled: ["todo"],
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  "in-progress": "start",
-  review: "to review",
-  done: "done",
-  blocked: "blocked",
-  paused: "pause",
-  todo: "backlog",
-  cancelled: "cancel",
+const STATUS_LABELS: Record<string, MessageKey> = {
+  "in-progress": "board.moveStart",
+  review: "board.moveReview",
+  done: "board.moveDone",
+  blocked: "board.moveBlocked",
+  paused: "board.movePause",
+  todo: "board.moveBacklog",
+  cancelled: "board.moveCancel",
 }
 
 
@@ -74,12 +77,14 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
   const [error, setError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const statusDefs = useStatusDefs()
+  const statusLabel = useStatusLabel()
+  const { t } = useT()
   const chatAbout = () => { if (task) { onClose(); showAbout({ kind: "task", id: task.id }) } }
   useItemCommands(openTask && task && !editing ? `${task.id} · ${task.title}` : null, task ? [
-    { action: "edit", label: "Edit", run: () => setEditingId(task.id) },
-    { action: "status", label: "Change status…", run: () => setMenuOpen(true) },
-    { action: "chat", label: "Chat about task", run: chatAbout },
-    { action: "remove", label: "Delete", run: () => { remove() } },
+    { action: "edit", label: t("board.edit"), run: () => setEditingId(task.id) },
+    { action: "status", label: t("board.changeStatus"), run: () => setMenuOpen(true) },
+    { action: "chat", label: t("board.chatAboutTask"), run: chatAbout },
+    { action: "remove", label: t("board.delete"), run: () => { remove() } },
   ] : [])
 
   async function remove() {
@@ -104,29 +109,29 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
               menu={demo ? undefined :
                   <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
                     <DropdownMenuTrigger asChild>
-                      <button type="button" aria-label={`Actions for ${task.id}`} className="ml-auto grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
+                      <button type="button" aria-label={t("board.actionsFor", { id: task.id })} className="ml-auto grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
                         <MoreHorizontal className="size-4" />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> Edit<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> {t("board.edit")}<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
                       <DropdownMenuSub>
-                        <DropdownMenuSubTrigger><StatusIcon status={displayStatus(task)} /> Status<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
+                        <DropdownMenuSubTrigger><StatusIcon status={displayStatus(task)} /> {t("board.status")}<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
                         <DropdownMenuSubContent>
                           {statusDefs.map((d) => (
                             <DropdownMenuItem key={d.id} disabled={d.id === displayStatus(task)} onSelect={() => onMove(task.id, d.id)}>
-                              <StatusIcon status={d.id} /> {d.label}
+                              <StatusIcon status={d.id} /> {statusLabel(d.id)}
                             </DropdownMenuItem>
                           ))}
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
-                      <DropdownMenuItem onSelect={chatAbout}><MessageSquare /> Chat about task<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
+                      <DropdownMenuItem onSelect={chatAbout}><MessageSquare /> {t("board.chatAboutTask")}<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> Delete<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
+                      <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> {t("board.delete")}<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
               }
-              properties={taskProperties(task)}
+              properties={taskProperties(task, t)}
             />
 
             {error && <p role="alert" className="px-5 py-2 text-xs text-danger border-b border-border">{error}</p>}
@@ -141,23 +146,23 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                   onClick={() => { onMove(task.id, s); onClose() }}
                   className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
                 >
-                  <StatusIcon status={s as Task["status"]} className="size-3" /> {STATUS_LABELS[s] || s}
+                  <StatusIcon status={s as Task["status"]} className="size-3" /> {STATUS_LABELS[s] ? t(STATUS_LABELS[s]) : s}
                 </button>
               ))}
               {(task.status === "review" || task.status === "done") && (
                 <button
                   onClick={() => verifyTask(task.id)}
-                  title="An agent checks the change against the acceptance criteria and reports findings here"
+                  title={t("board.verifyPanelTitle")}
                   className="ml-auto inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
                 >
-                  <ScanSearch className="size-3.5" /> Verify
+                  <ScanSearch className="size-3.5" /> {t("board.verify")}
                 </button>
               )}
               <button
                 onClick={() => { onClose(); showAbout({ kind: "task", id: task.id }) }}
                 className={cn(task.status !== "review" && task.status !== "done" && "ml-auto", " inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110")}
               >
-                <MessageSquare className="size-3.5" /> {chat ? "Open chat" : "Chat about task"}
+                <MessageSquare className="size-3.5" /> {chat ? t("board.openChat") : t("board.chatAboutTask")}
               </button>
             </div>}
 
@@ -168,7 +173,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                 onDone={onClose}
                 prompt={latestReview(task.raw ?? "")?.outcome === "auto fix limit reached" ? (
                   <p className="text-xs text-danger">
-                    <span className="font-medium">Needs a human.</span> The agent couldn&apos;t make the test pass after {latestReview(task.raw ?? "")?.attempts} automatic fixes. Fix it, change the test, or send it back with a note.
+                    <span className="font-medium">{t("board.needsHumanLead")}</span> {t("board.needsHumanBody", { n: latestReview(task.raw ?? "")?.attempts ?? "" })}
                   </p>
                 ) : undefined}
               >
@@ -178,7 +183,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                   onClick={onClose}
                   className="inline-flex items-center gap-1.5 rounded-sm border border-accent/50 bg-accent/15 px-2.5 py-1 text-xs text-txt transition-colors hover:bg-accent/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
-                  Open evidence →
+                  {t("board.openEvidence")}
                 </Link>
               </ReviewActions>
             )}
@@ -189,10 +194,10 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                 {task.raw ? (
                   <MarkdownRenderer content={bodyOf(task.raw)} />
                 ) : (
-                  <p className="text-sm text-muted">No content available.</p>
+                  <p className="text-sm text-muted">{t("board.noContent")}</p>
                 )}
               </div>
-              <section aria-label="Activity" className="border-t border-border">
+              <section aria-label={t("shell.activity")} className="border-t border-border">
                 {task.manualTests && (
                   <Link
                     href={`/manual-tests#${task.id}`}
@@ -203,11 +208,11 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
                     <span className={cn("font-mono", task.manualTests.done === task.manualTests.total && "text-teal")}>
                       {task.manualTests.done}/{task.manualTests.total}
                     </span>
-                    manual tests ticked
+                    {t("board.manualTestsTicked")}
                     {task.manualTests.auto > 0 && (
-                      <span className="inline-flex items-center gap-1"><span aria-hidden>·</span><Bot className="size-3.5" aria-hidden /><span className="font-mono">{task.manualTests.auto}</span> automated</span>
+                      <span className="inline-flex items-center gap-1"><span aria-hidden>·</span><Bot className="size-3.5" aria-hidden /><span className="font-mono">{task.manualTests.auto}</span> {t("board.automated")}</span>
                     )}
-                    <span className="ml-auto text-accent opacity-0 transition-opacity group-hover:opacity-100">Open checklist →</span>
+                    <span className="ml-auto text-accent opacity-0 transition-opacity group-hover:opacity-100">{t("board.openChecklist")}</span>
                   </Link>
                 )}
                 {task.manualTests && (task.manualTests.spec || task.manualTests.autoRun) && (
@@ -240,6 +245,7 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
 
 /** "Spec: `path` · last run passed 2026-10-04" (R058). The spec lives in the target repo, so the path is copied, not linked. */
 function AutoTestsLine({ spec, autoRun }: { spec: string | null; autoRun: AutoRun | null }) {
+  const { t } = useT()
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     if (!spec) return
@@ -255,22 +261,22 @@ function AutoTestsLine({ spec, autoRun }: { spec: string | null; autoRun: AutoRu
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-5 py-2 border-b border-border text-xs text-muted">
       {spec && (
         <span className="inline-flex min-w-0 items-center gap-1">
-          Spec: <code className="select-all truncate font-mono text-txt">{spec}</code>
+          {t("board.spec")} <code className="select-all truncate font-mono text-txt">{spec}</code>
           <button
             type="button"
             onClick={copy}
-            aria-label={copied ? "Copied" : `Copy ${spec}`}
+            aria-label={copied ? t("board.copied") : t("board.copyPath", { path: spec })}
             className="rounded-sm p-1 hover:bg-surface2 hover:text-txt focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
           >
             {copied ? <Check className="size-3" aria-hidden /> : <Copy className="size-3" aria-hidden />}
           </button>
-          <span className="sr-only" role="status">{copied ? "Copied to clipboard" : ""}</span>
+          <span className="sr-only" role="status">{copied ? t("board.copiedToClipboard") : ""}</span>
         </span>
       )}
       {spec && autoRun && <span aria-hidden>·</span>}
       {autoRun && (
         <span>
-          last run <span className={cn("font-mono", autoRun.result === "failed" ? "text-danger" : "text-teal")}>{autoRun.result}</span>{" "}
+          {t("board.lastRun")} <span className={cn("font-mono", autoRun.result === "failed" ? "text-danger" : "text-teal")}>{autoRun.result === "failed" ? t("board.runFailed") : t("board.runPassed")}</span>{" "}
           <span className="font-mono">{autoRun.date}</span>
         </span>
       )}
@@ -305,17 +311,17 @@ function bodyOf(raw: string): string {
 }
 
 /** Status · owner · due · size · epic, in the shared header grid. */
-function taskProperties(task: Task): ItemProperty[] {
+function taskProperties(task: Task, t: (key: MessageKey) => string): ItemProperty[] {
   const epic = task.phase && task.phase !== "—" ? epicOf(task.phase) : null
   return [
-    { label: "Status", icon: CircleDashed, value: <TaskStatusField task={task} chip /> },
-    { label: "Priority", icon: Flag, value: <TaskPriorityField task={task} /> },
-    { label: "Owner", icon: User, value: <TaskOwnerField task={task} /> },
-    { label: "Due", icon: Calendar, value: <TaskDueField task={task}>{task.due ? <DueChip due={task.due} state={dueState(task.due, task.status === "done" ? "done" : "planned", localToday())} /> : <span className="text-muted">—</span>}</TaskDueField> },
-    { label: "Size", icon: Ruler, value: <TaskSizeField task={task} /> },
-    { label: "Epic", icon: MapIcon, value: epic && <span className="flex min-w-0 items-center gap-1.5">{epic.id && <span className="font-mono text-[11px] text-muted">{epic.id}</span>}<span className="truncate">{epic.title}</span></span> },
+    { label: t("board.status"), id: "status", icon: CircleDashed, value: <TaskStatusField task={task} chip /> },
+    { label: t("board.priority"), id: "priority", icon: Flag, value: <TaskPriorityField task={task} /> },
+    { label: t("board.owner"), id: "owner", icon: User, value: <TaskOwnerField task={task} /> },
+    { label: t("board.due"), id: "due", icon: Calendar, value: <TaskDueField task={task}>{task.due ? <DueChip due={task.due} state={dueState(task.due, task.status === "done" ? "done" : "planned", localToday())} /> : <span className="text-muted">—</span>}</TaskDueField> },
+    { label: t("board.size"), id: "size", icon: Ruler, value: <TaskSizeField task={task} /> },
+    { label: t("board.epic"), id: "epic", icon: MapIcon, value: epic && <span className="flex min-w-0 items-center gap-1.5">{epic.id && <span className="font-mono text-[11px] text-muted">{epic.id}</span>}<span className="truncate">{epic.title}</span></span> },
     // R068: the epic scenarios this task covers (read-only; edit the **Covers:** line)
-    ...(task.covers?.length ? [{ label: "Covers", icon: ListChecks, value: (
+    ...(task.covers?.length ? [{ label: t("board.covers"), id: "covers", icon: ListChecks, value: (
       <span className="flex flex-wrap gap-1">{task.covers.map((id) => <span key={id} className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted">{id}</span>)}</span>
     ) }] : []),
   ]
@@ -333,6 +339,7 @@ function TaskEditForm({ task, rootParam, onDone }: { task: Task; rootParam: stri
   const [due, setDue] = useState(task.due ?? "")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { t } = useT()
   const orDash = (v: string) => (v.trim() === "—" ? "" : v.trim())
 
   async function save() {
@@ -361,31 +368,31 @@ function TaskEditForm({ task, rootParam, onDone }: { task: Task; rootParam: stri
       className="flex flex-col gap-3 px-5 py-4 border-b border-border shrink-0 bg-surface2/40"
     >
       <label className="flex flex-col gap-1 text-xs text-muted">
-        Title
+        {t("board.title")}
         <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} className={FIELD} />
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1 text-xs text-muted">
-          Size
+          {t("board.size")}
           <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="S / M / L" className={FIELD} />
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted">
-          Due
+          {t("board.due")}
           <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={cn(FIELD, "scheme-light dark:scheme-dark")} />
         </label>
       </div>
       <label className="flex flex-col gap-1 text-xs text-muted">
-        Epic / phase
-        <input value={phase} onChange={(e) => setPhase(e.target.value)} placeholder="R054 — Item actions" className={FIELD} />
+        {t("board.epicPhase")}
+        <input value={phase} onChange={(e) => setPhase(e.target.value)} placeholder={t("board.epicPhasePlaceholder")} className={FIELD} />
       </label>
       <label className="flex flex-col gap-1 text-xs text-muted">
-        Depends on
+        {t("board.dependsOn")}
         <input value={dependsOn} onChange={(e) => setDependsOn(e.target.value)} placeholder="T001, T002" className={cn(FIELD, "font-mono")} />
       </label>
       {error && <p role="alert" className="text-xs text-danger">{error}</p>}
       <div className="flex items-center gap-2">
-        <button type="submit" disabled={busy} className="text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110 disabled:opacity-40">Save</button>
-        <button type="button" onClick={onDone} disabled={busy} className="text-xs text-muted hover:text-txt">Cancel</button>
+        <button type="submit" disabled={busy} className="text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110 disabled:opacity-40">{t("board.save")}</button>
+        <button type="button" onClick={onDone} disabled={busy} className="text-xs text-muted hover:text-txt">{t("board.cancel")}</button>
       </div>
     </form>
   )
@@ -416,6 +423,7 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
   confirmApprove?: string | null
 }) {
   const { rootParam } = useApp()
+  const { t } = useT()
   const [sendingBack, setSendingBack] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [note, setNote] = useState(initialNote)
@@ -433,8 +441,8 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: taskId, action, note, ...(runId ? { runId } : {}), ...(action === "send-back" && flagged ? { marks } : {}) }),
       })
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Request failed (${res.status})`)
-      toast(action === "approve" ? `Approved ${taskId} → done` : `Sent back ${taskId} → todo`)
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? t("board.requestFailed", { status: res.status }))
+      toast(action === "approve" ? t("board.approvedToast", { id: taskId }) : t("board.sentBackToast", { id: taskId }))
       setSendingBack(false)
       setNote(initialNote)
       setBusy(false)
@@ -447,7 +455,7 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
 
   return (
     <div className={cn("flex flex-col gap-2 px-5 py-3 border-b border-border shrink-0 bg-accent/5", className)}>
-      {prompt ?? <p className="text-xs text-muted">Waiting for your review. Approving moves it to done; sending it back returns it to the queue with your note.</p>}
+      {prompt ?? <p className="text-xs text-muted">{t("board.waitingReview")}</p>}
       {sendingBack ? (
         <div className="flex flex-col gap-2 animate-fade-in">
           {marksList}
@@ -456,8 +464,8 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={initialNote ? Math.min(6, initialNote.split("\n").length + 1) : 3}
-            placeholder={flagged ? "Anything to add? The flagged steps above are sent either way." : "What needs to change? The agent reads this first."}
-            aria-label="Send back note"
+            placeholder={flagged ? t("board.notePlaceholderFlagged") : t("board.notePlaceholder")}
+            aria-label={t("board.sendBackNote")}
             className="w-full resize-y rounded-md border border-border bg-bg px-2.5 py-2 text-sm text-txt placeholder:text-muted focus:border-accent/60 focus:outline-hidden"
           />
           <div className="flex flex-wrap items-center gap-2">
@@ -466,10 +474,10 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
               disabled={busy || (!note.trim() && !flagged)}
               className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-amber/15 border border-amber/40 text-amber transition-colors hover:bg-amber/25 disabled:opacity-40"
             >
-              <CornerUpLeft className="size-3.5" aria-hidden /> {busy ? "Sending back…" : "Send back"}
+              <CornerUpLeft className="size-3.5" aria-hidden /> {busy ? t("board.sendingBack") : t("board.sendBack")}
             </button>
-            <button onClick={() => { setSendingBack(false); setNote(initialNote) }} disabled={busy} className="text-xs text-muted hover:text-txt">Cancel</button>
-            <span className="text-[11px] text-muted">Moves it to todo with this note; the agent reads it first.</span>
+            <button onClick={() => { setSendingBack(false); setNote(initialNote) }} disabled={busy} className="text-xs text-muted hover:text-txt">{t("board.cancel")}</button>
+            <span className="text-[11px] text-muted">{t("board.sendBackHint")}</span>
           </div>
         </div>
       ) : (
@@ -477,8 +485,8 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
           {canApprove && confirming && (
             <span role="alert" className="flex flex-wrap items-center gap-2 text-xs text-amber">
               {confirmApprove}
-              <button onClick={() => act("approve")} disabled={busy} className="rounded-sm border border-teal/40 bg-teal/15 px-2 py-0.5 text-teal hover:bg-teal/25">Approve anyway</button>
-              <button onClick={() => setConfirming(false)} className="text-muted hover:text-txt">Cancel</button>
+              <button onClick={() => act("approve")} disabled={busy} className="rounded-sm border border-teal/40 bg-teal/15 px-2 py-0.5 text-teal hover:bg-teal/25">{t("board.approveAnyway")}</button>
+              <button onClick={() => setConfirming(false)} className="text-muted hover:text-txt">{t("board.cancel")}</button>
             </span>
           )}
           {canApprove && !confirming && (
@@ -488,7 +496,7 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
               disabled={busy}
               className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-teal/15 border border-teal/40 text-teal transition-colors hover:bg-teal/25 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              <Check className="size-3.5" aria-hidden /> Approve
+              <Check className="size-3.5" aria-hidden /> {t("board.approve")}
             </button>
           )}
           <button
@@ -500,7 +508,7 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
               canApprove ? "bg-surface2 border-border text-muted hover:text-txt hover:border-border2" : "bg-amber/15 border-amber/40 text-amber hover:bg-amber/25",
             )}
           >
-            <CornerUpLeft className="size-3.5" aria-hidden /> {canApprove ? "Send back…" : "Send back to agent…"}
+            <CornerUpLeft className="size-3.5" aria-hidden /> {canApprove ? t("board.sendBackEllipsis") : t("board.sendBackToAgent")}
           </button>
           {children}
         </div>
@@ -511,10 +519,12 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
 }
 
 const SEVERITY_STYLE = { critical: "text-danger", major: "text-amber", minor: "text-muted" } as const
+const SEVERITY_KEY = { critical: "board.sevCritical", major: "board.sevMajor", minor: "board.sevMinor" } as const
 
 /** R067: what an agent found the task gets wrong against what was asked, grouped by severity. */
 function VerificationBlock({ taskId, verification: v, canSendBack, onSent }: { taskId: string; verification: Verification; canSendBack: boolean; onSent: () => void }) {
   const { rootParam } = useApp()
+  const { t, tn } = useT()
   // critical + major start checked: those are the ones worth a fix request
   const [picked, setPicked] = useState(() => new Set(v.findings.flatMap((f, i) => (f.severity === "minor" ? [] : [i]))))
   const [busy, setBusy] = useState(false)
@@ -532,8 +542,8 @@ function VerificationBlock({ taskId, verification: v, canSendBack, onSent }: { t
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: taskId, action: "send-back", note }),
       })
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Request failed (${res.status})`)
-      toast(`Sent back ${taskId} → todo with ${picked.size} ${picked.size === 1 ? "finding" : "findings"}`)
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? t("board.requestFailed", { status: res.status }))
+      toast(tn("board.sentBackFindings", picked.size, { id: taskId }))
       onSent()
     } catch (e) {
       setError((e as Error).message)
@@ -542,20 +552,20 @@ function VerificationBlock({ taskId, verification: v, canSendBack, onSent }: { t
   }
 
   return (
-    <section aria-label="Verification" className="flex flex-col gap-2 px-5 py-3 border-b border-border shrink-0">
+    <section aria-label={t("board.verification")} className="flex flex-col gap-2 px-5 py-3 border-b border-border shrink-0">
       <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted">
-        Verification
+        {t("board.verification")}
         <span className="normal-case tracking-normal">{v.at} · {v.by}{v.sha ? ` · at ${v.sha}` : ""}</span>
-        {v.outdated && <span className="normal-case tracking-normal text-amber">outdated — re-verify</span>}
+        {v.outdated && <span className="normal-case tracking-normal text-amber">{t("board.outdated")}</span>}
       </p>
-      {!v.findings.length && <p className="text-xs text-teal">Verified: nothing found.</p>}
+      {!v.findings.length && <p className="text-xs text-teal">{t("board.verifiedNothing")}</p>}
       <div className={cn("flex flex-col gap-2", v.outdated && "opacity-60")}>
         {SEVERITIES.map((sev) => {
           const rows = v.findings.map((f, i) => ({ f, i })).filter(({ f }) => f.severity === sev)
           if (!rows.length) return null
           return (
             <div key={sev} className="flex flex-col gap-1">
-              <p className={cn("text-xs font-medium capitalize", v.outdated ? "text-muted" : SEVERITY_STYLE[sev])}>{sev} · {rows.length}</p>
+              <p className={cn("text-xs font-medium capitalize", v.outdated ? "text-muted" : SEVERITY_STYLE[sev])}>{t(SEVERITY_KEY[sev])} · {rows.length}</p>
               <ul className="flex flex-col gap-1.5">
                 {rows.map(({ f, i }) => (
                   <li key={i} className="flex items-start gap-2 text-xs">
@@ -564,7 +574,7 @@ function VerificationBlock({ taskId, verification: v, canSendBack, onSent }: { t
                         type="checkbox"
                         checked={picked.has(i)}
                         onChange={() => toggle(i)}
-                        aria-label={`Send back: ${f.criterion}`}
+                        aria-label={t("board.sendBackCriterion", { criterion: f.criterion })}
                         className="mt-0.5 size-3.5 shrink-0 accent-[rgb(var(--rgb-accent))]"
                       />
                     )}
@@ -587,7 +597,7 @@ function VerificationBlock({ taskId, verification: v, canSendBack, onSent }: { t
             disabled={busy || !picked.size}
             className="inline-flex items-center gap-1.5 rounded-sm border border-amber/40 bg-amber/5 px-2.5 py-1 text-xs text-amber transition-colors hover:bg-amber/10 disabled:opacity-50"
           >
-            <CornerUpLeft className="size-3.5" aria-hidden /> Send back {picked.size} {picked.size === 1 ? "finding" : "findings"}
+            <CornerUpLeft className="size-3.5" aria-hidden /> {tn("board.sendBackFindings", picked.size)}
           </button>
           {error && <p role="alert" className="text-xs text-danger">{error}</p>}
         </div>
@@ -598,19 +608,20 @@ function VerificationBlock({ taskId, verification: v, canSendBack, onSent }: { t
 
 /** Past review outcomes, newest first. */
 function ReviewHistory({ entries }: { entries: ReviewEntry[] }) {
+  const { t } = useT()
   if (!entries.length) return null
   return (
     <div className="flex flex-col gap-2 px-5 py-3 border-b border-border shrink-0">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-muted">Review history</p>
+      <p className="font-mono text-[10px] uppercase tracking-widest text-muted">{t("board.reviewHistory")}</p>
       <ul className="flex flex-col gap-2">
         {[...entries].reverse().map((e, i) => (
           <li key={i} className="flex flex-col gap-0.5">
             <span className="flex items-center gap-2 text-xs">
               <span className={cn("font-medium", e.outcome === "approved" || e.outcome === "auto run passed" ? "text-teal" : e.outcome === "auto fix limit reached" ? "text-danger" : "text-amber")}>
-                {e.outcome === "approved" ? "Approved"
-                  : e.outcome === "auto run passed" ? "Run passed"
-                  : e.outcome === "auto fix limit reached" ? `Needs a human · ${e.attempts ?? ""} auto fixes failed`
-                  : e.auto ? "Changes requested (auto)" : "Changes requested"}
+                {e.outcome === "approved" ? t("board.outApproved")
+                  : e.outcome === "auto run passed" ? t("board.outRunPassed")
+                  : e.outcome === "auto fix limit reached" ? t("board.outNeedsHuman", { n: e.attempts ?? "" })
+                  : e.auto ? t("board.outChangesAuto") : t("board.outChanges")}
               </span>
               <span className="font-mono text-[10px] text-muted">{e.at.replace("T", " ").replace(/:\d\dZ$/, "Z")}</span>
             </span>

@@ -23,7 +23,7 @@ assert.equal(pageForKey('t'), '/manual-tests')
 assert.equal(pageForKey('s'), '/settings')
 assert.equal(pageForKey('g'), '/chat')
 assert.equal(pageForKey('l'), '/graph')
-assert.equal(pageTitle('/graph'), 'Graph')
+assert.equal(pageTitle('/graph'), 'shell.graph')
 assert.equal(shortcutFor('/setup'), undefined)
 // Keys the global handler already uses for something else
 for (const k of ['c', '/', '?']) assert.equal(pageForKey(k), undefined, `page key ${k} clashes`)
@@ -36,11 +36,11 @@ assert.equal(itemActionForKey('E'), 'edit')
 assert.equal(itemActionForKey('e'), undefined, 'bare e stays Explorer')
 assert.equal(itemActionForKey('Delete'), 'remove')
 assert.equal(itemActionForKey('Backspace'), 'remove')
-assert.equal(pageTitle('/chat'), 'Chats')
+assert.equal(pageTitle('/chat'), 'shell.chats')
 // g and c read differently in the help sheet
-assert.equal(PAGE_SHORTCUTS.find((s) => s.key === 'g')?.help, 'Chats page')
-assert.equal(OTHER_SHORTCUTS.find((s) => s.key === 'c')?.label, 'Open next chat')
-assert.equal(pageTitle('/docs/some/path'), 'Docs')
+assert.equal(PAGE_SHORTCUTS.find((s) => s.key === 'g')?.help, 'help.chatsPage')
+assert.equal(OTHER_SHORTCUTS.find((s) => s.key === 'c')?.label, 'help.openNextChat')
+assert.equal(pageTitle('/docs/some/path'), 'shell.docs')
 // graph node keys never shadow a page jump
 assert.equal(pageForKey('o'), undefined, 'o opens the focused graph node')
 // the help sheet's Graph section lists every graph key, from the same list as the selected-file card
@@ -83,9 +83,20 @@ for (const [href, help] of Object.entries(PAGE_HELP)) {
 }
 for (const { key } of GLOBAL_HELP_KEYS) assert.ok(allKeys.has(key), `global ${key} missing from the full list`)
 for (const href of ['/board', '/roadmap', '/docs', '/graph', '/manual-tests']) assert.ok(PAGE_HELP[href], `${href} needs help`)
-assert.equal(helpFor('/manual-tests')?.title, 'Test review')
-assert.equal(helpFor('/docs/architecture/HLD.md')?.title, 'Docs')
+assert.equal(helpFor('/manual-tests')?.title, 'tests.title')
+assert.equal(helpFor('/docs/architecture/HLD.md')?.title, 'shell.docs')
 assert.equal(helpFor('/settings'), null)
 assert.equal(helpFor('/boardx'), null)
+
+// Every text is a message key that exists in English (types catch typos in the app; this catches them here too)
+const areas = Object.fromEntries(await Promise.all(['shell', 'board', 'docs', 'tests', 'help'].map(async (a) => [a, (await import(`../i18n/${a}.ts`)).en])))
+const texts = [
+  ...PAGE_SHORTCUTS.flatMap((p) => [p.label, p.help]), ...SHORTCUT_SECTIONS.flatMap((s) => [s.title, ...s.rows.map((r) => r.description)]),
+  ...Object.values(PAGE_HELP).flatMap((h) => [h.title, ...h.keys.map((k) => k.label), ...h.tips]), ...GLOBAL_HELP_KEYS.map((k) => k.label),
+].filter((x): x is string => !!x)
+for (const k of texts) {
+  const [area, key] = k.split('.')
+  assert.ok(areas[area]?.[key], `${k} is not a message`)
+}
 
 console.log('shortcuts.check: ok')

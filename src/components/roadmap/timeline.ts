@@ -7,16 +7,9 @@ export const LANE_ROW_H = 44
 const LABEL_W = 180 // horizontal room a marker's label needs before the next one fits on the same row
 const MIN_MONTHS = 6
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
 // Dates are "YYYY-MM-DD" calendar dates — parsed by hand, never via new Date(string) (UTC shift).
 const ymd = (d: string) => ({ y: +d.slice(0, 4), m: +d.slice(5, 7), day: +d.slice(8, 10) })
 const daysIn = (y: number, m: number) => new Date(y, m, 0).getDate()
-
-export function formatDay(d: string): string {
-  const { m, day } = ymd(d)
-  return `${day} ${MONTHS[m - 1]}`
-}
 
 export interface TimelineMarker { item: RoadmapItem; x: number; row: number; state: DueState | null; horizon: boolean }
 export interface TimelineLane { item: RoadmapItem; rows: number; markers: TimelineMarker[] }
@@ -28,7 +21,8 @@ export interface Timeline {
   undated: RoadmapItem[]
 }
 
-export function buildTimeline(items: RoadmapItem[], today: string): Timeline {
+/** `monthName` labels the axis in the UI language (useFormat().month). */
+export function buildTimeline(items: RoadmapItem[], today: string, monthName: (m: number) => string): Timeline {
   const dues = items.map((i) => i.due).filter((d): d is string => !!d)
   const first = ymd([today, ...dues].sort()[0])
   const last = ymd([today, ...dues].sort().at(-1) ?? today)
@@ -40,7 +34,7 @@ export function buildTimeline(items: RoadmapItem[], today: string): Timeline {
     const t = start.y * 12 + (start.m - 1) + i
     const y = Math.floor(t / 12)
     const m = (t % 12) + 1
-    return { y, m, label: m === 1 || i === 0 ? `${MONTHS[m - 1]} ${y}` : MONTHS[m - 1], x: i * MONTH_W }
+    return { y, m, label: m === 1 || i === 0 ? `${monthName(m)} ${y}` : monthName(m), x: i * MONTH_W }
   })
 
   const xOf = (d: string) => {

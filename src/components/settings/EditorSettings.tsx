@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils"
 import type { AppSettings } from "@/lib/settings"
+import { useT } from "@/context/LanguageContext"
 
 interface EditorSettingsProps {
   settings: AppSettings
@@ -9,19 +10,20 @@ interface EditorSettingsProps {
 }
 
 const AUTO_SAVE_OPTIONS = [
-  { value: 0, label: "Off" },
-  { value: 5, label: "5 seconds" },
-  { value: 10, label: "10 seconds" },
-  { value: 30, label: "30 seconds" },
+  { value: 0 },
+  { value: 5 },
+  { value: 10 },
+  { value: 30 },
 ]
 
 const PREVIEW_MODES = [
-  { id: "split", label: "Split View" },
-  { id: "tab", label: "Tab View" },
-  { id: "preview", label: "Preview Only" },
+  { id: "split", label: "settings.splitView" },
+  { id: "tab", label: "settings.tabView" },
+  { id: "preview", label: "settings.previewOnly" },
 ] as const
 
 export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
+  const { t } = useT()
   const updateEditor = (key: keyof AppSettings["editor"], value: unknown) => {
     onSave({
       ...settings,
@@ -32,13 +34,13 @@ export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-semibold text-txt mb-1">Editor</h2>
-        <p className="text-sm text-muted">Configure the markdown editor behavior.</p>
+        <h2 className="text-xl font-semibold text-txt mb-1">{t("settings.tabEditor")}</h2>
+        <p className="text-sm text-muted">{t("settings.editorHint")}</p>
       </div>
 
       {/* Auto-save */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-txt">Auto-save</label>
+        <label className="block text-sm font-medium text-txt">{t("settings.autoSave")}</label>
         <div className="flex flex-wrap gap-2">
           {AUTO_SAVE_OPTIONS.map(option => {
             const isActive = settings.editor.autoSave === option.value
@@ -53,7 +55,7 @@ export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
                     : "border-border text-muted hover:border-accent/50"
                 )}
               >
-                {option.label}
+                {option.value ? t("settings.seconds", { n: option.value }) : t("settings.off")}
               </button>
             )
           })}
@@ -62,7 +64,7 @@ export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
 
       {/* Preview Mode */}
       <div className="space-y-3">
-        <label className="block text-sm font-medium text-txt">Preview Mode</label>
+        <label className="block text-sm font-medium text-txt">{t("settings.previewMode")}</label>
         <div className="flex flex-wrap gap-2">
           {PREVIEW_MODES.map(mode => {
             const isActive = settings.editor.previewMode === mode.id
@@ -77,7 +79,7 @@ export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
                     : "border-border text-muted hover:border-accent/50"
                 )}
               >
-                {mode.label}
+                {t(mode.label)}
               </button>
             )
           })}
@@ -88,8 +90,8 @@ export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm font-medium text-txt">Word Wrap</div>
-            <div className="text-xs text-muted">Wrap long lines in the editor</div>
+            <div className="text-sm font-medium text-txt">{t("settings.wordWrap")}</div>
+            <div className="text-xs text-muted">{t("settings.wordWrapHint")}</div>
           </div>
           <button
             onClick={() => updateEditor("wordWrap", !settings.editor.wordWrap)}
@@ -109,8 +111,8 @@ export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
 
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm font-medium text-txt">Line Numbers</div>
-            <div className="text-xs text-muted">Show line numbers in the editor</div>
+            <div className="text-sm font-medium text-txt">{t("settings.lineNumbers")}</div>
+            <div className="text-xs text-muted">{t("settings.lineNumbersHint")}</div>
           </div>
           <button
             onClick={() => updateEditor("lineNumbers", !settings.editor.lineNumbers)}

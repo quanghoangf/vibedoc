@@ -3,6 +3,7 @@
 import { resolveStatus, statusDefs } from "@/lib/statuses"
 import { getStatusDefs, setStatusDefs } from "@/components/shared/status-defs"
 import { toast } from "@/components/ui/toast"
+import { tNow } from "@/context/LanguageContext"
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { flushSync } from "react-dom"
 import { useRouter } from "next/navigation"
@@ -195,9 +196,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ taskId, status, actor: "human" }),
       })
-      if (!res.ok) toast(`Could not move ${taskId}: ${(await res.json().catch(() => null))?.error ?? res.status}`)
+      if (!res.ok) toast(tNow("help.couldNotMove", { id: taskId, error: String((await res.json().catch(() => null))?.error ?? res.status) }))
     } catch {
-      toast(`Could not move ${taskId}: the server is not reachable`)
+      toast(tNow("help.couldNotMoveOffline", { id: taskId }))
     }
     refresh() // real state (also reverts a failed move)
   }, [demo, rootParam, refresh])
@@ -220,7 +221,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`)
     } catch (e) {
-      toast(`Could not update ${taskId}: ${(e as Error).message}`)
+      toast(tNow("help.couldNotUpdate", { id: taskId, error: (e as Error).message }))
       refresh() // roll back to the files
     }
   }, [demo, rootParam, refresh])

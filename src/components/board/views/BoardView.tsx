@@ -4,11 +4,13 @@ import { useState, type ReactNode } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Task, TaskStatus } from "@/types"
-import { groupTasks, type PropertyKey, type TaskGroup, type ViewState } from "@/lib/board-views"
+import { type PropertyKey, type TaskGroup, type ViewState } from "@/lib/board-views"
 import { StatusIcon, useStatusLabel } from "@/components/shared/StatusIcon"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
 import { TaskCard } from "../TaskCard"
+import { useTaskGroups } from "./useTaskGroups"
+import { useT } from "@/context/LanguageContext"
 
 export interface ViewProps {
   tasks: Task[]
@@ -51,6 +53,8 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
   const [doneOpen, setDoneOpen] = useState(false)
   const defs = useStatusDefs()
   const label = useStatusLabel()
+  const groupTasks = useTaskGroups()
+  const { t } = useT()
   // The project's statuses in its order; cancelled shows inside Done. Paused and Done sit collapsed until opened.
   const COLUMNS: Column[] = defs.filter((d) => d.id !== "cancelled").map((d) => d.id)
   const MOBILE_ORDER: Column[] = [...defs.filter((d) => d.id !== "cancelled")]
@@ -64,8 +68,8 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
   if (tasks.length === 0) {
     return (
       <div className="grid place-items-center rounded-lg border border-dashed border-border px-4 py-12 text-center">
-        <p className="text-sm font-medium text-txt">No tasks match these filters.</p>
-        <p className="mt-1 text-xs text-muted">Remove a filter or clear the search to see more.</p>
+        <p className="text-sm font-medium text-txt">{t("board.noMatch")}</p>
+        <p className="mt-1 text-xs text-muted">{t("board.noMatchHint")}</p>
       </div>
     )
   }
@@ -88,7 +92,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
   const doneLanes = lanes?.filter((l) => l.tasks.every(isDone)) ?? []
   const hiddenDoneLanes = showAllDoneLanes ? 0 : Math.max(0, doneLanes.length - DONE_LANES)
   const shownLanes = [...openLanes, ...doneLanes.slice(0, doneLanes.length - hiddenDoneLanes)]
-  const laneNoun = state.subGroup === "epic" ? "epics" : "sizes"
+  const lanesDone = state.subGroup === "epic" ? t("board.moreEpicsDone") : t("board.moreSizesDone")
   // Done cards always sit in the Done column: it widens when opened, or when you open a finished lane to see its cards
   const doneWide = doneOpen || doneLanes.some((l) => laneOpen[l.key])
   const toggleDone = () => {
@@ -104,12 +108,12 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
       return (
         <DropCell key={col} status={col} onMoveTask={onMoveTask}>
           {(col === "done" && !doneWide) || (col === "paused" && !pausedOpen) ? (
-            <ColumnSummary tasks={colTasks} noun={col === "done" ? "done" : "paused"} compact={compact} dragging={dragging} onOpenTask={onOpenTask} />
+            <ColumnSummary tasks={colTasks} noun={col === "done" ? t("board.nounDone") : t("board.nounPaused")} compact={compact} dragging={dragging} onOpenTask={onOpenTask} />
           ) : colTasks.length ? (
             (col === "done" ? [...colTasks].sort(newestFirst) : colTasks).map(card)
           ) : compact && !dragging ? null : (
             <div className="grid h-11 place-items-center rounded-lg border border-dashed border-border text-[11px] text-muted/70">
-              {compact ? "" : "Drop a task here"}
+              {compact ? "" : t("board.dropTask")}
             </div>
           )}
         </DropCell>
@@ -137,7 +141,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
                       type="button"
                       onClick={col === "done" ? toggleDone : () => setPausedOpen((v) => !v)}
                       aria-expanded={wide}
-                      aria-label={`${wide ? "Collapse" : "Expand"} ${label(col)}`}
+                      aria-label={t(wide ? "board.collapseName" : "board.expandName", { name: label(col) })}
                       className="-my-1 grid size-6 place-items-center rounded-md text-muted outline-hidden transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent/60"
                     >
                       <ChevronRight className={cn("size-3.5 transition-transform duration-(--duration-base) ease-out-soft", wide && "rotate-180")} aria-hidden />
@@ -172,10 +176,10 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
                     <span className="flex w-30 shrink-0 gap-0.5" aria-hidden>
                       {lane.tasks.map((t) => <span key={t.id} className={cn("h-1 flex-1 rounded-full", MARK[t.status])} />)}
                     </span>
-                    <span className="font-mono text-[11px] text-muted tabular-nums" aria-label={`${doneCount} of ${lane.tasks.length} done`}>
+                    <span className="font-mono text-[11px] text-muted tabular-nums" aria-label={t("board.doneOfTotal", { done: doneCount, total: lane.tasks.length })}>
                       <span className="text-txt">{doneCount}</span>/{lane.tasks.length}
                     </span>
-                    {allDone && <span className="text-xs text-muted">all done</span>}
+                    {allDone && <span className="text-xs text-muted">{t("board.allDone")}</span>}
                   </button>
                   <div className={cn("grid transition-[grid-template-rows,opacity] duration-(--duration-base) ease-out-soft", open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
                     <div className="min-h-0 overflow-hidden" inert={!open}>
@@ -187,13 +191,13 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
             })}
             {hiddenDoneLanes > 0 && (
               <p className="mt-2 ml-9 text-xs text-muted">
-                + <span className="font-mono">{hiddenDoneLanes}</span> more {laneNoun}, all done ·{" "}
+                + <span className="font-mono">{hiddenDoneLanes}</span> {lanesDone} ·{" "}
                 <button
                   type="button"
                   onClick={() => setShowAllDoneLanes(true)}
                   className="rounded-sm text-txt underline decoration-accent underline-offset-2 outline-hidden hover:decoration-txt focus-visible:ring-2 focus-visible:ring-accent/60"
                 >
-                  Show
+                  {t("board.show")}
                 </button>
               </p>
             )}
@@ -203,7 +207,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
 
       {/* Mobile: stacked status sections, no columns */}
       <div className="md:hidden">
-        {tasks.every(isDone) && <p className="mt-3.5 text-sm text-muted">Nothing open. Every task here is done.</p>}
+        {tasks.every(isDone) && <p className="mt-3.5 text-sm text-muted">{t("board.nothingOpen")}</p>}
         {MOBILE_ORDER.map((col) => {
           const colTasks = inColumn(tasks, col)
           if (!colTasks.length) return null
@@ -222,7 +226,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
                     aria-expanded={!collapsed}
                     className="min-h-11 rounded-md px-2 text-xs font-normal text-muted outline-hidden hover:text-txt focus-visible:ring-2 focus-visible:ring-accent/60"
                   >
-                    {collapsed ? "Show" : "Hide"}
+                    {collapsed ? t("board.show") : t("board.hide")}
                   </button>
                 )}
               </h2>
@@ -264,9 +268,10 @@ function DropCell({ status, onMoveTask, header = false, children }: { status: Co
 
 /** Collapsed Done / Paused: the count and the newest few IDs (each opens its task). */
 function ColumnSummary({ tasks, noun, compact, dragging, onOpenTask }: { tasks: Task[]; noun: string; compact: boolean; dragging: boolean; onOpenTask: (task: Task) => void }) {
+  const { t } = useT()
   if (!tasks.length) {
     if (compact && !dragging) return null
-    return <div className="grid h-11 place-items-center rounded-lg border border-dashed border-border text-[11px] text-muted/70">{compact ? "" : "Drop here"}</div>
+    return <div className="grid h-11 place-items-center rounded-lg border border-dashed border-border text-[11px] text-muted/70">{compact ? "" : t("board.dropHere")}</div>
   }
   const newest = [...tasks].sort(newestFirst).slice(0, DONE_IDS)
   return (

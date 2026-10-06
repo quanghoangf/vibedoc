@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, X, Check, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import type { Skill } from "@/lib/settings"
+import { useT } from "@/context/LanguageContext"
 
 interface SkillsSettingsProps {
   skills: Skill[]
@@ -31,6 +32,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
   const [editing, setEditing] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Skill | null>(null)
   const [isNew, setIsNew] = useState(false)
+  const { t } = useT()
 
   const startEdit = (skill: Skill) => {
     setEditing(skill.id)
@@ -71,14 +73,14 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
   }
 
   const deleteSkill = (id: string) => {
-    if (!confirm("Delete this skill?")) return
+    if (!confirm(t("settings.deleteSkillConfirm"))) return
     onSave(skills.filter(s => s.id !== id))
   }
 
   const toggleTool = (tool: string) => {
     if (!editForm) return
     const tools = editForm.tools.includes(tool)
-      ? editForm.tools.filter(t => t !== tool)
+      ? editForm.tools.filter(x => x !== tool)
       : [...editForm.tools, tool]
     setEditForm({ ...editForm, tools })
   }
@@ -87,15 +89,15 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-txt mb-1">Skills</h2>
-          <p className="text-sm text-muted">Reusable capabilities for AI agents.</p>
+          <h2 className="text-xl font-semibold text-txt mb-1">{t("settings.tabSkills")}</h2>
+          <p className="text-sm text-muted">{t("settings.skillsHint")}</p>
         </div>
         <button
           onClick={startNew}
           className="flex items-center gap-2 px-3 py-2 bg-accent text-accent-fg rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Add Skill
+          {t("settings.addSkill")}
         </button>
       </div>
 
@@ -117,7 +119,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                   <Input
                     value={editForm.name}
                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    placeholder="Skill name"
+                    placeholder={t("settings.skillName")}
                     className="bg-surface2"
                   />
                 </div>
@@ -125,13 +127,13 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                 <Input
                   value={editForm.description}
                   onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  placeholder="Description"
+                  placeholder={t("settings.description")}
                   className="bg-surface2"
                 />
 
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="text-xs text-muted mb-1 block">Trigger</label>
+                    <label className="text-xs text-muted mb-1 block">{t("settings.trigger")}</label>
                     <Input
                       value={editForm.trigger}
                       onChange={(e) => setEditForm({ ...editForm, trigger: e.target.value })}
@@ -142,18 +144,18 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted mb-1 block">System Prompt</label>
+                  <label className="text-xs text-muted mb-1 block">{t("settings.systemPrompt")}</label>
                   <textarea
                     value={editForm.prompt}
                     onChange={(e) => setEditForm({ ...editForm, prompt: e.target.value })}
-                    placeholder="Instructions for the AI when this skill is activated..."
+                    placeholder={t("settings.promptPlaceholder")}
                     rows={4}
                     className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm resize-none"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-muted mb-2 block">Available Tools</label>
+                  <label className="text-xs text-muted mb-2 block">{t("settings.availableTools")}</label>
                   <div className="flex flex-wrap gap-2">
                     {AVAILABLE_TOOLS.map(tool => (
                       <button
@@ -177,7 +179,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                     onClick={cancelEdit}
                     className="px-3 py-1.5 text-sm text-muted hover:text-txt transition-colors"
                   >
-                    Cancel
+                    {t("settings.cancel")}
                   </button>
                   <button
                     onClick={saveEdit}
@@ -185,7 +187,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                     className="flex items-center gap-2 px-3 py-1.5 bg-accent text-accent-fg rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
                   >
                     <Check className="w-4 h-4" />
-                    Save
+                    {t("settings.save")}
                   </button>
                 </div>
               </div>
@@ -196,12 +198,12 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-txt">{skill.name}</span>
+                    <span data-user-content className="font-medium text-txt">{skill.name}</span>
                     <code className="text-xs bg-surface2 px-1.5 py-0.5 rounded-sm text-accent">
                       {skill.trigger}
                     </code>
                   </div>
-                  <p className="text-sm text-muted mt-0.5">{skill.description}</p>
+                  <p data-user-content className="text-sm text-muted mt-0.5">{skill.description}</p>
                   {skill.tools.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {skill.tools.map(tool => (
@@ -215,12 +217,14 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => startEdit(skill)}
+                    aria-label={t("settings.editName", { name: skill.name })}
                     className="p-1.5 rounded-sm hover:bg-surface2 text-muted hover:text-txt transition-colors"
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => deleteSkill(skill.id)}
+                    aria-label={t("settings.deleteName", { name: skill.name })}
                     className="p-1.5 rounded-sm hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -247,7 +251,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
               <Input
                 value={editForm.name}
                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                placeholder="Skill name"
+                placeholder={t("settings.skillName")}
                 className="bg-surface2"
               />
             </div>
@@ -255,13 +259,13 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
             <Input
               value={editForm.description}
               onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-              placeholder="Description"
+              placeholder={t("settings.description")}
               className="bg-surface2"
             />
 
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="text-xs text-muted mb-1 block">Trigger</label>
+                <label className="text-xs text-muted mb-1 block">{t("settings.trigger")}</label>
                 <Input
                   value={editForm.trigger}
                   onChange={(e) => setEditForm({ ...editForm, trigger: e.target.value })}
@@ -272,18 +276,18 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
             </div>
 
             <div>
-              <label className="text-xs text-muted mb-1 block">System Prompt</label>
+              <label className="text-xs text-muted mb-1 block">{t("settings.systemPrompt")}</label>
               <textarea
                 value={editForm.prompt}
                 onChange={(e) => setEditForm({ ...editForm, prompt: e.target.value })}
-                placeholder="Instructions for the AI when this skill is activated..."
+                placeholder={t("settings.promptPlaceholder")}
                 rows={4}
                 className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm resize-none"
               />
             </div>
 
             <div>
-              <label className="text-xs text-muted mb-2 block">Available Tools</label>
+              <label className="text-xs text-muted mb-2 block">{t("settings.availableTools")}</label>
               <div className="flex flex-wrap gap-2">
                 {AVAILABLE_TOOLS.map(tool => (
                   <button
@@ -307,7 +311,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                 onClick={cancelEdit}
                 className="px-3 py-1.5 text-sm text-muted hover:text-txt transition-colors"
               >
-                Cancel
+                {t("settings.cancel")}
               </button>
               <button
                 onClick={saveEdit}
@@ -315,7 +319,7 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
                 className="flex items-center gap-2 px-3 py-1.5 bg-accent text-accent-fg rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
-                Save
+                {t("settings.save")}
               </button>
             </div>
           </div>
@@ -324,8 +328,8 @@ export function SkillsSettings({ skills, onSave }: SkillsSettingsProps) {
         {skills.length === 0 && !isNew && (
           <div className="text-center py-8 text-muted">
             <Zap className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No skills configured</p>
-            <p className="text-xs mt-1">Add a skill to give your agents capabilities</p>
+            <p className="text-sm">{t("settings.noSkills")}</p>
+            <p className="text-xs mt-1">{t("settings.noSkillsHint")}</p>
           </div>
         )}
       </div>

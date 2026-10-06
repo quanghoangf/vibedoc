@@ -10,6 +10,7 @@ import type { EditorView } from "@codemirror/view"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { useT } from "@/context/LanguageContext"
 
 interface EditorToolbarProps {
   editorView: EditorView | null
@@ -65,6 +66,7 @@ function ToolBtn({ icon, label, onClick }: ToolBtnProps) {
 
 export function EditorToolbar({ editorView }: EditorToolbarProps) {
   const v = editorView
+  const { t } = useT()
 
   function bold() { if (v) wrapSelection(v, "**", "**") }
   function italic() { if (v) wrapSelection(v, "*", "*") }
@@ -93,22 +95,22 @@ export function EditorToolbar({ editorView }: EditorToolbarProps) {
   return (
     <TooltipProvider delayDuration={300}>
       <div className="flex items-center gap-0.5 overflow-x-auto px-2 py-1 border-b border-border bg-surface shrink-0">
-        <ToolBtn icon={<Bold className="h-3.5 w-3.5" />} label="Bold" onClick={bold} />
-        <ToolBtn icon={<Italic className="h-3.5 w-3.5" />} label="Italic" onClick={italic} />
-        <ToolBtn icon={<Strikethrough className="h-3.5 w-3.5" />} label="Strikethrough" onClick={strike} />
+        <ToolBtn icon={<Bold className="h-3.5 w-3.5" />} label={t("docs.bold")} onClick={bold} />
+        <ToolBtn icon={<Italic className="h-3.5 w-3.5" />} label={t("docs.italic")} onClick={italic} />
+        <ToolBtn icon={<Strikethrough className="h-3.5 w-3.5" />} label={t("docs.strikethrough")} onClick={strike} />
         <Separator orientation="vertical" className="h-4 mx-1" />
-        <ToolBtn icon={<Heading1 className="h-3.5 w-3.5" />} label="Heading 1" onClick={h1} />
-        <ToolBtn icon={<Heading2 className="h-3.5 w-3.5" />} label="Heading 2" onClick={h2} />
-        <ToolBtn icon={<Heading3 className="h-3.5 w-3.5" />} label="Heading 3" onClick={h3} />
+        <ToolBtn icon={<Heading1 className="h-3.5 w-3.5" />} label={t("docs.heading1")} onClick={h1} />
+        <ToolBtn icon={<Heading2 className="h-3.5 w-3.5" />} label={t("docs.heading2")} onClick={h2} />
+        <ToolBtn icon={<Heading3 className="h-3.5 w-3.5" />} label={t("docs.heading3")} onClick={h3} />
         <Separator orientation="vertical" className="h-4 mx-1" />
-        <ToolBtn icon={<Link2 className="h-3.5 w-3.5" />} label="Link" onClick={link} />
-        <ToolBtn icon={<Code className="h-3.5 w-3.5" />} label="Inline code" onClick={inlineCode} />
-        <ToolBtn icon={<Code2 className="h-3.5 w-3.5" />} label="Code block" onClick={codeBlock} />
-        <ToolBtn icon={<Quote className="h-3.5 w-3.5" />} label="Blockquote" onClick={blockquote} />
+        <ToolBtn icon={<Link2 className="h-3.5 w-3.5" />} label={t("docs.link")} onClick={link} />
+        <ToolBtn icon={<Code className="h-3.5 w-3.5" />} label={t("docs.inlineCode")} onClick={inlineCode} />
+        <ToolBtn icon={<Code2 className="h-3.5 w-3.5" />} label={t("docs.codeBlock")} onClick={codeBlock} />
+        <ToolBtn icon={<Quote className="h-3.5 w-3.5" />} label={t("docs.blockquote")} onClick={blockquote} />
         <Separator orientation="vertical" className="h-4 mx-1" />
-        <ToolBtn icon={<Minus className="h-3.5 w-3.5" />} label="Horizontal rule" onClick={hr} />
-        <ToolBtn icon={<List className="h-3.5 w-3.5" />} label="Unordered list" onClick={unorderedList} />
-        <ToolBtn icon={<ListOrdered className="h-3.5 w-3.5" />} label="Ordered list" onClick={orderedList} />
+        <ToolBtn icon={<Minus className="h-3.5 w-3.5" />} label={t("docs.horizontalRule")} onClick={hr} />
+        <ToolBtn icon={<List className="h-3.5 w-3.5" />} label={t("docs.unorderedList")} onClick={unorderedList} />
+        <ToolBtn icon={<ListOrdered className="h-3.5 w-3.5" />} label={t("docs.orderedList")} onClick={orderedList} />
       </div>
     </TooltipProvider>
   )

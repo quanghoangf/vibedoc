@@ -5,6 +5,7 @@ import { Check, Loader2, Square, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { isRunning, type RunState } from "@/lib/test-run-events"
 import { FlakyChip, UnverifiedChip } from "./TestEvidence"
+import { useT } from "@/context/LanguageContext"
 
 const clock = (ms: number) => `${(Math.max(0, ms) / 1000).toFixed(1)}s`
 
@@ -24,6 +25,7 @@ export function RunLive({ run, began, ended, unverified = 0, onStop, onDismiss }
   onDismiss: () => void
 }) {
   const going = isRunning(run)
+  const { t } = useT()
   // The running step's clock ticks; finished steps read their stamped end
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -38,11 +40,11 @@ export function RunLive({ run, began, ended, unverified = 0, onStop, onDismiss }
   const blank = new Set(run.blankPassed ?? [])
   const weak = Math.max(unverified, blank.size)
   const headline = going
-    ? run.state === "starting" ? "Starting the app…" : run.state === "checking" ? "Checking the test is honest…" : `Running · step ${run.steps.length}`
-    : run.state === "passed" ? `Passed · ${passed}/${run.steps.length} steps${weak ? ` · ${weak} unverified` : ""}${run.flaky ? ` · ${run.flaky} flaky` : ""}`
-    : run.state === "failed" ? `Failed${failedStep ? ` at step ${failedStep.index}` : ""}`
-    : run.state === "cancelled" ? "Stopped"
-    : "Couldn’t run the spec"
+    ? run.state === "starting" ? t("board.startingApp") : run.state === "checking" ? t("tests.checkingHonest") : t("tests.runningStep", { n: run.steps.length })
+    : run.state === "passed" ? [t("tests.passedSteps", { passed, total: run.steps.length }), weak && t("tests.unverifiedCount", { n: weak }), run.flaky && t("board.flakyCount", { n: run.flaky })].filter(Boolean).join(" · ")
+    : run.state === "failed" ? (failedStep ? t("tests.failedAt", { n: failedStep.index }) : t("tests.failedPlain"))
+    : run.state === "cancelled" ? t("tests.stopped")
+    : t("tests.couldntRunSpec")
 
   return (
     <div aria-live="polite" className="flex flex-col gap-3">
@@ -56,10 +58,10 @@ export function RunLive({ run, began, ended, unverified = 0, onStop, onDismiss }
         <span className="ml-auto" />
         {going ? onStop && (
           <button type="button" onClick={onStop} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2 text-xs text-txt transition-colors hover:border-danger/50 hover:text-danger focus-visible:outline-2 focus-visible:outline-accent">
-            <Square className="size-3" aria-hidden /> Stop
+            <Square className="size-3" aria-hidden /> {t("board.stop")}
           </button>
         ) : (
-          <button type="button" onClick={onDismiss} aria-label="Dismiss" title="Dismiss" className="inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface2 hover:text-txt focus-visible:outline-2 focus-visible:outline-accent">
+          <button type="button" onClick={onDismiss} aria-label={t("memory.dismiss")} title={t("memory.dismiss")} className="inline-flex size-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface2 hover:text-txt focus-visible:outline-2 focus-visible:outline-accent">
             <X className="size-3.5" aria-hidden />
           </button>
         )}
@@ -69,16 +71,16 @@ export function RunLive({ run, began, ended, unverified = 0, onStop, onDismiss }
         <ol className="flex flex-col">
           {run.steps.map((s) => (
             <li key={s.index} className="grid grid-cols-[1rem_1.5rem_1fr_auto] items-start gap-x-2 py-1 text-sm">
-              {s.status === "running" ? <Loader2 className="mt-0.5 size-4 animate-spin text-accent" aria-label="running" />
-                : s.status === "passed" && s.retried ? <Check className="mt-0.5 size-4 text-amber" strokeWidth={2.5} aria-label="passed on retry" />
-                : s.status === "passed" ? <Check className="mt-0.5 size-4 text-teal" strokeWidth={2.5} aria-label="passed" />
-                : <X className="mt-0.5 size-4 text-danger" strokeWidth={2.5} aria-label="failed" />}
+              {s.status === "running" ? <Loader2 className="mt-0.5 size-4 animate-spin text-accent" aria-label={t("tests.running")} />
+                : s.status === "passed" && s.retried ? <Check className="mt-0.5 size-4 text-amber" strokeWidth={2.5} aria-label={t("tests.passedRetry")} />
+                : s.status === "passed" ? <Check className="mt-0.5 size-4 text-teal" strokeWidth={2.5} aria-label={t("board.runPassed")} />
+                : <X className="mt-0.5 size-4 text-danger" strokeWidth={2.5} aria-label={t("board.runFailed")} />}
               <span className="mt-px font-mono text-[11px] leading-5 text-muted tabular-nums" aria-hidden>{String(s.index).padStart(2, "0")}</span>
               <span className="flex min-w-0 flex-col gap-1">
                 <span className="flex min-w-0 items-start gap-2">
-                  <span className={cn("leading-snug", s.status === "running" ? "text-txt" : "text-txt/90")}>{s.name}</span>
+                  <span data-user-content className={cn("leading-snug", s.status === "running" ? "text-txt" : "text-txt/90")}>{s.name}</span>
                   {s.retried && s.status === "passed" && <FlakyChip />}
-                  {s.retried && s.status !== "passed" && <span className="shrink-0 text-[11px] text-muted">retrying</span>}
+                  {s.retried && s.status !== "passed" && <span className="shrink-0 text-[11px] text-muted">{t("tests.retrying")}</span>}
                   {blank.has(s.name) && <UnverifiedChip reasons={["passes without the app"]} />}
                 </span>
                 {s.error && <span className="font-mono text-xs break-words whitespace-pre-wrap text-danger">{s.error}</span>}

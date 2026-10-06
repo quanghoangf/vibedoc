@@ -21,14 +21,14 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
-import type { RoadmapItem, RoadmapLayout, RoadmapSource, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
+import type { RoadmapItem, RoadmapLayout, RoadmapSource, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 import { pickNextTask } from "@/lib/work-queue"
 import { dueState, localToday, roadmapHealth, taskDueSummary, type RoadmapDrift, type TaskInfo } from "@/lib/roadmap-health"
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { RoadmapTimeline } from "./RoadmapTimeline"
 import { FEATURE_W, HORIZON_W, arrangePositions, resolvePositions } from "./layout"
-import { STATUS_LABEL, StatusDot, nodeTypes, type RoadmapNode } from "./RoadmapNodes"
+import { StatusDot, nodeTypes, useRoadmapStatusLabel, type RoadmapNode } from "./RoadmapNodes"
 import { RoadmapItemSheet } from "./RoadmapItemSheet"
 import { NewItemDialog } from "./NewItemDialog"
 import { PlanFromSpecDialog } from "./PlanFromSpecDialog"
@@ -36,6 +36,9 @@ import { BreakdownEpicsDialog } from "./BreakdownEpicsDialog"
 import { ItemContextMenu, type ContextMenuState, type ItemActions } from "./ItemActionsMenu"
 import { useChats } from "@/context/ChatContext"
 import { undoToast } from "@/components/ui/toast"
+import { tNow, useT } from "@/context/LanguageContext"
+import { useFlowAriaLabels } from "@/components/shared/flow-labels"
+import type { MessageKey } from "@/i18n"
 
 type ApiResult<T> = { data?: T; error?: string }
 
@@ -48,10 +51,36 @@ async function api<T>(url: string, body?: unknown): Promise<ApiResult<T>> {
         : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
     )
     const json = await res.json().catch(() => null)
-    if (!res.ok) return { error: json?.error ?? `Request failed (${res.status})` }
+    if (!res.ok) return { error: json?.error ?? tNow("board.requestFailed", { status: res.status }) }
     return { data: json as T }
   } catch {
-    return { error: "Could not reach the server" }
+    return { error: tNow("roadmap.couldNotReach") }
+  }
+}
+
+type T = (key: MessageKey, vars?: Record<string, string | number>) => string
+
+/** A drift item in the UI language, from its data (the lib's English `message` is for MCP). */
+export function driftText(d: RoadmapDrift, t: T, status: (s: RoadmapStatus) => string): string {
+  const v = d.vars
+  const st = (s: string) => status(s as RoadmapStatus).toLowerCase()
+  switch (d.kind) {
+    case "overdue": return t("roadmap.driftOverdue", v)
+    case "spec-unmerged": return t("roadmap.driftSpecUnmerged", v)
+    case "spec-conflict": return t("roadmap.driftSpecConflict", v)
+    case "missing-task": return t("roadmap.driftMissingTask", v)
+    case "uncovered-scenario": return t("roadmap.driftUncovered", v)
+    case "at-risk": {
+      const risks = (d.risks ?? []).map((r) =>
+        r.why === "task-overdue" ? t("roadmap.riskTaskOverdue", { id: r.id, due: r.due })
+          : r.why === "task-blocked" ? t("roadmap.riskTaskBlocked", { id: r.id })
+            : t("roadmap.riskNothingStarted", { due: r.due }))
+      return t("roadmap.driftAtRisk", { ...v, risks: risks.join("; ") })
+    }
+    case "status-mismatch":
+      return d.variant === "all-done" ? t("roadmap.driftAllDone", { ...v, status: st(v.status) })
+        : d.variant === "horizon" ? t("roadmap.driftHorizon", { ...v, status: st(v.status), expected: st(v.expected) })
+          : t("roadmap.driftNotDone", { ...v, status: st(v.status) })
   }
 }
 
@@ -129,6 +158,9 @@ const FLOW_STYLE = { "--xy-background-color": "var(--color-bg)" } as React.CSSPr
 export function RoadmapTab() {
   const { rootParam, openDoc, board, demo } = useApp()
   const { showAbout } = useChats()
+  const { t } = useT()
+  const statusLabel = useRoadmapStatusLabel()
+  const flowLabels = useFlowAriaLabels()
   const router = useRouter()
   const searchParams = useSearchParams()
   const view = searchParams.get("view") === "timeline" ? "timeline" : "map"
@@ -268,7 +300,7 @@ export function RoadmapTab() {
         data: {
           ...n.data,
           progress: health.progress[n.id],
-          drift: health.drift.filter((d) => d.id === n.id).map((d) => d.message),
+          drift: health.drift.filter((d) => d.id === n.id).map((d) => driftText(d, t, statusLabel)),
           dueState: dueState(item.due, item.status, today),
           ...(n.type === "feature" && {
             ...taskDueFields(item.tasks, tasksById, today),
@@ -282,7 +314,7 @@ export function RoadmapTab() {
         },
       }
     })
-  }, [nodes, items, health, today, tasksById])
+  }, [nodes, items, health, today, tasksById, t, statusLabel])
 
   const onNodesChange = useCallback(
     (changes: NodeChange<RoadmapNode>[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -323,7 +355,7 @@ export function RoadmapTab() {
       requestAnimationFrame(() => { if (rfRef.current) showTop(rfRef.current, 320) })
       api(`/api/roadmap/layout${rootParam}`, { positions: after }).then(({ error: err }) => {
         if (err) return setError(err)
-        undoToast("Arranged the map", async () => {
+        undoToast(t("roadmap.arranged"), async () => {
           const { error: undoErr } = await api(`/api/roadmap/layout${rootParam}`, { positions: previous })
           if (undoErr) throw new Error(undoErr)
           await load()
@@ -369,9 +401,9 @@ export function RoadmapTab() {
 
   const openTaskCount = Object.values(board ?? {}).flat().filter((t) => t.status !== "cancelled").length
   const sourceLabel =
-    generateSource === "roadmap-md" ? "from ROADMAP.md"
-      : generateSource === "tasks" ? `from ${openTaskCount} tasks, grouped by phase`
-        : "starter horizons: Shipped · Now · Next · Later"
+    generateSource === "roadmap-md" ? t("roadmap.sourceRoadmapMd")
+      : generateSource === "tasks" ? t("roadmap.sourceTasks", { n: openTaskCount })
+        : t("roadmap.sourceStarter")
 
   async function createItem(title: string): Promise<string | null> {
     const { error: err } = await api(`/api/roadmap/create${rootParam}`, {
@@ -400,7 +432,7 @@ export function RoadmapTab() {
     if (err) return err
     applyData(items.filter((i) => i.id !== id), layout)
     if (data) {
-      undoToast(`Deleted ${id}`, async () => {
+      undoToast(t("board.deletedId", { id }), async () => {
         const { error: undoErr } = await api(`/api/roadmap/restore${rootParam}`, data)
         if (undoErr) throw new Error(undoErr)
         await load()
@@ -421,7 +453,7 @@ export function RoadmapTab() {
       const src = items.find((i) => i.id === id)
       if (!src) return
       const { data, error: err } = await api<{ item: RoadmapItem }>(`/api/roadmap/create${rootParam}`, {
-        title: `${src.title} (copy)`,
+        title: t("roadmap.copyTitle", { title: src.title }),
         parent: src.parent,
         status: "planned",
         order: src.order + 1,
@@ -450,7 +482,7 @@ export function RoadmapTab() {
     <>
       <NewItemDialog
         open={createParent !== null}
-        heading={createParent ? `New feature under ${createParent}` : "New horizon"}
+        heading={createParent ? t("roadmap.newFeatureUnder", { id: createParent }) : t("roadmap.newHorizon")}
         onOpenChange={(v) => { if (!v) setCreateParent(null) }}
         onSubmit={createItem}
       />
@@ -460,30 +492,30 @@ export function RoadmapTab() {
   )
 
   if (loading) {
-    return <div className="flex-1 flex items-center justify-center text-sm text-muted">Loading…</div>
+    return <div className="flex-1 flex items-center justify-center text-sm text-muted">{t("roadmap.loading")}</div>
   }
 
   if (items.length === 0) {
     return (
       <div className="flex-1 p-6">
         {error && <p className="mb-4 text-sm text-danger">{error}</p>}
-        <EmptyState icon="🗺️" message="No roadmap yet" subMessage="Items live in plans/roadmap/R*.md" bordered />
+        <EmptyState icon="🗺️" message={t("roadmap.noRoadmap")} subMessage={t("roadmap.noRoadmapSub")} bordered />
         {!demo && <div className="mt-4 flex flex-col items-center gap-2">
           <div className="flex gap-2">
             <Button size="sm" onClick={generate} disabled={generating} className="bg-accent text-accent-fg hover:bg-accent/90">
-              <Sparkles /> {generating ? "Generating…" : "Generate roadmap"}
+              <Sparkles /> {generating ? t("roadmap.generating") : t("roadmap.generateRoadmap")}
             </Button>
             <Button size="sm" variant="outline" onClick={() => askAgent("Plan a roadmap for this project.")} disabled={generating}>
-              <Bot /> Plan with agent
+              <Bot /> {t("roadmap.planWithAgent")}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setSpecOpen(true)} disabled={generating}>
-              <FileText /> Plan from spec
+              <FileText /> {t("roadmap.planFromSpec")}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setCreateParent("")} disabled={generating}>
-              <Plus /> Create first horizon
+              <Plus /> {t("roadmap.createFirstHorizon")}
             </Button>
           </div>
-          <p className="text-xs text-muted">Generate {sourceLabel}. Existing files are not modified.</p>
+          <p className="text-xs text-muted">{t("roadmap.generateHint", { source: sourceLabel })}</p>
         </div>}
         {dialog}
       </div>
@@ -492,7 +524,7 @@ export function RoadmapTab() {
 
   return (
     <div className="relative flex flex-1 min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-4 border-b border-border px-3 py-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-3 py-2">
         <div className="flex rounded-md border border-border p-0.5 text-xs">
           {(["map", "timeline"] as const).map((v) => (
             <button
@@ -500,16 +532,16 @@ export function RoadmapTab() {
               type="button"
               onClick={() => setView(v)}
               className={cn(
-                "rounded-sm px-3 py-1 capitalize",
+                "whitespace-nowrap rounded-sm px-3 py-1",
                 view === v ? "bg-surface2 text-txt" : "text-muted hover:text-txt",
               )}
             >
-              {v}
+              {v === "map" ? t("roadmap.viewMap") : t("board.viewTimeline")}
             </button>
           ))}
         </div>
         <RoadmapStats items={items} tasksById={tasksById} />
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           {error && <p className="text-xs text-danger">{error}</p>}
           {health.drift.length > 0 && (
             <AttentionMenu
@@ -520,20 +552,20 @@ export function RoadmapTab() {
           )}
           {!demo && <>
           {view === "map" && (
-            <Button size="sm" variant="outline" onClick={arrange} disabled={arranging} title="Tidy the map: epics in one column each side of their horizon, nothing overlapping">
-              <LayoutGrid /> Arrange
+            <Button size="sm" variant="outline" onClick={arrange} disabled={arranging} title={t("roadmap.arrangeTitle")}>
+              <LayoutGrid /> {t("roadmap.arrange")}
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={() => setSpecOpen(true)}>
-            <FileText /> Plan from spec
+            <FileText /> {t("roadmap.planFromSpec")}
           </Button>
           {items.some((i) => i.parent !== null && i.status !== "done") && (
             <Button size="sm" variant="outline" onClick={() => setBreakdownOpen(true)}>
-              <ListTree /> Break down epics…
+              <ListTree /> {t("roadmap.breakDownEpicsEllipsis")}
             </Button>
           )}
           <Button size="sm" onClick={() => setCreateParent("")} className="bg-accent text-accent-fg hover:bg-accent/90">
-            <Plus /> Horizon
+            <Plus /> {t("roadmap.horizon")}
           </Button>
           </>}
         </div>
@@ -556,6 +588,7 @@ export function RoadmapTab() {
             colorMode={isDark ? "dark" : "light"}
             onInit={showTop}
             minZoom={0.2}
+            ariaLabelConfig={flowLabels}
             style={FLOW_STYLE}
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
@@ -593,13 +626,15 @@ function RoadmapStats({ items, tasksById }: { items: RoadmapItem[]; tasksById: R
   const count = (st: RoadmapItem["status"]) => epics.filter((e) => e.status === st).length
   const linked = [...new Set(epics.flatMap((e) => e.tasks))].map((id) => tasksById[id]).filter((t) => t && t.status !== "cancelled")
   const done = linked.filter((t) => t.status === "done").length
+  const { t } = useT()
+  const statusLabel = useRoadmapStatusLabel()
   return (
-    <div className="hidden items-center gap-4 font-mono text-[11px] text-muted md:flex">
+    <div className="hidden items-center gap-4 whitespace-nowrap font-mono text-[11px] text-muted md:flex">
       {(["in-progress", "paused", "done", "planned"] as const).filter((st) => st !== "paused" || count(st) > 0).map((st) => (
         <span key={st} className="flex items-center gap-1.5">
           <StatusDot status={st} />
           <span className={cn("tabular-nums", st === "in-progress" && count(st) > 0 ? "text-accent" : "text-txt")}>{count(st)}</span>
-          {STATUS_LABEL[st].toLowerCase()}
+          {statusLabel(st).toLowerCase()}
         </span>
       ))}
       {linked.length > 0 && (
@@ -607,7 +642,7 @@ function RoadmapStats({ items, tasksById }: { items: RoadmapItem[]; tasksById: R
           <span className="relative h-1 w-20 overflow-hidden rounded-full bg-border">
             <span className="absolute inset-y-0 left-0 rounded-full bg-teal" style={{ width: `${(done / linked.length) * 100}%` }} />
           </span>
-          <span><span className="tabular-nums text-txt">{done}/{linked.length}</span> tasks</span>
+          <span><span className="tabular-nums text-txt">{done}/{linked.length}</span> {t("roadmap.tasksWord")}</span>
         </span>
       )}
     </div>
@@ -621,26 +656,28 @@ function AttentionMenu({ drift, onSelect, onApply }: {
   /** Missing in the read-only demo: no "→ status" buttons */
   onApply?: (d: RoadmapDrift) => void
 }) {
+  const { t } = useT()
+  const statusLabel = useRoadmapStatusLabel()
   return (
     <details className="group relative">
       <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-amber/40 bg-amber/10 px-2.5 text-xs font-medium text-txt hover:bg-amber/15 [&::-webkit-details-marker]:hidden">
-        <AlertTriangle className="h-3.5 w-3.5 text-amber" /> {drift.length} need attention
+        <AlertTriangle className="h-3.5 w-3.5 text-amber" /> {t("roadmap.needAttention", { n: drift.length })}
       </summary>
       <ul className="absolute right-0 top-full z-30 mt-1.5 max-h-72 w-80 overflow-y-auto rounded-lg border border-border bg-surface text-xs shadow-xl">
         {drift.map((d) => (
           <li key={`${d.id}-${d.kind}`} className="flex items-start gap-2 border-b border-border px-3 py-2.5 last:border-0">
             <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber" />
             <button type="button" onClick={() => onSelect(d.id)} className="flex-1 text-left leading-relaxed text-muted hover:text-txt">
-              {d.message}
+              {driftText(d, t, statusLabel)}
             </button>
             {d.suggestedStatus && onApply && (
               <button
                 type="button"
                 onClick={() => onApply(d)}
                 className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] text-txt hover:border-accent hover:text-accent"
-                title={`Set status to ${d.suggestedStatus}`}
+                title={t("roadmap.setStatusTo", { status: statusLabel(d.suggestedStatus).toLowerCase() })}
               >
-                → {d.suggestedStatus}
+                → {statusLabel(d.suggestedStatus).toLowerCase()}
               </button>
             )}
           </li>

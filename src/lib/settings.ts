@@ -49,8 +49,8 @@ export const SANS_FONTS = [
   { id: 'geist', label: 'Geist', note: 'Made for developer tools. Clean and neutral.' },
   { id: 'inter', label: 'Inter', note: 'The standard UI font. Very clear at small sizes.' },
   { id: 'ibm-plex-sans', label: 'IBM Plex Sans', note: 'Warm and humanist. Good for long reading.' },
-  { id: 'atkinson', label: 'Atkinson Hyperlegible', note: 'Letters are easy to tell apart. Best for legibility.' },
-  { id: 'dm-sans', label: 'DM Sans', note: 'Geometric. The previous default.' },
+  { id: 'atkinson', label: 'Atkinson Hyperlegible', note: 'Letters are easy to tell apart. Best for legibility.', noVietnamese: true },
+  { id: 'dm-sans', label: 'DM Sans', note: 'Geometric. The previous default.', noVietnamese: true },
   { id: 'system', label: 'System', note: 'Your OS font. Nothing to download.' },
 ] as const
 
@@ -58,7 +58,7 @@ export const MONO_FONTS = [
   { id: 'geist-mono', label: 'Geist Mono', note: 'Pairs with Geist.' },
   { id: 'jetbrains-mono', label: 'JetBrains Mono', note: 'Tall letters, made for code.' },
   { id: 'ibm-plex-mono', label: 'IBM Plex Mono', note: 'Pairs with IBM Plex Sans.' },
-  { id: 'dm-mono', label: 'DM Mono', note: 'The previous default.' },
+  { id: 'dm-mono', label: 'DM Mono', note: 'The previous default.', noVietnamese: true },
   { id: 'system', label: 'System', note: 'Your OS monospace font.' },
 ] as const
 

@@ -2,14 +2,19 @@
 
 import { useRouter } from "next/navigation"
 import { useChats } from "@/context/ChatContext"
+import { useT } from "@/context/LanguageContext"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { ChatView } from "./ChatView"
+import { useChatText } from "./chat-text"
 
 /** The chat as a modal: same ChatView as /chat, with "Open as page". */
 export function ChatModal() {
   const { chats, modalId, closeModal } = useChats()
   const router = useRouter()
-  const title = chats.find((c) => c.id === modalId)?.title ?? "Chat"
+  const { t } = useT()
+  const text = useChatText()
+  const found = chats.find((c) => c.id === modalId)
+  const title = found ? text.title(found.title) : t("chat.chat")
 
   return (
     <Dialog open={!!modalId} onOpenChange={(open) => { if (!open) closeModal() }}>

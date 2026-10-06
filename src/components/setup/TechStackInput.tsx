@@ -4,6 +4,8 @@ import { useState, KeyboardEvent } from "react"
 import { Search, X } from "lucide-react"
 import { TECH_CATEGORIES, TECH_PRESETS } from "@/lib/tech-stacks"
 import { cn } from "@/lib/utils"
+import { useT } from "@/context/LanguageContext"
+import { useSetupText } from "./setup-text"
 
 interface TechStackInputProps {
   value: string[]
@@ -13,6 +15,8 @@ interface TechStackInputProps {
 export function TechStackInput({ value, onChange }: TechStackInputProps) {
   const [search, setSearch] = useState("")
   const [activeCategory, setActiveCategory] = useState("language")
+  const { t: tr } = useT()
+  const setupText = useSetupText()
 
   const isSearching = search.trim().length > 0
 
@@ -70,7 +74,7 @@ export function TechStackInput({ value, onChange }: TechStackInputProps) {
     <div className="space-y-3">
       {/* Quick Presets */}
       <div>
-        <p className="text-xs font-medium text-muted mb-2 uppercase tracking-wider">Quick Presets</p>
+        <p className="text-xs font-medium text-muted mb-2 uppercase tracking-wider">{tr("chat.quickPresets")}</p>
         <div className="flex flex-wrap gap-2">
           {TECH_PRESETS.map(preset => (
             <button
@@ -92,7 +96,7 @@ export function TechStackInput({ value, onChange }: TechStackInputProps) {
           value={search}
           onChange={e => setSearch(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search technologies..."
+          placeholder={tr("chat.searchTech")}
           className="w-full pl-9 pr-3 py-2 rounded-md border border-border bg-surface2 text-txt text-sm outline-hidden placeholder:text-muted focus:border-accent transition-colors"
         />
         {isSearching && (
@@ -121,7 +125,7 @@ export function TechStackInput({ value, onChange }: TechStackInputProps) {
                   : "bg-surface2 text-muted hover:text-txt hover:bg-surface"
               )}
             >
-              {cat.label}
+              {setupText.techCategory(cat.label)}
             </button>
           ))}
         </div>
@@ -150,7 +154,7 @@ export function TechStackInput({ value, onChange }: TechStackInputProps) {
         <div className="space-y-3">
           {searchResults.map(cat => (
             <div key={cat.id}>
-              <p className="text-xs font-medium text-muted uppercase tracking-wider mb-1.5">{cat.label}</p>
+              <p className="text-xs font-medium text-muted uppercase tracking-wider mb-1.5">{setupText.techCategory(cat.label)}</p>
               <div className="flex flex-wrap gap-2">
                 {cat.items.map(tech => (
                   <button
@@ -172,7 +176,7 @@ export function TechStackInput({ value, onChange }: TechStackInputProps) {
           ))}
           {showCustomHint && (
             <p className="text-xs text-muted">
-              Press <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border text-xs">Enter</kbd> to add &quot;{search}&quot;
+              {tr("chat.pressEnterLead")} <kbd className="px-1 py-0.5 rounded-sm bg-surface border border-border text-xs">Enter</kbd> {tr("chat.pressEnterEnd", { search })}
             </p>
           )}
         </div>
@@ -181,7 +185,7 @@ export function TechStackInput({ value, onChange }: TechStackInputProps) {
       {/* Selected chips */}
       {value.length > 0 && (
         <div className="pt-2 border-t border-border">
-          <p className="text-xs font-medium text-muted mb-2">Selected ({value.length})</p>
+          <p className="text-xs font-medium text-muted mb-2">{tr("chat.selectedN", { n: value.length })}</p>
           <div className="flex flex-wrap gap-1.5">
             {value.map(tag => (
               <span

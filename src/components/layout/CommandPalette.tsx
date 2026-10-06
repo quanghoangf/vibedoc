@@ -20,24 +20,34 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import type { RoadmapItem } from "@/types"
 import { itemKeyLabel, useCurrentItemCommands } from "@/components/shared/item-commands"
 import { displayStatus } from "@/lib/statuses"
+import { useT } from "@/context/LanguageContext"
+import { useChatText } from "@/components/chat/chat-text"
+import type { MessageKey } from "@/i18n"
+import { en as shellEn } from "@/i18n/shell"
+import { en as helpEn } from "@/i18n/help"
 
-const PAGES: { href: string; label: string; icon: LucideIcon }[] = [
-  { href: "/chat", label: "Chats", icon: Bot },
-  { href: "/board", label: "Board", icon: LayoutDashboard },
-  { href: "/roadmap", label: "Roadmap", icon: Map },
-  { href: "/docs", label: "Docs", icon: BookOpen },
-  { href: "/activity", label: "Activity", icon: Activity },
-  { href: "/memory", label: "Memory", icon: Brain },
-  { href: "/manual-tests", label: "Manual tests", icon: FlaskConical },
-  { href: "/explorer", label: "Explorer", icon: FolderTree },
-  { href: "/settings", label: "Settings", icon: Settings },
+const PAGES: { href: string; label: MessageKey; icon: LucideIcon }[] = [
+  { href: "/chat", label: "shell.chats", icon: Bot },
+  { href: "/board", label: "shell.board", icon: LayoutDashboard },
+  { href: "/roadmap", label: "shell.roadmap", icon: Map },
+  { href: "/docs", label: "shell.docs", icon: BookOpen },
+  { href: "/activity", label: "shell.activity", icon: Activity },
+  { href: "/memory", label: "shell.memory", icon: Brain },
+  { href: "/manual-tests", label: "shell.manualTests", icon: FlaskConical },
+  { href: "/explorer", label: "shell.explorer", icon: FolderTree },
+  { href: "/settings", label: "shell.settings", icon: Settings },
 ]
+// Vietnamese typed without tone marks ("bang" → Bảng) still matches
+const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d")
+const EN: Record<string, string> = { ...Object.fromEntries(Object.entries(shellEn).map(([k, v]) => [`shell.${k}`, v])), ...Object.fromEntries(Object.entries(helpEn).map(([k, v]) => [`help.${k}`, v])) }
 const PER_GROUP = 6
 
 interface Row {
   id: string
   group: string
   label: string
+  /** Extra text the query also matches: a command's English label, so English muscle memory works in any language */
+  match?: string
   /** Mono prefix: task/epic id */
   code?: string
   detail?: string
@@ -72,6 +82,8 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
   const [epics, setEpics] = useState<RoadmapItem[]>([])
   const listRef = useRef<HTMLDivElement>(null)
   const current = useCurrentItemCommands()
+  const { t } = useT()
+  const chatText = useChatText()
 
   const [wasOpen, setWasOpen] = useState(open)
   if (open !== wasOpen) {
@@ -135,7 +147,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
       const byId = items.filter((i) => i.id.toLowerCase().startsWith(lower)).sort((a, b) => a.id.length - b.id.length)
       const hits = byId.length ? byId : fuzzyFilter(q, items, (i) => i.title)
       for (const i of hits.slice(0, PER_GROUP)) {
-        itemRows.push({ id: `item-${i.id}`, group: "Tasks & epics", label: i.title, code: i.id, lead: i.lead, run: go(i.href) })
+        itemRows.push({ id: `item-${i.id}`, group: t("help.groupTasksEpics"), label: i.title, code: i.id, lead: i.lead, run: go(i.href) })
       }
     }
     // An id query ("T06", "r043") puts its task/epic first, as the active row, so Enter opens it
@@ -148,37 +160,40 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
     const chatPool = q ? chats : urgent.length ? urgent : g.recent.slice(0, 3)
     for (const c of top(chatPool, (c) => `${c.attach?.id ?? ""} ${c.title}`)) {
       out.push({
-        id: `chat-${c.id}`, group: "Chats", label: c.title, code: c.attach?.id,
+        id: `chat-${c.id}`, group: t("shell.chats"), label: chatText.title(c.title), code: c.attach?.id,
         lead: <StatusMarker status={shellStatus(c, now)} showIdle />,
         run: () => { show(c.id); onClose() },
       })
     }
     if (!idQuery) out.push(...itemRows)
 
-    for (const p of top(PAGES, (p) => p.label)) {
-      out.push({ id: `page-${p.href}`, group: "Navigate", label: p.label, lead: icon(p.icon), kbd: shortcutFor(p.href), run: go(p.href) })
+    // Commands match the label in the UI language and the English one
+    const cmd = (key: MessageKey) => ({ label: t(key), match: EN[key] })
+    for (const p of top(PAGES, (p) => `${t(p.label)} ${fold(t(p.label))} ${EN[p.label]}`)) {
+      out.push({ id: `page-${p.href}`, group: t("help.groupNavigate"), ...cmd(p.label), lead: icon(p.icon), kbd: shortcutFor(p.href), run: go(p.href) })
     }
+    const actionsGroup = t("help.groupActions")
 
     const actions: Row[] = [
       // Read-only demo (R042): nothing that creates
       ...(demo ? [] : [
-        { id: "new-chat", group: "Actions", label: "New chat", lead: icon(MessageSquarePlus), run: () => { show(create()); onClose() } },
-        { id: "new-doc", group: "Actions", label: "New doc", lead: icon(FilePlus), run: () => { onNewDoc?.(); onClose() } },
+        { id: "new-chat", group: actionsGroup, ...cmd("help.newChat"), lead: icon(MessageSquarePlus), run: () => { show(create()); onClose() } },
+        { id: "new-doc", group: actionsGroup, ...cmd("help.newDoc"), lead: icon(FilePlus), run: () => { onNewDoc?.(); onClose() } },
       ]),
-      { id: "go-file", group: "Actions", label: "Go to file", lead: icon(FileText), kbd: "⌘P", run: onQuickOpen },
+      { id: "go-file", group: actionsGroup, ...cmd("help.goToFile"), lead: icon(FileText), kbd: "⌘P", run: onQuickOpen },
       ...(pathname?.startsWith("/docs") ? [{
-        id: "toggle-docs-list", group: "Actions", label: "Hide / show docs list", lead: icon(PanelLeft), kbd: DOCS_LIST_KEY.label,
+        id: "toggle-docs-list", group: actionsGroup, ...cmd("help.hideDocsList"), lead: icon(PanelLeft), kbd: DOCS_LIST_KEY.label,
         run: () => { window.dispatchEvent(new Event(TOGGLE_DOCS_LIST_EVENT)); onClose() },
       }] : []),
-      { id: "theme", group: "Actions", label: "Toggle light / dark theme", lead: icon(SunMoon), run: () => { toggleTheme(rootParam); onClose() } },
-      { id: "help", group: "Actions", label: "Keyboard shortcuts", lead: icon(Keyboard), kbd: "?", run: onShowHelp },
+      { id: "theme", group: actionsGroup, ...cmd("help.toggleTheme"), lead: icon(SunMoon), run: () => { toggleTheme(rootParam); onClose() } },
+      { id: "help", group: actionsGroup, ...cmd("help.keyboardShortcuts"), lead: icon(Keyboard), kbd: "?", run: onShowHelp },
       // Project switching only when searched for: there can be many sibling projects
       ...(q ? projects.filter((p) => p.root !== activeProject) : []).map((p) => ({
-        id: `project-${p.root}`, group: "Actions", label: `Switch project: ${p.name}`, detail: p.root,
+        id: `project-${p.root}`, group: actionsGroup, label: t("help.switchProject", { name: p.name }), match: `Switch project: ${p.name}`, detail: p.root,
         lead: icon(FolderOpen), run: () => { onProjectChange(p.root); onClose() },
       })),
     ]
-    out.push(...top(actions, (a) => a.label))
+    out.push(...top(actions, (a) => `${a.label} ${fold(a.label)} ${a.match ?? ""}`))
 
     if (q.length >= 2 && docs?.query === q) {
       // Task and roadmap files already show under Tasks & epics
@@ -186,14 +201,14 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
       for (const path of files.slice(0, PER_GROUP)) {
         const slash = path.lastIndexOf("/")
         out.push({
-          id: `doc-${path}`, group: "Docs", label: path.slice(slash + 1).replace(/\.md$/, ""),
+          id: `doc-${path}`, group: t("shell.docs"), label: path.slice(slash + 1).replace(/\.md$/, ""),
           detail: slash > 0 ? path.slice(0, slash) : undefined, lead: icon(FileText),
           run: () => { onOpenDoc(path); onClose() },
         })
       }
     }
     return out
-  }, [q, current, chats, queue, now, board, epics, projects, activeProject, docs, router, onClose, show, create, onNewDoc, onQuickOpen, onShowHelp, onOpenDoc, onProjectChange, rootParam, pathname, demo])
+  }, [q, current, chats, queue, now, board, epics, projects, activeProject, docs, router, onClose, show, create, onNewDoc, onQuickOpen, onShowHelp, onOpenDoc, onProjectChange, rootParam, pathname, demo, t, chatText])
 
   const active = Math.max(0, Math.min(activeIndex, rows.length - 1))
   // Runs of one group, each rendered as an ARIA group named by its heading
@@ -226,7 +241,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
       <DialogContent className="max-w-lg p-0 overflow-hidden bg-surface border-border gap-0 top-[20%] translate-y-0">
-        <DialogTitle className="sr-only">Command palette</DialogTitle>
+        <DialogTitle className="sr-only">{t("help.commandPalette")}</DialogTitle>
         <div className="flex items-center gap-3 px-4 h-11 border-b border-border">
           <Search className="size-4 text-muted shrink-0" aria-hidden />
           <input
@@ -239,11 +254,11 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
             value={query}
             onChange={(e) => { setQuery(e.target.value); setActiveIndex(0) }}
             onKeyDown={handleKeyDown}
-            placeholder="Search tasks, epics, chats, docs…"
+            placeholder={t("help.searchPlaceholder")}
             className="h-full flex-1 bg-transparent text-sm text-txt outline-none placeholder:text-muted"
           />
         </div>
-        <div ref={listRef} id="cmd-list" role="listbox" aria-label="Results" className="max-h-80 overflow-y-auto py-1">
+        <div ref={listRef} id="cmd-list" role="listbox" aria-label={t("help.results")} className="max-h-80 overflow-y-auto py-1">
           {groups.map(({ group, start, items }) => (
             <div key={`${group}-${start}`} role="group" aria-labelledby={`cmd-g-${start}`}>
               <div id={`cmd-g-${start}`} role="presentation" className="px-4 pt-2 pb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-muted">
@@ -265,8 +280,8 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
               >
                 {row.lead}
                 {row.code && <span className="font-mono text-[11px] text-muted shrink-0">{row.code}</span>}
-                <span className="truncate text-txt">{row.label}</span>
-                {row.detail && <span className="truncate text-[11px] text-muted">{row.detail}</span>}
+                <span data-user-content={row.match ? undefined : true} className="truncate text-txt">{row.label}</span>
+                {row.detail && <span data-user-content className="truncate text-[11px] text-muted">{row.detail}</span>}
                 {row.kbd && (
                   <kbd className="ml-auto shrink-0 rounded-sm border border-border px-1 font-mono text-[10px] text-muted">{row.kbd}</kbd>
                 )}
@@ -274,10 +289,10 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
               ) })}
             </div>
           ))}
-          {docsPending && <div className="px-4 py-1.5 text-[11px] text-muted">Searching docs…</div>}
-          {docsFailed && <div role="alert" className="px-4 py-1.5 text-[11px] text-danger">Search failed. Check the server and try again.</div>}
+          {docsPending && <div className="px-4 py-1.5 text-[11px] text-muted">{t("help.searchingDocs")}</div>}
+          {docsFailed && <div role="alert" className="px-4 py-1.5 text-[11px] text-danger">{t("help.searchFailed")}</div>}
           {rows.length === 0 && !docsPending && !docsFailed && (
-            <div className="px-4 py-6 text-center text-[13px] text-muted">Nothing matches “{q}”</div>
+            <div className="px-4 py-6 text-center text-[13px] text-muted">{t("help.nothingMatches", { query: q })}</div>
           )}
         </div>
       </DialogContent>

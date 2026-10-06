@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useT } from "@/context/LanguageContext"
 import { cn } from "@/lib/utils"
 
 export interface QuestionOption { label: string; description?: string }
@@ -36,6 +37,7 @@ export function QuestionCard({ set, disabled, onSubmit }: {
   const [picked, setPicked] = useState<string[][]>(() => set.questions.map(() => []))
   const [other, setOther] = useState<string[]>(() => set.questions.map(() => ""))
   const done = !!set.answers
+  const { t } = useT()
 
   function toggle(qi: number, value: string, multi: boolean) {
     setPicked((prev) => prev.map((p, i) => {
@@ -56,21 +58,21 @@ export function QuestionCard({ set, disabled, onSubmit }: {
   return (
     <div className="my-2 rounded-md border border-border overflow-hidden" data-question-card>
       <div className="flex items-center gap-2 px-2 py-1.5 bg-surface2 border-b border-border">
-        <span className="text-[10px] font-mono uppercase tracking-widest text-muted">Questions</span>
-        {done && <span className="ml-auto text-[10px] font-mono text-accent">✓ Answered</span>}
+        <span className="text-[10px] font-mono uppercase tracking-widest text-muted">{t("chat.questions")}</span>
+        {done && <span className="ml-auto text-[10px] font-mono text-accent">{t("chat.answered")}</span>}
       </div>
       <div className="p-2 space-y-3">
         {set.questions.map((q, qi) => (
           <fieldset key={qi} disabled={done} className="space-y-1">
             <legend className="mb-1">
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-surface2 border border-border text-accent mr-1.5">{q.header}</span>
-              <span className="text-xs text-txt">{q.question}</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-surface2 border border-border text-accent mr-1.5" data-user-content>{q.header}</span>
+              <span data-user-content className="text-xs text-txt">{q.question}</span>
             </legend>
             {done ? (
-              <p className="text-xs text-txt pl-1">{set.answers?.[qi]}</p>
+              <p data-user-content className="text-xs text-txt pl-1">{set.answers?.[qi]}</p>
             ) : (
               <>
-                {[...q.options, { label: "Other", value: OTHER }].map((o) => {
+                {[...q.options, { label: t("chat.other"), value: OTHER }].map((o) => {
                   const value = "value" in o ? o.value : o.label
                   const checked = picked[qi].includes(value)
                   return (
@@ -82,7 +84,7 @@ export function QuestionCard({ set, disabled, onSubmit }: {
                         onChange={() => toggle(qi, value, q.multiSelect)}
                         className="mt-0.5 accent-accent"
                       />
-                      <span className="text-xs">
+                      <span className="text-xs" data-user-content={"value" in o ? undefined : true}>
                         <span className="text-txt">{o.label}</span>
                         {"description" in o && o.description && <span className="block text-muted">{o.description}</span>}
                       </span>
@@ -93,8 +95,8 @@ export function QuestionCard({ set, disabled, onSubmit }: {
                   <input
                     value={other[qi]}
                     onChange={(e) => setOther((prev) => prev.map((v, i) => (i === qi ? e.target.value : v)))}
-                    placeholder="Your answer"
-                    aria-label={`Other answer for ${q.header}`}
+                    placeholder={t("chat.yourAnswer")}
+                    aria-label={t("chat.otherFor", { header: q.header })}
                     className="ml-6 w-[calc(100%-1.5rem)] rounded-sm bg-surface2 border border-border px-2 py-1 text-xs text-txt placeholder:text-muted focus:outline-hidden focus:border-accent"
                   />
                 )}
@@ -108,7 +110,7 @@ export function QuestionCard({ set, disabled, onSubmit }: {
             disabled={!complete || disabled}
             className="text-xs px-2 py-0.5 rounded-sm bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50"
           >
-            Submit
+            {t("chat.submit")}
           </button>
         )}
       </div>

@@ -5,12 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Bot, Check, Circle, CircleCheck, FlaskConical, Pencil, Search, X } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { parseManualTests, type ManualTestItem, type ManualTests } from "@/lib/manual-tests"
-import { REVIEW_SORTS, REVIEW_TABS, filterRows, selectionLabel, sortRows, toRow, type ReviewRow, type ReviewSort, type ReviewTab } from "@/lib/test-review"
+import { REVIEW_SORTS, REVIEW_TABS, filterRows, sortRows, toRow, type ReviewRow, type ReviewSort, type ReviewTab } from "@/lib/test-review"
 import { parsePriority } from "@/lib/doc-priority"
 import { PriorityBadge } from "@/components/shared/PriorityBadge"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { shouldHandleShortcut } from "@/lib/shortcuts"
-import { timeAgo } from "@/components/activity/ActivityEventRow"
+import { useFormat, useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
+import { useReviewText } from "@/components/manual-tests/review-text"
 import { TestDetail, type DetailView } from "@/components/manual-tests/TestDetail"
 import { SuiteTab } from "@/components/manual-tests/SuiteTab"
 import { TestBulkBar } from "@/components/manual-tests/TestBulkBar"
@@ -31,8 +33,8 @@ function onWideChange(cb: () => void) {
   return () => mq.removeEventListener("change", cb)
 }
 
-const TAB_LABEL: Record<ReviewTab, string> = { needs: "Needs you", failed: "Failed", passed: "Passed", flaky: "Flaky", none: "No run", all: "All" }
-const SORT_LABEL: Record<ReviewSort, string> = { default: "Triage order", priority: "Priority", updated: "Recently updated" }
+const TAB_LABEL: Record<ReviewTab, MessageKey> = { needs: "tests.tabNeeds", failed: "tests.tabFailed", passed: "tests.tabPassed", flaky: "tests.tabFlaky", none: "tests.tabNone", all: "tests.tabAll" }
+const SORT_LABEL: Record<ReviewSort, MessageKey> = { default: "tests.sortDefault", priority: "board.priority", updated: "tests.sortUpdated" }
 
 export default function ManualTestsPage() {
   return (
@@ -48,6 +50,10 @@ export default function ManualTestsPage() {
  */
 function TestReview() {
   const { board, rootParam, demo } = useApp()
+  const { t, tn } = useT()
+  const reviewText = useReviewText()
+  // the tab list's map names its tab `t`; this keeps the translator reachable there
+  const tabLabel = (tab: ReviewTab) => t(TAB_LABEL[tab])
   const router = useRouter()
   const params = useSearchParams()
   const tab = (REVIEW_TABS as string[]).includes(params.get("tab") ?? "") ? (params.get("tab") as ReviewTab) : "needs"
@@ -195,11 +201,11 @@ function TestReview() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: task.id, index: item.index, checked }),
       })
-      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Request failed (${res.status})`)
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? t("board.requestFailed", { status: res.status }))
       // The SSE task_updated refresh brings the new file; the pending entry stops applying once raw changes
     } catch (e) {
       setPending((p) => { const next = { ...p }; delete next[key]; return next })
-      setError(`Couldn't save the tick on ${task.id}: ${(e as Error).message}. The box is back as it was; try again.`)
+      setError(t("tests.tickError", { id: task.id, error: (e as Error).message }))
     }
   }
 
@@ -292,16 +298,16 @@ function TestReview() {
       {/* Below lg the detail replaces the list, so it gets the whole screen (its breadcrumb has Back) */}
       <header className={cn("flex-col gap-3 border-b border-border px-5 pt-4 pb-0 sm:gap-4 sm:px-7 sm:pt-6", full ? "hidden" : showDetail ? "hidden lg:flex" : "flex")}>
         <div className="flex flex-wrap items-end gap-x-8 gap-y-2">
-          <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">Test review</h1>
+          <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">{t("tests.title")}</h1>
           <p className="pb-0.5 text-[1.1rem] leading-snug font-semibold text-txt">
-            {!rows.length ? "Nothing to review yet" : !needing.length ? (
-              <span className="inline-flex items-center gap-1.5"><CircleCheck className="size-4 text-teal" aria-hidden />Nothing needs you</span>
+            {!rows.length ? t("tests.nothingToReview") : !needing.length ? (
+              <span className="inline-flex items-center gap-1.5"><CircleCheck className="size-4 text-teal" aria-hidden />{t("tests.nothingNeedsYou")}</span>
             ) : (
               <>
-                {failing > 0 && <><span className="font-mono font-semibold text-danger tabular-nums">{failing}</span><span className="text-danger"> failing</span> · </>}
-                {inReview > 0 && <><span className="font-mono text-txt tabular-nums">{inReview}</span> in review · </>}
-                <span className="font-mono text-txt tabular-nums">{needing.length}</span> {needing.length === 1 ? "task needs" : "tasks need"} you
-                {checksLeft > 0 && <span className="text-[13px] font-normal text-muted"> · <span className="font-mono tabular-nums">{checksLeft}</span> {checksLeft === 1 ? "check" : "checks"} left</span>}
+                {failing > 0 && <><span className="font-mono font-semibold text-danger tabular-nums">{failing}</span><span className="text-danger"> {t("tests.failingSuffix")}</span> · </>}
+                {inReview > 0 && <><span className="font-mono text-txt tabular-nums">{inReview}</span> {t("tests.inReviewSuffix")} · </>}
+                <span className="font-mono text-txt tabular-nums">{needing.length}</span> {tn("tests.tasksNeedYou", needing.length)}
+                {checksLeft > 0 && <span className="text-[13px] font-normal text-muted"> · <span className="font-mono tabular-nums">{checksLeft}</span> {tn("tests.checksLeft", checksLeft)}</span>}
               </>
             )}
           </p>
@@ -310,7 +316,7 @@ function TestReview() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <nav
             ref={tabs}
-            aria-label="Filter by result"
+            aria-label={t("tests.filterByResult")}
             className={cn(
               "-mb-px flex max-w-full gap-1 overflow-x-auto [scrollbar-width:none]",
               tabEdges.left && tabEdges.right ? "[mask-image:linear-gradient(to_right,transparent,black_2.5rem,black_calc(100%-2.5rem),transparent)]"
@@ -329,7 +335,7 @@ function TestReview() {
                   tab === t && !suiteTab ? "border-accent text-txt" : "border-transparent text-muted hover:text-txt",
                 )}
               >
-                {TAB_LABEL[t]}
+                {tabLabel(t)}
                 <span className={cn("rounded-sm px-1 font-mono text-[11px] tabular-nums", t === "failed" && counts.failed ? "bg-danger/15 text-danger" : t === "flaky" && counts.flaky ? "bg-amber/15 text-amber" : "bg-surface2 text-muted")}>{counts[t]}</span>
               </button>
             ))}
@@ -342,27 +348,27 @@ function TestReview() {
                 suiteTab ? "border-accent text-txt" : "border-transparent text-muted hover:text-txt",
               )}
             >
-              Suite
+              {t("tests.suite")}
               <span className="rounded-sm bg-surface2 px-1 font-mono text-[11px] text-muted tabular-nums">{suiteSpecs}</span>
             </button>
           </nav>
           <div className="mb-2 flex w-full items-center gap-2 sm:ml-auto sm:w-auto">
             <select
-              aria-label="Epic"
+              aria-label={t("board.epic")}
               value={epic ?? ""}
               onChange={(e) => setParams({ epic: e.target.value || null, task: null })}
               className="h-8 min-w-0 flex-1 rounded-md sm:max-w-48 sm:flex-none border border-border bg-bg px-2 text-xs text-txt hover:border-border2 focus-visible:outline-2 focus-visible:outline-accent"
             >
-              <option value="">All epics</option>
+              <option value="">{t("tests.allEpics")}</option>
               {epics.map(([id, name]) => <option key={id} value={id}>{id} · {name}</option>)}
             </select>
             <select
-              aria-label="Sort"
+              aria-label={t("board.sort")}
               value={sort}
               onChange={(e) => setParams({ sort: e.target.value === "default" ? null : e.target.value })}
               className="h-8 min-w-0 flex-1 rounded-md sm:max-w-40 sm:flex-none border border-border bg-bg px-2 text-xs text-txt hover:border-border2 focus-visible:outline-2 focus-visible:outline-accent"
             >
-              {REVIEW_SORTS.map((s) => <option key={s} value={s}>{SORT_LABEL[s]}</option>)}
+              {REVIEW_SORTS.map((s) => <option key={s} value={s}>{t(SORT_LABEL[s])}</option>)}
             </select>
             <label className="relative flex min-w-0 flex-1 items-center sm:flex-none">
               <Search className="pointer-events-none absolute left-2 size-3.5 text-muted" aria-hidden />
@@ -371,8 +377,8 @@ function TestReview() {
                 id="tests-search"
                 value={q}
                 onChange={(e) => { setQ(e.target.value); setParams({ q: e.target.value || null }) }}
-                placeholder="Search tasks"
-                aria-label="Search tasks"
+                placeholder={t("tests.searchTasks")}
+                aria-label={t("tests.searchTasks")}
                 className="h-8 w-full rounded-md sm:w-44 border border-border bg-bg pr-7 pl-7 text-xs text-txt placeholder:text-muted hover:border-border2 focus:border-accent/60 focus:outline-hidden"
               />
               <kbd className="pointer-events-none absolute right-2 font-mono text-[11px] text-muted">/</kbd>
@@ -386,7 +392,7 @@ function TestReview() {
       {suiteTab ? <SuiteTab specs={suiteSpecs} withoutSpec={doneTasks.length - suiteSpecs} /> : <div className="flex min-h-0 flex-1">
         <section
           key={full ? "page" : "list"}
-          aria-label="Tasks"
+          aria-label={t("roadmap.tasks")}
           className={cn(
             // Always carries list-in, so it plays only when the list (re)appears: back from the page view or on phones
             "min-h-0 w-full flex-col overflow-y-auto lg:shrink-0 animate-list-in",
@@ -398,13 +404,13 @@ function TestReview() {
             <PickBox
               checked={allPicked}
               mixed={!allPicked && pickedRows.length > 0}
-              label={allPicked || pickedRows.length ? "Clear selection" : `Select all ${shown.length} tasks`}
+              label={allPicked || pickedRows.length ? t("board.clearSelection") : t("tests.selectAllN", { n: shown.length })}
               onPick={() => (pickedRows.length ? clearPicked() : setPicked(shown.map((r) => r.id)))}
               className="opacity-100"
             />
-            <span>Task</span>
-            <span>Manual</span>
-            <span className="text-right">Last run</span>
+            <span>{t("tests.colTask")}</span>
+            <span>{t("tests.colManual")}</span>
+            <span className="text-right">{t("tests.colLastRun")}</span>
           </div>
           {shown.length ? (
             <ul ref={list} className="flex flex-col">
@@ -420,7 +426,7 @@ function TestReview() {
                   />
                   <PickBox
                     checked={picked.includes(r.id)}
-                    label={`Select ${r.id}`}
+                    label={t("board.selectId", { id: r.id })}
                     onPick={(range) => pick(r.id, range)}
                     className={cn(
                       "absolute top-3.5 left-5 sm:top-1/2 sm:left-7 sm:-translate-y-1/2 lg:left-5",
@@ -436,7 +442,7 @@ function TestReview() {
           {pickedRows.length > 0 && <TestBulkBar rows={pickedRows} onClear={clearPicked} />}
         </section>
 
-        <section ref={detail} aria-label="Details" className={cn("min-h-0 flex-1 overflow-x-hidden overflow-y-auto", showDetail ? "block" : "hidden")}>
+        <section ref={detail} aria-label={t("tests.details")} className={cn("min-h-0 flex-1 overflow-x-hidden overflow-y-auto", showDetail ? "block" : "hidden")}>
           {showDetail && (
             <div
               key={full ? "page" : "panel"}
@@ -469,7 +475,7 @@ function TestReview() {
           )}
         </section>
       </div>}
-      <p aria-live="polite" className="sr-only">{selectedRow ? selectionLabel(selectedRow) : ""}</p>
+      <p aria-live="polite" className="sr-only">{selectedRow ? reviewText.selection(selectedRow) : ""}</p>
     </div>
   )
 }
@@ -508,6 +514,8 @@ function Row({ row: r, selected, picked, picking, tabStop, onSelect }: {
   tabStop: boolean
   onSelect: (e: React.MouseEvent) => void
 }) {
+  const f = useFormat()
+  const { t } = useT()
   const priority = parsePriority(r.priority)
   return (
     <button
@@ -526,13 +534,13 @@ function Row({ row: r, selected, picked, picking, tabStop, onSelect }: {
       <span className={cn("col-start-1 row-span-2 row-start-1 flex transition-opacity duration-(--duration-fast)", picking ? "opacity-0" : "group-hover/row:opacity-0")}><ResultGlyph result={r.result} /></span>
       <span className="col-span-3 col-start-2 row-start-1 flex min-w-0 items-baseline gap-2 leading-5 sm:col-span-1">
         <span className={cn("shrink-0 font-mono text-[11px]", selected ? "text-txt" : "text-muted")}>{r.id}</span>
-        <span className={cn("truncate text-[13px]", selected ? "font-semibold text-txt" : "font-medium text-txt/90")} title={r.title}>{r.title}</span>
+        <span data-user-content className={cn("truncate text-[13px]", selected ? "font-semibold text-txt" : "font-medium text-txt/90")} title={r.title}>{r.title}</span>
       </span>
       <span className="col-start-2 row-start-2 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] leading-4 text-muted">
         {priority && <PriorityBadge priority={priority} />}
-        {r.status === "review" && <span className="shrink-0 rounded-sm bg-accent/15 px-1 font-mono text-accent">review</span>}
+        {r.status === "review" && <span className="shrink-0 rounded-sm bg-accent/15 px-1 font-mono text-accent">{t("tests.reviewChip")}</span>}
         {r.auto.total > 0 && (
-          <span className={cn("inline-flex shrink-0 items-center gap-1 font-mono", r.auto.result === "passed" ? "text-teal" : r.auto.result === "failed" ? "text-danger" : "")} title="Automated items">
+          <span className={cn("inline-flex shrink-0 items-center gap-1 font-mono", r.auto.result === "passed" ? "text-teal" : r.auto.result === "failed" ? "text-danger" : "")} title={t("tests.automatedItems")}>
             <Bot className="size-3" aria-hidden />{r.auto.total}
           </span>
         )}
@@ -540,26 +548,28 @@ function Row({ row: r, selected, picked, picking, tabStop, onSelect }: {
         {/* Owner as its icon only (name in the tooltip) and "updated" as a pencil + short time: the epic keeps the room */}
         <OwnerChip owner={r.owner} iconOnly className="shrink-0 [&_svg]:size-3" />
         {r.updatedAt && (
-          <span className="inline-flex shrink-0 items-center gap-0.5 font-mono" title={`Updated ${new Date(r.updatedAt).toLocaleString()}`}>
-            <Pencil className="size-3" aria-hidden /><span className="sr-only">updated </span>{timeAgo(r.updatedAt).replace(" ago", "")}
+          <span className="inline-flex shrink-0 items-center gap-0.5 font-mono" title={t("tests.updatedWhen", { when: f.dateTime(r.updatedAt) })}>
+            <Pencil className="size-3" aria-hidden /><span className="sr-only">{t("tests.updatedSr")} </span>{f.agoShort(r.updatedAt)}
           </span>
         )}
       </span>
       <span className="col-start-3 row-start-2 sm:row-span-2 sm:row-start-1"><ManualRuling done={r.manual.done} total={r.manual.total} /></span>
       <span className="col-start-4 row-start-2 flex items-baseline justify-end gap-1.5 font-mono sm:row-span-2 sm:row-start-1 sm:flex-col sm:items-end sm:gap-0.5 text-[11px] tabular-nums">
         {r.steps ? <span className={r.result === "failed" ? "text-danger" : "text-txt"}>{r.steps.passed}/{r.steps.total}</span>
-          : r.result !== "none" ? <span className={r.result === "failed" ? "text-danger" : "text-txt"}>{r.result}</span>
-          : <span className="text-muted">no run</span>}
-        {r.result !== "none" && r.at && <span className="text-muted">{timeAgo(r.at)}</span>}
+          : r.result !== "none" ? <span className={r.result === "failed" ? "text-danger" : "text-txt"}>{r.result === "failed" ? t("board.runFailed") : t("board.runPassed")}</span>
+          : <span className="text-muted">{t("tests.noRun")}</span>}
+        {/* the 4.5rem column: "15h ago" fits, "15 giờ trước" doesn't, so other languages drop the "ago" */}
+        {r.result !== "none" && r.at && <span className="text-muted">{f.lang === "en" ? f.timeAgo(r.at) : f.agoShort(r.at)}</span>}
       </span>
     </button>
   )
 }
 
 function ResultGlyph({ result }: { result: ReviewRow["result"] }) {
-  if (result === "failed") return <span className="flex size-5 items-center justify-center rounded-full bg-danger/15"><X className="size-3.5 text-danger" strokeWidth={2.5} aria-label="Last run failed" /></span>
-  if (result === "passed") return <span className="flex size-5 items-center justify-center rounded-full bg-teal/15"><Check className="size-3.5 text-teal" strokeWidth={2.5} aria-label="Last run passed" /></span>
-  return <Circle className="size-5 p-0.5 text-border2" aria-label="No run" />
+  const { t } = useT()
+  if (result === "failed") return <span className="flex size-5 items-center justify-center rounded-full bg-danger/15"><X className="size-3.5 text-danger" strokeWidth={2.5} aria-label={t("tests.lastRunFailed")} /></span>
+  if (result === "passed") return <span className="flex size-5 items-center justify-center rounded-full bg-teal/15"><Check className="size-3.5 text-teal" strokeWidth={2.5} aria-label={t("tests.lastRunPassed")} /></span>
+  return <Circle className="size-5 p-0.5 text-border2" aria-label={t("tests.tabNone")} />
 }
 
 /** Marks drawn before the ruling turns proportional; at 20 a mark is still ~2px in the 5rem column. */
@@ -567,10 +577,11 @@ const RULING_MAX = 20
 
 /** The manual checklist as a ruling (one mark per item, teal once ticked, so length reads as size) with the done/total tally. */
 function ManualRuling({ done, total }: { done: number; total: number }) {
+  const { t } = useT()
   if (!total) return <span className="font-mono text-[11px] text-muted">—</span>
   const marks = Math.min(total, RULING_MAX)
   return (
-    <span className="flex items-center gap-1.5 sm:flex-col sm:items-stretch sm:gap-1" role="img" aria-label={`${done} of ${total} manual checks ticked`}>
+    <span className="flex items-center gap-1.5 sm:flex-col sm:items-stretch sm:gap-1" role="img" aria-label={t("tests.manualTicked", { done, total })}>
       <span className="font-mono text-[11px] text-muted tabular-nums"><span className={done === total ? "text-teal" : "text-txt"}>{done}</span>/{total}</span>
       <span className="flex w-12 gap-0.5 sm:w-auto">
         {Array.from({ length: marks }, (_, i) => (
@@ -582,13 +593,14 @@ function ManualRuling({ done, total }: { done: number; total: number }) {
 }
 
 function Empty({ rows, tab, filtered, onAll }: { rows: number; tab: ReviewTab; filtered: boolean; onAll: () => void }) {
+  const { t } = useT()
   if (!rows) {
     return (
       <div className="flex flex-col items-start gap-2 px-5 py-8 sm:px-7 lg:px-5">
         <FlaskConical className="size-5 text-muted" aria-hidden />
-        <p className="text-sm text-txt">Nothing to review yet</p>
+        <p className="text-sm text-txt">{t("tests.nothingToReview")}</p>
         <p className="max-w-sm text-xs leading-relaxed text-muted">
-          When an agent finishes a task with a <code className="font-mono">manualTests</code> checklist, or a spec records a run, it lands here.
+          {t("tests.emptyLead")} <code className="font-mono">manualTests</code>{t("tests.emptyEnd")}
         </p>
       </div>
     )
@@ -597,14 +609,14 @@ function Empty({ rows, tab, filtered, onAll }: { rows: number; tab: ReviewTab; f
     <div className="flex flex-col items-start gap-3 px-5 py-8 sm:px-7 lg:px-5">
       {tab === "needs" && !filtered ? (
         <div className="flex flex-col gap-1.5">
-          <p className="flex items-center gap-2 text-sm text-txt"><CircleCheck className="size-4 text-teal" aria-hidden /> Nothing needs you</p>
-          <p className="max-w-sm text-xs leading-relaxed text-muted">No run is failing, nothing waits in review, and every open task&apos;s checks are ticked. Checks left on finished tasks stay under All.</p>
+          <p className="flex items-center gap-2 text-sm text-txt"><CircleCheck className="size-4 text-teal" aria-hidden /> {t("tests.nothingNeedsYou")}</p>
+          <p className="max-w-sm text-xs leading-relaxed text-muted">{t("tests.nothingNeedsYouHint")}</p>
         </div>
       ) : (
-        <p className="text-sm text-muted">No task matches {filtered ? "these filters" : `“${TAB_LABEL[tab]}”`}.</p>
+        <p className="text-sm text-muted">{filtered ? t("tests.noTaskMatchesFilters") : t("tests.noTaskMatchesTab", { tab: t(TAB_LABEL[tab]) })}</p>
       )}
       <button type="button" onClick={onAll} className="rounded-md border border-border px-2.5 py-1 text-xs text-txt hover:border-border2 hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent">
-        Show all {rows} tasks
+        {t("tests.showAllN", { n: rows })}
       </button>
     </div>
   )

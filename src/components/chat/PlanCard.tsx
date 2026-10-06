@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useApp } from "@/context/AppContext"
+import { useT } from "@/context/LanguageContext"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
 import type { Plan, PlanEpic, PlanTask } from "@/lib/plan"
@@ -22,6 +23,7 @@ export function PlanCard({ proposal, onResolve }: {
   onResolve: (status: PlanStatus, created: PlanCreated[], unchecked: string[]) => void
 }) {
   const { rootParam, openDoc } = useApp()
+  const { t, tn } = useT()
   const plan = proposal.plan
   const tasks: PlanTask[] = plan.kind === "breakdown" ? plan.tasks : []
   const horizons = plan.kind === "roadmap" ? plan.horizons ?? [] : []
@@ -92,7 +94,7 @@ export function PlanCard({ proposal, onResolve }: {
         body: JSON.stringify({ plan, selected }),
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(data?.error ?? `Apply failed (${res.status})`)
+      if (!res.ok) throw new Error(data?.error ?? t("chat.applyFailed", { status: res.status }))
       onResolve("accepted", data?.created ?? [], [...unchecked])
     } catch (e) {
       setError((e as Error).message)
@@ -104,56 +106,56 @@ export function PlanCard({ proposal, onResolve }: {
   return (
     <div className="my-2 rounded-md border border-border overflow-hidden">
       <div className="flex items-center gap-2 px-2 py-1.5 bg-surface2 border-b border-border">
-        <span className="text-[10px] font-mono uppercase tracking-widest text-muted">Plan</span>
+        <span className="text-[10px] font-mono uppercase tracking-widest text-muted">{t("chat.plan")}</span>
         {plan.kind === "breakdown" ? (
           <>
             {epicId ? (
               <>
                 <span className="text-xs font-mono text-accent">{epicId}</span>
-                <span className="text-xs text-txt truncate">{titles.get(epicId) ?? ""}</span>
+                <span data-user-content className="text-xs text-txt truncate">{titles.get(epicId) ?? ""}</span>
               </>
             ) : newEpic ? (
               <span className="text-xs text-txt truncate">
-                New epic: {newEpic.title}
-                <span className="text-muted"> (under {newEpic.parent.trim().toUpperCase()} {titles.get(newEpic.parent.trim().toUpperCase()) ?? ""})</span>
+                {t("chat.newEpic", { title: newEpic.title })}
+                <span className="text-muted"> {t("chat.under", { id: newEpic.parent.trim().toUpperCase(), title: titles.get(newEpic.parent.trim().toUpperCase()) ?? "" })}</span>
               </span>
             ) : (
-              <span className="text-xs text-muted">No epic</span>
+              <span className="text-xs text-muted">{t("chat.noEpic")}</span>
             )}
-            <span className="ml-auto text-[10px] font-mono text-muted">{tasks.length} tasks</span>
+            <span className="ml-auto text-[10px] font-mono text-muted">{t("chat.tasksCount", { n: tasks.length })}</span>
           </>
         ) : (
           <>
-            <span className="text-xs text-txt">Roadmap</span>
+            <span className="text-xs text-txt">{t("chat.roadmap")}</span>
             <span className="ml-auto text-[10px] font-mono text-muted">
-              {horizons.length ? `${horizons.length} horizons · ` : ""}{epics.length} epics
+              {horizons.length ? t("chat.horizonsCount", { n: horizons.length }) : ""}{t("chat.epicsCount", { n: epics.length })}
             </span>
           </>
         )}
       </div>
 
       <ul className="max-h-80 overflow-auto">
-        {tasks.map((t) => row(
-          t.key, t.title,
-          [t.size, t.dependsOn?.length ? `after ${t.dependsOn.join(", ")}` : null, t.due ? `due ${t.due}` : null, t.covers?.length ? `covers ${t.covers.join(", ")}` : null].filter(Boolean).join(" · "),
-          t.body,
+        {tasks.map((x) => row(
+          x.key, x.title,
+          [x.size, x.dependsOn?.length ? t("chat.after", { ids: x.dependsOn.join(", ") }) : null, x.due ? t("chat.dueDate", { date: x.due }) : null, x.covers?.length ? t("chat.covers", { ids: x.covers.join(", ") }) : null].filter(Boolean).join(" · "),
+          x.body,
         ))}
         {horizons.map((h) => [
-          row(h.key, h.title, "new horizon", h.body),
+          row(h.key, h.title, t("chat.newHorizon"), h.body),
           ...epics.filter((e) => e.parent.trim() === h.key).map((e) => row(e.key, e.title, outcome(e.body), e.body, true)),
         ])}
         {existingParents.map((p) => [
           <li key={`parent-${p}`} className="px-2 py-1.5 border-b border-border text-xs text-muted">
-            <span className="font-mono text-accent mr-1">{p.toUpperCase()}</span>{titles.get(p.toUpperCase()) ?? ""}
+            <span className="font-mono text-accent mr-1">{p.toUpperCase()}</span><span data-user-content>{titles.get(p.toUpperCase()) ?? ""}</span>
           </li>,
           ...epics.filter((e) => e.parent.trim() === p).map((e) => row(e.key, e.title, outcome(e.body), e.body, true)),
         ])}
       </ul>
 
       {(gaps.uncovered.length > 0 || gaps.untied.length > 0) && (
-        <div role="note" aria-label="Scenario coverage" className="px-2 py-1 text-xs text-amber border-t border-border">
-          {gaps.uncovered.length > 0 && <p>{gaps.uncovered.join(", ")} not covered by any task</p>}
-          {gaps.untied.length > 0 && <p>{gaps.untied.join(", ")} {gaps.untied.length === 1 ? "covers" : "cover"} no scenario</p>}
+        <div role="note" aria-label={t("chat.scenarioCoverage")} className="px-2 py-1 text-xs text-amber border-t border-border">
+          {gaps.uncovered.length > 0 && <p>{t("chat.notCovered", { ids: gaps.uncovered.join(", ") })}</p>}
+          {gaps.untied.length > 0 && <p>{tn("chat.coversNone", gaps.untied.length, { ids: gaps.untied.join(", ") })}</p>}
         </div>
       )}
       {error && <div className="px-2 py-1 text-xs text-red-400 whitespace-pre-wrap border-t border-border">{error}</div>}
@@ -166,15 +168,15 @@ export function PlanCard({ proposal, onResolve }: {
               disabled={saving || selected.length === 0}
               className="text-xs px-2 py-0.5 rounded-sm bg-accent/20 text-accent hover:bg-accent/30 disabled:opacity-50"
             >
-              {saving ? "Creating…" : `Accept (${selected.length})`}
+              {saving ? t("chat.creating") : t("chat.acceptN", { n: selected.length })}
             </button>
             <button onClick={() => onResolve("rejected", [], [])} disabled={saving} className="text-xs px-2 py-0.5 rounded-sm text-muted hover:text-txt">
-              Reject
+              {t("chat.reject")}
             </button>
           </>
         ) : proposal.status === "accepted" ? (
           <span className="text-xs text-teal-400">
-            ✓ Created{" "}
+            {t("chat.created")}{" "}
             {(proposal.created ?? []).map((c, i) => (
               <span key={c.id}>
                 {i > 0 && ", "}
@@ -183,7 +185,7 @@ export function PlanCard({ proposal, onResolve }: {
             ))}
           </span>
         ) : (
-          <span className="text-xs text-muted">Rejected</span>
+          <span className="text-xs text-muted">{t("chat.rejected")}</span>
         )}
       </div>
     </div>
@@ -202,12 +204,13 @@ function PlanRow({ rowKey, title, meta, body, indent, checked, disabled, onToggl
   open: boolean
   onOpen: () => void
 }) {
+  const { t } = useT()
   return (
     <li data-plan-row={rowKey} className="border-b border-border last:border-b-0">
       <div className={cn("flex items-start gap-2 px-2 py-1.5", indent && "pl-6")}>
         <input
           type="checkbox"
-          aria-label={`Include ${title}`}
+          aria-label={t("chat.include", { title })}
           checked={checked}
           disabled={disabled}
           onChange={onToggle}
@@ -215,13 +218,13 @@ function PlanRow({ rowKey, title, meta, body, indent, checked, disabled, onToggl
         />
         <button onClick={onOpen} className="flex-1 min-w-0 text-left">
           <div className={cn("text-xs text-txt", !checked && "line-through text-muted")}>
-            <span className="font-mono text-muted mr-1">{rowKey}</span>{title}
+            <span className="font-mono text-muted mr-1">{rowKey}</span><span data-user-content>{title}</span>
           </div>
-          {meta && <div className="text-[10px] font-mono text-muted truncate">{meta}</div>}
+          {meta && <div data-user-content className="text-[10px] font-mono text-muted truncate">{meta}</div>}
         </button>
       </div>
       {open && body && (
-        <div className="px-3 pb-2 border-t border-border bg-surface2/40">
+        <div data-user-content className="px-3 pb-2 border-t border-border bg-surface2/40">
           <MarkdownRenderer content={body} className="text-xs" />
         </div>
       )}

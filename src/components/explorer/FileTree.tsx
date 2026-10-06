@@ -68,7 +68,7 @@ function TreeNodeRow({ node, depth, selectedPath, onSelect, heatmap, defaultOpen
       >
         <div className="flex items-center gap-1.5">
           <FileText className={cn("w-3.5 h-3.5 shrink-0", colorClass)} />
-          <span className="text-xs text-txt truncate">{node.name}</span>
+          <span data-user-content className="text-xs text-txt truncate">{node.name}</span>
         </div>
         {node.file.description && (
           <p className="text-[10px] text-muted leading-tight truncate" style={{ paddingLeft: 20 }}>
@@ -93,7 +93,7 @@ function TreeNodeRow({ node, depth, selectedPath, onSelect, heatmap, defaultOpen
             ? <FolderOpen className="w-3.5 h-3.5 text-accent shrink-0" />
             : <Folder className="w-3.5 h-3.5 text-muted shrink-0" />
           }
-          <span className="text-xs text-txt font-medium">{node.name}</span>
+          <span data-user-content className="text-xs text-txt font-medium">{node.name}</span>
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>

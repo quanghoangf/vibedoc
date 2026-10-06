@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useApp } from "@/context/AppContext"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 import { Palette, Type, FolderCog, Plug, Zap, Bot, Settings, Columns3, AppWindow } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeSettings } from "@/components/settings/ThemeSettings"
@@ -18,19 +20,22 @@ import type { AppSettings, Skill, Agent } from "@/lib/settings"
 import { DEFAULT_SETTINGS, DEFAULT_SKILLS, DEFAULT_AGENTS } from "@/lib/settings"
 import { applyTheme, applyAccent, applyFontSize, applyFonts } from "@/lib/applySettings"
 
-const TABS = [
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "editor", label: "Editor", icon: Type },
-  { id: "project", label: "Project", icon: FolderCog },
-  { id: "statuses", label: "Statuses", icon: Columns3 },
-  { id: "frontend", label: "Frontend app", icon: AppWindow },
+// label: a message key, or a name shown as written (MCP)
+const TABS: { id: string; label: MessageKey | "MCP"; icon: typeof Palette }[] = [
+  { id: "appearance", label: "settings.tabAppearance", icon: Palette },
+  { id: "editor", label: "settings.tabEditor", icon: Type },
+  { id: "project", label: "settings.tabProject", icon: FolderCog },
+  { id: "statuses", label: "settings.tabStatuses", icon: Columns3 },
+  { id: "frontend", label: "settings.tabFrontend", icon: AppWindow },
   { id: "mcp", label: "MCP", icon: Plug },
-  { id: "skills", label: "Skills", icon: Zap },
-  { id: "agents", label: "Agents", icon: Bot },
+  { id: "skills", label: "settings.tabSkills", icon: Zap },
+  { id: "agents", label: "settings.tabAgents", icon: Bot },
 ]
 
 export default function SettingsPage() {
   const { rootParam, setEditorSettings, setAutoRefreshSeconds } = useApp()
+  const { t } = useT()
+  const tabLabel = (l: MessageKey | "MCP") => (l === "MCP" ? l : t(l))
   const [activeTab, setActiveTab] = useState("appearance")
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [skills, setSkills] = useState<Skill[]>(DEFAULT_SKILLS)
@@ -102,7 +107,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="text-muted">Loading settings...</div>
+        <div className="text-muted">{t("settings.loadingSettings")}</div>
       </div>
     )
   }
@@ -110,7 +115,7 @@ export default function SettingsPage() {
   return (
     <div className="flex h-full flex-col sm:flex-row">
       {/* Phone: the sections as a scrolling tab strip instead of the sidebar */}
-      <nav aria-label="Settings sections" className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 py-2 sm:hidden [scrollbar-width:none]">
+      <nav aria-label={t("settings.sections")} className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 py-2 sm:hidden [scrollbar-width:none]">
         {TABS.map(tab => (
           <button
             key={tab.id}
@@ -121,7 +126,7 @@ export default function SettingsPage() {
               activeTab === tab.id ? "bg-accent/10 font-medium text-accent" : "text-muted hover:bg-surface2 hover:text-txt",
             )}
           >
-            {tab.label}
+            {tabLabel(tab.label)}
           </button>
         ))}
       </nav>
@@ -131,7 +136,7 @@ export default function SettingsPage() {
         <div className="p-4 border-b border-border">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-accent" />
-            <h1 className="font-semibold text-txt">Settings</h1>
+            <h1 className="font-semibold text-txt">{t("settings.settings")}</h1>
           </div>
         </div>
         <nav className="p-2">
@@ -149,7 +154,7 @@ export default function SettingsPage() {
                 )}
               >
                 <Icon className="w-4 h-4" />
-                {tab.label}
+                {tabLabel(tab.label)}
               </button>
             )
           })}
@@ -161,7 +166,7 @@ export default function SettingsPage() {
         <div className="max-w-2xl mx-auto p-4 sm:p-6">
           {saving && (
             <div className="fixed top-4 right-4 bg-accent text-accent-fg px-3 py-1.5 rounded-lg text-sm shadow-lg">
-              Saving...
+              {t("settings.saving")}
             </div>
           )}
 

@@ -7,6 +7,7 @@ import { askAgent } from "@/lib/ask-agent"
 import { MAX_RUNNING_CHATS } from "@/lib/chats"
 import { useChats } from "@/context/ChatContext"
 import type { RoadmapItem } from "@/types"
+import { useT } from "@/context/LanguageContext"
 
 interface BreakdownEpicsDialogProps {
   open: boolean
@@ -31,10 +32,11 @@ function epicGroups(items: RoadmapItem[]) {
 
 /** Tick several epics → one breakdown chat per epic, all running at once (capped by free agent slots). */
 export function BreakdownEpicsDialog({ open, onOpenChange, items }: BreakdownEpicsDialogProps) {
+  const { t } = useT()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg bg-surface border-border text-txt">
-        <DialogTitle className="text-sm font-semibold text-txt">Break down epics</DialogTitle>
+        <DialogTitle className="text-sm font-semibold text-txt">{t("roadmap.breakDownEpics")}</DialogTitle>
         {/* Mounted only while open, so the default selection is recomputed on every open */}
         <BreakdownForm items={items} onDone={() => onOpenChange(false)} />
       </DialogContent>
@@ -44,6 +46,7 @@ export function BreakdownEpicsDialog({ open, onOpenChange, items }: BreakdownEpi
 
 function BreakdownForm({ items, onDone }: { items: RoadmapItem[]; onDone: () => void }) {
   const groups = epicGroups(items)
+  const { t, tn } = useT()
   const [checked, setChecked] = useState(
     () => new Set(groups.flatMap((g) => g.epics.filter((e) => e.tasks.length === 0).map((e) => e.id))),
   )
@@ -94,7 +97,7 @@ function BreakdownForm({ items, onDone }: { items: RoadmapItem[]; onDone: () => 
                         <span className="font-mono text-muted mr-1">{epic.id}</span>{epic.title}
                       </span>
                       {epic.tasks.length > 0 && (
-                        <span className="shrink-0 text-[10px] font-mono text-muted">has {epic.tasks.length} task{epic.tasks.length === 1 ? "" : "s"}</span>
+                        <span className="shrink-0 text-[10px] font-mono text-muted">{tn("roadmap.hasTasks", epic.tasks.length)}</span>
                       )}
                     </label>
                   </li>
@@ -106,17 +109,17 @@ function BreakdownForm({ items, onDone }: { items: RoadmapItem[]; onDone: () => 
       </div>
       <p className={over || free === 0 ? "text-xs text-amber" : "text-xs text-muted"}>
         {free === 0
-          ? `All ${MAX_RUNNING_CHATS} agent slots are busy. Stop a chat or wait for one to finish.`
+          ? t("roadmap.slotsBusy", { max: MAX_RUNNING_CHATS })
           : over
-            ? `${checked.size} selected, but only ${free} of ${MAX_RUNNING_CHATS} agent slots ${free === 1 ? "is" : "are"} free (${running} running). Uncheck some or stop a chat.`
-            : `One chat per epic, running at once (${free} of ${MAX_RUNNING_CHATS} agent slots free). Each shows a plan before writing anything.`}
+            ? tn("roadmap.slotsOver", free, { selected: checked.size, max: MAX_RUNNING_CHATS, running })
+            : t("roadmap.slotsInfo", { free, max: MAX_RUNNING_CHATS })}
       </p>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" size="sm" onClick={onDone}>
-          Cancel
+          {t("board.cancel")}
         </Button>
         <Button type="submit" size="sm" disabled={!checked.size || over} className="bg-accent text-accent-fg hover:bg-accent/90">
-          Break down {checked.size || ""} epic{checked.size === 1 ? "" : "s"}
+          {checked.size ? tn("roadmap.breakDownN", checked.size) : t("roadmap.breakDownEpics")}
         </Button>
       </div>
     </form>

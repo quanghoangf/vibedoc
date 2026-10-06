@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react"
 import { X } from "lucide-react"
+import { tNow, useT } from "@/context/LanguageContext"
 
 interface ToastItem {
   id: number
@@ -34,10 +35,10 @@ export function undoToast(message: string, undo: () => Promise<void>) {
   const id = toast(message, {
     durationMs: 8000,
     action: {
-      label: "Undo",
+      label: tNow("help.undo"),
       onClick: () => {
         dismissToast(id)
-        undo().catch((e: Error) => toast(`Undo failed: ${e.message}`))
+        undo().catch((e: Error) => toast(tNow("help.undoFailed", { message: e.message })))
       },
     },
   })
@@ -49,6 +50,7 @@ export function Toaster() {
     () => items,
     () => EMPTY,
   )
+  const { t: tr } = useT()
   return (
     <div role="status" aria-live="polite" className="pointer-events-none fixed bottom-4 left-1/2 z-[100] flex -translate-x-1/2 flex-col items-center gap-2">
       {list.map((t) => (
@@ -62,7 +64,7 @@ export function Toaster() {
               {t.action.label}
             </button>
           )}
-          <button type="button" aria-label="Dismiss" onClick={() => dismissToast(t.id)} className="grid size-6 place-items-center rounded-md text-muted hover:text-txt">
+          <button type="button" aria-label={tr("help.dismiss")} onClick={() => dismissToast(t.id)} className="grid size-6 place-items-center rounded-md text-muted hover:text-txt">
             <X className="size-3.5" />
           </button>
         </div>

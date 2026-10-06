@@ -5,6 +5,7 @@ import { Plus, Pencil, Trash2, Check, Bot } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import type { Agent, Skill } from "@/lib/settings"
+import { useT } from "@/context/LanguageContext"
 
 interface AgentsSettingsProps {
   agents: Agent[]
@@ -18,6 +19,7 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
   const [editing, setEditing] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<Agent | null>(null)
   const [isNew, setIsNew] = useState(false)
+  const { t } = useT()
 
   const startEdit = (agent: Agent) => {
     setEditing(agent.id)
@@ -58,7 +60,7 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
   }
 
   const deleteAgent = (id: string) => {
-    if (!confirm("Delete this agent?")) return
+    if (!confirm(t("settings.deleteAgentConfirm"))) return
     onSave(agents.filter(a => a.id !== id))
   }
 
@@ -89,7 +91,7 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
         <Input
           value={form.name}
           onChange={(e) => setEditForm({ ...form, name: e.target.value })}
-          placeholder="Agent name"
+          placeholder={t("settings.agentName")}
           className="bg-surface2"
         />
       </div>
@@ -97,12 +99,12 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
       <Input
         value={form.description}
         onChange={(e) => setEditForm({ ...form, description: e.target.value })}
-        placeholder="Description"
+        placeholder={t("settings.description")}
         className="bg-surface2"
       />
 
       <div>
-        <label className="text-xs text-muted mb-2 block">Assigned Skills</label>
+        <label className="text-xs text-muted mb-2 block">{t("settings.assignedSkills")}</label>
         <div className="flex flex-wrap gap-2">
           {skills.map(skill => (
             <button
@@ -116,21 +118,21 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
               )}
             >
               <span>{skill.icon || "⚡"}</span>
-              {skill.name}
+              <span data-user-content>{skill.name}</span>
             </button>
           ))}
           {skills.length === 0 && (
-            <span className="text-xs text-muted">No skills available. Create skills first.</span>
+            <span className="text-xs text-muted">{t("settings.noSkillsAvailable")}</span>
           )}
         </div>
       </div>
 
       <div>
-        <label className="text-xs text-muted mb-1 block">Custom System Prompt</label>
+        <label className="text-xs text-muted mb-1 block">{t("settings.customPrompt")}</label>
         <textarea
           value={form.prompt}
           onChange={(e) => setEditForm({ ...form, prompt: e.target.value })}
-          placeholder="Additional instructions for this agent..."
+          placeholder={t("settings.agentPromptPlaceholder")}
           rows={3}
           className="w-full px-3 py-2 bg-surface2 border border-border rounded-lg text-sm resize-none"
         />
@@ -152,14 +154,14 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
               )}
             />
           </button>
-          <span className="text-sm text-muted">{form.active ? "Active" : "Inactive"}</span>
+          <span className="text-sm text-muted">{form.active ? t("settings.active") : t("settings.inactive")}</span>
         </div>
         <div className="flex gap-2">
           <button
             onClick={cancelEdit}
             className="px-3 py-1.5 text-sm text-muted hover:text-txt transition-colors"
           >
-            Cancel
+            {t("settings.cancel")}
           </button>
           <button
             onClick={saveEdit}
@@ -167,7 +169,7 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
             className="flex items-center gap-2 px-3 py-1.5 bg-accent text-accent-fg rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50"
           >
             <Check className="w-4 h-4" />
-            Save
+            {t("settings.save")}
           </button>
         </div>
       </div>
@@ -178,15 +180,15 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-txt mb-1">Agents</h2>
-          <p className="text-sm text-muted">AI agent profiles with assigned skills.</p>
+          <h2 className="text-xl font-semibold text-txt mb-1">{t("settings.tabAgents")}</h2>
+          <p className="text-sm text-muted">{t("settings.agentsHint")}</p>
         </div>
         <button
           onClick={startNew}
           className="flex items-center gap-2 px-3 py-2 bg-accent text-accent-fg rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          Add Agent
+          {t("settings.addAgent")}
         </button>
       </div>
 
@@ -205,21 +207,21 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-txt">{agent.name}</span>
+                    <span data-user-content className="font-medium text-txt">{agent.name}</span>
                     {!agent.active && (
                       <span className="text-xs bg-surface2 px-1.5 py-0.5 rounded-sm text-muted">
-                        Inactive
+                        {t("settings.inactive")}
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-muted mt-0.5">{agent.description}</p>
+                  <p data-user-content className="text-sm text-muted mt-0.5">{agent.description}</p>
                   {agent.skills.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {agent.skills.map(skillId => {
                         const skill = skills.find(s => s.id === skillId)
                         return skill ? (
                           <span key={skillId} className="flex items-center gap-1 text-xs bg-surface2 px-1.5 py-0.5 rounded-sm text-muted">
-                            {skill.icon} {skill.name}
+                            {skill.icon} <span data-user-content>{skill.name}</span>
                           </span>
                         ) : null
                       })}
@@ -229,6 +231,7 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => toggleActive(agent.id)}
+                    aria-label={t("settings.toggleActive", { name: agent.name })}
                     className={cn(
                       "w-9 h-5 rounded-full transition-colors relative",
                       agent.active ? "bg-accent" : "bg-border"
@@ -244,12 +247,14 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => startEdit(agent)}
+                      aria-label={t("settings.editName", { name: agent.name })}
                       className="p-1.5 rounded-sm hover:bg-surface2 text-muted hover:text-txt transition-colors"
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => deleteAgent(agent.id)}
+                      aria-label={t("settings.deleteName", { name: agent.name })}
                       className="p-1.5 rounded-sm hover:bg-red-500/10 text-muted hover:text-red-400 transition-colors"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -266,8 +271,8 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
         {agents.length === 0 && !isNew && (
           <div className="text-center py-8 text-muted">
             <Bot className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">No agents configured</p>
-            <p className="text-xs mt-1">Add an agent to define AI personas with skills</p>
+            <p className="text-sm">{t("settings.noAgents")}</p>
+            <p className="text-xs mt-1">{t("settings.noAgentsHint")}</p>
           </div>
         )}
       </div>

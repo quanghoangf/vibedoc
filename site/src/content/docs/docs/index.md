@@ -101,3 +101,7 @@ Ask the agent to work the task, or run `/vibedoc:work R001` for a whole epic. Th
 5. [`vibedoc_update_memory`](/vibedoc/docs/tools/vibedoc_update_memory/) writes the handoff for the next session.
 
 Then review the task on **Test review**: its checklist, the screenshots and video of the run. See [Evidence](/vibedoc/docs/concepts/evidence/).
+
+## Language
+
+VibeDoc's interface comes in English and Vietnamese (Tiếng Việt). Pick one in **Settings → Appearance → Language**. The switch is instant, with no reload. The choice is saved for this browser (a `vibedoc-lang` cookie), not in the project, so teammates each keep their own. Your docs, tasks and the agent's replies stay in the language they were written in. A few fonts in Settings have no Vietnamese letters and say so.

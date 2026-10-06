@@ -11,7 +11,7 @@
 // node_modules links to VibeDoc's. Runs land in ~/.vibedoc/runs/<fixture key> and are removed in `finally`.
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
@@ -61,6 +61,12 @@ try {
   await page.getByRole("button", { name: "Run suite" }).click()
   await page.getByText("Passed · 2/2 tasks").waitFor({ timeout: 90000 })
   console.log("ok  Run suite → Passed · 2/2 tasks")
+  // R079: the suite records plain
+  for (const t of ["T001", "T002"]) {
+    const dir = path.join(runsDir, t)
+    const newest = readdirSync(dir).filter((d) => /^\d{8}T\d{6}Z$/.test(d)).sort().at(-1)
+    assert.deepEqual(JSON.parse(readFileSync(path.join(dir, newest, "run.json"), "utf8")).presentation, { on: false, reason: "suite" })
+  }
 
   // 2. Break T002's feature check → the suite names T002 with its failing step and screenshot
   spec("T002", STEP2, "await expect(page.getByRole('button', { name: 'Nope, gone' })).toBeVisible({ timeout: 1500 })")

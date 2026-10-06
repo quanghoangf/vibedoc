@@ -8,19 +8,21 @@ import { DocPathDialog, type DocActions } from "@/components/docs/DocActionsMenu
 import { askAgent } from "@/lib/ask-agent"
 import { toast, undoToast } from "@/components/ui/toast"
 import type { DocFile } from "@/types"
+import { tNow, useT } from "@/context/LanguageContext"
 
 async function send(url: string, method: string, body: unknown): Promise<string | null> {
   try {
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     if (res.ok) return null
-    return (await res.json().catch(() => null))?.error ?? `Request failed (${res.status})`
+    return (await res.json().catch(() => null))?.error ?? tNow("board.requestFailed", { status: res.status })
   } catch {
-    return "Could not reach the server"
+    return tNow("roadmap.couldNotReach")
   }
 }
 
 export default function DocsPage() {
   const { selectedDoc, setSelectedDoc, rootParam, activeProject, demo } = useApp()
+  const { t } = useT()
   const [docs, setDocs] = useState<DocFile[]>([])
   const [docSearch, setDocSearch] = useState("")
   const [newDocOpen, setNewDocOpen] = useState(false)
@@ -67,7 +69,7 @@ export default function DocsPage() {
   }, [rootParam, fetchDocs])
 
   async function handleDocSelect(path: string) {
-    if (isDirtyRef.current && !window.confirm("You have unsaved changes. Discard?")) return
+    if (isDirtyRef.current && !window.confirm(t("docs.unsavedDiscard"))) return
     isDirtyRef.current = false
     const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(path)}`)
     const data = await res.json()
@@ -143,9 +145,9 @@ export default function DocsPage() {
       const wasOpen = selectedDoc?.path === path
       const res = await fetch(`/api/docs${rootParam}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) })
       const data = await res.json().catch(() => null)
-      if (!res.ok) return toast(data?.error ?? "Delete failed")
+      if (!res.ok) return toast(data?.error ?? t("docs.deleteFailed"))
       handleDocDeleted(path)
-      undoToast(`Deleted ${path}`, async () => {
+      undoToast(t("docs.deletedPath", { path }), async () => {
         const err = await send(`/api/docs${rootParam}`, "POST", { path, content: data.content })
         if (err) throw new Error(err)
         if (wasOpen) await handleDocCreated(path)

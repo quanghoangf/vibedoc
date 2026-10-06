@@ -7,17 +7,7 @@ import { cn } from "@/lib/utils"
 import { isLive } from "@/lib/sessions"
 import { SessionCard } from "./SessionCard"
 import type { EventTarget } from "@/lib/activity"
-import { clock } from "./ActivityEventRow"
-
-export function dayLabel(ts: string): string {
-  const d = new Date(ts)
-  const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(today.getDate() - 1)
-  if (d.toDateString() === today.toDateString()) return "Today"
-  if (d.toDateString() === yesterday.toDateString()) return "Yesterday"
-  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
-}
+import { useFormat, useT } from "@/context/LanguageContext"
 
 /** Sticky day heading shared by the sessions timeline and the event feed. */
 export function DayLabel({ label }: { label: string }) {
@@ -41,6 +31,8 @@ interface SessionTimelineProps {
 }
 
 export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpen, focusSessionId }: SessionTimelineProps) {
+  const f = useFormat()
+  const { t } = useT()
   const [actor, setActor] = useState<ActorFilter>("all")
   // Ticking clock: expires "working" badges without new events
   const [now, setNow] = useState(() => Date.now())
@@ -53,7 +45,7 @@ export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpe
 
   return (
     <div>
-      <div className="mb-3 flex items-center gap-1 text-xs" role="group" aria-label="Filter by actor">
+      <div className="mb-3 flex items-center gap-1 text-xs" role="group" aria-label={t("memory.filterByActor")}>
         {(["all", "ai", "human"] as const).map(a => {
           const Icon = a === "ai" ? Bot : a === "human" ? User : null
           return (
@@ -67,7 +59,7 @@ export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpe
               )}
             >
               {Icon && <Icon className="size-3.5" aria-hidden />}
-              {a === "all" ? "All" : a === "ai" ? "Agent" : "Human"}
+              {a === "all" ? t("memory.all") : a === "ai" ? t("memory.agent") : t("memory.human")}
               <span className="font-mono text-[11px] text-muted tabular-nums">{counts[a]}</span>
             </button>
           )
@@ -75,14 +67,14 @@ export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpe
       </div>
 
       {shown.length === 0 ? (
-        <p className="py-10 text-center text-sm text-muted">No {actor === "ai" ? "agent" : "human"} sessions yet.</p>
+        <p className="py-10 text-center text-sm text-muted">{actor === "ai" ? t("memory.noAgentSessions") : t("memory.noHumanSessions")}</p>
       ) : (
         <ol className="relative">
           {/* Rail runs behind the dots, between the clock gutter and the cards */}
           <div className="absolute left-[3.5rem] top-10 bottom-2 w-px bg-border" aria-hidden />
           {shown.map((s, i) => {
-            const label = dayLabel(s.start)
-            const showDay = i === 0 || dayLabel(shown[i - 1].start) !== label
+            const label = f.dayHeading(s.start)
+            const showDay = i === 0 || f.dayHeading(shown[i - 1].start) !== label
             const live = isLive(s, now)
             // Matches SessionCard's one-line layout for sessions with nothing to link
             const quiet = s.tasks.length + s.docs.length + s.decisions.length === 0
@@ -94,8 +86,8 @@ export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpe
               >
                 {showDay && <DayLabel label={label} />}
                 <div className={cn("grid grid-cols-[2.75rem_1.5rem_minmax(0,1fr)] items-start", quiet ? "pb-1" : "py-2")}>
-                  <time dateTime={s.start} className={cn("text-right font-mono text-[11px] tabular-nums", quiet ? "pt-2 text-muted" : "pt-4 text-txt")} title={new Date(s.start).toLocaleString()}>
-                    {clock(s.start)}
+                  <time dateTime={s.start} className={cn("text-right font-mono text-[11px] tabular-nums", quiet ? "pt-2 text-muted" : "pt-4 text-txt")} title={f.dateTime(s.start)}>
+                    {f.clock(s.start)}
                   </time>
                   <span className={cn("flex justify-center", quiet ? "pt-[0.8rem]" : "pt-[1.15rem]")} aria-hidden>
                     <span

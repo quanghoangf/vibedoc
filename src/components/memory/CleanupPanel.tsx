@@ -11,12 +11,17 @@ import type { CleanupFlag } from "@/lib/core"
 import type { HealthKind } from "@/lib/memory-health"
 import type { Entry } from "@/lib/entries"
 import { MergeDialog, type MergeInput } from "./MergeDialog"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
+import { useStatusLabel } from "@/components/shared/StatusIcon"
+import { useRoadmapStatusLabel } from "@/components/roadmap/RoadmapNodes"
+import type { RoadmapStatus } from "@/types"
 
-const GROUPS: { kind: HealthKind; label: string }[] = [
-  { kind: "contradiction", label: "Contradicts the board" },
-  { kind: "dangling-ref", label: "Missing items" },
-  { kind: "duplicate", label: "Possible duplicates" },
-  { kind: "stale", label: "Not recalled lately" },
+const GROUPS: { kind: HealthKind; label: MessageKey }[] = [
+  { kind: "contradiction", label: "memory.groupContradiction" },
+  { kind: "dangling-ref", label: "memory.groupDangling" },
+  { kind: "duplicate", label: "memory.groupDuplicate" },
+  { kind: "stale", label: "memory.groupStale" },
 ]
 
 /** Memory health flags (R051), grouped by kind. Dismiss hides a flag until its id changes (memory/.cleanup.json). */
@@ -35,6 +40,26 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
 }) {
   const router = useRouter()
   const { board } = useApp()
+  const { t, tn } = useT()
+  const taskStatus = useStatusLabel()
+  const roadmapStatus = useRoadmapStatusLabel()
+  // a flag in the UI language, from its data (the English `message` is MCP's)
+  const flagText = (f: CleanupFlag): string => {
+    const d = f.detail
+    if (!d) return f.message
+    const st = (id: string, s: string) => (id.startsWith("R") ? roadmapStatus(s as RoadmapStatus) : taskStatus(s)).toLowerCase()
+    switch (d.is) {
+      case "dangling": return t("memory.flagDangling", { who: d.who ?? t("memory.handoffWho"), id: d.id })
+      case "not-done": return t("memory.flagNotDone", { id: d.id, status: st(d.id, d.status) })
+      case "says": return t(d.says === "in-progress" ? "memory.flagSaysInProgress" : "memory.flagSaysUpNext", { id: d.id, status: st(d.id, d.status) })
+      case "duplicate": {
+        const names = d.ids.length === 2 ? d.ids.join(` ${t("memory.andJoin")} `) : `${d.ids.slice(0, -1).join(", ")} ${t("memory.andJoin")} ${d.ids[d.ids.length - 1]}`
+        return t("memory.flagDuplicate", { names, percent: d.percent })
+      }
+      case "stale-recalled": return tn("memory.flagStaleRecalled", d.days, { id: d.id })
+      case "stale-never": return tn("memory.flagStaleNever", d.days, { id: d.id })
+    }
+  }
   const [showDismissed, setShowDismissed] = useState(false)
   const [merging, setMerging] = useState<string[] | null>(null)
   // the Merge… button that opened the dialog: the dialog has no DialogTrigger, so focus goes back here by hand
@@ -80,7 +105,7 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
       >
         {task && <StatusIcon status={displayStatus(task)} className="size-3.5 shrink-0" />}
         <span className="shrink-0 font-mono text-[11px] text-muted">{id}</span>
-        {title && <span className="min-w-0 truncate text-txt">{title}</span>}
+        {title && <span data-user-content className="min-w-0 truncate text-txt">{title}</span>}
       </button>
     )
   }
@@ -89,10 +114,10 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
     const Icon = f.severity === "warn" ? AlertTriangle : Info
     return (
       <li key={f.id} data-flag={f.id} className={cn("flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2.5", f.dismissed && "opacity-60")}>
-        <Icon className={cn("mt-0.5 size-3.5 shrink-0", f.severity === "warn" && !f.dismissed ? "text-amber" : "text-muted")} aria-label={f.severity === "warn" ? "Warning" : "Note"} />
+        <Icon className={cn("mt-0.5 size-3.5 shrink-0", f.severity === "warn" && !f.dismissed ? "text-amber" : "text-muted")} aria-label={f.severity === "warn" ? t("memory.warning") : t("memory.note")} />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <p className={cn("text-[13px]", f.dismissed ? "text-muted" : "text-txt")}>
-            {f.message.split(/\b([TRE]\d+)\b/).map((part, i) => (i % 2 ? <span key={i} className="font-mono text-[12px]">{part}</span> : part))}
+            {flagText(f).split(/\b([TRE]\d+)\b/).map((part, i) => (i % 2 ? <span key={i} className="font-mono text-[12px]">{part}</span> : part))}
           </p>
           {f.refs.length > 0 && (
             <div className={cn("-ml-1.5 flex gap-1", f.kind === "duplicate" ? "flex-col items-start" : "flex-wrap")}>{f.refs.map(ref)}</div>
@@ -105,7 +130,7 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
             onClick={(e) => { mergeTrigger.current = e.currentTarget; setMerging(f.suggestion?.ids ?? null) }}
             className="h-6 shrink-0 rounded-md border border-border px-2 text-xs text-txt outline-none transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
           >
-            Merge…
+            {t("memory.mergeEllipsis")}
           </button>
         )}
         {f.suggestion?.action === "delete" && !f.dismissed && (
@@ -113,14 +138,14 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
             type="button"
             data-action
             onClick={() => { willRemove(f); f.suggestion?.ids.forEach(onDelete) }}
-            aria-label={`Delete ${f.suggestion.ids.join(", ")}`}
+            aria-label={t("memory.deleteIds", { ids: f.suggestion.ids.join(", ") })}
             className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs text-txt outline-none transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 hover:text-danger focus-visible:ring-2 focus-visible:ring-accent"
           >
-            <Trash2 className="size-3" aria-hidden /> Delete
+            <Trash2 className="size-3" aria-hidden /> {t("board.delete")}
           </button>
         )}
         {f.dismissed ? (
-          <span className="shrink-0 font-mono text-[10px] text-muted" title="Dismissed on">dismissed {f.dismissed}</span>
+          <span className="shrink-0 font-mono text-[10px] text-muted" title={t("memory.dismissedOn")}>{t("memory.dismissedDate", { date: f.dismissed })}</span>
         ) : (
           <button
             type="button"
@@ -128,7 +153,7 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
             onClick={() => { if (!showDismissed) willRemove(f); onDismiss(f) }}
             className="h-6 shrink-0 rounded-md px-2 text-xs text-muted outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent"
           >
-            Dismiss
+            {t("memory.dismiss")}
           </button>
         )}
       </li>
@@ -136,9 +161,9 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
   }
 
   return (
-    <section ref={sectionRef} aria-label="Cleanup" className="min-w-0">
+    <section ref={sectionRef} aria-label={t("memory.cleanup")} className="min-w-0">
       <div className="mb-3 flex items-baseline justify-between gap-3">
-        <h2 tabIndex={-1} className="outline-none font-display text-base font-semibold tracking-tight">Cleanup</h2>
+        <h2 tabIndex={-1} className="outline-none font-display text-base font-semibold tracking-tight">{t("memory.cleanup")}</h2>
         <div className="flex items-center gap-3">
           {dismissedCount > 0 && (
             <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted">
@@ -148,18 +173,18 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
                 onChange={(e) => setShowDismissed(e.target.checked)}
                 className="size-3.5 accent-accent focus-visible:outline-2 focus-visible:outline-accent"
               />
-              Show dismissed <span className="font-mono text-[10px]">{dismissedCount}</span>
+              {t("memory.showDismissed")} <span className="font-mono text-[10px]">{dismissedCount}</span>
             </label>
           )}
           <button type="button" onClick={onClose} className="text-xs text-muted underline-offset-2 outline-none hover:text-txt hover:underline focus-visible:ring-2 focus-visible:ring-accent">
-            Show the handoff
+            {t("memory.showHandoff")}
           </button>
         </div>
       </div>
       {flags === null ? (
-        <p className="text-sm text-muted">Checking memory…</p>
+        <p className="text-sm text-muted">{t("memory.checkingMemory")}</p>
       ) : !shown.length ? (
-        <p className="rounded-xl border border-dashed border-border p-5 text-sm text-muted">Memory looks clean</p>
+        <p className="rounded-xl border border-dashed border-border p-5 text-sm text-muted">{t("memory.memoryClean")}</p>
       ) : (
         <div className="flex flex-col gap-4">
           {GROUPS.map(({ kind, label }) => {
@@ -168,7 +193,7 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
             return (
               <div key={kind} className="flex flex-col gap-1.5">
                 <h3 className="font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">
-                  {label} <span>{group.filter((f) => !f.dismissed).length}</span>
+                  {t(label)} <span>{group.filter((f) => !f.dismissed).length}</span>
                 </h3>
                 <ul className="flex flex-col gap-1.5">{group.map(row)}</ul>
               </div>

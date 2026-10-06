@@ -7,13 +7,16 @@ import { useApp } from "@/context/AppContext"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { displayStatus } from "@/lib/statuses"
 import type { GraphNode, MemoryGraph, NodeKind } from "@/lib/memory-graph"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 
-export const GROUPS: { kind: NodeKind; label: string }[] = [
-  { kind: "task", label: "Tasks" },
-  { kind: "epic", label: "Epics" },
-  { kind: "adr", label: "ADRs" },
-  { kind: "doc", label: "Docs" },
-  { kind: "entry", label: "Entries" },
+/** `label` is a message key (R078): render it with t() */
+export const GROUPS: { kind: NodeKind; label: MessageKey }[] = [
+  { kind: "task", label: "roadmap.kindTasks" },
+  { kind: "epic", label: "roadmap.kindEpics" },
+  { kind: "adr", label: "roadmap.kindAdrs" },
+  { kind: "doc", label: "roadmap.kindDocs" },
+  { kind: "entry", label: "roadmap.kindEntries" },
 ]
 export const KIND_ICON = { epic: Flag, adr: Scale, doc: FileText, entry: Lightbulb, task: BookOpen, spec: ListChecks } as const
 
@@ -36,6 +39,7 @@ export function useOpenNode(onOpenEntry: (id: string) => void) {
 export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpenEntry: (id: string) => void }) {
   const { rootParam, summary, board } = useApp()
   const open = useOpenNode(onOpenEntry)
+  const { t } = useT()
   const [graph, setGraph] = useState<MemoryGraph | null>(null)
 
   // refetch when the entry changes and on every memory_updated SSE event (AppContext replaces `summary`)
@@ -72,7 +76,7 @@ export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpen
         >
           {status ? <StatusIcon status={status} className="size-3.5 shrink-0" /> : <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />}
           {n.id !== n.path && <span className="shrink-0 font-mono text-[11px] text-muted">{n.id}</span>}
-          <span className="min-w-0 truncate text-txt">{n.label}</span>
+          <span data-user-content className="min-w-0 truncate text-txt">{n.label}</span>
         </button>
       </li>
     )
@@ -86,7 +90,7 @@ export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpen
         if (!group.length) return null
         return (
           <div key={kind}>
-            <p className="px-2 text-[11px] text-muted">{label}</p>
+            <p className="px-2 text-[11px] text-muted">{t(label)}</p>
             <ul>{group.map(row)}</ul>
           </div>
         )
@@ -95,16 +99,16 @@ export function EntryRelated({ entryId, onOpenEntry }: { entryId: string; onOpen
   )
 
   return (
-    <section aria-label="Related" className="mt-5 flex flex-col gap-3 border-t border-border pt-4">
-      <h3 className="text-xs font-semibold text-txt">Related</h3>
+    <section aria-label={t("memory.related")} className="mt-5 flex flex-col gap-3 border-t border-border pt-4">
+      <h3 className="text-xs font-semibold text-txt">{t("memory.related")}</h3>
       {graph === null ? (
-        <p className="text-xs text-muted">Loading links…</p>
+        <p className="text-xs text-muted">{t("memory.loadingLinks")}</p>
       ) : !linksTo.length && !linkedFrom.length ? (
-        <p className="text-xs text-muted">No links yet. Mention a task, epic or doc in the entry to link it.</p>
+        <p className="text-xs text-muted">{t("memory.noLinksYet")}</p>
       ) : (
         <>
-          {linksTo.length > 0 && section("Links to", linksTo)}
-          {linkedFrom.length > 0 && section("Linked from", linkedFrom)}
+          {linksTo.length > 0 && section(t("docs.linksTo"), linksTo)}
+          {linkedFrom.length > 0 && section(t("docs.linkedFrom"), linkedFrom)}
         </>
       )}
     </section>

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { ArrowLeft, CircleHelp } from "lucide-react"
 import { GLOBAL_HELP_KEYS, SHORTCUT_SECTIONS, helpFor } from "@/lib/shortcuts"
 import { cn } from "@/lib/utils"
+import { useT } from "@/context/LanguageContext"
 
 const KBD = "inline-block whitespace-nowrap rounded-sm border border-border2 bg-surface2 px-1.5 py-0.5 font-mono text-[11px] leading-none text-txt"
 // Long enough to move the pointer from the button onto the panel without it closing
@@ -18,6 +19,7 @@ const CLOSE_DELAY_MS = 180
  * must not do that.
  */
 export function HelpLauncher({ pinned, onPinnedChange }: { pinned: boolean; onPinnedChange: (pinned: boolean) => void }) {
+  const { t } = useT()
   const pathname = usePathname()
   const [hover, setHover] = useState(false)
   const root = useRef<HTMLDivElement>(null)
@@ -67,7 +69,7 @@ export function HelpLauncher({ pinned, onPinnedChange }: { pinned: boolean; onPi
           ref={panel}
           id="help-panel"
           role="region"
-          aria-label="Help"
+          aria-label={t("shell.help")}
           tabIndex={-1}
           className="animate-slide-in flex max-h-[min(70vh,34rem)] w-80 max-w-[calc(100vw-1.5rem)] flex-col overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-4 text-xs shadow-2xl outline-none"
         >
@@ -82,7 +84,7 @@ export function HelpLauncher({ pinned, onPinnedChange }: { pinned: boolean; onPi
         aria-expanded={open}
         aria-controls={open ? "help-panel" : undefined}
         aria-keyshortcuts="?"
-        aria-label="Help and shortcuts (?)"
+        aria-label={t("shell.helpButton")}
         className={cn(
           "flex size-9 items-center justify-center rounded-full border bg-surface text-muted shadow-lg transition-colors duration-(--duration-fast) hover:text-txt focus-visible:outline-2 focus-visible:outline-accent",
           pinned ? "border-accent/60 text-txt" : "border-border hover:border-border2",
@@ -111,34 +113,35 @@ function KeyTable({ title, rows }: { title: string; rows: readonly { key: string
 }
 
 function PanelBody({ pathname }: { pathname: string }) {
+  const { t } = useT()
   const help = helpFor(pathname)
   const [all, setAll] = useState(false)
   if (all) {
     return (
       <>
         <button type="button" onClick={() => setAll(false)} className="mb-3 inline-flex items-center gap-1 self-start text-muted hover:text-txt focus-visible:outline-2 focus-visible:outline-accent">
-          <ArrowLeft className="size-3.5" aria-hidden /> {help ? help.title : "Help"}
+          <ArrowLeft className="size-3.5" aria-hidden /> {help ? t(help.title) : t("shell.help")}
         </button>
-        <p className="mb-2 font-display text-sm font-semibold text-txt">All shortcuts</p>
-        {SHORTCUT_SECTIONS.map(({ title, rows }) => <KeyTable key={title} title={title} rows={rows.map((r) => ({ key: r.key, label: r.description }))} />)}
+        <p className="mb-2 font-display text-sm font-semibold text-txt">{t("shell.allShortcuts")}</p>
+        {SHORTCUT_SECTIONS.map(({ title, rows }) => <KeyTable key={title} title={t(title)} rows={rows.map((r) => ({ key: r.key, label: t(r.description) }))} />)}
       </>
     )
   }
   return (
     <>
-      <p className="font-display text-sm font-semibold text-txt">{help ? help.title : "Help"}</p>
-      {help && help.keys.length > 0 && <KeyTable title="Keys" rows={help.keys} />}
+      <p className="font-display text-sm font-semibold text-txt">{help ? t(help.title) : t("shell.help")}</p>
+      {help && help.keys.length > 0 && <KeyTable title={t("shell.keys")} rows={help.keys.map((k) => ({ key: k.key, label: t(k.label) }))} />}
       {help && help.tips.length > 0 && (
-        <section aria-label="Tips" className="mt-3">
-          <p className="pb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-muted">Tips</p>
+        <section aria-label={t("shell.tips")} className="mt-3">
+          <p className="pb-1 font-mono text-[10px] uppercase tracking-[0.06em] text-muted">{t("shell.tips")}</p>
           <ul className="flex flex-col gap-1.5 text-muted">
-            {help.tips.map((t) => <li key={t} className="leading-relaxed">{t}</li>)}
+            {help.tips.map((tip) => <li key={tip} className="leading-relaxed">{t(tip)}</li>)}
           </ul>
         </section>
       )}
-      <KeyTable title="Everywhere" rows={GLOBAL_HELP_KEYS} />
+      <KeyTable title={t("shell.everywhere")} rows={GLOBAL_HELP_KEYS.map((k) => ({ key: k.key, label: t(k.label) }))} />
       <button type="button" onClick={() => setAll(true)} className="mt-3 self-start text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent">
-        All shortcuts →
+        {t("shell.allShortcutsLink")}
       </button>
     </>
   )

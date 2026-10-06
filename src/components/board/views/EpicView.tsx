@@ -4,8 +4,10 @@ import { useMemo, useState } from "react"
 import { Bot, ChevronRight, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Task, TaskStatus } from "@/types"
-import { depOutline, groupTasks, isReady, sizeOf, type TaskGroup, type ViewState } from "@/lib/board-views"
-import { STATUS_META, StatusIcon } from "@/components/shared/StatusIcon"
+import { depOutline, isReady, sizeOf, type TaskGroup, type ViewState } from "@/lib/board-views"
+import { STATUS_META, StatusIcon, useCategoryLabel } from "@/components/shared/StatusIcon"
+import { useTaskGroups } from "./useTaskGroups"
+import { useT } from "@/context/LanguageContext"
 
 interface ViewProps {
   tasks: Task[]
@@ -46,8 +48,10 @@ export function EpicView({ tasks, allTasks, agentTasks, onOpenTask }: ViewProps)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [showAllDone, setShowAllDone] = useState(false)
 
+  const { t } = useT()
+  const groupTasks = useTaskGroups()
   const taskMap = useMemo(() => new Map(allTasks.map(t => [t.id, t])), [allTasks])
-  const groups = useMemo(() => groupTasks(tasks, "epic"), [tasks])
+  const groups = useMemo(() => groupTasks(tasks, "epic"), [tasks, groupTasks])
 
   // vibedoc_next_task order: epic order, then ID.
   const { firstReady, upNext } = useMemo(() => {
@@ -75,8 +79,8 @@ export function EpicView({ tasks, allTasks, agentTasks, onOpenTask }: ViewProps)
   if (tasks.length === 0) {
     return (
       <div className="px-8 py-16 text-center">
-        <p className="text-sm font-medium text-txt">No tasks match these filters.</p>
-        <p className="mt-1 text-xs text-muted">Clear a filter or the search to see more epics.</p>
+        <p className="text-sm font-medium text-txt">{t("board.noMatch")}</p>
+        <p className="mt-1 text-xs text-muted">{t("board.noMatchEpicHint")}</p>
       </div>
     )
   }
@@ -122,17 +126,17 @@ export function EpicView({ tasks, allTasks, agentTasks, onOpenTask }: ViewProps)
         {hidden.length > 0 && (
           <p className="mx-0.5 text-xs text-muted">
             + <span className="font-mono">{hidden.slice(0, 3).map(g => g.epicId ?? g.label).join(", ")}</span>
-            {hidden.length > 3 && <> and <span className="font-mono">{hidden.length - 3}</span> more</>}, all done ·{" "}
+            {hidden.length > 3 && <> {t("board.andMore", { n: hidden.length - 3 })}</>}, {t("board.allDone")} ·{" "}
             <button type="button" onClick={() => setShowAllDone(true)} className={cn("rounded-sm text-txt underline decoration-accent underline-offset-2 hover:decoration-txt", RING)}>
-              Show
+              {t("board.show")}
             </button>
           </p>
         )}
       </div>
 
-      <aside aria-label="Up next" className="flex flex-col gap-2.5 lg:pt-1">
-        <p className="text-xs font-semibold text-txt">Up next</p>
-        {upNext.length === 0 && <p className="text-xs text-muted">Nothing is ready right now.</p>}
+      <aside aria-label={t("board.upNext")} className="flex flex-col gap-2.5 lg:pt-1">
+        <p className="text-xs font-semibold text-txt">{t("board.upNext")}</p>
+        {upNext.length === 0 && <p className="text-xs text-muted">{t("board.nothingReady")}</p>}
         {upNext.map(({ task, on }) => (
           <button
             key={task.id}
@@ -147,13 +151,13 @@ export function EpicView({ tasks, allTasks, agentTasks, onOpenTask }: ViewProps)
             <span className={cn("flex items-center gap-1.5 text-xs", on ? "text-muted" : "text-txt")}>
               <StatusIcon status={task.status} />
               <span className="font-mono text-[11px] text-muted">{task.id}</span>
-              {on ? <>Waiting on <span className="font-mono">{on}</span></> : "Ready"}
+              {on ? <>{t("board.waitingOn")} <span className="font-mono">{on}</span></> : t("board.ready")}
             </span>
             <span className="text-[13px] font-medium text-txt">{task.title}</span>
           </button>
         ))}
         <p className="mt-1.5 text-[11px] leading-normal text-muted">
-          Same order as <span className="font-mono">vibedoc_next_task</span>: a task is ready when everything it depends on is done.
+          {t("board.sameOrderLead")} <span className="font-mono">vibedoc_next_task</span>{t("board.sameOrderEnd")}
         </p>
       </aside>
     </div>
@@ -201,6 +205,8 @@ function EpicSection({
   agentTasks: Set<string>
   onOpenTask: (task: Task) => void
 }) {
+  const { t } = useT()
+  const categoryLabel = useCategoryLabel()
   const outline = useMemo(() => depOutline(group.tasks), [group.tasks])
   const meta = STATUS_META[status]
   const marks = [...group.tasks].sort(byId)
@@ -212,7 +218,7 @@ function EpicSection({
         <h2 className="m-0 min-w-0 text-[1.1rem] font-semibold text-txt">{group.label}</h2>
         <span className={cn("inline-flex items-center gap-1.5 self-center text-xs", meta.text)}>
           <StatusIcon status={status} />
-          {meta.label}
+          {categoryLabel(status)}
         </span>
         <span className="flex-1" />
         <Progress tasks={group.tasks} />
@@ -223,7 +229,7 @@ function EpicSection({
             onClick={onCollapse}
             className={cn("self-center rounded-sm text-xs text-muted hover:text-txt", RING)}
           >
-            Collapse
+            {t("board.collapse")}
           </button>
         )}
       </div>
@@ -263,19 +269,19 @@ function EpicSection({
                 </span>
                 {alsoAfter.length > 0 && (
                   <span className="hidden shrink-0 font-mono text-[10px] text-muted sm:inline">
-                    also after {alsoAfter.join(", ")}
+                    {t("board.alsoAfter", { ids: alsoAfter.join(", ") })}
                   </span>
                 )}
                 {firstReady.has(task.id) && (
                   <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-sm border border-accent px-[7px] text-[11px] text-txt">
                     <Play className="size-2.5 text-accent" aria-hidden />
-                    Ready · next for the agent
+                    {t("board.readyNext")}
                   </span>
                 )}
                 {agentTasks.has(task.id) && (
                   <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-txt">
                     <Bot className="size-3 text-accent" aria-hidden />
-                    working
+                    {t("board.working")}
                   </span>
                 )}
                 <span className="flex-1" />

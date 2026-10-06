@@ -1,6 +1,8 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 import type { ProjectAnswers } from "./ProjectQuestionnaire"
 
 interface BasicInfoProps {
@@ -8,16 +10,17 @@ interface BasicInfoProps {
   onChange: (answers: ProjectAnswers) => void
 }
 
-const PROJECT_TYPES = [
-  { value: "web-app", label: "Web Application" },
-  { value: "api-backend", label: "API / Backend" },
-  { value: "cli-tool", label: "CLI Tool" },
-  { value: "library", label: "Library / SDK" },
-  { value: "mobile-app", label: "Mobile App" },
-  { value: "monorepo", label: "Monorepo" },
+const PROJECT_TYPES: { value: string; label: MessageKey }[] = [
+  { value: "web-app", label: "chat.typeWeb" },
+  { value: "api-backend", label: "chat.typeApi" },
+  { value: "cli-tool", label: "chat.typeCli" },
+  { value: "library", label: "chat.typeLibrary" },
+  { value: "mobile-app", label: "chat.typeMobile" },
+  { value: "monorepo", label: "chat.typeMonorepo" },
 ]
 
 export function BasicInfo({ answers, onChange }: BasicInfoProps) {
+  const { t } = useT()
   const update = (key: keyof ProjectAnswers, value: string) => {
     onChange({ ...answers, [key]: value })
   }
@@ -25,26 +28,26 @@ export function BasicInfo({ answers, onChange }: BasicInfoProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold text-txt mb-2">Basic Information</h2>
-        <p className="text-muted">Tell us about your project to customize the documentation.</p>
+        <h2 className="text-xl font-semibold text-txt mb-2">{t("chat.basicInfo")}</h2>
+        <p className="text-muted">{t("chat.basicHint")}</p>
       </div>
 
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-txt mb-1.5">
-            Project Name <span className="text-red-400">*</span>
+            {t("chat.projectName")} <span className="text-red-400">*</span>
           </label>
           <Input
             value={answers.projectName}
             onChange={(e) => update("projectName", e.target.value)}
-            placeholder="My Awesome Project"
+            placeholder={t("chat.projectNamePlaceholder")}
             className="bg-surface2"
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-txt mb-1.5">
-            Project Type
+            {t("chat.projectType")}
           </label>
           <select
             value={answers.projectType}
@@ -52,14 +55,14 @@ export function BasicInfo({ answers, onChange }: BasicInfoProps) {
             className="w-full h-10 px-3 rounded-md border border-border bg-surface2 text-txt text-sm focus:outline-hidden focus:ring-2 focus:ring-accent/50"
           >
             {PROJECT_TYPES.map(type => (
-              <option key={type.value} value={type.value}>{type.label}</option>
+              <option key={type.value} value={type.value}>{t(type.label)}</option>
             ))}
           </select>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-txt mb-1.5">
-            Repository URL <span className="text-muted">(optional)</span>
+            {t("chat.repoUrl")} <span className="text-muted">{t("chat.optional")}</span>
           </label>
           <Input
             value={answers.repoUrl}
@@ -71,12 +74,12 @@ export function BasicInfo({ answers, onChange }: BasicInfoProps) {
 
         <div>
           <label className="block text-sm font-medium text-txt mb-1.5">
-            Description
+            {t("chat.description")}
           </label>
           <textarea
             value={answers.description}
             onChange={(e) => update("description", e.target.value)}
-            placeholder="A brief description of what your project does..."
+            placeholder={t("chat.descriptionPlaceholder")}
             rows={3}
             className="w-full px-3 py-2 rounded-md border border-border bg-surface2 text-txt text-sm resize-none focus:outline-hidden focus:ring-2 focus:ring-accent/50"
           />
@@ -84,15 +87,15 @@ export function BasicInfo({ answers, onChange }: BasicInfoProps) {
 
         <div>
           <label className="block text-sm font-medium text-txt mb-1.5">
-            Key Features <span className="text-muted">(optional)</span>
+            {t("chat.keyFeatures")} <span className="text-muted">{t("chat.optional")}</span>
           </label>
           <Input
             value={answers.keyFeatures}
             onChange={(e) => update("keyFeatures", e.target.value)}
-            placeholder="Auth, payments, real-time sync, etc."
+            placeholder={t("chat.featuresPlaceholder")}
             className="bg-surface2"
           />
-          <p className="text-xs text-muted mt-1">Comma-separated list of main features</p>
+          <p className="text-xs text-muted mt-1">{t("chat.featuresHint")}</p>
         </div>
       </div>
     </div>

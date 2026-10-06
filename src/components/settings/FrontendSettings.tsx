@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import { formatSteps, playwrightInstallSteps, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus, type SmokeResult } from "@/lib/frontend"
 import { toast } from "@/components/ui/toast"
+import { useFormat, useT } from "@/context/LanguageContext"
 
 const FIELD = "h-8 min-w-0 rounded-md border border-border bg-bg px-2 font-mono text-sm text-txt focus:outline-hidden focus:ring-1 focus:ring-accent disabled:opacity-50"
 
@@ -23,9 +24,25 @@ const FRAMEWORK_LABEL: Record<FrontendApp["framework"], string> = {
   sveltekit: "SvelteKit", cra: "Create React App", unknown: "Unknown",
 }
 
+/** The detection / smoke notes src/lib/frontend.ts writes (English, also read by MCP), in the UI language. */
+function useNoteText(): (note: string) => string {
+  const { t } = useT()
+  return (note) => {
+    if (note === "This is VibeDoc’s own repo.") return t("settings.noteOwnRepo")
+    if (note === "No saved session: opened logged out (Log in above to save one).") return t("settings.noteNoSession")
+    const port = /^Port (\d+) is VibeDoc’s own port/.exec(note)
+    if (port) return t("settings.noteOwnPort", { port: port[1] })
+    const out = /^Looks logged out: it ended on (.+), the login path\.$/.exec(note)
+    if (out) return t("settings.noteLoggedOut", { path: out[1] })
+    return note
+  }
+}
+
 export function FrontendSettings({ rootParam }: { rootParam: string }) {
   const [data, setData] = useState<FrontendData | null>(null)
   const [error, setError] = useState(false)
+  const { t } = useT()
+  const noteText = useNoteText()
 
   const load = useCallback((signal?: { cancelled: boolean }) => {
     fetch(`/api/frontend${rootParam}`)
@@ -42,48 +59,48 @@ export function FrontendSettings({ rootParam }: { rootParam: string }) {
       const detail = (e as CustomEvent<{ type?: string; payload?: { loginError?: string | null } }>).detail
       if (detail?.type !== "frontend_updated") return
       load(signal)
-      if (detail.payload?.loginError) toast(`Log in failed: ${detail.payload.loginError}`)
+      if (detail.payload?.loginError) toast(t("settings.loginFailed", { error: detail.payload.loginError }))
     }
     window.addEventListener("vibedoc:sse", onSse)
     return () => { signal.cancelled = true; window.removeEventListener("vibedoc:sse", onSse) }
-  }, [load])
+  }, [load, t])
 
   const save = async (override: FrontendOverride | null) => {
     const res = await fetch(`/api/frontend${rootParam}`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ override }),
     }).catch(() => null)
     const json = await res?.json().catch(() => null)
-    if (!res?.ok) return toast(json?.error ?? "Couldn’t save the frontend app")
+    if (!res?.ok) return toast(json?.error ?? t("settings.cantSaveFrontend"))
     setData(toData(json))
   }
 
   const app = data?.app
   const rows: [string, string, boolean?][] = app
     ? [
-        ["Name", app.name],
-        ["Framework", FRAMEWORK_LABEL[app.framework]],
-        ["Directory", app.dir, true],
-        ["Start command", app.startCommand, true],
-        ["URL", app.url, true],
-        ["Source", app.source === "override" ? "Your override (.vibedoc/settings.json)" : "Detected"],
+        [t("settings.rowName"), app.name, false],
+        [t("settings.rowFramework"), app.framework === "unknown" ? t("settings.unknown") : FRAMEWORK_LABEL[app.framework]],
+        [t("settings.rowDirectory"), app.dir, true],
+        [t("settings.rowStart"), app.startCommand, true],
+        [t("settings.rowUrl"), app.url, true],
+        [t("settings.rowSource"), app.source === "override" ? t("settings.sourceOverride") : t("settings.sourceDetected")],
       ]
     : []
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-semibold text-txt mb-1">Frontend app</h2>
-        <p className="text-sm text-muted">The web app VibeDoc found in this project, how to start it and where it runs.</p>
+        <h2 className="text-xl font-semibold text-txt mb-1">{t("settings.tabFrontend")}</h2>
+        <p className="text-sm text-muted">{t("settings.frontendHint")}</p>
       </div>
 
       {error ? (
-        <p className="text-sm text-muted">Couldn’t read the project’s frontend app.</p>
+        <p className="text-sm text-muted">{t("settings.cantReadFrontend")}</p>
       ) : !data ? (
-        <p className="text-sm text-muted">Looking for a web frontend…</p>
+        <p className="text-sm text-muted">{t("settings.lookingFrontend")}</p>
       ) : !app ? (
         <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
-          <div className="text-sm font-medium text-txt">No web frontend found</div>
-          <div className="mt-1 text-xs text-muted">VibeDoc looks for Next, Vite, Remix, Astro, Nuxt, SvelteKit or Create React App in the root package.json and its workspace packages.</div>
+          <div className="text-sm font-medium text-txt">{t("settings.noFrontend")}</div>
+          <div className="mt-1 text-xs text-muted">{t("settings.noFrontendHint")}</div>
         </div>
       ) : (
         <div className="space-y-3">
@@ -91,14 +108,14 @@ export function FrontendSettings({ rootParam }: { rootParam: string }) {
             {rows.map(([label, value, mono]) => (
               <div key={label} className="flex items-baseline justify-between gap-4 px-4 py-2.5">
                 <dt className="shrink-0 text-sm text-muted">{label}</dt>
-                <dd className={mono ? "min-w-0 truncate font-mono text-sm text-txt" : "min-w-0 truncate text-sm text-txt"}>{value}</dd>
+                <dd data-user-content={mono || label === t("settings.rowName") ? true : undefined} className={mono ? "min-w-0 truncate font-mono text-sm text-txt" : "min-w-0 truncate text-sm text-txt"}>{value}</dd>
               </div>
             ))}
           </dl>
           {data.notes.map(note => (
             <p key={note} className="flex items-start gap-2 text-xs text-muted">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" aria-hidden />
-              {note}
+              {noteText(note)}
             </p>
           ))}
           <ServerRow url={app.url} rootParam={rootParam} />
@@ -124,6 +141,7 @@ function OverrideForm({ app, override, onSave }: {
   const [url, setUrl] = useState(app?.url ?? "")
   const [loginPath, setLoginPath] = useState(app?.loginPath ?? "")
   const [busy, setBusy] = useState(false)
+  const { t } = useT()
   const candidates = app?.candidates ?? []
   const dirChanged = dir !== (app?.dir ?? "")
   const loginPathChanged = loginPath !== (app?.loginPath ?? "")
@@ -142,34 +160,34 @@ function OverrideForm({ app, override, onSave }: {
   return (
     <form onSubmit={(e) => { e.preventDefault(); submit() }} className="space-y-3 rounded-lg border border-dashed border-border2 p-3" data-testid="frontend-override">
       <div>
-        <p className="text-sm font-medium text-txt">Wrong guess? Override it</p>
-        <p className="text-xs text-muted">Saved to <code className="font-mono">.vibedoc/settings.json</code> under <code className="font-mono">frontend</code>. Fields you don’t change keep following detection.</p>
+        <p className="text-sm font-medium text-txt">{t("settings.overrideTitle")}</p>
+        <p className="text-xs text-muted">{t("settings.overrideSavedTo")} <code className="font-mono">.vibedoc/settings.json</code> {t("settings.overrideUnder")} <code className="font-mono">frontend</code>. {t("settings.overrideKeep")}</p>
       </div>
       {candidates.length > 1 && (
         <label className="flex flex-col gap-1 text-xs text-muted">
-          App
-          <select aria-label="Frontend app" value={dir} onChange={(e) => setDir(e.target.value)} className={FIELD}>
-            {candidates.map(c => <option key={c.dir} value={c.dir}>{c.dir} · {c.name} ({FRAMEWORK_LABEL[c.framework]})</option>)}
+          {t("settings.app")}
+          <select aria-label={t("settings.frontendApp")} value={dir} onChange={(e) => setDir(e.target.value)} className={FIELD}>
+            {candidates.map(c => <option key={c.dir} value={c.dir} data-user-content>{c.dir} · {c.name} ({FRAMEWORK_LABEL[c.framework]})</option>)}
           </select>
         </label>
       )}
       <label className="flex flex-col gap-1 text-xs text-muted">
-        Start command
-        <input aria-label="Start command" value={startCommand} onChange={(e) => setStartCommand(e.target.value)} disabled={dirChanged} placeholder="pnpm run dev" className={FIELD} />
+        {t("settings.rowStart")}
+        <input aria-label={t("settings.rowStart")} value={startCommand} onChange={(e) => setStartCommand(e.target.value)} disabled={dirChanged} placeholder="pnpm run dev" className={FIELD} />
       </label>
       <label className="flex flex-col gap-1 text-xs text-muted">
         URL
         <input aria-label="URL" value={url} onChange={(e) => setUrl(e.target.value)} disabled={dirChanged} placeholder="http://localhost:5173" className={FIELD} />
       </label>
       <label className="flex flex-col gap-1 text-xs text-muted">
-        Login path (optional)
-        <input aria-label="Login path" value={loginPath} onChange={(e) => setLoginPath(e.target.value)} placeholder="/login" className={FIELD} />
+        {t("settings.loginPathOptional")}
+        <input aria-label={t("settings.loginPath")} value={loginPath} onChange={(e) => setLoginPath(e.target.value)} placeholder="/login" className={FIELD} />
       </label>
-      {dirChanged && <p className="text-xs text-muted">Save to switch apps; its start command and URL are detected again.</p>}
+      {dirChanged && <p className="text-xs text-muted">{t("settings.switchHint")}</p>}
       <div className="flex items-center gap-2">
-        <button type="submit" disabled={!changed || busy} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">Save</button>
+        <button type="submit" disabled={!changed || busy} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">{t("settings.save")}</button>
         {override && (
-          <button type="button" disabled={busy} onClick={() => run(null)} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">Reset to detected</button>
+          <button type="button" disabled={busy} onClick={() => run(null)} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">{t("settings.resetDetected")}</button>
         )}
       </div>
     </form>
@@ -182,22 +200,24 @@ type InstallState = { running: boolean; output: string; failed: boolean }
 function PlaywrightRow({ app, status, rootParam }: { app: FrontendApp; status: PlaywrightStatus; rootParam: string }) {
   const [install, setInstall] = useState<InstallState | null>(null)
   const logRef = useRef<HTMLPreElement>(null)
+  const { t } = useT()
   const steps = playwrightInstallSteps(app.packageManager, status)
   const command = formatSteps(steps)
+  const installed = status.version ? t("settings.installedVersion", { version: status.version }) : t("settings.installed")
   const pill = status.installed
     ? status.browsersInstalled === false
-      ? { label: `Installed${status.version ? ` v${status.version}` : ""} · Chromium missing`, cls: "border-amber/40 bg-amber/10 text-amber" }
-      : { label: `Installed${status.version ? ` v${status.version}` : ""}`, cls: "border-green-400/40 bg-green-400/10 text-green-400" }
-    : { label: "Not installed", cls: "border-border bg-surface2 text-muted" }
+      ? { label: t("settings.chromiumMissing", { label: installed }), cls: "border-amber/40 bg-amber/10 text-amber" }
+      : { label: installed, cls: "border-green-400/40 bg-green-400/10 text-green-400" }
+    : { label: t("settings.notInstalled"), cls: "border-border bg-surface2 text-muted" }
 
   useEffect(() => { logRef.current?.scrollTo(0, logRef.current.scrollHeight) }, [install?.output])
 
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(command)
-      toast("Command copied")
+      toast(t("settings.commandCopied"))
     } catch {
-      toast("Couldn’t copy the command")
+      toast(t("settings.cantCopyCommand"))
     }
   }
 
@@ -206,7 +226,7 @@ function PlaywrightRow({ app, status, rootParam }: { app: FrontendApp; status: P
     const res = await fetch(`/api/frontend/playwright/install${rootParam}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => null)
     if (!res?.ok || !res.body) {
       const json = await res?.json().catch(() => null)
-      setInstall({ running: false, output: json?.error ?? "Couldn’t start the install", failed: true })
+      setInstall({ running: false, output: json?.error ?? t("settings.cantStartInstall"), failed: true })
       return
     }
     const reader = res.body.getReader()
@@ -230,7 +250,7 @@ function PlaywrightRow({ app, status, rootParam }: { app: FrontendApp; status: P
     }
     // Failure: keep only the tail, which is what explains it
     setInstall({ running: false, output: failed ? (tail || output).trimEnd() : output, failed })
-    if (!failed) toast("Playwright installed")
+    if (!failed) toast(t("settings.playwrightInstalled"))
   }
 
   return (
@@ -242,21 +262,21 @@ function PlaywrightRow({ app, status, rootParam }: { app: FrontendApp; status: P
       {steps.length > 0 && (
         <>
           <p className="text-xs text-muted">
-            Auto-tests need it in the app. Run in <code className="font-mono">{app.dir}</code>:
+            {t("settings.autoTestsNeed")} <code className="font-mono" data-user-content>{app.dir}</code>:
           </p>
           <div className="flex items-center gap-2">
             <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-bg px-2 py-1.5 font-mono text-xs text-txt" title={command}>{command}</code>
-            <button type="button" onClick={copy} className="inline-flex h-8 shrink-0 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2">Copy</button>
+            <button type="button" onClick={copy} className="inline-flex h-8 shrink-0 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2">{t("settings.copy")}</button>
             <button type="button" onClick={run} disabled={install?.running} className="inline-flex h-8 shrink-0 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">
-              {install?.running ? "Installing…" : "Install"}
+              {install?.running ? t("settings.installing") : t("settings.install")}
             </button>
           </div>
         </>
       )}
       {install && install.output && (
         <div className="space-y-1">
-          {install.failed && <p className="text-xs text-red-400" role="alert">Install failed. Last output:</p>}
-          <pre ref={logRef} className="max-h-48 overflow-auto rounded-md border border-border bg-bg p-2 font-mono text-[11px] leading-snug text-muted" data-testid="playwright-install-log">{install.output}</pre>
+          {install.failed && <p className="text-xs text-red-400" role="alert">{t("settings.installFailed")}</p>}
+          <pre ref={logRef} data-user-content className="max-h-48 overflow-auto rounded-md border border-border bg-bg p-2 font-mono text-[11px] leading-snug text-muted" data-testid="playwright-install-log">{install.output}</pre>
         </div>
       )}
     </div>
@@ -265,16 +285,17 @@ function PlaywrightRow({ app, status, rootParam }: { app: FrontendApp; status: P
 
 type ServerStatus = { state: "stopped" | "starting" | "running"; startedByUs: boolean; reused?: boolean; error?: string; output?: string }
 
-const SERVER_PILL: Record<ServerStatus["state"], { label: string; cls: string }> = {
-  running: { label: "Running", cls: "border-green-400/40 bg-green-400/10 text-green-400" },
-  starting: { label: "Starting…", cls: "border-amber/40 bg-amber/10 text-amber" },
-  stopped: { label: "Stopped", cls: "border-border bg-surface2 text-muted" },
+const SERVER_PILL: Record<ServerStatus["state"], { label: "settings.running" | "settings.starting" | "settings.stopped"; cls: string }> = {
+  running: { label: "settings.running", cls: "border-green-400/40 bg-green-400/10 text-green-400" },
+  starting: { label: "settings.starting", cls: "border-amber/40 bg-amber/10 text-amber" },
+  stopped: { label: "settings.stopped", cls: "border-border bg-surface2 text-muted" },
 }
 
 /** T142: dev server state + Start / Stop. Stop only works on a server VibeDoc started; SSE keeps other tabs live. */
 function ServerRow({ url, rootParam }: { url: string; rootParam: string }) {
   const [status, setStatus] = useState<ServerStatus | null>(null)
   const [busy, setBusy] = useState<"start" | "stop" | null>(null)
+  const { t } = useT()
 
   const load = useCallback((signal?: { cancelled: boolean }) => {
     fetch(`/api/frontend/server${rootParam}`)
@@ -303,35 +324,35 @@ function ServerRow({ url, rootParam }: { url: string; rootParam: string }) {
     const json = await res?.json().catch(() => null)
     setBusy(null)
     if (!res?.ok) {
-      setStatus({ state: "stopped", startedByUs: false, error: json?.error ?? `Couldn’t ${action} the app`, output: json?.output ?? "" })
+      setStatus({ state: "stopped", startedByUs: false, error: json?.error ?? t(action === "start" ? "settings.cantStartApp" : "settings.cantStopApp"), output: json?.output ?? "" })
       return
     }
     setStatus({ state: json?.state ?? "stopped", startedByUs: json?.startedByUs ?? false, reused: json?.reused ?? false })
-    if (json?.reused) toast("Already running: reused it")
+    if (json?.reused) toast(t("settings.reusedToast"))
   }
 
   const state = status?.state ?? "stopped"
   const pill = SERVER_PILL[state]
   const canStop = state === "running" && !!status?.startedByUs && busy === null
   const note = state === "running"
-    ? status?.startedByUs ? "Started by VibeDoc. Stopped when VibeDoc exits." : status?.reused ? "Reused: it was already running, so VibeDoc won’t stop it." : "Already running outside VibeDoc, so VibeDoc won’t stop it."
-    : state === "starting" ? "Waiting for the URL to respond…" : null
+    ? t(status?.startedByUs ? "settings.startedByUs" : status?.reused ? "settings.reusedNote" : "settings.outsideNote")
+    : state === "starting" ? t("settings.waitingUrl") : null
 
   return (
     <div className="space-y-2 rounded-lg border border-border px-4 py-3" data-testid="frontend-server">
       <div className="flex items-center justify-between gap-4">
-        <span className="text-sm text-muted">Dev server</span>
+        <span className="text-sm text-muted">{t("settings.devServer")}</span>
         <div className="flex items-center gap-2">
-          <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${pill.cls}`} data-testid="server-pill">{status?.reused && state === "running" ? "Running · reused" : pill.label}</span>
-          <button type="button" onClick={() => act("start")} disabled={state === "starting" || (state === "running" && !!status?.startedByUs) || busy !== null} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">Start</button>
-          <button type="button" onClick={() => act("stop")} disabled={!canStop} title={state === "running" && !status?.startedByUs ? "VibeDoc didn’t start this server" : undefined} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">Stop</button>
+          <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${pill.cls}`} data-testid="server-pill">{status?.reused && state === "running" ? t("settings.runningReused") : t(pill.label)}</span>
+          <button type="button" onClick={() => act("start")} disabled={state === "starting" || (state === "running" && !!status?.startedByUs) || busy !== null} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">{t("settings.start")}</button>
+          <button type="button" onClick={() => act("stop")} disabled={!canStop} title={state === "running" && !status?.startedByUs ? t("settings.notOurServer") : undefined} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">{t("settings.stop")}</button>
         </div>
       </div>
-      {note && <p className="text-xs text-muted">{note} <code className="font-mono">{url}</code></p>}
+      {note && <p className="text-xs text-muted">{note} <code className="font-mono" data-user-content>{url}</code></p>}
       {status?.error && (
         <div className="space-y-1">
-          <p className="text-xs text-red-400" role="alert">{status.error}</p>
-          {status.output && <pre className="max-h-48 overflow-auto rounded-md border border-border bg-bg p-2 font-mono text-[11px] leading-snug text-muted" data-testid="server-output">{status.output}</pre>}
+          <p className="text-xs text-red-400" role="alert" data-user-content>{status.error}</p>
+          {status.output && <pre data-user-content className="max-h-48 overflow-auto rounded-md border border-border bg-bg p-2 font-mono text-[11px] leading-snug text-muted" data-testid="server-output">{status.output}</pre>}
         </div>
       )}
     </div>
@@ -340,49 +361,51 @@ function ServerRow({ url, rootParam }: { url: string; rootParam: string }) {
 
 /** T143: Log in opens the app in a headed Chromium; closing it saves the session for every later test. */
 function LoginRow({ data, rootParam, onChange }: { data: FrontendData; rootParam: string; onChange: (d: FrontendData) => void }) {
+  const f = useFormat()
+  const { t } = useT()
   const [busy, setBusy] = useState<"open" | "clear" | null>(null)
   const { auth, login, playwright } = data
   const blocked = login.unavailable
-    ?? (playwright && !playwright.installed ? "Install Playwright first (above): Log in uses the app’s own Playwright."
-      : playwright?.browsersInstalled === false ? "Install Chromium first (above): Log in opens it." : null)
+    ?? (playwright && !playwright.installed ? t("settings.installPlaywrightLogin")
+      : playwright?.browsersInstalled === false ? t("settings.installChromiumLogin") : null)
 
   const call = async (method: "POST" | "DELETE") => {
     setBusy(method === "POST" ? "open" : "clear")
     const res = await fetch(`/api/frontend/login${rootParam}`, { method, headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => null)
     const json = await res?.json().catch(() => null)
     setBusy(null)
-    if (!res?.ok) return toast(json?.error ?? (method === "POST" ? "Couldn’t open the browser" : "Couldn’t clear the session"))
+    if (!res?.ok) return toast(json?.error ?? t(method === "POST" ? "settings.cantOpenBrowser" : "settings.cantClearSession"))
     if (method === "POST") {
       onChange({ ...data, login: { ...login, running: true } })
-      toast("Log in in the browser window, then close it")
+      toast(t("settings.loginInWindow"))
     } else {
       onChange({ ...data, auth: json?.auth ?? { saved: false } })
-      toast("Session cleared")
+      toast(t("settings.sessionCleared"))
     }
   }
 
   const status = login.running
-    ? "Browser open: log in, then close the window to save the session."
+    ? t("settings.browserOpen")
     : auth.saved
-      ? `Session saved ${auth.savedAt ? new Date(auth.savedAt).toLocaleString() : ""}`.trim()
-      : "No session saved. Tests run logged out."
+      ? auth.savedAt ? t("settings.sessionSavedAt", { date: f.dateTime(auth.savedAt) }) : t("settings.sessionSaved")
+      : t("settings.noSession")
 
   return (
     <div className="space-y-2 rounded-lg border border-border px-4 py-3" data-testid="frontend-login">
       <div className="flex items-center justify-between gap-4">
-        <span className="text-sm text-muted">Login session</span>
+        <span className="text-sm text-muted">{t("settings.loginSession")}</span>
         <div className="flex items-center gap-2">
           {auth.saved && (
-            <button type="button" onClick={() => call("DELETE")} disabled={busy !== null || login.running} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">Clear session</button>
+            <button type="button" onClick={() => call("DELETE")} disabled={busy !== null || login.running} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">{t("settings.clearSession")}</button>
           )}
           <button type="button" onClick={() => call("POST")} disabled={!!blocked || busy !== null || login.running} title={blocked ?? undefined} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">
-            {busy === "open" ? "Opening…" : "Log in"}
+            {busy === "open" ? t("settings.opening") : t("settings.logIn")}
           </button>
         </div>
       </div>
       <p className="text-xs text-muted" data-testid="login-status">{status}</p>
       {blocked && <p className="text-xs text-muted">{blocked}</p>}
-      {auth.saved && <p className="text-xs text-muted">Stored in <code className="font-mono">.vibedoc/auth/</code>, which is git-ignored: it holds live cookies.</p>}
+      {auth.saved && <p className="text-xs text-muted">{t("settings.storedIn")} <code className="font-mono">.vibedoc/auth/</code>, {t("settings.storedGitIgnored")}</p>}
     </div>
   )
 }
@@ -392,9 +415,11 @@ function SmokeRow({ playwright, rootParam }: { playwright: PlaywrightStatus | nu
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<SmokeResult | null>(null)
   const [shotKey, setShotKey] = useState(0)
+  const { t } = useT()
+  const noteText = useNoteText()
   // Headless: no DISPLAY needed, only the app's Playwright + Chromium
-  const blocked = playwright && !playwright.installed ? "Install Playwright first (above): the smoke test uses the app’s own Playwright."
-    : playwright?.browsersInstalled === false ? "Install Chromium first (above)." : null
+  const blocked = playwright && !playwright.installed ? t("settings.installPlaywrightSmoke")
+    : playwright?.browsersInstalled === false ? t("settings.installChromiumFirst") : null
 
   const run = async () => {
     setRunning(true)
@@ -402,7 +427,7 @@ function SmokeRow({ playwright, rootParam }: { playwright: PlaywrightStatus | nu
     const json = await res?.json().catch(() => null)
     setRunning(false)
     if (!res?.ok) {
-      setResult({ ok: false, durationMs: 0, startedServer: false, screenshot: false, notes: [], error: json?.error ?? "Couldn’t run the smoke test" })
+      setResult({ ok: false, durationMs: 0, startedServer: false, screenshot: false, notes: [], error: json?.error ?? t("settings.cantRunSmoke") })
       return
     }
     setResult({
@@ -418,44 +443,44 @@ function SmokeRow({ playwright, rootParam }: { playwright: PlaywrightStatus | nu
   return (
     <div className="space-y-2 rounded-lg border border-border px-4 py-3" data-testid="frontend-smoke">
       <div className="flex items-center justify-between gap-4">
-        <span className="text-sm text-muted">Smoke test</span>
+        <span className="text-sm text-muted">{t("settings.smokeTest")}</span>
         <div className="flex items-center gap-2">
           {result && !running && (
             <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${result.ok ? "border-green-400/40 bg-green-400/10 text-green-400" : "border-red-400/40 bg-red-400/10 text-red-400"}`} data-testid="smoke-pill">
-              {result.ok ? "Passed" : "Failed"}
+              {result.ok ? t("settings.passed") : t("settings.failed")}
             </span>
           )}
           <button type="button" onClick={run} disabled={!!blocked || running} title={blocked ?? undefined} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">
-            {running ? "Running…" : "Run smoke test"}
+            {running ? t("settings.runningEllipsis") : t("settings.runSmoke")}
           </button>
         </div>
       </div>
       <p className="text-xs text-muted">
-        {running ? "Starting the app if needed and opening its first page…" : "Opens the app’s first page headless with the saved session; an app VibeDoc starts for it is stopped again."}
+        {running ? t("settings.smokeStarting") : t("settings.smokeHint")}
       </p>
       {blocked && <p className="text-xs text-muted">{blocked}</p>}
       {result && !running && (
         <div className="space-y-2" data-testid="smoke-result">
-          {result.error && <p className="whitespace-pre-wrap text-xs text-red-400" role="alert">{result.error}</p>}
+          {result.error && <p className="whitespace-pre-wrap text-xs text-red-400" role="alert" data-user-content>{result.error}</p>}
           {result.finalUrl && (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
-              <dt className="text-muted">Final URL</dt>
+              <dt className="text-muted">{t("settings.finalUrl")}</dt>
               <dd className="min-w-0 truncate font-mono text-txt" data-testid="smoke-url">{result.finalUrl}</dd>
-              <dt className="text-muted">HTTP status</dt>
+              <dt className="text-muted">{t("settings.httpStatus")}</dt>
               <dd className="font-mono text-txt">{result.status ?? "–"}</dd>
-              <dt className="text-muted">Duration</dt>
-              <dd className="font-mono text-txt">{(result.durationMs / 1000).toFixed(1)}s{result.startedServer ? " · started and stopped the app" : ""}</dd>
+              <dt className="text-muted">{t("settings.duration")}</dt>
+              <dd className="font-mono text-txt">{(result.durationMs / 1000).toFixed(1)}s{result.startedServer ? t("settings.startedStopped") : ""}</dd>
             </dl>
           )}
           {result.notes.map(note => (
             <p key={note} className="flex items-start gap-2 text-xs text-muted" data-testid="smoke-note">
               <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber" aria-hidden />
-              {note}
+              {noteText(note)}
             </p>
           ))}
           {result.screenshot && (
             // eslint-disable-next-line @next/next/no-img-element -- an API route image, no optimisation wanted
-            <img src={`/api/frontend/smoke?${shotParams}`} alt={`Screenshot of ${result.finalUrl ?? "the app"}`} className="w-full rounded-md border border-border" data-testid="smoke-shot" />
+            <img src={`/api/frontend/smoke?${shotParams}`} alt={t("settings.screenshotOf", { url: result.finalUrl ?? t("settings.theApp") })} className="w-full rounded-md border border-border" data-testid="smoke-shot" />
           )}
         </div>
       )}

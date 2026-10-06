@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic"
 import { useMemo } from "react"
 import type { ExplorerFile } from "@/types"
+import { useT } from "@/context/LanguageContext"
 
 // ECharts uses browser APIs — must be dynamically imported with ssr: false
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false })
@@ -95,6 +96,7 @@ function buildTreemapData(files: ExplorerFile[]): TreemapNode[] {
 }
 
 export function FileTreemap({ files, onSelect }: FileTreemapProps) {
+  const { t } = useT()
   const treeData = useMemo(() => buildTreemapData(files), [files])
 
   const option = useMemo(
@@ -224,7 +226,7 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
   if (files.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted text-sm h-full">
-        No files to display
+        {t("docs.noFiles")}
       </div>
     )
   }
