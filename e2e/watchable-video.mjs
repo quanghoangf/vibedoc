@@ -3,6 +3,10 @@
 //              and a switch to another task's run.
 //   S2 (T226): auto-pause (on by default) stops on each step's screenshot frame with "Step N · <name>" over the
 //              video; Play goes on to the next step; off → plays through; the choice survives a reload.
+//   S3/S4 (T228): the same kit spec run twice from the shell (as an agent does), presentation on and with
+//              VIBEDOC_PRESENT=0 → both pass with the same assertion counts and byte-identical step screenshots, and
+//              the presentation run is paced (each action waits out the annotation) with run.json presentation on.
+//              The cursor itself is only in the video frames: that stays a manual check.
 //   S5 (T227): a plain run says why under the video (suite, CI, VIBEDOC_PRESENT=0, old Playwright); a presentation
 //              run and a run from before R079 say nothing.
 // Fails on any browser console error.
@@ -13,7 +17,8 @@
 // under `$VIBEDOC_RUNS_DIR` (default ~/.vibedoc/runs; it must match the server's) in the fixture's own project
 // folder, removed at the end. Only /api/projects is stubbed.
 import assert from "node:assert/strict"
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
@@ -154,6 +159,58 @@ try {
   await open("T001")
   assert.equal(await page.getByText(/^Recorded plain/).count(), 0, "a run from before R079 says nothing")
   console.log("ok  S5: plain runs say why (suite, CI, VIBEDOC_PRESENT=0, old Playwright); presentation and older runs say nothing")
+
+  // S3/S4: a real kit run, presentation vs plain
+  const { FIXTURE_KIT_FILES } = await import("../src/lib/frontend.ts")
+  const app = mkdtempSync(path.join(tmpdir(), "vibedoc-present-"))
+  const runsTmp = mkdtempSync(path.join(tmpdir(), "vibedoc-present-runs-"))
+  try {
+    symlinkSync(path.join(process.cwd(), "node_modules"), path.join(app, "node_modules"))
+    for (const file of FIXTURE_KIT_FILES) {
+      mkdirSync(path.dirname(path.join(app, "e2e/vibedoc/kit", file)), { recursive: true })
+      copyFileSync(path.join("src", file), path.join(app, "e2e/vibedoc/kit", file))
+    }
+    writeFileSync(path.join(app, "e2e/vibedoc/T009-show.spec.ts"), `
+import { test, expect } from './kit/testing/playwright-fixture'
+test.use({ vibedocTask: 'T009', viewport: { width: 480, height: 320 } })
+test('T009', async ({ page, step }) => {
+  await step('Click Go → it reads Done', async () => {
+    await page.setContent('<button onclick="this.textContent = \\'Done\\'" style="margin:40px;font:20px sans-serif">Go</button><input aria-label="Name" style="font:20px sans-serif">')
+    await page.getByRole('button', { name: 'Go' }).click()
+    await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
+  })
+  await step('Type a name → the field holds it', async () => {
+    await page.getByLabel('Name').fill('Ada')
+    await expect(page.getByLabel('Name')).toHaveValue('Ada')
+  })
+})
+`)
+    const runOnce = (extra) => {
+      execFileSync(path.join(app, "node_modules/.bin/playwright"), ["test", "e2e/vibedoc/T009-show.spec.ts", "--reporter=line"], {
+        cwd: app, stdio: "pipe", env: { ...process.env, CI: "", VIBEDOC_RUNS_DIR: runsTmp, ...extra },
+      })
+      const dir = path.join(runsTmp, readdirSync(runsTmp)[0], "T009")
+      const id = readdirSync(dir).filter((d) => /^\d{8}T\d{6}Z$/.test(d)).sort().at(-1)
+      return { dir: path.join(dir, id), run: JSON.parse(readFileSync(path.join(dir, id, "run.json"), "utf8")) }
+    }
+    const plain = runOnce({ VIBEDOC_PRESENT: "0" })
+    const shown = runOnce({})
+    assert.deepEqual(plain.run.presentation, { on: false, reason: "disabled" })
+    assert.deepEqual(shown.run.presentation, { on: true, reason: null })
+    assert.equal(shown.run.status, "passed")
+    assert.equal(plain.run.status, "passed")
+    for (const [i, s] of shown.run.steps.entries()) {
+      const p = plain.run.steps[i]
+      assert.deepEqual(s.assertions, p.assertions, `step ${s.index}: same assertion counts`)
+      assert.ok(readFileSync(path.join(shown.dir, s.screenshot)).equals(readFileSync(path.join(plain.dir, p.screenshot))), `step ${s.index}: screenshot identical to the plain run's (no cursor or highlight)`)
+      const slower = (s.endMs - s.startMs) - (p.endMs - p.startMs)
+      assert.ok(slower >= 400, `step ${s.index}: paced by the annotation (${slower}ms slower than plain)`)
+    }
+    console.log("ok  S3/S4: presentation run is paced and says on; screenshots and assertion counts match the plain run")
+  } finally {
+    rmSync(app, { recursive: true, force: true })
+    rmSync(runsTmp, { recursive: true, force: true })
+  }
 
   assert.deepEqual(errors, [], "no console errors")
 } finally {

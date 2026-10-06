@@ -1,9 +1,12 @@
 # T228: Cursor and highlight in recorded videos
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R079 — Watchable evidence videos
 **Size:** M (2–3 hrs)
 **Depends on:** T227
 **Covers:** S3, S4
+**Owner:** ai:claude-code
+**Due:** 2026-10-09
+**Started:** 2026-10-06
 
 ## Goal
 When presentation mode is on, the run video shows an animated cursor, the target element highlighted and the action title, paced so a person can follow, while step screenshots stay exactly as clean as today.
@@ -47,5 +50,12 @@ PW_DIR=<dir with node_modules/playwright> node e2e/self-fixing.mjs
 ```
 
 ## Manual tests
+_2026-10-06 — ai_
+### Steps
 - [ ] S3 — WHEN a single Run records a new video on a frontend app with Playwright 1.59 or newer → THEN the video shows an animated cursor, the target element highlighted, the action title, a chapter card with each step's name, and a short hold after each step
 - [ ] S4 — WHEN a run records in presentation mode → THEN its step screenshots carry no cursor, highlight or chapter, and its pass/fail, assertion counts and honesty verdict are the same as a plain run
+- [ ] Run a done task's spec from Test review → play the new video: a cursor glides to each click, the clicked element gets a purple outline, and the action shows top right
+- [ ] The cursor and outline are easy to see on a light app page and on a dark one
+- [ ] The step screenshots of that run look exactly like before (no cursor, no outline)
+### Regression risk
+- [ ] Specs still pass; a run just takes ~0.6 s longer per action (VIBEDOC_PRESENT=0 brings the old speed back)

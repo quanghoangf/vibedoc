@@ -118,6 +118,15 @@ export const expect = counted(baseExpect)
  */
 const BLANK = process.env.VIBEDOC_BLANK === '1'
 const BLANK_PAGE = '<!doctype html><title>blank</title>'
+// R079 presentation recording: Playwright's own action annotations (1.59+). Each action waits out ACTION_MS, so a
+// person can follow the cursor; colours read on light and dark apps. The decorations are gone by the time an
+// action returns, so step screenshots (taken after the step) stay clean without hiding them first.
+const ACTION_MS = 600
+const ACTION_STYLE = {
+  point: 'width:22px;height:22px;border-radius:50%;background:rgba(124,92,255,.35);box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(20,20,30,.85)',
+  highlight: 'outline:2px solid #7c5cff;outline-offset:2px;background:rgba(124,92,255,.12);border-radius:4px',
+  title: 'font:600 14px system-ui,sans-serif;padding:6px 10px;border-radius:6px;background:rgba(20,20,30,.85);color:#fff',
+}
 
 function readHonesty(dir: string) {
   try {
@@ -200,6 +209,11 @@ function writeEvidence(run: Run): void {
   }
 }
 
+/** The part of Playwright 1.59's `page.screencast` the kit uses; older apps' types don't have it. */
+type Screencast = {
+  showActions: (o: { cursor?: 'pointer' | 'none'; duration?: number; position?: string; style?: { point?: string; highlight?: string; title?: string } }) => Promise<unknown>
+}
+
 export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: Run; step: Step }>({
   vibedocTask: [undefined, { option: true }],
 
@@ -244,8 +258,11 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
         : r.continue()))
     }
     // R079: presentation recording, decided once; `page.screencast` exists from Playwright 1.59 (the app's own copy)
-    const screencast = (page as unknown as { screencast?: { showActions?: unknown } }).screencast
+    const screencast = (page as unknown as { screencast?: Screencast }).screencast
     const presentation = presentationMode(process.env, typeof screencast?.showActions === 'function')
+    if (presentation.on && screencast) {
+      await screencast.showActions({ cursor: 'pointer', duration: ACTION_MS, position: 'top-right', style: ACTION_STYLE })
+    }
     // The page (and its video) exists by now, so offsets from here line up with the video's clock
     const t0 = Date.now()
     await provide(async (name, fn) => {
