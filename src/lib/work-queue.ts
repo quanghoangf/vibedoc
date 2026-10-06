@@ -6,11 +6,18 @@ import type { RoadmapItem, Task } from './core'
  * to a human). Other review tasks only wait for someone to click through their checks, so dependents go on.
  */
 export type QueueTask = Pick<Task, 'id' | 'status' | 'dependsOn'> & { reviewHold?: boolean }
+/** Why a task can't be claimed: `reason` is the English line, `why` / `deps` the data a UI words itself (R078). */
+export type Waiting = {
+  taskId: string
+  reason: string
+  why: 'no-file' | 'in-progress' | 'blocked' | 'paused' | 'review-hold' | 'review' | 'deps'
+  deps?: string[]
+}
 export type QueueResult =
   | { kind: 'ready'; taskId: string }
   | { kind: 'finished' }
   // needsHuman: no remaining task can move without someone unblocking or creating a task
-  | { kind: 'waiting'; waiting: { taskId: string; reason: string }[]; needsHuman: boolean }
+  | { kind: 'waiting'; waiting: Waiting[]; needsHuman: boolean }
 
 /** Every `T\d+` in a free-text "Depends on" line: "T008, T009 (x)" → ["T008","T009"]. */
 export function depIds(dependsOn: string): string[] {
@@ -49,17 +56,19 @@ export function pickNextTask(epic: RoadmapItem, tasks: QueueTask[]): QueueResult
     return ok
   }
 
-  const waiting: { taskId: string; reason: string }[] = []
+  const waiting: Waiting[] = []
   for (const id of epic.tasks) {
     const t = byId.get(id)
-    if (!t) waiting.push({ taskId: id, reason: `${id} has no task file` })
-    else if (t.status === 'in-progress') waiting.push({ taskId: id, reason: `${id} is in progress (claimed)` })
-    else if (t.status === 'blocked') waiting.push({ taskId: id, reason: `${id} is blocked` })
-    else if (t.status === 'paused') waiting.push({ taskId: id, reason: `${id} is paused — needs a human to resume it` })
-    else if (t.status === 'review') waiting.push({ taskId: id, reason: t.reviewHold ? `${id} in review — needs a human` : `${id} in review — waiting for a human to check it` })
+    if (!t) waiting.push({ taskId: id, reason: `${id} has no task file`, why: 'no-file' })
+    else if (t.status === 'in-progress') waiting.push({ taskId: id, reason: `${id} is in progress (claimed)`, why: 'in-progress' })
+    else if (t.status === 'blocked') waiting.push({ taskId: id, reason: `${id} is blocked`, why: 'blocked' })
+    else if (t.status === 'paused') waiting.push({ taskId: id, reason: `${id} is paused — needs a human to resume it`, why: 'paused' })
+    else if (t.status === 'review') waiting.push(t.reviewHold
+      ? { taskId: id, reason: `${id} in review — needs a human`, why: 'review-hold' }
+      : { taskId: id, reason: `${id} in review — waiting for a human to check it`, why: 'review' })
     else if (t.status === 'todo') {
       const deps = unmet(t).map(d => `${d} (${byId.get(d)?.status ?? 'missing'})`)
-      waiting.push({ taskId: id, reason: `${id} waits on ${deps.join(', ')}` })
+      waiting.push({ taskId: id, reason: `${id} waits on ${deps.join(', ')}`, why: 'deps', deps })
     }
   }
   return { kind: 'waiting', waiting, needsHuman: waiting.every(w => !canMove(w.taskId)) }

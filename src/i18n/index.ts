@@ -1,9 +1,10 @@
 // Every area's messages under one key space: "<area>.<key>" (R078). Add an area here when you add its file.
 import type { Lang } from "../lib/i18n"
 import * as board from "./board"
+import * as roadmap from "./roadmap"
 import * as shell from "./shell"
 
-export const AREAS = { shell, board }
+export const AREAS = { shell, board, roadmap }
 
 type Areas = typeof AREAS
 type AreaKey<A extends keyof Areas> = keyof Areas[A]["en"] & string

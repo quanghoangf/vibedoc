@@ -94,8 +94,13 @@ export const en = {
   noProjectMatches: "No project matches “{query}”",
   noProjects: "No projects found",
 
-  // Shared UI parts (components/ui)
+  // Shared UI parts (components/ui, React Flow's controls on the roadmap map and the graphs)
   close: "Close",
+  flowControls: "Control Panel",
+  zoomIn: "Zoom In",
+  zoomOut: "Zoom Out",
+  fitView: "Fit View",
+  flowNodeHint: "Press enter or space to select a node. Press delete to remove it and escape to cancel.",
 
   // Help frame (its content is in src/lib/shortcuts.ts)
   help: "Help",
@@ -191,6 +196,11 @@ export const vi: Messages<typeof en> = {
   noProjects: "Không tìm thấy dự án",
 
   close: "Đóng",
+  flowControls: "Bảng điều khiển",
+  zoomIn: "Phóng to",
+  zoomOut: "Thu nhỏ",
+  fitView: "Vừa khung",
+  flowNodeHint: "Nhấn Enter hoặc phím cách để chọn một nút. Nhấn Delete để xóa và Escape để hủy.",
 
   help: "Trợ giúp",
   helpButton: "Trợ giúp và phím tắt (?)",

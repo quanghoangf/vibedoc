@@ -67,6 +67,10 @@ assert.equal(dueState('2027-01-01', 'planned', '2026-12-30'), 'soon', 'across a 
   assert.equal(atRisk('E1').length, 1)
   assert.equal(atRisk('E1')[0].message, 'E1 "E1" at risk: A1 overdue since 2026-09-27; A2 blocked')
   assert.equal(atRisk('E1')[0].suggestedStatus, undefined)
+  // R078: the same facts as data, for a UI that words them itself
+  assert.deepEqual(atRisk('E1')[0].vars, { id: 'E1', title: 'E1' })
+  assert.deepEqual(atRisk('E1')[0].risks, [{ why: 'task-overdue', id: 'A1', due: '2026-09-27' }, { why: 'task-blocked', id: 'A2' }])
+  assert.deepEqual(atRisk('E2')[0]?.risks, [{ why: 'nothing-started', due: '2026-10-01' }])
   assert.ok(atRisk('E2')[0]?.message.includes('due 2026-10-01, nothing started'))
   assert.equal(atRisk('E3').length, 1)
   for (const id of ['E4', 'E5', 'E6', 'E7', 'H']) assert.equal(atRisk(id).length, 0, `${id} not at risk`)
@@ -139,5 +143,11 @@ assert.equal(dueState('2027-01-01', 'planned', '2026-12-30'), 'soon', 'across a 
   // items without the field at all
   assert.deepEqual(run(item('R016', 'R001', 'done')), [])
 }
+
+// R078: every drift carries vars; status-mismatch names its sentence
+for (const d of drift) assert.ok(d.vars && d.vars[d.kind === 'spec-conflict' ? 'a' : 'id'], `${d.kind} has vars`)
+assert.deepEqual(drift.find(d => d.id === 'R002' && d.kind === 'status-mismatch')?.variant, 'all-done')
+assert.deepEqual(drift.find(d => d.id === 'R003' && d.kind === 'status-mismatch')?.variant, 'not-done')
+assert.equal(drift.find(d => d.id === 'R003' && d.kind === 'status-mismatch')?.vars.tasks, 'T003')
 
 console.log('roadmap-health: ok')

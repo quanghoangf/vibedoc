@@ -11,8 +11,11 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { KIND_ICON, useOpenNode } from "@/components/memory/EntryRelated"
 import { fetchLinkJson, useLinkGeneration } from "@/components/docs/useDocLinks"
+import { useT } from "@/context/LanguageContext"
+import { useFlowAriaLabels } from "@/components/shared/flow-labels"
+import type { MessageKey } from "@/i18n"
 import { GRAPH_DEFAULT_KINDS, touchedPaths, type BrokenLink, type DocGraph as Graph, type DocNode, type DocNodeKind, type TouchEvent } from "@/lib/doc-links"
-import { STATUS_COLOR_CLASS, StatusChip } from "@/components/shared/StatusIcon"
+import { STATUS_COLOR_CLASS, StatusChip, useStatusLabel } from "@/components/shared/StatusIcon"
 import { statusDefIn, useStatusDefs } from "@/components/shared/status-defs"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { AgentDot } from "@/components/chat/AgentMark"
@@ -31,13 +34,13 @@ type XY = { x: number; y: number }
 /** A relayout in flight: centres it started from, where it is now, where it goes, and the nodes it removed. */
 type Tween = { from: Record<string, XY>; at: Record<string, XY>; to: Record<string, XY>; gone: DotNode[] }
 
-const KINDS: { kind: DocNodeKind; label: string }[] = [
-  { kind: "doc", label: "Docs" },
-  { kind: "adr", label: "ADRs" },
-  { kind: "spec", label: "Capability specs" },
-  { kind: "task", label: "Tasks" },
-  { kind: "epic", label: "Epics" },
-  { kind: "entry", label: "Entries" },
+const KINDS: { kind: DocNodeKind; label: MessageKey }[] = [
+  { kind: "doc", label: "roadmap.kindDocs" },
+  { kind: "adr", label: "roadmap.kindAdrs" },
+  { kind: "spec", label: "roadmap.kindSpecs" },
+  { kind: "task", label: "roadmap.kindTasks" },
+  { kind: "epic", label: "roadmap.kindEpics" },
+  { kind: "entry", label: "roadmap.kindEntries" },
 ]
 const DEFAULT_KINDS: DocNodeKind[] = [...GRAPH_DEFAULT_KINDS]
 // React Flow chrome in the app's tokens: Controls read as ghost icon buttons
@@ -90,7 +93,9 @@ const HIT_MAX = 48
 // search framing: half a typical label's width beside the outermost matches
 const MATCH_PAD_X = 72
 const HIT_PAD = `min(${HIT_MAX}px, max(100%, calc(${HIT}px / var(--graph-zoom, 1))))`
-const KIND_NAME: Record<DocNodeKind, string> = { doc: "Doc", adr: "ADR", task: "Task", epic: "Epic", entry: "Entry", spec: "Capability spec" }
+const KIND_NAME: Record<DocNodeKind, MessageKey> = {
+  doc: "roadmap.kindDoc", adr: "roadmap.kindAdr", task: "roadmap.kindTask", epic: "roadmap.kindEpicName", entry: "roadmap.kindEntry", spec: "roadmap.kindSpec",
+}
 // "Recent": files the activity log says an agent or a human changed in this window (T110)
 const RECENT_MS = 24 * 60 * 60 * 1000
 // ponytail: the newest 1000 events cover a day of agent work here; page the log if a busy day outgrows it
@@ -134,8 +139,6 @@ const DRAG_PX = 4
 const EDGE_HOVER = "var(--color-muted)"
 const still = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
 const ARROWS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"])
-const HINT = "Tab moves between files, then the unlinked ones below the map. Enter selects a file; Enter again or O opens it. Arrow keys move to the nearest linked file. Escape clears the search, then the selection. Slash jumps to search; Enter there frames every match, then steps through them (Shift+Enter goes back)."
-const ARIA_LABELS = { "node.a11yDescription.default": HINT }
 // keyboard hints, neutral like the ? sheet (never accent)
 const KBD = "rounded-sm border border-border2 bg-surface2 px-1 py-0.5 font-mono text-[10px] leading-none text-txt"
 
@@ -275,6 +278,14 @@ const nodeTypes = { dot: DotView }
 export function DocGraph() {
   const { rootParam } = useApp()
   const statusDefs = useStatusDefs()
+  const { t, tn } = useT()
+  const hint = t("roadmap.graphHint")
+  const ariaLabels = useFlowAriaLabels(hint)
+  /** A file's screen-reader name: kind, id, title and its link count (+ recent / selected). */
+  const nodeLabel = useCallback((n: DocNode, links: number, recent: boolean, isSelected = false) =>
+    [tn("roadmap.nodeLabel", links, { kind: t(KIND_NAME[n.kind]), name: `${n.id === n.path ? "" : `${n.id} `}${n.label}` }), recent && t("roadmap.changed24h"), isSelected && t("roadmap.selectedSuffix")]
+      .filter(Boolean).join(", "), [t, tn])
+  const statusLabel = useStatusLabel()
   const router = useRouter()
   const open = useOpenNode((id) => router.push(`/memory?entry=${encodeURIComponent(id)}`))
   const params = useSearchParams()
@@ -555,7 +566,7 @@ export function DocGraph() {
         // known size: a fresh node object (every restyle, every tween frame) keeps its handles and stays visible
         // instead of React Flow hiding it, and its edges, until it re-measures
         measured: { width: box, height: box },
-        ariaLabel: `${KIND_NAME[n.kind]}${n.id === n.path ? "" : ` ${n.id}`} ${n.label}, ${links} link${links === 1 ? "" : "s"}${touched.has(p) ? ", changed in the last 24 hours" : ""}${p === selected ? ", selected" : ""}`,
+        ariaLabel: nodeLabel(n, links, touched.has(p), p === selected),
         // the entrance offset: the layout is centred on 0,0, so -at points back at the centre (inert until data-unfold)
         data: { node: n, size, box, dim: !!lit && !lit.has(p), chip: p === selected || matched.has(p) || !!lit?.has(p) || top.has(p), active: p === selected, match: matched.has(p), changed: changed.has(p), hue, hollow, recent: touched.has(p), hideLabel: hideLabel.has(p), delay: delayOf(p), quick, unfold: { x: -at.x * UNFOLD_FROM, y: -at.y * UNFOLD_FROM, wait: waitOf(hops.get(p)) } },
         draggable: true,
@@ -589,7 +600,7 @@ export function DocGraph() {
       }
     })
     return { base: nodes, edges }
-  }, [visible, flowOrder, adj, hops, pos, byPath, selected, state.focus, state.recent, touched, q, matches, changed, statusDefs, labelK])
+  }, [visible, flowOrder, adj, hops, pos, byPath, selected, state.focus, state.recent, touched, q, matches, changed, statusDefs, labelK, nodeLabel])
 
   // Relayout tween (filter / focus / data change): dots glide from where they are drawn to the new layout, new ones
   // scale in at their target, removed ones fade out. A new relayout mid-tween starts from the interpolated positions.
@@ -843,9 +854,9 @@ export function DocGraph() {
     e.preventDefault()
   }
 
-  if (!graph && !error) return <p className="p-6 text-sm text-muted">Loading graph…</p>
+  if (!graph && !error) return <p className="p-6 text-sm text-muted">{t("roadmap.loadingGraph")}</p>
   if (graph && !graph.edges.length && !error) {
-    return <p className="m-6 rounded-lg border border-dashed border-border p-4 text-sm text-muted">No links between docs yet. Link docs with [text](path.md) or [[name]].</p>
+    return <p className="m-6 rounded-lg border border-dashed border-border p-4 text-sm text-muted">{t("roadmap.noLinksYet")}</p>
   }
   // a load failure keeps the toolbar (filters, search) and says what to do; the raw error is a details line
   const g = graph ?? EMPTY_GRAPH
@@ -885,7 +896,7 @@ export function DocGraph() {
               )}
             >
               <Shape kind={kind} size={kind === "task" ? 7 : 9} className="text-muted" />
-              <span className="sr-only md:not-sr-only">{label}</span>
+              <span className="sr-only md:not-sr-only">{t(label)}</span>
               {/* a failed load has no counts: "–", not a 0 that claims the project is empty */}
               <span className="font-mono tabular-nums text-muted">{error ? "–" : count}</span>
             </button>
@@ -895,7 +906,7 @@ export function DocGraph() {
           type="button"
           aria-pressed={state.recent}
           disabled={!touched.size && !state.recent}
-          title="Files an agent or you changed in the last 24 hours"
+          title={t("roadmap.recentTitle")}
           // on: dim everything else, and turn on the kinds the changed files belong to
           onClick={() => {
             frameRecent.current = !state.recent
@@ -907,14 +918,14 @@ export function DocGraph() {
           )}
         >
           <span aria-hidden className="size-1.5 rounded-full bg-accent" />
-          Recent
+          {t("roadmap.recent")}
           <span className="font-mono tabular-nums text-muted">{error ? "–" : touched.size}</span>
         </button>
         <button
           type="button"
           aria-expanded={legendOpen}
           aria-controls="graph-legend"
-          aria-label="Legend"
+          aria-label={t("roadmap.legend")}
           onClick={() => setLegendOpen((o) => !o)}
           className="inline-flex size-7 items-center justify-center rounded-md text-muted outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent aria-expanded:bg-surface2 aria-expanded:text-txt xl:hidden"
         >
@@ -922,19 +933,19 @@ export function DocGraph() {
         </button>
         <p id="graph-legend" className={cn("order-last basis-full flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-muted xl:order-none xl:ml-2 xl:flex xl:basis-auto", legendOpen ? "flex" : "hidden")}>
           {KINDS.map(({ kind }) => (
-            <span key={kind} className="inline-flex items-center gap-1"><Shape kind={kind} size={kind === "task" ? 6 : 8} />{KIND_NAME[kind].toLowerCase()}</span>
+            <span key={kind} className="inline-flex items-center gap-1"><Shape kind={kind} size={kind === "task" ? 6 : 8} />{t(KIND_NAME[kind]).toLowerCase()}</span>
           ))}
           {legendStatuses.length > 0 && (
             <>
-              <span>colour = status</span>
+              <span>{t("roadmap.colourStatus")}</span>
               {legendStatuses.map((d) => {
                 const { hue, hollow } = dotStyle(statusDefs, d.id)
-                return <span key={d.id} className="inline-flex items-center gap-1"><Shape kind="doc" size={7} hollow={hollow} className={hue} />{d.label.toLowerCase()}</span>
+                return <span key={d.id} className="inline-flex items-center gap-1"><Shape kind="doc" size={7} hollow={hollow} className={hue} />{statusLabel(d.id).toLowerCase()}</span>
               })}
-              <span>hollow = done</span>
+              <span>{t("roadmap.hollowDone")}</span>
             </>
           )}
-          <span className="inline-flex items-center gap-1"><span aria-hidden className="size-1.5 rounded-full bg-accent" />changed in 24h</span>
+          <span className="inline-flex items-center gap-1"><span aria-hidden className="size-1.5 rounded-full bg-accent" />{t("roadmap.changedIn24h")}</span>
         </p>
         <MissingLinks broken={g.broken} />
         {/* the broken-links button carries ml-auto; with none, the search does */}
@@ -944,8 +955,8 @@ export function DocGraph() {
             id="graph-search"
             type="search"
             value={state.q}
-            placeholder="Find a file…"
-            aria-label="Find a file in the graph"
+            placeholder={t("roadmap.findFile")}
+            aria-label={t("roadmap.findFileLabel")}
             aria-describedby="graph-matches"
             onChange={(e) => update({ q: e.target.value })}
             onKeyDown={onSearchKey}
@@ -953,7 +964,7 @@ export function DocGraph() {
           />
           {/* the count sits inside the input's reserved right padding, so it never shifts the toolbar */}
           <span id="graph-matches" className="pointer-events-none absolute right-2 font-mono text-[10px] text-muted tabular-nums">
-            {!q ? "" : step !== null && step >= 0 ? `${step + 1} of ${matches.length}` : `${matches.length} match${matches.length === 1 ? "" : "es"}`}
+            {!q ? "" : step !== null && step >= 0 ? t("roadmap.stepOf", { step: step + 1, total: matches.length }) : tn("roadmap.matches", matches.length)}
           </span>
           {/* the / hint, as on /board, until there's a count to show */}
           {!q && <kbd aria-hidden className={cn(KBD, "pointer-events-none absolute right-1.5 max-sm:hidden")}>{GRAPH_KEYS.search.key}</kbd>}
@@ -968,25 +979,25 @@ export function DocGraph() {
         onBlur={(e) => { const t = e.target as HTMLElement; if (t.classList.contains("react-flow__node") && t.dataset.id === hovered) magnet(null) }}
         className="group/graph relative min-h-0 flex-1"
       >
-        <p id="graph-hint" className="sr-only">{HINT}</p>
+        <p id="graph-hint" className="sr-only">{hint}</p>
         {error ? (
           <div role="alert" className="m-6 max-w-xl rounded-lg border border-danger/30 bg-danger/5 p-4">
-            <p className="text-sm font-medium text-txt">Couldn&apos;t load the link graph.</p>
-            <p className="mt-1 text-xs text-muted">Check that VibeDoc is still running, then try again. Your files are untouched.</p>
-            <p className="mt-1 font-mono text-[11px] break-words text-muted">Details: {error}</p>
-            <Button size="sm" variant="outline" className="mt-3" onClick={() => { setError(null); setRetry((r) => r + 1) }}>Retry</Button>
+            <p className="text-sm font-medium text-txt">{t("roadmap.loadFailed")}</p>
+            <p className="mt-1 text-xs text-muted">{t("roadmap.loadFailedHint")}</p>
+            <p className="mt-1 font-mono text-[11px] break-words text-muted">{t("roadmap.details", { error })}</p>
+            <Button size="sm" variant="outline" className="mt-3" onClick={() => { setError(null); setRetry((r) => r + 1) }}>{t("roadmap.retry")}</Button>
           </div>
         ) : !state.kinds.length ? (
           <div className="m-6 flex flex-wrap items-center gap-3">
-            <p className="text-sm text-muted">Every kind is off, so no files are drawn.</p>
-            <Button size="sm" variant="outline" onClick={() => update({ kinds: DEFAULT_KINDS })}>Show docs</Button>
+            <p className="text-sm text-muted">{t("roadmap.allKindsOff")}</p>
+            <Button size="sm" variant="outline" onClick={() => update({ kinds: DEFAULT_KINDS })}>{t("roadmap.showDocs")}</Button>
           </div>
         ) : (
           <ReactFlow<DotNode, LinkEdge>
-            aria-label="Doc link graph"
-            aria-roledescription="link graph"
+            aria-label={t("roadmap.graphLabel")}
+            aria-roledescription={t("roadmap.graphRole")}
             aria-describedby="graph-hint"
-            ariaLabelConfig={ARIA_LABELS}
+            ariaLabelConfig={ariaLabels}
             edgesFocusable={false}
             nodes={nodes}
             edges={shownEdges}
@@ -1027,7 +1038,7 @@ export function DocGraph() {
               onZoomOut={() => { userMoved.current = true }}
               className="gap-0.5 rounded-md border border-border bg-surface p-0.5 [&_button]:size-7 [&_button]:rounded-md [&_button]:transition-colors [&_button]:duration-(--duration-fast) [&_button]:outline-none [&_button:focus-visible]:ring-2 [&_button:focus-visible]:ring-accent [&_svg]:max-h-3 [&_svg]:max-w-3"
             >
-              <ControlButton onClick={fit} className="react-flow__controls-fitview" title="Fit View" aria-label="Fit View">
+              <ControlButton onClick={fit} className="react-flow__controls-fitview" title={t("shell.fitView")} aria-label={t("shell.fitView")}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 30" aria-hidden="true"><path d={FIT_ICON} /></svg>
               </ControlButton>
             </Controls>
@@ -1044,7 +1055,7 @@ export function DocGraph() {
             className="absolute right-16 bottom-3 left-14 z-10 flex items-center gap-1 overflow-x-auto rounded-md border border-border bg-surface p-1 md:left-auto md:max-w-[min(44rem,calc(100%-8.5rem))] md:flex-wrap md:overflow-x-visible md:max-h-17 md:overflow-y-auto"
           >
             <span id="graph-unlinked" className="sticky left-0 shrink-0 bg-surface px-1.5 font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">
-              Unlinked <span className="tabular-nums">{unlinked.length}</span>
+              {t("roadmap.unlinked")} <span className="tabular-nums">{unlinked.length}</span>
             </span>
             {unlinked.map((p) => {
               const n = byPath.get(p)!
@@ -1059,7 +1070,7 @@ export function DocGraph() {
                   data-path={p}
                   title={n.path}
                   aria-pressed={on}
-                  aria-label={`${KIND_NAME[n.kind]}${n.id === n.path ? "" : ` ${n.id}`} ${n.label}, 0 links${touched.has(p) ? ", changed in the last 24 hours" : ""}`}
+                  aria-label={nodeLabel(n, 0, touched.has(p))}
                   onClick={() => (on ? open(n) : select(p))}
                   className={cn(
                     "inline-flex h-6 max-w-48 shrink-0 items-center gap-1.5 rounded-sm px-1.5 text-[11px] outline-none",
@@ -1084,19 +1095,19 @@ export function DocGraph() {
           {hidden && (
             <p className="absolute top-3 right-3 z-10 max-w-72 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted shadow-lg">
               {hidden.id !== hidden.path && <span className="mr-1 font-mono text-[11px]">{hidden.id}</span>}
-              <span className="text-txt">{hidden.label}</span> is hidden by filters ·{" "}
+              <span className="text-txt">{hidden.label}</span> {t("roadmap.hiddenByFilters")} ·{" "}
               <button
                 type="button"
                 onClick={() => update({ kinds: [...state.kinds, hidden.kind] })}
                 className="rounded-sm text-accent underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent"
               >
-                Show
+                {t("board.show")}
               </button>
             </p>
           )}
           {card && (
             <aside
-              aria-label="Selected file"
+              aria-label={t("roadmap.selectedFile")}
               inert={!sel}
               className={cn(
                 "absolute top-3 right-3 z-10 w-72 max-w-[calc(100%-1.5rem)] rounded-lg border border-border bg-surface p-3 shadow-lg shadow-black/20",
@@ -1120,34 +1131,34 @@ export function DocGraph() {
                   <p className="text-sm font-medium text-txt">{card.id !== card.path && <span className="mr-1.5 font-mono text-[11px] text-muted">{card.id}</span>}{card.label}</p>
                   <p className="mt-0.5 truncate font-mono text-[11px] text-muted" title={card.path}>{card.path}</p>
                 </div>
-                <button type="button" aria-label="Clear selection" onClick={() => select(null)} className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted outline-none hover:text-txt focus-visible:ring-2 focus-visible:ring-accent">
+                <button type="button" aria-label={t("board.clearSelection")} onClick={() => select(null)} className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted outline-none hover:text-txt focus-visible:ring-2 focus-visible:ring-accent">
                   <X className="size-3.5" />
                 </button>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">{KIND_NAME[card.kind]}</span>
+                <span className="font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">{t(KIND_NAME[card.kind])}</span>
                 {card.status && <StatusChip status={card.status} />}
                 {card.owner && <OwnerChip owner={card.owner} />}
                 {(card.kind === "task" || card.kind === "epic") && <AgentDot attach={{ kind: card.kind, id: card.id }} />}
               </div>
               <p className="mt-2 text-xs text-muted">
-                Links to <span className="font-mono tabular-nums text-txt">{shown.to}</span> · Linked from <span className="font-mono tabular-nums text-txt">{shown.from}</span>
-                {hiddenLinks > 0 && <span className="text-muted"> · <span className="font-mono tabular-nums">+{hiddenLinks}</span> hidden by filters</span>}
+                {t("roadmap.linksTo")} <span className="font-mono tabular-nums text-txt">{shown.to}</span> · {t("roadmap.linkedFrom")} <span className="font-mono tabular-nums text-txt">{shown.from}</span>
+                {hiddenLinks > 0 && <span className="text-muted"> · <span className="font-mono tabular-nums">+{hiddenLinks}</span> {t("roadmap.hiddenLinks")}</span>}
               </p>
               <div className="mt-3 flex items-center gap-2">
-                <Button size="sm" onClick={() => open(card)}>Open</Button>
-                <div role="group" aria-label="Focus" className="ml-auto flex items-center rounded-md border border-border text-xs">
-                  <span className="px-2 text-muted">Focus</span>
+                <Button size="sm" onClick={() => open(card)}>{t("board.open")}</Button>
+                <div role="group" aria-label={t("roadmap.focus")} className="ml-auto flex items-center rounded-md border border-border text-xs">
+                  <span className="px-2 text-muted">{t("roadmap.focus")}</span>
                   {([0, 1, 2] as const).map((f) => (
                     <button
                       key={f}
                       type="button"
                       aria-pressed={state.focus === f}
-                      title={f ? `Show files within ${f} link${f === 1 ? "" : "s"}` : "Show every file"}
+                      title={f ? tn("roadmap.focusWithin", f) : t("roadmap.showEveryFile")}
                       onClick={() => update({ focus: f })}
                       className={cn("inline-flex h-6 min-w-6 items-center justify-center px-2 outline-none focus-visible:ring-2 focus-visible:ring-accent", state.focus === f ? "bg-surface2 text-txt" : "text-muted hover:text-txt")}
                     >
-                      {f === 0 ? "Off" : f}
+                      {f === 0 ? t("roadmap.off") : f}
                     </button>
                   ))}
                 </div>
@@ -1172,7 +1183,7 @@ function dedupe<E extends { from: string; to: string }>(edges: E[]): E[] {
   })
 }
 
-const MISS_KIND: Record<string, string> = { md: "link", wiki: "wikilink" }
+const MISS_KIND: Record<string, MessageKey> = { md: "roadmap.missLink", wiki: "roadmap.missWikilink" }
 const MISS_FILES_SHOWN = 5
 
 /**
@@ -1182,6 +1193,7 @@ const MISS_FILES_SHOWN = 5
  */
 function MissingLinks({ broken }: { broken: BrokenLink[] }) {
   const { openDoc } = useApp()
+  const { t, tn } = useT()
   const [all, setAll] = useState(false)
   // "Show all" → focus the first newly shown row, so a keyboard user carries on where the list grew
   const firstNew = useRef<HTMLDivElement>(null)
@@ -1196,15 +1208,15 @@ function MissingLinks({ broken }: { broken: BrokenLink[] }) {
   return (
     <DropdownMenu onOpenChange={(open) => { if (!open) setAll(false) }}>
       <DropdownMenuTrigger className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-muted outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent data-[state=open]:bg-surface2 data-[state=open]:text-txt">
-        <span className="font-mono tabular-nums">{broken.length}</span> broken<span className="max-lg:sr-only"> link{broken.length === 1 ? "" : "s"}</span>
+        <span className="font-mono tabular-nums">{broken.length}</span> {t("roadmap.brokenCount")}<span className="max-lg:sr-only"> {tn("roadmap.brokenLinksSuffix", broken.length)}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-[min(28rem,var(--radix-dropdown-menu-content-available-height))] w-[min(26rem,calc(100vw-2rem))]">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="flex items-center px-2 pt-2 pb-1 font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">
-            Broken links<span className="ml-auto tabular-nums">{broken.length}</span>
+            {t("roadmap.brokenLinks")}<span className="ml-auto tabular-nums">{broken.length}</span>
           </DropdownMenuLabel>
           {shown.map(([file, items], fi) => (
-            <div key={file} role="group" aria-label={`${file}, ${items.length} broken`}>
+            <div key={file} role="group" aria-label={t("roadmap.brokenInFile", { file, n: items.length })}>
               <p className="flex items-baseline gap-2 px-2 pt-1.5 font-mono text-[11px] text-txt" title={file}>
                 <span className="min-w-0 truncate">{file}</span>
                 <span className="ml-auto shrink-0 text-muted tabular-nums">{items.length}</span>
@@ -1213,7 +1225,7 @@ function MissingLinks({ broken }: { broken: BrokenLink[] }) {
                 <DropdownMenuItem key={`${r.target}:${r.line}`} ref={fi === MISS_FILES_SHOWN && ri === 0 ? firstNew : undefined} onSelect={() => void openDoc(r.from, r.target)} className="gap-2 py-1 text-xs">
                   <Unlink className="size-3.5 text-muted" aria-hidden />
                   <span className="min-w-0 truncate font-mono text-muted">{r.target}</span>
-                  <span className="ml-auto shrink-0 text-[11px] text-muted">{MISS_KIND[r.kind] ?? r.kind}</span>
+                  <span className="ml-auto shrink-0 text-[11px] text-muted">{MISS_KIND[r.kind] ? t(MISS_KIND[r.kind]) : r.kind}</span>
                   <span className="shrink-0 font-mono text-[11px] text-muted tabular-nums">L{r.line}</span>
                 </DropdownMenuItem>
               ))}
@@ -1222,7 +1234,7 @@ function MissingLinks({ broken }: { broken: BrokenLink[] }) {
           {/* an item, so arrow keys reach it; preventDefault keeps the menu open while it grows */}
           {shown.length < files.length && (
             <DropdownMenuItem onSelect={(e) => { e.preventDefault(); setAll(true) }} className="mt-1 py-1 text-xs text-muted">
-              <span>Show all <span className="font-mono tabular-nums">{files.length}</span> files</span>
+              <span>{t("roadmap.showAllFiles", { n: files.length })}</span>
             </DropdownMenuItem>
           )}
         </DropdownMenuGroup>

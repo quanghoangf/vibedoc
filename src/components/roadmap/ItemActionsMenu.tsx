@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { itemKeyLabel } from "@/components/shared/item-commands"
-import { STATUS_LABEL, StatusDot } from "./RoadmapNodes"
+import { StatusDot, useRoadmapStatusLabel } from "./RoadmapNodes"
+import { useT } from "@/context/LanguageContext"
 import type { RoadmapItem, RoadmapStatus } from "@/types"
 
 const STATUSES: RoadmapStatus[] = ["planned", "in-progress", "paused", "done"]
@@ -35,23 +36,25 @@ function ItemMenuItems({ item, items, actions }: { item: RoadmapItem; items: Roa
   const isHorizon = item.parent === null
   const horizons = items.filter((i) => i.parent === null && i.id !== item.parent).sort((a, b) => a.order - b.order)
   const children = items.filter((i) => i.parent === item.id).length
+  const { t, tn } = useT()
+  const statusLabel = useRoadmapStatusLabel()
 
   return (
     <>
-      <DropdownMenuItem onSelect={() => actions.edit(item.id)}><Pencil /> Edit<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.edit(item.id)}><Pencil /> {t("board.edit")}<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuSub>
-        <DropdownMenuSubTrigger><StatusDot status={item.status} /> Status<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
+        <DropdownMenuSubTrigger><StatusDot status={item.status} /> {t("board.status")}<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
         <DropdownMenuSubContent>
           {STATUSES.map((s) => (
             <DropdownMenuItem key={s} disabled={s === item.status} onSelect={() => actions.setStatus(item.id, s)}>
-              <StatusDot status={s} /> {STATUS_LABEL[s]}
+              <StatusDot status={s} /> {statusLabel(s)}
             </DropdownMenuItem>
           ))}
         </DropdownMenuSubContent>
       </DropdownMenuSub>
       {!isHorizon && horizons.length > 0 && (
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger><FolderInput /> Move to horizon</DropdownMenuSubTrigger>
+          <DropdownMenuSubTrigger><FolderInput /> {t("roadmap.moveToHorizon")}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
             {horizons.map((h) => (
               <DropdownMenuItem key={h.id} onSelect={() => actions.move(item.id, h.id)}>
@@ -61,20 +64,20 @@ function ItemMenuItems({ item, items, actions }: { item: RoadmapItem; items: Roa
           </DropdownMenuSubContent>
         </DropdownMenuSub>
       )}
-      {isHorizon && <DropdownMenuItem onSelect={() => actions.addEpic(item.id)}><Plus /> Add epic</DropdownMenuItem>}
-      <DropdownMenuItem onSelect={() => actions.duplicate(item.id)}><Copy /> Duplicate<DropdownMenuShortcut>{itemKeyLabel("duplicate")}</DropdownMenuShortcut></DropdownMenuItem>
+      {isHorizon && <DropdownMenuItem onSelect={() => actions.addEpic(item.id)}><Plus /> {t("roadmap.addEpic")}</DropdownMenuItem>}
+      <DropdownMenuItem onSelect={() => actions.duplicate(item.id)}><Copy /> {t("roadmap.duplicate")}<DropdownMenuShortcut>{itemKeyLabel("duplicate")}</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuSeparator />
-      {!isHorizon && <DropdownMenuItem onSelect={() => actions.chat(item.id)}><MessageSquare /> Chat about it<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>}
-      <DropdownMenuItem onSelect={() => actions.openFile(item.file)}><FileText /> Open file</DropdownMenuItem>
+      {!isHorizon && <DropdownMenuItem onSelect={() => actions.chat(item.id)}><MessageSquare /> {t("roadmap.chatAboutIt")}<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>}
+      <DropdownMenuItem onSelect={() => actions.openFile(item.file)}><FileText /> {t("roadmap.openFile")}</DropdownMenuItem>
       <DropdownMenuSeparator />
       {children > 0 ? (
         <DropdownMenuItem disabled className="flex-col items-start gap-0">
-          <span className="flex items-center gap-2"><Trash2 /> Delete</span>
-          <span className="pl-6 text-[11px]">Move or delete its {children} epic{children === 1 ? "" : "s"} first</span>
+          <span className="flex items-center gap-2"><Trash2 /> {t("board.delete")}</span>
+          <span className="pl-6 text-[11px]">{tn("roadmap.moveChildrenFirst", children)}</span>
         </DropdownMenuItem>
       ) : (
         <DropdownMenuItem onSelect={() => actions.remove(item.id)} className="text-danger focus:text-danger">
-          <Trash2 /> Delete<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut>
+          <Trash2 /> {t("board.delete")}<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut>
         </DropdownMenuItem>
       )}
     </>
@@ -90,12 +93,13 @@ export function ItemActionsMenu({ item, items, actions, className, open, onOpenC
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
+  const { t } = useT()
   return (
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={`Actions for ${item.id}`}
+          aria-label={t("board.actionsFor", { id: item.id })}
           className={cn("grid size-7 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt", className)}
         >
           <MoreHorizontal className="size-4" />

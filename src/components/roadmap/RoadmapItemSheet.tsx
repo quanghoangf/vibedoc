@@ -26,7 +26,10 @@ import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
 import { InlineDate, InlineSelect } from "@/components/shared/InlineProperty"
 import { PriorityField } from "@/components/shared/PriorityBadge"
 import { toast } from "@/components/ui/toast"
-import { DueChip, STATUS_LABEL, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG } from "./RoadmapNodes"
+import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG, useRoadmapStatusLabel } from "./RoadmapNodes"
+import { useT } from "@/context/LanguageContext"
+import { useStatusLabel } from "@/components/shared/StatusIcon"
+import type { Waiting } from "@/lib/work-queue"
 import type { RoadmapItem, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 
 const STATUSES: RoadmapStatus[] = ["planned", "in-progress", "paused", "done"]
@@ -86,13 +89,15 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
   const chat = isHorizon ? undefined : chatFor(chats, { kind: "epic", id: item.id })
   const offerBreakdown = !isHorizon && item.tasks.length === 0 && !chat
   const [menuOpen, setMenuOpen] = useState(false)
+  const { t } = useT()
+  const statusLabel = useRoadmapStatusLabel()
   const save = (patch: UpdateRoadmapItemPatch) => { onSave(item.id, patch).then((err) => { if (err) toast(err) }) }
   useItemCommands(`${item.id} · ${item.title}`, [
-    { action: "edit", label: "Edit", run: onEdit },
-    { action: "status", label: "Change status…", run: () => setMenuOpen(true) },
-    { action: "duplicate", label: "Duplicate", run: () => actions.duplicate(item.id) },
-    ...(isHorizon ? [] : [{ action: "chat" as const, label: "Chat about it", run: () => actions.chat(item.id) }]),
-    ...(epics.length ? [] : [{ action: "remove" as const, label: "Delete", run: () => actions.remove(item.id) }]),
+    { action: "edit", label: t("board.edit"), run: onEdit },
+    { action: "status", label: t("board.changeStatus"), run: () => setMenuOpen(true) },
+    { action: "duplicate", label: t("roadmap.duplicate"), run: () => actions.duplicate(item.id) },
+    ...(isHorizon ? [] : [{ action: "chat" as const, label: t("roadmap.chatAboutIt"), run: () => actions.chat(item.id) }]),
+    ...(epics.length ? [] : [{ action: "remove" as const, label: t("board.delete"), run: () => actions.remove(item.id) }]),
   ])
 
   return (
@@ -108,7 +113,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
                   <ChevronRight className="h-3 w-3 shrink-0" />
                 </>
               )}
-              <span className="shrink-0">{item.id} · {isHorizon ? "horizon" : "epic"}</span>
+              <span className="shrink-0">{item.id} · {isHorizon ? t("roadmap.kindHorizon") : t("roadmap.kindEpic")}</span>
               <AgentMark attach={{ kind: "epic", id: item.id }} />
             </div>
           </SheetDescription>
@@ -117,44 +122,48 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
         menu={demo ? undefined : <ItemActionsMenu item={item} items={items} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} />}
         properties={[
           {
-            label: "Status",
+            label: t("board.status"),
+            id: "status",
             icon: CircleDashed,
             value: (
-              <InlineSelect label={`Status of ${item.id}`} value={item.status} onChange={(v) => actions.setStatus(item.id, v as RoadmapStatus)}
-                options={STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s], node: <><StatusDot status={s} />{STATUS_LABEL[s]}</> }))}>
+              <InlineSelect label={t("board.statusOf", { id: item.id })} value={item.status} onChange={(v) => actions.setStatus(item.id, v as RoadmapStatus)}
+                options={STATUSES.map((s) => ({ value: s, label: statusLabel(s), node: <><StatusDot status={s} />{statusLabel(s)}</> }))}>
                 <StatusPill status={item.status} />
               </InlineSelect>
             ),
           },
           {
-            label: "Priority",
+            label: t("board.priority"),
+            id: "priority",
             icon: Flag,
-            value: <PriorityField label={`Priority of ${item.id}`} value={item.priority ?? null} onChange={(priority) => save({ priority })} />,
+            value: <PriorityField label={t("board.priorityOf", { id: item.id })} value={item.priority ?? null} onChange={(priority) => save({ priority })} />,
           },
           {
-            label: "Owner",
+            label: t("board.owner"),
+            id: "owner",
             icon: User,
             value: (
-              <InlineSelect label={`Owner of ${item.id}`} value={item.owner ?? ""} onChange={(v) => save({ owner: v || null })}
+              <InlineSelect label={t("board.ownerOf", { id: item.id })} value={item.owner ?? ""} onChange={(v) => save({ owner: v || null })}
                 options={[
-                  { value: "human", label: "Human", node: <OwnerChip owner="human" className="text-xs" /> },
+                  { value: "human", label: t("board.human"), node: <OwnerChip owner="human" className="text-xs" /> },
                   ...[...new Set(["ai:claude", ...(item.owner?.startsWith("ai:") ? [item.owner] : [])])].map((a) => ({ value: a, label: a, node: <OwnerChip owner={a} className="text-xs" /> })),
-                  { value: "", label: "No owner", node: <span className="text-muted">No owner</span> },
+                  { value: "", label: t("board.noOwner"), node: <span className="text-muted">{t("board.noOwner")}</span> },
                 ]}>
                 {item.owner ? <OwnerChip owner={item.owner} className="text-xs" /> : <span className="text-muted">—</span>}
               </InlineSelect>
             ),
           },
           {
-            label: "Due",
+            label: t("board.due"),
+            id: "due",
             icon: Calendar,
             value: (
-              <InlineDate label={`Due date of ${item.id}`} value={item.due} onChange={(v) => save({ due: v })}>
+              <InlineDate label={t("board.dueOf", { id: item.id })} value={item.due} onChange={(v) => save({ due: v })}>
                 {item.due ? <DueChip due={item.due} state={dueState(item.due, item.status, today)} /> : <span className="text-muted">—</span>}
               </InlineDate>
             ),
           },
-          { label: isHorizon ? "Epics" : "Tasks", icon: isHorizon ? Layers : ListChecks, value: <span className="font-mono">{isHorizon ? epics.length : item.tasks.length}</span> },
+          { label: isHorizon ? t("roadmap.epics") : t("roadmap.tasks"), id: "count", icon: isHorizon ? Layers : ListChecks, value: <span className="font-mono">{isHorizon ? epics.length : item.tasks.length}</span> },
         ]}
       >
         {progress && (
@@ -163,7 +172,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
               {Math.round((progress.done / progress.total) * 100)}<span className="text-base text-muted">%</span>
             </p>
             <div className="flex-1 pb-1">
-              <p className="mb-1.5 font-mono text-[10px] text-muted">{progress.done} of {progress.total}{isHorizon ? "" : " tasks"} done</p>
+              <p className="mb-1.5 font-mono text-[10px] text-muted">{t(isHorizon ? "roadmap.progressDone" : "roadmap.progressTasksDone", { done: progress.done, total: progress.total })}</p>
               {isHorizon ? (
                 <div className="h-1.5 overflow-hidden rounded-full bg-border">
                   <div className="h-full rounded-full bg-teal" style={{ width: `${(progress.done / progress.total) * 100}%` }} />
@@ -182,7 +191,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
 
         {item.specMerged && specChanges.length > 0 && (
           <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
-            <span className="text-teal">Capability spec merged {item.specMerged}</span>
+            <span className="text-teal">{t("roadmap.specMerged", { date: item.specMerged })}</span>
             {specChanges.map((c) => (
               <button key={c.capability} type="button" onClick={() => { onClose(); void openDoc(`docs/specs/${c.capability}.md`) }} className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] hover:border-border2 hover:text-txt">
                 docs/specs/{c.capability}.md
@@ -193,8 +202,8 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
 
         {isHorizon && (
           <section className="flex flex-col gap-2">
-            <p className={SECTION}>Epics · {epics.length}</p>
-            {epics.length === 0 && <p className="text-sm text-muted">No epics yet.</p>}
+            <p className={SECTION}>{t("roadmap.epicsSection", { n: epics.length })}</p>
+            {epics.length === 0 && <p className="text-sm text-muted">{t("roadmap.noEpics")}</p>}
             <ul className="-mx-2 flex flex-col">
               {epics.map((e) => {
                 const p = progressById[e.id]
@@ -214,10 +223,10 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
         )}
 
         <section className="flex flex-col gap-2">
-          <p className={SECTION}>Brief</p>
+          <p className={SECTION}>{t("roadmap.brief")}</p>
           {item.body.trim()
             ? <MarkdownRenderer content={item.body} className="text-sm" />
-            : <p className="text-sm text-muted">No description. Edit to add the outcome, scope and &ldquo;done when&rdquo;.</p>}
+            : <p className="text-sm text-muted">{t("roadmap.noBrief")}</p>}
         </section>
       </div>
 
@@ -226,7 +235,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
         {!demo && <>
         {offerBreakdown && (
           <Button size="sm" onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} className="bg-accent text-accent-fg hover:bg-accent/90">
-            <Bot /> Break down with agent
+            <Bot /> {t("roadmap.breakDownWithAgent")}
           </Button>
         )}
         {!isHorizon && (
@@ -236,25 +245,25 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
             onClick={() => { onClose(); showAbout({ kind: "epic", id: item.id }) }}
             className={cn(!offerBreakdown && "bg-accent text-accent-fg hover:bg-accent/90")}
           >
-            <MessageSquare /> {chat ? "Open chat" : "Chat"}
+            <MessageSquare /> {chat ? t("board.openChat") : t("roadmap.chat")}
           </Button>
         )}
         {isHorizon && (
           <Button size="sm" onClick={() => onAddFeature(item.id)} className="bg-accent text-accent-fg hover:bg-accent/90">
-            <Plus /> Add epic
+            <Plus /> {t("roadmap.addEpic")}
           </Button>
         )}
         {canMerge && (
           <Button size="sm" onClick={() => setMerging(true)} className="bg-accent text-accent-fg hover:bg-accent/90">
-            <GitMerge /> Merge into capability spec
+            <GitMerge /> {t("roadmap.mergeIntoSpec")}
           </Button>
         )}
         <Button size="sm" variant="outline" onClick={onEdit}>
-          <Pencil /> Edit
+          <Pencil /> {t("board.edit")}
         </Button>
         </>}
         <Button size="sm" variant="ghost" onClick={() => onEditRaw(item.file)} className="ml-auto text-muted hover:text-txt">
-          <FileText /> Open file
+          <FileText /> {t("roadmap.openFile")}
         </Button>
       </footer>
       {canMerge && <SpecMergeDialog epicId={item.id} open={merging} onOpenChange={setMerging} />}
@@ -274,6 +283,8 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
   const [body, setBody] = useState(item.body)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const { t } = useT()
+  const statusLabel = useRoadmapStatusLabel()
 
   const hasChildren = items.some((i) => i.parent === item.id)
   const horizons = items.filter((i) => i.parent === null && i.id !== item.id)
@@ -299,7 +310,7 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
     if (order.trim() !== String(base.order)) {
       const n = Number(order)
       if (order.trim() === "" || !Number.isFinite(n)) {
-        setError("Order must be a number")
+        setError(t("roadmap.orderNotNumber"))
         return
       }
       patch.order = n
@@ -322,52 +333,52 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
   return (
     <div className="flex min-h-full flex-col">
       <div className="border-b border-border px-6 pb-4 pt-6 pr-12">
-        <SheetDescription className="font-mono text-[11px] text-muted">Editing {item.id} · {isHorizon ? "horizon" : "epic"}</SheetDescription>
+        <SheetDescription className="font-mono text-[11px] text-muted">{t("roadmap.editingKicker", { id: item.id, kind: isHorizon ? t("roadmap.kindHorizon") : t("roadmap.kindEpic") })}</SheetDescription>
         <SheetTitle className="mt-1 text-base text-txt">{item.title}</SheetTitle>
       </div>
 
       <div className="flex flex-1 flex-col gap-4 px-6 py-5">
         <label className="flex flex-col gap-1">
-          <span className={LABEL}>Title</span>
+          <span className={LABEL}>{t("board.title")}</span>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} className="bg-bg border-border text-txt" />
         </label>
 
         <div className="grid grid-cols-3 gap-3">
           <label className="flex flex-col gap-1">
-            <span className={LABEL}>Status</span>
+            <span className={LABEL}>{t("board.status")}</span>
             <select value={status} onChange={(e) => setStatus(e.target.value as RoadmapStatus)} className={FIELD}>
-              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              {STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className={LABEL}>Parent</span>
+            <span className={LABEL}>{t("roadmap.parent")}</span>
             <select
               value={parent}
               onChange={(e) => setParent(e.target.value)}
               disabled={hasChildren}
-              title={hasChildren ? "Items with children must stay on the spine" : undefined}
+              title={hasChildren ? t("roadmap.childrenStay") : undefined}
               className={FIELD}
             >
-              <option value="">— (horizon)</option>
-              {orphanParent && <option value={item.parent ?? ""}>{item.parent} · missing</option>}
+              <option value="">{t("roadmap.horizonOption")}</option>
+              {orphanParent && <option value={item.parent ?? ""}>{t("roadmap.missingParent", { id: item.parent ?? "" })}</option>}
               {horizons.map((h) => <option key={h.id} value={h.id}>{h.id} · {h.title}</option>)}
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className={LABEL}>Order</span>
+            <span className={LABEL}>{t("roadmap.order")}</span>
             <Input
               type="number"
               step={10}
               value={order}
               onChange={(e) => setOrder(e.target.value)}
-              title={isHorizon ? "Position on the spine" : "Position within the branch"}
+              title={isHorizon ? t("roadmap.spinePosition") : t("roadmap.branchPosition")}
               className="bg-bg border-border text-txt"
             />
           </label>
         </div>
 
         <label className="flex flex-col gap-1">
-          <span className={LABEL}>Due</span>
+          <span className={LABEL}>{t("board.due")}</span>
           <div className="flex items-center gap-2">
             <Input
               type="date"
@@ -377,14 +388,14 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
             />
             {due && (
               <button type="button" onClick={() => setDue("")} className="text-xs text-muted hover:text-txt">
-                Clear
+                {t("roadmap.clear")}
               </button>
             )}
           </div>
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className={LABEL}>Tasks</span>
+          <span className={LABEL}>{t("roadmap.tasks")}</span>
           <Input
             value={tasks}
             onChange={(e) => setTasks(e.target.value)}
@@ -394,7 +405,7 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className={LABEL}>Body (markdown)</span>
+          <span className={LABEL}>{t("roadmap.bodyMarkdown")}</span>
           <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={12} className={`${FIELD} font-mono resize-y`} />
         </label>
 
@@ -403,13 +414,13 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
 
       <footer className="sticky bottom-0 flex items-center gap-2 border-t border-border bg-surface px-6 py-3">
         <Button size="sm" onClick={save} disabled={busy} className="bg-accent text-accent-fg hover:bg-accent/90">
-          Save
+          {t("board.save")}
         </Button>
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy} className="text-txt">
-          Cancel
+          {t("board.cancel")}
         </Button>
         <Button size="sm" variant="ghost" onClick={remove} disabled={busy} className="ml-auto text-danger hover:text-danger">
-          Delete
+          {t("board.delete")}
         </Button>
       </footer>
     </div>
@@ -424,14 +435,15 @@ function Scenarios({ item, tasksById, onOpen }: {
 }) {
   const tasks = item.tasks.map((id) => tasksById[id]).filter((t): t is Task => !!t && t.status !== "cancelled")
   const covered = coverageOf(item.scenarios, tasks)
+  const { t } = useT()
   // R068: each scenario's proof, from its covering tasks' checklists and last auto run
   const evidence: ScenarioTask[] = tasks.map((t) => {
     const tests = t.raw ? parseManualTests(t.raw) : null
     return { id: t.id, covers: t.covers ?? [], items: tests?.items ?? [], autoResult: tests?.autoRun?.result ?? null }
   })
   return (
-    <section aria-label="Scenarios" className="flex flex-col gap-2">
-      <p className={SECTION}>Scenarios · {item.scenarios.length}</p>
+    <section aria-label={t("roadmap.scenarios")} className="flex flex-col gap-2">
+      <p className={SECTION}>{t("roadmap.scenariosCount", { n: item.scenarios.length })}</p>
       <ul className="flex flex-col gap-3">
         {item.scenarios.map((sc) => (
           <li key={sc.id} aria-label={`${sc.id} ${sc.name}`} className="flex flex-col gap-1">
@@ -452,7 +464,7 @@ function Scenarios({ item, tasksById, onOpen }: {
                 >
                   {id}
                 </button>
-              )) : <span className="text-amber">No task covers it</span>}
+              )) : <span className="text-amber">{t("roadmap.noTaskCovers")}</span>}
             </p>
           </li>
         ))}
@@ -469,11 +481,13 @@ const PROOF_STYLE: Record<ScenarioStatus, string> = {
 
 /** Passed / failed / unproven, linking to the deciding task's evidence. */
 function ScenarioProof({ status, task }: { status: ScenarioStatus; task: string | null }) {
+  const { t } = useT()
   const cls = cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px]", PROOF_STYLE[status])
-  if (!task) return <span className={cls}>{status}</span>
+  const label = status === "passed" ? t("board.runPassed") : status === "failed" ? t("board.runFailed") : t("roadmap.proofUnproven")
+  if (!task) return <span className={cls}>{label}</span>
   return (
-    <Link href={`/manual-tests?tab=all&task=${task}&view=evidence`} title={`${task} evidence`} className={cn(cls, "hover:border-accent/50")}>
-      {status}
+    <Link href={`/manual-tests?tab=all&task=${task}&view=evidence`} title={t("roadmap.taskEvidence", { id: task })} className={cn(cls, "hover:border-accent/50")}>
+      {label}
     </Link>
   )
 }
@@ -484,21 +498,26 @@ function LinkedTasks({ item, tasksById, onOpen }: {
   onOpen: (file: string) => void
 }) {
   const today = localToday()
+  const { t: tr } = useT()
+  const taskStatus = useStatusLabel()
   const next = pickNextTask(item, Object.values(tasksById))
   const nextId = next.kind === "ready" ? next.taskId : null
+  const reasonText = (w: Waiting) =>
+    w.why === "deps" ? tr("roadmap.waitDeps", { id: w.taskId, deps: (w.deps ?? []).join(", ") })
+      : tr(({ "no-file": "roadmap.waitNoFile", "in-progress": "roadmap.waitInProgress", blocked: "roadmap.waitBlocked", paused: "roadmap.waitPaused", "review-hold": "roadmap.waitReviewHold", review: "roadmap.waitReview" } as const)[w.why], { id: w.taskId })
   // Todo tasks' "waits on …" first: in-progress/blocked rows already say so in their badge.
   const reasons = next.kind === "waiting"
-    ? [...next.waiting].sort((a, b) => Number(tasksById[b.taskId]?.status === "todo") - Number(tasksById[a.taskId]?.status === "todo")).map((w) => w.reason)
+    ? [...next.waiting].sort((a, b) => Number(tasksById[b.taskId]?.status === "todo") - Number(tasksById[a.taskId]?.status === "todo")).map(reasonText)
     : []
   return (
     <section className="flex flex-col gap-2">
-      <p className={SECTION}>Tasks · {item.tasks.length}</p>
+      <p className={SECTION}>{tr("roadmap.tasksCount", { n: item.tasks.length })}</p>
       <ul className="-mx-2 flex flex-col">
         {item.tasks.map((id) => {
           const t = tasksById[id]
           if (!t) {
             return (
-              <li key={id} className="px-2 py-2 font-mono text-xs text-danger">{id} · missing task file</li>
+              <li key={id} className="px-2 py-2 font-mono text-xs text-danger">{tr("roadmap.missingTaskFile", { id })}</li>
             )
           }
           const isNext = t.id === nextId
@@ -509,14 +528,14 @@ function LinkedTasks({ item, tasksById, onOpen }: {
                 onClick={() => onOpen(t.file)}
                 className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 text-left"
               >
-                <span title={t.status} className={cn("h-2 w-2 shrink-0 rounded-full", TASK_STATUS_BG[t.status])} />
+                <span title={taskStatus(t.status)} className={cn("h-2 w-2 shrink-0 rounded-full", TASK_STATUS_BG[t.status])} />
                 <span className="shrink-0 font-mono text-[11px] text-muted">{t.id}</span>
                 <span className={cn("min-w-0 flex-1 truncate text-sm", t.status === "cancelled" ? "text-muted line-through" : t.status === "done" ? "text-muted" : "text-txt")}>
                   {t.title}
                 </span>
                 <DueChip due={t.due} state={dueState(t.due, t.status === "done" ? "done" : "planned", today)} />
                 {isNext
-                  ? <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-accent">Next up</span>
+                  ? <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-accent">{tr("roadmap.nextUp")}</span>
                   : t.size && t.size !== "—" && <span className="shrink-0 font-mono text-[10px] text-muted">{t.size.split(" ")[0]}</span>}
                 <AgentDot attach={{ kind: "task", id: t.id }} />
               </button>
@@ -527,7 +546,7 @@ function LinkedTasks({ item, tasksById, onOpen }: {
       </ul>
       {reasons.length > 0 && (
         <p className="truncate text-xs text-muted" title={reasons.join("\n")}>
-          {reasons[0]}{reasons.length > 1 && ` (+${reasons.length - 1} more)`}
+          {reasons[0]}{reasons.length > 1 && ` ${tr("roadmap.moreN", { n: reasons.length - 1 })}`}
         </p>
       )}
     </section>
@@ -539,13 +558,14 @@ function TaskChatButton({ taskId }: { taskId: string }) {
   const { chats, showAbout } = useChats()
   const { demo } = useApp()
   const has = !!chatFor(chats, { kind: "task", id: taskId })
+  const { t } = useT()
   if (demo) return null
   return (
     <button
       type="button"
       onClick={() => showAbout({ kind: "task", id: taskId })}
-      aria-label={`${has ? "Open chat" : "Chat"} about ${taskId}`}
-      title={has ? `Open the chat about ${taskId}` : `Chat about ${taskId}`}
+      aria-label={has ? t("roadmap.openChatAboutLabel", { id: taskId }) : t("roadmap.chatAbout", { id: taskId })}
+      title={has ? t("roadmap.openChatAbout", { id: taskId }) : t("roadmap.chatAbout", { id: taskId })}
       className={cn(
         "mr-1 grid size-7 shrink-0 place-items-center rounded-md text-muted transition-[opacity,color] duration-(--duration-fast) hover:bg-surface hover:text-accent focus-visible:opacity-100",
         has ? "text-accent opacity-100" : "opacity-0 group-hover:opacity-100",

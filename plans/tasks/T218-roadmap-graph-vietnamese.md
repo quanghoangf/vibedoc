@@ -1,9 +1,12 @@
 # T218: Roadmap and doc graph in Vietnamese
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R078 — i18n support
 **Size:** M (2–3 hrs)
 **Depends on:** T215, T217
 **Covers:** S1
+**Owner:** ai:claude-code
+**Due:** 2026-10-09
+**Started:** 2026-10-06
 
 ## Goal
 With Tiếng Việt chosen, every piece of interface text in this area is Vietnamese: headings, buttons, menus, dialogs, empty states, toasts, tooltips, `aria-label`s and placeholders. English looks exactly as it does today.
@@ -46,4 +49,15 @@ PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN the app is in Vietnamese and the user opens /roadmap (Map and Timeline), the epic sheet and /graph → THEN every interface text is Vietnamese
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T218-roadmap-graph-vietnamese.spec.ts` · Auto: passed 2026-10-06_
+### Steps
+- [x] 🤖 With Vietnamese on, open /roadmap → the view toggle reads "Bản đồ" / "Dòng thời gian" and the buttons "Lập kế hoạch từ spec" and "Chặng"
+- [x] 🤖 Open epic R078 → its sheet lists Trạng thái, "Việc · 10" and "Kịch bản · 5", with a "Sửa" button
+- [x] 🤖 Open the sheet's ⋯ menu → it offers "Nhân bản" and "Mở tệp"
+- [x] 🤖 Open /roadmap?view=timeline → the month axis reads "thg …" and no English month name shows
+- [x] 🤖 Open /graph → the kind chips read "Tài liệu" and "Gần đây", and the search says "Tìm tệp…"
+- [ ] In Vietnamese, open "N mục cần chú ý" on /roadmap and hover a ⚠ node → each line reads as a Vietnamese sentence (at risk, overdue, status mismatch, spec not merged)
+- [ ] In Vietnamese, open "Chia nhỏ các epic…" with agent chats running → the slot message reads naturally; the toolbar wraps to a second row instead of cutting buttons off
+- [ ] On /graph in Vietnamese, select a file → the card says "Liên kết tới · Được liên kết từ", the Focus buttons read "Tắt 1 2", and a screen reader announces a node as "<loại> <tên>, N liên kết"
+### Regression risk
+- [ ] In English, dragging and Arrange on the map, the epic sheet's edit form and the graph's Fit View / zoom behave as before (e2e/docs-links.mjs "Fit after load keeps the mount fit's camera" failed once in four runs on this branch, passed on the other three)

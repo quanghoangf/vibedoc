@@ -11,10 +11,23 @@ export type TaskInfo = Pick<Task, 'status' | 'due'> & { covers?: string[] }
 
 export interface RoadmapProgress { done: number; total: number }
 
+/** Why an epic is at risk, as data (the UI words it in its own language; `message` keeps the English). */
+export type RiskReason =
+  | { why: 'task-overdue'; id: string; due: string }
+  | { why: 'task-blocked'; id: string }
+  | { why: 'nothing-started'; due: string }
+
 export interface RoadmapDrift {
   id: string
   kind: 'status-mismatch' | 'missing-task' | 'overdue' | 'at-risk' | 'uncovered-scenario' | 'spec-unmerged' | 'spec-conflict'
+  /** English sentence (MCP, logs) */
   message: string
+  /** The values `message` is built from, for a UI that words it itself (R078) */
+  vars: Record<string, string>
+  /** status-mismatch only: which sentence */
+  variant?: 'all-done' | 'not-done' | 'horizon'
+  /** at-risk only */
+  risks?: RiskReason[]
   suggestedStatus?: RoadmapStatus
 }
 
@@ -67,18 +80,22 @@ export function taskDueSummary(taskIds: string[], tasks: Record<string, TaskInfo
 }
 
 /** Why an unfinished epic may miss its date: overdue or blocked tasks, or due soon with nothing started. */
-function atRiskReasons(item: RoadmapItem, linked: string[], tasks: Record<string, TaskInfo>, today: string): string[] {
-  const reasons: string[] = []
+function atRiskReasons(item: RoadmapItem, linked: string[], tasks: Record<string, TaskInfo>, today: string): RiskReason[] {
+  const reasons: RiskReason[] = []
   for (const id of linked) {
     const t = tasks[id]
-    if (t.status !== 'done' && t.due && t.due < today) reasons.push(`${id} overdue since ${t.due}`)
-    if (t.status === 'blocked') reasons.push(`${id} blocked`)
+    if (t.status !== 'done' && t.due && t.due < today) reasons.push({ why: 'task-overdue', id, due: t.due })
+    if (t.status === 'blocked') reasons.push({ why: 'task-blocked', id })
   }
   const started = linked.some(id => ['done', 'in-progress', 'review'].includes(tasks[id].status))
   if (item.due && dueState(item.due, item.status, today) === 'soon' && !started) {
-    reasons.push(`due ${item.due}, nothing started`)
+    reasons.push({ why: 'nothing-started', due: item.due })
   }
   return reasons
+}
+
+function riskText(r: RiskReason): string {
+  return r.why === 'task-overdue' ? `${r.id} overdue since ${r.due}` : r.why === 'task-blocked' ? `${r.id} blocked` : `due ${r.due}, nothing started`
 }
 
 export function roadmapHealth(
@@ -89,7 +106,7 @@ export function roadmapHealth(
 
   for (const item of items) {
     if (item.due && dueState(item.due, item.status, today) === 'overdue') {
-      drift.push({ id: item.id, kind: 'overdue', message: `${item.id} "${item.title}" is overdue since ${item.due}` })
+      drift.push({ id: item.id, kind: 'overdue', message: `${item.id} "${item.title}" is overdue since ${item.due}`, vars: { id: item.id, title: item.title, due: item.due } })
     }
   }
   const horizonIds = new Set(items.filter(i => i.parent === null).map(i => i.id))
@@ -97,7 +114,8 @@ export function roadmapHealth(
   // R069: spec changes that never reached the capability spec, and two open epics changing the same requirement
   for (const item of items) {
     if (item.parent !== null && item.status === 'done' && item.specChanges?.length && !item.specMerged) {
-      drift.push({ id: item.id, kind: 'spec-unmerged', message: `${item.id} "${item.title}" is done but its spec changes aren't merged into ${item.specChanges.map(c => c.capability).join(', ')}` })
+      const specs = item.specChanges.map(c => c.capability).join(', ')
+      drift.push({ id: item.id, kind: 'spec-unmerged', message: `${item.id} "${item.title}" is done but its spec changes aren't merged into ${specs}`, vars: { id: item.id, title: item.title, specs } })
     }
   }
   const open = items.filter(i => i.parent !== null && i.specChanges?.length && (i.status !== 'done' || !i.specMerged))
@@ -112,7 +130,7 @@ export function roadmapHealth(
           const key = `${a.id}|${b.id}|${ca.capability}|${oa.name.toLowerCase()}`
           if (!hit || seen.has(key)) continue
           seen.add(key)
-          drift.push({ id: a.id, kind: 'spec-conflict', message: `${a.id} and ${b.id} both change "${oa.name}" in ${ca.capability}` })
+          drift.push({ id: a.id, kind: 'spec-conflict', message: `${a.id} and ${b.id} both change "${oa.name}" in ${ca.capability}`, vars: { a: a.id, b: b.id, name: oa.name, spec: ca.capability } })
         }
       }
     }
@@ -122,14 +140,14 @@ export function roadmapHealth(
     if (item.parent === null) continue
     const missing = item.tasks.filter(t => !(t in tasks))
     if (missing.length) {
-      drift.push({ id: item.id, kind: 'missing-task', message: `${item.id} links unknown task ${missing.join(', ')}` })
+      drift.push({ id: item.id, kind: 'missing-task', message: `${item.id} links unknown task ${missing.join(', ')}`, vars: { id: item.id, tasks: missing.join(', ') } })
     }
     // cancelled tasks don't count toward progress or expected status
     const linked = item.tasks.filter(t => t in tasks && tasks[t].status !== 'cancelled')
     // a paused epic is stopped on purpose: not at risk
     const risks = item.status === 'done' || item.status === 'paused' ? [] : atRiskReasons(item, linked, tasks, today)
     if (risks.length) {
-      drift.push({ id: item.id, kind: 'at-risk', message: `${item.id} "${item.title}" at risk: ${risks.join('; ')}` })
+      drift.push({ id: item.id, kind: 'at-risk', message: `${item.id} "${item.title}" at risk: ${risks.map(riskText).join('; ')}`, vars: { id: item.id, title: item.title }, risks })
     }
     if (!linked.length) continue
     // R068: an epic being worked on whose scenarios aren't all covered by a task (no scenarios → nothing to check)
@@ -137,7 +155,7 @@ export function roadmapHealth(
       const covered = new Set(linked.flatMap(t => tasks[t].covers ?? []))
       const uncovered = item.scenarios.map(sc => sc.id).filter(id => !covered.has(id))
       if (uncovered.length) {
-        drift.push({ id: item.id, kind: 'uncovered-scenario', message: `${item.id}: ${uncovered.join(', ')} not covered by any task` })
+        drift.push({ id: item.id, kind: 'uncovered-scenario', message: `${item.id}: ${uncovered.join(', ')} not covered by any task`, vars: { id: item.id, scenarios: uncovered.join(', ') } })
       }
     }
     const states: Started[] = linked.map(t =>
@@ -153,6 +171,8 @@ export function roadmapHealth(
         message: expected === 'done'
           ? `${item.id} "${item.title}": all tasks done but status is ${item.status}`
           : `${item.id} "${item.title}" is ${item.status} but tasks ${open.join(', ')} are not done`,
+        vars: { id: item.id, title: item.title, status: item.status, tasks: open.join(', ') },
+        variant: expected === 'done' ? 'all-done' : 'not-done',
         suggestedStatus: expected,
       })
     }
@@ -174,6 +194,8 @@ export function roadmapHealth(
         id: h.id,
         kind: 'status-mismatch',
         message: `${h.id} "${h.title}" is ${h.status} but its features say ${expected}`,
+        vars: { id: h.id, title: h.title, status: h.status, expected },
+        variant: 'horizon',
         suggestedStatus: expected,
       })
     }

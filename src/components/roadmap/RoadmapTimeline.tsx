@@ -7,7 +7,7 @@ import type { RoadmapProgress } from "@/lib/roadmap-health"
 import { StatusDot } from "./RoadmapNodes"
 import { AgentDot } from "@/components/chat/AgentMark"
 import { LANE_ROW_H, buildTimeline } from "./timeline"
-import { useFormat } from "@/context/LanguageContext"
+import { useFormat, useT } from "@/context/LanguageContext"
 
 const LANE_LABEL_W = 200
 const HEADER_H = 36
@@ -24,6 +24,7 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
   // same chapter numbers as the map: real horizons by order
   const chapters = new Map(items.filter((i) => i.parent === null).sort((a, b) => a.order - b.order).map((h, i) => [h.id, i + 1]))
   const f = useFormat()
+  const { t } = useT()
   const tl = useMemo(() => buildTimeline(items, today, f.month), [items, today, f.month])
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -77,7 +78,7 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
                     type="button"
                     onClick={() => onSelect(mk.item.id)}
                     onContextMenu={(e) => onItemContextMenu?.(mk.item.id, e)}
-                    title={`${mk.item.id} · ${mk.item.title} · due ${mk.item.due}${mk.state === "overdue" ? " (overdue)" : ""}`}
+                    title={t(mk.state === "overdue" ? "roadmap.markerOverdue" : "roadmap.markerDue", { id: mk.item.id, title: mk.item.title, date: f.day(mk.item.due as string) })}
                     className="group absolute flex items-center gap-1.5"
                     style={{ left: mk.x - 10, top: 6 + mk.row * LANE_ROW_H }}
                   >
@@ -125,7 +126,7 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
 
           {!hasDates && (
             <p className="px-6 py-8 text-sm text-muted" style={{ marginLeft: LANE_LABEL_W }}>
-              No due dates yet — open an item and set a Due date.
+              {t("roadmap.noDueDates")}
             </p>
           )}
         </div>
@@ -133,7 +134,7 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
 
       {tl.undated.length > 0 && (
         <div className="max-h-28 shrink-0 overflow-y-auto border-t border-border bg-surface px-4 py-2">
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">No due date · {tl.undated.length}</p>
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">{t("roadmap.noDueDate", { n: tl.undated.length })}</p>
           <div className="flex flex-wrap gap-1.5">
             {tl.undated.map((i) => (
               <button

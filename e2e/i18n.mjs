@@ -14,7 +14,7 @@
 //
 // Each R078 area task adds its pages to PAGES (`open` shows panels/dialogs whose text should be checked too).
 import assert from "node:assert/strict"
-import { readdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
@@ -23,6 +23,10 @@ const fx = makeFixture()
 // A task with a due date and one status change, so Activity has an event and the roadmap timeline has a marker
 writeFileSync(path.join(fx, "plans/tasks/T001-sample.md"), "# T001: Sample\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n\n## Goal\nA sample.\n")
 writeFileSync(path.join(fx, "plans/tasks/T002-next.md"), "# T002: Next step\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n**Depends on:** T001\n**Size:** M (2–3 hrs)\n\n## Goal\nAfter the sample.\n")
+writeFileSync(path.join(fx, "plans/roadmap/R003-shipped.md"), "# R003: Shipped thing\n**Parent:** R001\n**Status:** done\n**Order:** 20\n**Tasks:** T099\n")
+mkdirSync(path.join(fx, "docs"), { recursive: true })
+writeFileSync(path.join(fx, "docs/a.md"), "# A\n\nSee [B](b.md) and [missing](gone.md).\n")
+writeFileSync(path.join(fx, "docs/b.md"), "# B\n\nBack to [A](a.md).\n")
 writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Due:** 2026-12-15\n**Tasks:** T001, T002\n")
 const { SANS_FONTS, MONO_FONTS } = await import("../src/lib/settings.ts")
 
@@ -54,6 +58,31 @@ const PAGES = [
   { path: "/board", name: "board: new task dialog", open: async (page) => {
     await page.getByRole("button", { name: /^Việc mới/ }).click()
     await page.getByRole("dialog", { name: "Việc mới" }).waitFor()
+  } },
+  // T218: the roadmap (map, needs attention, epic sheet + menu, dialogs, timeline) and the doc graph
+  { path: "/roadmap", name: "roadmap: map + needs attention", open: async (page) => {
+    await page.getByText(/mục cần chú ý$/).click()
+    await page.getByText(/liên kết tới việc không tồn tại/).first().waitFor()
+  } },
+  { path: "/roadmap?item=R002", name: "roadmap: epic sheet + menu", open: async (page) => {
+    await page.getByRole("dialog").getByRole("button", { name: "Thao tác cho R002" }).click()
+    await page.getByRole("menuitem", { name: /Nhân bản/ }).waitFor()
+  } },
+  { path: "/roadmap?item=R002", name: "roadmap: epic edit form", open: async (page) => {
+    await page.getByRole("dialog").getByRole("button", { name: "Sửa" }).click()
+    await page.getByText("Nội dung (markdown)").waitFor()
+  } },
+  { path: "/roadmap", name: "roadmap: break down dialog", open: async (page) => {
+    await page.getByRole("button", { name: /Chia nhỏ các epic/ }).click()
+    await page.getByRole("dialog", { name: "Chia nhỏ các epic" }).waitFor()
+  } },
+  { path: "/roadmap", name: "roadmap: plan from spec dialog", open: async (page) => {
+    await page.getByRole("button", { name: /Lập kế hoạch từ spec/ }).click()
+    await page.getByRole("dialog", { name: "Lập kế hoạch từ spec" }).waitFor()
+  } },
+  { path: "/roadmap?view=timeline", name: "roadmap: timeline" },
+  { path: "/graph?node=docs%2Fa.md", name: "graph: map, legend, selected file", open: async (page) => {
+    await page.getByRole("complementary", { name: "Tệp đang chọn" }).waitFor()
   } },
 ]
 

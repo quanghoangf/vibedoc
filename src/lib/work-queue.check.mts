@@ -1,11 +1,27 @@
 // Self-check for work-queue. Run: node src/lib/work-queue.check.mts
 import assert from 'node:assert/strict'
 import type { RoadmapItem } from './core'
-import { depIds, failedRunNote, pickNextTask, type QueueTask } from './work-queue.ts'
+import { depIds, failedRunNote, pickNextTask as pick, type QueueTask } from './work-queue.ts'
+
+// The English reasons are what these checks pin down; `why` / `deps` (R078) are checked once below
+const pickNextTask = (...args: Parameters<typeof pick>) => {
+  const r = pick(...args)
+  return r.kind === 'waiting' ? { ...r, waiting: r.waiting.map(({ taskId, reason }) => ({ taskId, reason })) } : r
+}
 
 const epic = (tasks: string[]): RoadmapItem =>
   ({ id: 'R002', title: 'Epic', parent: 'R001', status: 'planned', order: 10, tasks, due: null, body: '', file: 'R002.md' })
 const t = (id: string, status: QueueTask['status'], dependsOn = '—'): QueueTask => ({ id, status, dependsOn })
+
+// why / deps: the data behind each reason
+{
+  const r = pick(epic(['T001', 'T002', 'T003']), [t('T001', 'in-progress'), t('T002', 'todo', 'T001'), { ...t('T003', 'review'), reviewHold: true }])
+  assert.equal(r.kind, 'waiting')
+  if (r.kind === 'waiting') {
+    assert.deepEqual(r.waiting.map((w) => w.why), ['in-progress', 'deps', 'review-hold'])
+    assert.deepEqual(r.waiting[1].deps, ['T001 (in-progress)'])
+  }
+}
 
 // depIds: free text, case, dedupe, none
 assert.deepEqual(depIds('T008, T009 (wizard skeleton must exist)'), ['T008', 'T009'])
