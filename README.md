@@ -1,25 +1,42 @@
-# VibeDoc
+<p align="center">
+  <a href="https://quanghoangf.github.io/vibedoc/"><img src="site/public/og.png" alt="VibeDoc: every task your agent finishes comes with proof" width="820"></a>
+</p>
 
-**Local-first project intelligence for AI-assisted development.** · [Website](https://quanghoangf.github.io/vibedoc/)
+<p align="center">
+  <b>Spec-driven development for AI coding agents.</b><br>
+  Your plan, specs and memory live as markdown in your repo. Claude Code, Cursor or any MCP agent works them task by task,<br>
+  and you review each task on its tests, screenshots and video.
+</p>
 
-[![npm](https://img.shields.io/npm/v/vibedoc)](https://www.npmjs.com/package/vibedoc)
-[![node](https://img.shields.io/node/v/vibedoc)](https://nodejs.org)
-[![license](https://img.shields.io/npm/l/vibedoc)](./LICENSE)
-[![CI](https://github.com/quanghoangf/vibedoc/actions/workflows/ci.yml/badge.svg)](https://github.com/quanghoangf/vibedoc/actions/workflows/ci.yml)
-[![Website](https://img.shields.io/badge/website-quanghoangf.github.io%2Fvibedoc-7c6af7)](https://quanghoangf.github.io/vibedoc/)
+<p align="center">
+  <a href="https://www.npmjs.com/package/vibedoc"><img src="https://img.shields.io/npm/v/vibedoc?color=7c6af7&label=npm" alt="npm version"></a>
+  <a href="https://www.npmjs.com/package/vibedoc"><img src="https://img.shields.io/npm/dm/vibedoc?color=7c6af7" alt="npm downloads"></a>
+  <a href="https://github.com/quanghoangf/vibedoc/actions/workflows/ci.yml"><img src="https://github.com/quanghoangf/vibedoc/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/quanghoangf/vibedoc?color=7c6af7" alt="MIT license"></a>
+  <a href="https://github.com/quanghoangf/vibedoc/stargazers"><img src="https://img.shields.io/github/stars/quanghoangf/vibedoc?style=flat&color=7c6af7" alt="GitHub stars"></a>
+</p>
 
-A kanban board + docs viewer + MCP server — all in one process, zero config.  
-Point your AI agent at it. Watch tasks move in real time.
-![alt text](image.png)
+<p align="center">
+  <a href="https://quanghoangf.github.io/vibedoc/"><b>Website</b></a> ·
+  <a href="https://quanghoangf.github.io/vibedoc/docs/"><b>Docs</b></a> ·
+  <a href="https://quanghoangf.github.io/vibedoc/docs/tools/"><b>MCP tools</b></a> ·
+  <a href="https://quanghoangf.github.io/vibedoc/changelog/"><b>Changelog</b></a>
+</p>
 
-```
-http://localhost:<port>         ← your browser (kanban, docs, activity, memory, explorer)
-http://localhost:<port>/api/mcp ← AI agent connects here via MCP
-```
+<p align="center">
+  <img src="site/public/screens/board.jpg" alt="The VibeDoc board: tasks moving through Todo, In progress, Review and Done while an agent works" width="900">
+</p>
 
-**Why VibeDoc?** Most AI coding sessions lose context between chats. VibeDoc gives your agent a persistent home: it reads tasks from markdown files, writes decisions as ADRs, and updates a memory file at session end — so the next agent picks up exactly where the last one left off. The browser UI lets you watch everything happen live.
+## Why VibeDoc
 
----
+AI agents write code fast, then forget. The next session rebuilds context from scratch, "done" is the agent's word for it, and the docs drift until nobody trusts them. VibeDoc gives the agent a home in your repo and gives you the proof:
+
+- **A plan the agent can follow.** Horizons, epics and tasks are markdown files. The agent claims the next ready task, respecting dependencies, and the board moves live in your browser.
+- **Proof, not promises.** Each finished task carries a test checklist, a Playwright run with a screenshot per step and a video, and a verdict. Steps that prove nothing are flagged.
+- **Specs that stay current.** Capability specs with WHEN/THEN scenarios. Agents see the related requirements when they claim a task, and each epic's spec changes are merged in one reviewed diff.
+- **Memory between sessions.** A session handoff plus one-fact knowledge entries, recalled when they matter.
+
+Everything is plain files in your repo. No database, no cloud, no account.
 
 ## Quick start
 
@@ -28,14 +45,26 @@ cd your-project
 npx vibedoc
 ```
 
-VibeDoc picks a free port automatically and opens the setup page in your browser.  
-The port is printed in the terminal — use it when configuring your AI agent.
+VibeDoc opens in your browser and prints its MCP URL. Connect your agent (Claude Code shown; [Cursor, Windsurf and others](https://quanghoangf.github.io/vibedoc/docs/#2-connect-your-agent)):
 
-Rather have your agent do it? Paste [the install prompt](https://quanghoangf.github.io/vibedoc/docs/ai-install/) into Claude Code, Cursor or any agent: it starts VibeDoc on port 3333, connects it over MCP, adds the `/vibedoc:*` skills and reports back.
+```bash
+npx vibedoc --port 3333                                              # a fixed port keeps the MCP URL stable
+claude mcp add --transport http vibedoc http://localhost:3333/api/mcp
+```
+
+Then add the skills in Claude Code and plan your first epic:
+
+```text
+/plugin marketplace add quanghoangf/vibedoc
+/plugin install vibedoc@vibedoc
+/vibedoc:roadmap
+```
+
+**Rather not read?** Paste [the install prompt](https://quanghoangf.github.io/vibedoc/docs/ai-install/) into your agent: it starts VibeDoc, connects it, adds the skills and reports back.
 
 ### Install it
 
-`npx vibedoc` needs no install. To keep a `vibedoc` command on your machine, pick one:
+`npx vibedoc` needs nothing installed. To keep a `vibedoc` command:
 
 | Channel | Install | Update | Uninstall |
 |---------|---------|--------|-----------|
@@ -46,287 +75,90 @@ Rather have your agent do it? Paste [the install prompt](https://quanghoangf.git
 | No Node (macOS, Linux) | `curl -fsSL https://quanghoangf.github.io/vibedoc/install.sh \| sh` | same with `sh -s -- --update` | same with `sh -s -- --uninstall` |
 | No Node (Windows) | `irm https://quanghoangf.github.io/vibedoc/install.ps1 \| iex` | run it again | [see the docs](https://quanghoangf.github.io/vibedoc/docs/) |
 
-Every channel serves the same version: each release publishes to npm and updates the Homebrew tap. Check with `vibedoc --version`.
+Every channel serves the same version. Check with `vibedoc --version`. Needs Node.js 20.9+ (Homebrew and the one-line installer bring their own).
 
-### Options
+## How it works
 
-```bash
-# Pin to a specific port
-npx vibedoc --port 3333
+Four commands, one loop. They ship as a Claude Code plugin; in Cursor or any MCP client the same steps are the `vibedoc_*` tools.
 
-# Print the installed version (also -v)
-npx vibedoc --version
+| Step | Command | What happens |
+|---|---|---|
+| **Plan** | `/vibedoc:roadmap` | Reads your docs, interviews you about users and goals, writes horizons and epics with scenarios. |
+| **Break down** | `/vibedoc:breakdown R004` | Splits an epic into tasks an agent can pick up cold: scope, files, acceptance criteria, verify commands. |
+| **Build and prove** | `/vibedoc:work R004` | Claims the next ready task, builds it, runs its checks and a Playwright spec, commits, and repeats. |
+| **Review** | `/vibedoc:next` | You approve on the evidence or send findings back; `next` tells you the most useful thing to do now. |
 
-# Point at a different project
-VIBEDOC_ROOT=/path/to/project npx vibedoc
+```
+your browser  →  http://localhost:<port>          board, roadmap, docs, test review, memory
+your agent    →  http://localhost:<port>/api/mcp  45 MCP tools, same files, same live state
 ```
 
----
+## Features
 
-## What you get
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="site/public/screens/roadmap.jpg" alt="Roadmap map with horizons and epics"><br>
+      <b>Roadmap</b><br>Horizons and epics on a map or a timeline, with progress, due dates and drift (overdue, at risk, uncovered scenarios) worked out from the files.
+    </td>
+    <td width="50%" valign="top">
+      <img src="site/public/screens/evidence.jpg" alt="Evidence view of a task's test run"><br>
+      <b>Evidence</b><br>Each checklist item next to the step that proved it: screenshot, video, verdict, history. Re-run any task, or the whole regression suite, from the browser.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="site/public/screens/spec.jpg" alt="A capability spec open in Docs"><br>
+      <b>Capability specs</b><br>One spec per capability with WHEN/THEN scenarios. Agents get the related requirements on claim; a verifying agent checks the diff against them.
+    </td>
+    <td width="50%" valign="top">
+      <img src="site/public/screens/memory.jpg" alt="Memory browser with knowledge entries"><br>
+      <b>Memory</b><br>The session handoff and one-fact entries (conventions, gotchas, decisions), with search, history and import from Claude Code's own memory.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="site/public/screens/epic.jpg" alt="An epic sheet with scenarios and tasks"><br>
+      <b>Scenarios as acceptance tests</b><br>An epic's promise as numbered scenarios. Every task says which ones it covers, and the epic shows each as passed, failed or unproven.
+    </td>
+    <td width="50%" valign="top">
+      <img src="site/public/screens/graph.jpg" alt="The doc link graph"><br>
+      <b>Link graph</b><br>Docs, tasks, epics, specs and entries joined by the links in their text. Broken and stale links stand out.
+    </td>
+  </tr>
+</table>
 
-- **Kanban board** — tasks live in `plans/tasks/*.md`, rendered as draggable cards
-- **Docs viewer** — browse and edit every markdown file in `docs/`. Relative `.md` links and `[[wikilinks]]` in the preview are clickable (broken ones are muted), hovering one shows a preview card, and the Linked docs panel lists what a doc links to, what links to it, its broken links and stale path mentions (backticked paths to files that no longer exist)
-- **Graph** — `/graph` maps every link between the project's `.md` files (docs, ADRs, tasks, epics, entries) with a force layout, kind filters, search and focus. Shape shows the kind, colour the task/epic status; live agent changes flash in place without moving the camera, and a menu lists broken links and stale paths. Fully keyboard-driven: `/` to search, Tab through files, Enter to select, Enter again to open, arrows to follow links, Esc to clear
-- **Live activity feed** — every AI action appears instantly via SSE, no polling
-- **Memory tab** — the `MEMORY.md` session handoff, plus a browser for knowledge entries: search (ranked like `vibedoc_recall`), filter by type, open, edit, add, and delete with Undo. Each entry shows who changed it last (a person or a named agent). **Cleanup** flags a handoff that contradicts the board, ids that don't exist, duplicate entries (merge with Undo) and entries no agent recalled in 60 days
-- **File explorer** — treemap/tree/heatmap views of your docs with AI-generated descriptions
-- **Roadmap** — a roadmap.sh-style map of `plans/roadmap/*.md`: horizons on a spine, features branching off with status badges; drag nodes, edit inline
-- **Plan from the chat** — ask the agent sidebar to plan a roadmap or break an epic into tasks; it asks questions, shows the plan, and writes nothing until you accept
-- **Manual tests & review** — the agent leaves a click-through checklist on each finished task (`🧪 0/5` on the card, ticked on `/manual-tests`); an optional Review column lets you approve a task or send it back with a note. Nothing ever blocks "done"
-- **MCP server** — 45 tools your AI agent can call to read docs, move tasks, write ADRs, and more
-
----
-
-## Connect your AI agent
-
-### Claude Code (`~/.claude/claude_desktop_config.json`)
-
-```json
-{
-  "mcpServers": {
-    "vibedoc": {
-      "url": "http://localhost:<port>/api/mcp"
-    }
-  }
-}
-```
-
-### Cursor (`.cursor/mcp.json` in project root)
-
-```json
-{
-  "mcpServers": {
-    "vibedoc": {
-      "url": "http://localhost:<port>/api/mcp"
-    }
-  }
-}
-```
-
-### Windsurf (`~/.codeium/windsurf/mcp_config.json`)
-
-```json
-{
-  "mcpServers": {
-    "vibedoc": {
-      "url": "http://localhost:<port>/api/mcp"
-    }
-  }
-}
-```
-
-> The port is shown in the terminal when VibeDoc starts. Use `--port` to pin it.
-
-### Agent skills (Claude Code plugin)
-
-The planning loop ships as a Claude Code plugin named `vibedoc` (in [`plugin/`](plugin/)):
-
-| Command | What it does |
-|---|---|
-| `/vibedoc:roadmap` | Interview you about goals and write horizons + epics (`plans/roadmap/R*.md`) |
-| `/vibedoc:breakdown R004` | Break one epic into tasks an agent can pick up cold (`plans/tasks/T*.md`) |
-| `/vibedoc:work R004` | Claim, build, verify, test and commit the epic's tasks one by one |
-| `/vibedoc:next` | The single most useful next step, with the command to run |
-
-```text
-/plugin marketplace add quanghoangf/vibedoc
-/plugin install vibedoc@vibedoc
-```
-
-Working on the skills themselves: start Claude Code with `claude --plugin-dir ./plugin` from this repo, so edits apply after `/reload-plugins` (an installed plugin is a copy). VibeDoc's agent chat reads the same files (`plugin/skills/roadmap` and `plugin/skills/breakdown`).
-
----
-
-## MCP tools
-
-45 tools your AI agent can call, grouped by category. The [docs site](https://quanghoangf.github.io/vibedoc/docs/tools/) has a page for each, generated from the definitions in `src/lib/mcp-tools.ts`.
-
-### Session & status
-
-| Tool                    | Effect                                                           |
-| ----------------------- | ---------------------------------------------------------------- |
-| `vibedoc_read_memory`   | Read `MEMORY.md` (+ the latest auto episode newer than it) — triggers "session start" in the activity feed |
-| `vibedoc_update_memory` | Write end-of-session summary and handoff note                    |
-| `vibedoc_memory_history` | List earlier `MEMORY.md` versions, read one, or restore it (undoable) |
-| `vibedoc_save_entry`    | Save a long-lived fact as `memory/entries/E001-*.md` (listed at session start) |
-| `vibedoc_delete_entry`  | Delete a knowledge entry that is no longer true                  |
-| `vibedoc_recall`        | Search entries by keyword → compact list (id, type, summary)     |
-| `vibedoc_get_entries`   | Fetch full entries by id (max 20); updates `memory/.recall-log.json` |
-| `vibedoc_import_memory` | Import Claude Code memory into entries (`source: "claude-code"`); preview unless `apply: true` |
-| `vibedoc_export_memory` | Write the entries into a managed block in `AGENTS.md` (and `CLAUDE.md` if it exists) for Cursor, Codex, … |
-| `vibedoc_get_status`    | Board snapshot — active tasks, blockers, doc count, frontend app |
-| `vibedoc_get_frontend`  | The project's web app: dir, framework, start command, URL, source |
-| `vibedoc_get_sessions`  | Recent sessions: who, when, tasks moved, docs changed, ADRs      |
-
-### Tasks
-
-| Tool                  | Effect                                                  |
-| --------------------- | ------------------------------------------------------- |
-| `vibedoc_list_tasks`  | Full kanban board, filterable by status                 |
-| `vibedoc_get_task`    | Read a specific task with scope and acceptance criteria |
-| `vibedoc_get_evidence` | A task's evidence: each checklist item's run result, screenshots, video, run history |
-| `vibedoc_update_task` | Move task status → **you see it live in the browser**; optional `manualTests` checklist |
-| `vibedoc_next_task`   | Claim the next ready task of an epic (deps done) → in-progress |
-| `vibedoc_verify_context` | What a finished task was asked to do + the diff of its commits, to check it |
-| `vibedoc_report_findings` | Save verification findings (critical / major / minor) on a task |
-
-### Docs
-
-| Tool                     | Effect                                 |
-| ------------------------ | -------------------------------------- |
-| `vibedoc_list_docs`      | Discover all docs grouped by section   |
-| `vibedoc_read_doc`       | Load any doc by name; ends with a `## Related files` footer (links to, linked from, broken) |
-| `vibedoc_search_docs`    | Full-text search across all docs       |
-| `vibedoc_list_specs`     | Capability specs (`docs/specs/*.md`) with requirement counts |
-| `vibedoc_get_spec`       | One capability spec, or one requirement with its scenarios |
-| `vibedoc_spec_context`   | Everything written about a capability (epics, done tasks, docs, entries) to draft its spec |
-| `vibedoc_write_doc`      | Write or overwrite a doc file          |
-| `vibedoc_create_doc`     | Create a doc from a template           |
-| `vibedoc_append_doc`     | Append content to an existing doc      |
-| `vibedoc_rename_doc`     | Move or rename a doc                   |
-| `vibedoc_delete_doc`     | Delete a doc                           |
-| `vibedoc_set_doc_priority` | Set or clear a doc's P0–P3 priority (frontmatter) |
-| `vibedoc_list_templates` | List available doc templates with IDs  |
-| `vibedoc_propose_edit`   | Propose edits as a diff; the user accepts or rejects in the UI |
-
-### Context & registry
-
-| Tool                       | Effect                                                      |
-| -------------------------- | ----------------------------------------------------------- |
-| `vibedoc_get_context`      | Bundle multiple docs into a single context block            |
-| `vibedoc_get_file_map`     | Structured map of all docs with descriptions and dates      |
-| `vibedoc_read_registry`    | Read `docs/REGISTRY.md` — file tree + annotations           |
-| `vibedoc_rebuild_registry` | Regenerate `REGISTRY.md` after adding or removing docs      |
-| `vibedoc_annotate_doc`     | Update description and keywords for one doc in the registry |
-
-### Decisions
-
-| Tool                   | Effect                                         |
-| ---------------------- | ---------------------------------------------- |
-| `vibedoc_log_decision` | Write a new Architecture Decision Record (ADR) |
-
-### Roadmap
-
-| Tool                          | Effect                                                     |
-| ----------------------------- | ---------------------------------------------------------- |
-| `vibedoc_get_roadmap`         | Horizons with nested features, statuses, and linked tasks  |
-| `vibedoc_create_roadmap_item` | Create a horizon or a feature under a horizon              |
-| `vibedoc_update_roadmap_item` | Change title, parent, status, order, tasks, or body        |
-
-### Planning (agent chat)
-
-| Tool                         | Effect                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------- |
-| `vibedoc_get_planning_guide` | Load the steps for planning a roadmap or breaking down an epic         |
-| `vibedoc_ask_questions`      | Show 1–4 multiple-choice questions as a card; answers come next turn   |
-| `vibedoc_propose_plan`       | Propose tasks or horizons/epics; the user unchecks and accepts in the UI |
-
-A pasted spec (**Plan from spec** on `/roadmap`) or a doc (the list icon in a doc's header) can also become tasks, under a new epic, an existing one, or no epic.
-
-None of the planning tools write files. Accept in the UI writes the plan. See [Planning from chat](docs/architecture/mcp-tools.md#planning-from-chat).
-
----
+Also: an agent chat inside the app that plans with you and proposes edits as diffs, live activity and session history, saved board views, and a docs editor with live collaboration.
 
 ## Recommended CLAUDE.md snippet
 
-Add this to your project's `CLAUDE.md` to guide your AI agent:
+The skills do this for you in Claude Code. For other agents, add this to the project's `CLAUDE.md` / `AGENTS.md`:
 
 ```markdown
 ## Session protocol
-
-**Start of session:**
-
-1. Call `vibedoc_read_memory` — read handoff from last session. If it shows `⚠ Memory warnings`, fix the handoff with `vibedoc_update_memory` before starting work
-2. Call `vibedoc_get_status` — check what's active and blocked
-
-**Before working on a task:**
-
-- Call `vibedoc_get_task <id>` — read full spec and acceptance criteria
-- Call `vibedoc_update_task <id> in-progress`
-- Working through an epic? Call `vibedoc_next_task { epic: "R037" }` instead — it claims the next ready task; repeat after marking it done
-
-**When making architectural decisions:**
-
-- Call `vibedoc_log_decision` — record it as an ADR
-
-**End of session:**
-
-- Call `vibedoc_update_task` for each task touched
-- Call `vibedoc_save_entry` for each fact that should outlast the session (convention, gotcha, decision, preference)
-- Call `vibedoc_update_memory` with full summary and handoff note
-- (If a session ends without it, VibeDoc saves an automatic episode in `.vibedoc/episodes/` and the next `vibedoc_read_memory` shows it. It is a safety net, not a replacement.)
+- Start: `vibedoc_read_memory` (last session's handoff), then `vibedoc_get_status`.
+- Work an epic: `vibedoc_next_task { epic: "R004" }` claims the next ready task with its full spec; build it, run its Verify block,
+  then `vibedoc_update_task <id> done` with a manual test checklist. Repeat until the epic is finished or needs a human.
+- Decisions: `vibedoc_log_decision` writes an ADR. Lasting facts: `vibedoc_save_entry`.
+- End: `vibedoc_update_memory` with the handoff for the next session.
 ```
 
----
+Every tool, with its parameters: [MCP tool reference](https://quanghoangf.github.io/vibedoc/docs/tools/).
 
-## Project structure
+## Your files
 
-VibeDoc reads from your project directory. None of these files are required — VibeDoc shows what it finds.
+VibeDoc reads the folder you start it in and shows what it finds. Nothing is required up front.
 
 ```
 your-project/
-├── CLAUDE.md                     ← agent instructions
-├── docs/
-│   ├── architecture/
-│   │   ├── 01-overview/
-│   │   ├── 02-high-level-design/
-│   │   │   └── HLD.md
-│   │   ├── 03-services/
-│   │   │   └── user-service/
-│   │   │       ├── OVERVIEW.md
-│   │   │       ├── API.md
-│   │   │       └── EVENTS.md
-│   │   └── decisions/
-│   │       └── ADR-001-*.md
-│   └── REGISTRY.md               ← auto-generated file index
-├── plans/tasks/
-│   ├── T001-scaffold.md          ← **Status:** 📋 Ready
-│   └── T002-auth.md
-└── memory/
-    ├── MEMORY.md                 ← session handoff
-    ├── .cleanup.json             ← dismissed Cleanup flags (written by VibeDoc)
-    ├── .recall-log.json          ← last vibedoc_get_entries date per entry (written by VibeDoc)
-    └── entries/
-        └── E001-only-core-ts-touches-fs.md   ← one long-lived fact (**Type:**, **Updated:**, **By:**)
+├── plans/roadmap/R004-billing.md   horizons and epics (scenarios, spec changes)
+├── plans/tasks/T031-checkout.md     one task per file: status, deps, spec, checklist
+├── docs/specs/billing.md            capability specs
+├── docs/**/*.md                     your docs, ADRs in docs/architecture/decisions/
+└── memory/MEMORY.md, entries/       session handoff and knowledge entries
 ```
 
----
-
-## Multi-project
-
-VibeDoc auto-discovers sibling directories that contain `CLAUDE.md` or `docs/architecture/`.  
-Switch between projects using the dropdown in the top bar.
-
----
-
-## Activity log
-
-Every AI and human action is appended to `.vibedoc-activity.json` in your project root (last 2000 events are kept).
-
-The Activity tab opens on **Sessions**: one card per agent or human session with who, when, how long, a headline (`3 tasks moved (2 done) · 2 docs changed · 1 ADR`) and clickable task, doc and ADR chips. Expand a card to see its raw events; **All events** shows the flat feed. Both update live via SSE.
-
-A session is the events one actor makes without a 30-minute break, and `vibedoc_read_memory` (session start) always opens a new one. From a task's detail panel, the **Sessions** list shows every session that moved the task and jumps to that card in the Activity tab. Agents read the same timeline with `vibedoc_get_sessions`.
-
-A session that ends without a `vibedoc_update_memory` handoff still leaves a summary: VibeDoc writes `.vibedoc/episodes/<sessionId>.md` (what happened, where it stopped, what's open) when a chat turn ends, when an epic run ends, or later at the next session start, and the next `vibedoc_read_memory` shows the newest one under **Since the last handoff**. Episodes never touch `MEMORY.md`.
-
----
-
-## Screenshots and video
-
-Browser tests that use VibeDoc's fixture record each step's screenshot and a video of the run. `vibedoc_get_frontend` copies it into your app as a test kit (`<testDir>/vibedoc/kit/`, commit it with the specs; `vibedoc/playwright` is the same fixture for installs that depend on `vibedoc`):
-
-```ts
-import { test } from './kit/testing/playwright-fixture'   // a spec in <testDir>/vibedoc/
-test.use({ vibedocTask: 'T138' })            // or env VIBEDOC_TASK_ID
-test('T138', async ({ page, step }) => {
-  await step('Open /board → board loads', async () => { await page.goto('/board') })
-})
-```
-
-Files go to `~/.vibedoc/runs/<project>/<taskId>/<runId>/` (`NN-<step>.png`, `video.webm`, `run.json`), outside the repo. `VIBEDOC_RUNS_DIR` moves that root (set it for the VibeDoc server too). Only the newest `runs.keep` runs per task are kept (`.vibedoc/settings.json`, default 5; `VIBEDOC_RUNS_KEEP` overrides). To re-run a task's spec without a terminal, press **Run tests** on `/manual-tests` (or Run in the task panel, or the play button on its card): VibeDoc reuses or starts the app, streams each step live, ticks the automated checklist items as they pass, and writes the result into the task (`Auto: passed|failed`). One run per project at a time; Stop cancels it. The **Suite** tab on `/manual-tests` runs the spec of every done task in one Playwright run (`u`), so a change that breaks an old feature shows up with the task that owned it: broken tasks first, with the failing step, error and screenshot. Tests are checked for honesty: a step with no `expect` on the page (or only `expect(true)`-style ones), or one that still passes after a passing Run replays it against a blank page, is **unverified**: its item isn't ticked, the header reads `Auto: passed · N unverified`, and review flags it. The task panel's **Runs** section shows the latest run: step thumbnails with ✓/✗, the video, and a picker for older kept runs. More in [Getting started](docs/getting-started.md#6-screenshots-and-video).
-
----
+VibeDoc's own state stays small and readable: `.vibedoc-activity.json` (the activity log) and `.vibedoc/` (settings, saved views, chats). Test runs go to `~/.vibedoc/runs/`, outside the repo.
 
 ## Development
 
@@ -334,36 +166,13 @@ Files go to `~/.vibedoc/runs/<project>/<taskId>/<runId>/` (`NN-<step>.png`, `vid
 git clone https://github.com/quanghoangf/vibedoc.git
 cd vibedoc
 pnpm install
-VIBEDOC_ROOT=/path/to/test-project pnpm dev
+VIBEDOC_ROOT=/path/to/a/project pnpm dev
 ```
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for architecture rules, commit conventions, and how to submit a PR.
+Next.js 16 (App Router) · Tailwind CSS 4 · MCP over HTTP JSON-RPC (`/api/mcp`) · Server-Sent Events · the file system as the only store. The landing page and docs are in [`site/`](site/) (Astro + Starlight).
 
----
-
-## Requirements
-
-- **Node.js 18+**
-- No database, no cloud, no accounts — reads your local file system
-
----
-
-## Tech stack
-
-- **Next.js** (App Router)
-- **Tailwind CSS** — dark theme
-- **SSE** (`/api/events`) — real-time browser updates
-- **MCP over HTTP** (`/api/mcp`) — JSON-RPC 2.0
-- **File system** — reads your actual repo, no database
-
----
-
-## Contributing
-
-Pull requests are welcome. Check [CONTRIBUTING.md](./CONTRIBUTING.md) for the development setup, architecture rules, and commit conventions. For ideas and questions, open a [Discussion](https://github.com/quanghoangf/vibedoc/discussions).
-
----
+Pull requests are welcome: see [CONTRIBUTING.md](./CONTRIBUTING.md) for the architecture rules and commit conventions, and open an [issue](https://github.com/quanghoangf/vibedoc/issues/new/choose) for bugs and ideas.
 
 ## License
 
-MIT
+[MIT](./LICENSE)
