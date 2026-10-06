@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import sitemap from '@astrojs/sitemap'
 import starlight from '@astrojs/starlight'
 import { TOOLS } from '../src/lib/mcp-tools'
+import { STATS } from './src/data/links'
 
 export default defineConfig({
   site: 'https://quanghoangf.github.io',
@@ -15,6 +16,7 @@ export default defineConfig({
       logo: { src: './src/assets/logo.svg', alt: 'VibeDoc' },
       favicon: '/favicon.svg',
       customCss: ['./src/styles/docs.css'],
+      head: STATS ? [{ tag: 'script', attrs: { async: true, 'data-goatcounter': `${STATS}/count`, src: 'https://gc.zgo.at/count.js' } }] : [],
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/quanghoangf/vibedoc' }],
       editLink: { baseUrl: 'https://github.com/quanghoangf/vibedoc/edit/main/site/' },
       sidebar: [

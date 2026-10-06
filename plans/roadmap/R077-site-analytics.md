@@ -1,6 +1,6 @@
 # R077: Site analytics
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 300
 **Tasks:** T214
 

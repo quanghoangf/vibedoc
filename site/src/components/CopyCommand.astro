@@ -1,14 +1,15 @@
 ---
 // One copyable command. Data-driven (`command`, `label`) so the install tabs (T202) render a list of these.
 // Without JavaScript the command is still selectable text.
-interface Props { command: string; label?: string }
-const { command, label = 'Copy install command' } = Astro.props
+interface Props { command: string; label?: string; event?: string }
+const { command, label = 'Copy install command', event } = Astro.props
 ---
 <div class="flex items-center gap-3 bg-ink py-3 pr-3 pl-4 text-[#e8e8f0]">
   <code class="min-w-0 flex-1 font-mono text-sm [overflow-wrap:anywhere] sm:overflow-x-auto sm:whitespace-nowrap sm:[overflow-wrap:normal]"><span class="text-[#8c8ca0] select-none">$ </span>{command}</code>
   <button
     type="button"
     data-copy={command}
+    data-goatcounter-click={event}
     aria-label={label}
     class="min-h-10 min-w-19 cursor-pointer rounded-md bg-violet px-4 text-sm font-medium text-night transition-[filter] hover:brightness-110"
   >Copy</button>

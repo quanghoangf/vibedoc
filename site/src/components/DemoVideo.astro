@@ -36,3 +36,12 @@ const hasMp4 = existsSync(path.join(process.cwd(), 'public/demo.mp4'))
     </div>
   </div>
 </section>
+
+<script>
+  // Count the first play of the demo (R077); GoatCounter skips localhost and bots on its own
+  const video = document.querySelector<HTMLVideoElement>('#demo video')
+  video?.addEventListener('play', () => {
+    const gc = (window as { goatcounter?: { count: (o: { path: string; title: string; event: boolean }) => void } }).goatcounter
+    gc?.count({ path: 'demo-play', title: 'Demo video played', event: true })
+  }, { once: true })
+</script>
