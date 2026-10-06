@@ -87,6 +87,9 @@ try {
   await evidence.locator("[data-zoom] img").first().waitFor()
   await page.getByRole("group", { name: "View" }).getByRole("button", { name: "review" }).click()
   console.log("ok  passed → Auto: passed + both 🤖 items [x] in the file; Evidence shows the new run")
+  // R079: a single Run records in presentation mode (VibeDoc's own Playwright is 1.59+)
+  const newest = readdirSync(runsDir).filter((d) => /^\d{8}T\d{6}Z$/.test(d)).sort().at(-1)
+  assert.deepEqual(JSON.parse(readFileSync(path.join(runsDir, newest, "run.json"), "utf8")).presentation, { on: true, reason: null })
 
   // 3. Stop mid-step: nothing written, no half-written run folder
   const before = readFileSync(taskFile, "utf8")

@@ -3,6 +3,8 @@
 //              and a switch to another task's run.
 //   S2 (T226): auto-pause (on by default) stops on each step's screenshot frame with "Step N · <name>" over the
 //              video; Play goes on to the next step; off → plays through; the choice survives a reload.
+//   S5 (T227): a plain run says why under the video (suite, CI, VIBEDOC_PRESENT=0, old Playwright); a presentation
+//              run and a run from before R079 say nothing.
 // Fails on any browser console error.
 //
 //   PW_DIR=<dir with node_modules/playwright> BASE=http://localhost:3000 node e2e/watchable-video.mjs
@@ -18,7 +20,7 @@ import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const fx = makeFixture()
-for (const id of ["T001", "T002"]) {
+for (const id of ["T001", "T002", "T003"]) {
   writeFileSync(path.join(fx, `plans/tasks/${id}-video.md`), `# ${id}: Video ${id}\n**Status:** ✅ Done\n**Phase:** R002\n\n## Goal\nA run to watch.\n`)
 }
 // Same rule as runs-paths.ts projectKey(): slugged basename of the root
@@ -47,17 +49,27 @@ try {
   await rec.close()
   await video.saveAs(path.join(media, "video.webm"))
 
-  for (const taskId of ["T001", "T002"]) {
-    const dir = path.join(projectRuns, taskId, RUN)
+  // T003: one run per presentation outcome, newest first in the player's run picker
+  const PLAIN = {
+    "20261005T100500Z": { on: false, reason: "suite" },
+    "20261005T100400Z": { on: false, reason: "ci" },
+    "20261005T100300Z": { on: false, reason: "disabled" },
+    "20261005T100200Z": { on: false, reason: "old-playwright" },
+    "20261005T100100Z": { on: true, reason: null },
+  }
+  const seedRun = (taskId, runId, extra) => {
+    const dir = path.join(projectRuns, taskId, runId)
     mkdirSync(dir, { recursive: true })
     for (const s of STEPS) copyFileSync(path.join(media, s.src), path.join(dir, s.screenshot))
     copyFileSync(path.join(media, "video.webm"), path.join(dir, "video.webm"))
     writeFileSync(path.join(dir, "run.json"), JSON.stringify({
-      runId: RUN, taskId, project: projectKey, startedAt: "2026-10-05T10:00:00.000Z", endedAt: "2026-10-05T10:00:03.000Z",
+      runId, taskId, project: projectKey, startedAt: "2026-10-05T10:00:00.000Z", endedAt: "2026-10-05T10:00:03.000Z",
       status: "passed", commit: null, video: "video.webm",
-      steps: STEPS.map(({ src, ...s }, i) => ({ index: i + 1, status: "passed", error: null, ...s })),
+      steps: STEPS.map(({ src, ...s }, i) => ({ index: i + 1, status: "passed", error: null, ...s })), ...extra,
     }))
   }
+  for (const taskId of ["T001", "T002"]) seedRun(taskId, RUN, {})
+  for (const [runId, presentation] of Object.entries(PLAIN)) seedRun("T003", runId, { presentation })
 
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } })
   const page = await ctx.newPage()
@@ -125,6 +137,23 @@ try {
   await open("T002")
   assert.equal(await page.getByRole("checkbox", { name: "Pause at each step" }).isChecked(), false, "off after a reload")
   console.log("ok  S2: stops on each step's frame with Step N · name, Play goes on, off plays through, kept after a reload")
+
+  // S5: why a video was recorded plain
+  const WHY = {
+    suite: "Recorded plain: the regression suite runs at full speed.",
+    ci: "Recorded plain: runs in CI keep full speed.",
+    disabled: "Recorded plain: VIBEDOC_PRESENT=0 turned the cursor and chapters off.",
+    "old-playwright": "Recorded plain: the app's Playwright is older than 1.59, which has no cursor or chapters.",
+  }
+  await open("T003")
+  for (const [runId, p] of Object.entries(PLAIN)) {
+    await page.getByRole("combobox", { name: "Run", exact: true }).selectOption(runId)
+    if (p.on) assert.equal(await page.getByText(/^Recorded plain/).count(), 0, "a presentation run says nothing")
+    else await page.getByText(WHY[p.reason], { exact: true }).waitFor()
+  }
+  await open("T001")
+  assert.equal(await page.getByText(/^Recorded plain/).count(), 0, "a run from before R079 says nothing")
+  console.log("ok  S5: plain runs say why (suite, CI, VIBEDOC_PRESENT=0, old Playwright); presentation and older runs say nothing")
 
   assert.deepEqual(errors, [], "no console errors")
 } finally {

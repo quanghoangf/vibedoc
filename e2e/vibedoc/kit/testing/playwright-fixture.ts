@@ -31,6 +31,7 @@ import { parseManualTests } from '../lib/manual-tests.js'
 import { formatEvidence } from '../lib/evidence.js'
 import { isPageSubject, stepVerdict } from '../lib/honesty.js'
 import { parseTaskMap, taskForFile } from '../lib/task-map.js'
+import { presentationMode } from '../lib/presentation.js'
 
 import type { RunManifest, RunStep, RunTest } from '../lib/runs-paths.js'
 export type { RunManifest, RunStep }
@@ -242,6 +243,9 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
         ? r.fulfill({ status: 200, contentType: 'text/html', body: BLANK_PAGE })
         : r.continue()))
     }
+    // R079: presentation recording, decided once; `page.screencast` exists from Playwright 1.59 (the app's own copy)
+    const screencast = (page as unknown as { screencast?: { showActions?: unknown } }).screencast
+    const presentation = presentationMode(process.env, typeof screencast?.showActions === 'function')
     // The page (and its video) exists by now, so offsets from here line up with the video's clock
     const t0 = Date.now()
     await provide(async (name, fn) => {
@@ -284,7 +288,7 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
     const manifest: RunManifest = {
       runId: vibedocRun.runId, taskId: vibedocRun.taskId, project: vibedocRun.project,
       startedAt: vibedocRun.startedAt, endedAt: new Date().toISOString(),
-      status: failed ? 'failed' : 'passed', commit: gitCommit(), video: videoFile, steps,
+      status: failed ? 'failed' : 'passed', commit: gitCommit(), video: videoFile, steps, presentation,
       ...foldRetries(vibedocRun, testInfo.testId, testInfo.retry, testInfo.title, !failed),
     }
     writeFileSync(path.join(vibedocRun.dir, 'run.json'), JSON.stringify(manifest, null, 2) + '\n')

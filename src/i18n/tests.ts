@@ -239,6 +239,11 @@ export const en = {
   pauseAtSteps: "Pause at each step",
   pauseAtStepsShort: "Stop at steps",
   captionStep: "Step {n}",
+  plainSuite: "Recorded plain: the regression suite runs at full speed.",
+  plainCi: "Recorded plain: runs in CI keep full speed.",
+  plainDisabled: "Recorded plain: VIBEDOC_PRESENT=0 turned the cursor and chapters off.",
+  plainOldPlaywright: "Recorded plain: the app's Playwright is older than 1.59, which has no cursor or chapters.",
+  plainOther: "Recorded plain.",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -470,4 +475,9 @@ export const vi: Messages<typeof en> = {
   pauseAtSteps: "Dừng ở mỗi bước",
   pauseAtStepsShort: "Dừng mỗi bước",
   captionStep: "Bước {n}",
+  plainSuite: "Ghi thường: bộ kiểm thử hồi quy chạy hết tốc độ.",
+  plainCi: "Ghi thường: lần chạy trên CI giữ nguyên tốc độ.",
+  plainDisabled: "Ghi thường: VIBEDOC_PRESENT=0 đã tắt con trỏ và chương.",
+  plainOldPlaywright: "Ghi thường: Playwright của app cũ hơn 1.59, chưa có con trỏ và chương.",
+  plainOther: "Ghi thường.",
 }

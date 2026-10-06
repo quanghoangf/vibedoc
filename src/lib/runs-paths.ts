@@ -25,7 +25,12 @@ export type RunManifest = {
   tests?: RunTest[]
   /** R065: tests that failed and then passed on a retry */
   flaky?: number
+  /** R079: whether the video was recorded with cursor, highlights and chapters, and why not; absent before R079 */
+  presentation?: RunPresentation
 }
+
+/** R079: `presentationMode()` in presentation.ts decides it once per test. */
+export type RunPresentation = { on: boolean; reason: 'suite' | 'blank' | 'ci' | 'disabled' | 'old-playwright' | null }
 
 /** R065: a test's outcome over Playwright's retries; `firstFailure` = what the first failing attempt showed. */
 export type RunTest = {

@@ -1,9 +1,12 @@
 # T227: Presentation mode switch in the test kit
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R079 — Watchable evidence videos
 **Size:** S (~1 hr)
 **Depends on:** —
 **Covers:** S5
+**Owner:** ai:claude-code
+**Due:** 2026-10-07
+**Started:** 2026-10-06
 
 ## Goal
 The test kit decides once per run whether to record a presentation video, writes the decision into run.json, and the player says when a video was recorded plain and why. T228–T229 hang the visuals on this switch.
@@ -53,4 +56,12 @@ PW_DIR=<dir with node_modules/playwright> node e2e/regression-suite.mjs
 ```
 
 ## Manual tests
+_2026-10-06 — ai_
+### Steps
 - [ ] S5 — WHEN the run is the regression suite, the blank-page check, CI, `VIBEDOC_PRESENT=0`, or the app's Playwright is older than 1.59 → THEN the video is recorded plain, and run.json and the player say why
+- [ ] Run a done task's spec from Test review (Run) → its newest run.json has `"presentation": { "on": true, "reason": null }`
+- [ ] Run the regression suite → each task's newest run shows "Recorded plain: the regression suite runs at full speed." under the video
+- [ ] Run a spec yourself with `VIBEDOC_PRESENT=0 npx playwright test …` → the player says "Recorded plain: VIBEDOC_PRESENT=0 turned the cursor and chapters off."
+- [ ] An app on Playwright older than 1.59 → its runs say "…older than 1.59…"
+### Regression risk
+- [ ] Runs from before this change open as before, with no "Recorded plain" line

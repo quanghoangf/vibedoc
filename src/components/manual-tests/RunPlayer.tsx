@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { nextPause, runClock, stepAt, stepSpans } from "@/lib/test-review"
-import type { RunManifest, RunStep } from "@/lib/runs-paths"
+import type { RunManifest, RunPresentation, RunStep } from "@/lib/runs-paths"
+import type { MessageKey } from "@/i18n"
 import { DEFAULT_PLAYER_PREFS, PLAYER_COOKIE, PLAYER_SPEEDS, parsePlayerPrefs, playerCookie, readCookie, type PlayerPrefs } from "@/lib/player-prefs"
 
 /**
@@ -16,6 +17,14 @@ import { DEFAULT_PLAYER_PREFS, PLAYER_COOKIE, PLAYER_SPEEDS, parsePlayerPrefs, p
  * screenshot instead of seeking. A failed run opens paused on the failed step's screenshot frame.
  * Keys while the player has focus: ←/→ previous/next step, space play/pause. Mount with key={taskId}.
  */
+const PLAIN_REASON: Record<NonNullable<RunPresentation["reason"]>, MessageKey> = {
+  suite: "tests.plainSuite",
+  ci: "tests.plainCi",
+  disabled: "tests.plainDisabled",
+  "old-playwright": "tests.plainOldPlaywright",
+  blank: "tests.plainOther",
+}
+
 /** How long a step's caption stays over a playing video after the step starts. */
 const CAPTION_MS = 1500
 
@@ -378,6 +387,10 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
           </div>
         )}
       </div>
+
+      {run.video && run.presentation?.on === false && (
+        <p className="-mt-1 text-[11px] text-muted">{t(run.presentation.reason ? PLAIN_REASON[run.presentation.reason] : "tests.plainOther")}</p>
+      )}
 
       {failed?.error && (
         <div role="alert" className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2">

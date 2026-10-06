@@ -345,6 +345,6 @@ export function playwrightTestDir(configText: string | null): string {
 }
 
 /** R061: the fixture kit's files, relative to VibeDoc's install dir and to `<testDir>/vibedoc/kit/` alike. */
-export const FIXTURE_KIT_FILES = ['testing/playwright-fixture.ts', 'lib/runs-paths.ts', 'lib/runs-retention.ts', 'lib/manual-tests.ts', 'lib/evidence.ts', 'lib/honesty.ts', 'lib/task-map.ts']
+export const FIXTURE_KIT_FILES = ['testing/playwright-fixture.ts', 'lib/runs-paths.ts', 'lib/runs-retention.ts', 'lib/manual-tests.ts', 'lib/evidence.ts', 'lib/honesty.ts', 'lib/task-map.ts', 'lib/presentation.ts']
 /** How a spec in `<testDir>/vibedoc/` imports the kit. */
 export const FIXTURE_KIT_IMPORT = './kit/testing/playwright-fixture'
