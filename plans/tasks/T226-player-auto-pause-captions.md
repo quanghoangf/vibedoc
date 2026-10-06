@@ -1,9 +1,12 @@
 # T226: Player auto-pause at each step and step caption
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R079 — Watchable evidence videos
 **Size:** M (2–3 hrs)
 **Depends on:** T225
 **Covers:** S2
+**Owner:** ai:claude-code
+**Due:** 2026-10-09
+**Started:** 2026-10-06
 
 ## Goal
 While a run's video plays, it stops at the end of each step with that step's name over the video, so a reviewer can check one step at a time and press Play for the next.
@@ -50,4 +53,13 @@ PW_DIR=<dir with node_modules/playwright> node e2e/watchable-video.mjs
 ```
 
 ## Manual tests
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T226-player-auto-pause-captions.spec.ts` · Auto: passed 2026-10-06_
+### Steps
 - [ ] S2 — WHEN the video plays with auto-pause on and reaches the end of a step → THEN it pauses on that step's screenshot moment with the step's name shown over the video, and Play goes on to the next step
+- [x] 🤖 Open Test review → All → a task with a recorded run → "Pause at each step" is on
+- [x] 🤖 Press Play → the video stops at the end of step 1 with "Step 1 · <its name>" over it
+- [x] 🤖 Press Play again → it plays on and stops at the end of step 2 with "Step 2" shown
+- [ ] Untick "Stop at steps" and press Play → the video plays through to the end; after a reload the box is still unticked
+- [ ] The caption is readable on a light page and on a dark page, and a long step name is cut with "…"
+### Regression risk
+- [ ] An older run without step timing still opens a step's screenshot when its row is clicked, and has no "Stop at steps" box

@@ -236,6 +236,9 @@ export const en = {
   clearSelectionEsc: "Clear selection (Esc)",
   failedAtName: "Failed at step {n}: {name}",
   playbackSpeed: "Playback speed",
+  pauseAtSteps: "Pause at each step",
+  pauseAtStepsShort: "Stop at steps",
+  captionStep: "Step {n}",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -464,4 +467,7 @@ export const vi: Messages<typeof en> = {
   clearSelectionEsc: "Bỏ chọn (Esc)",
   failedAtName: "Lỗi ở bước {n}: {name}",
   playbackSpeed: "Tốc độ phát",
+  pauseAtSteps: "Dừng ở mỗi bước",
+  pauseAtStepsShort: "Dừng mỗi bước",
+  captionStep: "Bước {n}",
 }

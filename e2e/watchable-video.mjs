@@ -1,6 +1,8 @@
 // Browser check for R079 (watchable evidence videos) on a fixture project, one section per task:
 //   S1 (T225): the run player's speed control → 0.5× plays at half speed (video.playbackRate), survives a reload
 //              and a switch to another task's run.
+//   S2 (T226): auto-pause (on by default) stops on each step's screenshot frame with "Step N · <name>" over the
+//              video; Play goes on to the next step; off → plays through; the choice survives a reload.
 // Fails on any browser console error.
 //
 //   PW_DIR=<dir with node_modules/playwright> BASE=http://localhost:3000 node e2e/watchable-video.mjs
@@ -98,6 +100,31 @@ try {
   await page.getByRole("combobox", { name: "Playback speed" }).selectOption("2")
   assert.equal(await rate(), 2)
   console.log("ok  S1: 0.5× plays at half speed, survives a reload and another task's run; 2× works")
+
+  // S2: auto-pause + caption (still at 2× from S1, so the run is quick)
+  const pauseBox = page.getByRole("checkbox", { name: "Pause at each step" })
+  assert.equal(await pauseBox.isChecked(), true, "auto-pause is on by default")
+  const play = () => page.getByRole("button", { name: "Play" }).click()
+  const pausedAt = () => page.waitForFunction(() => { const v = document.querySelector("video"); return v.paused && v.currentTime > 0 ? v.currentTime : null }).then((h) => h.jsonValue())
+  await page.locator("video").evaluate((v) => { v.currentTime = 0 })
+  await play()
+  const first = await pausedAt()
+  assert.ok(Math.abs(first - 1.06) < 0.02, `paused on step 1's frame (1.06s), at ${first}`)
+  await page.getByText("Step 1", { exact: true }).waitFor()
+  await page.getByText(STEPS[0].name).first().waitFor()
+  await play()
+  await page.waitForFunction(() => { const v = document.querySelector("video"); return v.paused && v.currentTime > 1.5 })
+  const second = await page.locator("video").evaluate((v) => v.currentTime)
+  assert.ok(Math.abs(second - 2.16) < 0.02, `Play went on to step 2's frame (2.16s), at ${second}`)
+  await page.getByText("Step 2", { exact: true }).waitFor()
+  await pauseBox.uncheck()
+  await page.locator("video").evaluate((v) => { v.currentTime = 0 })
+  await play()
+  await page.waitForFunction(() => document.querySelector("video").ended, null, { timeout: 10000 })
+  await page.reload()
+  await open("T002")
+  assert.equal(await page.getByRole("checkbox", { name: "Pause at each step" }).isChecked(), false, "off after a reload")
+  console.log("ok  S2: stops on each step's frame with Step N · name, Play goes on, off plays through, kept after a reload")
 
   assert.deepEqual(errors, [], "no console errors")
 } finally {

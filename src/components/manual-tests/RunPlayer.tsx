@@ -5,7 +5,7 @@ import { Check, Film, ImageOff, Pause, Play, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
-import { runClock, stepAt, stepSpans } from "@/lib/test-review"
+import { nextPause, runClock, stepAt, stepSpans } from "@/lib/test-review"
 import type { RunManifest, RunStep } from "@/lib/runs-paths"
 import { DEFAULT_PLAYER_PREFS, PLAYER_COOKIE, PLAYER_SPEEDS, parsePlayerPrefs, playerCookie, readCookie, type PlayerPrefs } from "@/lib/player-prefs"
 
@@ -16,6 +16,9 @@ import { DEFAULT_PLAYER_PREFS, PLAYER_COOKIE, PLAYER_SPEEDS, parsePlayerPrefs, p
  * screenshot instead of seeking. A failed run opens paused on the failed step's screenshot frame.
  * Keys while the player has focus: ←/→ previous/next step, space play/pause. Mount with key={taskId}.
  */
+/** How long a step's caption stays over a playing video after the step starts. */
+const CAPTION_MS = 1500
+
 export function RunPlayer({ taskId, latest }: { taskId: string; latest: string | null }) {
   const { rootParam } = useApp()
   const f = useFormat()
@@ -35,6 +38,8 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
   const head = useRef<HTMLSpanElement>(null)
   // A webm from Playwright reports duration Infinity until we seek past its end once
   const probing = useRef(false)
+  // Auto-pause: the playhead at the previous frame, so a step's end is found when it is crossed
+  const lastMs = useRef(0)
 
   useEffect(() => {
     let live = true
@@ -74,6 +79,19 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
     const tick = () => {
       const v = video.current
       if (v && head.current) head.current.style.left = pct(v.currentTime * 1000)
+      if (v && timed && prefs.autoPause) {
+        const ms = v.currentTime * 1000
+        const stop = nextPause(spans, lastMs.current, ms)
+        lastMs.current = ms
+        // Stop on the step's screenshot frame, so the stage matches what the step proved
+        if (stop) {
+          v.pause()
+          v.currentTime = stop.at / 1000
+          setNow(stop.at)
+          if (head.current) head.current.style.left = pct(stop.at)
+          return
+        }
+      }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
@@ -182,6 +200,9 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
 
   const passed = run.steps.filter((s) => s.status === "passed").length
   const currentStep = run.steps.find((s) => s.index === current)
+  // The step's name over the video: while paused on it, and for a moment after it starts playing
+  const currentSpan = spans.find((sp) => sp.index === current)
+  const caption = timed && !still && currentStep && currentSpan && (paused || now - currentSpan.start < CAPTION_MS) ? currentStep : null
 
   return (
     // tabIndex -1: a click anywhere in the player focuses it, so ←/→ and space reach onPlayerKey
@@ -238,7 +259,7 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
                 ready(e.currentTarget)
               }}
               onTimeUpdate={(e) => { if (!probing.current) setNow(e.currentTarget.currentTime * 1000) }}
-              onPlay={() => { setStill(null); setPaused(false) }}
+              onPlay={(e) => { lastMs.current = e.currentTarget.currentTime * 1000; setStill(null); setPaused(false) }}
               onPause={() => setPaused(true)}
               className={cn("block aspect-video max-h-[38svh] w-full [@media(max-height:760px)]:max-h-[26svh] cursor-pointer bg-black object-contain", still && "invisible")}
             />
@@ -255,6 +276,17 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
                 </span>
               )}
             </div>
+          )}
+          {run.video && (
+            <p aria-live="polite" className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3">
+              {caption && (
+                <span className="max-w-full truncate rounded-md bg-black/75 px-3 py-1.5 text-sm text-white shadow-lg animate-fade-in">
+                  <span className="font-mono text-xs text-white/70">{t("tests.captionStep", { n: caption.index })}</span>
+                  <span className="text-white/50"> · </span>
+                  <span data-user-content>{caption.name}</span>
+                </span>
+              )}
+            </p>
           )}
           {still && run.video && (
             <button
@@ -331,6 +363,18 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
             >
               {PLAYER_SPEEDS.map((s) => <option key={s} value={s}>{s}×</option>)}
             </select>
+            {timed && (
+              <label title={t("tests.pauseAtSteps")} className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[11px] text-muted hover:text-txt">
+                <input
+                  type="checkbox"
+                  checked={prefs.autoPause}
+                  onChange={(e) => savePrefs({ ...prefs, autoPause: e.target.checked })}
+                  aria-label={t("tests.pauseAtSteps")}
+                  className="accent-accent"
+                />
+                <span className="hidden sm:inline">{t("tests.pauseAtStepsShort")}</span>
+              </label>
+            )}
           </div>
         )}
       </div>

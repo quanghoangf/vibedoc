@@ -209,6 +209,15 @@ export function stepSpans(steps: { index: number; startMs?: number; endMs?: numb
   })
 }
 
+/**
+ * Auto-pause (R079): the first step whose screenshot moment (`at`) the playhead crossed between two updates
+ * (prev < at ≤ now), or null. A play that starts exactly on `at` doesn't stop there again.
+ */
+export function nextPause<S extends { index: number; at: number }>(spans: S[], prevMs: number, nowMs: number): S | null {
+  if (nowMs <= prevMs) return null
+  return spans.find((s) => prevMs < s.at && s.at <= nowMs) ?? null
+}
+
 /** The step playing at `ms` (the later one on a shared boundary), or null outside every span. */
 export function stepAt(spans: { index: number; start: number; end: number }[], ms: number): number | null {
   for (let i = spans.length - 1; i >= 0; i--) if (ms >= spans[i].start && ms <= spans[i].end) return spans[i].index

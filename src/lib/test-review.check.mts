@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { countNeedsYou, filterRows, outstanding, runClock, runIdTime, selectionLabel, sendBackNote, stepAt, stepSpans, sortRows, splitEpic, stepParts, toRow, type ReviewInput } from "./test-review.ts"
+import { countNeedsYou, filterRows, outstanding, runClock, runIdTime, selectionLabel, sendBackNote, nextPause, stepAt, stepSpans, sortRows, splitEpic, stepParts, toRow, type ReviewInput } from "./test-review.ts"
 
 const item = (index: number, checked: boolean, auto = false) =>
   ({ index, text: `step ${index}`, checked, group: "steps" as const, auto })
@@ -118,5 +118,14 @@ console.log("ok selectionLabel")
   assert.deepEqual([f.flaky, f.needsMe, f.result], [1, false, "passed"])
   assert.deepEqual(["needs", "failed", "passed", "flaky"].map((t) => filterRows([f], t as never, null, "").length), [0, 0, 1, 1])
   assert.equal(countNeedsYou([{ status: "done", manualTests: { untested: 0, autoRun: { result: "passed", date: "2026-10-05", flaky: 1 } }, lastRun: { status: "passed" } }]), 0)
-  console.log("ok flaky row")
+console.log("ok flaky row")
 }
+
+// R079 auto-pause: the first `at` crossed between two updates
+const pauses = [{ index: 1, at: 400 }, { index: 2, at: 900 }]
+assert.equal(nextPause(pauses, 0, 399), null)
+assert.equal(nextPause(pauses, 0, 400)?.index, 1)
+assert.equal(nextPause(pauses, 400, 600), null, "a play starting on `at` doesn't stop there again")
+assert.equal(nextPause(pauses, 300, 1000)?.index, 1, "a late update stops at the first crossed step")
+assert.equal(nextPause(pauses, 900, 100), null, "seeking back is not a crossing")
+console.log("ok auto-pause")
