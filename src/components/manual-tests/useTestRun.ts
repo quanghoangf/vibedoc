@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react"
 import { useApp } from "@/context/AppContext"
 import { toast } from "@/components/ui/toast"
+import { tNow } from "@/context/LanguageContext"
 import { isRunning, type RunState } from "@/lib/test-run-events"
 
 /**
@@ -66,7 +67,7 @@ export function useTestRun() {
   const post = useCallback(async (url: string, body: unknown, keep: boolean) => {
     const res = await fetch(`${url}${rootParam}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
     const json = await res.json().catch(() => null)
-    if (!res.ok) toast(json?.error ?? `Request failed (${res.status})`)
+    if (!res.ok) toast(json?.error ?? tNow("board.requestFailed", { status: res.status }))
     else if (keep && json?.run) set(json.run, rootParam)
   }, [rootParam])
 

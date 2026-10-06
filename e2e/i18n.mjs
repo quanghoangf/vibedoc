@@ -24,6 +24,7 @@ const fx = makeFixture()
 // A task with a due date and one status change, so Activity has an event and the roadmap timeline has a marker
 writeFileSync(path.join(fx, "plans/tasks/T001-sample.md"), "# T001: Sample\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n\n## Goal\nA sample.\n")
 writeFileSync(path.join(fx, "plans/tasks/T002-next.md"), "# T002: Next step\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n**Depends on:** T001\n**Size:** M (2–3 hrs)\n\n## Goal\nAfter the sample.\n")
+writeFileSync(path.join(fx, "plans/tasks/T003-reviewed.md"), "# T003: Reviewed thing\n**Status:** 👀 Review\n**Phase:** R002 — Epic\n\n## Goal\nA task waiting for review.\n\n## Manual tests\n### Steps\n- [ ] Open /board → the board shows\n- [x] Click a card → its panel opens\n### Regression risk\n- [ ] Dragging a card still works\n")
 writeFileSync(path.join(fx, "plans/roadmap/R003-shipped.md"), "# R003: Shipped thing\n**Parent:** R001\n**Status:** done\n**Order:** 20\n**Tasks:** T099\n")
 mkdirSync(path.join(fx, "docs"), { recursive: true })
 mkdirSync(path.join(fx, "memory/entries"), { recursive: true })
@@ -31,7 +32,7 @@ writeFileSync(path.join(fx, "memory/MEMORY.md"), "# Project Memory\n\n## Working
 writeFileSync(path.join(fx, "memory/entries/E001-only-core-touches-fs.md"), "# E001: Only core.ts touches the file system\n**Type:** convention\n**Updated:** 2026-10-01\n\nAPI routes import from core, see T001.\n")
 writeFileSync(path.join(fx, "docs/a.md"), "# A\n\nSee [B](b.md) and [missing](gone.md).\n")
 writeFileSync(path.join(fx, "docs/b.md"), "# B\n\nBack to [A](a.md).\n")
-writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Due:** 2026-12-15\n**Tasks:** T001, T002\n")
+writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Due:** 2026-12-15\n**Tasks:** T001, T002, T003\n")
 const { SANS_FONTS, MONO_FONTS } = await import("../src/lib/settings.ts")
 
 // `scope`: CSS selectors to check instead of the whole page (the shell while page content isn't translated yet)
@@ -135,6 +136,21 @@ const PAGES = [
   { path: "/activity", name: "activity: all events", open: async (page) => {
     await page.getByRole("button", { name: "Mọi sự kiện" }).click()
     await page.getByRole("group", { name: "Lọc theo loại" }).waitFor()
+  } },
+  // T221: test review (list, bulk bar, detail with checklist + decision, evidence view, suite)
+  { path: "/manual-tests", name: "test review: list + bulk bar", open: async (page) => {
+    await page.getByRole("checkbox", { name: "Chọn T003" }).check()
+    await page.getByRole("toolbar", { name: "Đã chọn 1" }).waitFor()
+  } },
+  { path: "/manual-tests?tab=all&task=T003&view=review", name: "test review: detail + checklist + decision", open: async (page) => {
+    await page.getByRole("region", { name: "Danh sách kiểm" }).waitFor()
+    await page.getByText("Đang chờ bạn duyệt").first().waitFor()
+  } },
+  { path: "/manual-tests?tab=all&task=T003&view=evidence", name: "test review: evidence view", open: async (page) => {
+    await page.getByText(/Chưa có lần chạy được ghi|Không tải được bằng chứng|Đang chờ bạn duyệt/).first().waitFor()
+  } },
+  { path: "/manual-tests?tab=suite", name: "test review: suite tab", open: async (page) => {
+    await page.getByRole("heading", { name: "Bộ kiểm thử hồi quy" }).waitFor()
   } },
 ]
 

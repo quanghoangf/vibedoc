@@ -6,8 +6,9 @@ import * as memory from "./memory"
 import * as roadmap from "./roadmap"
 import * as shell from "./shell"
 import * as templates from "./templates"
+import * as tests from "./tests"
 
-export const AREAS = { shell, board, roadmap, docs, templates, memory }
+export const AREAS = { shell, board, roadmap, docs, templates, memory, tests }
 
 type Areas = typeof AREAS
 type AreaKey<A extends keyof Areas> = keyof Areas[A]["en"] & string

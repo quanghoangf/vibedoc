@@ -3,7 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
-import { useFormat, type Format } from "@/context/LanguageContext"
+import { tNow, useFormat, useT, type Format } from "@/context/LanguageContext"
+import { useReviewText } from "./review-text"
 import { MarkdownRenderer, flashElement } from "@/components/docs/MarkdownRenderer"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { ReviewActions } from "@/components/board/TaskDetailPanel"
@@ -14,18 +15,21 @@ type Row = { item: number; text: string; auto: boolean; result: "passed" | "fail
 
 /** R065: a step that passed only on a retry. Shown, never counted as broken. */
 export function FlakyChip({ attempts }: { attempts?: number }) {
+  const { t } = useT()
   return (
-    <span title={attempts ? `Passed on attempt ${attempts} after a failure` : "Passed on a retry after a failure"} className="inline-flex shrink-0 items-center rounded-sm border border-amber/40 bg-amber/10 px-1.5 py-0.5 text-[11px] leading-none text-amber">
-      flaky
+    <span title={attempts ? t("tests.flakyTitleN", { n: attempts }) : t("tests.flakyTitle")} className="inline-flex shrink-0 items-center rounded-sm border border-amber/40 bg-amber/10 px-1.5 py-0.5 text-[11px] leading-none text-amber">
+      {t("tests.flaky")}
     </span>
   )
 }
 
 /** R063: a passed step that doesn't prove its item; the reasons ride in the title and under the step. */
 export function UnverifiedChip({ reasons }: { reasons: string[] }) {
+  const { t } = useT()
+  const { reason } = useReviewText()
   return (
-    <span title={`Unverified: ${reasons.join(", ")}`} className="inline-flex shrink-0 items-center rounded-sm border border-dashed border-amber/60 px-1.5 py-0.5 text-[11px] leading-none text-amber">
-      unverified
+    <span title={t("tests.unverifiedTitle", { reasons: reasons.map(reason).join(", ") })} className="inline-flex shrink-0 items-center rounded-sm border border-dashed border-amber/60 px-1.5 py-0.5 text-[11px] leading-none text-amber">
+      {t("tests.unverified")}
     </span>
   )
 }
@@ -57,7 +61,7 @@ function enhance(root: HTMLElement) {
     btn.className = failed ? SHOT_BTN : THUMB_BTN
     btn.dataset.zoom = img.getAttribute("src") ?? ""
     btn.dataset.alt = img.alt
-    btn.setAttribute("aria-label", `Show the screenshot of ${img.alt}`)
+    btn.setAttribute("aria-label", tNow("tests.screenshotOf", { name: img.alt }))
     img.replaceWith(btn)
     img.dataset.shot = String(i)
     img.alt = ""
@@ -77,7 +81,7 @@ function enhance(root: HTMLElement) {
     btn.dataset.lines = String(lines)
     btn.setAttribute("aria-controls", pre.id)
     btn.setAttribute("aria-expanded", "false")
-    btn.textContent = `Show full log (${lines} lines)`
+    btn.textContent = tNow("tests.showFullLog", { n: lines })
     pre.after(btn)
   })
 }
@@ -104,6 +108,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
 }) {
   const { rootParam } = useApp()
   const f = useFormat()
+  const { t } = useT()
   // gone = the ?run= isn't kept (pruned or malformed); runs then lists the kept ones so History stays
   const [data, setData] = useState<{ key: string; evidence: Evidence | null; error: string | null; gone?: boolean; runs?: Run[] } | null>(null)
   const [zoom, setZoom] = useState<{ src: string; alt: string } | null>(null)
@@ -116,7 +121,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
     fetch(`/api/tasks/${encodeURIComponent(taskId)}/evidence${rootParam}${run ? `&run=${encodeURIComponent(run)}` : ""}`)
       .then(async (r) => {
         const json = await r.json().catch(() => null)
-        if (live) setData({ key, evidence: r.ok ? json : null, error: r.ok ? null : json?.error ?? `Request failed (${r.status})`, gone: json?.gone, runs: json?.runs })
+        if (live) setData({ key, evidence: r.ok ? json : null, error: r.ok ? null : json?.error ?? tNow("board.requestFailed", { status: r.status }), gone: json?.gone, runs: json?.runs })
       })
       .catch((e) => { if (live) setData({ key, evidence: null, error: (e as Error).message }) })
     return () => { live = false }
@@ -131,7 +136,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
   const shown = evidence?.runs.find((r) => r.runId === evidence.runId)
   // The newest run plays in Review's player; an older one only has its raw file
   const head = (evidence ? (cut < 0 ? evidence.markdown : evidence.markdown.slice(0, cut)) : "")
-    .replace("[▶ Video of this run](", newer ? "[Open video (.webm) ↗](" : "[▶ Play this run in Review](")
+    .replace("[▶ Video of this run](", `[${newer ? t("tests.openVideo") : t("tests.playInReview")}](`)
     // The doc keeps UTC (EVIDENCE.md / MCP); here the run line matches History's local time
     .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/, (t) => (shown ? stamp(f, shown.startedAt) : t))
   // The doc's own `## History` table (always last) is for EVIDENCE.md / MCP; here the History nav above replaces it
@@ -159,8 +164,8 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
           head={
             <p className="text-xs text-muted">
               {shown
-                ? <>Reviewing the {older ? "older" : "newest"} run · <span className={shown.status === "passed" ? "text-teal" : "text-danger"}>{shown.status}</span> · <span className="font-mono" title={shown.startedAt}>{f.timeAgo(shown.startedAt)}</span>{shown.commit && <> · <code className="font-mono">{shown.commit.slice(0, 7)}</code></>}</>
-                : loading ? "Loading the evidence…" : "No recorded run: decide from the checklist."}
+                ? <>{older ? t("tests.reviewingOlder") : t("tests.reviewingNewest")} · <span className={shown.status === "passed" ? "text-teal" : "text-danger"}>{shown.status === "passed" ? t("board.runPassed") : t("board.runFailed")}</span> · <span className="font-mono" title={shown.startedAt}>{f.timeAgo(shown.startedAt)}</span>{shown.commit && <> · <code className="font-mono">{shown.commit.slice(0, 7)}</code></>}</>
+                : loading ? t("tests.loadingEvidence") : t("tests.noRecordedRun")}
             </p>
           }
           older={older}
@@ -184,7 +189,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
             const open = log.getAttribute("aria-expanded") !== "true"
             pre?.toggleAttribute("data-clamped", !open)
             log.setAttribute("aria-expanded", String(open))
-            log.textContent = open ? "Show less" : `Show full log (${log.dataset.lines} lines)`
+            log.textContent = open ? t("tests.showLess") : t("tests.showFullLog", { n: log.dataset.lines ?? "" })
             return
           }
           const a = el.closest("a")
@@ -209,7 +214,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
       >
         {/* Announces a run pick (History, [ ], Show newest): the region stays, its text changes */}
         <p className="sr-only" aria-live="polite" aria-atomic>
-          {!loading && shown ? `Showing ${shown === newest ? "the newest run" : "run"} from ${stamp(f, shown.startedAt)}, ${shown.status}` : ""}
+          {!loading && shown ? t(shown === newest ? "tests.showingNewest" : "tests.showingRun", { when: stamp(f, shown.startedAt), status: shown.status === "passed" ? t("board.runPassed") : t("board.runFailed") }) : ""}
         </p>
 
         {evidence && <MarkdownRenderer content={head} className="prose-evidence" />}
@@ -218,14 +223,14 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
           <div role="alert" className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
             {data?.gone ? (
               <>
-                <span className="text-txt">That run isn&apos;t kept any more.</span>
-                <button type="button" onClick={() => onRun(null)} className="rounded-sm text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Show newest run →</button>
+                <span className="text-txt">{t("tests.runGone")}</span>
+                <button type="button" onClick={() => onRun(null)} className="rounded-sm text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">{t("tests.showNewestRun")}</button>
               </>
             ) : (
               <>
-                <span className="text-danger">Couldn&apos;t load the evidence.</span>
+                <span className="text-danger">{t("tests.loadEvidenceFailed")}</span>
                 <span className="text-xs text-muted">{error}</span>
-                <button type="button" onClick={() => setAttempt((n) => n + 1)} className="rounded-sm text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Retry</button>
+                <button type="button" onClick={() => setAttempt((n) => n + 1)} className="rounded-sm text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">{t("roadmap.retry")}</button>
               </>
             )}
           </div>
@@ -233,17 +238,17 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
 
         {newer && (
           <p className="-mt-2 flex flex-wrap items-baseline gap-x-1.5 text-xs text-muted">
-            <span className="text-txt">Older run</span>
+            <span className="text-txt">{t("tests.olderRun")}</span>
             <span aria-hidden>·</span>
-            <span>newest <span className={newer.status === "passed" ? "text-teal" : "text-danger"}>{newer.status}</span> <span className="font-mono text-[11px] tabular-nums" title={newer.startedAt}>{f.timeAgo(newer.startedAt)}</span></span>
-            <button type="button" onClick={() => onRun(null)} className="rounded-sm text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">Show newest →</button>
+            <span>{t("tests.newest")} <span className={newer.status === "passed" ? "text-teal" : "text-danger"}>{newer.status === "passed" ? t("board.runPassed") : t("board.runFailed")}</span> <span className="font-mono text-[11px] tabular-nums" title={newer.startedAt}>{f.timeAgo(newer.startedAt)}</span></span>
+            <button type="button" onClick={() => onRun(null)} className="rounded-sm text-accent-edge hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">{t("tests.showNewest")}</button>
           </p>
         )}
 
         {runs.length > 0 && (
           <nav aria-labelledby="evidence-history" className="flex flex-col gap-1">
             {/* h2: the doc's H1 is hidden and its sections are h2, so History sits at the same level */}
-            <h2 id="evidence-history" className="text-[13px] font-medium text-txt">History <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{runs.length}</span></h2>
+            <h2 id="evidence-history" className="text-[13px] font-medium text-txt">{t("memory.history")} <span className="font-mono text-[11px] font-normal text-muted tabular-nums">{runs.length}</span></h2>
             <ol className="-mx-2 flex flex-col">
               {runs.map((r, i) => {
                 const current = r.runId === evidence?.runId
@@ -259,12 +264,12 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
                       )}
                     >
                       <span className={cn("size-2 shrink-0 rounded-full", r.status === "passed" ? "bg-teal" : "bg-danger")} aria-hidden />
-                      <span className={cn("w-12 shrink-0", r.status === "passed" ? "text-teal" : "text-danger")}>{r.status}</span>
+                      <span className={cn("w-12 shrink-0", r.status === "passed" ? "text-teal" : "text-danger")}>{r.status === "passed" ? t("board.runPassed") : t("board.runFailed")}</span>
                       <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-muted tabular-nums" title={r.startedAt}>{f.timeAgo(r.startedAt)}</span>
                       <span className="shrink-0 whitespace-nowrap font-mono text-[11px] text-muted tabular-nums max-sm:hidden">{stamp(f, r.startedAt)}</span>
                       {r.commit && <code className="font-mono text-[11px] text-muted">{r.commit.slice(0, 7)}</code>}
-                      {i === 0 && <span className="shrink-0 whitespace-nowrap text-muted">· newest</span>}
-                      {current && <span className="ml-auto text-[11px] text-txt">shown</span>}
+                      {i === 0 && <span className="shrink-0 whitespace-nowrap text-muted">{t("tests.newestTag")}</span>}
+                      {current && <span className="ml-auto text-[11px] text-txt">{t("tests.shown")}</span>}
                     </button>
                   </li>
                 )
@@ -274,7 +279,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
         )}
 
         {loading && !evidence ? (
-          <div role="status" aria-busy aria-label="Loading evidence" className="flex flex-col gap-2">
+          <div role="status" aria-busy aria-label={t("tests.loadingEvidenceAria")} className="flex flex-col gap-2">
             <div className="h-5 w-2/3 animate-pulse rounded-sm bg-surface2" />
             <div className="h-4 w-1/2 animate-pulse rounded-sm bg-surface2" />
             <div className="aspect-video w-full animate-pulse rounded-md bg-surface2" />
@@ -285,7 +290,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
       <Dialog open={zoom !== null} onOpenChange={(o) => { if (!o) setZoom(null) }}>
         <DialogContent className="max-h-[90vh] max-w-[min(64rem,calc(100vw-2rem))] overflow-y-auto">
           <DialogTitle className="pr-6 text-sm">{zoom?.alt}</DialogTitle>
-          <DialogDescription className="sr-only">Screenshot</DialogDescription>
+          <DialogDescription className="sr-only">{t("tests.screenshot")}</DialogDescription>
           {/* eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API, not a static asset */}
           {zoom && <img src={zoom.src} alt={zoom.alt} className="w-full rounded-sm border border-border" />}
         </DialogContent>
@@ -311,6 +316,8 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
   children?: ReactNode
 }) {
   const { rootParam } = useApp()
+  const { t, tn } = useT()
+  const { reason } = useReviewText()
   const [doubts, setDoubts] = useState<Record<number, string>>({})
   const media = (file: string) => `/api/tasks/${encodeURIComponent(taskId)}/runs/${runId}/${encodeURIComponent(file)}${rootParam}`
   const failed = rows.filter((r) => r.result === "failed")
@@ -322,7 +329,7 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
     ...unverified.map((r) => ({ item: r.item, step: r.text, kind: "unverified" as const, comment: r.unverified.join(", "), ...(r.screenshot ? { screenshot: r.screenshot } : {}) })),
     ...doubted.map((r) => ({ item: r.item, step: r.text, kind: "doubt" as const, ...(doubts[r.item].trim() ? { comment: doubts[r.item] } : {}), ...(r.screenshot ? { screenshot: r.screenshot } : {}) })),
   ].sort((a, b) => a.item - b.item)
-  const count = [doubted.length && `${doubted.length} flagged`, failed.length && `${failed.length} failed`, unverified.length && `${unverified.length} unverified`].filter(Boolean).join(" · ")
+  const count = [doubted.length && t("tests.flaggedCount", { n: doubted.length }), failed.length && t("board.failedCount", { n: failed.length }), unverified.length && t("tests.unverifiedCount", { n: unverified.length })].filter(Boolean).join(" · ")
 
   return (
     <div className="-mx-5 -mt-5 flex flex-col border-b border-border sm:-mx-7">
@@ -332,18 +339,18 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
         runId={runId}
         marks={marks}
         initialNote={failed.length ? "" : initialNote}
-        confirmApprove={doubted.length ? `Approve with ${doubted.length} ${doubted.length === 1 ? "doubt" : "doubts"}?` : null}
+        confirmApprove={doubted.length ? tn("tests.approveWithDoubts", doubted.length) : null}
         className="rounded-none border-b-0 px-5 py-3 sm:px-7"
         marksList={marks.length > 0 && (
-          <ul aria-label="Flagged steps" className="flex flex-col gap-1.5 rounded-md border border-border bg-bg p-2">
+          <ul aria-label={t("tests.flaggedSteps")} className="flex flex-col gap-1.5 rounded-md border border-border bg-bg p-2">
             {marks.map((m) => (
               <li key={m.item} className="flex items-start gap-2 text-xs">
-                {m.kind === "failed" ? <X className="mt-0.5 size-3.5 shrink-0 text-danger" aria-label="failed" />
-                  : m.kind === "unverified" ? <HelpCircle className="mt-0.5 size-3.5 shrink-0 text-amber" aria-label="unverified" />
-                  : <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber" aria-label="doubt" />}
+                {m.kind === "failed" ? <X className="mt-0.5 size-3.5 shrink-0 text-danger" aria-label={t("board.runFailed")} />
+                  : m.kind === "unverified" ? <HelpCircle className="mt-0.5 size-3.5 shrink-0 text-amber" aria-label={t("tests.unverified")} />
+                  : <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber" aria-label={t("tests.doubtWord")} />}
                 {/* eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API */}
                 {m.screenshot && <img src={media(m.screenshot)} alt="" className="h-9 w-14 shrink-0 rounded-sm border border-border object-cover object-top" />}
-                <span className="min-w-0"><span className="font-mono text-muted">Step {m.item + 1}</span> <span className="text-txt">{m.step}</span>{m.comment && <span className="block text-muted">{m.comment}</span>}</span>
+                <span className="min-w-0"><span className="font-mono text-muted">{t("board.stepN", { n: m.item + 1 })}</span> <span data-user-content className="text-txt">{m.step}</span>{m.comment && <span className="block text-muted">{m.comment}</span>}</span>
               </li>
             ))}
           </ul>
@@ -351,11 +358,11 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
         prompt={
           <div className="flex min-w-0 flex-col gap-0.5">
             <p className="flex flex-wrap items-baseline gap-x-2 text-[13px] font-medium text-txt">
-              Waiting for your review
+              {t("tests.waitingYourReview")}
               {count && <span className="text-xs font-normal text-amber">{count}</span>}
             </p>
             {head}
-            {older && <p role="note" className="text-xs text-amber">You&apos;re looking at an older run. The newest one is first in History.</p>}
+            {older && <p role="note" className="text-xs text-amber">{t("tests.olderRunNote")}</p>}
           </div>
         }
       >
@@ -363,25 +370,25 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
       </ReviewActions>
 
       {runId && rows.length > 0 && (
-        <ol aria-label="Steps to review" className="flex flex-col px-5 pb-3 sm:px-7">
+        <ol aria-label={t("tests.stepsToReview")} className="flex flex-col px-5 pb-3 sm:px-7">
           {rows.map((r) => {
             const doubt = r.item in doubts
             const weak = r.result === "passed" && r.unverified.length > 0
             return (
               <li key={r.item} className={cn("flex flex-col gap-1.5 border-l-2 py-1.5 pl-2.5", r.result === "failed" ? "border-danger" : doubt ? "border-amber" : weak ? "border-dashed border-amber/60" : "border-transparent")}>
                 <div className="flex items-start gap-2">
-                  {r.result === "failed" ? <X className="mt-0.5 size-4 shrink-0 text-danger" strokeWidth={2.5} aria-label="failed" />
-                    : doubt ? <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber" aria-label="doubted" />
-                    : weak ? <HelpCircle className="mt-0.5 size-4 shrink-0 text-amber" aria-label="unverified" />
-                    : r.result === "passed" ? <Check className="mt-0.5 size-4 shrink-0 text-teal" strokeWidth={2.5} aria-label="passed" />
-                    : <span className="mt-0.5 size-4 shrink-0 text-center text-xs text-muted" aria-label="no step in this run">–</span>}
+                  {r.result === "failed" ? <X className="mt-0.5 size-4 shrink-0 text-danger" strokeWidth={2.5} aria-label={t("board.runFailed")} />
+                    : doubt ? <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber" aria-label={t("tests.doubted")} />
+                    : weak ? <HelpCircle className="mt-0.5 size-4 shrink-0 text-amber" aria-label={t("tests.unverified")} />
+                    : r.result === "passed" ? <Check className="mt-0.5 size-4 shrink-0 text-teal" strokeWidth={2.5} aria-label={t("board.runPassed")} />
+                    : <span className="mt-0.5 size-4 shrink-0 text-center text-xs text-muted" aria-label={t("tests.noStepInRun")}>–</span>}
                   {r.screenshot && (
-                    <button type="button" onClick={() => onZoom({ src: media(r.screenshot!), alt: r.text })} className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-accent" aria-label={`Screenshot of step ${r.item + 1}`}>
+                    <button type="button" onClick={() => onZoom({ src: media(r.screenshot!), alt: r.text })} className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-accent" aria-label={t("tests.screenshotOfStep", { n: r.item + 1 })}>
                       {/* eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API */}
                       <img src={media(r.screenshot)} alt="" loading="lazy" className="h-10 w-16 rounded-sm border border-border object-cover object-top" />
                     </button>
                   )}
-                  <span className="min-w-0 flex-1 text-sm leading-snug text-txt">{r.text}</span>
+                  <span data-user-content className="min-w-0 flex-1 text-sm leading-snug text-txt">{r.text}</span>
                   {r.flaky && <FlakyChip attempts={r.flaky.attempts} />}
                   {weak && <UnverifiedChip reasons={r.unverified} />}
                   {r.result === "passed" && !weak && (
@@ -389,13 +396,13 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
                       type="button"
                       aria-pressed={doubt}
                       onClick={() => setDoubts(({ [r.item]: _, ...rest }) => (doubt ? rest : { ...rest, [r.item]: "" }))}
-                      title="Not convinced this step proves the item"
+                      title={t("tests.doubtTitle")}
                       className={cn(
                         "shrink-0 rounded-sm border px-1.5 py-0.5 text-[11px] transition-colors focus-visible:outline-2 focus-visible:outline-accent",
                         doubt ? "border-amber/50 bg-amber/15 text-amber" : "border-border text-muted hover:border-amber/50 hover:text-amber",
                       )}
                     >
-                      Doubt
+                      {t("tests.doubt")}
                     </button>
                   )}
                 </div>
@@ -404,19 +411,19 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
                     autoFocus
                     value={doubts[r.item]}
                     onChange={(e) => setDoubts((d) => ({ ...d, [r.item]: e.target.value }))}
-                    placeholder="What looks wrong? (optional)"
-                    aria-label={`Doubt comment for step ${r.item + 1}`}
+                    placeholder={t("tests.doubtPlaceholder")}
+                    aria-label={t("tests.doubtComment", { n: r.item + 1 })}
                     className="ml-6 rounded-md border border-border bg-bg px-2 py-1 text-xs text-txt placeholder:text-muted focus:border-amber/60 focus:outline-hidden"
                   />
                 )}
                 {r.result === "failed" && r.error && <span className="ml-6 font-mono text-xs whitespace-pre-wrap text-danger">{r.error}</span>}
                 {r.flaky && (
                   <details className="ml-6 text-xs">
-                    <summary className="cursor-pointer text-amber">First attempt failed (passed on attempt {r.flaky.attempts})</summary>
+                    <summary className="cursor-pointer text-amber">{t("tests.firstAttemptFailed", { n: r.flaky.attempts })}</summary>
                     <div className="mt-1.5 flex flex-col gap-1.5">
                       {r.flaky.error && <span className="font-mono whitespace-pre-wrap text-danger">{r.flaky.error.split("\n").filter(Boolean).slice(0, 4).join("\n")}</span>}
                       {r.flaky.screenshot && (
-                        <button type="button" onClick={() => onZoom({ src: media(r.flaky!.screenshot!), alt: `${r.text} (first attempt)` })} className="w-fit rounded-sm focus-visible:outline-2 focus-visible:outline-accent" aria-label={`First attempt screenshot of step ${r.item + 1}`}>
+                        <button type="button" onClick={() => onZoom({ src: media(r.flaky!.screenshot!), alt: t("tests.firstAttemptAlt", { name: r.text }) })} className="w-fit rounded-sm focus-visible:outline-2 focus-visible:outline-accent" aria-label={t("tests.firstAttemptShot", { n: r.item + 1 })}>
                           {/* eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API */}
                           <img src={media(r.flaky.screenshot)} alt="" loading="lazy" className="h-16 w-28 rounded-sm border border-border object-cover object-top" />
                         </button>
@@ -424,7 +431,7 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
                     </div>
                   </details>
                 )}
-                {weak && <span className="ml-6 text-xs text-amber">Unverified: {r.unverified.join(", ")}. It passed but proves nothing about the app; check it by hand.</span>}
+                {weak && <span className="ml-6 text-xs text-amber">{t("tests.unverifiedNote", { reasons: r.unverified.map(reason).join(", ") })}</span>}
               </li>
             )
           })}

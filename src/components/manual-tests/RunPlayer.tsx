@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } fr
 import { Check, Film, ImageOff, Pause, Play, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
-import { useFormat } from "@/context/LanguageContext"
+import { useFormat, useT } from "@/context/LanguageContext"
 import { runClock, stepAt, stepSpans } from "@/lib/test-review"
 import type { RunManifest, RunStep } from "@/lib/runs-paths"
 
@@ -18,6 +18,7 @@ import type { RunManifest, RunStep } from "@/lib/runs-paths"
 export function RunPlayer({ taskId, latest }: { taskId: string; latest: string | null }) {
   const { rootParam } = useApp()
   const f = useFormat()
+  const { t } = useT()
   const [runs, setRuns] = useState<RunManifest[] | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
   // null = the video; a step = its screenshot on the stage
@@ -148,16 +149,16 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
     seek(((e.clientX - r.left) / r.width) * totalMs)
   }
 
-  if (runs === null) return <div className="aspect-video w-full animate-pulse rounded-md bg-surface2" aria-label="Loading runs" />
+  if (runs === null) return <div className="aspect-video w-full animate-pulse rounded-md bg-surface2" aria-label={t("tests.loadingRuns")} />
 
   if (!run) {
     return (
       <div className="flex flex-col items-start gap-2 rounded-md border border-dashed border-border2 px-5 py-6">
         <Film className="size-5 text-muted" aria-hidden />
-        <p className="text-sm text-txt">No recorded run yet</p>
+        <p className="text-sm text-txt">{t("tests.noRecordedRunYet")}</p>
         <p className="max-w-md text-xs leading-relaxed text-muted">
-          A spec that imports <code className="font-mono text-txt">vibedoc/playwright</code> and wraps each checklist item in{" "}
-          <code className="font-mono text-txt">step()</code> records a video and a screenshot per step here.
+          {t("tests.noRunHintLead")} <code className="font-mono text-txt">vibedoc/playwright</code> {t("tests.noRunHintMiddle")}{" "}
+          <code className="font-mono text-txt">step()</code> {t("tests.noRunHintEnd")}
         </p>
       </div>
     )
@@ -175,22 +176,22 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
           run.status === "passed" ? "bg-teal/15 text-teal" : "bg-danger/15 text-danger",
         )}>
           {run.status === "passed" ? <Check className="size-3.5" aria-hidden /> : <X className="size-3.5" aria-hidden />}
-          {run.status}
+          {run.status === "passed" ? t("board.runPassed") : t("board.runFailed")}
         </span>
         <span className="text-xs text-muted">
-          <span className="font-mono text-txt tabular-nums">{passed}/{run.steps.length}</span> steps ·{" "}
+          <span className="font-mono text-txt tabular-nums">{passed}/{run.steps.length}</span> {t("tests.stepsWord")} ·{" "}
           <span className="font-mono" title={run.endedAt}>{f.timeAgo(run.endedAt || run.startedAt)}</span>
           {run.commit && <> · <span className="font-mono" title={run.commit}>{run.commit.slice(0, 7)}</span></>}
         </span>
         {runs.length > 1 && (
           <select
-            aria-label="Run"
+            aria-label={t("board.pickRun")}
             value={run.runId}
             onChange={(e) => pickRun(e.target.value)}
             className="ml-auto max-w-full rounded-md border border-border bg-bg px-2 py-1 font-mono text-xs text-txt hover:border-border2 focus-visible:outline-2 focus-visible:outline-accent"
           >
             {runs.map((r, i) => (
-              <option key={r.runId} value={r.runId} title={r.startedAt}>{i === 0 ? "Latest · " : ""}{f.timeAgo(r.startedAt)} · {f.clock(r.startedAt)} · {r.status}</option>
+              <option key={r.runId} value={r.runId} title={r.startedAt}>{i === 0 ? t("tests.latestPrefix") : ""}{f.timeAgo(r.startedAt)} · {f.clock(r.startedAt)} · {r.status === "passed" ? t("board.runPassed") : t("board.runFailed")}</option>
             ))}
           </select>
         )}
@@ -207,7 +208,7 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
               preload="auto"
               playsInline
               src={media(run.video)}
-              aria-label={`Recording of the ${run.status} run, ${run.steps.length} steps`}
+              aria-label={t("tests.recordingOf", { status: run.status === "passed" ? t("board.runPassed") : t("board.runFailed"), n: run.steps.length })}
               onClick={toggle}
               onLoadedMetadata={(e) => {
                 const v = e.currentTarget
@@ -230,11 +231,11 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
             <div className={cn("flex aspect-video max-h-[38svh] w-full [@media(max-height:760px)]:max-h-[26svh] items-center justify-center bg-surface2", run.video && "absolute inset-0 max-h-none")}>
               {still?.screenshot ? (
                 // eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API, not a static asset
-                <img src={media(still.screenshot)} alt={`Step ${still.index}: ${still.name}`} className="size-full object-contain object-top" />
+                <img src={media(still.screenshot)} alt={t("tests.stepAlt", { n: still.index, name: still.name })} className="size-full object-contain object-top" />
               ) : (
                 <span className="flex flex-col items-center gap-2 text-xs text-muted">
                   <ImageOff className="size-5" aria-hidden />
-                  {still ? "No screenshot was saved for this step" : "This run has no video"}
+                  {still ? t("tests.noShotStep") : t("tests.noVideo")}
                 </span>
               )}
             </div>
@@ -245,7 +246,7 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
               onClick={() => setStill(null)}
               className="absolute top-2 right-2 inline-flex items-center gap-1.5 rounded-md bg-bg/85 px-2 py-1 text-xs text-txt backdrop-blur-sm hover:bg-bg focus-visible:outline-2 focus-visible:outline-accent"
             >
-              <Film className="size-3.5" aria-hidden /> Back to video
+              <Film className="size-3.5" aria-hidden /> {t("tests.backToVideo")}
             </button>
           )}
         </div>
@@ -255,7 +256,7 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
             <button
               type="button"
               onClick={toggle}
-              aria-label={paused ? "Play" : "Pause"}
+              aria-label={paused ? t("tests.play") : t("tests.pause")}
               className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-txt transition-colors duration-(--duration-fast) hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent"
             >
               {paused ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />}
@@ -264,11 +265,11 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
             <div
               role="slider"
               tabIndex={0}
-              aria-label="Run timeline"
+              aria-label={t("tests.runTimeline")}
               aria-valuemin={0}
               aria-valuemax={Math.round(totalMs)}
               aria-valuenow={Math.round(now)}
-              aria-valuetext={`${time(now)} of ${time(totalMs)}${currentStep ? `, step ${currentStep.index} of ${run.steps.length}: ${currentStep.name}` : ""}`}
+              aria-valuetext={`${t("tests.timeOf", { now: time(now), total: time(totalMs) })}${currentStep ? t("tests.atStep", { n: currentStep.index, total: run.steps.length, name: currentStep.name }) : ""}`}
               onKeyDown={onTrackKey}
               onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); scrub(e) }}
               onPointerMove={(e) => { if (e.currentTarget.hasPointerCapture(e.pointerId)) scrub(e) }}
@@ -317,31 +318,31 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
       )}
 
       {run.steps.length > 0 && (
-        <ol className="flex flex-col" aria-label="Steps">
+        <ol className="flex flex-col" aria-label={t("tests.steps")}>
           {run.steps.map((s, i) => {
             const active = current === s.index
-            const label = `step ${s.index}: ${s.name}`
+            const status = s.status === "passed" ? t("board.runPassed") : t("board.runFailed")
             return (
               <li key={s.index} className={cn("-mx-2 flex items-center gap-1 rounded-md pr-2 transition-colors duration-(--duration-fast) hover:bg-surface2", active && "bg-surface2")}>
                 <button
                   type="button"
                   onClick={() => goTo(s)}
                   aria-current={active || undefined}
-                  aria-label={`${timed ? "Seek to" : "Show"} ${label}, ${s.status}`}
+                  aria-label={t(timed ? "tests.seekTo" : "tests.showStep", { n: s.index, name: s.name, status })}
                   className="grid min-w-0 flex-1 grid-cols-[1rem_1.5rem_1fr_auto] items-center gap-x-2.5 rounded-md px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   {s.status === "passed"
                     ? <Check className="size-4 text-teal" aria-hidden />
                     : <X className="size-4 text-danger" aria-hidden />}
                   <span className="font-mono text-[11px] text-muted tabular-nums">{String(s.index).padStart(2, "0")}</span>
-                  <span className={cn("min-w-0 truncate text-[13px]", active ? "text-txt" : "text-txt/90")} title={s.name}>{s.name}</span>
+                  <span data-user-content className={cn("min-w-0 truncate text-[13px]", active ? "text-txt" : "text-txt/90")} title={s.name}>{s.name}</span>
                   <span className="font-mono text-[11px] text-muted tabular-nums">{timed ? time(spans[i].start) : ""}</span>
                 </button>
                 {s.screenshot ? (
                   <button
                     type="button"
                     onClick={() => setStill(s)}
-                    aria-label={`Show the screenshot of ${label}`}
+                    aria-label={t("tests.showShot", { n: s.index, name: s.name })}
                     className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element -- streamed from the runs API, not a static asset */}

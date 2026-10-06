@@ -1,9 +1,12 @@
 # T221: Test review and evidence in Vietnamese
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R078 — i18n support
 **Size:** M (2–3 hrs)
 **Depends on:** T215
 **Covers:** S1
+**Owner:** ai:claude-code
+**Due:** 2026-10-09
+**Started:** 2026-10-06
 
 ## Goal
 With Tiếng Việt chosen, every piece of interface text in this area is Vietnamese: headings, buttons, menus, dialogs, empty states, toasts, tooltips, `aria-label`s and placeholders. English looks exactly as it does today.
@@ -45,4 +48,13 @@ PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN the app is in Vietnamese and the user opens /manual-tests (task list, run replay, Evidence view, Suite tab) → THEN every interface text is Vietnamese
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T221-test-review-vietnamese.spec.ts` · Auto: passed 2026-10-06_
+### Steps
+- [x] 🤖 With Vietnamese on, open /manual-tests → the page reads "Duyệt kiểm thử" with the tabs Cần bạn / Lỗi / Đạt / Chập chờn / Chưa chạy / Tất cả / Bộ kiểm thử
+- [x] 🤖 Open the All tab and pick a task in review → the detail shows "Mở việc", the view toggle duyệt / bằng chứng and "Đang chờ bạn duyệt"
+- [x] 🤖 Switch to bằng chứng → the evidence view lists "Lịch sử" with its runs marked đạt / lỗi
+- [x] 🤖 Open the Bộ kiểm thử tab → it reads "Bộ kiểm thử hồi quy" with the button "Chạy bộ kiểm thử"
+- [ ] In Vietnamese, Run a task's spec and watch the live strip, replay a run (play, step list, screenshots), Doubt a step and open Trả lại… → every label reads naturally. Note: the evidence report body itself (Passed · N/M checks proven, steps, links) stays English by design (EVIDENCE.md / MCP); decide if that's acceptable
+- [ ] Select two rows and use Tích hết / Duyệt / Trả lại… in the bulk bar → toasts and the note form read naturally
+### Regression risk
+- [ ] In English, ticking a check, Approve / Send back with flagged steps, the [ ] run keys and the regression suite work as before
