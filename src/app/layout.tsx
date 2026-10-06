@@ -3,7 +3,10 @@ import {
   Atkinson_Hyperlegible, DM_Mono, DM_Sans, Geist, Geist_Mono,
   IBM_Plex_Mono, IBM_Plex_Sans, Inter, JetBrains_Mono,
 } from 'next/font/google'
+import { cookies } from 'next/headers'
 import { DEFAULT_SETTINGS } from '@/lib/settings'
+import { LANG_COOKIE, parseLang } from '@/lib/i18n'
+import { LanguageProvider } from '@/context/LanguageContext'
 import './globals.css'
 
 // Every choice in Settings → Appearance → Font. Only the defaults are preloaded;
@@ -27,15 +30,17 @@ export const metadata: Metadata = {
   description: 'Project intelligence for AI-assisted development',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // The UI language is a per-browser cookie (R078): read here so <html lang> and the first paint match it
+  const lang = parseLang((await cookies()).get(LANG_COOKIE)?.value)
   return (
     <html
-      lang="en"
+      lang={lang}
       className={`dark ${fontVars}`}
       data-font-sans={DEFAULT_SETTINGS.fontSans}
       data-font-mono={DEFAULT_SETTINGS.fontMono}
     >
-      <body className="bg-bg text-txt min-h-screen">{children}</body>
+      <body className="bg-bg text-txt min-h-screen"><LanguageProvider initial={lang}>{children}</LanguageProvider></body>
     </html>
   )
 }

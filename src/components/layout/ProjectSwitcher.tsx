@@ -10,6 +10,7 @@ import {
 import type { Project } from "@/types"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useT } from "@/context/LanguageContext"
 
 /** Keep the meaningful tail of a path: /Users/me/work/vibedoc → …/work/vibedoc */
 function shortPath(root: string): string {
@@ -28,6 +29,7 @@ interface ProjectSwitcherProps {
 const FILTER_FROM = 6
 
 export function ProjectSwitcher({ projects, activeProject, currentName, onSelect }: ProjectSwitcherProps) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState("")
   const filterable = projects.length >= FILTER_FROM
@@ -38,7 +40,7 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
     <DropdownMenu open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFilter("") }}>
       <DropdownMenuTrigger asChild>
         <button className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-txt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg">
-          <span className="max-w-[160px] truncate">{currentName || "Select project"}</span>
+          <span className="max-w-[160px] truncate">{currentName || t("shell.selectProject")}</span>
           <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" />
         </button>
       </DropdownMenuTrigger>
@@ -65,13 +67,13 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
                 e.stopPropagation()
               }
             }}
-            placeholder="Filter projects…"
-            aria-label="Filter projects"
+            placeholder={t("shell.filterProjectsPlaceholder")}
+            aria-label={t("shell.filterProjects")}
             className="mb-1 h-8 w-full border-b border-border bg-transparent px-2 text-sm text-txt outline-none placeholder:text-muted"
           />
         )}
         {shown.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-muted">{projects.length ? `No project matches “${filter.trim()}”` : "No projects found"}</div>
+          <div className="px-3 py-2 text-sm text-muted">{projects.length ? t("shell.noProjectMatches", { query: filter.trim() }) : t("shell.noProjects")}</div>
         ) : (
           shown.map((p) => {
             const active = p.root === activeProject

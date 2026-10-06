@@ -3,6 +3,8 @@
 import { Moon, Sun, Monitor, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SANS_FONTS, MONO_FONTS, type AppSettings } from "@/lib/settings"
+import { useLang, useT } from "@/context/LanguageContext"
+import type { Lang } from "@/lib/i18n"
 
 interface ThemeSettingsProps {
   settings: AppSettings
@@ -22,7 +24,15 @@ const FONT_SIZES = [
   { id: "large", label: "Large" },
 ] as const
 
+// Each language names itself, so it can be found whatever language is on (not translated)
+const LANGUAGES: { id: Lang; label: string }[] = [
+  { id: "en", label: "English" },
+  { id: "vi", label: "Tiếng Việt" },
+]
+
 export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
+  const { lang, setLang } = useLang()
+  const { t } = useT()
   return (
     <div className="space-y-8">
       <div>
@@ -60,6 +70,34 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
             )
           })}
         </div>
+      </div>
+
+      {/* Language: a per-browser cookie (R078), not part of the project's settings.json */}
+      <div className="space-y-3">
+        <label id="language-label" className="block text-sm font-medium text-txt">{t("shell.language")}</label>
+        <div role="radiogroup" aria-labelledby="language-label" className="grid grid-cols-2 gap-3 sm:max-w-md">
+          {LANGUAGES.map((l) => {
+            const isActive = lang === l.id
+            return (
+              <button
+                key={l.id}
+                type="button"
+                role="radio"
+                aria-checked={isActive}
+                lang={l.id}
+                onClick={() => setLang(l.id)}
+                className={cn(
+                  "flex items-center justify-between gap-2 rounded-lg border px-4 py-3 text-sm transition-colors",
+                  isActive ? "border-accent bg-accent/10 font-medium text-accent" : "border-border text-muted hover:border-accent/50"
+                )}
+              >
+                {l.label}
+                {isActive && <Check className="size-4" aria-hidden />}
+              </button>
+            )
+          })}
+        </div>
+        <p className="text-xs text-muted">{t("shell.languageHint")}</p>
       </div>
 
       {/* Accent Color */}

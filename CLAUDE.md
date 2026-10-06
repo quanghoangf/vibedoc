@@ -81,6 +81,7 @@ VIBEDOC_ROOT=/path/to/project npm run dev
 - Never add a database — file system is the source of truth
 - Always call `emitUpdate()` after any mutation in an API route (triggers SSE to browser)
 - Always test that `npm run build` passes before marking a task done
+- No hardcoded UI text in components: add it to `src/i18n/<area>.ts` (`en` + typed `vi`) and read it with `useT()` (R078)
 
 ## Environment
 ```

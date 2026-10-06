@@ -1,0 +1,203 @@
+// UI text for the app shell: sidebar, header, project switcher, Help frame, the Settings language row (R078).
+//
+// How every src/i18n/<area>.ts works (copy this file):
+// - `en` is the source of truth (`as const`); `vi` is typed `Messages<typeof en>`, so a missing key fails the build.
+// - Keys are flat camelCase; components read them as `t("<area>.<key>")` from useT() (src/context/LanguageContext.tsx).
+// - Values: `{name}` placeholders, filled by t(key, { name }). Never build sentences by concatenating keys.
+// - Counts: a `_one` / `_other` pair, read with tn("<area>.<key>", n) (no suffix); `{n}` is the count.
+//   Vietnamese has no plural forms: give both, the same text.
+// - Not translated: user content, ids (T215, R078), file paths, keys, "VibeDoc", "MCP".
+// - No React, no `@/` imports here: src/lib/i18n.check.mts imports these files with plain node.
+import type { Messages } from "../lib/i18n"
+
+export const en = {
+  // Pages (sidebar, header title, later ⌘K)
+  board: "Board",
+  roadmap: "Roadmap",
+  manualTests: "Manual tests",
+  activity: "Activity",
+  docs: "Docs",
+  memory: "Memory",
+  explorer: "Explorer",
+  graph: "Graph",
+  settings: "Settings",
+  chats: "Chats",
+  gettingStarted: "Getting started",
+
+  // Sidebar
+  groupPlan: "Plan & supervise",
+  groupReference: "Reference",
+  version: "VibeDoc version",
+  badgeActive: "in progress or in review",
+  badgeNeedsYou: "tasks need you",
+  shortcuts: "Shortcuts",
+  shortcutsTip: "Keyboard shortcuts (?)",
+
+  // Sidebar chats
+  newChat: "New chat",
+  startChat: "Start a chat",
+  allChats: "All chats",
+  allChatsCount: "All chats · {n}",
+  railRunning: "{n} running",
+  railWaiting: "{n} waiting for you",
+  railError: "{n} with an error",
+  chatError: "error",
+  dismissError: "Dismiss error",
+  dismissErrorIn: "Dismiss error in {title}",
+
+  // Header
+  location: "Location",
+  aboutVibedoc: "About VibeDoc",
+  demoLong: "Live demo, read-only. Install:",
+  demoShort: "Read-only demo",
+  search: "Search",
+  searchPlaceholder: "Search…",
+  chatsButton: "Chats (c)",
+  reconnecting: "Reconnecting…",
+  connected: "Connected",
+  connecting: "Connecting",
+  agentsWorking_one: "{n} agent working",
+  agentsWorking_other: "{n} agents working",
+  agentWorkingSuffix_one: "agent working",
+  agentWorkingSuffix_other: "agents working",
+  chatsRunning_one: "{n} chat running",
+  chatsRunning_other: "{n} chats running",
+  running: "{n} running",
+  needYou: "{n} need you",
+  needYouSuffix: "need you",
+  chatErrors_one: "{n} chat error",
+  chatErrors_other: "{n} chat errors",
+  errorSuffix_one: "error",
+  errorSuffix_other: "errors",
+  chatsNeedYou_one: "{n} chat needs you",
+  chatsNeedYou_other: "{n} chats need you",
+  statusLabel: "{summary} — {action}",
+  openNextInQueue: "open next in queue",
+  openChats: "open Chats",
+
+  // Connect menu
+  connectTitle: "Connect an AI agent (MCP)",
+  connect: "Connect",
+  connectHeading: "Connect your AI agent",
+  connectBody: "Add this MCP endpoint to Claude Code, Cursor or Windsurf. The board updates live as the agent works.",
+  copyEndpoint: "Copy endpoint",
+  copyCommand: "Copy claude mcp add command",
+  lastAgentCall: "Last agent call: {when}",
+  justNow: "just now",
+  ago: "{time} ago",
+  noneYet: "none yet",
+  connectSettings: "Agent configs and connection test in",
+  connectSettingsLink: "Settings → MCP",
+
+  // Project switcher
+  selectProject: "Select project",
+  filterProjects: "Filter projects",
+  filterProjectsPlaceholder: "Filter projects…",
+  noProjectMatches: "No project matches “{query}”",
+  noProjects: "No projects found",
+
+  // Help frame (its content is in src/lib/shortcuts.ts)
+  help: "Help",
+  helpButton: "Help and shortcuts (?)",
+  keys: "Keys",
+  tips: "Tips",
+  everywhere: "Everywhere",
+  allShortcuts: "All shortcuts",
+  allShortcutsLink: "All shortcuts →",
+
+  // Settings → Appearance → Language
+  language: "Language",
+  languageHint: "Saved in this browser only, so everyone on the project can pick their own.",
+} as const
+
+export const vi: Messages<typeof en> = {
+  board: "Bảng",
+  roadmap: "Lộ trình",
+  manualTests: "Kiểm thử thủ công",
+  activity: "Hoạt động",
+  docs: "Tài liệu",
+  memory: "Bộ nhớ",
+  explorer: "Tệp",
+  graph: "Đồ thị",
+  settings: "Cài đặt",
+  chats: "Trò chuyện",
+  gettingStarted: "Bắt đầu",
+
+  groupPlan: "Lập kế hoạch & giám sát",
+  groupReference: "Tham khảo",
+  version: "Phiên bản VibeDoc",
+  badgeActive: "đang làm hoặc đang duyệt",
+  badgeNeedsYou: "việc cần bạn",
+  shortcuts: "Phím tắt",
+  shortcutsTip: "Phím tắt (?)",
+
+  newChat: "Cuộc trò chuyện mới",
+  startChat: "Bắt đầu trò chuyện",
+  allChats: "Tất cả trò chuyện",
+  allChatsCount: "Tất cả trò chuyện · {n}",
+  railRunning: "{n} đang chạy",
+  railWaiting: "{n} đang chờ bạn",
+  railError: "{n} bị lỗi",
+  chatError: "lỗi",
+  dismissError: "Bỏ qua lỗi",
+  dismissErrorIn: "Bỏ qua lỗi trong {title}",
+
+  location: "Vị trí",
+  aboutVibedoc: "Giới thiệu VibeDoc",
+  demoLong: "Bản demo, chỉ xem. Cài đặt:",
+  demoShort: "Demo chỉ xem",
+  search: "Tìm kiếm",
+  searchPlaceholder: "Tìm kiếm…",
+  chatsButton: "Trò chuyện (c)",
+  reconnecting: "Đang kết nối lại…",
+  connected: "Đã kết nối",
+  connecting: "Đang kết nối",
+  agentsWorking_one: "{n} agent đang làm việc",
+  agentsWorking_other: "{n} agent đang làm việc",
+  agentWorkingSuffix_one: "agent đang làm việc",
+  agentWorkingSuffix_other: "agent đang làm việc",
+  chatsRunning_one: "{n} trò chuyện đang chạy",
+  chatsRunning_other: "{n} trò chuyện đang chạy",
+  running: "{n} đang chạy",
+  needYou: "{n} cần bạn",
+  needYouSuffix: "cần bạn",
+  chatErrors_one: "{n} trò chuyện lỗi",
+  chatErrors_other: "{n} trò chuyện lỗi",
+  errorSuffix_one: "lỗi",
+  errorSuffix_other: "lỗi",
+  chatsNeedYou_one: "{n} trò chuyện cần bạn",
+  chatsNeedYou_other: "{n} trò chuyện cần bạn",
+  statusLabel: "{summary} — {action}",
+  openNextInQueue: "mở mục tiếp theo",
+  openChats: "mở Trò chuyện",
+
+  connectTitle: "Kết nối AI agent (MCP)",
+  connect: "Kết nối",
+  connectHeading: "Kết nối AI agent của bạn",
+  connectBody: "Thêm MCP endpoint này vào Claude Code, Cursor hoặc Windsurf. Bảng cập nhật trực tiếp khi agent làm việc.",
+  copyEndpoint: "Sao chép endpoint",
+  copyCommand: "Sao chép lệnh claude mcp add",
+  lastAgentCall: "Lần gọi gần nhất: {when}",
+  justNow: "vừa xong",
+  ago: "{time} trước",
+  noneYet: "chưa có",
+  connectSettings: "Cấu hình agent và kiểm tra kết nối ở",
+  connectSettingsLink: "Cài đặt → MCP",
+
+  selectProject: "Chọn dự án",
+  filterProjects: "Lọc dự án",
+  filterProjectsPlaceholder: "Lọc dự án…",
+  noProjectMatches: "Không có dự án nào khớp “{query}”",
+  noProjects: "Không tìm thấy dự án",
+
+  help: "Trợ giúp",
+  helpButton: "Trợ giúp và phím tắt (?)",
+  keys: "Phím",
+  tips: "Mẹo",
+  everywhere: "Mọi nơi",
+  allShortcuts: "Tất cả phím tắt",
+  allShortcutsLink: "Tất cả phím tắt →",
+
+  language: "Ngôn ngữ",
+  languageHint: "Chỉ lưu trong trình duyệt này, nên mỗi người trong dự án có thể chọn ngôn ngữ riêng.",
+}

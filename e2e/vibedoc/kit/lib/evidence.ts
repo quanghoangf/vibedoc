@@ -20,7 +20,7 @@ export type StepVerdict = (step: RunStep, run: RunManifest) => string[]
 const norm = (s: string) => s.trim().replace(/\s+/g, ' ')
 
 /**
- * 🤖 items take the status of the run step with the same text (`/work-epic` copies the item text into `step()`),
+ * 🤖 items take the status of the run step with the same text (`/vibedoc:work` copies the item text into `step()`),
  * else `missing`; manual items are `manual`. Steps no item claimed come back as `extra`.
  */
 export function matchItems(items: ManualTestItem[], run: RunManifest | null, verdict?: StepVerdict): { rows: EvidenceRow[]; extra: RunStep[] } {
@@ -96,16 +96,63 @@ function stepBlock(step: RunStep, runId: string, src: (runId: string, file: stri
   return out
 }
 
+const RANK: Record<ItemResult, number> = { failed: 0, missing: 1, passed: 2, manual: 2 }
+const linkText = (s: string) => s.replace(/([[\]\\])/g, '\\$1')
+/** Heading slugs as marked (MarkdownRenderer) and GitHub write them */
+const EXTRA_ANCHOR = '#steps-not-in-the-checklist'
+
+/**
+ * `**❌ [Failed at step 2 · name](#steps)**`: the first failed step in run order (as the decision bar says it),
+ * linked to the heading of the group whose first row it is. `**✅ Passed**` otherwise.
+ */
+function headline(rows: EvidenceRow[], run: RunManifest): string {
+  if (run.status === 'passed') return `**${GLYPH.passed} Passed**`
+  const f = run.steps.find(s => s.status === 'failed')
+  if (!f) return `**${GLYPH.failed} Failed**`
+  const row = rows.find(r => r.step === f)
+  const anchor = row ? (row.item.group === 'regression' ? '#regression-risk' : '#steps') : rows.length ? EXTRA_ANCHOR : '#steps'
+  return `**${GLYPH.failed} [Failed at step ${f.index} · ${linkText(f.name)}](${anchor})**`
+}
+
+/**
+ * `1/5 checks proven · 1 failed · 1 unverified · 1 with no step · 2 manual unticked · [1 step not in the checklist](#…)`.
+ * Proven = 🤖 items whose step passed and isn't unverified (R063) + manual items ticked; zero counts drop out.
+ * null without a checklist.
+ */
+function coverageLine(rows: EvidenceRow[], extra: RunStep[], run: RunManifest | null): string | null {
+  if (!rows.length) return null
+  const n = (f: (r: EvidenceRow) => boolean) => rows.filter(f).length
+  const proven = n(r => (r.result === 'passed' && !r.unverified.length) || (r.result === 'manual' && r.item.checked))
+  const failed = n(r => r.result === 'failed')
+  const unverified = n(r => r.result === 'passed' && r.unverified.length > 0)
+  const missing = n(r => r.result === 'missing')
+  const unticked = n(r => r.result === 'manual' && !r.item.checked)
+  return [
+    `${proven}/${rows.length} checks proven`,
+    failed && `${failed} failed`,
+    unverified && `${unverified} unverified`,
+    missing && `${missing} ${run ? 'with no step' : 'not run yet'}`,
+    unticked && `${unticked} manual unticked`,
+    run && extra.length && `[${extra.length} ${extra.length === 1 ? 'step' : 'steps'} not in the checklist](${EXTRA_ANCHOR})`,
+  ].filter(Boolean).join(' · ')
+}
+
 export function formatEvidence({ taskId, title, items, spec, runs, runId, src = (r, f) => `${r}/${f}`, verdict }: EvidenceInput): string {
   const run = (runId ? runs.find(r => r.runId === runId) : runs[0]) ?? null
   const out = [`# ${taskId} — ${title}: evidence`, '']
 
+  const { rows, extra } = matchItems(items, run, verdict)
+  // Failed, then missing, rows lead their group (stable), so a verdict link to the group lands on the failure
+  rows.sort((a, b) => RANK[a.result] - RANK[b.result])
+  extra.sort((a, b) => RANK[a.status] - RANK[b.status])
+  const coverage = coverageLine(rows, extra, run)
+
   if (run) {
+    out.push([headline(rows, run), coverage].filter(Boolean).join(' · '), '')
     const passed = run.steps.filter(s => s.status === 'passed').length
     const unverified = verdict ? run.steps.filter(s => verdict(s, run).length).length : 0
     const bits = [
-      `**${GLYPH[run.status]} ${run.status}**`,
-      `${passed}/${run.steps.length} steps`,
+      `${passed}/${run.steps.length} steps passed`,
       unverified && `${unverified} unverified`,
       run.flaky ? `${run.flaky} flaky` : null,
       when(run.startedAt),
@@ -116,10 +163,10 @@ export function formatEvidence({ taskId, title, items, spec, runs, runId, src = 
     out.push(bits.join(' · '))
     if (run.video) out.push('', `[▶ Video of this run](${src(run.runId, run.video)})`)
   } else {
-    out.push(`_No run yet.${spec ? ` Run \`${spec}\` to record evidence.` : ''}_`)
+    if (coverage) out.push(coverage, '')
+    out.push(spec ? `_No run yet. Run \`${spec}\` to record evidence._` : '_No run yet._ No Playwright spec records this task: write one with `vibedoc/playwright`, one `step()` per 🤖 check (same text), or ask the agent to.')
   }
 
-  const { rows, extra } = matchItems(items, run, verdict)
   const groups: [string, EvidenceRow[]][] = [
     ['Steps', rows.filter(r => r.item.group === 'steps')],
     ['Regression risk', rows.filter(r => r.item.group === 'regression')],

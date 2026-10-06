@@ -1,5 +1,5 @@
 # T215: i18n core, language switch and the app shell in Vietnamese
-**Status:** 🔨 In-progress
+**Status:** 👀 Review
 **Phase:** R078 — i18n support
 **Size:** L (half a day)
 **Covers:** S2, S3
@@ -67,5 +67,13 @@ PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 ```
 
 ## Manual tests
-- [ ] S2 — WHEN the user switches back to English in Settings → THEN every translated text is English again without a page reload
-- [ ] S3 — WHEN the user picks Tiếng Việt and reloads the page → THEN the app opens in Vietnamese with no English flash
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T215-i18n-core-language-switch.spec.ts` · Auto: passed 2026-10-06_
+### Steps
+- [x] 🤖 Open /settings → Appearance shows a Language row with English selected and Tiếng Việt next to it
+- [x] 🤖 Click Tiếng Việt → the sidebar reads Bảng, Lộ trình, Tài liệu at once and the header search says Tìm kiếm…
+- [x] 🤖 Reload → the app is still in Vietnamese
+- [x] 🤖 Click English in Settings → the sidebar reads Board again without a reload
+- [ ] In Vietnamese, read the sidebar, the header (agent status, Connect menu, project switcher) and the sidebar Chats section → the wording reads naturally and nothing is cut off, also with the sidebar collapsed
+- [ ] Open the app in a private window while your normal window is in Vietnamese → the private window is English (the choice belongs to each browser)
+### Regression risk
+- [ ] In English, the sidebar links, their keyboard shortcuts and the header agent status counts work as before

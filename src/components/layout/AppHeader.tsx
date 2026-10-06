@@ -14,18 +14,20 @@ import { useOrigin } from "@/hooks/use-origin"
 import { cn } from "@/lib/utils"
 import { ago } from "@/lib/chats"
 import { groupSessions, isLive } from "@/lib/sessions"
+import { useT } from "@/context/LanguageContext"
+import type { MessageKey } from "@/i18n"
 
-const PAGE_TITLES: Record<string, string> = {
-  "/board": "Board",
-  "/roadmap": "Roadmap",
-  "/docs": "Docs",
-  "/activity": "Activity",
-  "/memory": "Memory",
-  "/manual-tests": "Manual tests",
-  "/explorer": "Explorer",
-  "/settings": "Settings",
-  "/chat": "Chats",
-  "/getting-started": "Getting started",
+const PAGE_TITLES: Record<string, MessageKey> = {
+  "/board": "shell.board",
+  "/roadmap": "shell.roadmap",
+  "/docs": "shell.docs",
+  "/activity": "shell.activity",
+  "/memory": "shell.memory",
+  "/manual-tests": "shell.manualTests",
+  "/explorer": "shell.explorer",
+  "/settings": "shell.settings",
+  "/chat": "shell.chats",
+  "/getting-started": "shell.gettingStarted",
 }
 
 /** The system focus ring (ui/button.tsx) for the hand-rolled header buttons. */
@@ -44,7 +46,9 @@ interface AppHeaderProps {
 /** Where you are (project / page) on the left; agent status, search and Chats on the right. */
 export function AppHeader({ summary, projects, activeProject, liveIndicator, onProjectChange, onToggleChat, onOpenSearch }: AppHeaderProps) {
   const pathname = usePathname()
-  const title = Object.entries(PAGE_TITLES).find(([p]) => pathname.startsWith(p))?.[1]
+  const { t } = useT()
+  const titleKey = Object.entries(PAGE_TITLES).find(([p]) => pathname.startsWith(p))?.[1]
+  const title = titleKey && t(titleKey)
   const { activity, demo } = useApp()
   // ChatContext's minute clock, so "N agents working" and "last agent call" age without new events
   const { now } = useChats()
@@ -55,7 +59,7 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
       <span className="mx-1 h-4 w-px bg-border" aria-hidden />
 
       {/* Below sm the project name truncates so the page name stays */}
-      <nav aria-label="Location" className="flex min-w-0 items-center gap-1.5 text-sm [&_button]:min-w-0 max-sm:[&_button>span]:max-w-20">
+      <nav aria-label={t("shell.location")} className="flex min-w-0 items-center gap-1.5 text-sm [&_button]:min-w-0 max-sm:[&_button>span]:max-w-20">
         <ProjectSwitcher projects={projects} activeProject={activeProject} currentName={summary?.name || ""} onSelect={onProjectChange} />
         {title && (
           <>
@@ -68,9 +72,9 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
       <div className="flex-1" />
 
       {demo && (
-        <Link href="/welcome" title="About VibeDoc" className={cn("flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg/60 px-2.5 py-1 text-xs text-muted hover:text-txt", focusRing)}>
-          <span className="hidden lg:inline">Live demo, read-only. Install:</span>
-          <span className="lg:hidden">Read-only demo</span>
+        <Link href="/welcome" title={t("shell.aboutVibedoc")} className={cn("flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg/60 px-2.5 py-1 text-xs text-muted hover:text-txt", focusRing)}>
+          <span className="hidden lg:inline">{t("shell.demoLong")}</span>
+          <span className="lg:hidden">{t("shell.demoShort")}</span>
           <code className="hidden font-mono text-txt lg:inline">npx vibedoc</code>
         </Link>
       )}
@@ -83,9 +87,9 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
         className={cn("flex h-8 items-center gap-2 rounded-md border border-border bg-bg/60 px-2 text-xs text-muted transition-colors hover:border-border2 hover:text-txt sm:w-48 sm:px-2.5", focusRing)}
       >
         <Search className="size-3.5" />
-        <span className="hidden flex-1 text-left sm:inline">Search…</span>
+        <span className="hidden flex-1 text-left sm:inline">{t("shell.searchPlaceholder")}</span>
         <kbd className="hidden rounded-sm border border-border px-1 font-mono text-[10px] sm:inline">⌘K</kbd>
-        <span className="sr-only sm:hidden">Search</span>
+        <span className="sr-only sm:hidden">{t("shell.search")}</span>
       </button>
 
       <ConnectMenu activity={activity} now={now} />
@@ -93,18 +97,16 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
       {!demo && <button
         type="button"
         onClick={onToggleChat}
-        title="Chats (c)"
-        aria-label="Chats (c)"
+        title={t("shell.chatsButton")}
+        aria-label={t("shell.chatsButton")}
         className={cn("flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted transition-colors hover:border-border2 hover:text-txt", focusRing)}
       >
         <MessagesSquare className="size-3.5" aria-hidden />
-        <span className="hidden sm:inline">Chats</span>
+        <span className="hidden sm:inline">{t("shell.chats")}</span>
       </button>}
     </header>
   )
 }
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
 
 /**
  * "● 2 agents working · 1 running · 1 need you · 1 error": terminal agents (MCP sessions in the activity log) lead,
@@ -114,45 +116,46 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
  */
 function AgentStatus({ liveIndicator, activity, now }: { liveIndicator: boolean; activity: ActivityEvent[]; now: number }) {
   const { connection } = useApp()
+  const { t, tn } = useT()
   const { runningCount: running, waitingCount: waiting, errorCount: errors, queue, show } = useChats()
   const router = useRouter()
   const agents = groupSessions(activity).filter((s) => s.actor === "ai" && isLive(s, now)).length
   const down = connection === "disconnected"
-  const state = down ? "Reconnecting…" : connection === "live" ? "Connected" : "Connecting"
+  const state = down ? t("shell.reconnecting") : connection === "live" ? t("shell.connected") : t("shell.connecting")
   const summary = [
     state,
-    agents && `${plural(agents, "agent")} working`,
-    running && `${running} ${running === 1 ? "chat" : "chats"} running`,
-    waiting && `${waiting} need you`,
-    errors && `${plural(errors, "chat error")}`,
+    agents && tn("shell.agentsWorking", agents),
+    running && tn("shell.chatsRunning", running),
+    waiting && t("shell.needYou", { n: waiting }),
+    errors && tn("shell.chatErrors", errors),
   ].filter(Boolean).join(" · ")
-  const label = `${summary} — ${queue[0] ? "open next in queue" : "open Chats"}`
-  const announce = [waiting && `${waiting} ${waiting === 1 ? "chat needs" : "chats need"} you`, errors && plural(errors, "chat error")]
+  const label = t("shell.statusLabel", { summary, action: queue[0] ? t("shell.openNextInQueue") : t("shell.openChats") })
+  const announce = [waiting && tn("shell.chatsNeedYou", waiting), errors && tn("shell.chatErrors", errors)]
     .filter(Boolean).join(", ")
   // A separator goes inside each count after the first (or after "Reconnecting…"), so a count hidden below sm takes its separator with it
   const counts: [string, ReactNode][] = [
     ["agents", agents > 0 && (
       <>
         <Bot aria-hidden className="size-3 text-txt motion-safe:animate-pulse-dot" />
-        <span className="text-txt">{agents}<span className="max-sm:sr-only"> {agents === 1 ? "agent" : "agents"} working</span></span>
+        <span className="text-txt">{agents}<span className="max-sm:sr-only"> {tn("shell.agentWorkingSuffix", agents)}</span></span>
       </>
     )],
     ["running", running > 0 && (
       <>
         <Loader2 aria-hidden className="size-3 animate-spin text-accent" />
-        {running} running
+        {t("shell.running", { n: running })}
       </>
     )],
     ["waiting", waiting > 0 && (
       <>
         <span aria-hidden className="size-1.5 rounded-full bg-amber animate-pulse-dot" />
-        <span className="text-txt">{waiting}<span className="max-sm:sr-only"> need you</span></span>
+        <span className="text-txt">{waiting}<span className="max-sm:sr-only"> {t("shell.needYouSuffix")}</span></span>
       </>
     )],
     ["errors", errors > 0 && (
       <>
         <span aria-hidden className="size-1.5 rounded-full bg-danger" />
-        <span className="text-txt">{errors}<span className="max-sm:sr-only"> {errors === 1 ? "error" : "errors"}</span></span>
+        <span className="text-txt">{errors}<span className="max-sm:sr-only"> {tn("shell.errorSuffix", errors)}</span></span>
       </>
     )],
   ].filter(([, node]) => node) as [string, ReactNode][]
@@ -190,6 +193,7 @@ function AgentStatus({ liveIndicator, activity, now }: { liveIndicator: boolean;
 
 /** The MCP endpoint an agent connects to, the `claude mcp add` line, and when an agent last called in. */
 function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number }) {
+  const { t } = useT()
   const endpoint = `${useOrigin()}/api/mcp`
   const command = `claude mcp add --transport http vibedoc ${endpoint}`
   const [copied, setCopied] = useState<string | null>(null)
@@ -225,22 +229,22 @@ function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          title="Connect an AI agent (MCP)"
+          title={t("shell.connectTitle")}
           className={cn("flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs text-muted transition-colors hover:border-border2 hover:text-txt md:px-2.5", focusRing)}
         >
-          <Plug aria-hidden className="size-3.5" /><span className="max-md:sr-only">Connect</span>
+          <Plug aria-hidden className="size-3.5" /><span className="max-md:sr-only">{t("shell.connect")}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 max-w-[calc(100vw-1.5rem)] border-border2 bg-surface p-3 text-txt">
-        <p className="text-sm font-medium">Connect your AI agent</p>
-        <p className="mt-1 text-xs text-muted">Add this MCP endpoint to Claude Code, Cursor or Windsurf. The board updates live as the agent works.</p>
-        {row(endpoint, "Copy endpoint")}
-        {row(command, "Copy claude mcp add command")}
+        <p className="text-sm font-medium">{t("shell.connectHeading")}</p>
+        <p className="mt-1 text-xs text-muted">{t("shell.connectBody")}</p>
+        {row(endpoint, t("shell.copyEndpoint"))}
+        {row(command, t("shell.copyCommand"))}
         <p className="mt-3 font-mono text-[11px] text-muted">
-          Last agent call: {lastAgo ? (lastAgo === "now" ? "just now" : `${lastAgo} ago`) : "none yet"}
+          {t("shell.lastAgentCall", { when: lastAgo ? (lastAgo === "now" ? t("shell.justNow") : t("shell.ago", { time: lastAgo })) : t("shell.noneYet") })}
         </p>
         <DropdownMenuItem asChild className="mt-1 -mx-2 text-xs text-muted focus:text-txt">
-          <Link href="/settings">Agent configs and connection test in <span className="text-accent">Settings → MCP</span></Link>
+          <Link href="/settings">{t("shell.connectSettings")} <span className="text-accent">{t("shell.connectSettingsLink")}</span></Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

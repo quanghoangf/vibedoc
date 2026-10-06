@@ -13,6 +13,7 @@ import { AttachLabel, StatusMarker } from "@/components/chat/StatusMarker"
 import { groupChats, isActionableError, shellStatus } from "@/lib/chats"
 import { cn } from "@/lib/utils"
 import { shortcutFor } from "@/lib/shortcuts"
+import { useT } from "@/context/LanguageContext"
 
 /** Recent idle chats listed under the ones that need you, errored or running; the rest are on /chat. */
 const RECENT_IN_SIDEBAR = 4
@@ -30,22 +31,23 @@ export function SidebarChats() {
 
 function SidebarChatsInner() {
   const { chats, loaded, modalId, show, create, dismiss, waitingCount, runningCount, errorCount, now } = useChats()
+  const { t } = useT()
   const pathname = usePathname()
   const pageId = useSearchParams().get("id")
   const g = groupChats(chats, now)
   const listed = [...g.needsYou, ...g.errors, ...g.running, ...g.recent.slice(0, RECENT_IN_SIDEBAR)]
   const hidden = chats.length - listed.length
-  const railTip = [runningCount && `${runningCount} running`, waitingCount && `${waitingCount} waiting for you`, errorCount && `${errorCount} with an error`]
+  const railTip = [runningCount && t("shell.railRunning", { n: runningCount }), waitingCount && t("shell.railWaiting", { n: waitingCount }), errorCount && t("shell.railError", { n: errorCount })]
     .filter(Boolean).join(" · ")
-  const railLabel = railTip ? `Chats · ${railTip}` : "Chats"
+  const railLabel = railTip ? `${t("shell.chats")} · ${railTip}` : t("shell.chats")
   const isOpen = (id: string) => modalId === id || (pathname === "/chat" && pageId === id)
 
   return (
-    <SidebarGroup role="group" aria-label="Chats">
-      <SidebarGroupLabel>Chats</SidebarGroupLabel>
-      <SidebarGroupAction title="New chat" onClick={() => show(create())}>
+    <SidebarGroup role="group" aria-label={t("shell.chats")}>
+      <SidebarGroupLabel>{t("shell.chats")}</SidebarGroupLabel>
+      <SidebarGroupAction title={t("shell.newChat")} onClick={() => show(create())}>
         <Plus />
-        <span className="sr-only">New chat</span>
+        <span className="sr-only">{t("shell.newChat")}</span>
       </SidebarGroupAction>
       <SidebarGroupContent>
         <SidebarMenu>
@@ -65,7 +67,7 @@ function SidebarChatsInner() {
             <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
               <SidebarMenuButton onClick={() => show(create())} className="text-muted">
                 <MessagesSquare />
-                <span>Start a chat</span>
+                <span>{t("shell.startChat")}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
@@ -83,14 +85,14 @@ function SidebarChatsInner() {
                 >
                   <StatusMarker status={status} showIdle />
                   <span className="min-w-0 flex-1 truncate">{c.title}</span>
-                  {alarm && <span aria-hidden className="shrink-0 font-mono text-[10px] text-danger">error</span>}
+                  {alarm && <span aria-hidden className="shrink-0 font-mono text-[10px] text-danger">{t("shell.chatError")}</span>}
                   {/* "Break down R043" already names its epic */}
                   {c.attach && !c.title.includes(c.attach.id) && <AttachLabel attach={c.attach} className="shrink-0 text-muted" />}
                 </SidebarMenuButton>
                 {alarm && (
-                  <SidebarMenuAction title="Dismiss error" onClick={() => dismiss(c.id)} className="text-muted hover:text-txt">
+                  <SidebarMenuAction title={t("shell.dismissError")} onClick={() => dismiss(c.id)} className="text-muted hover:text-txt">
                     <X />
-                    <span className="sr-only">Dismiss error in {c.title}</span>
+                    <span className="sr-only">{t("shell.dismissErrorIn", { title: c.title })}</span>
                   </SidebarMenuAction>
                 )}
               </SidebarMenuItem>
@@ -102,7 +104,7 @@ function SidebarChatsInner() {
               <SidebarMenuButton asChild isActive={pathname === "/chat" && !pageId} className="h-7 text-xs text-muted">
                 <Link href="/chat" aria-keyshortcuts={PAGE_KEY}>
                   <MessagesSquare />
-                  <span>{hidden > 0 ? `All chats · ${chats.length}` : "All chats"}</span>
+                  <span>{hidden > 0 ? t("shell.allChatsCount", { n: chats.length }) : t("shell.allChats")}</span>
                   {PAGE_KEY && <kbd aria-hidden className={cn(kbdClass, "ml-auto hidden group-hover/menu-item:inline group-focus-within/menu-item:inline")}>{PAGE_KEY}</kbd>}
                 </Link>
               </SidebarMenuButton>

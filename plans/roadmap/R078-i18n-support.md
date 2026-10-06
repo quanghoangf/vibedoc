@@ -1,6 +1,6 @@
 # R078: i18n support
 **Parent:** R003
-**Status:** planned
+**Status:** in-progress
 **Order:** 130
 **Tasks:** T215, T216, T217, T218, T219, T220, T221, T222, T223, T224
 
