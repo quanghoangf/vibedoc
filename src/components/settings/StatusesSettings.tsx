@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { useApp } from "@/context/AppContext"
 import { toast } from "@/components/ui/toast"
-import { STATUS_COLOR_CLASS, STATUS_META, useCategoryLabel } from "@/components/shared/StatusIcon"
+import { STATUS_COLOR_CLASS, STATUS_META, defLabel, useCategoryLabel } from "@/components/shared/StatusIcon"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
 import { BUILTIN_STATUSES, STATUS_COLORS, invalidStatusId, statusDefs, type StatusColor, type StatusDef } from "@/lib/statuses"
@@ -99,15 +99,15 @@ export function StatusesSettings({ settings, onSave }: { settings: AppSettings; 
                 <Input
                   aria-label={t("settings.labelFor", { id: d.id })}
                   data-user-content
-                  defaultValue={d.label}
-                  key={`${d.id}:${d.label}`}
-                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== d.label) patch(d.id, { label: v }) }}
+                  defaultValue={defLabel(d, t)}
+                  key={`${d.id}:${defLabel(d, t)}`}
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== defLabel(d, t)) patch(d.id, { label: v }) }}
                   onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur() }}
                   className="h-8 w-full border-border bg-bg text-txt"
                 />
                 <div className="order-last col-span-3 flex min-w-0 items-center gap-2 pl-6 sm:order-none sm:contents">
                 <span className="w-20 shrink-0 truncate font-mono text-[11px] text-muted sm:w-auto" title={d.id} data-user-content>{d.id}</span>
-                <select aria-label={t("settings.colorFor", { id: d.id })} value={d.color} onChange={(e) => patch(d.id, { color: e.target.value as StatusColor })} className={cn(FIELD, "min-w-0")}>
+                <select aria-label={t("settings.colorFor", { id: d.id })} value={d.color} onChange={(e) => patch(d.id, { color: e.target.value as StatusColor })} className={cn(FIELD, "min-w-28")}>
                   {STATUS_COLORS.map((c) => <option key={c} value={c}>{t(COLOR_KEY[c])}</option>)}
                 </select>
                 {builtin ? (
@@ -137,7 +137,7 @@ export function StatusesSettings({ settings, onSave }: { settings: AppSettings; 
                   {count > 0 ? tn("settings.moveTasks", count) : t("settings.noTasksUse")}
                   {count > 0 && (
                     <select aria-label={t("settings.moveTasksTo")} value={moveTo} onChange={(e) => setMoveTo(e.target.value)} className={FIELD}>
-                      {defs.filter((x) => x.id !== d.id).map((x) => <option key={x.id} value={x.id} data-user-content>{x.label}</option>)}
+                      {defs.filter((x) => x.id !== d.id).map((x) => <option key={x.id} value={x.id} data-user-content>{defLabel(x, t)}</option>)}
                     </select>
                   )}
                   <button type="button" onClick={() => remove(d.id)} className="rounded-md border border-danger/40 px-2 py-1 text-danger hover:bg-danger/10">{t("settings.deleteLabel", { label: d.label })}</button>

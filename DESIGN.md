@@ -294,6 +294,7 @@ Persistence: the live view state lives in the URL (`v` = saved view id, then `vi
 - **Do** show hover as one tone step up plus a stronger border, and focus as the accent ring or halo.
 - **Do** use the motion tokens (`--duration-fast` 120ms, `--duration-base` 180ms, `--duration-slow` 260ms, `--ease-out-soft`) and let the global reduced-motion rule turn them off.
 - **Do** keep every frequent action reachable from the keyboard, and show its shortcut in a mono `kbd`.
+- **Do** leave room for Vietnamese (R078): its labels run about 20–30% longer than English. A button, tab, column header or nav item that fits in English must still fit in Vietnamese. Wrap the row (`flex-wrap`) or `truncate` with a `title`; never fix a width to the English text. Run `e2e/i18n.mjs` with `SHOTS=<dir>` to look at every page.
 - **Do** treat link UI as one language: mono paths and line numbers (`L42`), counts of unique files, broken = dashed muted (a broken count is muted with the Unlink icon, never red), stale = dotted muted, tasks and epics in a link list carry their `StatusIcon`, and a live change marked by the update flash (the live ping on /graph), never by moving what the user is looking at.
 
 ### Don't:

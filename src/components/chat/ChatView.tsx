@@ -137,6 +137,7 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers }: {
   onPlan: (p: PlanProposal, status: PlanStatus, created: PlanCreated[], unchecked: string[]) => void
   onAnswers: (set: QuestionSet, answers: string[]) => void
 }) {
+  const chatText = useChatText()
   if (m.role === "user") {
     return (
       <div className="flex justify-end animate-fade-in">
@@ -168,7 +169,7 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers }: {
         ))}
         {m.text && <div data-user-content><MarkdownRenderer content={m.text} className="text-sm" /></div>}
         {thinking && !m.text && !m.error && <Thinking />}
-        {m.error && <p data-user-content className="whitespace-pre-wrap text-xs text-danger">{m.error}</p>}
+        {m.error && <p data-user-content className="whitespace-pre-wrap text-xs text-danger">{chatText.error(m.error)}</p>}
       </div>
     </div>
   )

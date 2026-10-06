@@ -120,8 +120,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       {/* The sidebar precedes the header in the DOM (shadcn's peer selectors need it), so the agent strip gets its own skip link */}
-      <a href="#agent-status" className={skipLink}>Skip to agent status</a>
-      <a href="#main" className={skipLink}>Skip to content</a>
+      <a href="#agent-status" className={skipLink}>{t("shell.skipToAgents")}</a>
+      <a href="#main" className={skipLink}>{t("shell.skipToContent")}</a>
       <AppSidebar board={board} />
       <SidebarInset className="min-w-0">
         <AppHeader
@@ -135,7 +135,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         />
         <main id="main" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto outline-none">
           {demo && DEMO_BLOCKED.some((p) => pathname.startsWith(p)) ? (
-            <p className="p-8 text-sm text-muted">Not available in the read-only demo. Install VibeDoc with <code className="font-mono text-txt">npx vibedoc</code> to use it.</p>
+            <p className="p-8 text-sm text-muted">{t("shell.demoBlockedLead")} <code className="font-mono text-txt">npx vibedoc</code> {t("shell.demoBlockedEnd")}</p>
           ) : children}
         </main>
         {!demo && <ChatModal />}

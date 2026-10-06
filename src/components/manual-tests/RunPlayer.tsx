@@ -312,7 +312,7 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
 
       {failed?.error && (
         <div role="alert" className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2">
-          <p className="text-xs font-medium text-danger">Failed at step {failed.index}: {failed.name}</p>
+          <p className="text-xs font-medium text-danger">{t("tests.failedAtName", { n: failed.index, name: failed.name })}</p>
           <pre className="mt-1 max-h-40 overflow-auto font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-danger/90">{failed.error}</pre>
         </div>
       )}

@@ -115,6 +115,10 @@ export const en = {
   language: "Language",
   languageHint: "Saved in this browser only, so everyone on the project can pick their own.",
   fontNoVietnamese: "No Vietnamese letters: they show in a fallback font.",
+  skipToAgents: "Skip to agent status",
+  skipToContent: "Skip to content",
+  demoBlockedLead: "Not available in the read-only demo. Install VibeDoc with",
+  demoBlockedEnd: "to use it.",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -213,4 +217,8 @@ export const vi: Messages<typeof en> = {
   language: "Ngôn ngữ",
   languageHint: "Chỉ lưu trong trình duyệt này, nên mỗi người trong dự án có thể chọn ngôn ngữ riêng.",
   fontNoVietnamese: "Không có chữ tiếng Việt: các chữ này hiện bằng phông dự phòng.",
+  skipToAgents: "Tới trạng thái agent",
+  skipToContent: "Tới nội dung",
+  demoBlockedLead: "Không dùng được trong bản demo chỉ đọc. Cài VibeDoc bằng",
+  demoBlockedEnd: "để dùng.",
 }

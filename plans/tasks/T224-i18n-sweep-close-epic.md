@@ -1,9 +1,12 @@
 # T224: Every-page Vietnamese sweep, docs, and close R078
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R078 — i18n support
 **Size:** M (2–3 hrs)
 **Depends on:** T216, T217, T218, T219, T220, T221, T222, T223
 **Covers:** S1, S2, S3, S4, S5
+**Owner:** ai:claude-code
+**Due:** 2026-10-09
+**Started:** 2026-10-06
 
 ## Goal
 Prove the epic's Done-when end to end: with Tiếng Việt chosen, no English is left in the UI chrome on any page, and switching back restores English without a reload.
@@ -46,8 +49,19 @@ PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
 ```
 
 ## Manual tests
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T224-i18n-sweep-close-epic.spec.ts` · Auto: passed 2026-10-06_
+### Steps
 - [ ] S1 — WHEN the app is in Vietnamese and the user opens every page → THEN no English interface text is left
 - [ ] S2 — WHEN the user switches back to English → THEN the app is English without a reload
 - [ ] S3 — WHEN the user reloads in Vietnamese → THEN it stays Vietnamese
 - [ ] S4 — WHEN the user looks at dates in Activity and Timeline → THEN they are Vietnamese
 - [ ] S5 — WHEN the user tries each font → THEN Vietnamese letters render or the font says it can't
+- [x] 🤖 Open Settings and pick Tiếng Việt → the sidebar reads Bảng / Lộ trình at once, without a reload
+- [x] 🤖 Reload /board → it stays Vietnamese (heading "Bảng")
+- [x] 🤖 Open the roadmap Timeline → the month axis reads "thg N YYYY"
+- [x] 🤖 Open Settings → fonts without Vietnamese letters say "Không có chữ tiếng Việt"
+- [x] 🤖 Pick English → the sidebar reads Board again, without a reload
+- [ ] Settings → Statuses in Vietnamese: built-in rows show Cần làm / Đang làm…, and renaming one saves the new name (a renamed status shows as typed in both languages)
+- [ ] Run `SHOTS=<dir> node e2e/i18n.mjs` and look through the screenshots: no clipped buttons, tabs or column headers
+### Regression risk
+- [ ] In English, Settings → Statuses still shows and saves the labels as before

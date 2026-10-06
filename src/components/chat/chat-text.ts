@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
-import { TOO_MANY_CHATS, type ChatStatus } from "@/lib/chats"
+import { INTERRUPTED, TOO_MANY_CHATS, type ChatStatus } from "@/lib/chats"
 
 const STATUS_KEY: Record<ChatStatus, MessageKey> = {
   running: "chat.statusRunning",
@@ -48,6 +48,8 @@ export function useChatText() {
       if (!m) return s
       return t(m[1] === "Epic" ? "chat.titleEpic" : m[1] === "Task" ? "chat.titleTask" : "chat.titleBreakDown", { id: m[2] })
     },
+    /** A message error: the interrupted note is translated, an agent or server error shows as sent. */
+    error: (e: string) => (e === INTERRUPTED ? t("chat.interrupted") : e),
     /** A notice from the store: the running-chat cap is translated, anything else (a server error) shows as sent. */
     notice: (n: string) => (n === TOO_MANY_CHATS ? t("chat.tooMany", { n: n.match(/\d+/)?.[0] ?? "" }) : n),
   }), [t])

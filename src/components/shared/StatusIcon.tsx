@@ -44,7 +44,8 @@ export const STATUS_KEYS: Record<TaskStatus, MessageKey> = {
 }
 
 /** A def's label: a built-in the project didn't rename is translated, any other label is the project's own words. */
-function defLabel(def: StatusDef, t: (key: MessageKey) => string): string {
+/** A status's label: a built-in still under its default name in the UI language, else as written. */
+export function defLabel(def: StatusDef, t: (key: MessageKey) => string): string {
   const builtin = DEFAULT_STATUSES.find((d) => d.id === def.id)
   return builtin && builtin.label === def.label ? t(STATUS_KEYS[def.id as TaskStatus]) : def.label
 }

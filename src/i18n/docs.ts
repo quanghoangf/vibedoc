@@ -163,6 +163,8 @@ export const en = {
   reEnrich: "Re-enrich",
   openInDocs: "Open in Docs",
   noFiles: "No files to display",
+  outlineCount_one: "Outline, {n} heading",
+  outlineCount_other: "Outline, {n} headings",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -316,4 +318,6 @@ export const vi: Messages<typeof en> = {
   reEnrich: "Tạo lại mô tả",
   openInDocs: "Mở trong Tài liệu",
   noFiles: "Không có tệp để hiển thị",
+  outlineCount_one: "Mục lục, {n} tiêu đề",
+  outlineCount_other: "Mục lục, {n} tiêu đề",
 }

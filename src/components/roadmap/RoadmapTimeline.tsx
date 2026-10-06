@@ -51,7 +51,7 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
                 className="absolute -translate-x-1/2 rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent-fg"
                 style={{ top: HEADER_H + 6 }}
               >
-                Today
+                {t("roadmap.todayMarker")}
               </span>
             </div>
           </div>

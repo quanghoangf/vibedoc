@@ -13,7 +13,7 @@ interface DocOutlineProps {
 
 /** Doc bar button: hover or keyboard focus opens the heading list below it. */
 export function DocOutline({ headings }: DocOutlineProps) {
-  const { t } = useT()
+  const { t, tn } = useT()
   function scrollTo(anchor: string) {
     document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -22,7 +22,7 @@ export function DocOutline({ headings }: DocOutlineProps) {
 
   return (
     <nav aria-label={t("docs.outline")} className="group relative">
-      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt" aria-label={`Outline, ${headings.length} headings`}>
+      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted hover:text-txt" aria-label={tn("docs.outlineCount", headings.length)}>
         <List className="h-3.5 w-3.5" aria-hidden />
       </Button>
 

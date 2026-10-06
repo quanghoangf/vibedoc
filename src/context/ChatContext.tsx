@@ -322,7 +322,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }))
       }
     } else if (ev.type === "result" && ev.is_error) {
-      patchLast(chatId, (m) => ({ ...m, error: ev.result ?? ev.subtype ?? "Agent error" }))
+      patchLast(chatId, (m) => ({ ...m, error: ev.result ?? ev.subtype ?? tNow("chat.agentError") }))
     } else if (ev.type === "error") {
       patchLast(chatId, (m) => ({ ...m, error: ev.message }))
     }

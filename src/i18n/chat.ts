@@ -257,6 +257,8 @@ export const en = {
   willCreate_one: "{n} file will be created",
   willCreate_other: "{n} files will be created",
   skippedSuffix: ", {n} skipped",
+  agentError: "Agent error",
+  interrupted: "Interrupted: the page reloaded while the agent was working.",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -503,4 +505,6 @@ export const vi: Messages<typeof en> = {
   willCreate_one: "Sẽ tạo {n} tệp",
   willCreate_other: "Sẽ tạo {n} tệp",
   skippedSuffix: ", bỏ qua {n}",
+  agentError: "Agent gặp lỗi",
+  interrupted: "Bị ngắt: trang đã tải lại khi agent đang làm.",
 }

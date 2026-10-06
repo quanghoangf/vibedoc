@@ -9,6 +9,9 @@
 //   5. Every Settings font has Vietnamese letters (a @font-face covering U+1EA1 "ạ") unless settings.ts flags it
 //      `noVietnamese`, and the flag shows in Vietnamese (T216).
 //   6. Switching back to English restores it without a reload.
+//   7. Every route under src/app/(app)/ is in PAGES (found from the folder, so a new page fails until it is added),
+//      each one is checked again on an empty project (empty states), and no page scrolls sideways (T224).
+//      SHOTS=<dir> saves a screenshot of every page for a look at truncation.
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
 //   PW_DIR=<dir with node_modules/playwright> node e2e/i18n.mjs
@@ -264,6 +267,13 @@ const PAGES = [
   } },
 ]
 
+// Every (app) route must be in PAGES
+const appDir = new URL("../src/app/(app)/", import.meta.url)
+const ROUTES = readdirSync(appDir, { recursive: true }).filter((f) => path.basename(f) === "page.tsx")
+  .map((f) => `/${path.dirname(f).split(path.sep).filter((s) => !/^\(.*\)$/.test(s)).join("/")}`)
+const listed = new Set(PAGES.map((p) => p.path.split("?")[0]))
+assert.deepEqual(ROUTES.filter((r) => !listed.has(r)), [], "every (app) route is in PAGES (add the new page)")
+
 // English messages that differ in Vietnamese → a matcher per message
 const NUMERIC = new Set(["n", "done", "total", "critical", "major", "status"])
 const dir = new URL("../src/i18n/", import.meta.url)
@@ -306,6 +316,12 @@ async function uiStrings(page, scope) {
   }, scope)
 }
 
+/** Vietnamese runs ~20–30% longer: a label that pushes the page wider than the viewport shows as a sideways scroll. */
+async function assertNoSideScroll(page, name) {
+  const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+  assert.ok(over <= 1, `${name}: the page scrolls sideways by ${over}px`)
+}
+
 async function assertVietnamese(page, name, scope) {
   const left = (await uiStrings(page, scope)).map((s) => [s, isEnglish(s)]).filter(([, m]) => m)
   assert.deepEqual(left.map(([s, m]) => `${s}  (${m.key})`), [], `${name}: English UI text left in Vietnamese`)
@@ -345,7 +361,34 @@ try {
     await page.waitForLoadState("networkidle")
     if (p.open) await p.open(page)
     await assertVietnamese(page, p.name, p.scope)
+    await assertNoSideScroll(page, p.name)
+    if (process.env.SHOTS) await page.screenshot({ path: path.join(process.env.SHOTS, `${p.name.replace(/[^\w]+/g, "-")}.png`) })
     console.log(`ok  ${p.name}: no English UI text`)
+  }
+
+  // Empty project: every route's empty state, also at phone width
+  const empty = makeFixture()
+  try {
+    for (const width of [1400, 390]) {
+      const ctx = await browser.newContext({ viewport: { width, height: 900 } })
+      await ctx.addCookies([{ name: "vibedoc-lang", value: "vi", url: BASE }])
+      const ep = await ctx.newPage()
+      ep.on("pageerror", (e) => errors.push(e.message))
+      await stubChat(ep, [], { root: empty })
+      for (const r of ROUTES) {
+        await ep.goto(`${BASE}${r}`)
+        // at phone width the sidebar is a closed sheet, so wait for the app's main instead
+        await ep.locator("main#main").waitFor()
+        await ep.waitForLoadState("networkidle")
+        await assertVietnamese(ep, `empty project ${r} @${width}`)
+        await assertNoSideScroll(ep, `empty project ${r} @${width}`)
+        if (process.env.SHOTS) await ep.screenshot({ path: path.join(process.env.SHOTS, `empty${r.replace(/\//g, "-")}-${width}.png`) })
+      }
+      await ctx.close()
+    }
+    console.log(`ok  empty project: ${ROUTES.length} routes in Vietnamese at 1400px and 390px, no sideways scroll`)
+  } finally {
+    rmSync(empty, { recursive: true, force: true })
   }
 
   // Dates (S4): an event today (the task move before the pages) → "Hôm nay"; the roadmap timeline's months are Vietnamese

@@ -234,6 +234,7 @@ export const en = {
   approveTitle: "Only tasks in review can be approved",
   sendBackTitle: "Tasks in review or done",
   clearSelectionEsc: "Clear selection (Esc)",
+  failedAtName: "Failed at step {n}: {name}",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -460,4 +461,5 @@ export const vi: Messages<typeof en> = {
   approveTitle: "Chỉ duyệt được việc đang chờ duyệt",
   sendBackTitle: "Việc đang chờ duyệt hoặc đã xong",
   clearSelectionEsc: "Bỏ chọn (Esc)",
+  failedAtName: "Lỗi ở bước {n}: {name}",
 }

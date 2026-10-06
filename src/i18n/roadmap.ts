@@ -206,6 +206,7 @@ export const en = {
   missLink: "link",
   missWikilink: "wikilink",
   showAllFiles: "Show all {n} files",
+  todayMarker: "Today",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -403,4 +404,5 @@ export const vi: Messages<typeof en> = {
   missLink: "liên kết",
   missWikilink: "wikilink",
   showAllFiles: "Hiện cả {n} tệp",
+  todayMarker: "Hôm nay",
 }
