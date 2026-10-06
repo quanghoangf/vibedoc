@@ -235,6 +235,7 @@ export const en = {
   sendBackTitle: "Tasks in review or done",
   clearSelectionEsc: "Clear selection (Esc)",
   failedAtName: "Failed at step {n}: {name}",
+  playbackSpeed: "Playback speed",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -462,4 +463,5 @@ export const vi: Messages<typeof en> = {
   sendBackTitle: "Việc đang chờ duyệt hoặc đã xong",
   clearSelectionEsc: "Bỏ chọn (Esc)",
   failedAtName: "Lỗi ở bước {n}: {name}",
+  playbackSpeed: "Tốc độ phát",
 }

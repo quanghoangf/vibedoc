@@ -1,9 +1,12 @@
 # T225: Player playback speed, remembered per browser
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R079 — Watchable evidence videos
 **Size:** M (2–3 hrs)
 **Depends on:** —
 **Covers:** S1
+**Owner:** ai:claude-code
+**Due:** 2026-10-09
+**Started:** 2026-10-06
 
 ## Goal
 A reviewer can slow a run's video down to follow it: the run player on Test review gets a speed control (0.5×, 1×, 1.5×, 2×) that the browser remembers.
@@ -51,4 +54,13 @@ PW_DIR=<dir with node_modules/playwright> node e2e/watchable-video.mjs
 ```
 
 ## Manual tests
+_2026-10-06 — ai · Spec: `e2e/vibedoc/T225-player-playback-speed.spec.ts` · Auto: passed 2026-10-06_
+### Steps
 - [ ] S1 — WHEN a reviewer picks 0.5× on a run's video on Test review → THEN the video plays at half speed, and after a reload the player still starts at 0.5×
+- [x] 🤖 Open Test review → All → a task with a recorded run → the player shows a "Playback speed" control set to 1×
+- [x] 🤖 Pick 0.5× → the video plays at half speed
+- [x] 🤖 Reload the page → the control still reads 0.5× and the video plays at half speed
+- [ ] Press Play at 0.5× → the motion is visibly slower and the playhead keeps in step with the video
+- [ ] In Vietnamese the control is labelled "Tốc độ phát" and fits next to the time
+### Regression risk
+- [ ] Clicking a step, ←/→ and space still seek and play as before

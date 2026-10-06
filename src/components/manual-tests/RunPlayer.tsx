@@ -7,6 +7,7 @@ import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { runClock, stepAt, stepSpans } from "@/lib/test-review"
 import type { RunManifest, RunStep } from "@/lib/runs-paths"
+import { DEFAULT_PLAYER_PREFS, PLAYER_COOKIE, PLAYER_SPEEDS, parsePlayerPrefs, playerCookie, readCookie, type PlayerPrefs } from "@/lib/player-prefs"
 
 /**
  * A task's recorded runs as a replay: the video (or a step's screenshot) on a sticky stage, our own timeline
@@ -26,6 +27,10 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
   const [now, setNow] = useState(0)
   const [duration, setDuration] = useState(0)
   const [paused, setPaused] = useState(true)
+  // Speed + auto-pause, remembered in a cookie. The controls render only after the runs load (client side), so
+  // reading the cookie in the initializer can't mismatch the server HTML.
+  const [prefs, setPrefs] = useState<PlayerPrefs>(() =>
+    typeof document === "undefined" ? DEFAULT_PLAYER_PREFS : parsePlayerPrefs(readCookie(document.cookie, PLAYER_COOKIE)))
   const video = useRef<HTMLVideoElement>(null)
   const head = useRef<HTMLSpanElement>(null)
   // A webm from Playwright reports duration Infinity until we seek past its end once
@@ -52,6 +57,16 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
   const pct = (ms: number) => `${Math.min(100, Math.max(0, (ms / totalMs) * 100))}%`
   const time = (ms: number) => runClock(ms, totalMs)
 
+  // A new source resets playbackRate, so it is set again on every run and every change
+  useEffect(() => {
+    if (video.current) video.current.playbackRate = prefs.speed
+  }, [prefs.speed, run?.runId])
+
+  function savePrefs(next: PlayerPrefs) {
+    setPrefs(next)
+    document.cookie = playerCookie(next)
+  }
+
   // While playing, move the playhead every frame; React state follows at timeupdate's ~4Hz
   useEffect(() => {
     if (paused) return
@@ -77,6 +92,7 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
   function ready(v: HTMLVideoElement) {
     const d = v.duration
     setDuration(d)
+    v.playbackRate = prefs.speed
     const at = run?.status === "failed" && timed && failed ? stepSpans(run.steps, d * 1000).find((sp) => sp.index === failed.index)?.at ?? 0 : 0
     v.currentTime = at / 1000
     setNow(at)
@@ -306,6 +322,15 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
             <span className="shrink-0 font-mono text-[11px] text-muted tabular-nums">
               <span className="text-txt">{time(now)}</span> / {time(totalMs)}
             </span>
+            <select
+              aria-label={t("tests.playbackSpeed")}
+              title={t("tests.playbackSpeed")}
+              value={prefs.speed}
+              onChange={(e) => savePrefs({ ...prefs, speed: Number(e.target.value) })}
+              className="shrink-0 rounded-md border border-border bg-bg px-1.5 py-1 font-mono text-[11px] text-txt tabular-nums hover:border-border2 focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              {PLAYER_SPEEDS.map((s) => <option key={s} value={s}>{s}×</option>)}
+            </select>
           </div>
         )}
       </div>
