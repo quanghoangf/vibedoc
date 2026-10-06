@@ -1,9 +1,17 @@
 {
   "name": "vibedoc",
   "description": "Plan and run work with VibeDoc: roadmap → epic breakdown → work an epic → what next. Uses the vibedoc_* MCP tools when VibeDoc is connected.",
-  "version": "1.14.0",
-  "author": { "name": "quanghoangf" },
+  "version": "1.15.0",
+  "author": {
+    "name": "quanghoangf"
+  },
   "repository": "https://github.com/quanghoangf/vibedoc",
   "license": "MIT",
-  "keywords": ["vibedoc", "roadmap", "planning", "spec-driven", "kanban"]
+  "keywords": [
+    "vibedoc",
+    "roadmap",
+    "planning",
+    "spec-driven",
+    "kanban"
+  ]
 }

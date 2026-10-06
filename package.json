@@ -61,7 +61,8 @@
     "typecheck": "tsc --noEmit",
     "release": "semantic-release",
     "prepublishOnly": "next build && npm run build:playwright",
-    "build:playwright": "tsc -p tsconfig.playwright.json"
+    "build:playwright": "tsc -p tsconfig.playwright.json",
+    "version": "node -e \"const f='plugin/.claude-plugin/plugin.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f));j.version=require('./package.json').version;fs.writeFileSync(f,JSON.stringify(j,null,2)+'\\n')\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
