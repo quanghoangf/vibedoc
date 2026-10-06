@@ -127,6 +127,11 @@ const ACTION_STYLE = {
   highlight: 'outline:2px solid #7c5cff;outline-offset:2px;background:rgba(124,92,255,.12);border-radius:4px',
   title: 'font:600 14px system-ui,sans-serif;padding:6px 10px;border-radius:6px;background:rgba(20,20,30,.85);color:#fff',
 }
+// Each step opens with a chapter card naming it ("02 · <step>", numbered like the player's step list; the call
+// waits until the card is gone, so it never reaches a screenshot), and its result holds still before the screenshot
+// so the player's auto-pause lands on a still frame. A deliberate wait in the kit, never in specs.
+const CHAPTER_MS = 900
+const STEP_HOLD_MS = 700
 
 function readHonesty(dir: string) {
   try {
@@ -212,6 +217,7 @@ function writeEvidence(run: Run): void {
 /** The part of Playwright 1.59's `page.screencast` the kit uses; older apps' types don't have it. */
 type Screencast = {
   showActions: (o: { cursor?: 'pointer' | 'none'; duration?: number; position?: string; style?: { point?: string; highlight?: string; title?: string } }) => Promise<unknown>
+  showChapter: (title: string, o?: { description?: string; duration?: number }) => Promise<void>
 }
 
 export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: Run; step: Step }>({
@@ -278,11 +284,22 @@ export const test = base.extend<{ vibedocTask: string | undefined; vibedocRun: R
           return null // page closed or crashed: the step still gets recorded
         }
       }
+      if (presentation.on && screencast) {
+        try {
+          // ponytail: Playwright draws chapters and action annotations in an overlay it injects per navigation;
+          // page.setContent() removes it for good, so a spec that builds its page with setContent records them only
+          // until then (page.goto, the normal case, is fine). Fix upstream if it matters.
+          await screencast.showChapter(`${String(index).padStart(2, '0')} · ${name}`, { duration: CHAPTER_MS })
+        } catch (e) {
+          console.warn(`vibedoc: no chapter card for step ${index}: ${e instanceof Error ? e.message : e}`)
+        }
+      }
       const assertions = { total: 0, onPage: 0 }
       tally = assertions
       try {
         const result = await base.step(name, fn)
         tally = null
+        if (presentation.on) await new Promise(r => setTimeout(r, STEP_HOLD_MS))
         steps.push({ index, name, status: 'passed', screenshot: await shoot(), error: null, startMs, endMs: Date.now() - t0, assertions })
         return result
       } catch (e) {

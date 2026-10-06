@@ -6,6 +6,9 @@
 //   S3/S4 (T228): the same kit spec run twice from the shell (as an agent does), presentation on and with
 //              VIBEDOC_PRESENT=0 → both pass with the same assertion counts and byte-identical step screenshots, and
 //              the presentation run is paced (each action waits out the annotation) with run.json presentation on.
+//              T229: each presentation step opens with a chapter card (counted back from the video's frames: one per
+//              step, none in the plain run), and holds before
+//              its screenshot.
 //              The cursor itself is only in the video frames: that stays a manual check.
 //   S5 (T227): a plain run says why under the video (suite, CI, VIBEDOC_PRESENT=0, old Playwright); a presentation
 //              run and a run from before R079 say nothing.
@@ -175,7 +178,8 @@ import { test, expect } from './kit/testing/playwright-fixture'
 test.use({ vibedocTask: 'T009', viewport: { width: 480, height: 320 } })
 test('T009', async ({ page, step }) => {
   await step('Click Go → it reads Done', async () => {
-    await page.setContent('<button onclick="this.textContent = \\'Done\\'" style="margin:40px;font:20px sans-serif">Go</button><input aria-label="Name" style="font:20px sans-serif">')
+    // goto, not setContent: setContent removes Playwright's overlay for good (see the fixture)
+    await page.goto('data:text/html,' + encodeURIComponent('<button onclick="this.textContent = \\'Done\\'" style="margin:40px;font:20px sans-serif">Go</button><input aria-label="Name" style="font:20px sans-serif">'))
     await page.getByRole('button', { name: 'Go' }).click()
     await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
   })
@@ -204,9 +208,39 @@ test('T009', async ({ page, step }) => {
       assert.deepEqual(s.assertions, p.assertions, `step ${s.index}: same assertion counts`)
       assert.ok(readFileSync(path.join(shown.dir, s.screenshot)).equals(readFileSync(path.join(plain.dir, p.screenshot))), `step ${s.index}: screenshot identical to the plain run's (no cursor or highlight)`)
       const slower = (s.endMs - s.startMs) - (p.endMs - p.startMs)
-      assert.ok(slower >= 400, `step ${s.index}: paced by the annotation (${slower}ms slower than plain)`)
+      // chapter (900ms) + hold (700ms) + the action annotation (600ms)
+      assert.ok(slower >= 1800, `step ${s.index}: chapter, action pacing and hold (${slower}ms slower than plain)`)
     }
-    console.log("ok  S3/S4: presentation run is paced and says on; screenshots and assertion counts match the plain run")
+    // The chapter cards in the video: frames where the card's grey band sits mid-frame, counted per appearance
+    const chapters = async (dir) => {
+      const p = await browser.newPage({ viewport: { width: 480, height: 320 } })
+      await p.goto(`file://${path.join(dir, "video.webm")}`)
+      await p.waitForFunction(() => document.querySelector("video")?.readyState >= 1)
+      await p.evaluate(() => { const v = document.querySelector("video"); v.controls = false; v.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;object-fit:contain" })
+      const dur = await p.evaluate(() => new Promise((r) => { const v = document.querySelector("video"); if (Number.isFinite(v.duration)) r(v.duration); else { v.ondurationchange = () => Number.isFinite(v.duration) && r(v.duration); v.currentTime = 1e9 } }))
+      let n = 0, prev = false
+      for (let t = 0; t <= dur; t += 0.2) {
+        await p.evaluate((t) => new Promise((r) => { const v = document.querySelector("video"); v.pause(); v.onseeked = r; v.currentTime = t }), t)
+        const band = await p.screenshot({ clip: { x: 0, y: 140, width: 480, height: 40 } })
+        const dark = await p.evaluate(async (b64) => {
+          const i = new Image(); i.src = `data:image/png;base64,${b64}`; await i.decode()
+          const c = document.createElement("canvas"); c.width = i.width; c.height = i.height
+          const g = c.getContext("2d"); g.drawImage(i, 0, 0)
+          const d = g.getImageData(0, 0, c.width, c.height).data
+          let k = 0
+          for (let j = 0; j < d.length; j += 4) if (d[j] < 120 && Math.abs(d[j] - d[j + 2]) < 10) k++
+          return k
+        }, band.toString("base64"))
+        const on = dark > 2000
+        if (on && !prev) n++
+        prev = on
+      }
+      await p.close()
+      return n
+    }
+    assert.equal(await chapters(shown.dir), shown.run.steps.length, "one chapter card per step in the presentation video")
+    assert.equal(await chapters(plain.dir), 0, "no chapter card in the plain video")
+    console.log("ok  S3/S4: presentation run has chapters, pacing and holds and says on; screenshots and assertion counts match the plain run")
   } finally {
     rmSync(app, { recursive: true, force: true })
     rmSync(runsTmp, { recursive: true, force: true })

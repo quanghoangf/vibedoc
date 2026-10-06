@@ -78,7 +78,8 @@ try {
   page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
   page.on("pageerror", (e) => errors.push(e.message))
   await stubChat(page, [], { root: fx })
-  const waitFor = async (cond, what) => { for (let i = 0; i < 100 && !cond(); i++) await page.waitForTimeout(100); assert.ok(cond(), what) }
+  // 30s: a Run's retry records in presentation mode (R079: chapters, holds, paced actions), so its write-back can land well after the live "Failed" line
+  const waitFor = async (cond, what) => { for (let i = 0; i < 300 && !cond(); i++) await page.waitForTimeout(100); assert.ok(cond(), what) }
 
   // 1. Suite: T001 broken → back to the agent with its screenshot; T002 flaky → stays done, labelled
   await page.goto(`${BASE}/manual-tests?tab=suite`)
