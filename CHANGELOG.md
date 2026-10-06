@@ -1,3 +1,24 @@
+# [1.16.0](https://github.com/quanghoangf/vibedoc/compare/v1.15.0...v1.16.0) (2026-10-06)
+
+
+### Features
+
+* **i18n:** board in Vietnamese with views, cards, task panel and shared parts (T217) ([5caf2b4](https://github.com/quanghoangf/vibedoc/commit/5caf2b421c1cff3c92b3d482f98c7f67c331c836))
+* **i18n:** chat, setup and getting started in Vietnamese (T222) ([2d044a7](https://github.com/quanghoangf/vibedoc/commit/2d044a7d30785ed306f82e892895f5d13361ac8c))
+* **i18n:** dates and numbers follow the UI language, Vietnamese letters in fonts (T216) ([d6228c0](https://github.com/quanghoangf/vibedoc/commit/d6228c04a7f9419c01d40611caee267d1082ee89))
+* **i18n:** docs and file explorer in Vietnamese (T219) ([6910559](https://github.com/quanghoangf/vibedoc/commit/6910559daa6979f9ec9cf30bae3bda3eec039db0))
+* **i18n:** every-page Vietnamese sweep, route discovery and docs (T224) ([6285e8c](https://github.com/quanghoangf/vibedoc/commit/6285e8c4163c1665e34b7d5a39564f2af731f820))
+* **i18n:** language switch in Settings with the app shell in Vietnamese (T215) ([1a9383a](https://github.com/quanghoangf/vibedoc/commit/1a9383ad5f189420f386c6219159774d8566f8e4))
+* **i18n:** memory and activity in Vietnamese (T220) ([a440432](https://github.com/quanghoangf/vibedoc/commit/a440432030afd129401b1f147b0a3519500e0a74))
+* **i18n:** roadmap and doc link graph in Vietnamese (T218) ([7ea0c4c](https://github.com/quanghoangf/vibedoc/commit/7ea0c4c7bbc78533d58fdde446af43c2b64daeff))
+* **i18n:** settings, help, shortcuts, command palette and shared UI in Vietnamese (T223) ([97c411f](https://github.com/quanghoangf/vibedoc/commit/97c411fa64605bfe9654b7cbd6a1c012bcc6fd4f))
+* **i18n:** test review and evidence in Vietnamese (T221) ([141691b](https://github.com/quanghoangf/vibedoc/commit/141691b6512a337385424103bd1ff0cc3f1c1b09))
+* **test-review:** auto-pause at each step with a step caption in the run player (T226) ([90aa8da](https://github.com/quanghoangf/vibedoc/commit/90aa8dadec72bf89599f7f06556477ae862fc2ae))
+* **test-review:** playback speed in the run player, remembered per browser (T225) ([931deaf](https://github.com/quanghoangf/vibedoc/commit/931deafe12e5c7c74980d521915692699d208733))
+* **testing:** cursor, highlight and action titles in presentation recordings (T228) ([3ae1dae](https://github.com/quanghoangf/vibedoc/commit/3ae1dae21b976beeba170995874223feb48c5feb))
+* **testing:** presentation recording switch in the test kit, recorded in run.json (T227) ([3dba2a6](https://github.com/quanghoangf/vibedoc/commit/3dba2a6a0046000466e517986ca6c011d133161a))
+* **testing:** step chapter cards and a hold after each step in presentation recordings (T229) ([6e6d277](https://github.com/quanghoangf/vibedoc/commit/6e6d2771a840c3300b97c19151a1083d01cad7fa))
+
 # [1.15.0](https://github.com/quanghoangf/vibedoc/compare/v1.14.0...v1.15.0) (2026-10-06)
 
 
