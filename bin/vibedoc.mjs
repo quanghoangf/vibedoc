@@ -9,8 +9,6 @@ import { prepareDemo, sweepDemos } from './demo.mjs'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
 
-// The page the browser opens on start: / redirects to the first screen that fits the project (R082); the demo opens its board
-const START_PATH = args.includes('--demo') ? '/board' : '/'
 
 async function openBrowser(url) {
   if (noOpen) return console.log(`   Open ${url} in your browser.`)
@@ -39,6 +37,9 @@ if (args.includes('--demo')) sweepDemos()
 const demo = args.includes('--demo') ? prepareDemo() : null
 if (demo) process.on('exit', demo.cleanup) // exit handlers run sync code only: cleanup uses rmSync
 const demoEnv = demo ? { VIBEDOC_PLAYGROUND: '1', VIBEDOC_RUNS_DIR: demo.runsDir } : {}
+
+// The page the browser opens on start: / redirects to the first screen that fits the project (R082); the demo opens its board
+const START_PATH = demo ? '/board' : '/'
 
 // Capture the user's cwd before spawning Next.js (which runs from projectRoot)
 const VIBEDOC_ROOT = demo?.root || process.env.VIBEDOC_ROOT || process.cwd()
