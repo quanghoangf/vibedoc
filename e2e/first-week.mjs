@@ -2,6 +2,7 @@
 //   1. The sidebar shows "First week" 0/6, every row unticked
 //   2. A human moves a task to done → "First task done" stays unticked
 //   3. An agent claims and finishes a task over /api/mcp → "First task done" ticks without a reload (S1)
+//   4. The first unticked step is open with its page or exact command; Copy copies it; commands carry real ids (S2)
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
 //   PORT=3084 pnpm dev   # then:
@@ -33,7 +34,8 @@ async function mcp(name, args) {
 const browser = await launchChrome()
 const errors = []
 try {
-  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, permissions: ["clipboard-read", "clipboard-write"] })
+  const page = await context.newPage()
   page.on("console", (m) => {
     if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text())
   })
@@ -47,6 +49,17 @@ try {
     assert.equal(await row(id).getAttribute("data-done"), null, `${id} unticked on an empty project`)
   }
   console.log("ok  empty project: First week 0/6, every row unticked")
+
+  // S2: the next step is open with the exact command, one click to copy
+  const action = fw.getByTestId("first-week-action")
+  const mcpAdd = `claude mcp add --transport http vibedoc ${BASE}/api/mcp`
+  await action.getByText(mcpAdd, { exact: true }).waitFor()
+  assert.equal(await action.count(), 1, "only one step open")
+  assert.equal(await row("agent").getByRole("button", { expanded: true }).count(), 1)
+  await action.getByRole("button", { name: `Copy command: ${mcpAdd}` }).click()
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), mcpAdd)
+  assert.equal(await action.getByRole("link", { name: "Open /settings" }).getAttribute("href"), "/settings")
+  console.log("ok  S2: the first unticked step shows the claude mcp add command for this server; Copy copies it")
 
   // A human's done is not the agent's
   const res = await fetch(`${BASE}/api/tasks${q}`, {
@@ -68,6 +81,20 @@ try {
   await fw.getByText("2 of 6 steps done").waitFor()
   assert.equal(await page.evaluate(() => performance.getEntriesByType("navigation").length), nav, "no reload")
   console.log("ok  S1: the agent finishes a task → \"First task done\" (and \"Agent connected\") tick without a reload")
+
+  // The open step follows the ticks: roadmap → breakdown with the real epic id
+  await action.getByText("/vibedoc:roadmap", { exact: true }).waitFor()
+  assert.equal(await action.getByRole("link", { name: "Open /roadmap" }).getAttribute("href"), "/roadmap")
+  await mcp("vibedoc_create_roadmap_item", { title: "Now" })
+  assert.match(await mcp("vibedoc_create_roadmap_item", { title: "Checkout", parent: "R001" }), /R002/)
+  await fw.locator('[data-step="roadmap"][data-done]').waitFor({ timeout: 5000 })
+  await action.getByText("/vibedoc:breakdown R002", { exact: true }).waitFor()
+  // Another step opens on click; the open one closes on a second click
+  await row("memory").getByRole("button").click()
+  await action.getByRole("link", { name: "Open /memory" }).waitFor()
+  await row("memory").getByRole("button").click()
+  assert.equal(await action.count(), 0)
+  console.log("ok  after the roadmap ticks, the open step is /vibedoc:breakdown R002; rows open and close on click")
 
   assert.deepEqual(errors, [], "no browser console errors")
   console.log("ok  no console errors")

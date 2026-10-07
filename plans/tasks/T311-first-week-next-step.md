@@ -1,9 +1,12 @@
 # T311: Next step is one click: each item's page or command
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude
 **Phase:** R084 — First-week checklist
 **Size:** M (2–3 hrs)
 **Depends on:** T310
 **Covers:** S2
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 
 ## Goal
 Every checklist item links to the page where it happens or gives the exact command to copy, and the first unticked item is open with that action ready, so the next step is one click.
@@ -47,5 +50,11 @@ BASE=http://localhost:3084 PW_DIR=<dir with node_modules/playwright> node e2e/fi
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude_
 ### Steps
-- [ ] S2 — WHEN the user opens the checklist → THEN the first unticked item shows its page or the exact command to copy
+- [x] S2 — WHEN the user opens the checklist → THEN the first unticked item shows its page or the exact command to copy
+- [ ] On a fresh project, click the copy icon on the `claude mcp add` line, paste it in a terminal → it adds VibeDoc to Claude Code with this server's URL
+- [ ] Click a later unticked step → it opens and the previous one closes; click it again → it closes
+- [ ] Tab through the checklist → every step, copy button and Open link gets a visible focus ring
+### Regression risk
+- [ ] The header's Connect menu still copies the same `claude mcp add` line

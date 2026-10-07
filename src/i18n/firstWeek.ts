@@ -13,6 +13,17 @@ export const en = {
   taskDone: "First task done by the agent",
   testRun: "First test run with evidence",
   memory: "First memory entry",
+  // One sentence per step: why it matters (shown on the open step)
+  agentWhy: "Your agent reads and updates this project through VibeDoc. Add it to Claude Code:",
+  roadmapWhy: "Epics give the agent a plan to follow. Generate one from your docs, or ask the agent:",
+  breakdownWhy: "The agent works from small tasks with clear checks. Ask it to split an epic:",
+  taskDoneWhy: "Let the agent take the next ready task, build it and mark it done:",
+  testRunWhy: "A test run records screenshots and a video, so you can trust \"done\". Run a task's spec on Manual tests.",
+  memoryWhy: "Facts the agent saves are there at the start of every session. Save one, or ask the agent to remember something.",
+  open: "Open",
+  copy: "Copy",
+  copied: "Copied",
+  copyCommand: "Copy command: {command}",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -27,4 +38,14 @@ export const vi: Messages<typeof en> = {
   taskDone: "Agent đã xong task đầu tiên",
   testRun: "Lần chạy test đầu tiên có bằng chứng",
   memory: "Mục ghi nhớ đầu tiên",
+  agentWhy: "Agent đọc và cập nhật dự án này qua VibeDoc. Thêm nó vào Claude Code:",
+  roadmapWhy: "Các epic cho agent một kế hoạch để làm theo. Tạo từ tài liệu của bạn, hoặc nhờ agent:",
+  breakdownWhy: "Agent làm việc từ các task nhỏ có tiêu chí kiểm tra rõ ràng. Nhờ nó chia nhỏ một epic:",
+  taskDoneWhy: "Để agent nhận task sẵn sàng tiếp theo, làm xong và đánh dấu hoàn thành:",
+  testRunWhy: "Một lần chạy test ghi lại ảnh chụp và video, để bạn tin vào chữ \"xong\". Chạy spec của một task ở trang Kiểm thử thủ công.",
+  memoryWhy: "Những điều agent lưu lại sẽ có sẵn khi mỗi phiên bắt đầu. Lưu một mục, hoặc nhờ agent ghi nhớ điều gì đó.",
+  open: "Mở",
+  copy: "Sao chép",
+  copied: "Đã sao chép",
+  copyCommand: "Sao chép lệnh: {command}",
 }
