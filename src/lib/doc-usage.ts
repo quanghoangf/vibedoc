@@ -48,11 +48,31 @@ export function recordRead(usage: DocUsage, docPath: string, now: Date): DocUsag
   return { ...usage, reads: cap(reads, MAX_READS) }
 }
 
+/** "  Deploy   Widget " → "deploy widget": one entry per search, however it was typed. */
+export const searchKey = (query: string) => query.trim().toLowerCase().replace(/\s+/g, ' ')
+
+/** A search that found nothing is counted; once the same search finds something, it leaves the list. */
+export function recordSearch(usage: DocUsage, query: string, found: boolean, now: Date): DocUsage {
+  const key = searchKey(query)
+  if (!key) return usage
+  if (found) {
+    if (!usage.searches[key]) return usage
+    const { [key]: _gone, ...searches } = usage.searches
+    void _gone
+    return { ...usage, searches }
+  }
+  const prev = usage.searches[key]
+  const searches = { ...usage.searches, [key]: { query: query.trim(), count: (prev?.count ?? 0) + 1, last: now.toISOString() } }
+  return { ...usage, searches: cap(searches, MAX_SEARCHES) }
+}
+
 export interface UsageSummary {
   /** read docs that still exist, most read first (ties: newest read first) */
   mostRead: { path: string; count: number; last: string }[]
   /** docs (kind "doc") no agent has read, in path order */
   neverRead: string[]
+  /** agent searches that found nothing, newest first */
+  notFound: { key: string; query: string; count: number; last: string }[]
 }
 
 /** `paths` = every file in the project; `docPaths` = the ones that are docs (not tasks, epics, entries…). */
@@ -63,5 +83,8 @@ export function summarizeUsage(usage: DocUsage, paths: string[], docPaths: strin
     .map(([p, c]) => ({ path: p, count: c.count, last: c.last }))
     .sort((a, b) => b.count - a.count || b.last.localeCompare(a.last))
   const neverRead = docPaths.filter((p) => !usage.reads[p]).sort()
-  return { mostRead, neverRead }
+  const notFound = Object.entries(usage.searches)
+    .map(([key, { query, count, last }]) => ({ key, query, count, last }))
+    .sort((a, b) => b.last.localeCompare(a.last))
+  return { mostRead, neverRead, notFound }
 }

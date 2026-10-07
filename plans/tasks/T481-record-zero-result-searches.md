@@ -1,5 +1,8 @@
 # T481: Record searches that found nothing
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 **Phase:** R093 — Doc usage signals
 **Size:** S (~1–2 hrs)
 **Depends on:** T480
@@ -41,4 +44,9 @@ BASE=http://localhost:3193 node e2e/doc-usage.mjs
 ```
 
 ## Manual tests
-- [ ] S3 — WHEN an agent's `vibedoc_search_docs` returns no results → THEN /docs lists that query under "Searched, not found", and it leaves the list once the same search finds a doc
+### Steps
+- [x] S3 — WHEN an agent's `vibedoc_search_docs` returns no results → THEN /docs lists that query under "Searched, not found", and it leaves the list once the same search finds a doc
+- [ ] Open /docs with no doc selected → "Searched, not found" spans the width under the two read lists; a long query truncates instead of wrapping
+- [ ] Search in the /docs list for something that doesn't exist → nothing is added to "Searched, not found" (only agent searches count)
+### Regression risk
+- [ ] An agent's `vibedoc_search_docs` that finds docs still returns the same hits as before

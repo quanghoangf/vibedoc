@@ -7,7 +7,7 @@ import type { UsageSummary } from "@/lib/doc-usage"
 
 const SHOWN = 8
 
-/** R093: on the /docs landing — which docs agents read, and which they never open. */
+/** R093: on the /docs landing — which docs agents read, which they never open, and what they searched for and didn't find. */
 export function DocUsage({ onDocClick }: { onDocClick?: (path: string) => void }) {
   const { rootParam, activeProject } = useApp()
   const { t, tn } = useT()
@@ -71,6 +71,22 @@ export function DocUsage({ onDocClick }: { onDocClick?: (path: string) => void }
             <ul className="flex flex-col gap-1.5">
               {usage.neverRead.slice(0, SHOWN).map((p) => <li key={p} data-path={p} className="flex">{docButton(p)}</li>)}
               {more(usage.neverRead.length)}
+            </ul>
+          )}
+        </div>
+        <div role="group" aria-label={t("docs.searchedNotFound")} data-usage="not-found" className="sm:col-span-2">
+          <h4 className="mb-2 text-xs font-medium text-muted">{t("docs.searchedNotFound")}</h4>
+          {usage.notFound.length === 0 ? <p className="text-xs text-muted">{t("docs.noEmptySearches")}</p> : (
+            <ul className="flex flex-col gap-1.5">
+              {usage.notFound.slice(0, SHOWN).map((r) => (
+                <li key={r.key} data-query={r.key} className="flex items-baseline justify-between gap-3">
+                  <span data-user-content className="min-w-0 truncate font-mono text-xs text-txt">“{r.query}”</span>
+                  <span className="shrink-0 text-[11px] text-muted" title={r.last}>
+                    {tn("docs.searchCount", r.count)} · {agoShort(r.last)}
+                  </span>
+                </li>
+              ))}
+              {more(usage.notFound.length)}
             </ul>
           )}
         </div>

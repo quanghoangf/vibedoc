@@ -53,6 +53,7 @@ import {
   sessionStartMemory,
   recordAgentCall,
   noteDocRead,
+  noteDocSearch,
   backfillEpisodes,
   currentSessionId,
   writeRunEpisode,
@@ -287,6 +288,10 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
     case "vibedoc_search_docs": {
       const results = await searchDocs(String(args.query), root);
+      // R093: record a search that found nothing (and clear it once it finds something); never fails the call
+      void noteDocSearch(root, String(args.query ?? ""), results.length > 0)
+        .then((wrote) => { if (wrote) emitUpdate("doc_usage_updated", { query: String(args.query ?? "") }) })
+        .catch((e) => console.warn("[vibedoc] could not record the doc search:", e));
       if (!results.length) return `No results for "${args.query}"`;
       const lines = [`🔍 "${args.query}" — ${results.length} file(s)\n`];
       for (const r of results) {

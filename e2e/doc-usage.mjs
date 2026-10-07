@@ -3,6 +3,8 @@
 //   2. An agent reads docs/guide.md twice over /api/mcp → it moves to "Read by agents" with 2 reads, live (S1)
 //   3. A human opening a doc does not count; the in-app chat's read (x-vibedoc-chat) does
 //   4. .vibedoc/doc-usage.json holds the count
+//   5. Agent searches that find nothing show under "Searched, not found", coalesced; a later hit removes them (S3)
+//   6. Done when: after a reload, the read doc and the empty search both show
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
 //   PORT=3193 pnpm dev   # then:
@@ -82,6 +84,31 @@ try {
   await page.goto(`${BASE}/docs`)
   await read.locator('[data-path="docs/api.md"]').getByText(/^1 read/).waitFor()
   console.log("ok  the in-app chat's read (x-vibedoc-chat) counts as an agent read")
+
+  // S3: a search that found nothing is listed (coalesced), and leaves once the same search finds a doc
+  const notFound = usage.getByRole("group", { name: "Searched, not found" })
+  await notFound.getByText("Every agent search found something.").waitFor()
+  assert.match(await mcp("vibedoc_search_docs", { query: "rollback plan" }), /No results/)
+  await mcp("vibedoc_search_docs", { query: "  Rollback   PLAN" })
+  const miss = notFound.locator('[data-query="rollback plan"]')
+  await miss.getByText(/^2 searches/).waitFor()
+  assert.equal(await notFound.locator("[data-query]").count(), 1, "one entry per search, however it was typed")
+  assert.equal(usageFile().searches["rollback plan"].count, 2)
+  // a human search on /docs doesn't count
+  await fetch(`${BASE}/api/docs${q}&q=${encodeURIComponent("nothing matches this")}`)
+  assert.equal(usageFile().searches["nothing matches this"], undefined)
+  writeFileSync(path.join(fx, "docs/rollback.md"), "# Rollback\n\nOur rollback plan.\n")
+  assert.match(await mcp("vibedoc_search_docs", { query: "rollback plan" }), /docs\/rollback\.md/)
+  await miss.waitFor({ state: "detached" })
+  assert.equal(usageFile().searches["rollback plan"], undefined)
+  console.log("ok  S3: two empty searches → one \"rollback plan\" entry with 2 searches, live; it leaves once the search finds docs/rollback.md")
+
+  // Done when: after a session, /docs shows the docs the agent read and a search that found nothing
+  await mcp("vibedoc_search_docs", { query: "pricing tiers" })
+  await page.reload()
+  await read.locator('[data-path="docs/guide.md"]').getByText(/^2 reads/).waitFor()
+  await notFound.locator('[data-query="pricing tiers"]').getByText(/^1 search/).waitFor()
+  console.log("ok  Done when: after a reload /docs shows the read doc and the search that found nothing")
 
   assert.deepEqual(errors, [], "no browser console errors")
   console.log("ok  no console errors")
