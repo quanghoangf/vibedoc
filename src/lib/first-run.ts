@@ -51,7 +51,7 @@ export function stepUrl(step: StepId): string {
 
 /** Reached, not yet sent, in funnel order; nothing without consent. */
 export function pendingSteps(state: FeedbackState, reached: StepId[]): StepId[] {
-  if (state.consent !== true) return []
+  if (state.consent !== true || !GOATCOUNTER) return [] // '' turns analytics off, as on the site
   return STEPS.filter((s) => reached.includes(s) && !state.sent.includes(s))
 }
 

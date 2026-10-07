@@ -51,7 +51,7 @@ Roadmap page `/roadmap` — roadmap.sh-style map built with `@xyflow/react`. Des
 - Known ceilings: one process spawn per turn (~1–2s); if the user edits inside the exact span the agent targets, Accept fails with "doc changed" and the agent must re-propose.
 
 ## Up next
-- Fix the 16 pre-existing react-hooks lint errors
+- Fix the 14 pre-existing react-hooks lint errors
 
 ## Active issues
 | Issue | Severity | Status |
@@ -111,7 +111,7 @@ Roadmap page `/roadmap` — roadmap.sh-style map built with `@xyflow/react`. Des
 - Watchable evidence videos (R079): the run player (`RunPlayer`) has speed (0.5–2×) and auto-pause at each step's screenshot moment (`nextPause` in test-review.ts) with a `Step N · name` caption; both in the `vibedoc-player` cookie (pure `src/lib/player-prefs.ts`). The kit records presentation videos via Playwright 1.59+ `page.screencast` (action annotations, `01 · step` chapter cards, a hold after each step); pure `presentationMode()` in `src/lib/presentation.ts` (in FIXTURE_KIT_FILES) turns it off for the suite, the blank pass, CI and `VIBEDOC_PRESENT=0`, and run.json `presentation` says why (the player shows it). Screenshots stay clean without hiding anything. `page.setContent` removes Playwright's overlay for good (navigate instead). e2e: `e2e/watchable-video.mjs` (reads chapter cards back from the video frames).
 - First-run feedback (R086): off unless the user says yes on a once-per-project card (`FirstRunFeedback` in the `(app)` layout, non-modal; R082's welcome can host it). State `.vibedoc/feedback.json` `{consent, sent}` via core `readFeedback`/`saveFeedback`; steps derived (`reachedSteps` in pure `src/lib/first-run.ts`: session_start → agent-connected, an epic → first-roadmap, a done task → first-task-done; ids are the wire format). The **browser** sends `stepUrl()` (GoatCounter `/count?p=/first-run/<step>&e=true`, no-cors) then `POST /api/feedback/sent`; opting in marks already-reached steps sent except `started`. `VIBEDOC_FEEDBACK=0` / demo = never asked or sent; `makeFixture` writes consent false. Settings → Privacy switch; "Stuck? Tell us" (`StuckLink`, Help panel + card) = prefilled GitHub issue (version, OS family, last step). Docs `site/.../docs/privacy.md` (check asserts it lists exactly the URLs); maintainer funnel `scripts/first-run-funnel.mjs` (`GOATCOUNTER_TOKEN`). Checks: `node src/lib/first-run.check.mts`, e2e `e2e/first-run-feedback.mjs`.
 - Pure libs never import values from each other (only `core.ts` does): `node *.check.mts` runs them without a bundler, so `./x` without `.ts` fails.
-- Lint: 16 pre-existing `react-hooks` errors (React Compiler rules) outside roadmap files — don't add new ones.
+- Lint: 14 pre-existing `react-hooks` errors (React Compiler rules) outside roadmap files — don't add new ones.
 
 ## Handoff for next session
 R046, R048, R047 and R053 (memory graph) are done, as a gh stack: `memory-entries` (#6) → `memory` (#7) → `memory-browser` (#9) → `memory-graph` (not pushed yet). Next memory epic: R045 safe memory updates (`/vibedoc:breakdown`). R056 doc link graph is done on `feat/doc-link-graph` (T093–T112; second critique snapshot closed).

@@ -8,7 +8,8 @@
 //   5. Settings → Privacy on a declined project: on → `started`, then the next step (ones reached while off never); off → nothing (S5).
 // GoatCounter is intercepted (never reached). Fails on any browser console error. Fixtures removed in `finally`.
 //
-//   BASE=http://localhost:3086 PW_DIR=node_modules/@playwright/test node e2e/first-run-feedback.mjs
+//   BASE=http://localhost:3086 PW_DIR=<dir with node_modules/playwright> node e2e/first-run-feedback.mjs
+// (this repo with pnpm: PW_DIR=$PWD/node_modules/.pnpm/playwright@<version>/node_modules)
 import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"

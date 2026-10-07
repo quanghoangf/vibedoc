@@ -13,7 +13,7 @@ const STEP_LABEL: Record<StepId, MessageKey> = {
   "first-task-done": "feedback.stepTask",
 }
 // Events that can reach a step (session_start = an agent connected)
-const STEP_EVENTS = ["session_start", "task_updated", "task_created", "roadmap_updated", "feedback_updated"]
+const STEP_EVENTS = ["session_start", "task_updated", "task_created", "roadmap_updated"]
 
 interface FeedbackStatus { available: boolean; consent: boolean | null; pending: StepId[]; version: string; lastStep: StepId }
 
@@ -91,7 +91,6 @@ export function FirstRunFeedback() {
     try {
       for (const step of pending) {
         if (sentHere.current.has(step)) continue
-        sentHere.current.add(step)
         // no-cors: the answer is opaque and unneeded; keepalive lets it finish if the tab closes
         await fetch(stepUrl(step), { mode: "no-cors", keepalive: true, credentials: "omit", referrerPolicy: "no-referrer" })
         await fetch(`/api/feedback/sent${rootParam}`, {
@@ -99,6 +98,7 @@ export function FirstRunFeedback() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ step }),
         })
+        sentHere.current.add(step)
       }
     } catch (e) {
       console.warn("[vibedoc] first-run feedback not sent", e) // offline or blocked: tried again on the next change
@@ -118,13 +118,18 @@ export function FirstRunFeedback() {
 
   useEffect(() => {
     load()
+  }, [load])
+
+  // Only an opted-in project can have a step to send: the others listen for a changed answer alone
+  const optedIn = status?.consent === true
+  useEffect(() => {
     const onSse = (e: Event) => {
       const type = (e as CustomEvent<{ type?: string }>).detail?.type
-      if (type && STEP_EVENTS.includes(type)) load()
+      if (type === "feedback_updated" || (optedIn && type && STEP_EVENTS.includes(type))) load()
     }
     window.addEventListener("vibedoc:sse", onSse)
     return () => window.removeEventListener("vibedoc:sse", onSse)
-  }, [load])
+  }, [load, optedIn])
 
   const answer = async (consent: boolean) => {
     setStatus((s) => (s ? { ...s, consent } : s))
