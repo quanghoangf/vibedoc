@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** planned
 **Order:** 360
-**Tasks:** T504, T505, T506, T507, T508, T509
+**Tasks:** T504, T505, T506, T507, T508, T509, T510
 
 Small fixes to layout and behaviour that make daily use smoother. Each task is one self-contained polish item found while using VibeDoc.
 
@@ -29,3 +29,6 @@ Small fixes to layout and behaviour that make daily use smoother. Each task is o
 ### S6: Resizable task quick view
 - WHEN the user drags the edge of the task quick view on /board
 - THEN it resizes, keeps that width after a reload, and shows dependencies, test state, runs and chat state at a glance
+### S7: Quick review from the board
+- WHEN a task is in Review on /board and the user clicks its Review button
+- THEN its manual tests open in a quick review where items can be ticked and the task approved or sent back, without leaving the board
