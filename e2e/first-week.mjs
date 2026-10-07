@@ -2,14 +2,18 @@
 //   1. The sidebar shows "First week" 0/6, every row unticked
 //   2. A human moves a task to done → "First task done" stays unticked
 //   3. An agent claims and finishes a task over /api/mcp → "First task done" ticks without a reload (S1)
-//   5. Dismiss → gone, after a reload too; Undo brings it back; another project still shows it (S3)
 //   4. The first unticked step is open with its page or exact command; Copy copies it; commands carry real ids (S2)
+//   5. Done-when: the agent breaks down the epic, runs a spec, finishes the task with evidence and saves an entry →
+//      every row ticks live, none by hand, and the checklist says All done
+//   6. Dismiss → gone, after a reload too; Undo brings it back; Close on All done; another project still shows it (S3)
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
 //   PORT=3084 pnpm dev   # then:
 //   BASE=http://localhost:3084 PW_DIR=<dir with node_modules/playwright> node e2e/first-week.mjs
 import assert from "node:assert/strict"
-import { existsSync, rmSync, writeFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
@@ -22,6 +26,10 @@ const task = (id, title) => writeFileSync(path.join(fx, `plans/tasks/${id}-${tit
   [`# ${id}: ${title}`, "**Status:** 📋 Todo", "**Depends on:** —", "", "## Goal", "x", ""].join("\n"))
 task("T001", "Alpha")
 task("T002", "Bravo")
+task("T003", "Charlie")
+// The server reads runs from ~/.vibedoc/runs (or its $VIBEDOC_RUNS_DIR) under the fixture's key; removed in `finally`
+const key = path.basename(fx).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+const runsDir = path.join(process.env.VIBEDOC_RUNS_DIR || path.join(os.homedir(), ".vibedoc", "runs"), key)
 
 async function mcp(name, args) {
   const res = await fetch(`${BASE}/api/mcp${q}`, {
@@ -98,26 +106,53 @@ try {
   assert.equal(await action.count(), 0)
   console.log("ok  after the roadmap ticks, the open step is /vibedoc:breakdown R002; rows open and close on click")
 
+  // Done-when: the agent follows the rest of the loop; every row ticks in the open page, nothing ticked by hand
+  assert.match(await mcp("vibedoc_update_roadmap_item", { id: "R002", tasks: ["T001", "T002", "T003"] }), /R002/)
+  await fw.locator('[data-step="breakdown"][data-done]').waitFor({ timeout: 5000 })
+  await action.getByRole("link", { name: "Open /manual-tests" }).waitFor()
+  await mcp("vibedoc_update_task", { taskId: "T003", status: "in-progress" })
+  execFileSync("npx", ["playwright", "test", "e2e/fixtures/capture-demo.spec.ts"], {
+    env: { ...process.env, VIBEDOC_PROJECT: fx, VIBEDOC_TASK_ID: "T003" }, stdio: "ignore",
+  })
+  const report = "### Steps\n- [x] 🤖 Open the page → heading shows\n- [x] 🤖 Click the button → it reads Clicked"
+  assert.match(await mcp("vibedoc_update_task", {
+    taskId: "T003", status: "done", manualTests: report, spec: "e2e/fixtures/capture-demo.spec.ts", autoResult: "passed",
+  }), /T003/)
+  await fw.locator('[data-step="testRun"][data-done]').waitFor({ timeout: 5000 })
+  await action.getByRole("link", { name: "Open /memory" }).waitFor()
+  assert.match(await mcp("vibedoc_save_entry", { type: "convention", summary: "Tasks are proven by a Playwright spec" }), /E001/)
+  await fw.getByTestId("first-week-finished").getByText(/All done/).waitFor({ timeout: 5000 })
+  await fw.getByText("6 of 6 steps done").waitFor()
+  assert.equal(await page.evaluate(() => performance.getEntriesByType("navigation").length), nav, "no reload")
+  assert.match(readFileSync(path.join(fx, "plans/tasks/T003-charlie.md"), "utf8"), /^\*\*Status:\*\* ✅ Done/m)
+  assert.ok(existsSync(path.join(runsDir, "T003", "EVIDENCE.md")), "the done task has evidence")
+  console.log("ok  Done-when: the loop ends with a done task that has evidence and 6/6 ticked live, none by hand → All done")
+
   // S3: dismiss for this project only
   await fw.getByRole("button", { name: "Dismiss checklist" }).click()
   await fw.waitFor({ state: "detached" })
   await page.getByText("First-week checklist dismissed for this project").waitFor()
   assert.ok(existsSync(path.join(fx, ".vibedoc/first-week.json")))
   await page.getByRole("button", { name: "Undo" }).click()
-  await fw.waitFor()
+  await fw.getByTestId("first-week-finished").waitFor()
   assert.ok(!existsSync(path.join(fx, ".vibedoc/first-week.json")))
-  await fw.getByRole("button", { name: "Dismiss checklist" }).click()
+  await fw.getByTestId("first-week-finished").getByRole("button", { name: "Close" }).click()
   await fw.waitFor({ state: "detached" })
   await page.reload()
-  await page.getByRole("link", { name: "Board" }).first().waitFor()
   await page.getByRole("group", { name: "Chats" }).waitFor()
+  await page.waitForLoadState("networkidle")
   assert.equal(await fw.count(), 0, "still dismissed after a reload")
+  // A checklist that loads already finished doesn't show either
+  rmSync(path.join(fx, ".vibedoc/first-week.json"))
+  await page.reload()
+  await page.waitForLoadState("networkidle")
+  assert.equal(await fw.count(), 0, "a finished checklist doesn't come back")
   const page2 = await context.newPage()
   await stubChat(page2, [], { root: other })
   await page2.goto(`${BASE}/board`)
   await page2.getByRole("group", { name: "First week" }).getByText("1 of 6 steps done").waitFor() // the stock fixture has a roadmap
   await page2.close()
-  console.log("ok  S3: dismiss hides it (Undo brings it back), a reload keeps it hidden, another project still shows it")
+  console.log("ok  S3: dismiss hides it (Undo brings it back), Close on All done hides it, a reload keeps it hidden, another project still shows it")
 
   assert.deepEqual(errors, [], "no browser console errors")
   console.log("ok  no console errors")
@@ -125,4 +160,5 @@ try {
   await browser.close()
   rmSync(fx, { recursive: true, force: true })
   rmSync(other, { recursive: true, force: true })
+  rmSync(runsDir, { recursive: true, force: true })
 }

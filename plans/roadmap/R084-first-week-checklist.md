@@ -1,6 +1,6 @@
 # R084: First-week checklist
 **Parent:** R003
-**Status:** planned
+**Status:** done
 **Order:** 140
 **Tasks:** T310, T311, T312, T313
 

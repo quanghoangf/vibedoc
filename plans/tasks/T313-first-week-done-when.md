@@ -1,9 +1,12 @@
 # T313: First-week Done-when end to end, docs, close R084
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude
 **Phase:** R084 — First-week checklist
 **Size:** S (~1 hr)
 **Depends on:** T311, T312
 **Covers:** S1, S2, S3
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 
 ## Goal
 Prove the epic's Done-when: a user who follows only the checklist ends with a done task that has evidence, and all six items ticked with nothing ticked by hand. Document it.
@@ -34,7 +37,12 @@ BASE=http://localhost:3084 PW_DIR=<dir with node_modules/playwright> node e2e/fi
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude_
 ### Steps
-- [ ] S1 — WHEN the agent marks the user's first task done → THEN "First task done" ticks without a reload
-- [ ] S2 — WHEN the user opens the checklist → THEN the first unticked item shows its page or the exact command to copy
-- [ ] S3 — WHEN the user dismisses the checklist → THEN it doesn't come back for this project
+- [x] S1 — WHEN the agent marks the user's first task done → THEN "First task done" ticks without a reload
+- [x] S2 — WHEN the user opens the checklist → THEN the first unticked item shows its page or the exact command to copy
+- [x] S3 — WHEN the user dismisses the checklist → THEN it doesn't come back for this project
+- [ ] On a real empty repo, follow only the checklist with Claude Code (connect, `/vibedoc:roadmap`, `/vibedoc:breakdown`, `/vibedoc:work`, a Run on Manual tests, ask the agent to remember something) → every row ticks by itself and it ends on "All done"
+- [ ] Docs site → Getting started → "First week checklist" lists the six steps and how to dismiss
+### Regression risk
+- [ ] /board, /roadmap and /memory still refresh live when an agent changes them
