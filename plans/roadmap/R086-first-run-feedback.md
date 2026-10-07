@@ -1,6 +1,6 @@
 # R086: First-run feedback
 **Parent:** R003
-**Status:** planned
+**Status:** in-progress
 **Order:** 160
 **Tasks:** T350, T351, T352, T353
 

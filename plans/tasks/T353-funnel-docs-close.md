@@ -1,5 +1,7 @@
 # T353: Maintainer funnel, privacy docs, close R086
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 **Phase:** R086 — First-run feedback
 **Size:** M (2–3 hrs)
 **Depends on:** T350, T351, T352
@@ -41,6 +43,11 @@ BASE=http://localhost:3086 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node
 ```
 
 ## Manual tests
-- [ ] S2 — WHEN the user opts in and goes through start → agent connected → first roadmap → first task done → THEN the maintainer reads them as a step funnel
-- [ ] S3 — WHEN the user declines, or never answers → THEN no request leaves VibeDoc for the analytics host
-- [ ] Human: run `GOATCOUNTER_TOKEN=… node scripts/first-run-funnel.mjs` against the real site and see the funnel
+_Auto: `node scripts/first-run-funnel.mjs --check`, `node src/lib/first-run.check.mts` (privacy page lists exactly the four URLs), `e2e/first-run-feedback.mjs` (S1–S5 in one pass), `pnpm --dir site build` passed 2026-10-07._
+### Steps
+- [x] S2 — WHEN the user opts in and goes through start → agent connected → first roadmap → first task done → THEN the four step requests go out in order (what the funnel counts)
+- [x] S3 — WHEN the user declines, or never answers → THEN no request leaves VibeDoc for the analytics host
+- [ ] Human: `GOATCOUNTER_TOKEN=… node scripts/first-run-funnel.mjs` against the real site → the funnel prints (needs a real opted-in run first; confirms GoatCounter accepts the localhost hits and whether it stores the event path with or without the leading "/" — the script reads both)
+- [ ] Open the site docs → Start → "First-run feedback & privacy" reads clearly and matches the card
+### Regression risk
+- [ ] The site's own GoatCounter page counting (count.js on the landing page) is unchanged

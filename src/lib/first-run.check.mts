@@ -61,3 +61,10 @@ assert.match(issue.searchParams.get("body"), /VibeDoc 1\.16\.0 · macOS · last 
 assert.equal(issue.searchParams.get("labels"), "first-run")
 assert.match(new URL(issueUrl({ version: "1", os: "", lastStep: "started" })).searchParams.get("body"), /unknown OS/)
 console.log("first-run issue ok")
+
+// The privacy page lists exactly the requests VibeDoc can make (it promises "exactly what would be sent")
+import { readFileSync } from "node:fs"
+const doc = readFileSync(new URL("../../site/src/content/docs/docs/privacy.md", import.meta.url), "utf8")
+for (const s of STEPS) assert.ok(doc.includes(`\`GET ${stepUrl(s)}\``), `privacy.md lists ${s}`)
+assert.equal(doc.match(/goatcounter\.com\/count\?/g)?.length, STEPS.length, "privacy.md lists no other request")
+console.log("first-run privacy doc ok")
