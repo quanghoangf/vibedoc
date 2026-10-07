@@ -3,6 +3,7 @@
 **Phase:** R004 — Shared lists
 **Size:** M
 **Depends on:** T001
+**Covers:** S1
 **Owner:** human
 **Due:** 2026-09-26
 **Started:** 2026-09-22
@@ -14,3 +15,12 @@ The owner of a list can turn on a read-only share link.
 ## Acceptance criteria
 - [x] Links use an unguessable 128-bit token, revocable from list settings
 - [x] Spec: [sharing](../../docs/product/sharing.md)
+
+## Manual tests
+_2026-09-25 — ai · Spec: `e2e/vibedoc/T004-share-list-by-link.spec.ts` · Auto: passed 2026-09-25_
+### Steps
+- [x] 🤖 Open the "Team groceries" list → it shows its items and a Share button
+- [x] 🤖 S1 — WHEN an owner turns on the share link and sends it → THEN anyone with the link sees the list, read-only
+- [x] 🤖 Turn the link off → the old link shows "This list isn't shared"
+### Regression risk
+- [x] Private lists still need a login

@@ -21,6 +21,8 @@ interface AppContextValue {
   summary: Summary | null
   /** Read-only demo (VIBEDOC_DEMO=1, from /api/summary): hide every write control (R042) */
   demo: boolean
+  /** `vibedoc --demo` (VIBEDOC_PLAYGROUND=1, R085): a writable throwaway copy of the sample project */
+  playground: boolean
   board: TaskBoard | null
   activity: ActivityEvent[]
   liveIndicator: boolean
@@ -161,6 +163,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [activeProject, refresh])
 
   const demo = summary?.demo === true
+  const playground = summary?.playground === true
 
   const moveTask = useCallback(async (taskId: string, status: string) => {
     if (demo) return // read-only demo: the card must not move and snap back
@@ -246,6 +249,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       activeProject,
       summary,
       demo,
+      playground,
       board,
       activity,
       liveIndicator,

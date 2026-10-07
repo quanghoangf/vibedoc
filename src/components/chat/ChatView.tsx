@@ -222,7 +222,7 @@ function EmptyChat({ chat, onPick }: { chat: ChatTab; onPick: (s: string) => voi
 
 function Composer({ chat, wide }: { chat: ChatTab; wide: boolean }) {
   const { send, stop, queue } = useChats()
-  const { selectedDoc } = useApp()
+  const { selectedDoc, playground } = useApp()
   const { t } = useT()
   const pathname = usePathname()
   const [input, setInput] = useState("")
@@ -236,6 +236,9 @@ function Composer({ chat, wide }: { chat: ChatTab; wide: boolean }) {
     send(chat.id, input)
     setInput("")
   }
+
+  // `vibedoc --demo` (R085): saved chats stay readable, but no agent runs
+  if (playground) return <p role="note" className="shrink-0 px-5 pb-4 pt-1 text-xs text-muted">{t("chat.playgroundNoAgents")}</p>
 
   return (
     <div className="shrink-0 px-5 pb-4 pt-1">

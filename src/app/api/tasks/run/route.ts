@@ -13,7 +13,7 @@ import { ensureFrontend, ownsServer } from '@/lib/frontend-server'
 import { busyWith, runState, startRun } from '@/lib/test-runner'
 import { specInApp } from '@/lib/test-run-events'
 import { isRunTaskId } from '@/lib/runs-paths'
-import { isDemo, demoForbidden } from '@/lib/demo'
+import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 import { refuseCrossSite } from '@/lib/same-origin'
 
 export const dynamic = 'force-dynamic'
@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (isDemo()) return demoForbidden()
+  if (isPlayground()) return playgroundForbidden()
   const refused = refuseCrossSite(req)
   if (refused) return refused
   const root = rootFrom(req.nextUrl.searchParams.get('root'))

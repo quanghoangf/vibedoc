@@ -18,7 +18,7 @@ import { isRunning } from "@/lib/test-run-events"
  * kept run (R060) is one click away on /manual-tests; `onNavigate` closes the panel first.
  */
 export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string; latest: string | null; spec?: string | null; onNavigate?: () => void }) {
-  const { rootParam, demo } = useApp()
+  const { rootParam, demo, playground } = useApp()
   const f = useFormat()
   const { t } = useT()
   // R061: Run / Stop this task's spec; while it runs, one live line replaces the picked run
@@ -59,7 +59,7 @@ export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string;
     <section aria-label={t("board.testRuns")} className="px-5 py-3 border-b border-border shrink-0">
       <div className="mb-2 flex items-center gap-2">
         <p className="text-xs font-mono uppercase tracking-wide text-muted">{t("board.runs")}</p>
-        {spec && !demo && (
+        {spec && !demo && !playground && (
           <button
             type="button"
             onClick={() => void (live ? testRun.stop() : testRun.start(taskId))}

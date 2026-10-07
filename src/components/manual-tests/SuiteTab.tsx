@@ -23,7 +23,7 @@ const evidenceHref = (taskId: string) => `/manual-tests?tab=all&task=${taskId}&v
  * broken tasks first (failing step, error, screenshot, Open evidence), the passed ones folded below.
  */
 export function SuiteTab({ specs, withoutSpec }: { specs: number; withoutSpec: number }) {
-  const { demo } = useApp()
+  const { demo, playground } = useApp()
   const { suite, busy, start, stop } = useSuiteRun()
   const single = useTestRun()
   const { t, tn } = useT()
@@ -39,7 +39,7 @@ export function SuiteTab({ specs, withoutSpec }: { specs: number; withoutSpec: n
             {withoutSpec > 0 && <> · <span className="font-mono tabular-nums">{withoutSpec}</span> {tn("tests.withoutSpecSuffix", withoutSpec)}</>}
           </p>
         </div>
-        {!demo && (
+        {!demo && !playground && (
           <button
             type="button"
             data-suite

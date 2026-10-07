@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getConfiguredRoot, rootFrom, listExplorerFiles, enrichDescription } from '@/lib/core'
+import { rootFrom, listExplorerFiles, enrichDescription } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
-import { isDemo, demoForbidden } from '@/lib/demo'
+import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,12 +15,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (isDemo()) return demoForbidden()
+  if (isPlayground()) return playgroundForbidden()
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 501 })
   }
   try {
     const body = await req.json()
-    const root = (body.root as string) || getConfiguredRoot()
+    const root = rootFrom(body.root as string | undefined)
     const filePath = body.path as string
     if (!filePath) return NextResponse.json({ error: 'path is required' }, { status: 400 })
     const description = await enrichDescription(filePath, root)

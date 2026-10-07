@@ -1,0 +1,125 @@
+{
+  "id": "c-r004-breakdown",
+  "title": "Epic R004",
+  "sessionId": "s-demo-1",
+  "busy": false,
+  "notes": [],
+  "attach": {
+    "kind": "epic",
+    "id": "R004"
+  },
+  "createdAt": "2026-09-21T08:02:11.000Z",
+  "updatedAt": "2026-09-21T08:06:40.000Z",
+  "messages": [
+    {
+      "role": "user",
+      "text": "Break down epic R004 (Shared lists) into tasks.",
+      "tools": [],
+      "proposals": [],
+      "plans": [],
+      "questions": []
+    },
+    {
+      "role": "assistant",
+      "text": "I read R004, the sharing spec and ADR-001. Here are five tasks in dependency order: share links first, because invites and roles build on the `list_members` table it adds. Live sync is independent of invites, so it can run in parallel.",
+      "tools": [
+        "vibedoc_get_roadmap",
+        "vibedoc_read_doc",
+        "vibedoc_read_doc",
+        "vibedoc_recall"
+      ],
+      "proposals": [],
+      "plans": [
+        {
+          "id": "p-r004",
+          "status": "accepted",
+          "plan": {
+            "kind": "breakdown",
+            "epic": "R004",
+            "tasks": [
+              {
+                "key": "t1",
+                "title": "Share a list by link",
+                "size": "M (2–3 hrs)",
+                "covers": [
+                  "S1"
+                ],
+                "body": "## Goal\nAnyone with the link can open the list read-only, owners can turn the link off."
+              },
+              {
+                "key": "t2",
+                "title": "Invite collaborators by email",
+                "size": "M (2–3 hrs)",
+                "dependsOn": [
+                  "t1"
+                ],
+                "covers": [
+                  "S3"
+                ],
+                "body": "## Goal\nInvite by email; accepting adds a `list_members` row."
+              },
+              {
+                "key": "t3",
+                "title": "Live sync for shared lists",
+                "size": "L (half a day)",
+                "dependsOn": [
+                  "t1"
+                ],
+                "covers": [
+                  "S2"
+                ],
+                "body": "## Goal\nEdits show up in every open browser within a second."
+              },
+              {
+                "key": "t4",
+                "title": "Per-list roles: owner, editor, viewer",
+                "size": "M (2–3 hrs)",
+                "dependsOn": [
+                  "t2"
+                ],
+                "body": "## Goal\nRoles enforced by Postgres RLS (ADR-001)."
+              },
+              {
+                "key": "t5",
+                "title": "Activity feed per list",
+                "size": "S (~1 hr)",
+                "dependsOn": [
+                  "t3"
+                ],
+                "body": "## Goal\nWho changed what, newest first."
+              }
+            ]
+          },
+          "created": [
+            {
+              "key": "t1",
+              "id": "T004",
+              "file": "plans/tasks/T004-share-list-by-link.md"
+            },
+            {
+              "key": "t2",
+              "id": "T005",
+              "file": "plans/tasks/T005-invite-by-email.md"
+            },
+            {
+              "key": "t3",
+              "id": "T006",
+              "file": "plans/tasks/T006-live-sync.md"
+            },
+            {
+              "key": "t4",
+              "id": "T007",
+              "file": "plans/tasks/T007-per-list-permissions.md"
+            },
+            {
+              "key": "t5",
+              "id": "T008",
+              "file": "plans/tasks/T008-list-activity-feed.md"
+            }
+          ]
+        }
+      ],
+      "questions": []
+    }
+  ]
+}

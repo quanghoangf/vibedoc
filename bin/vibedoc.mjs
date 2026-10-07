@@ -4,12 +4,13 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { addressChangedMessage, appUrl, parsePortArg, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, waitUntilReady } from './address.mjs'
+import { prepareDemo, sweepDemos } from './demo.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
 
-// The page the browser opens on start: / redirects to the first screen that fits the project (R082)
-const START_PATH = '/'
+// The page the browser opens on start: / redirects to the first screen that fits the project (R082); the demo opens its board
+const START_PATH = args.includes('--demo') ? '/board' : '/'
 
 async function openBrowser(url) {
   if (noOpen) return console.log(`   Open ${url} in your browser.`)
@@ -33,8 +34,14 @@ if (args.some((a) => a === '--version' || a === '-v')) {
   process.exit(0)
 }
 
+// --demo (R085): the sample project in a throwaway temp copy, removed when this process ends
+if (args.includes('--demo')) sweepDemos()
+const demo = args.includes('--demo') ? prepareDemo() : null
+if (demo) process.on('exit', demo.cleanup) // exit handlers run sync code only: cleanup uses rmSync
+const demoEnv = demo ? { VIBEDOC_PLAYGROUND: '1', VIBEDOC_RUNS_DIR: demo.runsDir } : {}
+
 // Capture the user's cwd before spawning Next.js (which runs from projectRoot)
-const VIBEDOC_ROOT = process.env.VIBEDOC_ROOT || process.cwd()
+const VIBEDOC_ROOT = demo?.root || process.env.VIBEDOC_ROOT || process.cwd()
 
 // The project's address (R080): --port N, else the saved port, else the first free one from 3333; saved for next time
 const portArg = parsePortArg(args)
@@ -57,6 +64,7 @@ const port = address.start
 if (!savePort(VIBEDOC_ROOT, port)) console.log(`   (Couldn't save the port to ${path.join(VIBEDOC_ROOT, '.vibedoc', 'port')}; the next run may use another one.)`)
 
 console.log('\n🚀 Starting VibeDoc...\n')
+if (demo) console.log(`   Demo: a sample project in a temporary copy (${VIBEDOC_ROOT}), deleted when you stop VibeDoc\n`)
 
 // Start Next.js directly with this Node (no npx), so stopping VibeDoc stops the server too
 const nextBin = createRequire(import.meta.url).resolve('next/dist/bin/next')
@@ -64,7 +72,7 @@ const server = spawn(process.execPath, [nextBin, 'start', '-p', String(port)], {
   stdio: ['inherit', 'inherit', 'pipe'],
   cwd: projectRoot,
   // VIBEDOC_PORT: the app's own port, for an in-app Connect panel (R081)
-  env: { ...process.env, VIBEDOC_ROOT, VIBEDOC_PORT: String(port) }
+  env: { ...process.env, VIBEDOC_ROOT, VIBEDOC_PORT: String(port), ...demoEnv }
 })
 
 // Handle graceful shutdown

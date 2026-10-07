@@ -32,6 +32,15 @@ test.describe('site analytics (T214)', () => {
     await expect.poll(() => hits).toContain('copy-ai')
   })
 
+  test('Copy on "Try the demo" sends copy-demo and copies the demo command (R085)', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+    const hits = await recordCounts(page)
+    await page.goto('./')
+    await page.getByRole('button', { name: 'Copy the demo command' }).click()
+    await expect.poll(() => hits).toContain('copy-demo')
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('npx vibedoc --demo')
+  })
+
   test('playing the demo sends demo-play once', async ({ page }) => {
     const hits = await recordCounts(page)
     await page.goto('./')

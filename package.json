@@ -35,6 +35,8 @@
     ".next/static/",
     "public/",
     "plugin/",
+    "examples/demo-project/",
+    "examples/demo-runs/listly/",
     "dist/testing/",
     "dist/lib/",
     "src/testing/playwright-fixture.ts",

@@ -21,6 +21,8 @@ export interface Summary {
   firstWeek?: FirstWeek & { epicToBreakDown: string | null; epicToWork: string | null; dismissed: boolean }
   /** VIBEDOC_DEMO=1 on the server: read-only demo, the UI hides every write control (R042) */
   demo?: boolean
+  /** VIBEDOC_PLAYGROUND=1: `vibedoc --demo`, a writable throwaway copy of the sample project (R085) */
+  playground?: boolean
 }
 
 export interface SelectedDoc {

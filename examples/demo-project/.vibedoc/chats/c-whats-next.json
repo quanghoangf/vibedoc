@@ -1,0 +1,31 @@
+{
+  "id": "c-whats-next",
+  "title": "What should I work on next?",
+  "sessionId": "s-demo-3",
+  "busy": false,
+  "notes": [],
+  "attach": null,
+  "createdAt": "2026-10-03T09:00:40.000Z",
+  "updatedAt": "2026-10-03T09:01:12.000Z",
+  "messages": [
+    {
+      "role": "user",
+      "text": "What should I work on next?",
+      "tools": [],
+      "proposals": [],
+      "plans": [],
+      "questions": []
+    },
+    {
+      "role": "assistant",
+      "text": "Finish **T005** (invite by email): it is past its due date and it blocks **T007** roles. After that, start **T009** reminder scheduler, since R005 is due soon and nothing in it has started.\n\nT006 is waiting on you in review: one manual check is left (offline edit, no duplicates).",
+      "tools": [
+        "vibedoc_get_status",
+        "vibedoc_get_roadmap"
+      ],
+      "proposals": [],
+      "plans": [],
+      "questions": []
+    }
+  ]
+}
