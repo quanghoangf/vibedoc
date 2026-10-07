@@ -67,28 +67,50 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
   const [task, setTask] = useState(openTask)
   if (openTask && openTask !== task) setTask(openTask)
 
-  const nextStatuses = task ? NEXT_STATUS[task.status] || [] : []
+  return (
+    <Sheet open={!!openTask} onOpenChange={(open) => { if (!open) onClose() }}>
+      <SheetContent side="right" aria-describedby={undefined} className="p-0 gap-0 sm:max-w-[420px] border-border flex flex-col">
+        {task && <TaskDetailBody task={task} active={!!openTask} onClose={onClose} onMove={onMove} title={(text) => <SheetTitle className="text-base font-semibold leading-snug text-txt">{text}</SheetTitle>} />}
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+/**
+ * A task's detail (header, fields, quick actions, review, body, tests, runs, sessions) without a frame:
+ * the board's sheet wraps it, /roadmap shows it inline next to the epic pane (T508).
+ * `onClose` runs when the user leaves the task (a move, a link elsewhere, a chat).
+ */
+export function TaskDetailBody({ task, onClose, onMove, active = true, title }: {
+  task: Task
+  onClose: () => void
+  onMove: (id: string, status: string) => void
+  /** false while a sheet slides out: its item keys / ⌘K commands are dropped */
+  active?: boolean
+  /** The title element (a Sheet passes its SheetTitle); default an h2 */
+  title?: (text: string) => ReactNode
+}) {
+  const nextStatuses = NEXT_STATUS[task.status] || []
   const { chats, showAbout } = useChats()
   const { rootParam, demo } = useApp()
-  const chat = task ? chatFor(chats, { kind: "task", id: task.id }) : undefined
+  const chat = chatFor(chats, { kind: "task", id: task.id })
   // the edit form shows while this matches the open task
   const [editingId, setEditingId] = useState<string | null>(null)
-  const editing = !!task && editingId === task.id
+  const editing = editingId === task.id
   const [error, setError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const statusDefs = useStatusDefs()
   const statusLabel = useStatusLabel()
   const { t } = useT()
-  const chatAbout = () => { if (task) { onClose(); showAbout({ kind: "task", id: task.id }) } }
-  useItemCommands(openTask && task && !editing ? `${task.id} · ${task.title}` : null, task ? [
+  const chatAbout = () => { onClose(); showAbout({ kind: "task", id: task.id }) }
+  useItemCommands(active && !editing ? `${task.id} · ${task.title}` : null, [
     { action: "edit", label: t("board.edit"), run: () => setEditingId(task.id) },
     { action: "status", label: t("board.changeStatus"), run: () => setMenuOpen(true) },
     { action: "chat", label: t("board.chatAboutTask"), run: chatAbout },
     { action: "remove", label: t("board.delete"), run: () => { remove() } },
-  ] : [])
+  ])
 
   async function remove() {
-    if (!task) return
     setError(null)
     try {
       await deleteTaskWithUndo(task, rootParam)
@@ -99,147 +121,141 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
   }
 
   return (
-    <Sheet open={!!openTask} onOpenChange={(open) => { if (!open) onClose() }}>
-      <SheetContent side="right" aria-describedby={undefined} className="p-0 gap-0 sm:max-w-[420px] border-border flex flex-col">
-        {task && (
-          <>
-            <ItemPanelHeader
-              kicker={<TaskCrumb task={task} onNavigate={onClose} />}
-              title={<SheetTitle className="text-base font-semibold leading-snug text-txt">{task.title}</SheetTitle>}
-              menu={demo ? undefined :
-                  <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                    <DropdownMenuTrigger asChild>
-                      <button type="button" aria-label={t("board.actionsFor", { id: task.id })} className="ml-auto grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
-                        <MoreHorizontal className="size-4" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56">
-                      <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> {t("board.edit")}<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger><StatusIcon status={displayStatus(task)} /> {t("board.status")}<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                          {statusDefs.map((d) => (
-                            <DropdownMenuItem key={d.id} disabled={d.id === displayStatus(task)} onSelect={() => onMove(task.id, d.id)}>
-                              <StatusIcon status={d.id} /> {statusLabel(d.id)}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-                      <DropdownMenuItem onSelect={chatAbout}><MessageSquare /> {t("board.chatAboutTask")}<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> {t("board.delete")}<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-              }
-              properties={taskProperties(task, t)}
-            />
-
-            {error && <p role="alert" className="px-5 py-2 text-xs text-danger border-b border-border">{error}</p>}
-
-            {editing && <TaskEditForm key={`edit-${task.id}`} task={task} rootParam={rootParam} onDone={() => setEditingId(null)} />}
-
-            {/* Quick actions (none in the read-only demo) */}
-            {!demo && <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-border shrink-0">
-              {nextStatuses.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => { onMove(task.id, s); onClose() }}
-                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
-                >
-                  <StatusIcon status={s as Task["status"]} className="size-3" /> {STATUS_LABELS[s] ? t(STATUS_LABELS[s]) : s}
+    <>
+      <ItemPanelHeader
+        kicker={<TaskCrumb task={task} onNavigate={onClose} />}
+        title={title ? title(task.title) : <h2 className="text-base font-semibold leading-snug text-txt">{task.title}</h2>}
+        menu={demo ? undefined :
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <button type="button" aria-label={t("board.actionsFor", { id: task.id })} className="ml-auto grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
+                  <MoreHorizontal className="size-4" />
                 </button>
-              ))}
-              {(task.status === "review" || task.status === "done") && (
-                <button
-                  onClick={() => verifyTask(task.id)}
-                  title={t("board.verifyPanelTitle")}
-                  className="ml-auto inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
-                >
-                  <ScanSearch className="size-3.5" /> {t("board.verify")}
-                </button>
-              )}
-              <button
-                onClick={() => { onClose(); showAbout({ kind: "task", id: task.id }) }}
-                className={cn(task.status !== "review" && task.status !== "done" && "ml-auto", " inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110")}
-              >
-                <MessageSquare className="size-3.5" /> {chat ? t("board.openChat") : t("board.chatAboutTask")}
-              </button>
-            </div>}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> {t("board.edit")}<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger><StatusIcon status={displayStatus(task)} /> {t("board.status")}<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {statusDefs.map((d) => (
+                      <DropdownMenuItem key={d.id} disabled={d.id === displayStatus(task)} onSelect={() => onMove(task.id, d.id)}>
+                        <StatusIcon status={d.id} /> {statusLabel(d.id)}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuItem onSelect={chatAbout}><MessageSquare /> {t("board.chatAboutTask")}<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> {t("board.delete")}<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+        }
+        properties={taskProperties(task, t)}
+      />
 
-            {task.status === "review" && !demo && (
-              <ReviewActions
-                key={`review-${task.id}`}
-                taskId={task.id}
-                onDone={onClose}
-                prompt={latestReview(task.raw ?? "")?.outcome === "auto fix limit reached" ? (
-                  <p className="text-xs text-danger">
-                    <span className="font-medium">{t("board.needsHumanLead")}</span> {t("board.needsHumanBody", { n: latestReview(task.raw ?? "")?.attempts ?? "" })}
-                  </p>
-                ) : undefined}
-              >
-                {/* R062: decide from the proof */}
-                <Link
-                  href={`/manual-tests?tab=all&task=${encodeURIComponent(task.id)}&view=evidence`}
-                  onClick={onClose}
-                  className="inline-flex items-center gap-1.5 rounded-sm border border-accent/50 bg-accent/15 px-2.5 py-1 text-xs text-txt transition-colors hover:bg-accent/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                >
-                  {t("board.openEvidence")}
-                </Link>
-              </ReviewActions>
-            )}
+      {error && <p role="alert" className="px-5 py-2 text-xs text-danger border-b border-border">{error}</p>}
 
-            {/* Body, then activity: one scroll area */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="px-5 py-4">
-                {task.raw ? (
-                  <MarkdownRenderer content={bodyOf(task.raw)} />
-                ) : (
-                  <p className="text-sm text-muted">{t("board.noContent")}</p>
-                )}
-              </div>
-              <section aria-label={t("shell.activity")} className="border-t border-border">
-                {task.manualTests && (
-                  <Link
-                    href={`/manual-tests#${task.id}`}
-                    onClick={onClose}
-                    className="group flex items-center gap-2 px-5 py-2.5 border-b border-border shrink-0 text-xs text-muted hover:bg-surface2 hover:text-txt transition-colors"
-                  >
-                    <FlaskConical className="size-3.5" />
-                    <span className={cn("font-mono", task.manualTests.done === task.manualTests.total && "text-teal")}>
-                      {task.manualTests.done}/{task.manualTests.total}
-                    </span>
-                    {t("board.manualTestsTicked")}
-                    {task.manualTests.auto > 0 && (
-                      <span className="inline-flex items-center gap-1"><span aria-hidden>·</span><Bot className="size-3.5" aria-hidden /><span className="font-mono">{task.manualTests.auto}</span> {t("board.automated")}</span>
-                    )}
-                    <span className="ml-auto text-accent opacity-0 transition-opacity group-hover:opacity-100">{t("board.openChecklist")}</span>
-                  </Link>
-                )}
-                {task.manualTests && (task.manualTests.spec || task.manualTests.autoRun) && (
-                  <AutoTestsLine spec={task.manualTests.spec} autoRun={task.manualTests.autoRun} />
-                )}
+      {editing && <TaskEditForm key={`edit-${task.id}`} task={task} rootParam={rootParam} onDone={() => setEditingId(null)} />}
 
-                {task.verification && (
-                  <VerificationBlock
-                    key={`verify-${task.id}-${task.verification.at}-${task.verification.findings.length}`}
-                    taskId={task.id}
-                    verification={task.verification}
-                    canSendBack={!demo && (task.status === "review" || task.status === "done")}
-                    onSent={onClose}
-                  />
-                )}
-
-                <TaskRuns key={`runs-${task.id}`} taskId={task.id} latest={task.lastRun?.runId ?? null} spec={task.manualTests?.spec ?? null} onNavigate={onClose} />
-
-                <ReviewHistory entries={reviewHistory(task.raw ?? "")} />
-
-                <TaskSessions key={task.id} taskId={task.id} onNavigate={onClose} />
-              </section>
-            </div>
-          </>
+      {/* Quick actions (none in the read-only demo) */}
+      {!demo && <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-border shrink-0">
+        {nextStatuses.map((s) => (
+          <button
+            key={s}
+            onClick={() => { onMove(task.id, s); onClose() }}
+            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
+          >
+            <StatusIcon status={s as Task["status"]} className="size-3" /> {STATUS_LABELS[s] ? t(STATUS_LABELS[s]) : s}
+          </button>
+        ))}
+        {(task.status === "review" || task.status === "done") && (
+          <button
+            onClick={() => verifyTask(task.id)}
+            title={t("board.verifyPanelTitle")}
+            className="ml-auto inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
+          >
+            <ScanSearch className="size-3.5" /> {t("board.verify")}
+          </button>
         )}
-      </SheetContent>
-    </Sheet>
+        <button
+          onClick={() => { onClose(); showAbout({ kind: "task", id: task.id }) }}
+          className={cn(task.status !== "review" && task.status !== "done" && "ml-auto", " inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110")}
+        >
+          <MessageSquare className="size-3.5" /> {chat ? t("board.openChat") : t("board.chatAboutTask")}
+        </button>
+      </div>}
+
+      {task.status === "review" && !demo && (
+        <ReviewActions
+          key={`review-${task.id}`}
+          taskId={task.id}
+          onDone={onClose}
+          prompt={latestReview(task.raw ?? "")?.outcome === "auto fix limit reached" ? (
+            <p className="text-xs text-danger">
+              <span className="font-medium">{t("board.needsHumanLead")}</span> {t("board.needsHumanBody", { n: latestReview(task.raw ?? "")?.attempts ?? "" })}
+            </p>
+          ) : undefined}
+        >
+          {/* R062: decide from the proof */}
+          <Link
+            href={`/manual-tests?tab=all&task=${encodeURIComponent(task.id)}&view=evidence`}
+            onClick={onClose}
+            className="inline-flex items-center gap-1.5 rounded-sm border border-accent/50 bg-accent/15 px-2.5 py-1 text-xs text-txt transition-colors hover:bg-accent/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            {t("board.openEvidence")}
+          </Link>
+        </ReviewActions>
+      )}
+
+      {/* Body, then activity: one scroll area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="px-5 py-4">
+          {task.raw ? (
+            <MarkdownRenderer content={bodyOf(task.raw)} />
+          ) : (
+            <p className="text-sm text-muted">{t("board.noContent")}</p>
+          )}
+        </div>
+        <section aria-label={t("shell.activity")} className="border-t border-border">
+          {task.manualTests && (
+            <Link
+              href={`/manual-tests#${task.id}`}
+              onClick={onClose}
+              className="group flex items-center gap-2 px-5 py-2.5 border-b border-border shrink-0 text-xs text-muted hover:bg-surface2 hover:text-txt transition-colors"
+            >
+              <FlaskConical className="size-3.5" />
+              <span className={cn("font-mono", task.manualTests.done === task.manualTests.total && "text-teal")}>
+                {task.manualTests.done}/{task.manualTests.total}
+              </span>
+              {t("board.manualTestsTicked")}
+              {task.manualTests.auto > 0 && (
+                <span className="inline-flex items-center gap-1"><span aria-hidden>·</span><Bot className="size-3.5" aria-hidden /><span className="font-mono">{task.manualTests.auto}</span> {t("board.automated")}</span>
+              )}
+              <span className="ml-auto text-accent opacity-0 transition-opacity group-hover:opacity-100">{t("board.openChecklist")}</span>
+            </Link>
+          )}
+          {task.manualTests && (task.manualTests.spec || task.manualTests.autoRun) && (
+            <AutoTestsLine spec={task.manualTests.spec} autoRun={task.manualTests.autoRun} />
+          )}
+
+          {task.verification && (
+            <VerificationBlock
+              key={`verify-${task.id}-${task.verification.at}-${task.verification.findings.length}`}
+              taskId={task.id}
+              verification={task.verification}
+              canSendBack={!demo && (task.status === "review" || task.status === "done")}
+              onSent={onClose}
+            />
+          )}
+
+          <TaskRuns key={`runs-${task.id}`} taskId={task.id} latest={task.lastRun?.runId ?? null} spec={task.manualTests?.spec ?? null} onNavigate={onClose} />
+
+          <ReviewHistory entries={reviewHistory(task.raw ?? "")} />
+
+          <TaskSessions key={task.id} taskId={task.id} onNavigate={onClose} />
+        </section>
+      </div>
+    </>
   )
 }
 
