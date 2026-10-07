@@ -15,6 +15,7 @@ import { useDocLinks, type DocLinksData } from "./useDocLinks"
 import { LinkPreview } from "./LinkPreview"
 import { useCodeTabs } from "./code-tabs"
 import { tNow } from "@/context/LanguageContext"
+import { resolveImageSrc } from "@/lib/attachments"
 
 // Configure marked for GitHub Flavored Markdown
 marked.setOptions({
@@ -91,6 +92,16 @@ function sanitize(html: string): string {
     .replace(/\son\w+='[^']*'/gi, "")
 }
 
+// Relative `![](assets/T1/1.png)` sources load through /api/files/image, resolved against the file's folder (T512)
+function withProjectImages(html: string, baseFile: string, rootParam: string): string {
+  return html.replace(/(<img\b[^>]*?\ssrc=")([^"]*)"/gi, (whole, head: string, src: string) => {
+    const rel = resolveImageSrc(src.replace(/&amp;/g, "&"), baseFile)
+    if (!rel) return whole
+    const sep = rootParam.length > 1 ? `${rootParam}&` : "?"
+    return `${head}/api/files/image${sep}path=${encodeURIComponent(rel)}"`
+  })
+}
+
 interface MarkdownRendererProps {
   content: string
   className?: string
@@ -98,14 +109,21 @@ interface MarkdownRendererProps {
   highlightSince?: number
   /** The doc being shown (docs preview only): makes its .md links and [[wikilinks]] open inside VibeDoc */
   docPath?: string
+  /** The file the content comes from (project-relative), so its relative images load; defaults to docPath (T512) */
+  basePath?: string
 }
 
 // The agent's edit lands a moment after its SSE event (span apply or a fetch of the whole file)
 const HIGHLIGHT_WINDOW = 3000
 
-export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className, highlightSince = 0, docPath }: MarkdownRendererProps) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className, highlightSince = 0, docPath, basePath }: MarkdownRendererProps) {
+  const { rootParam } = useApp()
+  const imageBase = basePath ?? docPath
   // Frontmatter is metadata (e.g. a doc's priority), never body text
-  const html = useMemo(() => sanitize(marked.parse(stripFrontmatter(content)) as string), [content])
+  const html = useMemo(() => {
+    const out = sanitize(marked.parse(stripFrontmatter(content)) as string)
+    return imageBase ? withProjectImages(out, imageBase, rootParam) : out
+  }, [content, imageBase, rootParam])
   const containerRef = useRef<HTMLDivElement>(null)
   const prevBlocksRef = useRef<string[] | null>(null)
 

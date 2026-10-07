@@ -211,7 +211,7 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
       <div className="flex-1 overflow-y-auto">
         <div className="px-5 py-4">
           {task.raw ? (
-            <MarkdownRenderer content={bodyOf(task.raw)} />
+            <MarkdownRenderer content={bodyOf(task.raw)} basePath={task.file} />
           ) : (
             <p className="text-sm text-muted">{t("board.noContent")}</p>
           )}

@@ -181,6 +181,18 @@ export const TOOLS = [
     },
   },
   {
+    name: "vibedoc_get_attachment",
+    description:
+      "See an image attached to a task (a screenshot the user pasted): returns the image itself. Paths look like plans/tasks/assets/T512/1.png or plans/tasks/assets/draft-…/1.png; a task body links them as ![](assets/…), relative to plans/tasks/. PNG, JPEG, WebP or GIF inside the project only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: 'Project-relative, e.g. "plans/tasks/assets/T512/1.png"' },
+      },
+      required: ["path"],
+    },
+  },
+  {
     name: "vibedoc_get_evidence",
     description:
       "Read a task's evidence doc: every checklist item with what its Playwright run proved (passed / failed with the error / missing / manual), screenshot file paths, the run's time, commit and video, and the history of kept runs.",

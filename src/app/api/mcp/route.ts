@@ -28,6 +28,7 @@ import { formatAgentHeader, forAgent } from "@/lib/audience";
 import { failedRunNote } from "@/lib/work-queue";
 import { endpointDetail, formatEndpoint, formatEndpointList } from "@/lib/openapi";
 import {
+  readProjectImage,
   rootFrom,
   readOpenApi,
   listDocs,
@@ -858,6 +859,13 @@ export async function POST(req: NextRequest) {
         void recordAgentCall(root, agent)
           .then((wrote) => { if (wrote) emitUpdate("agent_connected", { root, agent }); })
           .catch((e) => console.warn("[vibedoc] could not record the agent call:", e));
+      }
+      // T512: the one tool that answers with an image, not text
+      if (name === "vibedoc_get_attachment") {
+        const rel = String(args.path ?? "").replace(/^\.\//, "");
+        const full = rel.startsWith("assets/") ? `plans/tasks/${rel}` : rel;
+        const { data, mime } = await readProjectImage(full, root);
+        return ok(id, { content: [{ type: "text", text: full }, { type: "image", data: data.toString("base64"), mimeType: mime }] });
       }
       const text = await handleTool(name, args, root, agent);
       return ok(id, { content: [{ type: "text", text }] });
