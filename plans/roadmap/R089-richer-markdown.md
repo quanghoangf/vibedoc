@@ -1,8 +1,8 @@
 # R089: Richer markdown
 **Parent:** R003
-**Status:** planned
+**Status:** done
 **Order:** 190
-**Tasks:** —
+**Tasks:** T400, T401, T402, T403, T404
 
 Docs get callouts, tabbed code and collapsible sections that still read well on GitHub and in any agent's raw view. Adapted from Fern's Callout, CodeGroup and Accordion components, using plain markdown instead of MDX.
 

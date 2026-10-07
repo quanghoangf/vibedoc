@@ -6,11 +6,14 @@ import { marked } from "marked"
 import { cn } from "@/lib/utils"
 import { stripFrontmatter } from "@/lib/doc-priority"
 import { isExampleTarget } from "@/lib/doc-links"
+import { alertExtension } from "@/lib/md-alerts"
+import { codeTabsExtension, groupFences } from "@/lib/md-code-tabs"
 import { useApp } from "@/context/AppContext"
 import { useOpenNode } from "@/components/memory/EntryRelated"
 import { toast } from "@/components/ui/toast"
 import { useDocLinks, type DocLinksData } from "./useDocLinks"
 import { LinkPreview } from "./LinkPreview"
+import { useCodeTabs } from "./code-tabs"
 import { tNow } from "@/context/LanguageContext"
 
 // Configure marked for GitHub Flavored Markdown
@@ -18,6 +21,11 @@ marked.setOptions({
   gfm: true,
   breaks: false,
 })
+
+// GFM alerts `> [!NOTE]` … `> [!CAUTION]` as callouts (R089)
+marked.use({ extensions: [alertExtension] })
+// Consecutive titled fences (```bash title="pnpm") as one tabbed block (R089)
+marked.use({ extensions: [codeTabsExtension], hooks: { processAllTokens: groupFences } })
 
 // Intercept mermaid code blocks — emit a div instead of <pre><code>
 marked.use({
@@ -150,6 +158,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
       clearTimeout(timer)
     }
   }, [html])
+
+  useCodeTabs(containerRef, html)
 
   return (
     <>

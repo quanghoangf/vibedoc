@@ -5,6 +5,7 @@ import { Check, Download, ListTodo, Pencil, Users } from "lucide-react"
 import CodeMirror from "@uiw/react-codemirror"
 import type { ReactCodeMirrorRef } from "@uiw/react-codemirror"
 import type { Extension } from "@codemirror/state"
+import type { EditorView } from "@codemirror/view"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -42,6 +43,8 @@ interface Props {
 
 export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, barStart, barEnd, titleBlock, aside }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
+  // state, not editorRef.current.view at render: the toolbar must re-render once the view exists, or its buttons do nothing
+  const [editorView, setEditorView] = useState<EditorView | null>(null)
   const { rootParam, demo } = useApp()
   const { t } = useT()
   const ytextRef = useRef<import("yjs").Text | null>(null)
@@ -296,7 +299,6 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
     URL.revokeObjectURL(url)
   }
 
-  const editorView = editorRef.current?.view ?? null
   const showEditor = viewMode !== "preview"
   const showPreview = viewMode !== "edit"
   const extensions = isSynced ? [...baseExtensions, ...collabExtensions] : baseExtensions
@@ -374,6 +376,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
             ) : (
               <CodeMirror
                 ref={editorRef}
+                onCreateEditor={setEditorView}
                 key={docPath}
                 // Phase 1: value prop drives content. Phase 2: yCollab drives content.
                 value={previewContent}
