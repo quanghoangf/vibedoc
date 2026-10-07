@@ -1,3 +1,23 @@
+# [1.19.0](https://github.com/quanghoangf/vibedoc/compare/v1.18.0...v1.19.0) (2026-10-07)
+
+
+### Bug Fixes
+
+* **chat:** agent turns run on the server and survive a page reload ([1ce0c9f](https://github.com/quanghoangf/vibedoc/commit/1ce0c9f59375df18d6ed30fca654d0e778832ac1))
+* **docs:** fixed-height docs explorer that scrolls by itself ([b09f3b9](https://github.com/quanghoangf/vibedoc/commit/b09f3b9725371666da7a55f8ee3f2f71a4265abe))
+
+
+### Features
+
+* **board:** New Task modal with pickers, image attachments and agent start (T512) ([b8208df](https://github.com/quanghoangf/vibedoc/commit/b8208dff58d76dd5a077c2a99383a7dfb4bffb57))
+* **board:** quick review of a task's manual tests from the board (T510) ([f0996ca](https://github.com/quanghoangf/vibedoc/commit/f0996ca4e3466813e4a3030c83c9353e62cf5659))
+* **board:** resizable task panel, open full document (⇧O), no edit form in the panel ([7a470f0](https://github.com/quanghoangf/vibedoc/commit/7a470f097d375ca345f252e785544de4655a87df))
+* **docs:** show a task's or epic's meta block as property rows ([4f6f4b2](https://github.com/quanghoangf/vibedoc/commit/4f6f4b253899c0e67b4a9798bb3631835a68a550))
+* **docs:** T506 linked docs panel lists each file once with its direction ([0830dea](https://github.com/quanghoangf/vibedoc/commit/0830dea06bf9bb8ccc230fd86c22c728958d2a6d))
+* **roadmap:** epic pane docked left, task detail beside it (T508) ([fd56a09](https://github.com/quanghoangf/vibedoc/commit/fd56a09abbf38a61721bfde94458e7e1a1c0fe07))
+* **sidebar:** collapsible page children with needs-action and recent items ([216b5c6](https://github.com/quanghoangf/vibedoc/commit/216b5c6fe3e550db2b8317ccbfa7fc39799eba7a))
+* **sidebar:** pure page-children picker and recent-items cookie ([8a870f2](https://github.com/quanghoangf/vibedoc/commit/8a870f2adc03ca00ad035ce085071c94695e1d2a))
+
 # [1.18.0](https://github.com/quanghoangf/vibedoc/compare/v1.17.0...v1.18.0) (2026-10-07)
 
 
