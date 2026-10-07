@@ -1,5 +1,5 @@
 # T381: Doc lint: links, frontmatter, H1, empty + vibedoc_check_docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R088 — Docs quality gate
 **Size:** M (2–3 hrs)
 **Depends on:** T380
@@ -52,3 +52,14 @@ node src/lib/doc-lint.check.mts
 pnpm lint && pnpm build
 PORT=3188 pnpm dev   # then: curl -s 'localhost:3188/api/docs/lint' | head -c 600
 ```
+
+## Manual tests
+_2026-10-07 — ai_
+### Steps
+- [ ] S1 — WHEN an agent calls `vibedoc_check_docs` → THEN it gets every doc issue grouped by file with level, rule and line, and a clean project says so in one line
+- [ ] In Claude Code connected to this repo, ask the agent to run `vibedoc_check_docs` → it lists stale paths grouped by file (`L70 warn stale-path: …`) and the same count as /graph's toolbar/menu
+- [ ] Ask it to check `docs/architecture/mcp-tools.md` only → `✅ Docs check: no issues in 1 file`
+- [ ] Open http://localhost:3000/api/docs/lint → JSON with `files`, `errors`, `warnings`, `issues`
+- [ ] Add `[x](nowhere.md)` to a scratch doc, check it → one `broken-link` error at that line; remove it again
+### Regression risk
+- [ ] /graph's broken/stale lists still match before and after (both read the same cached files)

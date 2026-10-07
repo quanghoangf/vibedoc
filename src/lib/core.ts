@@ -40,6 +40,7 @@ import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, 
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { rankDocs, type SearchResult } from './doc-search'
+import { lintDocs, summarizeLint, type DocLint } from './doc-lint'
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } from './memory-sections'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
@@ -2443,6 +2444,16 @@ export async function logSessionStart(root: string, actor: 'ai' | 'human' = 'ai'
   // An agent re-reading memory mid-session isn't a new connection
   if (currentSessionId(root, actor)) return
   await appendActivity(root, { type: 'session_start', actor, title: 'Session started', detail: 'Agent connected' })
+}
+
+/**
+ * Doc lint (R088): every issue in the project's .md files (`lintDocs` rules, levels error / warn), or one file's
+ * with `file`. Same files and graph as /graph, both from the mtime cache, so repeated calls re-read nothing.
+ */
+export async function getDocLint(root: string, file?: string): Promise<DocLint> {
+  const [files, graph] = await Promise.all([readMarkdownFiles(root), getDocGraph(root)])
+  const one = file?.replace(/\\/g, '/').replace(/^\.?\//, '')
+  return summarizeLint(lintDocs(files, graph, { path: one }), one ? files.filter(f => f.path === one).length : files.length)
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────

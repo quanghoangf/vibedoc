@@ -23,12 +23,14 @@ import { parseScenarios, scenarioStatus, type ScenarioTask } from "@/lib/scenari
 import { parseManualTests } from "@/lib/manual-tests";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
+import { formatLint } from "@/lib/doc-lint";
 import { failedRunNote } from "@/lib/work-queue";
 import {
   rootFrom,
   listDocs,
   readDoc,
   searchDocs,
+  getDocLint,
   writeDoc,
   createDoc,
   getContext,
@@ -130,7 +132,7 @@ const MAX_ENTRY_IDS = 20;
 
 /** Demo mode (R042) runs only these. An allowlist, so a new write tool is refused until it is added here. */
 const DEMO_TOOLS = new Set([
-  "vibedoc_get_status", "vibedoc_get_sessions", "vibedoc_read_doc", "vibedoc_list_docs", "vibedoc_search_docs",
+  "vibedoc_get_status", "vibedoc_get_sessions", "vibedoc_read_doc", "vibedoc_list_docs", "vibedoc_search_docs", "vibedoc_check_docs",
   "vibedoc_list_tasks", "vibedoc_get_task", "vibedoc_read_memory", "vibedoc_memory_history", "vibedoc_recall",
   "vibedoc_get_entries", "vibedoc_list_templates", "vibedoc_get_context", "vibedoc_get_planning_guide",
   "vibedoc_get_file_map", "vibedoc_read_registry", "vibedoc_get_roadmap", "vibedoc_get_frontend", "vibedoc_get_evidence",
@@ -290,6 +292,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         lines.push("");
       }
       return lines.join("\n");
+    }
+
+    case "vibedoc_check_docs": {
+      const lint = await getDocLint(root, args.path ? String(args.path) : undefined);
+      if (args.path && !lint.files) return `No .md file at "${args.path}" (paths are relative to the project root)`;
+      return formatLint(lint);
     }
 
     case "vibedoc_write_doc": {

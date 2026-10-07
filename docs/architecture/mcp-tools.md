@@ -1,5 +1,5 @@
 # MCP Tools Reference
-**Last updated:** 2026-10-04
+**Last updated:** 2026-10-07
 
 VibeDoc exposes an MCP server at `/api/mcp` (HTTP JSON-RPC 2.0). AI coding agents connect here to read project state, manage tasks, and write documentation.
 
@@ -407,13 +407,32 @@ Read a documentation file by name. Uses fuzzy matching — no need for the full 
 ---
 
 ### `vibedoc_search_docs`
-Full-text search across all `.md` files. Returns files and line snippets sorted by hit count.
+Ranked search across all `.md` files (R088). Query words are tokenized like `vibedoc_recall` (stopwords and plurals dropped); per word a file scores +3 when it is in the title (H1, else the file name), +2 in a heading, +1 in the body. Files are read through the doc graph's mtime cache, so repeated searches re-read only changed files. A query of only stopwords falls back to a substring match.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `query` | string | ✅ | Search term |
+| `query` | string | ✅ | Search words |
 
-**Returns:** up to 20 matching files with up to 4 line hits each
+**Returns:** up to 20 files, best first, with up to 4 matching lines each
+
+---
+
+### `vibedoc_check_docs`
+Lint the docs (R088): every `.md` file VibeDoc sees (the same set as /graph). Read-only. Run it after editing docs; `/vibedoc:work` calls it before marking a task that changed `.md` files done.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `path` | string | — | One file to check (links still resolve against the whole project) |
+
+| Rule | Level | What it flags |
+|------|-------|---------------|
+| `broken-link` | error | an md link or `[[wikilink]]` to no file (the /graph broken list) |
+| `stale-path` | warn | a backticked `.md` path to a missing file (the /graph stale list) |
+| `bad-frontmatter` | error | a leading `---` block that is never closed, or a line in it that isn't `key: value`, a list item, indented, a comment or blank |
+| `no-h1` | warn | no `# Title` heading outside code fences (a frontmatter `title:` counts as one) |
+| `empty-doc` | warn | nothing but whitespace after the frontmatter |
+
+**Returns:** `✅ Docs check: no issues in N files`, or `🩺 Docs check: E errors · W warnings in F of N files` followed by issues grouped by file (files with errors first), `  L12 error broken-link: …`, capped at 150 lines. The same data as JSON: `GET /api/docs/lint[?path=]` → `{files, errors, warnings, issues: [{path, line, level, rule, message, target?}]}`.
 
 ---
 
