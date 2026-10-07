@@ -65,7 +65,7 @@ server.on('error', (err) => {
 // Wait for server to be ready, then open browser
 await setTimeout(2500)
 
-const url = `http://localhost:${port}/setup`
+const url = `http://localhost:${port}/`
 
 try {
   const open = (await import('open')).default

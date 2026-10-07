@@ -15,7 +15,7 @@ Prove the epic's Done-when end to end and update the docs that still say `vibedo
 
 ## Scope
 - [ ] `e2e/first-screen.mjs` runs all of S1–S4 clean from fresh fixtures, and asserts no fixture lands on `/setup`
-- [ ] Docs: `docs/getting-started.md` (line about the setup wizard), `site/src/content/docs/docs/index.md` (same), `memory/MEMORY.md` Key conventions (one line: `src/lib/first-screen.ts`, `/welcome`, `vibedoc-last` cookie, the R081 `ConnectSlot` seam)
+- [ ] Docs: `docs/getting-started.md` (line about the setup wizard), `site/src/content/docs/docs/index.md` (same), `memory/MEMORY.md` Key conventions (one line: `src/lib/first-screen.ts`, `/start`, `vibedoc-last` cookie, the R081 `ConnectSlot` seam)
 - [ ] Set R082 `**Status:** done` once every task is done
 
 **Out of scope:** CLI startup text (R080).

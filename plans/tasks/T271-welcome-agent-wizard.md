@@ -25,7 +25,7 @@ The welcome tells the user whether an agent is connected and hosts the place whe
 
 ## Files
 - `src/components/welcome/ConnectSlot.tsx` — new
-- `src/app/(app)/welcome/page.tsx`
+- `src/app/(app)/start/page.tsx`
 - `src/i18n/welcome.ts`
 - `e2e/first-screen.mjs`
 

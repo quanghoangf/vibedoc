@@ -265,6 +265,10 @@ const PAGES = [
   { path: "/getting-started", name: "getting started", open: async (page) => {
     await page.locator("article [data-user-content], article p").first().waitFor()
   } },
+  // T270: the first-run welcome (the fixture has docs, so the "from your docs" start)
+  { path: "/start", name: "first-run welcome", open: async (page) => {
+    await page.getByRole("button", { name: "Tạo lộ trình từ tài liệu của bạn" }).waitFor()
+  } },
 ]
 
 // Every (app) route must be in PAGES

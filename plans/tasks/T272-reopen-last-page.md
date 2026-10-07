@@ -12,7 +12,7 @@ On a set-up project, later runs open where the user left off (e.g. /roadmap), no
 - Epic: `plans/roadmap/R082-smart-first-screen.md`
 - Decisions from the breakdown:
   - The last page is a per-browser cookie `vibedoc-last` (like `vibedoc-lang` in `src/app/layout.tsx` / `src/lib/i18n.ts`; CLAUDE.md bans `localStorage`). Value = the pathname only (no query), e.g. `/roadmap`. One value per browser, not per project.
-  - Written by the `(app)` layout on every pathname change, except `/welcome` and `/setup`.
+  - Written by the `(app)` layout on every pathname change, except `/start` and `/setup`.
   - `/` uses it only when `firstScreen()` says `'board'`; it is validated against an allow-list of top-level `(app)` routes (pure helper in `src/lib/first-screen.ts`), else `/board`.
 
 ## Scope
@@ -30,7 +30,7 @@ On a set-up project, later runs open where the user left off (e.g. /roadmap), no
 - `e2e/first-screen.mjs`
 
 ## Implementation notes
-- Build the allow-list from the known routes (board, roadmap, docs, graph, chat, memory, activity, manual-tests, explorer, settings, getting-started); `/welcome` and `/setup` never count.
+- Build the allow-list from the known routes (board, roadmap, docs, graph, chat, memory, activity, manual-tests, explorer, settings, getting-started); `/start` and `/setup` never count.
 - An unknown or malformed cookie → `/board`, never a redirect loop.
 
 ## Acceptance criteria
