@@ -23,6 +23,7 @@ import { parseScenarios, scenarioStatus, type ScenarioTask } from "@/lib/scenari
 import { parseManualTests } from "@/lib/manual-tests";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
+import { forAgent } from "@/lib/audience";
 import { failedRunNote } from "@/lib/work-queue";
 import {
   rootFrom,
@@ -261,7 +262,7 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       );
       emitUpdate("doc_read", { path: docPath });
       const related = formatRelatedFiles(docLinks(await getDocGraph(root), docPath));
-      return `## ${docPath}\n\n${content}` + (related ? `\n\n---\n\n${related}` : "");
+      return `## ${docPath}\n\n${forAgent(content)}` + (related ? `\n\n---\n\n${related}` : "");
     }
 
     case "vibedoc_list_docs": {

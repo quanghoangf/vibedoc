@@ -38,6 +38,7 @@ import { formatVerifyContext, isOutdated, parseVerification, setVerification, ty
 import { applyDelta, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
+import { forAgent } from './audience'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } from './memory-sections'
@@ -524,7 +525,7 @@ export async function getContext(paths: string[], root: string): Promise<string>
   for (const p of paths) {
     try {
       const { content } = await readDoc(p, root)
-      parts.push(`--- FILE: ${p} ---\n\n${content.trim()}`)
+      parts.push(`--- FILE: ${p} ---\n\n${forAgent(content).trim()}`)
     } catch {
       // skip missing or unreadable files
     }

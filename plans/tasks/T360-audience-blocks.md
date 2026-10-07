@@ -1,5 +1,7 @@
 # T360: Agent-only / human-only blocks in agent reads
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Done:** 2026-10-07
 **Phase:** R087 — Agent-ready docs
 **Size:** M (2–3 hrs)
 **Depends on:** —
@@ -42,4 +44,9 @@ pnpm lint && pnpm build
 ```
 
 ## Manual tests
-- [ ] S2 — WHEN an agent requests a doc → THEN agent-only notes are shown and human-only blocks removed
+_2026-10-07 — ai_
+### Steps
+- [ ] S2 — In a doc add `<!-- agent-only Use pnpm. -->` and a `<!-- human-only:start -->…<!-- human-only:end -->` block, then ask the in-app agent to read it → it quotes "Use pnpm." and never the human-only text
+- [ ] Open the same doc in /docs → the human-only text shows, no markers and no agent note are visible
+### Regression risk
+- [ ] A doc with an ordinary `<!-- comment -->` and code fences reads the same through the agent as before
