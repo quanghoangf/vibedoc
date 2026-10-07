@@ -1,9 +1,11 @@
 # T252: Skills step: detect, install, try /vibedoc:roadmap
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R081 — Connect your agent
 **Size:** M (2–3 hrs)
 **Depends on:** T251
 **Covers:** S3
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 
 ## Goal
 For Claude Code the panel has a second step: the `vibedoc` plugin (the `/vibedoc:*` skills). It shows ✓ when the plugin is installed, offers one-click install after a confirm, and once ✓ points at `/vibedoc:roadmap` as the next thing to try.
@@ -48,4 +50,18 @@ BASE=http://localhost:3081 node e2e/connect-agent.mjs
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude-code_
+### Steps
 - [ ] S3 — WHEN the vibedoc plugin is installed in Claude Code → THEN the skills step shows ✓ and lists `/vibedoc:roadmap` as the next thing to try
+- [ ] On a machine without the plugin: Settings → Connect agent → the "Skills (/vibedoc:*)" step is open with "Install the skills" and the two commands to run by hand
+- [ ] Click Install the skills → a dialog lists `claude plugin marketplace add quanghoangf/vibedoc` and `claude plugin install vibedoc@vibedoc`; Cancel runs nothing
+- [ ] Install → Run it → the result shows Claude Code's output and the step turns ✓ with "Try this next in Claude Code: /vibedoc:roadmap"
+- [ ] Uninstall the plugin (`claude plugin uninstall vibedoc@vibedoc`), leave the tab open, install it from inside Claude Code (`/plugin install vibedoc@vibedoc`), come back to the tab → ✓ within ~10s, no reload
+### Regression risk
+- [ ] The MCP step (Connect Claude Code, live ✓) still works next to the new step
+
+Automated: `e2e/connect-agent.mjs` (external install ticks live, project-scoped elsewhere doesn't count, Install asks first then runs marketplace add + install) and `node src/lib/agent-connect.check.mts` (`pluginInstalled`, `hasVibedocMarketplace`) passed against `next dev -p 3081` with the claude stub on PATH.
+
+## Notes
+- The marketplace add is skipped when `claude plugin marketplace list --json` already has `vibedoc` (instead of parsing an "already exists" error).
+- `GET /api/agent-connect` now runs `claude plugin list --json` each call (the panel polls every 10s only while the step is open).

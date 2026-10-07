@@ -20,6 +20,17 @@ if (cmd === "mcp add") {
   if (!state.mcp) { console.error("No MCP server found with name: vibedoc"); process.exit(1) }
   delete state.mcp; save()
   console.log("Removed MCP server vibedoc from local config")
+} else if (args.join(" ") === "plugin list --json") {
+  console.log(JSON.stringify(state.plugins ?? [], null, 2))
+} else if (args.join(" ") === "plugin marketplace list --json") {
+  console.log(JSON.stringify(state.marketplaces ?? [], null, 2))
+} else if (args.slice(0, 3).join(" ") === "plugin marketplace add") {
+  state.marketplaces = [...(state.marketplaces ?? []), { name: "vibedoc", source: "github", repo: args[3] }]; save()
+  console.log(`Successfully added marketplace: vibedoc`)
+} else if (cmd === "plugin install") {
+  if (!(state.marketplaces ?? []).some((m) => m.name === "vibedoc")) { console.error(`Plugin "${args[2]}" not found in any marketplace`); process.exit(1) }
+  state.plugins = [...(state.plugins ?? []), { id: args[2], version: "1.16.0", scope: "user", enabled: true }]; save()
+  console.log(`✔ Successfully installed plugin: ${args[2]} (scope: user)`)
 } else {
   console.error(`claude stub: unknown command ${args.join(" ")}`); process.exit(2)
 }

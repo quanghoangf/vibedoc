@@ -35,3 +35,19 @@ export const mcpRemoveArgs = ['mcp', 'remove', 'vibedoc', '-s', 'local']
 
 export const mcpAdd = (root: string, url: string) => run(mcpAddArgs(url), root)
 export const mcpRemove = (root: string) => run(mcpRemoveArgs, root)
+
+/** Parsed `--json` output, or null with the reason (missing CLI, a failed call, output that isn't JSON). */
+async function json(args: string[], cwd: string): Promise<{ data: unknown; error: CliResult | null }> {
+  const r = await run(args, cwd)
+  if (!r.ok) return { data: null, error: r }
+  try {
+    return { data: JSON.parse(r.stdout), error: null }
+  } catch {
+    return { data: null, error: { ...r, ok: false, stderr: `claude ${args.join(' ')} did not print JSON:\n${r.stdout.slice(0, 500)}` } }
+  }
+}
+
+export const pluginList = (root: string) => json(['plugin', 'list', '--json'], root)
+export const marketplaceList = (root: string) => json(['plugin', 'marketplace', 'list', '--json'], root)
+export const marketplaceAdd = (root: string, source: string) => run(['plugin', 'marketplace', 'add', source], root)
+export const pluginInstall = (root: string, plugin: string) => run(['plugin', 'install', plugin], root)

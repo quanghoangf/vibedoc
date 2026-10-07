@@ -65,3 +65,27 @@ export function validMcpUrl(url: unknown): url is string {
 export function mcpAlreadyExists(output: string): boolean {
   return /already exists/i.test(output)
 }
+
+/** The marketplace and plugin the skills step installs (README: /plugin marketplace add, /plugin install). */
+export const VIBEDOC_MARKETPLACE = 'quanghoangf/vibedoc'
+export const VIBEDOC_PLUGIN = 'vibedoc@vibedoc'
+
+export const pluginInstallCommands = (): string[] => [
+  `claude plugin marketplace add ${VIBEDOC_MARKETPLACE}`,
+  `claude plugin install ${VIBEDOC_PLUGIN}`,
+]
+
+interface PluginEntry { id?: unknown; enabled?: unknown; scope?: unknown; projectPath?: unknown }
+
+/** `claude plugin list --json` has an enabled vibedoc plugin for every project (user scope) or for this one. */
+export function pluginInstalled(list: unknown, root: string): boolean {
+  if (!Array.isArray(list)) return false
+  return (list as PluginEntry[]).some(p =>
+    typeof p?.id === 'string' && p.id.startsWith('vibedoc@') && p.enabled === true
+    && (p.scope === 'user' || p.projectPath === root))
+}
+
+/** `claude plugin marketplace list --json` already has the vibedoc marketplace (then its add is skipped). */
+export function hasVibedocMarketplace(list: unknown): boolean {
+  return Array.isArray(list) && list.some((m: { name?: unknown }) => m?.name === 'vibedoc')
+}

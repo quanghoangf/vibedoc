@@ -6,6 +6,8 @@
 //   4. Connect Claude Code: the dialog shows the command and nothing runs until Confirm; Confirm runs
 //      `claude mcp add` in the project and shows what changed; again → "already exists" + Replace → remove + add.
 //   5. A cross-site POST is refused (403).
+//   6. Skills: not installed → open; installed from outside (stub state) → ✓ + /vibedoc:roadmap without a reload;
+//      Install asks first, then adds the marketplace and installs the plugin → ✓.
 // The server must run with e2e/fixtures/claude-stub first on PATH (a fake `claude` that keeps its state in the cwd).
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
@@ -14,7 +16,7 @@
 //
 // Uses the real /api/mcp and routes (only /api/projects is stubbed); writes only a fresh mktemp fixture.
 import assert from "node:assert/strict"
-import { existsSync, readFileSync, rmSync, statSync } from "node:fs"
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
@@ -22,7 +24,10 @@ const BASE = process.env.BASE ?? "http://localhost:3000"
 const fx = makeFixture()
 const evidence = path.join(fx, ".vibedoc/agent-connection.json")
 const stubLog = path.join(fx, ".claude-stub.log")
-const calls = () => (existsSync(stubLog) ? readFileSync(stubLog, "utf8").trim().split("\n") : [])
+const stubState = path.join(fx, ".claude-stub.json")
+// commands that change something (the panel's status GET runs `plugin list --json` on its own)
+const calls = () => (existsSync(stubLog) ? readFileSync(stubLog, "utf8").trim().split("\n") : []).filter((c) => !c.endsWith("list --json"))
+const setStub = (patch) => writeFileSync(stubState, JSON.stringify({ ...JSON.parse(readFileSync(stubState, "utf8")), ...patch }))
 
 async function rpc(method, params, ua = "e2e") {
   const res = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(fx)}`, {
@@ -112,6 +117,29 @@ try {
   assert.equal(cross.status, 403)
   assert.equal(calls().length, 4, "the refused POST ran nothing")
   console.log("✓ a cross-site POST is refused")
+
+  // 6. skills step
+  const skills = page.getByRole("group", { name: "Skills (/vibedoc:*)" })
+  await skills.getByRole("button", { name: "Install the skills" }).waitFor()
+  await skills.getByLabel("Not done yet").waitFor()
+  setStub({ plugins: [{ id: "vibedoc@vibedoc", scope: "user", enabled: true }] })
+  await skills.getByText("The vibedoc plugin is installed").waitFor({ timeout: 15000 })
+  await skills.getByText("/vibedoc:roadmap", { exact: true }).waitFor()
+  console.log("✓ a plugin installed outside VibeDoc ticks the skills step without a reload, with /vibedoc:roadmap next")
+
+  setStub({ plugins: [{ id: "vibedoc@vibedoc", scope: "project", projectPath: "/elsewhere", enabled: true }] })
+  await page.reload()
+  await skills.getByLabel("Not done yet").waitFor()
+  await skills.getByRole("button", { name: "Install the skills" }).click()
+  const sd = page.getByRole("dialog", { name: "Install the vibedoc plugin in Claude Code?" })
+  await sd.getByText("claude plugin marketplace add quanghoangf/vibedoc").waitFor()
+  await sd.getByText("claude plugin install vibedoc@vibedoc").waitFor()
+  const before = calls().length
+  assert.equal(calls().length, before, "nothing runs before Confirm")
+  await sd.getByRole("button", { name: "Run it" }).click()
+  await skills.getByText("The vibedoc plugin is installed").waitFor()
+  assert.deepEqual(calls().slice(before), ["plugin marketplace add quanghoangf/vibedoc", "plugin install vibedoc@vibedoc"])
+  console.log("✓ Install asks first, then adds the marketplace and installs the plugin → ✓")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("connect-agent: ok")
