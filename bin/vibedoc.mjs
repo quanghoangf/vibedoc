@@ -4,10 +4,19 @@ import { setTimeout } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { createRequire } from 'node:module'
-import { appUrl, firstFreePort, parsePortArg, readSavedPort, savePort, startupBanner } from './address.mjs'
+import { addressChangedMessage, appUrl, parsePortArg, readSavedPort, resolveAddress, savePort, startupBanner } from './address.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
+
+async function openBrowser(url) {
+  try {
+    const open = (await import('open')).default
+    await open(url)
+  } catch {
+    console.log(`   Open ${url} in your browser.`)
+  }
+}
 
 // Parse args
 const args = process.argv.slice(2)
@@ -28,7 +37,18 @@ if (portArg.error) {
   console.error(`\n✗ ${portArg.error}\n`)
   process.exit(1)
 }
-const port = portArg.port ?? readSavedPort(VIBEDOC_ROOT) ?? (await firstFreePort())
+const address = await resolveAddress({ root: VIBEDOC_ROOT, explicit: portArg.port, saved: readSavedPort(VIBEDOC_ROOT) })
+if (address.error) {
+  console.error(`\n✗ ${address.error}\n`)
+  process.exit(1)
+}
+if (address.running) {
+  // Already serving this project: don't start a second one on another port
+  console.log(`\n✓ VibeDoc is already running for this project\n\n${startupBanner({ root: VIBEDOC_ROOT, port: address.running })}\n`)
+  await openBrowser(`${appUrl(address.running)}/setup`)
+  process.exit(0)
+}
+const port = address.start
 if (!savePort(VIBEDOC_ROOT, port)) console.log(`   (Couldn't save the port to ${path.join(VIBEDOC_ROOT, '.vibedoc', 'port')}; the next run may use another one.)`)
 
 console.log('\n🚀 Starting VibeDoc...\n')
@@ -56,12 +76,8 @@ await setTimeout(2500)
 const url = `${appUrl(port)}/setup`
 
 console.log(`\n✓ VibeDoc is running\n\n${startupBanner({ root: VIBEDOC_ROOT, port })}\n`)
-try {
-  const open = (await import('open')).default
-  await open(url)
-} catch {
-  console.log(`   Open ${url} in your browser.`)
-}
+if (address.changedFrom) console.log(`${addressChangedMessage({ oldPort: address.changedFrom, newPort: port })}\n`)
+await openBrowser(url)
 console.log('   Press Ctrl+C to stop the server.\n')
 
 // Handle graceful shutdown

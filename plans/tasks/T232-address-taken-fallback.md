@@ -1,9 +1,12 @@
 # T232: Port taken — reuse a running VibeDoc, else fall back and say how to reconnect
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R080 — Stable address & startup
 **Size:** M (2–3 hrs)
 **Depends on:** T231
 **Covers:** S2
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 
 ## Goal
 When the project's saved port is busy, the user is never left guessing: if it's this project's VibeDoc already running, we say so and open it; if it's another program, VibeDoc starts elsewhere and tells them the MCP URL changed and the exact reconnect commands.
@@ -43,4 +46,11 @@ pnpm lint && pnpm build && pnpm --dir site build
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude-code_
+### Steps
 - [ ] S2 — WHEN the project's usual port is in use by another program → THEN VibeDoc starts on another port and the terminal says the MCP URL changed and how to reconnect
+- [ ] Hold the project's port (`python3 -m http.server <port>`), run `npx vibedoc` → a ⚠ block names the old port, the new MCP URL, `claude mcp remove vibedoc` and the new `claude mcp add` command; `.vibedoc/port` now holds the new port
+- [ ] With VibeDoc running for the project, run `npx vibedoc` again in a second terminal → "already running for this project" with the same URLs, the browser opens, and the command exits without starting a second server
+- [ ] Hold port 4000 with another program, run `npx vibedoc --port 4000` → "Port 4000 is in use by another program", exit code 1
+### Regression risk
+- [ ] A plain restart with the port free still comes up on the saved port with no ⚠ block

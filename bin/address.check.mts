@@ -4,10 +4,11 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, readSavedPort, savePort, startupBanner } from './address.mjs'
+import { createServer as createHttpServer } from 'node:http'
+import { addressChangedMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner } from './address.mjs'
 
 const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-address-'))
-const servers: ReturnType<typeof createServer>[] = []
+const servers: { close(): unknown }[] = []
 const hold = (port: number, host?: string) => new Promise<void>((resolve) => {
   const s = createServer()
   servers.push(s)
@@ -51,6 +52,33 @@ try {
   assert.ok(banner.includes(mcpUrl(3333)))
   assert.ok(banner.includes('claude mcp add --transport http vibedoc http://localhost:3333/api/mcp'))
   assert.equal(connectCommand(3333), 'claude mcp add --transport http vibedoc http://localhost:3333/api/mcp')
+
+  // Probe: a VibeDoc answers /api/projects with its root first; HTML or a closed port is "another program"
+  const serve = (port: number, body: string, type: string) => new Promise<void>((resolve) => {
+    const s = createHttpServer((_, res) => { res.writeHead(200, { 'content-type': type }); res.end(body) })
+    servers.push(s)
+    s.listen(port, '127.0.0.1', () => resolve())
+  })
+  const vd = base + 10, html = base + 11, closed = base + 12
+  await serve(vd, JSON.stringify([{ id: 'p', root }]), 'application/json')
+  await serve(html, '<html>hi</html>', 'text/html')
+  assert.deepEqual(await probeVibedoc(vd), { root })
+  assert.equal(await probeVibedoc(html), null)
+  assert.equal(await probeVibedoc(closed), null)
+
+  // Resolve: free saved port → start there; this project's VibeDoc → running; another program → next free + changedFrom
+  assert.deepEqual(await resolveAddress({ root, explicit: null, saved: closed }), { start: closed })
+  assert.deepEqual(await resolveAddress({ root, explicit: null, saved: vd }), { running: vd })
+  assert.deepEqual(await resolveAddress({ root: '/elsewhere', explicit: null, saved: vd }), { start: closed, changedFrom: vd })
+  assert.deepEqual(await resolveAddress({ root, explicit: null, saved: html }), { start: closed, changedFrom: html })
+  assert.match((await resolveAddress({ root, explicit: html, saved: null })).error ?? '', new RegExp(`Port ${html} is in use by another program`))
+  assert.deepEqual(await resolveAddress({ root, explicit: vd, saved: null }), { running: vd })
+
+  const changed = addressChangedMessage({ oldPort: 3333, newPort: 3334 })
+  assert.ok(changed.includes('Port 3333'))
+  assert.ok(changed.includes('http://localhost:3334/api/mcp'))
+  assert.ok(changed.includes('claude mcp remove vibedoc'))
+  assert.ok(changed.includes(connectCommand(3334)))
 } finally {
   for (const s of servers) s.close()
   rmSync(root, { recursive: true, force: true })
