@@ -1,6 +1,6 @@
 # R080: Stable address & startup
 **Parent:** R002
-**Status:** in-progress
+**Status:** done
 **Order:** 320
 **Tasks:** T231, T232, T233, T234
 
