@@ -40,9 +40,11 @@ interface Props {
   titleBlock?: ReactNode
   /** Right column beside the editor/preview area, below the doc bar (linked docs) */
   aside?: ReactNode
+  /** Passed to the preview's MarkdownRenderer (T507) */
+  headingAction?: { id: string; node: ReactNode }
 }
 
-export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, barStart, barEnd, titleBlock, aside }: Props) {
+export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, barStart, barEnd, titleBlock, aside, headingAction }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
   // state, not editorRef.current.view at render: the toolbar must re-render once the view exists, or its buttons do nothing
   const [editorView, setEditorView] = useState<EditorView | null>(null)
@@ -410,6 +412,7 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
               className={docStats(stripFrontmatter(previewContent)).title ? "doc-preview doc-preview-titled" : "doc-preview"}
               highlightSince={aiEditAt}
               docPath={docPath}
+              headingAction={headingAction}
             />
             </div>
           </div>

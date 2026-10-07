@@ -14,6 +14,8 @@ import { QuickReviewButton } from "./QuickReview"
 import { useTestRun } from "@/components/manual-tests/useTestRun"
 import { useSuiteRun } from "@/components/manual-tests/useSuiteRun"
 import { isRunning } from "@/lib/test-run-events"
+import { testReviewHref } from "@/lib/test-review"
+import { testChipTone } from "@/components/docs/DocTests"
 import type { Task } from "@/types"
 import { AgentDot } from "@/components/chat/AgentMark"
 import { latestReview, summarizeMarks } from "@/lib/review"
@@ -133,7 +135,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
           )}
           {task.status === "review" && task.lastRun && (
             <Link
-              href={`/manual-tests?tab=all&task=${task.id}&view=evidence`}
+              href={testReviewHref(task.id, "evidence")}
               draggable={false}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
@@ -159,7 +161,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
           )}
           {tests && (
             <Link
-              href={`/manual-tests?tab=all&task=${task.id}&view=evidence`}
+              href={testReviewHref(task.id, "evidence")}
               draggable={false}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation() /* the card's Enter would open the panel instead */}
@@ -170,9 +172,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
                 ` · ${t("board.testsEvidence")}`}
               className={cn(
                 "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 font-mono text-[10px] transition-colors hover:border-accent/50",
-                tests.autoRun?.result === "failed" ? "border-danger/40 text-danger"
-                  : tests.autoRun?.flaky ? "border-amber/40 bg-amber/5 text-amber" // R065: passed, but only on a retry
-                  : tests.untested === 0 ? "border-teal/30 bg-teal/5 text-teal" : "border-border text-muted",
+                testChipTone(tests), // the same tones as a task doc's chip in /docs (T507)
               )}
             >
               <FlaskConical className="size-3" aria-hidden />

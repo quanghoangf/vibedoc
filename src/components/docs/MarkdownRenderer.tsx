@@ -1,6 +1,7 @@
 "use client"
 
-import { memo, useCallback, useEffect, useMemo, useRef, type RefObject } from "react"
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react"
+import { createPortal } from "react-dom"
 import { useRouter } from "next/navigation"
 import { marked } from "marked"
 import { cn } from "@/lib/utils"
@@ -111,12 +112,14 @@ interface MarkdownRendererProps {
   docPath?: string
   /** The file the content comes from (project-relative), so its relative images load; defaults to docPath (T512) */
   basePath?: string
+  /** React content placed at the end of the heading with this id (its slug), e.g. "Open in Test review" (T507) */
+  headingAction?: { id: string; node: ReactNode }
 }
 
 // The agent's edit lands a moment after its SSE event (span apply or a fetch of the whole file)
 const HIGHLIGHT_WINDOW = 3000
 
-export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className, highlightSince = 0, docPath, basePath }: MarkdownRendererProps) {
+export const MarkdownRenderer = memo(function MarkdownRenderer({ content, className, highlightSince = 0, docPath, basePath, headingAction }: MarkdownRendererProps) {
   const { rootParam } = useApp()
   const imageBase = basePath ?? docPath
   // Frontmatter is metadata (e.g. a doc's priority), never body text
@@ -134,7 +137,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
     if (!container) return
     const blocks = Array.from(container.children)
     // data-broken / data-stale come and go with the links data (DocLinks), not with the content
-    const sigs = blocks.map((b) => b.outerHTML.replace(STALE_ATTRS_RE, ""))
+    // the heading action is ours, not the doc's: leave it out so it never reads as a changed block
+    const sigs = blocks.map((b) => { const a = b.querySelector("[data-heading-action]"); return (a ? b.outerHTML.replace(a.outerHTML, "") : b.outerHTML).replace(STALE_ATTRS_RE, "") })
     const prev = prevBlocksRef.current
     prevBlocksRef.current = sigs
     if (!prev || Date.now() - highlightSince > HIGHLIGHT_WINDOW) return
@@ -179,6 +183,20 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
 
   useCodeTabs(containerRef, html)
 
+  // A host span appended to the heading; a new html resets the container's markup, so it is re-made per render of it
+  const actionId = headingAction?.id
+  const [actionHost, setActionHost] = useState<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    const heading = actionId ? containerRef.current?.querySelector<HTMLElement>(`:is(h1,h2,h3,h4,h5,h6)[id="${CSS.escape(actionId)}"]`) : null
+    if (!heading) { setActionHost(null); return }
+    const host = document.createElement("span")
+    host.dataset.headingAction = ""
+    host.className = "heading-action"
+    heading.appendChild(host)
+    setActionHost(host)
+    return () => host.remove()
+  }, [html, actionId])
+
   return (
     <>
       <div
@@ -189,6 +207,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
         dangerouslySetInnerHTML={{ __html: html }}
       />
       {docPath && <DocLinks docPath={docPath} html={html} containerRef={containerRef} />}
+      {actionHost && headingAction && createPortal(headingAction.node, actionHost)}
     </>
   )
 })
