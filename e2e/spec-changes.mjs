@@ -43,6 +43,8 @@ async function mcp(name, args) {
 }
 
 const unmerged = `R002 "Bigger budget" is done but its spec changes aren't merged into memory`
+// the UI quotes the title with curly quotes, MCP with straight ones
+const unmergedUi = unmerged.replace(/"([^"]+)"/, "“$1”")
 const browser = await launchChrome()
 const errors = []
 try {
@@ -57,12 +59,12 @@ try {
   // 1. Unmerged spec changes are flagged
   await page.goto(`${BASE}/roadmap`)
   await page.getByText(/need attention$/).click()
-  await page.getByRole("button", { name: unmerged }).waitFor()
+  await page.getByRole("button", { name: unmergedUi }).waitFor()
   assert.ok((await mcp("vibedoc_get_roadmap", {})).includes(`- ${unmerged}`))
   console.log("ok  done epic with unmerged spec changes → need attention + vibedoc_get_roadmap")
 
   // 2. One-click diff: only the modified requirement changes
-  await page.getByRole("button", { name: unmerged }).click()
+  await page.getByRole("button", { name: unmergedUi }).click()
   await page.getByRole("button", { name: "Merge into capability spec" }).click()
   const diff = page.getByRole("dialog").getByRole("region", { name: "docs/specs/memory.md" })
   await diff.getByText("+ Session start SHALL fit 3000 tokens.").waitFor()
