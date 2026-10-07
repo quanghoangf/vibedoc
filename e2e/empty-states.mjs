@@ -17,7 +17,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { launchChrome } from "./stub-chat.mjs"
 
-const BASE = process.env.BASE ?? "http://localhost:3083"
+const BASE = process.env.BASE ?? "http://localhost:3000"
 
 /** @type {{ path: string, name: string, agent?: boolean, command?: string, href?: RegExp }[]} */
 const PAGES = [
