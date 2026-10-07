@@ -1,5 +1,5 @@
 # T508: Roadmap epic pane on the left, task detail fills the rest
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R095 — UI enhancements
 **Size:** L (half a day)
 **Covers:** S5
@@ -53,8 +53,14 @@ BASE=http://localhost:3195 PW_DIR=$PW node e2e/scenarios.mjs
 ```
 
 ## Manual tests
+_2026-10-07 — ai_
 ### Steps
 - [ ] S5 — WHEN the user opens an epic on /roadmap and clicks one of its tasks → THEN the epic stays in a left pane and the task's detail fills the rest of the screen
-- [ ] Walking through 3 tasks of one epic feels quick (no page change, no flicker)
+- [ ] Open /roadmap, click an epic on the map → it docks on the left, the map stays visible and draggable beside it (not dimmed)
+- [ ] Click 3 of its tasks one after another → each detail swaps in place, the clicked row is outlined, no page change or flicker
+- [ ] Change a task's status from the detail → its dot and the epic's progress bar in the pane update
+- [ ] Press Esc → the task closes; Esc again → the epic closes; reload with ?item=…&task=… → both reopen
+- [ ] At phone width (390px) → the epic fills the screen; a task replaces it with "Back to R…"
 ### Regression risk
-- [ ] /board: clicking a card still opens the task sheet on the right
+- [ ] /board: clicking a card still opens the task sheet on the right, with its quick actions and review buttons
+- [ ] /roadmap: clicking a horizon still opens the sheet on the right

@@ -16,7 +16,7 @@ import "@xyflow/react/dist/style.css"
 
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
-import { AlertTriangle, Bot, FileText, LayoutGrid, ListTree, Plus, ScrollText, Sparkles } from "lucide-react"
+import { AlertTriangle, Bot, ChevronLeft, X, FileText, LayoutGrid, ListTree, Plus, ScrollText, Sparkles } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -30,7 +30,9 @@ import { askAgent } from "@/lib/ask-agent"
 import { RoadmapTimeline } from "./RoadmapTimeline"
 import { FEATURE_W, HORIZON_W, arrangePositions, resolvePositions } from "./layout"
 import { StatusDot, nodeTypes, useRoadmapStatusLabel, type RoadmapNode } from "./RoadmapNodes"
-import { RoadmapItemSheet } from "./RoadmapItemSheet"
+import { RoadmapItemPane, RoadmapItemSheet } from "./RoadmapItemSheet"
+import { TaskDetailBody } from "@/components/board/TaskDetailPanel"
+import { shouldHandleShortcut } from "@/lib/shortcuts"
 import { NewItemDialog } from "./NewItemDialog"
 import { PlanFromSpecDialog } from "./PlanFromSpecDialog"
 import { ReleaseNotesDialog } from "./ReleaseNotesDialog"
@@ -155,10 +157,23 @@ function subscribeTheme(cb: () => void) {
   return () => mo.disconnect()
 }
 
+/** ?item= (the open item) and &task= (T508: the task open beside the epic pane) live in the URL, so reload and Back keep them. */
+function setRoadmapParams(patch: Record<string, string | null>) {
+  const p = new URLSearchParams(window.location.search)
+  for (const [k, v] of Object.entries(patch)) {
+    if (v) p.set(k, v)
+    else p.delete(k)
+  }
+  const qs = p.toString()
+  window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname)
+}
+const setSelectedId = (id: string | null) => setRoadmapParams({ item: id, task: null })
+const setTaskId = (id: string | null) => setRoadmapParams({ task: id })
+
 const FLOW_STYLE = { "--xy-background-color": "var(--color-bg)" } as React.CSSProperties
 
 export function RoadmapTab() {
-  const { rootParam, openDoc, board, demo } = useApp()
+  const { rootParam, openDoc, board, demo, moveTask } = useApp()
   const { showAbout } = useChats()
   const { t } = useT()
   const statusLabel = useRoadmapStatusLabel()
@@ -179,17 +194,11 @@ export function RoadmapTab() {
   const [nodes, setNodes] = useState<RoadmapNode[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const selectedId = searchParams.get("item")
+  const taskId = searchParams.get("task")
   // the sheet shows the edit form while this matches the selected item
   const [editingId, setEditingId] = useState<string | null>(null)
   const [menuAt, setMenuAt] = useState<ContextMenuState>(null)
-  // ?item=R004 (links from a chat) opens that item's sheet; adjusted during render so a new link re-opens it
-  const itemParam = searchParams.get("item")
-  const [seenItemParam, setSeenItemParam] = useState<string | null>(null)
-  if (itemParam !== seenItemParam) {
-    setSeenItemParam(itemParam)
-    if (itemParam) setSelectedId(itemParam)
-  }
   const [generateSource, setGenerateSource] = useState<RoadmapSource | null>(null)
   const [generating, setGenerating] = useState(false)
   // null = closed; "" = new horizon; "R001" = new feature under R001
@@ -203,11 +212,14 @@ export function RoadmapTab() {
   // Like roadmap.sh: open at readable zoom, centered horizontally, from the top of the map.
   // fitView on a large roadmap shrinks text to unreadable sizes.
   const rfRef = useRef<ReactFlowInstance<RoadmapNode> | null>(null)
+  // false until the map was framed once: it starts hidden when the URL opens a task (no width to frame against)
+  const framedRef = useRef(false)
   const showTop = useCallback((rf: ReactFlowInstance<RoadmapNode>, duration = 0) => {
     rfRef.current = rf
     const width = containerRef.current?.clientWidth ?? 0
     const bounds = rf.getNodesBounds(rf.getNodes())
     if (!width || !bounds.width) return
+    framedRef.current = true
     const zoom = Math.min(1, Math.max(MIN_INITIAL_ZOOM, (width - VIEWPORT_PAD * 2) / bounds.width))
     rf.setViewport({ x: width / 2 - (bounds.x + bounds.width / 2) * zoom, y: VIEWPORT_PAD - bounds.y * zoom, zoom }, { duration })
   }, [])
@@ -447,6 +459,33 @@ export function RoadmapTab() {
   }
 
   const selected = items.find((i) => i.id === selectedId) ?? null
+  // T508: an epic docks on the left; a task clicked in it fills the rest (map hidden behind it). Horizons keep the sheet.
+  const epic = selected && selected.parent !== null ? selected : null
+  const openTask = epic && taskId ? tasksById[taskId] ?? null : null
+  const editingEpic = !!epic && editingId === epic.id
+
+  // Esc closes the task first, then the epic. Dialogs, menus and pickers handle their own Esc.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape" || !shouldHandleShortcut(e)) return
+      if (document.querySelector("[role=dialog],[role=menu],[role=listbox],[data-radix-popper-content-wrapper]")) return
+      if (openTask) setTaskId(null)
+      else if (epic && !editingEpic) setSelectedId(null)
+      else return
+      e.preventDefault()
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [openTask, epic, editingEpic])
+
+  // the map was hidden behind a task on load: frame it once it shows
+  const mapShown = !openTask
+  useEffect(() => {
+    if (mapShown && !framedRef.current && rfRef.current) {
+      const rf = rfRef.current
+      requestAnimationFrame(() => showTop(rf))
+    }
+  }, [mapShown, showTop])
 
   const report = (err: string | null) => { if (err) setError(err) }
   const actions: ItemActions = {
@@ -593,36 +632,79 @@ export function RoadmapTab() {
         </div>
       </div>
 
-      {view === "map" ? (
-        <div ref={containerRef} className="relative flex-1 min-h-0">
-          <ReactFlow<RoadmapNode>
-            nodes={shownNodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            nodesDraggable={!demo}
-            onNodeClick={(_, n) => setSelectedId(n.id)}
-            onNodeContextMenu={(e, n) => openMenu(n.id, e)}
-            onNodeDragStart={() => { draggingRef.current = true }}
-            onNodeDragStop={(_, __, dragged) => onDragStop(dragged)}
-            nodesConnectable={false}
-            deleteKeyCode={null}
-            colorMode={isDark ? "dark" : "light"}
-            onInit={showTop}
-            minZoom={0.2}
-            ariaLabelConfig={flowLabels}
-            style={FLOW_STYLE}
+      {/* Below lg one of pane / map / task shows at a time, like /manual-tests */}
+      <div className="flex min-h-0 flex-1">
+        {epic && (
+          <aside
+            aria-label={`${epic.id} · ${epic.title}`}
+            className={cn(
+              "min-h-0 w-full flex-col overflow-y-auto border-r border-border bg-surface text-txt animate-list-in lg:w-[min(44%,30rem)] lg:shrink-0",
+              openTask ? "hidden lg:flex" : "flex",
+            )}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-            <Controls showInteractive={false} />
-          </ReactFlow>
+            <RoadmapItemPane
+              item={epic}
+              items={items}
+              onClose={() => setSelectedId(null)}
+              editing={!!selected && editingId === selected.id}
+              onEditingChange={(v) => setEditingId(v ? selectedId : null)}
+              actions={actions}
+              onSave={saveItem}
+              onDelete={deleteItem}
+              onAddFeature={(parentId) => { setSelectedId(null); setCreateParent(parentId) }}
+              onEditRaw={(file) => { openDoc(file) }}
+              onOpenTask={setTaskId}
+              selectedTaskId={openTask?.id ?? null}
+              tasksById={tasksById}
+              progressById={health.progress}
+              onSelect={setSelectedId}
+            />
+          </aside>
+        )}
+        <div className={cn("relative min-h-0 min-w-0 flex-1 flex-col", openTask ? "hidden" : epic ? "hidden lg:flex" : "flex")}>
+        {view === "map" ? (
+          <div ref={containerRef} className="relative flex-1 min-h-0">
+            <ReactFlow<RoadmapNode>
+              nodes={shownNodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              onNodesChange={onNodesChange}
+              nodesDraggable={!demo}
+              onNodeClick={(_, n) => setSelectedId(n.id)}
+              onNodeContextMenu={(e, n) => openMenu(n.id, e)}
+              onNodeDragStart={() => { draggingRef.current = true }}
+              onNodeDragStop={(_, __, dragged) => onDragStop(dragged)}
+              nodesConnectable={false}
+              deleteKeyCode={null}
+              colorMode={isDark ? "dark" : "light"}
+              onInit={showTop}
+              minZoom={0.2}
+              ariaLabelConfig={flowLabels}
+              style={FLOW_STYLE}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+              <Controls showInteractive={false} />
+            </ReactFlow>
+          </div>
+        ) : (
+          <RoadmapTimeline items={items} today={today} onSelect={setSelectedId} onItemContextMenu={openMenu} progressById={health.progress} />
+        )}
         </div>
-      ) : (
-        <RoadmapTimeline items={items} today={today} onSelect={setSelectedId} onItemContextMenu={openMenu} progressById={health.progress} />
-      )}
+        {epic && openTask && (
+          <section aria-label={`${openTask.id} · ${openTask.title}`} data-task-detail={openTask.id} className="relative flex min-h-0 min-w-0 flex-1 flex-col bg-surface text-txt">
+            <button type="button" onClick={() => setTaskId(null)} className="flex shrink-0 items-center gap-1 border-b border-border px-5 py-2 text-left text-xs text-muted hover:text-txt lg:hidden">
+              <ChevronLeft className="size-3.5" aria-hidden /> {t("roadmap.backToEpic", { id: epic.id })}
+            </button>
+            <button type="button" onClick={() => setTaskId(null)} aria-label={t("roadmap.closeTask", { id: openTask.id })} className="absolute right-4 top-4 z-10 hidden size-6 place-items-center rounded-xs text-muted opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-accent lg:grid">
+              <X className="h-4 w-4" />
+            </button>
+            <TaskDetailBody key={openTask.id} task={openTask} onClose={() => setTaskId(null)} onMove={moveTask} />
+          </section>
+        )}
+      </div>
 
       <RoadmapItemSheet
-        item={selected}
+        item={epic ? null : selected}
         items={items}
         onClose={() => setSelectedId(null)}
         editing={!!selected && editingId === selected.id}
@@ -632,6 +714,8 @@ export function RoadmapTab() {
         onDelete={deleteItem}
         onAddFeature={(parentId) => { setSelectedId(null); setCreateParent(parentId) }}
         onEditRaw={(file) => { openDoc(file) }}
+        onOpenTask={setTaskId}
+        selectedTaskId={openTask?.id ?? null}
         tasksById={tasksById}
         progressById={health.progress}
         onSelect={setSelectedId}

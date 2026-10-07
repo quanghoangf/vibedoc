@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
-import { Bot, Calendar, ChevronRight, CircleDashed, FileText, Flag, GitMerge, Layers, ListChecks, MessageSquare, Pencil, Plus, User } from "lucide-react"
+import { createContext, useContext, useState, type ReactNode } from "react"
+import { Bot, Calendar, ChevronRight, X, CircleDashed, FileText, Flag, GitMerge, Layers, ListChecks, MessageSquare, Pencil, Plus, User } from "lucide-react"
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -48,6 +48,10 @@ interface RoadmapItemSheetProps {
   onAddFeature: (parentId: string) => void
   onEditRaw: (file: string) => void
   onSelect: (id: string) => void
+  /** A task row or a scenario's task chip was clicked (T508: the roadmap opens it beside the pane) */
+  onOpenTask: (id: string) => void
+  /** The task open beside the pane, marked in its Tasks list */
+  selectedTaskId?: string | null
   /** Every task on the board, by id — the epic's linked tasks are looked up here. */
   tasksById: Record<string, Task>
   progressById: Record<string, RoadmapProgress>
@@ -56,6 +60,35 @@ interface RoadmapItemSheetProps {
   actions: ItemActions
 }
 
+// false inside the inline pane: there is no Dialog for SheetTitle / SheetDescription to label
+const InSheet = createContext(true)
+
+function PanelTitle({ className, children }: { className: string; children: ReactNode }) {
+  return useContext(InSheet) ? <SheetTitle className={className}>{children}</SheetTitle> : <h2 className={className}>{children}</h2>
+}
+
+function PanelDescription({ className, children }: { className: string; children: ReactNode }) {
+  return useContext(InSheet)
+    ? <SheetDescription asChild><div className={className}>{children}</div></SheetDescription>
+    : <div className={className}>{children}</div>
+}
+
+/** T508: an epic docked on the left of /roadmap: the sheet's content inline, no overlay, its own close button. */
+export function RoadmapItemPane({ item, onClose, ...rest }: RoadmapItemSheetProps & { item: RoadmapItem }) {
+  const { t } = useT()
+  return (
+    <InSheet.Provider value={false}>
+      <div className="relative flex min-h-full flex-col">
+        <button type="button" onClick={onClose} aria-label={t("roadmap.closeEpic", { id: item.id })} className="absolute right-4 top-4 z-10 grid size-6 place-items-center rounded-xs text-muted opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus:ring-2 focus:ring-accent">
+          <X className="h-4 w-4" />
+        </button>
+        <ItemPanel key={item.id} item={item} onClose={onClose} {...rest} />
+      </div>
+    </InSheet.Provider>
+  )
+}
+
+/** Horizons still open as a sheet over the map. */
 export function RoadmapItemSheet({ item, onClose, ...rest }: RoadmapItemSheetProps) {
   return (
     <Sheet open={!!item} onOpenChange={(v) => { if (!v) onClose() }}>
@@ -74,7 +107,7 @@ function ItemPanel(props: RoadmapItemSheetProps & { item: RoadmapItem }) {
 }
 
 /** Read-first view: where it sits, how far along, what's next, and the brief. */
-function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tasksById, progressById, onEdit, actions, onSave }: RoadmapItemSheetProps & { item: RoadmapItem; onEdit: () => void }) {
+function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onOpenTask, selectedTaskId, tasksById, progressById, onEdit, actions, onSave }: RoadmapItemSheetProps & { item: RoadmapItem; onEdit: () => void }) {
   const isHorizon = item.parent === null
   const parent = items.find((i) => i.id === item.parent)
   const epics = items.filter((i) => i.parent === item.id).sort((a, b) => a.order - b.order)
@@ -105,8 +138,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
       <ItemPanelHeader
         className={cn("px-6", item.status === "in-progress" && "bg-[linear-gradient(180deg,rgb(var(--rgb-accent)/0.08),transparent)]")}
         kicker={
-          <SheetDescription asChild>
-            <div className="flex min-w-0 items-center gap-1">
+          <PanelDescription className="flex min-w-0 items-center gap-1">
               {parent && (
                 <>
                   <button type="button" onClick={() => onSelect(parent.id)} className="truncate hover:text-txt">{parent.title}</button>
@@ -115,10 +147,9 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
               )}
               <span className="shrink-0">{item.id} · {isHorizon ? t("roadmap.kindHorizon") : t("roadmap.kindEpic")}</span>
               <AgentMark attach={{ kind: "epic", id: item.id }} />
-            </div>
-          </SheetDescription>
+          </PanelDescription>
         }
-        title={<SheetTitle className="text-xl font-semibold leading-tight text-txt">{item.title}</SheetTitle>}
+        title={<PanelTitle className="text-xl font-semibold leading-tight text-txt">{item.title}</PanelTitle>}
         menu={demo ? undefined : <ItemActionsMenu item={item} items={items} actions={actions} open={menuOpen} onOpenChange={setMenuOpen} />}
         properties={[
           {
@@ -186,8 +217,8 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, tas
       </ItemPanelHeader>
 
       <div className="flex flex-1 flex-col gap-6 px-6 py-5">
-        {!isHorizon && item.tasks.length > 0 && <LinkedTasks item={item} tasksById={tasksById} onOpen={onEditRaw} />}
-        {!isHorizon && item.scenarios.length > 0 && <Scenarios item={item} tasksById={tasksById} onOpen={onEditRaw} />}
+        {!isHorizon && item.tasks.length > 0 && <LinkedTasks item={item} tasksById={tasksById} onOpen={onOpenTask} selectedId={selectedTaskId ?? null} />}
+        {!isHorizon && item.scenarios.length > 0 && <Scenarios item={item} tasksById={tasksById} onOpen={onOpenTask} />}
 
         {item.specMerged && specChanges.length > 0 && (
           <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
@@ -333,8 +364,8 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
   return (
     <div className="flex min-h-full flex-col">
       <div className="border-b border-border px-6 pb-4 pt-6 pr-12">
-        <SheetDescription className="font-mono text-[11px] text-muted">{t("roadmap.editingKicker", { id: item.id, kind: isHorizon ? t("roadmap.kindHorizon") : t("roadmap.kindEpic") })}</SheetDescription>
-        <SheetTitle className="mt-1 text-base text-txt">{item.title}</SheetTitle>
+        <PanelDescription className="font-mono text-[11px] text-muted">{t("roadmap.editingKicker", { id: item.id, kind: isHorizon ? t("roadmap.kindHorizon") : t("roadmap.kindEpic") })}</PanelDescription>
+        <PanelTitle className="mt-1 text-base text-txt">{item.title}</PanelTitle>
       </div>
 
       <div className="flex flex-1 flex-col gap-4 px-6 py-5">
@@ -431,7 +462,7 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
 function Scenarios({ item, tasksById, onOpen }: {
   item: RoadmapItem
   tasksById: Record<string, Task>
-  onOpen: (file: string) => void
+  onOpen: (id: string) => void
 }) {
   const tasks = item.tasks.map((id) => tasksById[id]).filter((t): t is Task => !!t && t.status !== "cancelled")
   const covered = coverageOf(item.scenarios, tasks)
@@ -458,7 +489,7 @@ function Scenarios({ item, tasksById, onOpen }: {
                 <button
                   key={id}
                   type="button"
-                  onClick={() => onOpen(tasksById[id].file)}
+                  onClick={() => onOpen(id)}
                   title={tasksById[id].title}
                   className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted hover:border-border2 hover:text-txt"
                 >
@@ -492,10 +523,11 @@ function ScenarioProof({ status, task }: { status: ScenarioStatus; task: string 
   )
 }
 
-function LinkedTasks({ item, tasksById, onOpen }: {
+function LinkedTasks({ item, tasksById, onOpen, selectedId }: {
   item: RoadmapItem
   tasksById: Record<string, Task>
-  onOpen: (file: string) => void
+  onOpen: (id: string) => void
+  selectedId: string | null
 }) {
   const today = localToday()
   const { t: tr } = useT()
@@ -521,11 +553,13 @@ function LinkedTasks({ item, tasksById, onOpen }: {
             )
           }
           const isNext = t.id === nextId
+          const isOpen = t.id === selectedId
           return (
-            <li key={id} className={cn("group flex items-center rounded-md hover:bg-surface2", isNext && "bg-accent/10 hover:bg-accent/15")}>
+            <li key={id} data-task-row={t.id} className={cn("group flex items-center rounded-md hover:bg-surface2", isNext && "bg-accent/10 hover:bg-accent/15", isOpen && "bg-surface2 ring-1 ring-inset ring-accent/50 hover:bg-surface2")}>
               <button
                 type="button"
-                onClick={() => onOpen(t.file)}
+                aria-current={isOpen || undefined}
+                onClick={() => onOpen(t.id)}
                 className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 text-left"
               >
                 <span title={taskStatus(t.status)} className={cn("h-2 w-2 shrink-0 rounded-full", TASK_STATUS_BG[t.status])} />

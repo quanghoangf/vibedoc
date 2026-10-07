@@ -15,6 +15,9 @@ export const en = {
   duplicate: "Duplicate",
   chatAboutIt: "Chat about it",
   openFile: "Open file",
+  closeEpic: "Close {id}",
+  closeTask: "Close {id}",
+  backToEpic: "Back to {id}",
   moveChildrenFirst_one: "Move or delete its {n} epic first",
   moveChildrenFirst_other: "Move or delete its {n} epics first",
 
@@ -232,6 +235,9 @@ export const vi: Messages<typeof en> = {
   duplicate: "Nhân bản",
   chatAboutIt: "Trò chuyện về mục này",
   openFile: "Mở tệp",
+  closeEpic: "Đóng {id}",
+  closeTask: "Đóng {id}",
+  backToEpic: "Quay lại {id}",
   moveChildrenFirst_one: "Hãy chuyển hoặc xóa {n} epic của nó trước",
   moveChildrenFirst_other: "Hãy chuyển hoặc xóa {n} epic của nó trước",
 
