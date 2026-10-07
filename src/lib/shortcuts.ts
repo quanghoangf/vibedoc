@@ -145,7 +145,7 @@ export const PAGE_HELP: Readonly<Record<string, PageHelp>> = {
   },
   "/roadmap": {
     title: "shell.roadmap",
-    keys: itemKeys,
+    keys: [...itemKeys, { key: "Esc", label: "help.closePanel" }],
     tips: [
       "help.tipRoadmapMenu",
       "help.tipRoadmapArrange",
