@@ -21,7 +21,8 @@ import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
 import { parseManualTests, setAllManualTests, setManualTests, setManualTestsChecked, setManualTestsMeta, toggleManualTest, untestedItems, type AutoRun, type ManualTestsMeta } from './manual-tests'
 import { REVIEWABLE, appendReviewEntry, autoFixStreak, formatReviewBody, latestReview, type ReviewMark, type ReviewOutcome } from './review'
 import type { SavedView } from './board-views'
-import { parseOwner } from './owner'
+import { ownerKind, parseOwner } from './owner'
+import { firstWeek, type FirstWeek } from './first-week'
 import { DEFAULT_SIZE_DAYS, datesOnMove, type SizeDays } from './auto-dates'
 import { resolveStatus, statusDefs, statusLine, type StatusDef } from './statuses'
 import { parseKeep } from './runs-retention'
@@ -2752,6 +2753,34 @@ export async function getDocGraph(root: string): Promise<DocGraph> {
 
 // ─── Status summary ───────────────────────────────────────────────────────────
 
+/**
+ * R084: has an agent ever called in? Any `ai` event in the activity log (the header's "last agent call" rule).
+ * Seam for R081 (Connect your agent): swap in its own first-call signal here when it lands.
+ */
+function agentConnected(events: ActivityEvent[]): boolean {
+  return events.some(e => e.actor === 'ai')
+}
+
+/** The first-week checklist (R084), derived from the project's files on every read; `tasks` = listTasks(root).tasks. */
+export async function getFirstWeek(root: string, tasks: Task[]): Promise<FirstWeek & { epicToBreakDown: string | null; epicToWork: string | null }> {
+  const [events, { items }, entries] = await Promise.all([readActivity(root, ACTIVITY_CAP), listRoadmap(root), listEntries(root)])
+  const epics = items.filter(i => i.parent)
+  // An agent owns a task it started; a direct todo → done by an agent leaves no owner, so its done event counts too
+  const aiDone = new Set(events.filter(e => e.actor === 'ai' && e.taskStatus === 'done' && e.taskId).map(e => e.taskId))
+  return {
+    ...firstWeek({
+      agent: agentConnected(events),
+      roadmap: items.length > 0,
+      breakdown: epics.some(e => e.tasks.length > 0),
+      taskDone: tasks.some(t => t.status === 'done' && (ownerKind(t.owner) === 'ai' || aiDone.has(t.id))),
+      testRun: tasks.some(t => t.lastRun !== null),
+      memory: entries.length > 0,
+    }),
+    epicToBreakDown: epics.find(e => e.status !== 'done' && e.tasks.length === 0)?.id ?? null,
+    epicToWork: epics.find(e => e.status !== 'done' && e.tasks.length > 0)?.id ?? null,
+  }
+}
+
 export async function getProjectSummary(root: string) {
   const [{ tasks, board }, docs, memory, activity] = await Promise.all([
     listTasks(root),
@@ -2759,6 +2788,7 @@ export async function getProjectSummary(root: string) {
     readMemory(root),
     readActivity(root, 10),
   ])
+  const firstWeekState = await getFirstWeek(root, tasks)
 
   return {
     root,
@@ -2772,6 +2802,7 @@ export async function getProjectSummary(root: string) {
     docs: { total: docs.length },
     memory,
     activity,
+    firstWeek: firstWeekState,
   }
 }
 

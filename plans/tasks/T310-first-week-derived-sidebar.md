@@ -1,9 +1,12 @@
 # T310: First-week checklist derived from the project, live in the sidebar
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude
 **Phase:** R084 — First-week checklist
 **Size:** M (2–3 hrs)
 **Depends on:** —
 **Covers:** S1
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 
 ## Goal
 A "First week" section in the left sidebar lists the six steps of the VibeDoc loop and ticks each one from what is on disk, live over SSE, so a user sees "First task done" tick the moment the agent finishes their first task.
@@ -61,5 +64,11 @@ BASE=http://localhost:3084 PW_DIR=<dir with node_modules/playwright> node e2e/fi
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude_
 ### Steps
-- [ ] S1 — WHEN the agent marks the user's first task done → THEN "First task done" ticks without a reload
+- [x] S1 — WHEN the agent marks the user's first task done → THEN "First task done" ticks without a reload
+- [ ] Open a fresh project → the sidebar shows "First week 0/6" under Chats with six unticked rows
+- [ ] Collapse the sidebar to icons → one checklist icon whose tooltip reads "First week 0/6"
+- [ ] Switch the language to Tiếng Việt → the six rows and the title are in Vietnamese
+### Regression risk
+- [ ] Dragging a roadmap node doesn't make the board refresh (layout saves are ignored)

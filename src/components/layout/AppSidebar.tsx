@@ -21,6 +21,7 @@ import { shortcutFor } from "@/lib/shortcuts"
 import { countNeedsYou } from "@/lib/test-review"
 import { VIBEDOC_VERSION } from "@/lib/version"
 import { SidebarChats } from "./SidebarChats"
+import { FirstWeek } from "./FirstWeek"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
@@ -87,6 +88,7 @@ export function AppSidebar({ board }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         {!demo && <SidebarChats />}
+        <FirstWeek />
         {NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{t(group.label)}</SidebarGroupLabel>
