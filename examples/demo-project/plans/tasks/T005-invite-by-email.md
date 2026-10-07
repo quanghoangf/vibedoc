@@ -3,6 +3,7 @@
 **Phase:** R004 — Shared lists
 **Size:** M
 **Depends on:** T004
+**Covers:** S3
 **Owner:** ai:claude-code
 **Due:** 2026-10-02
 **Started:** 2026-09-28

@@ -1,9 +1,11 @@
 # T332: Sample project shows every part of VibeDoc
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R085 — Demo playground
 **Size:** M (2–3 hrs)
 **Depends on:** T330
 **Covers:** S1
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 
 ## Goal
 The sample project looks lived-in on the day it is opened: a roadmap in progress, tasks in every status, saved agent chats, an activity history, manual tests waiting for review, memory entries and a linked doc graph, with dates near today.
@@ -45,10 +47,26 @@ The sample project looks lived-in on the day it is opened: a roadmap in progress
 - [ ] No browser console errors on those pages; `pnpm build` passes
 
 ## Manual tests
+_2026-10-07 — ai · Spec: `e2e/vibedoc/T332-demo-sample-data.spec.ts` · Auto: passed 2026-10-07_
+### Steps
 - [ ] S1 — WHEN the user runs `vibedoc --demo` → THEN the browser opens a populated sample project with a Demo banner
+- [x] 🤖 Open /board → Todo, In progress, Review, Blocked, Paused and Done each have tasks
+- [x] 🤖 Open /chat → three saved chats: "What should I work on next?", "Task T006", "Epic R004"
+- [x] 🤖 Open /roadmap?item=R004 → the sheet lists scenarios S1–S3, S1 and S2 passed
+- [x] 🤖 Open /manual-tests → T006 "Live sync for shared lists" needs you
+- [x] 🤖 Open /activity → events from the last days, newest a day ago
+- [ ] Open /memory → Graph: E005 links to T006 and the Lists API doc; /graph shows the docs linked
+- [ ] Open the "Epic R004" chat → the accepted breakdown plan lists T004–T008; dates read naturally (R004 due about 11 days out, T005 overdue)
+- [ ] The header doesn't say "agent working" (no sample event is from the last hours)
+### Regression risk
+- [ ] Hosted read-only demo (`pnpm build && pnpm demo`) still shows the board and roadmap, with no chats
 
 ## Verify
 ```bash
 node bin/demo.check.mts
 pnpm build && node bin/vibedoc.mjs --demo --port 3085   # open each page listed above
 ```
+
+## Notes
+- The anchor is 2026-10-04, one day after the newest sample event, so the shifted activity log never makes the header say "agent working" in a demo that runs no agents.
+- `bin/demo.check.mts` now proves "the source is unchanged" by a before/after snapshot of the sample's files instead of `git status`, so it also passes while the sample has uncommitted edits.

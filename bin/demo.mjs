@@ -1,6 +1,6 @@
 // `vibedoc --demo` (R085): the sample project in a throwaway copy, so nothing the user does touches their files.
 // Self-check: node bin/demo.check.mts
-import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -11,16 +11,42 @@ export const DEMO_PREFIX = 'vibedoc-demo-'
 /** Written into every demo temp dir: the sweep deletes only folders that carry it */
 export const DEMO_MARKER = '.vibedoc-demo'
 const DAY_MS = 24 * 60 * 60 * 1000
+/** The sample's "today" (one `YYYY-MM-DD` line): the copy's dates move so this day lands on the real today */
+const ANCHOR_FILE = '.vibedoc-demo-anchor'
+const DATE = /\b(\d{4})-(\d{2})-(\d{2})(?=$|[^\d])/g
+
+/** Every `YYYY-MM-DD` (alone or the date part of an ISO timestamp) moved by whole days, with UTC math on the parts. */
+export function shiftDates(text, days) {
+  if (!days) return text
+  return text.replace(DATE, (_, y, m, d) => new Date(Date.UTC(+y, +m - 1, +d + days)).toISOString().slice(0, 10))
+}
+
+/** Whole days from `anchor` (`YYYY-MM-DD`) to the local calendar day of `now`. */
+export function daysSince(anchor, now = new Date()) {
+  const [y, m, d] = anchor.trim().split('-').map(Number)
+  return Math.round((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(y, m - 1, d)) / DAY_MS)
+}
+
+/** Shift the dates of every .md / .json file under `dir` (the copy only: the sample stays fixed). */
+function shiftTree(dir, days) {
+  for (const e of readdirSync(dir, { withFileTypes: true, recursive: true })) {
+    if (!e.isFile() || !/\.(md|json)$/.test(e.name)) continue
+    const file = path.join(e.parentPath, e.name)
+    writeFileSync(file, shiftDates(readFileSync(file, 'utf8'), days))
+  }
+}
 
 /**
  * Copy the sample to `<tmp>/vibedoc-demo-XXXXXX/listly` (the folder name is the project name the UI and the runs
  * folder show). Test runs go to `<tmp>/.runs` (hidden, so project discovery never lists it).
  */
-export function prepareDemo({ source = DEMO_SOURCE, base = tmpdir() } = {}) {
+export function prepareDemo({ source = DEMO_SOURCE, base = tmpdir(), now = new Date() } = {}) {
   const dir = mkdtempSync(path.join(base, DEMO_PREFIX))
   writeFileSync(path.join(dir, DEMO_MARKER), '')
   const root = path.join(dir, 'listly')
   cpSync(source, root, { recursive: true })
+  const anchor = path.join(root, ANCHOR_FILE)
+  if (existsSync(anchor)) shiftTree(root, daysSince(readFileSync(anchor, 'utf8'), now))
   return { dir, root, runsDir: path.join(dir, '.runs'), cleanup: () => rmSync(dir, { recursive: true, force: true }) }
 }
 
