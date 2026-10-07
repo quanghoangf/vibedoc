@@ -1,9 +1,11 @@
 # T253: Cursor and other agents: paste config, same live ✓
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R081 — Connect your agent
 **Size:** S (~1 hr)
 **Depends on:** T250
 **Covers:** S4
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 
 ## Goal
 The panel's agent picker offers Claude Code, Cursor and Other. Cursor and Other get the config to paste (with the current MCP URL and where it goes) and the same live MCP ✓ from T250.
@@ -40,4 +42,17 @@ BASE=http://localhost:3081 node e2e/connect-agent.mjs
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude-code_
+### Steps
 - [ ] S4 — WHEN the user picks Cursor or "Other" → THEN they get the config to paste, and the MCP step still turns ✓ on the first call
+- [ ] Settings → Connect agent → pick Cursor → the MCP step shows a JSON block (`mcpServers.vibedoc.url` = this app's MCP URL) to paste into `.cursor/mcp.json`; the Skills step is gone
+- [ ] Paste it into a real project's `.cursor/mcp.json`, open Cursor's agent and ask it to call vibedoc_get_status → the step turns ✓ "Connected · Cursor" without a reload
+- [ ] Pick Other → the same JSON plus the bare URL, each with Copy
+- [ ] Pick Claude Code again → Connect Claude Code and the Skills step are back
+### Regression risk
+- [ ] Phone width (390px): the picker wraps, no horizontal scroll on Settings → Connect agent
+
+Automated: `e2e/connect-agent.mjs` step 7 (Cursor config JSON with the URL, no Connect button / skills step, waiting text names Cursor, Other shows the URL, a `Cursor/1.7` tools/call ticks ✓ "Cursor") passed against `next dev -p 3081`. Cursor's format checked with Context7 (cursor.com/docs/mcp: `{ "mcpServers": { "<name>": { "url": … } } }`, project `.cursor/mcp.json`).
+
+## Notes
+- The picked agent is component state (resets to Claude Code on reload); no cookie, nothing stored.

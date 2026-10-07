@@ -8,6 +8,8 @@
 //   5. A cross-site POST is refused (403).
 //   6. Skills: not installed → open; installed from outside (stub state) → ✓ + /vibedoc:roadmap without a reload;
 //      Install asks first, then adds the marketplace and installs the plugin → ✓.
+//   7. Cursor / Other (fresh fixture): paste config with the URL under mcpServers.vibedoc.url, no skills step;
+//      a tools/call from Cursor ticks the MCP step ✓ "Cursor" live.
 // The server must run with e2e/fixtures/claude-stub first on PATH (a fake `claude` that keeps its state in the cwd).
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
@@ -22,6 +24,7 @@ import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const fx = makeFixture()
+const fx2 = makeFixture()
 const evidence = path.join(fx, ".vibedoc/agent-connection.json")
 const stubLog = path.join(fx, ".claude-stub.log")
 const stubState = path.join(fx, ".claude-stub.json")
@@ -29,8 +32,8 @@ const stubState = path.join(fx, ".claude-stub.json")
 const calls = () => (existsSync(stubLog) ? readFileSync(stubLog, "utf8").trim().split("\n") : []).filter((c) => !c.endsWith("list --json"))
 const setStub = (patch) => writeFileSync(stubState, JSON.stringify({ ...JSON.parse(readFileSync(stubState, "utf8")), ...patch }))
 
-async function rpc(method, params, ua = "e2e") {
-  const res = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(fx)}`, {
+async function rpc(method, params, ua = "e2e", root = fx) {
+  const res = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(root)}`, {
     method: "POST",
     headers: { "content-type": "application/json", "user-agent": ua },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
@@ -141,9 +144,31 @@ try {
   assert.deepEqual(calls().slice(before), ["plugin marketplace add quanghoangf/vibedoc", "plugin install vibedoc@vibedoc"])
   console.log("✓ Install asks first, then adds the marketplace and installs the plugin → ✓")
 
+  // 7. Cursor / Other on a project no agent has called yet
+  const page2 = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+  page2.on("pageerror", (e) => errors.push(e.message))
+  await stubChat(page2, [], { root: fx2 })
+  await page2.goto(`${BASE}/settings?tab=connect`)
+  await page2.getByRole("radio", { name: "Cursor" }).click()
+  const mcp2 = page2.getByRole("group", { name: "MCP server" })
+  await mcp2.getByText(".cursor/mcp.json").waitFor()
+  const config = JSON.parse(await mcp2.locator("code").first().textContent())
+  assert.match(config.mcpServers.vibedoc.url, /^http:\/\/localhost:\d+\/api\/mcp$/)
+  assert.equal(await mcp2.getByRole("button", { name: "Connect Claude Code" }).count(), 0)
+  assert.equal(await page2.getByRole("group", { name: "Skills (/vibedoc:*)" }).count(), 0)
+  await mcp2.getByText("Start Cursor in this project").waitFor()
+  await page2.getByRole("radio", { name: "Other" }).click()
+  await mcp2.getByText("Or give it just the URL:").waitFor()
+  await mcp2.getByText(/^http:\/\/localhost:\d+\/api\/mcp$/).waitFor()
+  await page2.getByRole("radio", { name: "Cursor" }).click()
+  await rpc("tools/call", { name: "vibedoc_get_status", arguments: {} }, "Cursor/1.7 (darwin)", fx2)
+  await mcp2.getByText(/Connected · Cursor · last call/).waitFor({ timeout: 5000 })
+  console.log("✓ Cursor / Other get the config to paste, no skills step, and the MCP step ticks on Cursor's first call")
+
   assert.deepEqual(errors, [], "no console errors")
   console.log("connect-agent: ok")
 } finally {
   await browser.close()
   rmSync(fx, { recursive: true, force: true })
+  rmSync(fx2, { recursive: true, force: true })
 }

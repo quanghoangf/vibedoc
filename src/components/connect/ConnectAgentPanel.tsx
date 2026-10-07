@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { useOrigin } from "@/hooks/use-origin"
-import { agentLabel, claudeMcpAddCommand, claudeMcpRemoveCommand, pluginInstallCommands } from "@/lib/agent-connect"
+import { agentLabel, claudeMcpAddCommand, claudeMcpRemoveCommand, CONNECT_AGENTS, mcpServersConfig, pluginInstallCommands, type ConnectAgent } from "@/lib/agent-connect"
 
 interface McpStatus { connected: boolean; agent: string | null; lastCall: string | null }
 interface SkillsStatus { installed: boolean; missing: boolean; error: string | null }
@@ -27,6 +27,8 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
   const url = mcpUrl || `${origin}/api/mcp`
   const [mcp, setMcp] = useState<McpStatus | null>(null)
   const [skills, setSkills] = useState<SkillsStatus | null>(null)
+  const [agent, setAgent] = useState<ConnectAgent>("claude-code")
+  const claude = agent === "claude-code"
   const [failed, setFailed] = useState(false)
 
   const load = useCallback((signal?: { cancelled: boolean }) => {
@@ -54,13 +56,13 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
   // Skills: re-check on focus (back from the terminal) and every SKILLS_POLL_MS until installed
   const skillsDone = skills?.installed === true
   useEffect(() => {
-    if (skillsDone) return
+    if (skillsDone || !claude) return
     const signal = { cancelled: false }
     const check = () => load(signal)
     const timer = setInterval(check, SKILLS_POLL_MS)
     window.addEventListener("focus", check)
     return () => { signal.cancelled = true; clearInterval(timer); window.removeEventListener("focus", check) }
-  }, [load, skillsDone])
+  }, [load, skillsDone, claude])
 
   const done = mcp?.connected === true
   return (
@@ -68,6 +70,21 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
       <div>
         <h2 id="connect-agent-title" className="text-xl font-semibold text-txt mb-1">{t("connect.title")}</h2>
         <p className="text-sm text-muted">{t("connect.hint")}</p>
+      </div>
+
+      <div role="radiogroup" aria-label={t("connect.agentPicker")} className="inline-flex flex-wrap rounded-lg border border-border p-0.5">
+        {CONNECT_AGENTS.map(a => (
+          <button
+            key={a}
+            type="button"
+            role="radio"
+            aria-checked={agent === a}
+            onClick={() => setAgent(a)}
+            className={cn("rounded-md px-3 py-1 text-sm", agent === a ? "bg-accent/10 font-medium text-accent" : "text-muted hover:text-txt")}
+          >
+            {a === "claude-code" ? "Claude Code" : a === "cursor" ? "Cursor" : t("connect.other")}
+          </button>
+        ))}
       </div>
 
       <div className="rounded-lg border border-border p-4 space-y-3" role="group" aria-labelledby="connect-step-mcp">
@@ -79,23 +96,37 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
           </div>
         </div>
 
-        <ClaudeMcpConnect url={url} />
-
-        <div className="space-y-1">
-          <div className="text-xs text-muted">{t("connect.runInProject")}</div>
-          <CommandBlock command={claudeMcpAddCommand(url)} />
-        </div>
+        {claude ? (
+          <>
+            <ClaudeMcpConnect url={url} />
+            <div className="space-y-1">
+              <div className="text-xs text-muted">{t("connect.runInProject")}</div>
+              <CommandBlock command={claudeMcpAddCommand(url)} />
+            </div>
+          </>
+        ) : (
+          <div className="space-y-1">
+            <div className="text-xs text-muted">{agent === "cursor" ? t("connect.pasteCursor") : t("connect.pasteOther")}</div>
+            <CommandBlock command={mcpServersConfig(url)} />
+            {agent === "other" && (
+              <>
+                <div className="text-xs text-muted">{t("connect.otherUrl")}</div>
+                <CommandBlock command={url} />
+              </>
+            )}
+          </div>
+        )}
 
         <p className={cn("text-sm", done ? "text-green-400" : "text-muted")} role="status">
           {failed
             ? t("connect.loadFailed")
             : done && mcp?.lastCall
               ? t("connect.connected", { agent: agentLabel(mcp.agent) ?? t("connect.someAgent"), ago: timeAgo(mcp.lastCall) })
-              : t("connect.waiting", { agent: "Claude Code" })}
+              : t("connect.waiting", { agent: claude ? "Claude Code" : agent === "cursor" ? "Cursor" : t("connect.yourAgent") })}
         </p>
       </div>
 
-      <div className="rounded-lg border border-border p-4 space-y-3" role="group" aria-labelledby="connect-step-skills">
+      {claude && <div className="rounded-lg border border-border p-4 space-y-3" role="group" aria-labelledby="connect-step-skills">
         <div className="flex items-start gap-3">
           <StepMark done={skillsDone} />
           <div className="min-w-0">
@@ -112,7 +143,7 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
         ) : (
           <SkillsInstall status={skills} onDone={() => load()} />
         )}
-      </div>
+      </div>}
     </section>
   )
 }
@@ -302,7 +333,7 @@ export function CommandBlock({ command }: { command: string }) {
   }
   return (
     <div className="flex items-start gap-2 rounded-lg bg-surface2 p-2">
-      <code className="min-w-0 flex-1 break-all font-mono text-xs text-txt">{command}</code>
+      <code className="min-w-0 flex-1 whitespace-pre-wrap break-all font-mono text-xs text-txt">{command}</code>
       <button
         type="button"
         onClick={copy}

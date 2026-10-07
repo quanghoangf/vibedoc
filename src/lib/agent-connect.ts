@@ -89,3 +89,12 @@ export function pluginInstalled(list: unknown, root: string): boolean {
 export function hasVibedocMarketplace(list: unknown): boolean {
   return Array.isArray(list) && list.some((m: { name?: unknown }) => m?.name === 'vibedoc')
 }
+
+/** The agents the Connect panel offers; Claude Code gets one-click steps, the others a config to paste. */
+export const CONNECT_AGENTS = ['claude-code', 'cursor', 'other'] as const
+export type ConnectAgent = (typeof CONNECT_AGENTS)[number]
+
+/** The JSON to paste for Cursor (.cursor/mcp.json) or another HTTP MCP client: `mcpServers.vibedoc.url`. */
+export function mcpServersConfig(url: string): string {
+  return JSON.stringify({ mcpServers: { vibedoc: { url } } }, null, 2)
+}

@@ -49,3 +49,7 @@ assert.equal(hasVibedocMarketplace([{ name: 'caveman' }, { name: 'vibedoc' }]), 
 assert.equal(hasVibedocMarketplace([{ name: 'caveman' }]), false)
 assert.equal(hasVibedocMarketplace(null), false)
 console.log('pluginInstalled ok')
+
+const { mcpServersConfig } = await import('./agent-connect.ts')
+assert.deepEqual(JSON.parse(mcpServersConfig('http://localhost:3081/api/mcp')), { mcpServers: { vibedoc: { url: 'http://localhost:3081/api/mcp' } } })
+console.log('mcpServersConfig ok')
