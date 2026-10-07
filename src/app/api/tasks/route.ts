@@ -16,5 +16,7 @@ export async function POST(req: NextRequest) {
   const who = actor === 'ai' ? 'ai' : 'human'
   const result = await updateTaskStatus(taskId, status as TaskStatus, root, who, { actor: who })
   emitUpdate('task_updated', { taskId, status, previousStatus: result.previousStatus, task: result.task })
+  // the task file open in /docs splices the new meta line into its buffer (T505)
+  if (result.task?.file) emitUpdate('doc_updated', { path: result.task.file, actor: who, external: true })
   return NextResponse.json(result)
 }

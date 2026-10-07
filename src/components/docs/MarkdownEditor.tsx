@@ -18,6 +18,7 @@ import { askAgent } from "@/lib/ask-agent"
 import type { TextEdit } from "@/lib/diff"
 import { docStats } from "@/lib/headings"
 import { setDocProperty, stripFrontmatter } from "@/lib/doc-priority"
+import { stripMetaBlock } from "@/lib/meta-block"
 
 export type ViewMode = "edit" | "split" | "preview"
 
@@ -403,8 +404,9 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
                 </Button>}
               </div>
             )}
+            {/* a task / epic file's `**Key:** Value` block shows as property rows in the title block (T505) */}
             <MarkdownRenderer
-              content={previewContent}
+              content={stripMetaBlock(previewContent)}
               className={docStats(stripFrontmatter(previewContent)).title ? "doc-preview doc-preview-titled" : "doc-preview"}
               highlightSince={aiEditAt}
               docPath={docPath}
