@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Braces, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useT } from "@/context/LanguageContext"
+import { useApp } from "@/context/AppContext"
 import type { Content, Endpoint, EndpointDetail } from "@/lib/openapi"
 
 /** `GET /api/openapi`: no spec → path null. */
@@ -79,7 +80,104 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function Detail({ d }: { d: EndpointDetail }) {
+type TryResult = { status: number; statusText: string; elapsedMs: number; contentType: string; body: string; truncated: boolean; url: string }
+
+const pretty = (r: TryResult) => {
+  if (!r.contentType.includes("json")) return r.body
+  try { return JSON.stringify(JSON.parse(r.body), null, 2) } catch { return r.body }
+}
+
+/** T502: one request to the project's local app through POST /api/openapi/try (the server picks the host). */
+function TryIt({ d, rootParam }: { d: EndpointDetail; rootParam: string }) {
+  const { t } = useT()
+  const inputs = d.parameters.filter((p) => p.in === "path" || p.in === "query")
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [body, setBody] = useState(d.requestBody ? "{}" : "")
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState<TryResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function send() {
+    setSending(true)
+    setError(null)
+    setResult(null)
+    const pick = (where: string) => Object.fromEntries(inputs.filter((p) => p.in === where).map((p) => [p.name, values[`${where}:${p.name}`] ?? ""]))
+    try {
+      const res = await fetch(`/api/openapi/try${rootParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method: d.method, path: d.path, params: pick("path"), query: pick("query"), body }),
+      })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data) setResult(data)
+      else setError(data?.error ?? String(res.status))
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <Section title={t("apiRef.tryIt")}>
+      <p className="text-xs text-muted">{t("apiRef.tryHint")}</p>
+      <form
+        className="space-y-2"
+        onSubmit={(e) => { e.preventDefault(); if (!sending) send() }}
+      >
+        {inputs.map((p) => {
+          const key = `${p.in}:${p.name}`
+          return (
+            <label key={key} className="flex items-center gap-2 text-xs">
+              <code data-user-content className="w-32 shrink-0 truncate font-mono text-txt">{p.name}</code>
+              <input
+                aria-label={p.name}
+                value={values[key] ?? ""}
+                required={p.required}
+                onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
+                placeholder={p.shape.includes("\n") ? "" : p.shape}
+                className="h-7 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 font-mono text-xs text-txt outline-none focus:border-accent"
+              />
+            </label>
+          )
+        })}
+        {d.requestBody && (
+          <label className="block space-y-1 text-xs">
+            <span className="text-muted">{t("apiRef.body")}</span>
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={4}
+              spellCheck={false}
+              className="block w-full rounded-md border border-border bg-surface px-2 py-1.5 font-mono text-xs text-txt outline-none focus:border-accent"
+            />
+          </label>
+        )}
+        <button
+          type="submit"
+          disabled={sending}
+          className="inline-flex h-7 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:opacity-90 disabled:opacity-60"
+        >
+          {sending ? t("apiRef.sending") : t("apiRef.send")}
+        </button>
+      </form>
+      {error && <p role="alert" className="rounded-md border border-danger/40 px-3 py-2 text-xs text-danger">{t("apiRef.tryFailed", { message: error })}</p>}
+      {result && (
+        <div className="space-y-1.5" data-try-result>
+          <p className="flex flex-wrap items-baseline gap-2 text-xs">
+            <span data-user-content className={cn("font-mono font-semibold", result.status < 400 ? "text-teal" : "text-danger")}>{result.status} {result.statusText}</span>
+            <span className="text-muted">{t("apiRef.elapsed", { ms: result.elapsedMs })}</span>
+            {result.truncated && <span className="text-amber">{t("apiRef.truncated")}</span>}
+            <code data-user-content className="ml-auto truncate font-mono text-[10px] text-muted">{result.url}</code>
+          </p>
+          {result.body && <Shape shape={pretty(result)} />}
+        </div>
+      )}
+    </Section>
+  )
+}
+
+function Detail({ d, rootParam, canTry }: { d: EndpointDetail; rootParam: string; canTry: boolean }) {
   const { t } = useT()
   return (
     <div className="space-y-6" data-endpoint={endpointKey(d)}>
@@ -153,6 +251,8 @@ function Detail({ d }: { d: EndpointDetail }) {
           </div>
         )}
       </Section>
+
+      {canTry && <TryIt key={endpointKey(d)} d={d} rootParam={rootParam} />}
     </div>
   )
 }
@@ -167,6 +267,7 @@ interface ApiReferenceProps {
 
 export function ApiReference({ spec, open, onOpen, rootParam }: ApiReferenceProps) {
   const { t } = useT()
+  const { demo, playground } = useApp()
   const endpoint = open === API_LIST ? null : open
   const [loaded, setLoaded] = useState<{ key: string; detail: EndpointDetail | null } | null>(null)
 
@@ -219,7 +320,7 @@ export function ApiReference({ spec, open, onOpen, rootParam }: ApiReferenceProp
         loaded?.key !== endpoint ? (
           <p className="text-xs text-muted">{t("apiRef.loading")}</p>
         ) : loaded.detail ? (
-          <Detail d={loaded.detail} />
+          <Detail d={loaded.detail} rootParam={rootParam} canTry={!demo && !playground} />
         ) : (
           <p className="text-xs text-muted">{t("apiRef.notFound")}</p>
         )

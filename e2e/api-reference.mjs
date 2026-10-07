@@ -1,22 +1,44 @@
 // Browser check for R094 (API reference from OpenAPI), on fresh fixture projects:
 //   1. S1: a project with an openapi.yaml shows "API reference · 5 endpoints" in /docs; the list is grouped by tag;
 //      GET /todos/{id} shows its path param and the 200 shape with the $ref'd (allOf) fields; ?api= survives a reload
-//   2. S2: vibedoc_get_endpoint over /api/mcp returns the request and response shape; an unknown one lists the endpoints
-//   3. S4: a project without a spec has no row, and the tool says no spec was found
+//   2. S3: Try it sends GET/POST to the project's local app (a node:http stub named in the spec's servers) and shows
+//      status + body; cross-site → 403, a path not in the spec → 404, a remote-only server with no local app is refused
+//   3. S2: vibedoc_get_endpoint over /api/mcp returns the request and response shape; an unknown one lists the endpoints
+//   4. S4: a project without a spec has no row, and the tool says no spec was found
 // Fails on any browser console error. The fixtures are removed in `finally`.
 //
 //   PORT=3194 pnpm dev   # then:
 //   BASE=http://localhost:3194 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/api-reference.mjs
 import assert from "node:assert/strict"
-import { copyFileSync, mkdirSync, rmSync } from "node:fs"
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { createServer } from "node:http"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3194"
+
+// The project's "local app": records each request, answers like the spec says
+const hits = []
+const app = createServer((req, res) => {
+  let body = ""
+  req.on("data", (c) => { body += c })
+  req.on("end", () => {
+    hits.push({ method: req.method, url: req.url, ...(body ? { type: req.headers["content-type"], body } : {}) })
+    const json = (status, data) => { res.writeHead(status, { "content-type": "application/json" }); res.end(JSON.stringify(data)) }
+    const m = req.url.match(/^\/todos\/([^/?]+)/)
+    if (req.method === "GET" && m) return json(200, { id: decodeURIComponent(m[1]), title: "Write docs", done: false })
+    if (req.method === "POST" && req.url === "/todos") return json(201, { id: "t2", ...JSON.parse(body || "{}"), done: false })
+    json(404, { message: "not found" })
+  })
+})
+await new Promise((r) => app.listen(0, "127.0.0.1", r))
+const specText = readFileSync(new URL("./fixtures/todos-openapi.yaml", import.meta.url), "utf8")
+  .replace("url: http://localhost:4010", `url: http://127.0.0.1:${app.address().port}`)
+
 const fx = makeFixture()
 const bare = makeFixture()
 mkdirSync(path.join(fx, "api"))
-copyFileSync(new URL("./fixtures/todos-openapi.yaml", import.meta.url), path.join(fx, "api/openapi.yaml"))
+writeFileSync(path.join(fx, "api/openapi.yaml"), specText)
 
 async function mcp(root, name, args) {
   const res = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(root)}`, {
@@ -34,7 +56,8 @@ try {
   const context = await browser.newContext({ viewport: { width: 1400, height: 900 } })
   const page = await context.newPage()
   page.on("console", (m) => {
-    if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text())
+    // The refused Try it below answers 400 on purpose; Chrome logs that as a failed resource
+    if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico") && !m.location().url.includes("/api/openapi/try")) errors.push(m.text())
   })
   page.on("pageerror", (e) => errors.push(e.message))
 
@@ -75,6 +98,38 @@ try {
   assert.equal(new URL(page.url()).searchParams.get("api"), null)
   console.log("ok  All endpoints goes back to the list; Close removes ?api=")
 
+  // S3: Try it reaches the project's local app (the spec's server is the stub on localhost)
+  await page.goto(`${BASE}/docs?api=${encodeURIComponent("GET /todos/{id}")}`)
+  const tryIt = page.locator('[data-endpoint="GET /todos/{id}"]')
+  await tryIt.getByRole("textbox", { name: "id" }).fill("abc 1")
+  await tryIt.getByRole("button", { name: "Send" }).click()
+  const result = tryIt.locator("[data-try-result]")
+  await result.waitFor()
+  assert.match(await result.innerText(), /200 OK[\s\S]*"id": "abc 1"[\s\S]*"title": "Write docs"/)
+  assert.deepEqual(hits.at(-1), { method: "GET", url: "/todos/abc%201" })
+  await page.goto(`${BASE}/docs?api=${encodeURIComponent("POST /todos")}`)
+  const create = page.locator('[data-endpoint="POST /todos"]')
+  await create.getByRole("textbox", { name: "Body" }).fill('{"title":"New"}')
+  await create.getByRole("button", { name: "Send" }).click()
+  await create.locator("[data-try-result]").getByText("201 Created").waitFor()
+  assert.deepEqual(hits.at(-1), { method: "POST", url: "/todos", type: "application/json", body: '{"title":"New"}' })
+  console.log("ok  S3: Try it sends GET /todos/{id} and POST /todos to the local app and shows status + body")
+
+  // Refusals: a cross-site POST, a path not in the spec, a remote-only spec without a local app
+  const tryUrl = `${BASE}/api/openapi/try?root=${encodeURIComponent(fx)}`
+  const tryPost = (body, headers = {}) => fetch(tryUrl, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) })
+  assert.equal((await tryPost({ method: "GET", path: "/todos" }, { origin: "http://evil.example" })).status, 403)
+  assert.equal((await tryPost({ method: "GET", path: "/admin" })).status, 404)
+  const before = hits.length
+  writeFileSync(path.join(fx, "api/openapi.yaml"), specText.replace(/url: http:\/\/127\.0\.0\.1:\d+/, "url: https://api.example.com"))
+  await page.goto(`${BASE}/docs?api=${encodeURIComponent("GET /todos")}`)
+  const remote = page.locator('[data-endpoint="GET /todos"]')
+  await remote.getByRole("button", { name: "Send" }).click()
+  await remote.getByRole("alert").getByText(/Try it only calls the project's local app/).waitFor()
+  assert.equal(hits.length, before, "nothing sent for a remote-only spec")
+  writeFileSync(path.join(fx, "api/openapi.yaml"), specText)
+  console.log("ok  S3: cross-site → 403, unknown path → 404, a remote server with no local app is refused and nothing is sent")
+
   // S2: the agent's view of the same endpoint
   const get = await mcp(fx, "vibedoc_get_endpoint", { method: "GET", path: "/todos/{id}" })
   assert.match(get, /^## GET \/todos\/\{id\}/)
@@ -103,6 +158,7 @@ try {
   console.log("ok  no console errors")
 } finally {
   await browser.close()
+  app.close()
   rmSync(fx, { recursive: true, force: true })
   rmSync(bare, { recursive: true, force: true })
 }

@@ -24,6 +24,15 @@ export const en = {
   colIn: "In",
   colType: "Type",
   colDescription: "Description",
+  // Try it (T502)
+  tryIt: "Try it",
+  tryHint: "Sends the request to this project's app on localhost, never to a hosted server.",
+  body: "Body",
+  send: "Send",
+  sending: "Sending…",
+  elapsed: "{ms} ms",
+  truncated: "Cut at 1 MB",
+  tryFailed: "Request not sent: {message}",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -49,4 +58,12 @@ export const vi: Messages<typeof en> = {
   colIn: "Vị trí",
   colType: "Kiểu",
   colDescription: "Mô tả",
+  tryIt: "Thử gọi",
+  tryHint: "Gửi yêu cầu tới ứng dụng của dự án này trên localhost, không bao giờ tới máy chủ bên ngoài.",
+  body: "Nội dung",
+  send: "Gửi",
+  sending: "Đang gửi…",
+  elapsed: "{ms} ms",
+  truncated: "Đã cắt ở 1 MB",
+  tryFailed: "Chưa gửi được yêu cầu: {message}",
 }

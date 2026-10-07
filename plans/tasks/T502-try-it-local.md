@@ -1,5 +1,5 @@
 # T502: Try it against the project's local app
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R094 — API reference from OpenAPI
 **Size:** M (2–3 hrs)
 **Depends on:** T501
@@ -47,3 +47,11 @@ BASE=http://localhost:3194 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node
 
 ## Manual tests
 - [ ] S3 — WHEN the user sends a request with Try it → THEN it goes to the project's own local app and the status and body show; a non-local target is refused
+### Steps
+- [x] 🤖 With the spec's server on a local stub, open GET /todos/{id}, fill `id`, Send → "200 OK", elapsed ms and the pretty JSON body
+- [x] 🤖 POST /todos with body `{"title":"New"}` → "201 Created"; the app got `application/json` and that body
+- [x] 🤖 Change the spec's server to `https://api.example.com` (no frontend app) → Send shows "Try it only calls the project's local app" and nothing is sent
+- [ ] A project whose spec has no local server but has a frontend app (Settings → Frontend app): Send starts the app if it is down, then answers
+- [ ] A spec server on localhost that isn't running → a clear "failed: ECONNREFUSED" message, no hang
+### Regression risk
+- [ ] Settings → Frontend app start/stop still shows the right state after Try it started the app

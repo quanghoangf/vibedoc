@@ -80,3 +80,19 @@ assert.match((parseOpenApi('- a\n- b') as { error: string }).error, /expected an
 assert.match((parseOpenApi('title: x') as { error: string }).error, /Not an OpenAPI 3\.x document/)
 
 console.log('openapi: ok')
+
+// Try it targets (T502)
+const { isLocalUrl, tryTarget, buildTryUrl, NOT_LOCAL } = await import('./openapi.ts')
+for (const u of ['http://localhost:3000', 'https://127.0.0.1:8443/api', 'http://[::1]:4010']) assert.ok(isLocalUrl(u), u)
+for (const u of ['https://api.example.com', 'http://10.0.0.1', 'http://localhost.evil.com', 'file:///etc/passwd', 'ftp://localhost', 'nope']) assert.ok(!isLocalUrl(u), u)
+const withServers = (servers: unknown) => ({ ...spec, servers }) as OpenApiSpec
+assert.deepEqual(tryTarget(spec, null), { base: 'http://localhost:4010', start: false })
+assert.deepEqual(tryTarget(withServers([{ url: 'https://api.example.com' }]), 'http://localhost:3000'), { base: 'http://localhost:3000', start: true })
+assert.deepEqual(tryTarget(withServers([{ url: '/v1' }]), 'http://localhost:3000/'), { base: 'http://localhost:3000/v1', start: true })
+assert.deepEqual(tryTarget(withServers([{ url: 'http://localhost:{port}', variables: { port: { default: '9000' } } }]), null), { base: 'http://localhost:9000', start: false })
+assert.deepEqual(tryTarget(withServers([{ url: 'https://api.example.com' }]), null), { error: NOT_LOCAL })
+assert.deepEqual(tryTarget(withServers(undefined), 'https://app.example.com'), { error: NOT_LOCAL })
+assert.deepEqual(buildTryUrl('http://localhost:4010/', '/todos/{id}', { id: 'a b/c' }, { done: 'true', q: '' }), { url: 'http://localhost:4010/todos/a%20b%2Fc?done=true' })
+assert.deepEqual(buildTryUrl('http://localhost:4010', '/todos/{id}', {}, {}), { error: 'Missing path parameter "id"' })
+assert.deepEqual(buildTryUrl('http://localhost:4010', '@evil.com/x', {}, {}), { error: NOT_LOCAL })
+console.log('openapi try: ok')

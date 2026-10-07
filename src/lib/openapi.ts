@@ -208,3 +208,56 @@ export function formatEndpointList(spec: OpenApiSpec, path: string): string {
   const lines = listEndpoints(spec).map(e => `- ${e.method} ${e.path}${e.summary ? ` — ${e.summary}` : ''}`)
   return [`## ${title || 'API'} (${path})`, '', ...(lines.length ? lines : ['No endpoints.'])].join('\n')
 }
+
+// ─── Try it (T502): requests go only to the project's own local app ──────────
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+/** http(s) on localhost / 127.0.0.1 / [::1] only. */
+export function isLocalUrl(url: string): boolean {
+  try {
+    const u = new URL(url)
+    return (u.protocol === 'http:' || u.protocol === 'https:') && LOCAL_HOSTS.has(u.hostname)
+  } catch {
+    return false
+  }
+}
+
+export const NOT_LOCAL = "Try it only calls the project's local app (localhost)"
+
+/**
+ * Where Try it sends requests: the spec's first server when it is local (a relative one is joined to the app URL,
+ * `{variables}` take their defaults), else the frontend app's URL, which the caller starts (`start`). Never a remote host.
+ */
+export function tryTarget(spec: OpenApiSpec, appUrl: string | null): { base: string; start: boolean } | { error: string } {
+  const server = spec.servers?.[0]
+  let url = typeof server?.url === 'string' ? server.url : ''
+  const vars = isObj((server as Obj | undefined)?.variables) ? ((server as Obj).variables as Obj) : {}
+  url = url.replace(/\{([^}]+)\}/g, (m, name: string) => {
+    const v = vars[name]
+    return isObj(v) && v.default != null ? String(v.default) : m
+  })
+  if (url && isLocalUrl(url)) return { base: url, start: false }
+  const app = appUrl && isLocalUrl(appUrl) ? appUrl : null
+  if (app) return { base: url.startsWith('/') ? app.replace(/\/+$/, '') + url : app, start: true }
+  return { error: NOT_LOCAL }
+}
+
+/** Full request URL: `{name}` path params filled (all required), empty query values dropped. Refuses a non-local result. */
+export function buildTryUrl(base: string, path: string, params: Record<string, string>, query: Record<string, string>): { url: string } | { error: string } {
+  let missing = ''
+  const filled = path.replace(/\{([^}]+)\}/g, (_, name: string) => {
+    const v = params[name]
+    if (v == null || v === '') missing ||= name
+    return encodeURIComponent(v ?? '')
+  })
+  if (missing) return { error: `Missing path parameter "${missing}"` }
+  let u: URL
+  try {
+    u = new URL(base.replace(/\/+$/, '') + filled)
+  } catch {
+    return { error: `Not a valid URL: ${base}${filled}` }
+  }
+  for (const [k, v] of Object.entries(query)) if (v !== '') u.searchParams.append(k, v)
+  return isLocalUrl(u.href) ? { url: u.href } : { error: NOT_LOCAL }
+}
