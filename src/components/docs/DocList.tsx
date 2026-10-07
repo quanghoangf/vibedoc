@@ -338,7 +338,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
         inert={listCollapsed}
         aria-hidden={listCollapsed || undefined}
         className={cn(
-          "relative flex flex-col border-r border-border shrink-0 bg-sidebar max-md:w-full! max-md:border-r-0",
+          "relative flex min-h-0 flex-col border-r border-border shrink-0 bg-sidebar max-md:w-full! max-md:border-r-0",
           // no transition while dragging the edge, or the panel lags the pointer
           !dragging && "transition-[width,border-color] duration-(--duration-slow) ease-out-soft",
           listCollapsed && "border-transparent",
@@ -464,7 +464,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
 
         {/* File list */}
         {/* Radix wraps content in a display:table div that grows with its widest row; block keeps rows to the panel width so they truncate */}
-        <ScrollArea className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!">
+        <ScrollArea className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!">
           <div className="p-1.5 space-y-0.5">
             {selectMode ? (
               // Flat list in select mode

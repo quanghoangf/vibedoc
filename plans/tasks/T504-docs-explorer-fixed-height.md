@@ -1,5 +1,5 @@
 # T504: Docs explorer has a fixed height and scrolls by itself
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R095 — UI enhancements
 **Size:** S (~1 hr)
 **Covers:** S1
@@ -44,4 +44,11 @@ BASE=http://localhost:3195 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node
 
 ## Manual tests
 ### Steps
-- [ ] S1 — WHEN a long doc is open on /docs and the user scrolls the doc → THEN the explorer stays in place at full height and scrolls only by itself
+- [x] S1 — WHEN a long doc is open on /docs and the user scrolls the doc → THEN the explorer stays in place at full height and scrolls only by itself
+- [ ] Open a long doc in Split → the editor (left) and the preview (right) each scroll on their own; the explorer and the doc header bar stay put
+- [ ] Switch to Edit and scroll with the pointer in the empty area right of the text → the editor scrolls (the pane now fills the width)
+- [ ] Open the API reference (`/docs?api=1`, needs an openapi.yaml) and scroll a long endpoint → only the right pane scrolls
+- [ ] At 390px open /docs → the list scrolls; open a doc → the doc scrolls, the back arrow stays at the top
+### Regression risk
+- [ ] Doc outline (heading list in the bar) and the Linked docs column (≥1280px) still open and scroll; clicking an outline heading scrolls the doc to it
+- [ ] Drag the explorer's edge and collapse it with ⌘\ → both still work at full height
