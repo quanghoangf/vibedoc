@@ -1,3 +1,34 @@
+# [1.18.0](https://github.com/quanghoangf/vibedoc/compare/v1.17.0...v1.18.0) (2026-10-07)
+
+
+### Features
+
+* **cli:** vibedoc check runs the docs lint without the app (T420) ([dd96e09](https://github.com/quanghoangf/vibedoc/commit/dd96e0995ebec83b67d20a8bef127d59053d2dd3))
+* **docs:** agent-only and human-only blocks in agent reads (T360) ([3baaecf](https://github.com/quanghoangf/vibedoc/commit/3baaecfbf7667170ae509f8bdf46614edc2b524a))
+* **docs:** API reference view for the project's OpenAPI spec ([de20fea](https://github.com/quanghoangf/vibedoc/commit/de20feae9fd56c7afc913611e8c0c63ed3c86432))
+* **docs:** callout and collapsible toolbar inserts (T403) ([077a5f5](https://github.com/quanghoangf/vibedoc/commit/077a5f5019cdc12fa2edc9a629036dbde2c72faa))
+* **docs:** copy page, view as markdown, agent link and audience blocks in the editor (T365) ([21130cd](https://github.com/quanghoangf/vibedoc/commit/21130cd22c823910b38c676659c477660c7c099b))
+* **docs:** doc lint with vibedoc_check_docs and GET /api/docs/lint (T381) ([662ce48](https://github.com/quanghoangf/vibedoc/commit/662ce48855e8da44488e4d23aaba74d7cb124768))
+* **docs:** docs check line and issue panel on /docs (T383) ([7f1a6ed](https://github.com/quanghoangf/vibedoc/commit/7f1a6ed98c94d47b6f4eb9d1a86fed4f121f007e))
+* **docs:** flag docs naming paths a done task renamed or deleted (T460) ([5a03565](https://github.com/quanghoangf/vibedoc/commit/5a035655b5dcc0fc2e6147a2d49e1d868b6579f5))
+* **docs:** group titled fences into code tabs (T401) ([154b4bc](https://github.com/quanghoangf/vibedoc/commit/154b4bc4819458120bf8538bc59e345511ee74ad))
+* **docs:** lint orphan docs, capability specs and spec changes (T382) ([166b742](https://github.com/quanghoangf/vibedoc/commit/166b7422d851ea7cf24b2d56cb09ae463b3a78df))
+* **docs:** May be outdated box and Fix docs on the doc (T461) ([eb9b885](https://github.com/quanghoangf/vibedoc/commit/eb9b88590413fc7da7ec5b4573819276e1a51be9))
+* **docs:** rank doc search by title, heading, body over cached files (T380) ([9b2dd8a](https://github.com/quanghoangf/vibedoc/commit/9b2dd8a9037178c32789f4533e575907113283ed))
+* **docs:** record agent doc reads and show them on /docs (T480) ([c8dcd0a](https://github.com/quanghoangf/vibedoc/commit/c8dcd0abcbdd6e5c2445e7426e45b7df8ef49daf))
+* **docs:** render GFM alerts as callouts (T400) ([829dcf6](https://github.com/quanghoangf/vibedoc/commit/829dcf63775b975cc7b64b4aa406c77c8963001b))
+* **docs:** serve /llms.txt from the project's files (T363) ([237c9a0](https://github.com/quanghoangf/vibedoc/commit/237c9a06095a76d211684ca696964dcf9f583b3d))
+* **docs:** serve each doc as markdown at /md/<path> (T361) ([7863e0b](https://github.com/quanghoangf/vibedoc/commit/7863e0bd69f44a54aaa89f863166b79996c06f8a))
+* **docs:** show agent searches that found nothing on /docs (T481) ([5343e91](https://github.com/quanghoangf/vibedoc/commit/5343e91f5b9368672dcd0d51be21499489a6d092))
+* **docs:** style details blocks as an accordion (T402) ([24f6d7b](https://github.com/quanghoangf/vibedoc/commit/24f6d7bb12cfdefbbe6513b6e1504902525a24f8))
+* **docs:** suggest similar docs on a wrong path (T362) ([409e2f0](https://github.com/quanghoangf/vibedoc/commit/409e2f02c0a981d356dc25400e6d4eab75079850))
+* **docs:** Try it sends API reference requests to the project's local app ([f40e42d](https://github.com/quanghoangf/vibedoc/commit/f40e42d567e56ee3e0cc85c40669ec36f1b1de8c))
+* **mcp:** context header on vibedoc_read_doc (T364) ([080c2cf](https://github.com/quanghoangf/vibedoc/commit/080c2cfabc9d45676730e597db406391606c6679))
+* **openapi:** parse the project's OpenAPI spec and add vibedoc_get_endpoint ([49486e0](https://github.com/quanghoangf/vibedoc/commit/49486e05a6fad9ecd873a7b1311b7a09afc0245b))
+* **release-notes:** draft from done work since the last tag at GET /api/release-notes (T441) ([2301101](https://github.com/quanghoangf/vibedoc/commit/23011015579ed1da46917026a148020168afc31b))
+* **release-notes:** pick new done work and build the CHANGELOG edit (T440) ([1e1378a](https://github.com/quanghoangf/vibedoc/commit/1e1378afc71457acc1b932c6ca13c7258214d7ba))
+* **roadmap:** Draft release notes from done work as a CHANGELOG diff (T442) ([db400fc](https://github.com/quanghoangf/vibedoc/commit/db400fc4a9d98826f8772668f34de680cdc7a9f7))
+
 # [1.17.0](https://github.com/quanghoangf/vibedoc/compare/v1.16.0...v1.17.0) (2026-10-07)
 
 
