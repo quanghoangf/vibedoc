@@ -52,6 +52,7 @@ import {
   deleteEntry,
   sessionStartMemory,
   recordAgentCall,
+  noteDocRead,
   backfillEpisodes,
   currentSessionId,
   writeRunEpisode,
@@ -260,6 +261,10 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         root,
       );
       emitUpdate("doc_read", { path: docPath });
+      // R093: count the agent's read (the in-app chat's too); recording never fails the call
+      void noteDocRead(root, docPath)
+        .then(() => emitUpdate("doc_usage_updated", { path: docPath }))
+        .catch((e) => console.warn("[vibedoc] could not record the doc read:", e));
       const related = formatRelatedFiles(docLinks(await getDocGraph(root), docPath));
       return `## ${docPath}\n\n${content}` + (related ? `\n\n---\n\n${related}` : "");
     }

@@ -1,5 +1,8 @@
 # T480: Record agent doc reads and show them on /docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 **Phase:** R093 — Doc usage signals
 **Size:** M (2–3 hrs)
 **Depends on:** —
@@ -55,5 +58,10 @@ BASE=http://localhost:3193 node e2e/doc-usage.mjs
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN an agent reads a doc with `vibedoc_read_doc` → THEN /docs lists that doc under "Read by agents" with its read count, without a reload
-- [ ] S2 — WHEN a doc in the project has never been read by an agent → THEN /docs lists it under "Never read by agents"
+### Steps
+- [x] S1 — WHEN an agent reads a doc with `vibedoc_read_doc` → THEN /docs lists that doc under "Read by agents" with its read count, without a reload
+- [x] S2 — WHEN a doc in the project has never been read by an agent → THEN /docs lists it under "Never read by agents"
+- [ ] Open /docs with no doc selected → a "Doc usage by agents" section sits under the "N docs" heading, two columns on desktop
+- [ ] Switch the language to Tiếng Việt → the section and its lists read in Vietnamese
+### Regression risk
+- [ ] Open a doc, edit and save it → the editor still saves; the landing's ⌘P / ⌘K hints still show
