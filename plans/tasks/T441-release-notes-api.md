@@ -1,5 +1,8 @@
 # T441: Release notes draft from the project: last tag + GET /api/release-notes
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 **Phase:** R091 — Release notes from done work
 **Size:** S (~1 hr)
 **Depends on:** T440
@@ -34,5 +37,9 @@ curl -s 'http://localhost:3191/api/release-notes' | head -c 600
 ```
 
 ## Manual tests
+_Auto: `pnpm build` passed, lint has only the 14 pre-existing errors; `curl /api/release-notes` on this repo named v1.16.0 (2026-10-06) and listed 9 tasks done since, none already in CHANGELOG.md; a project without a repo answered 200 with `since: null`._
 ### Steps
-- [ ] S3 — WHEN a task was finished before the last tag, or its id is already in CHANGELOG.md → THEN it is not in the draft
+- [x] S3 — WHEN a task was finished before the last tag, or its id is already in CHANGELOG.md → THEN it is not in the draft
+- [ ] Open `http://localhost:3000/api/release-notes` on a project with tags → `since` names the newest tag and only newer done tasks are listed
+### Regression risk
+- [ ] /roadmap and /board still load (core.ts gained an import)
