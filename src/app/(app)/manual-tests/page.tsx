@@ -15,6 +15,8 @@ import type { MessageKey } from "@/i18n"
 import { useReviewText } from "@/components/manual-tests/review-text"
 import { TestDetail, type DetailView } from "@/components/manual-tests/TestDetail"
 import { SuiteTab } from "@/components/manual-tests/SuiteTab"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { CopyCommand } from "@/components/shared/CopyCommand"
 import { TestBulkBar } from "@/components/manual-tests/TestBulkBar"
 import { cn } from "@/lib/utils"
 import type { Task } from "@/types"
@@ -596,12 +598,15 @@ function Empty({ rows, tab, filtered, onAll }: { rows: number; tab: ReviewTab; f
   const { t } = useT()
   if (!rows) {
     return (
-      <div className="flex flex-col items-start gap-2 px-5 py-8 sm:px-7 lg:px-5">
-        <FlaskConical className="size-5 text-muted" aria-hidden />
-        <p className="text-sm text-txt">{t("tests.nothingToReview")}</p>
-        <p className="max-w-sm text-xs leading-relaxed text-muted">
-          {t("tests.emptyLead")} <code className="font-mono">manualTests</code>{t("tests.emptyEnd")}
-        </p>
+      <div className="px-5 py-8 sm:px-7 lg:px-5">
+        <EmptyState
+          bordered
+          icon={<FlaskConical className="size-6" />}
+          message={t("tests.nothingToReview")}
+          lead={t("tests.emptyTeach")}
+          action={<CopyCommand prompt={false} command="/vibedoc:work" />}
+          needsAgent
+        />
       </div>
     )
   }

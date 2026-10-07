@@ -28,6 +28,8 @@ const PAGES = [
   // no agent yet: the action itself is Connect
   { path: "/activity", name: "activity", href: /connect/ },
   { path: "/chat", name: "chat" },
+  { path: "/manual-tests", name: "test review", agent: true, command: "/vibedoc:work" },
+  { path: "/manual-tests?tab=suite", name: "test review: suite", agent: true, command: "/vibedoc:work" },
 ]
 
 const browser = await launchChrome()

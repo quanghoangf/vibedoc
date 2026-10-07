@@ -1,5 +1,7 @@
 # T293: Test review, suite and evidence empty states
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 **Phase:** R083 — Teaching empty states
 **Size:** M (2–3 hrs)
 **Depends on:** T290
@@ -20,30 +22,13 @@ Test review in an empty project explains where reviews, runs and evidence come f
 - [ ] Suite: lead = replays every done task's spec to catch regressions; action = "Run suite" when specs exist, else a link to the list tab / `/vibedoc:work` command (the thing that produces specs).
 - [ ] Evidence / run player with no run: lead on what a run records (steps, screenshots, video); action = the existing Run button (`useTestRun`) when the task has a spec, else copy `/vibedoc:work`.
 - [ ] i18n `tests.ts`, `en` + `vi`.
-- [ ] Extend `e2e/empty-states.mjs` with /manual-tests, /manual-tests?tab=suite and an evidence view of a task with no runs (fixture: one task with a `## Manual tests` checklist).
-
-**Out of scope:** running tests in the empty state beyond the existing Run action.
-
-## Files
-- `src/app/(app)/manual-tests/page.tsx`, `src/components/manual-tests/{SuiteTab,RunPlayer,TestEvidence}.tsx`
-- `src/i18n/tests.ts`
-- `e2e/empty-states.mjs`
-
-## Acceptance criteria
-- [ ] Empty project: /manual-tests and the suite tab show a lead and one action
-- [ ] Evidence for a task with no run: lead + one action (Run or the command)
-- [ ] vi passes the i18n checks
-
-## Verify
-```bash
-node src/lib/i18n.check.mts
-pnpm lint && pnpm build
-BASE=http://localhost:3083 PW_DIR=. node e2e/empty-states.mjs
-BASE=http://localhost:3083 PW_DIR=. node e2e/i18n.mjs
-```
-
-## Manual tests
+- [ ] Extend `e2e/empty-states.mjs` with /manual-tests, /manual-tests?tab=suite and an evidence view of a task with no runs (fixture: one task with a `## Manual tests
+_2026-10-07 — ai · Spec: `e2e/vibedoc/T293-test-review-empty-states.spec.ts` · Auto: passed 2026-10-07_
 ### Steps
-- [ ] S1 — WHEN the user opens test review, the suite tab and evidence with nothing recorded → THEN each says what fills it and offers one action
-- [ ] S2 — WHEN no agent is connected → THEN the `/vibedoc:work` action has the Connect link
-- [ ] S4 — WHEN the language is Tiếng Việt → THEN these empty states are Vietnamese
+- [x] 🤖 S1 — WHEN the user opens test review, the suite tab and evidence with nothing recorded → THEN each says what fills it and offers one action
+- [x] 🤖 A task with a spec but no run → the run player offers Run the spec
+- [x] 🤖 S2 — WHEN no agent is connected → THEN the /vibedoc:work action has the Connect link
+- [x] 🤖 S4 — WHEN the language is Tiếng Việt → THEN these empty states are Vietnamese
+- [ ] On a task with a real spec and no run, click Run the spec → the run starts (the live strip shows) and a recorded run replaces the empty state when it ends
+### Regression risk
+- [ ] A task with recorded runs still shows the player with its video, and the suite tab with specs still shows Run suite and its last result

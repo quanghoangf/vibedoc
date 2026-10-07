@@ -204,7 +204,7 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
       ) : <>
       {!going && (
         <section aria-label={t("board.pickRun")} className="border-b border-border px-5 py-5 sm:px-7">
-          <RunPlayer key={task.id} taskId={task.id} latest={task.lastRun?.runId ?? null} />
+          <RunPlayer key={task.id} taskId={task.id} latest={task.lastRun?.runId ?? null} onRun={tests?.spec && !demo ? () => void testRun.start(task.id) : undefined} />
         </section>
       )}
 
