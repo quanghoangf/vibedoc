@@ -5,7 +5,9 @@ import { ITEM_KEYS, itemActionForKey, shouldHandleShortcut, type ItemAction } fr
 import { useApp } from "@/context/AppContext"
 
 export interface ItemCommand {
-  action: ItemAction
+  /** The item key it answers to; none = a ⌘K-only command, told apart by `id` */
+  action?: ItemAction
+  id?: string
   label: string
   run: () => void
 }

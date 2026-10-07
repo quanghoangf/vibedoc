@@ -130,7 +130,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
     if (current) {
       for (const c of top(current.commands, (c) => c.label)) {
         out.push({
-          id: `item-cmd-${c.action}`, group: current.title, label: c.label, lead: icon(Zap), kbd: itemKeyLabel(c.action),
+          id: `item-cmd-${c.action ?? c.id}`, group: current.title, label: c.label, lead: icon(Zap), kbd: c.action && itemKeyLabel(c.action),
           run: () => { onClose(); c.run() },
         })
       }

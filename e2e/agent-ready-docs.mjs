@@ -5,14 +5,17 @@
 //   4. A wrong path on /md/ or vibedoc_read_doc names up to 5 similar docs, the right one first (S3)
 //   5. /llms.txt: title, doc sections with /md/ links + registry descriptions, specs, open epics; ?section=; no llms-full.txt (S1)
 //   6. vibedoc_read_doc starts with a context line (path, priority, last edit, inbound links); off with docs.agentHeader: false (S5)
-// The fixture is removed in `finally`.
+//   7. Browser: ⋯ on a doc → Copy page puts the agent view on the clipboard; View as Markdown / Copy agent link
+//      point at /md/; Ask agent about this doc starts a chat that reads it; ⌘K lists the four; the editor
+//      toolbar inserts both blocks (S4)
+// Fails on any browser console error. The fixture is removed in `finally`.
 //
 //   PORT=3187 pnpm dev   # then:
 //   BASE=http://localhost:3187 PW_DIR=<dir with node_modules/playwright> node e2e/agent-ready-docs.mjs
 import assert from "node:assert/strict"
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { makeFixture } from "./stub-chat.mjs"
+import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3187"
 const fx = makeFixture()
@@ -124,6 +127,74 @@ try {
   read = await mcp("vibedoc_read_doc", { query: "docs/architecture/overview.md" })
   assert.match(read, /^## docs\/architecture\/overview\.md\n/)
   console.log("ok  S5: vibedoc_read_doc starts with path · priority · last edit · inbound links; gone with docs.agentHeader: false")
+
+  // 7. S4: page actions in the browser
+  writeFileSync(path.join(fx, ".vibedoc/settings.json"), "{}")
+  const browser = await launchChrome()
+  const errors = []
+  try {
+    const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, permissions: ["clipboard-read", "clipboard-write"] })
+    const page = await context.newPage()
+    page.on("console", (m) => { if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text()) })
+    page.on("pageerror", (e) => errors.push(e.message))
+    const calls = await stubChat(page, [{ type: "result", is_error: false, session_id: "s1" }], { root: fx })
+    const doc = "docs/guides/setup.md"
+    await page.goto(`${BASE}/docs?doc=${encodeURIComponent(doc)}`)
+    await page.getByText("Install the app.").first().waitFor()
+    const menu = () => page.getByRole("button", { name: `Actions for ${doc}` }).first()
+
+    await menu().click()
+    await page.getByRole("menuitem", { name: "Copy page" }).click()
+    await page.getByText("Copied the page as an agent reads it").waitFor()
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), body)
+    console.log("ok  S4: Copy page puts the agent view on the clipboard (human-only removed, agent note in)")
+
+    await menu().click()
+    await page.getByRole("menuitem", { name: "Copy agent link" }).click()
+    const agentLink = await page.evaluate(() => navigator.clipboard.readText())
+    assert.equal(agentLink, `${BASE}/md/docs/guides/setup.md${q}`)
+    assert.equal(await (await fetch(agentLink)).text(), body)
+    await menu().click()
+    const [popup] = await Promise.all([page.waitForEvent("popup"), page.getByRole("menuitem", { name: "View as Markdown" }).click()])
+    assert.equal(popup.url(), agentLink)
+    await popup.close()
+    console.log("ok  S4: Copy agent link / View as Markdown use the /md/ URL an agent fetches")
+
+    await page.keyboard.press("ControlOrMeta+k")
+    const list = page.getByRole("listbox")
+    for (const name of ["Copy page", "View as Markdown", "Copy agent link", "Ask agent about this doc"]) {
+      await list.getByRole("option", { name: new RegExp(`^${name}`) }).waitFor()
+    }
+    await page.keyboard.press("Escape")
+    await list.waitFor({ state: "hidden" })
+    console.log("ok  S4: ⌘K on an open doc lists Copy page, View as Markdown, Copy agent link, Ask agent about this doc")
+
+    await menu().click()
+    await page.getByRole("menuitem", { name: "Ask agent about this doc" }).click()
+    for (let i = 0; i < 50 && !calls.length; i++) await page.waitForTimeout(100)
+    assert.ok(calls.length, "a chat turn was sent")
+    assert.match(JSON.stringify(calls[0]), /docs\/guides\/setup\.md.*vibedoc_read_doc/)
+    console.log("ok  S4: Ask agent about this doc starts a chat that reads the doc with vibedoc_read_doc")
+
+    // the editor toolbar inserts both blocks
+    await page.goto(`${BASE}/docs?doc=${encodeURIComponent(doc)}`)
+    await page.getByRole("tab", { name: "Edit" }).click()
+    const editor = page.getByRole("textbox").filter({ hasText: "Install the app." })
+    await editor.getByText("Install the app.").click()
+    await page.keyboard.press("End")
+    await page.keyboard.type(" note")
+    await page.keyboard.press("Shift+Home")
+    await page.getByRole("button", { name: "Agent-only note" }).click()
+    await editor.getByText("<!-- agent-only").nth(1).waitFor()
+    await page.getByRole("button", { name: "Human-only block" }).click()
+    const lines = (await editor.innerText()).split("\n")
+    const at = lines.indexOf("Install the app. note")
+    assert.deepEqual(lines.slice(at - 2, at + 3), ["<!-- agent-only", "<!-- human-only:start -->", "Install the app. note", "<!-- human-only:end -->", "-->"], lines.join("\n"))
+    console.log("ok  S4: the editor toolbar inserts an agent-only note and a human-only block")
+    assert.deepEqual(errors, [], `console errors:\n${errors.join("\n")}`)
+  } finally {
+    await browser.close()
+  }
 } finally {
   rmSync(fx, { recursive: true, force: true })
 }

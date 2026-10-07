@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Copy, CopyPlus, FolderInput, Link2, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
+import { Bot, ClipboardCopy, Copy, CopyPlus, FileCode2, FolderInput, Link2, MessageSquare, MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +25,12 @@ export interface DocActions {
   copyPath: (path: string) => void
   copyLink: (path: string) => void
   chat: (path: string) => void
+  /** R087: the doc as an agent reads it, to the clipboard */
+  copyPage: (path: string) => void
+  /** R087: open /md/<path> */
+  viewMarkdown: (path: string) => void
+  /** R087: the /md/<path> URL, to the clipboard */
+  copyAgentLink: (path: string) => void
   remove: (path: string) => void
 }
 
@@ -38,6 +44,10 @@ export function DocMenuItems({ path, actions }: { path: string; actions: DocActi
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => actions.copyPath(path)}><Copy /> {t("docs.copyPath")}</DropdownMenuItem>
       <DropdownMenuItem onSelect={() => actions.copyLink(path)}><Link2 /> {t("docs.copyLink")}</DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => actions.copyPage(path)}><ClipboardCopy /> {t("docs.copyPage")}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.viewMarkdown(path)}><FileCode2 /> {t("docs.viewAsMarkdown")}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => actions.copyAgentLink(path)}><Bot /> {t("docs.copyAgentLink")}</DropdownMenuItem>
       <DropdownMenuItem onSelect={() => actions.chat(path)}><MessageSquare /> {t("docs.chatAboutDoc")}<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => actions.remove(path)} className="text-danger focus:text-danger"><Trash2 /> {t("board.delete")}<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>

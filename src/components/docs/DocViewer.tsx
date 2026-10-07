@@ -49,6 +49,9 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
     { action: "edit", label: t("docs.rename"), run: () => docActions.rename(path) },
     { action: "duplicate", label: t("docs.duplicate"), run: () => docActions.duplicate(path) },
     { action: "chat", label: t("docs.chatAboutDoc"), run: () => docActions.chat(path) },
+    { id: "copy-page", label: t("docs.copyPage"), run: () => docActions.copyPage(path) },
+    { id: "view-markdown", label: t("docs.viewAsMarkdown"), run: () => docActions.viewMarkdown(path) },
+    { id: "copy-agent-link", label: t("docs.copyAgentLink"), run: () => docActions.copyAgentLink(path) },
     { action: "remove", label: t("board.delete"), run: () => docActions.remove(path) },
   ] : [])
 

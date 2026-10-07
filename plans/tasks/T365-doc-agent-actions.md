@@ -1,5 +1,7 @@
 # T365: Doc actions for agents (menu, ⌘K, editor toolbar)
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Done:** 2026-10-07
 **Phase:** R087 — Agent-ready docs
 **Size:** M (2–3 hrs)
 **Depends on:** T361
@@ -35,5 +37,19 @@ pnpm lint && pnpm build
 BASE=http://localhost:3187 PW_DIR=. node e2e/agent-ready-docs.mjs
 ```
 
+## Notes
+- The existing "Chat about this doc" is now "Ask agent about this doc" (same action, ⇧C); its message asks the agent to read the doc with `vibedoc_read_doc`.
+- `ItemCommand.action` is optional: commands with only an `id` show in ⌘K without a key.
+
 ## Manual tests
-- [ ] S4 — WHEN the user opens ⋯ on a doc and picks Copy page or Ask agent about this doc → THEN the clipboard holds the agent view, or a chat starts that reads that doc
+_2026-10-07 — ai · e2e: `e2e/agent-ready-docs.mjs` (passed)_
+### Steps
+- [x] S4 — Open a doc with a human-only block, ⋯ → Copy page → toast "Copied the page as an agent reads it"; paste → no human-only text, agent notes in plain text
+- [x] ⋯ → View as Markdown → a new tab shows the raw markdown at /md/<path>
+- [x] ⋯ → Copy agent link → the clipboard holds http://…/md/<path>
+- [x] S4 — ⋯ → Ask agent about this doc → a new chat starts and the agent reads that doc
+- [x] ⌘K on an open doc → Copy page, View as Markdown, Copy agent link, Ask agent about this doc are listed
+- [x] Edit mode, select a line, click the Bot / User toolbar buttons → the line is wrapped in `<!-- agent-only … -->` / `<!-- human-only:start/end -->`
+- [ ] The two new toolbar icons read clearly next to the others (tooltips "Agent-only note", "Human-only block"), en and vi
+### Regression risk
+- [ ] Right-click a doc in the list → the menu still has Rename, Move, Duplicate, Delete and they still work
