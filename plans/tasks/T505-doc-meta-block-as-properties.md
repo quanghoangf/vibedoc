@@ -1,5 +1,7 @@
 # T505: Show a task's or epic's meta block as properties in /docs
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 **Phase:** R095 — UI enhancements
 **Size:** L (half a day)
 **Covers:** S2
@@ -52,5 +54,15 @@ BASE=http://localhost:3195 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node
 ```
 
 ## Manual tests
+_Auto: `e2e/doc-meta-properties.mjs` passed 2026-10-07, 3 runs in a row (items below marked [x] are what it proved). `pnpm build` ok, lint 11 errors (baseline), `meta-block` / `roadmap-health` / `i18n` checks ok; `/api/tasks` and `/api/roadmap` output byte-identical before/after the core change on this repo._
 ### Steps
-- [ ] S2 — WHEN a task or epic file is opened in /docs → THEN its meta lines show as property rows, not as one paragraph
+- [x] S2 — WHEN a task or epic file is opened in /docs → THEN its meta lines show as property rows, not as one paragraph
+- [x] Open a task file in /docs → Status, Phase, Size, Depends on, Covers, Owner, Due, Started are rows; the body starts at the H1 + first section, a `**Key:**` line lower down and one inside a code fence still render in the body
+- [x] Change Status from the row → the file's `**Status:**` line, the board and the row change; the Split editor's buffer shows the new line; a failed move shows "Could not move …" and the row rolls back
+- [x] Phase chip → /roadmap?item=R…; Depends on chip → /board?task=T…
+- [x] Open an epic file → Parent, Status, Order, Tasks are rows (Tasks ids are chips)
+- [ ] Open `docs/architecture/02-high-level-design/HLD.md` (or MEMORY.md) → "Last updated" is now a plain row and no longer a body line (same rule as task files: any `**Key:** Value` block right under the H1). Decide if that is wanted for ordinary docs
+- [ ] Owner / Size / Priority / Due rows on a task file open the same pickers as the board panel and look right; a task file without those lines still offers them
+### Regression risk
+- [ ] A `docs/` file with frontmatter: priority picker and "Add a property" still work, frontmatter rows show under the meta rows
+- [ ] Drag a card on /board in one tab while /docs is open in another → the docs list and lint panel don't flicker (task moves now also emit `doc_updated`)
