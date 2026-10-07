@@ -8,8 +8,8 @@ import { addressChangedMessage, appUrl, parsePortArg, readSavedPort, resolveAddr
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
 
-// The page the browser opens on start (which page that is belongs to R082's first-run screen)
-const START_PATH = '/setup'
+// The page the browser opens on start: / redirects to the first screen that fits the project (R082)
+const START_PATH = '/'
 
 async function openBrowser(url) {
   if (noOpen) return console.log(`   Open ${url} in your browser.`)

@@ -16,7 +16,7 @@ cd your-project
 npx vibedoc
 ```
 
-VibeDoc prints the app URL, the MCP URL and the command to connect Claude Code in the terminal and opens the setup wizard in your browser. The wizard is optional: click **Board** in the sidebar to skip it. A project keeps the same port on every run (saved in `.vibedoc/port`), so the agent's MCP URL stays the same between restarts. Choose another one with `npx vibedoc --port 4000`.
+VibeDoc prints the app URL, the MCP URL and the command to connect Claude Code in the terminal, then opens your browser on the screen that fits the project: a new project gets a welcome with one first move (plan the roadmap from your docs, or plan the first epics with the agent), and a project that already has tasks or a roadmap opens the board, or the page you used last. The template wizard is optional: **Write project docs** on the welcome opens it. A project keeps the same port on every run (saved in `.vibedoc/port`), so the agent's MCP URL stays the same between restarts. Choose another one with `npx vibedoc --port 4000`.
 
 To keep a `vibedoc` command instead of `npx`, install it with any channel. Every channel serves the same version; `vibedoc --version` shows yours.
 
