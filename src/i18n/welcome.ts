@@ -9,6 +9,11 @@ export const en = {
   emptyLead: "This project is empty. Tell your agent what you want to build and it plans the first epics with you.",
   emptyStart: "Plan the first epics with the agent",
   skip: "Go to the board",
+  writeDocs: "Write project docs",
+  writeDocsHint: "Optional: a template wizard that drafts CLAUDE.md and project docs.",
+  agentConnected: "Agent connected",
+  agentNotConnected: "No agent has connected yet.",
+  connectHow: "How to connect",
 }
 
 export const vi: Messages<typeof en> = {
@@ -19,4 +24,9 @@ export const vi: Messages<typeof en> = {
   emptyLead: "Dự án này còn trống. Hãy nói với agent bạn muốn làm gì, agent sẽ cùng bạn lập các epic đầu tiên.",
   emptyStart: "Lập các epic đầu tiên cùng agent",
   skip: "Tới bảng việc",
+  writeDocs: "Viết tài liệu dự án",
+  writeDocsHint: "Tuỳ chọn: trình hướng dẫn theo mẫu soạn CLAUDE.md và tài liệu dự án.",
+  agentConnected: "Agent đã kết nối",
+  agentNotConnected: "Chưa có agent nào kết nối.",
+  connectHow: "Cách kết nối",
 }

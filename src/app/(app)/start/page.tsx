@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Bot, Sparkles } from "lucide-react"
+import { Bot, FileText, Sparkles } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { Button } from "@/components/ui/button"
+import { ConnectSlot } from "@/components/welcome/ConnectSlot"
 import { askAgent } from "@/lib/ask-agent"
 import { welcomeKind } from "@/lib/first-screen"
 
@@ -26,7 +27,8 @@ export default function WelcomePage() {
       })
   }, [activeProject, rootParam])
 
-  const board = `/board${rootParam === "?" ? "" : rootParam}`
+  const q = rootParam === "?" ? "" : rootParam
+  const board = `/board${q}`
   const docs = kind === "docs"
 
   return (
@@ -44,6 +46,11 @@ export default function WelcomePage() {
             {docs ? <Sparkles /> : <Bot />} {t(docs ? "welcome.docsStart" : "welcome.emptyStart")}
           </Button>
           <Link href={board} className="text-xs text-muted underline-offset-2 hover:text-txt hover:underline">{t("welcome.skip")}</Link>
+          <ConnectSlot />
+          <div className="mt-6 flex flex-col items-center gap-1 border-t border-border pt-4">
+            <Button asChild variant="outline" size="sm"><Link href={`/setup${q}`}><FileText /> {t("welcome.writeDocs")}</Link></Button>
+            <p className="text-xs text-muted">{t("welcome.writeDocsHint")}</p>
+          </div>
         </>
       )}
     </section>

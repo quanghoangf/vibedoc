@@ -2,6 +2,7 @@
 //   S1  docs, no tasks/roadmap → /start, first start "Generate roadmap from your docs" (opens an agent chat)
 //   S2  nothing → /start, "Plan the first epics with the agent"
 //   set up (a task) → /board, never the welcome
+//   S4  "Write project docs" → the template wizard (/setup); the agent row says connected once an `ai` event is logged
 // Fixtures are temp dirs passed as ?root= (and as the only project via stubChat), removed in `finally`.
 //
 //   BASE=http://localhost:3082 PW_DIR=<dir with node_modules/playwright> node e2e/first-screen.mjs
@@ -25,6 +26,9 @@ function project(files) {
 
 const withDocs = project({ "README.md": "# Shop\n\nA small web shop.\n", "docs/prd.md": "# PRD\n\nCheckout and catalog.\n" })
 const empty = project({ "LICENSE.md": "MIT\n" })
+const connected = project({ "docs/a.md": "# A\n", ".vibedoc-activity.json": JSON.stringify([
+  { id: "e1", timestamp: new Date().toISOString(), type: "session_start", actor: "ai", title: "Session started", detail: "Agent connected" },
+]) })
 const setUp = project({ "README.md": "# App\n", "plans/tasks/T001-x.md": "# T001: First\n**Status:** 📋 Todo\n\n## Goal\nX.\n" })
 
 const browser = await launchChrome()
@@ -57,6 +61,23 @@ try {
     await page.waitForURL(/\/start\b/)
     await page.getByRole("button", { name: "Plan the first epics with the agent" }).waitFor()
     console.log("ok  S2 empty project → welcome, plan the first epics with the agent")
+    await ctx.close()
+  }
+  {
+    const { ctx, page } = await open(empty)
+    await page.waitForURL(/\/start\b/)
+    await page.getByText("No agent has connected yet.").waitFor()
+    await page.getByRole("link", { name: "Write project docs" }).click()
+    await page.waitForURL(/\/setup\b/)
+    await page.getByRole("heading", { name: "Setup Wizard" }).waitFor()
+    console.log("ok  S4 Write project docs → template wizard; agent row says not connected")
+    await ctx.close()
+  }
+  {
+    const { ctx, page } = await open(connected)
+    await page.waitForURL(/\/start\b/)
+    await page.getByText("Agent connected", { exact: true }).waitFor()
+    console.log("ok  agent row says connected after an ai event")
     await ctx.close()
   }
   {
