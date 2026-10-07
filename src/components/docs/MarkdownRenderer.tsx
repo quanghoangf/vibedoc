@@ -6,6 +6,7 @@ import { marked } from "marked"
 import { cn } from "@/lib/utils"
 import { stripFrontmatter } from "@/lib/doc-priority"
 import { isExampleTarget } from "@/lib/doc-links"
+import { alertExtension } from "@/lib/md-alerts"
 import { useApp } from "@/context/AppContext"
 import { useOpenNode } from "@/components/memory/EntryRelated"
 import { toast } from "@/components/ui/toast"
@@ -18,6 +19,9 @@ marked.setOptions({
   gfm: true,
   breaks: false,
 })
+
+// GFM alerts `> [!NOTE]` … `> [!CAUTION]` as callouts (R089)
+marked.use({ extensions: [alertExtension] })
 
 // Intercept mermaid code blocks — emit a div instead of <pre><code>
 marked.use({

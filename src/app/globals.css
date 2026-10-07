@@ -220,6 +220,14 @@ body {
 .prose-dark th { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--color-border2); color: var(--color-muted); font-weight: 500; font-family: var(--font-mono); text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; }
 .prose-dark td { padding: 6px 10px; border-bottom: 1px solid var(--color-surface2); color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); }
 .prose-dark blockquote { border-left: 2px solid var(--color-accent); padding-left: 1rem; margin: 1rem 0; color: var(--color-muted); font-style: italic; }
+/* GFM alerts (R089): one status hue per kind, NOTE stays neutral; the label is the kind's ink */
+.prose-dark .md-alert { --alert: var(--color-muted); border-left: 3px solid var(--alert); background: color-mix(in srgb, var(--alert) 8%, transparent); border-radius: 0 8px 8px 0; padding: 0.6rem 1rem; margin: 1rem 0; }
+.prose-dark .md-alert[data-alert="tip"] { --alert: var(--color-teal); }
+.prose-dark .md-alert[data-alert="important"] { --alert: var(--color-accent); }
+.prose-dark .md-alert[data-alert="warning"] { --alert: var(--color-amber); }
+.prose-dark .md-alert[data-alert="caution"] { --alert: var(--color-danger); }
+.prose-dark .md-alert-title { font-family: var(--font-mono); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--alert); margin-bottom: 0.25rem; }
+.prose-dark .md-alert > :last-child { margin-bottom: 0; }
 .prose-dark a { color: var(--color-accent); text-decoration: none; }
 .prose-dark a:hover { text-decoration: underline; }
 .prose-dark a[data-wiki] { cursor: pointer; }

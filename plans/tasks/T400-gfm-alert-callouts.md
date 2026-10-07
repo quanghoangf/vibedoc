@@ -1,5 +1,8 @@
 # T400: GFM alert callouts in the doc preview
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 **Phase:** R089 — Richer markdown
 **Size:** M (2–3 hrs)
 **Depends on:** —
@@ -49,5 +52,11 @@ BASE=http://localhost:3189 PW_DIR=<dir with node_modules/playwright> node e2e/ri
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude_
 ### Steps
-- [ ] S1 — WHEN a doc contains `> [!WARNING]` followed by text → THEN VibeDoc renders a warning callout with its label, in light and dark themes
+- [x] S1 — WHEN a doc contains `> [!WARNING]` followed by text → THEN VibeDoc renders a warning callout with its label, in light and dark themes
+- [ ] Open a doc with all five alerts (NOTE, TIP, IMPORTANT, WARNING, CAUTION) in /docs → each shows its label in its own colour (grey, teal, violet, amber, red) and the body text reads clearly in both themes
+- [ ] Switch the accent in Settings to green → the IMPORTANT callout follows the new accent
+- [ ] Type `> [!TIP]` + a line in the editor → the live preview turns it into a Tip callout
+### Regression risk
+- [ ] A plain `> quote` still renders as the italic violet-ruled blockquote
