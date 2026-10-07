@@ -1,6 +1,6 @@
 # R088: Docs quality gate
 **Parent:** R003
-**Status:** planned
+**Status:** done
 **Order:** 180
 **Tasks:** T380, T381, T382, T383, T384
 

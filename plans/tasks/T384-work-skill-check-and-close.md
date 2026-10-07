@@ -1,5 +1,5 @@
 # T384: /vibedoc:work runs the docs check; epic Done-when
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R088 — Docs quality gate
 **Size:** S (~1 hr)
 **Depends on:** T380, T382, T383
@@ -28,3 +28,13 @@ An agent working an epic runs `vibedoc_check_docs` before it marks a docs task d
 ```bash
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-07 — ai_
+### Steps
+- [ ] S1 — WHEN an agent calls `vibedoc_check_docs` → THEN it gets every doc issue grouped by file with level, rule and line, and a clean project says so in one line
+- [ ] Read plugin/skills/work/SKILL.md step 4 (Verify) → it tells the agent to call `vibedoc_check_docs { path }` for each changed .md and fix its errors before done
+- [ ] On this repo `vibedoc_check_docs` → 0 errors, the same 45 stale paths /graph shows, plus orphan-doc and no-h1 warnings
+- [ ] Search /docs for "Domain Map" → DOMAIN_MAP.md is first
+### Regression risk
+- [ ] `/vibedoc:work` on an epic without doc changes still runs as before (the check only applies to tasks that changed .md files)
