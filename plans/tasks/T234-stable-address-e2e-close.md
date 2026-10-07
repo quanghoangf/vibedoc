@@ -46,4 +46,4 @@ _2026-10-07 — ai:claude-code_
 - [ ] S3 — WHEN the browser opens → THEN the page loads on the first try, with no connection error
 - [ ] Connect Claude Code with the printed command, stop VibeDoc, start it again in the same project → `claude mcp list` shows `vibedoc` connected and a `/vibedoc:next` works without re-adding the server
 ### Regression risk
-- [ ] `npx vibedoc --demo` / `--version` still behave as before
+- [ ] `npx vibedoc --version` still prints only the version
