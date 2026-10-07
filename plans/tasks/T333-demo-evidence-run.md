@@ -1,9 +1,11 @@
 # T333: A sample test run with a playable evidence video
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R085 — Demo playground
 **Size:** L (half a day)
 **Depends on:** T330
 **Covers:** S1
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 
 ## Goal
 In the demo, a done task has a recorded test run: the evidence view shows its steps, screenshots and a video that plays, without the user running anything.
@@ -44,10 +46,24 @@ In the demo, a done task has a recorded test run: the evidence view shows its st
 - [ ] `node bin/demo.check.mts`, `pnpm build` pass
 
 ## Manual tests
+_2026-10-07 — ai · Spec: `e2e/vibedoc/T333-demo-evidence-run.spec.ts` · Auto: passed 2026-10-07_
+### Steps
 - [ ] S1 — WHEN the user runs `vibedoc --demo` → THEN the browser opens a populated sample project with a Demo banner
+- [x] 🤖 Open /manual-tests?task=T004&view=evidence → "Passed", 3/3 steps passed, with a screenshot per step
+- [x] 🤖 Open the review view and press Play → the video plays and pauses at "Step 1"
+- [ ] Watch the whole video → chapter cards "01 · …" to "03 · …", the cursor and action titles show; it ends on "This list isn't shared"
+- [ ] The run's dates read naturally: list "Last run" and History agree, a few days before today
+- [ ] `node scripts/demo-run.mjs` → regenerates `examples/demo-runs/listly/T004/<runId>/` (≤ 1.5 MB) and leaves nothing in `~/.vibedoc/runs`
+### Regression risk
+- [ ] Evidence for a normal project's task (not the demo) still lists its runs and plays its video
 
 ## Verify
 ```bash
 node bin/demo.check.mts && du -sh examples/demo-runs/listly
 pnpm build && node bin/vibedoc.mjs --demo --port 3085   # /manual-tests?task=T004&view=evidence, play the video
 ```
+
+## Notes
+- The generator spec lives at `scripts/demo-run/T004-share-list-by-link.demo.ts` with its own config (`testMatch: '*.demo.ts'`), so a plain `npx playwright test` never picks it up. It imports the kit from `e2e/vibedoc/kit/`.
+- The run is dated on T004's Done day (2026-09-25) in the committed copy; `prepareDemo()` moves run.json dates and the run-id folder by the same days as the project files, so "Last run" and History agree.
+- `examples/demo-runs/listly-app/` (the mock) isn't in package.json `files`: only the recorded run ships (580 KB).

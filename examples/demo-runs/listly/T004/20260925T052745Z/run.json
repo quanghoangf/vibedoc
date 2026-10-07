@@ -1,0 +1,65 @@
+{
+  "runId": "20260925T052745Z",
+  "taskId": "T004",
+  "project": "listly",
+  "startedAt": "2026-09-25T05:27:45.718Z",
+  "endedAt": "2026-09-25T05:27:55.819Z",
+  "status": "passed",
+  "commit": null,
+  "video": "video.webm",
+  "steps": [
+    {
+      "index": 1,
+      "name": "Open the \"Team groceries\" list → it shows its items and a Share button",
+      "status": "passed",
+      "screenshot": "01-open-the-team-groceries-list-it-shows-its-items-and-a-share.png",
+      "error": null,
+      "startMs": 0,
+      "endMs": 2002,
+      "assertions": {
+        "total": 3,
+        "onPage": 3
+      }
+    },
+    {
+      "index": 2,
+      "name": "S1 — WHEN an owner turns on the share link and sends it → THEN anyone with the link sees the list, read-only",
+      "status": "passed",
+      "screenshot": "02-s1-when-an-owner-turns-on-the-share-link-and-sends-it-then-a.png",
+      "error": null,
+      "startMs": 2002,
+      "endMs": 5900,
+      "assertions": {
+        "total": 3,
+        "onPage": 3
+      }
+    },
+    {
+      "index": 3,
+      "name": "Turn the link off → the old link shows \"This list isn't shared\"",
+      "status": "passed",
+      "screenshot": "03-turn-the-link-off-the-old-link-shows-this-list-isn-t-shared.png",
+      "error": null,
+      "startMs": 5900,
+      "endMs": 9766,
+      "assertions": {
+        "total": 2,
+        "onPage": 2
+      }
+    }
+  ],
+  "presentation": {
+    "on": true,
+    "reason": null
+  },
+  "testId": "033ee2879b9022e4a9d1-87aceacc6e2dfc5bbf2a",
+  "retry": 0,
+  "tests": [
+    {
+      "title": "T004 Share a list by link",
+      "outcome": "passed",
+      "attempts": 1
+    }
+  ],
+  "flaky": 0
+}
