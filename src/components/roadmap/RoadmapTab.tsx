@@ -20,6 +20,7 @@ import { AlertTriangle, Bot, FileText, LayoutGrid, ListTree, Plus, Sparkles } fr
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
+import { CopyCommand } from "@/components/shared/CopyCommand"
 import { Button } from "@/components/ui/button"
 import type { RoadmapItem, RoadmapLayout, RoadmapSource, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 import { pickNextTask } from "@/lib/work-queue"
@@ -400,6 +401,8 @@ export function RoadmapTab() {
   }
 
   const openTaskCount = Object.values(board ?? {}).flat().filter((t) => t.status !== "cancelled").length
+  // A roadmap generated from the project's own ROADMAP.md or tasks is the one-click start; otherwise the agent plans it
+  const fromFiles = generateSource === "roadmap-md" || generateSource === "tasks"
   const sourceLabel =
     generateSource === "roadmap-md" ? t("roadmap.sourceRoadmapMd")
       : generateSource === "tasks" ? t("roadmap.sourceTasks", { n: openTaskCount })
@@ -499,12 +502,26 @@ export function RoadmapTab() {
     return (
       <div className="flex-1 p-6">
         {error && <p className="mb-4 text-sm text-danger">{error}</p>}
-        <EmptyState icon="🗺️" message={t("roadmap.noRoadmap")} subMessage={t("roadmap.noRoadmapSub")} bordered />
-        {!demo && <div className="mt-4 flex flex-col items-center gap-2">
-          <div className="flex gap-2">
+        <EmptyState
+          bordered
+          icon="🗺️"
+          message={t("roadmap.noRoadmap")}
+          lead={t("roadmap.noRoadmapLead")}
+          action={demo ? undefined : fromFiles ? (
             <Button size="sm" onClick={generate} disabled={generating} className="bg-accent text-accent-fg hover:bg-accent/90">
               <Sparkles /> {generating ? t("roadmap.generating") : t("roadmap.generateRoadmap")}
             </Button>
+          ) : <CopyCommand prompt={false} command="/vibedoc:roadmap" />}
+          needsAgent={!demo && !fromFiles}
+        />
+        {!demo && <div className="mt-4 flex flex-col items-center gap-2">
+          {fromFiles && <p className="text-xs text-muted">{t("roadmap.generateHint", { source: sourceLabel })}</p>}
+          <div className="flex flex-wrap justify-center gap-2">
+            {!fromFiles && (
+              <Button size="sm" variant="outline" onClick={generate} disabled={generating} title={t("roadmap.generateHint", { source: sourceLabel })}>
+                <Sparkles /> {generating ? t("roadmap.generating") : t("roadmap.generateStarter")}
+              </Button>
+            )}
             <Button size="sm" variant="outline" onClick={() => askAgent("Plan a roadmap for this project.")} disabled={generating}>
               <Bot /> {t("roadmap.planWithAgent")}
             </Button>
@@ -515,7 +532,6 @@ export function RoadmapTab() {
               <Plus /> {t("roadmap.createFirstHorizon")}
             </Button>
           </div>
-          <p className="text-xs text-muted">{t("roadmap.generateHint", { source: sourceLabel })}</p>
         </div>}
         {dialog}
       </div>

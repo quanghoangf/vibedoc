@@ -11,7 +11,9 @@ import { MemoryHistory } from "./MemoryHistory"
 import type { MergeInput } from "./MergeDialog"
 import type { CleanupFlag, MemoryVersion } from "@/lib/core"
 import { cn } from "@/lib/utils"
-import { AlertTriangle } from "lucide-react"
+import { useState } from "react"
+import { AlertTriangle, Check, Copy } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 
@@ -47,6 +49,39 @@ interface MemoryTabProps {
   versionId: string | null
   onHistory: (open: boolean, versionId?: string | null) => void
   onRestore: (version: MemoryVersion) => Promise<void>
+}
+
+/** What to add to CLAUDE.md so the agent reads and writes memory every session. */
+const CLAUDE_SNIPPET = `At session start:
+1. Call vibedoc_read_memory
+   If it shows ⚠ Memory warnings, fix the handoff with vibedoc_update_memory first
+2. Call vibedoc_get_status
+
+When you learn a fact that should still hold next week:
+- Call vibedoc_save_entry (convention, gotcha, decision, preference)
+
+At session end:
+- Call vibedoc_update_memory with full handoff`
+
+/** The empty handoff's one action: copy the CLAUDE.md lines that make the agent write it (R083). */
+function CopySnippet() {
+  const { t } = useT()
+  const [copied, setCopied] = useState(false)
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(CLAUDE_SNIPPET)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (e) {
+      console.warn("[vibedoc] could not copy:", e)
+    }
+  }
+  return (
+    <Button size="sm" onClick={copy}>
+      {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
+      {copied ? t("shell.copied") : t("memory.copyClaudeLines")}
+    </Button>
+  )
 }
 
 export function MemoryTab({ memory, entries, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved, onDelete, view, onView, flags, cleanup, onCleanup, onDismiss, onMerge, onDeleteStale, versions, history, versionId, onHistory, onRestore }: MemoryTabProps) {
@@ -162,7 +197,9 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
             <EmptyState
               icon="🧠"
               message={t("memory.noMemory")}
-              subMessage={t("memory.noMemorySub")}
+              lead={t("memory.noMemoryLead")}
+              action={<CopySnippet />}
+              needsAgent
               bordered
             />
           )}
@@ -171,16 +208,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
             <p className="text-xs font-mono text-muted mb-2">
               {t("memory.addToClaude")}
             </p>
-            <pre data-user-content className="text-xs font-mono text-accent/80 whitespace-pre-wrap leading-relaxed">{`At session start:
-1. Call vibedoc_read_memory
-   If it shows ⚠ Memory warnings, fix the handoff with vibedoc_update_memory first
-2. Call vibedoc_get_status
-
-When you learn a fact that should still hold next week:
-- Call vibedoc_save_entry (convention, gotcha, decision, preference)
-
-At session end:
-- Call vibedoc_update_memory with full handoff`}</pre>
+            <pre data-user-content className="text-xs font-mono text-accent/80 whitespace-pre-wrap leading-relaxed">{CLAUDE_SNIPPET}</pre>
           </div>
         </div>
       )}

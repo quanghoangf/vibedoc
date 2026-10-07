@@ -42,11 +42,13 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
   }, [])
   // With no doc open the list is the page, so it never hides
   const hideList = listCollapsed && !!selectedDoc
+  // An empty project: on phones the viewer's empty state (what fills Docs, New doc) is the page, not an empty list
+  const noDocs = !selectedDoc && docs.length === 0 && !docSearch.trim()
 
   return (
     <div className="flex h-full relative" style={{ minHeight: "calc(100vh - 3rem)" }}>
       <DocList
-        className={selectedDoc ? "max-md:hidden" : undefined}
+        className={selectedDoc || noDocs ? "max-md:hidden" : undefined}
         collapsed={hideList}
         docs={docs}
         selectedDocPath={selectedDoc?.path}
@@ -57,7 +59,7 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
         rootParam={rootParam}
         docActions={docActions}
       />
-      <div className={cn("flex-1 min-w-0 overflow-y-auto", !selectedDoc && "max-md:hidden")}>
+      <div className={cn("flex-1 min-w-0 overflow-y-auto", !selectedDoc && !noDocs && "max-md:hidden")}>
         <DocViewer
           doc={selectedDoc}
           onDirtyChange={onDirtyChange}

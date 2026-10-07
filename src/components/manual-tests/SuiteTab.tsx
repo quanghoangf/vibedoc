@@ -11,6 +11,8 @@ import { useTestRun } from "./useTestRun"
 import { FlakyChip } from "./TestEvidence"
 import { TEST_REVIEW_KEYS } from "@/lib/shortcuts"
 import type { RunManifest } from "@/lib/runs-paths"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { CopyCommand } from "@/components/shared/CopyCommand"
 import { useT } from "@/context/LanguageContext"
 
 const clock = (ms: number) => (ms < 60_000 ? `${(Math.max(0, ms) / 1000).toFixed(1)}s` : `${Math.floor(ms / 60_000)}m ${String(Math.round((ms % 60_000) / 1000)).padStart(2, "0")}s`)
@@ -53,7 +55,19 @@ export function SuiteTab({ specs, withoutSpec }: { specs: number; withoutSpec: n
           </button>
         )}
       </div>
-      {suite ? <SuiteResult suite={suite} /> : (
+      {suite ? <SuiteResult suite={suite} /> : specs === 0 ? (
+        // nothing to replay yet: the agent's /vibedoc:work writes a spec per task (R083)
+        <div className="px-5 py-8 sm:px-7">
+          <EmptyState
+            bordered
+            icon={<Play className="size-6" />}
+            message={t("tests.noSuiteTitle")}
+            lead={t("tests.noSuiteTeach")}
+            action={<CopyCommand prompt={false} command="/vibedoc:work" />}
+            needsAgent
+          />
+        </div>
+      ) : (
         <p className="px-5 py-8 text-sm text-muted sm:px-7">
           {t("tests.noSuiteRun")}
         </p>

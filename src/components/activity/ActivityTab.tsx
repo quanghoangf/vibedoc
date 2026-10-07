@@ -6,10 +6,14 @@ import type { ActivityEvent, Session } from "@/types"
 import { cn } from "@/lib/utils"
 import { ActivityFeed } from "./ActivityFeed"
 import { SessionTimeline } from "./SessionTimeline"
-import { Activity as ActivityIcon, Bot, User } from "lucide-react"
+import Link from "next/link"
+import { Activity as ActivityIcon, Bot, Plug, User } from "lucide-react"
 import { catchUp } from "@/lib/sessions"
 import { EVENT_CATEGORIES, eventCategory, filterEvents, type EventCategory, type EventTarget } from "@/lib/activity"
 import { useT } from "@/context/LanguageContext"
+import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { CONNECT_HREF, useAgentConnected } from "@/components/shared/agent-connection"
 import type { MessageKey, PluralKey } from "@/i18n"
 
 const CATEGORY_KEY: Record<EventCategory, MessageKey> = {
@@ -94,6 +98,7 @@ export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusS
   // The 2000-event log fetched above; AppContext's 30 rows only until it arrives
   const all = useMemo(() => (events.size ? [...events.values()] : activity), [events, activity])
   const empty = view === "sessions" ? sessions?.length === 0 : all.length === 0
+  const connected = useAgentConnected()
 
   const router = useRouter()
   const open = (t: EventTarget) => {
@@ -149,13 +154,16 @@ export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusS
           ))}
         </div>
       ) : empty ? (
-        <div className="flex flex-col items-start gap-2 rounded-lg border border-dashed border-border2 p-6 animate-fade-in">
-          <ActivityIcon className="size-5 text-muted" aria-hidden />
-          <p className="text-sm text-txt">{t("memory.noActivity")}</p>
-          <p className="max-w-lg text-xs leading-relaxed text-muted">
-            {t("memory.noActivityHint")}
-          </p>
-        </div>
+        <EmptyState
+          bordered
+          icon={<ActivityIcon className="size-6" />}
+          message={t("memory.noActivity")}
+          lead={t("memory.noActivityHint")}
+          // no agent yet: connecting it is what fills this page
+          action={connected
+            ? <Button asChild size="sm"><Link href="/board">{t("memory.openBoard")}</Link></Button>
+            : <Button asChild size="sm"><Link href={CONNECT_HREF}><Plug className="size-4" aria-hidden /> {t("shell.connectYourAgent")}</Link></Button>}
+        />
       ) : view === "sessions" ? (
         <SessionTimeline key={focusSessionId ?? ""} focusSessionId={focusSessionId} sessions={sessions ?? []} events={events} onOpenTask={onOpenTask} onOpenDoc={onOpenDoc} onOpen={open} />
       ) : (

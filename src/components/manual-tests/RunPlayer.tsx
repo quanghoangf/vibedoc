@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react"
 import { Check, Film, ImageOff, Pause, Play, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { CopyCommand } from "@/components/shared/CopyCommand"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { nextPause, runClock, stepAt, stepSpans } from "@/lib/test-review"
@@ -28,7 +31,8 @@ const PLAIN_REASON: Record<NonNullable<RunPresentation["reason"]>, MessageKey> =
 /** How long a step's caption stays over a playing video after the step starts. */
 const CAPTION_MS = 1500
 
-export function RunPlayer({ taskId, latest }: { taskId: string; latest: string | null }) {
+/** `onRun`: the task has a spec, so its empty state offers Run; without one it offers /vibedoc:work (R083). */
+export function RunPlayer({ taskId, latest, onRun }: { taskId: string; latest: string | null; onRun?: () => void }) {
   const { rootParam } = useApp()
   const f = useFormat()
   const { t } = useT()
@@ -196,14 +200,16 @@ export function RunPlayer({ taskId, latest }: { taskId: string; latest: string |
 
   if (!run) {
     return (
-      <div className="flex flex-col items-start gap-2 rounded-md border border-dashed border-border2 px-5 py-6">
-        <Film className="size-5 text-muted" aria-hidden />
-        <p className="text-sm text-txt">{t("tests.noRecordedRunYet")}</p>
-        <p className="max-w-md text-xs leading-relaxed text-muted">
-          {t("tests.noRunHintLead")} <code className="font-mono text-txt">vibedoc/playwright</code> {t("tests.noRunHintMiddle")}{" "}
-          <code className="font-mono text-txt">step()</code> {t("tests.noRunHintEnd")}
-        </p>
-      </div>
+      <EmptyState
+        bordered
+        icon={<Film className="size-6" />}
+        message={t("tests.noRecordedRunYet")}
+        lead={onRun ? t("tests.noRunTeachSpec") : t("tests.noRunTeach")}
+        action={onRun
+          ? <Button size="sm" onClick={onRun}><Play className="size-4" aria-hidden /> {t("tests.runSpec")}</Button>
+          : <CopyCommand prompt={false} command="/vibedoc:work" />}
+        needsAgent={!onRun}
+      />
     )
   }
 

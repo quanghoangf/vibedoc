@@ -4,7 +4,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExterna
 import { useRouter, useSearchParams } from "next/navigation"
 import { Background, BackgroundVariant, ControlButton, Controls, getViewportForBounds, Handle, Position, ReactFlow, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react"
 import "@xyflow/react/dist/style.css"
-import { Info, Search, Unlink, X } from "lucide-react"
+import Link from "next/link"
+import { Info, Network, Search, Unlink, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ import { GRAPH_DEFAULT_KINDS, touchedPaths, type BrokenLink, type DocGraph as Gr
 import { STATUS_COLOR_CLASS, StatusChip, useStatusLabel } from "@/components/shared/StatusIcon"
 import { statusDefIn, useStatusDefs } from "@/components/shared/status-defs"
 import { OwnerChip } from "@/components/shared/OwnerChip"
+import { EmptyState } from "@/components/shared/EmptyState"
 import { AgentDot } from "@/components/chat/AgentMark"
 import type { StatusDef } from "@/lib/statuses"
 import { GRAPH_KEYS } from "@/lib/shortcuts"
@@ -856,7 +858,18 @@ export function DocGraph() {
 
   if (!graph && !error) return <p className="p-6 text-sm text-muted">{t("roadmap.loadingGraph")}</p>
   if (graph && !graph.edges.length && !error) {
-    return <p className="m-6 rounded-lg border border-dashed border-border p-4 text-sm text-muted">{t("roadmap.noLinksYet")}</p>
+    const none = graph.nodes.length === 0
+    return (
+      <div className="m-6">
+        <EmptyState
+          bordered
+          icon={<Network className="size-7" />}
+          message={none ? t("roadmap.graphEmptyTitle") : t("roadmap.graphNoLinksTitle")}
+          lead={none ? t("roadmap.graphEmptyLead") : t("roadmap.noLinksYet")}
+          action={<Button asChild size="sm"><Link href="/docs">{none ? t("roadmap.graphEmptyAction") : t("roadmap.graphNoLinksAction")}</Link></Button>}
+        />
+      </div>
+    )
   }
   // a load failure keeps the toolbar (filters, search) and says what to do; the raw error is a details line
   const g = graph ?? EMPTY_GRAPH

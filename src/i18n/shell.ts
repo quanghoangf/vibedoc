@@ -87,6 +87,14 @@ export const en = {
   connectSettings: "Agent configs and connection test in",
   connectSettingsLink: "Settings → MCP",
 
+  // Empty states (R083): the connect line, the copy-command button
+  agentNotConnected: "Your agent isn't connected yet.",
+  connectYourAgent: "Connect your agent →",
+  copyThis: "Copy {command}",
+  copied: "Copied",
+  runInClaudeCode: "Run in Claude Code",
+  copiedToClipboard: "Copied to clipboard",
+
   // Project switcher
   selectProject: "Select project",
   filterProjects: "Filter projects",
@@ -192,6 +200,13 @@ export const vi: Messages<typeof en> = {
   noneYet: "chưa có",
   connectSettings: "Cấu hình agent và kiểm tra kết nối ở",
   connectSettingsLink: "Cài đặt → MCP",
+
+  agentNotConnected: "Agent của bạn chưa được kết nối.",
+  connectYourAgent: "Kết nối agent →",
+  copyThis: "Sao chép {command}",
+  copied: "Đã sao chép",
+  runInClaudeCode: "Chạy trong Claude Code",
+  copiedToClipboard: "Đã sao chép vào bộ nhớ tạm",
 
   selectProject: "Chọn dự án",
   filterProjects: "Lọc dự án",

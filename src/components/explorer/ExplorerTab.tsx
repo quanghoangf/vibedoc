@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { TreePine, SquareStack, Flame, type LucideIcon } from "lucide-react"
+import Link from "next/link"
+import { FolderTree, TreePine, SquareStack, Flame, type LucideIcon } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -12,6 +13,7 @@ import { FileDetail } from "./FileDetail"
 import type { ExplorerFile } from "@/types"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
+import { EmptyState } from "@/components/shared/EmptyState"
 
 type ViewMode = "tree" | "treemap" | "heatmap"
 type SortMode = "name" | "mtime" | "updated"
@@ -160,6 +162,16 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
       {loading ? (
         <div className="flex-1 flex items-center justify-center text-muted text-sm">
           {t("docs.loading")}
+        </div>
+      ) : files.length === 0 ? (
+        <div className="flex-1 overflow-auto p-6">
+          <EmptyState
+            bordered
+            icon={<FolderTree className="size-7" />}
+            message={t("docs.explorerEmptyTitle")}
+            lead={t("docs.explorerEmptyLead")}
+            action={<Button asChild size="sm"><Link href="/setup">{t("docs.writeProjectDocs")}</Link></Button>}
+          />
         </div>
       ) : view === "treemap" ? (
         <div className="flex-1 flex overflow-hidden">

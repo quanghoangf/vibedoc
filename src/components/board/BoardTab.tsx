@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { Plus } from "lucide-react"
+import { ListTodo, Plus } from "lucide-react"
 import type { ActivityEvent, Task } from "@/types"
 import { useApp } from "@/context/AppContext"
 import { useChats } from "@/context/ChatContext"
@@ -18,6 +18,8 @@ import { EpicView } from "./views/EpicView"
 import TimelineView from "./views/TimelineView"
 import { BulkBar } from "./BulkBar"
 import { useT } from "@/context/LanguageContext"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { CopyCommand } from "@/components/shared/CopyCommand"
 
 interface BoardTabProps {
   tasks: Task[]
@@ -269,7 +271,9 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
       </div>
 
       <div data-board-view={state.kind} className="[view-transition-name:board-view-body]">
-      {state.kind === "epic" ? (
+      {tasks.length === 0 ? (
+        <div className="px-4 pt-[18px] pb-8 sm:px-8"><BoardEmpty /></div>
+      ) : state.kind === "epic" ? (
         <EpicView {...viewProps} />
       ) : (
         <div className="min-w-0 px-4 pt-[18px] pb-8 sm:px-8">
@@ -283,5 +287,32 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
       </div>
       {selected.size > 0 && <BulkBar ids={[...selected]} onClear={clearSelection} />}
     </div>
+  )
+}
+
+/** A project with no tasks at all (not a filter that hides them): what fills the board and the command that does (R083). */
+function BoardEmpty() {
+  const { rootParam } = useApp()
+  const { t } = useT()
+  // The next step depends on the roadmap: break an epic down, or plan the epics first
+  const [hasEpics, setHasEpics] = useState<boolean | null>(null)
+  useEffect(() => {
+    fetch(`/api/roadmap${rootParam}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((d: { items?: { parent?: string | null }[] }) => setHasEpics((d?.items ?? []).some((i) => !!i.parent)))
+      .catch((e) => {
+        console.warn("[vibedoc] roadmap for the empty board:", e)
+        setHasEpics(false)
+      })
+  }, [rootParam])
+  return (
+    <EmptyState
+      bordered
+      icon={<ListTodo className="size-7" />}
+      message={t("board.emptyTitle")}
+      lead={hasEpics ? t("board.emptyLeadEpics") : t("board.emptyLeadNoRoadmap")}
+      action={hasEpics === null ? undefined : <CopyCommand prompt={false} command={hasEpics ? "/vibedoc:breakdown" : "/vibedoc:roadmap"} />}
+      needsAgent
+    />
   )
 }

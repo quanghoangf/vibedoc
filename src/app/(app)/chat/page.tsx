@@ -10,6 +10,7 @@ import { AttachLabel, StatusMarker } from "@/components/chat/StatusMarker"
 import { defaultChat, groupChats, shellStatus, suggestions } from "@/lib/chats"
 import { useMinute } from "@/hooks/use-minute"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { useChatText } from "@/components/chat/chat-text"
 
@@ -49,6 +50,7 @@ function ChatPageInner() {
         ) : loaded ? (
           <NoChat
             missing={!!param}
+            first={chats.length === 0}
             onStart={startWith}
             onBack={() => router.replace("/chat")}
           />
@@ -161,12 +163,13 @@ function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
   )
 }
 
-function NoChat({ missing, onStart, onBack }: { missing: boolean; onStart: (text?: string) => void; onBack: () => void }) {
+/** No chat selected. With no chats at all it is the page's teaching empty state (R083): New chat is its one action. */
+function NoChat({ missing, first, onStart, onBack }: { missing: boolean; first: boolean; onStart: (text?: string) => void; onBack: () => void }) {
   const { t } = useT()
   const text = useChatText()
   return (
     <div className="grid flex-1 place-items-center p-8">
-      <div className="flex max-w-md flex-col items-start gap-4 animate-fade-in">
+      <div data-empty-state={first && !missing ? "" : undefined} className="flex max-w-md flex-col items-start gap-4 animate-fade-in">
         <div className="grid size-10 place-items-center rounded-xl bg-linear-to-br from-accent to-teal text-white" aria-hidden>⬡</div>
         {missing ? (
           <>
@@ -179,6 +182,12 @@ function NoChat({ missing, onStart, onBack }: { missing: boolean; onStart: (text
               <h2 className="text-lg font-semibold text-txt">{t("chat.sideBySide")}</h2>
               <p className="mt-1 text-sm text-muted">{t("chat.sideBySideHint")}</p>
             </div>
+            {first && (
+              <div data-empty-action>
+                <Button size="sm" onClick={() => onStart()}><Plus className="size-4" aria-hidden /> {t("chat.newChat")}</Button>
+              </div>
+            )}
+            {first && <p className="-mb-2 text-xs text-muted">{t("chat.orStartWith")}</p>}
             <div className="flex flex-col gap-1.5">
               {suggestions(null).map((s) => (
                 <button key={s} type="button" onClick={() => onStart(s)} className="rounded-lg border border-border px-3 py-2 text-left text-sm text-txt/90 transition-colors hover:border-accent/50 hover:bg-accent/5">
