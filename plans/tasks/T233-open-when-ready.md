@@ -1,9 +1,12 @@
 # T233: Open the browser only when the app answers; clear start failures
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R080 — Stable address & startup
 **Size:** M (2–3 hrs)
 **Depends on:** T232
 **Covers:** S3
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 
 ## Goal
 The browser opens on a page that loads the first time, and when the app can't start the terminal says why, no tab opens and the exit code is non-zero.
@@ -45,5 +48,12 @@ pnpm build && node bin/vibedoc.mjs --port 3080 --no-open   # prints ready + bann
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude-code_
+### Steps
 - [ ] S3 — WHEN the browser opens → THEN the page loads on the first try, with no connection error
 - [ ] WHEN the app cannot start → THEN the terminal shows why and no browser tab opens
+- [ ] Run `npx vibedoc` → "✓ VibeDoc is ready" and the URLs print, then the browser opens on /setup and loads at once
+- [ ] Run `npx vibedoc --no-open` → the same output ends with "Open http://localhost:<port>/setup in your browser." and no tab opens
+- [ ] In a checkout with no `.next` build, run `node bin/vibedoc.mjs` → "✗ VibeDoc could not start: the app exited with code 1" with Next's "Could not find a production build" line, exit code 1, no tab
+### Regression risk
+- [ ] Ctrl+C stops VibeDoc and the Next server (nothing left listening on the port)

@@ -1,11 +1,12 @@
 // Self-check for the project's stable address (R080). Run: node bin/address.check.mts
 import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer as createHttpServer } from 'node:http'
-import { addressChangedMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner } from './address.mjs'
+import { addressChangedMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, waitUntilReady } from './address.mjs'
 
 const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-address-'))
 const servers: { close(): unknown }[] = []
@@ -79,6 +80,19 @@ try {
   assert.ok(changed.includes('http://localhost:3334/api/mcp'))
   assert.ok(changed.includes('claude mcp remove vibedoc'))
   assert.ok(changed.includes(connectCommand(3334)))
+
+  // Ready: an app that starts answering after ~500 ms; a child that dies first; nothing answering at all
+  const sleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'])
+  const late = base + 20
+  const child = sleeper()
+  setTimeout(() => { serve(late, JSON.stringify([{ root }]), 'application/json') }, 500)
+  assert.equal(await waitUntilReady({ port: late, child, intervalMs: 100 }), 'ready')
+  child.kill()
+  assert.deepEqual(await waitUntilReady({ port: base + 21, child: spawn(process.execPath, ['-e', 'process.exit(3)']) }), { exit: 3 })
+  const idle = sleeper()
+  assert.equal(await waitUntilReady({ port: base + 22, child: idle, timeoutMs: 600, intervalMs: 100 }), 'timeout')
+  idle.kill()
+  assert.deepEqual(tailLines('a\n\nb\nc\n', 2), ['b', 'c'])
 } finally {
   for (const s of servers) s.close()
   rmSync(root, { recursive: true, force: true })

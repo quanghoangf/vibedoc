@@ -115,3 +115,35 @@ export function addressChangedMessage({ oldPort, newPort }) {
     `     Other agents: point their MCP config at the new URL. VibeDoc keeps ${newPort} from now on.`,
   ].join('\n')
 }
+
+/**
+ * Waits until the app answers /api/projects: 'ready', `{ exit: code }` when the child process ends first, or
+ * 'timeout'. Polls every `intervalMs`.
+ */
+export function waitUntilReady({ port, child, timeoutMs = 60_000, intervalMs = 250 }) {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = (result) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      child.off('exit', onExit)
+      resolve(result)
+    }
+    const onExit = (code) => finish({ exit: code ?? 1 })
+    child.once('exit', onExit)
+    if (child.exitCode !== null) onExit(child.exitCode)
+    const timer = setTimeout(() => finish('timeout'), timeoutMs)
+    const poll = async () => {
+      if (done) return
+      if (await probeVibedoc(port, Math.min(intervalMs * 4, 2000))) return finish('ready')
+      setTimeout(poll, intervalMs)
+    }
+    poll()
+  })
+}
+
+/** The last `n` non-empty lines of what a process wrote, for a start-failure message. */
+export function tailLines(text, n = 15) {
+  return text.split('\n').filter((l) => l.trim()).slice(-n)
+}
