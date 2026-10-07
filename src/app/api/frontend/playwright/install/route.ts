@@ -12,7 +12,7 @@ import path from 'path'
 import { detectFrontend, detectPlaywright, frontendAppDir, rootFrom, snapshotPackageJson } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { playwrightInstallSteps } from '@/lib/frontend'
-import { isDemo, demoForbidden } from '@/lib/demo'
+import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -24,6 +24,7 @@ let installing = false
 
 export async function POST(req: NextRequest) {
   if (isDemo()) return demoForbidden()
+  if (isPlayground()) return playgroundForbidden()
   // This POST spawns installers: refuse cross-site requests. JSON content type forces a CORS preflight.
   const origin = req.headers.get('origin')
   let sameOrigin = req.headers.get('sec-fetch-site') !== 'cross-site'

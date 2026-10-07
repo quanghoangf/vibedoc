@@ -50,7 +50,7 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
   run: string | null
   onRun: (runId: string | null) => void
 }) {
-  const { demo } = useApp()
+  const { demo, playground } = useApp()
   const { t } = useT()
   // Kept runs, reported by the evidence view: `[` `]` only show when there is another run to step to
   const items = tests?.items ?? []
@@ -141,7 +141,7 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
           >
             {t("tests.openTask")} <ArrowUpRight className="size-3.5" aria-hidden />
           </Link>
-          {tests?.spec && !demo && (
+          {tests?.spec && !demo && !playground && (
             <button
               type="button"
               data-run

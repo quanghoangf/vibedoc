@@ -1,9 +1,11 @@
 # T331: The demo touches nothing outside its temporary copy
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R085 — Demo playground
 **Size:** M (2–3 hrs)
 **Depends on:** T330
 **Covers:** S2
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 
 ## Goal
 Whatever the user does in the demo, no file outside the temporary copy changes, and quitting (even a crash) leaves no demo folder behind. The demo also runs no live agents.
@@ -43,7 +45,14 @@ Whatever the user does in the demo, no file outside the temporary copy changes, 
 - [ ] `node bin/demo.check.mts`, `node src/lib/i18n.check.mts`, `pnpm lint`, `pnpm build` pass
 
 ## Manual tests
+_2026-10-07 — ai · Auto: `e2e/demo-playground.mjs` passed 2026-10-07 (moves/edits/ticks land in the copy, chat + runs 403, composer replaced, Ctrl+C leaves no server, no temp folder, examples/ and ~/.vibedoc/runs unchanged)_
+### Steps
 - [ ] S2 — WHEN the user edits or moves things in the demo and quits → THEN no file outside VibeDoc's temporary demo copy has changed
+- [ ] In the demo, open a task in review on the board → no Verify button and no Run button; Manual tests page has no Run / suite Run
+- [ ] In the demo, click "Chat" on an epic sheet (or a chat suggestion) → a toast says the demo doesn't run agents; nothing spins
+- [ ] In the demo, press Ctrl+C right after starting (before the browser opens) → the temp folder is removed and nothing listens on the port
+### Regression risk
+- [ ] `node bin/vibedoc.mjs` without `--demo`: chat sends, Run on a task with a spec runs, Ctrl+C stops the server (no `next-server` left in `ps`)
 
 ## Verify
 ```bash
@@ -51,3 +60,8 @@ node bin/demo.check.mts && node src/lib/i18n.check.mts
 pnpm lint && pnpm build
 PW_DIR=<dir with playwright> node e2e/demo-playground.mjs
 ```
+
+## Notes
+- Found while testing and fixed here (T330 is in review): the Demo banner was a row under the header, which pushed the bottom of the `100svh - 3rem` pages (chat composer, roadmap, graph, test review) off screen. It now sits in the header (badge + "Use VibeDoc on my project"; the note is the badge tooltip and in the dialog). T330's spec follows it.
+- The CLI left `next-server` running after Ctrl+C (`server.kill` reached only `npx`), and its signal handlers were only registered after the 2.5 s wait. It now spawns Next in its own process group, kills the group, and registers handlers right after spawning. R080 is rewriting startup: keep `stop()` and the early handlers when merging. Also added `--no-open` for the e2e.
+- Run controls and Verify are hidden in the demo (as in R042's read-only demo) instead of disabled-with-tooltip: one rule for both demos, and the toast covers every Ask/Verify/Generate path through `askAgent()` / `send()`.

@@ -10,6 +10,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import { usePathname, useRouter } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { tNow } from "@/context/LanguageContext"
+import { toast } from "@/components/ui/toast"
 import type { Proposal, ProposalStatus } from "@/components/chat/ProposalCard"
 import type { PlanCreated, PlanProposal, PlanStatus } from "@/components/chat/PlanCard"
 import { formatAnswers, isRenderableQuestions, type Question, type QuestionSet } from "@/components/chat/QuestionCard"
@@ -95,7 +96,7 @@ export function useItemAgent(a: Attach): ItemAgent | undefined {
 }
 
 export function ChatProvider({ children }: { children: ReactNode }) {
-  const { rootParam, activeProject, selectedDoc, demo } = useApp()
+  const { rootParam, activeProject, selectedDoc, demo, playground } = useApp()
   const pathname = usePathname()
   const router = useRouter()
   const [chats, setChats] = useState<ChatTab[]>([])
@@ -233,6 +234,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     function onAsk(e: Event) {
       const { message, newChat } = (e as CustomEvent<AskAgentDetail>).detail ?? {}
       if (!message) return
+      // `vibedoc --demo` (R085) runs no agents: every Ask / Verify / Generate button lands here
+      if (playground) return void toast(tNow("chat.playgroundNoAgents"))
       const epic = epicOf(message)
       // abortsRef is updated synchronously by send(), so it counts asks fired earlier in this same tick
       const route = routeAsk(chats, currentId, { target: epic ? { kind: "epic", id: epic } : null, newChat, running: abortsRef.current.size })
@@ -332,6 +335,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   async function send(chatId: string, text: string) {
     const message = text.trim()
     const chat = chats.find((c) => c.id === chatId)
+    if (playground) return void toast(tNow("chat.playgroundNoAgents")) // `vibedoc --demo` (R085)
     if (!message || chat?.busy || demo) return
     // Ask once, from this click/Enter (browsers want a user gesture), so waiting chats can notify later
     if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission().catch(() => {})

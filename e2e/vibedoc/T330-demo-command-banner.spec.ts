@@ -6,9 +6,9 @@ const BASE = process.env.VIBEDOC_URL ?? 'http://localhost:3085'
 test.use({ baseURL: BASE, vibedocTask: 'T330' })
 
 test('T330 Demo banner and the command for my own project', async ({ page, step }) => {
-  await step('Open /board in the demo → the Listly board shows with a "Demo" banner', async () => {
+  await step('Open /board in the demo → the Listly board shows with a "Demo" badge in the header', async () => {
     await page.goto('/board')
-    await expect(page.getByRole('region', { name: 'Demo' })).toContainText('temporary copy')
+    await expect(page.getByRole('region', { name: 'Demo' })).toHaveAttribute('title', /temporary copy/)
     await expect(page.getByRole('button', { name: /^T005 Invite collaborators/ })).toBeVisible()
   })
   await step('Click "Use VibeDoc on my project" → a dialog shows `cd your-project` and `npx vibedoc` with copy buttons', async () => {

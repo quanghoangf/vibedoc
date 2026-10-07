@@ -21,6 +21,7 @@ export const en = {
   tooMany: "Too many agents running ({n}). Stop or close a chat, or wait.",
 
   // Chat view
+  playgroundNoAgents: "The demo doesn't run agents. Use VibeDoc on your own project to chat with your agent.",
   chatClosed: "This chat was closed.",
   chatLabel: "Chat: {title}",
   openInRoadmap: "Open {id} in the roadmap",
@@ -277,6 +278,7 @@ export const vi: Messages<typeof en> = {
   notifyPlanReady: "Kế hoạch đã sẵn sàng để duyệt",
   tooMany: "Đang có quá nhiều agent chạy ({n}). Hãy dừng hoặc đóng một cuộc trò chuyện, hoặc đợi.",
 
+  playgroundNoAgents: "Bản demo không chạy agent. Dùng VibeDoc cho dự án của bạn để trò chuyện với agent.",
   chatClosed: "Cuộc trò chuyện này đã đóng.",
   chatLabel: "Trò chuyện: {title}",
   openInRoadmap: "Mở {id} trên lộ trình",

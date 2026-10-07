@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { detectFrontend, frontendAppDir, readFrontendStartTimeoutSec, rootFrom } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { ensureFrontend, frontendServerStatus, stopFrontend } from '@/lib/frontend-server'
-import { isDemo, demoForbidden } from '@/lib/demo'
+import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (isDemo()) return demoForbidden()
+  if (isPlayground()) return playgroundForbidden()
   // Start runs a shell command: refuse cross-site requests. JSON content type forces a CORS preflight.
   const origin = req.headers.get('origin')
   let sameOrigin = req.headers.get('sec-fetch-site') !== 'cross-site'

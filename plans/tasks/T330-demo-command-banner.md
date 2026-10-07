@@ -64,7 +64,7 @@ _2026-10-07 — ai · Spec: `e2e/vibedoc/T330-demo-command-banner.spec.ts` · Au
 ### Steps
 - [ ] S1 — WHEN the user runs `vibedoc --demo` → THEN the browser opens a populated sample project with a Demo banner
 - [ ] S3 — WHEN the user clicks "Use VibeDoc on my project" → THEN they get the command for their own repo
-- [x] 🤖 Open /board in the demo → the Listly board shows with a "Demo" banner
+- [x] 🤖 Open /board in the demo → the Listly board shows with a "Demo" badge in the header
 - [x] 🤖 Click "Use VibeDoc on my project" → a dialog shows `cd your-project` and `npx vibedoc` with copy buttons
 - [x] 🤖 The project switcher lists only "listly"
 - [ ] `pnpm build && node bin/vibedoc.mjs --demo` → the terminal says it's a temporary copy, the browser opens on /board

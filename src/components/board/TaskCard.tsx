@@ -39,7 +39,7 @@ interface TaskCardProps {
  */
 export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected = false, onSelect }: TaskCardProps) {
   const [isDragging, setIsDragging] = useState(false)
-  const { demo } = useApp()
+  const { demo, playground } = useApp()
   const { t, tn } = useT()
   const show = (p: PropertyKey) => properties.includes(p)
   const epic = show("epic") && task.phase ? epicOf(task.phase) : null
@@ -89,7 +89,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
         <span className="flex-1" />
         {show("due") && task.due && !done && <TaskDueField task={task}><span title={t("board.due")}>{task.due.slice(5)}</span></TaskDueField>}
         {size && <TaskSizeField task={task}><span title={task.size} className="rounded-sm bg-surface2 px-1 text-[10px]">{size}</span></TaskSizeField>}
-        {task.status === "review" && !demo && <CardVerify taskId={task.id} />}
+        {task.status === "review" && !demo && !playground && <CardVerify taskId={task.id} />}
         {!demo && <CardMenu task={task} onOpen={onOpen} />}
       </div>
 
@@ -180,7 +180,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
               {tests.autoRun?.result === "failed" && <span className="size-1.5 rounded-full bg-danger" aria-label={t("board.lastAutoRunFailed")} />}
             </Link>
           )}
-          {tests?.spec && !demo && <CardRun taskId={task.id} />}
+          {tests?.spec && !demo && !playground && <CardRun taskId={task.id} />}
         </div>
       )}
     </div>

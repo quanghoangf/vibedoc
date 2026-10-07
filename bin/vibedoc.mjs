@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import net from 'node:net'
 import { createRequire } from 'node:module'
-import { prepareDemo } from './demo.mjs'
+import { prepareDemo, sweepDemos } from './demo.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
@@ -42,6 +42,7 @@ const portIndex = args.indexOf('--port')
 const port = portIndex !== -1 && args[portIndex + 1] ? args[portIndex + 1] : await findFreeRandomPort()
 
 // --demo (R085): the sample project in a throwaway temp copy, removed when this process ends
+if (args.includes('--demo')) sweepDemos()
 const demo = args.includes('--demo') ? prepareDemo() : null
 if (demo) process.on('exit', demo.cleanup) // exit handlers run sync code only: cleanup uses rmSync
 const demoEnv = demo ? { VIBEDOC_PLAYGROUND: '1', VIBEDOC_RUNS_DIR: demo.runsDir } : {}
@@ -60,7 +61,28 @@ const server = spawn(npmCmd, ['next', 'start', '-p', port], {
   stdio: 'inherit',
   cwd: projectRoot,
   shell: isWindows,
+  // Own process group, so stop() reaches next-server too: npx doesn't pass a SIGTERM on, and next-server outlived us
+  detached: !isWindows,
   env: { ...process.env, VIBEDOC_ROOT, ...demoEnv }
+})
+
+function stop() {
+  try {
+    if (isWindows) server.kill('SIGTERM')
+    else process.kill(-server.pid, 'SIGTERM')
+  } catch {} // already gone
+}
+
+// Handle graceful shutdown (before the ready wait: a Ctrl+C right away must still stop the server and remove the demo copy)
+process.on('SIGINT', () => {
+  console.log('\nShutting down...')
+  stop()
+  process.exit(0)
+})
+
+process.on('SIGTERM', () => {
+  stop()
+  process.exit(0)
 })
 
 server.on('error', (err) => {
@@ -76,7 +98,7 @@ const url = `http://localhost:${port}${demo ? '/board' : '/setup'}`
 
 try {
   const open = (await import('open')).default
-  await open(url)
+  if (!args.includes('--no-open')) await open(url)
   console.log(`\n✓ VibeDoc running at ${url}\n`)
   console.log('Press Ctrl+C to stop the server.\n')
 } catch {
@@ -84,15 +106,3 @@ try {
   console.log('Open this URL in your browser.\n')
   console.log('Press Ctrl+C to stop the server.\n')
 }
-
-// Handle graceful shutdown
-process.on('SIGINT', () => {
-  console.log('\nShutting down...')
-  server.kill('SIGTERM')
-  process.exit(0)
-})
-
-process.on('SIGTERM', () => {
-  server.kill('SIGTERM')
-  process.exit(0)
-})

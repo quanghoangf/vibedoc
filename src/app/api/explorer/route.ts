@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rootFrom, listExplorerFiles, enrichDescription } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
-import { isDemo, demoForbidden } from '@/lib/demo'
+import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   if (isDemo()) return demoForbidden()
+  if (isPlayground()) return playgroundForbidden()
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 501 })
   }

@@ -13,7 +13,7 @@ import { rootFrom, listEpisodes, listTasks, readActivity, writeEpisode } from '@
 import { emitUpdate } from '@/lib/events'
 import { groupSessions } from '@/lib/sessions'
 import { buildEpisode, isHandoffWritten, mergeSources, turnSessions } from '@/lib/episodes'
-import { isDemo, demoForbidden } from '@/lib/demo'
+import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -66,6 +66,7 @@ async function writeTurnEpisodes(root: string, since: string, conversationId: st
 
 export async function POST(req: NextRequest) {
   if (isDemo()) return demoForbidden()
+  if (isPlayground()) return playgroundForbidden()
   const root = rootFrom(req.nextUrl.searchParams.get('root'))
   const { message, sessionId, docPath, conversationId } = await req.json()
   if (typeof message !== 'string' || !message.trim()) {

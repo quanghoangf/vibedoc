@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Bot, Check, Copy, Loader2, MessagesSquare, Plug, Search } from "lucide-react"
 import type { ActivityEvent, Project, Summary } from "@/types"
 import { useApp } from "@/context/AppContext"
+import { DemoBanner } from "@/components/layout/DemoBanner"
 import { useChats } from "@/context/ChatContext"
 import { ProjectSwitcher } from "./ProjectSwitcher"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -48,7 +49,7 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
   const { t } = useT()
   const titleKey = Object.entries(PAGE_TITLES).find(([p]) => pathname.startsWith(p))?.[1]
   const title = titleKey && t(titleKey)
-  const { activity, demo } = useApp()
+  const { activity, demo, playground } = useApp()
   // ChatContext's minute clock, so "N agents working" and "last agent call" age without new events
   const { now } = useChats()
 
@@ -69,6 +70,8 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
       </nav>
 
       <div className="flex-1" />
+
+      {playground && <DemoBanner />}
 
       {demo && (
         <Link href="/welcome" title={t("shell.aboutVibedoc")} className={cn("flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg/60 px-2.5 py-1 text-xs text-muted hover:text-txt", focusRing)}>

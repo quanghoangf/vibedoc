@@ -12,7 +12,7 @@ import { clearFrontendAuth, detectFrontend, detectPlaywright, frontendAppDir, fr
 import { emitUpdate } from '@/lib/events'
 import { loginUnavailable, loginUrl } from '@/lib/frontend'
 import { ensureFrontend, openLoginBrowser } from '@/lib/frontend-server'
-import { isDemo, demoForbidden } from '@/lib/demo'
+import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -31,6 +31,7 @@ function refuse(req: NextRequest): NextResponse | null {
 
 export async function POST(req: NextRequest) {
   if (isDemo()) return demoForbidden()
+  if (isPlayground()) return playgroundForbidden()
   const refused = refuse(req)
   if (refused) return refused
   const unavailable = loginUnavailable({ demo: false, platform: process.platform, display: process.env.DISPLAY, waylandDisplay: process.env.WAYLAND_DISPLAY })

@@ -14,3 +14,8 @@ export function demoForbidden() {
 export function isPlayground(): boolean {
   return process.env.VIBEDOC_PLAYGROUND === '1'
 }
+
+/** The answer of routes that spawn agents or processes (chat, test runs, the frontend app) in `vibedoc --demo`. */
+export function playgroundForbidden() {
+  return NextResponse.json({ error: 'Not available in the demo' }, { status: 403 })
+}
