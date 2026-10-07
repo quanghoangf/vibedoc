@@ -8,10 +8,13 @@
 //   7. Browser: ⋯ on a doc → Copy page puts the agent view on the clipboard; View as Markdown / Copy agent link
 //      point at /md/; Ask agent about this doc starts a chat that reads it; ⌘K lists the four; the editor
 //      toolbar inserts both blocks (S4)
+//   8. Done-when: an agent with only fetch reads /llms.txt, follows the setup guide's link and gets it as markdown
+//      without its human-only part; vibedoc_read_doc on a wrong path suggests the right one
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
 //   PORT=3187 pnpm dev   # then:
-//   BASE=http://localhost:3187 PW_DIR=<dir with node_modules/playwright> node e2e/agent-ready-docs.mjs
+//   BASE=http://localhost:3187 PW_DIR=<absolute dir with node_modules/playwright> node e2e/agent-ready-docs.mjs
+//   (in this repo: PW_DIR=$PWD/node_modules/.pnpm/playwright@<version>/node_modules)
 import assert from "node:assert/strict"
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
@@ -127,6 +130,18 @@ try {
   read = await mcp("vibedoc_read_doc", { query: "docs/architecture/overview.md" })
   assert.match(read, /^## docs\/architecture\/overview\.md\n/)
   console.log("ok  S5: vibedoc_read_doc starts with path · priority · last edit · inbound links; gone with docs.agentHeader: false")
+
+  // 8. Done-when, plain HTTP only
+  const llms = await (await fetch(`${BASE}/llms.txt${q}`)).text()
+  const guideUrl = llms.match(/\[docs\/guides\/setup\.md\]\(([^)]+)\)/)?.[1]
+  assert.ok(guideUrl, "the index links the setup guide")
+  const guide = await fetch(guideUrl)
+  assert.match(guide.headers.get("content-type") ?? "", /^text\/markdown/)
+  const guideText = await guide.text()
+  assert.match(guideText, /Install the app\./)
+  assert.doesNotMatch(guideText, /big green button/)
+  assert.match(await mcp("vibedoc_read_doc", { query: "docs/guides/setup-guide.md" }), /Did you mean:\n- docs\/guides\/setup\.md/)
+  console.log("ok  Done when: /llms.txt → link → doc as markdown without human-only; a wrong path suggests the right doc")
 
   // 7. S4: page actions in the browser
   writeFileSync(path.join(fx, ".vibedoc/settings.json"), "{}")

@@ -1,5 +1,7 @@
 # T366: Done-when sweep, docs, close R087
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Done:** 2026-10-07
 **Phase:** R087 — Agent-ready docs
 **Size:** S (~1 hr)
 **Depends on:** T362, T363, T364, T365
@@ -30,8 +32,13 @@ BASE=http://localhost:3187 PW_DIR=. node e2e/agent-ready-docs.mjs
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN an agent fetches `/llms.txt` → THEN it gets the index with `/md/` links
-- [ ] S2 — WHEN it follows a link → THEN it gets the doc as markdown without human-only parts
-- [ ] S3 — WHEN it asks for a wrong path → THEN up to 5 similar docs are named
-- [ ] S4 — WHEN the user picks Copy page → THEN the clipboard holds the agent view
-- [ ] S5 — WHEN an agent calls `vibedoc_read_doc` → THEN the header line is there
+_2026-10-07 — ai · e2e: `e2e/agent-ready-docs.mjs` (passed)_
+### Steps
+- [x] S1 — `curl http://localhost:3333/llms.txt` → the index with `/md/` links, specs and open epics
+- [x] S2 — `curl` one of its links → the doc as markdown without human-only parts
+- [x] S3 — `curl` a misspelt `/md/` path → up to 5 similar docs
+- [x] S4 — ⋯ → Copy page on a doc → the clipboard holds the agent view
+- [x] S5 — `vibedoc_read_doc` → the reply starts with the context line
+- [ ] Point a real agent with no MCP (e.g. a plain `curl`-only session) at /llms.txt and ask it a question about the project → it finds and reads the right doc
+### Regression risk
+- [ ] Agents connected over MCP still read docs as before (plus the header line)

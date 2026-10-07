@@ -1,6 +1,6 @@
 # R087: Agent-ready docs
 **Parent:** R003
-**Status:** planned
+**Status:** done
 **Order:** 170
 **Tasks:** T360, T361, T362, T363, T364, T365, T366
 
