@@ -1,0 +1,231 @@
+[
+  {
+    "id": "evt_demo_022",
+    "timestamp": "2026-10-03T09:30:00.000Z",
+    "type": "memory_updated",
+    "actor": "ai",
+    "title": "Session memory updated",
+    "detail": "T005 invite email sends; accepting does not create the list_members row yet.",
+    "sessionId": "ses_demo_ai5"
+  },
+  {
+    "id": "evt_demo_021",
+    "timestamp": "2026-10-03T08:59:00.000Z",
+    "type": "session_start",
+    "actor": "ai",
+    "title": "Session started",
+    "detail": "Agent connected",
+    "sessionId": "ses_demo_ai5"
+  },
+  {
+    "id": "evt_demo_020",
+    "timestamp": "2026-10-02T14:25:00.000Z",
+    "type": "task_updated",
+    "actor": "ai",
+    "title": "T006 edited",
+    "detail": "Live sync for shared lists",
+    "taskId": "T006",
+    "sessionId": "ses_demo_ai4"
+  },
+  {
+    "id": "evt_demo_019",
+    "timestamp": "2026-10-02T14:23:40.000Z",
+    "type": "memory_updated",
+    "actor": "ai",
+    "title": "Entry E005 saved",
+    "detail": "Writes carry an op_id, the server dedupes",
+    "sessionId": "ses_demo_ai4"
+  },
+  {
+    "id": "evt_demo_018",
+    "timestamp": "2026-10-02T13:58:00.000Z",
+    "type": "task_updated",
+    "actor": "ai",
+    "title": "T006 moved to review",
+    "detail": "Live sync for shared lists",
+    "taskId": "T006",
+    "taskStatus": "review",
+    "sessionId": "ses_demo_ai4"
+  },
+  {
+    "id": "evt_demo_017",
+    "timestamp": "2026-10-01T13:00:00.000Z",
+    "type": "task_updated",
+    "actor": "human",
+    "title": "T010 moved to paused",
+    "detail": "Web push notifications",
+    "taskId": "T010",
+    "taskStatus": "paused",
+    "sessionId": "ses_demo_human3"
+  },
+  {
+    "id": "evt_demo_016",
+    "timestamp": "2026-10-01T10:20:00.000Z",
+    "type": "task_updated",
+    "actor": "human",
+    "title": "T007 moved to blocked",
+    "detail": "Per-list roles: owner, editor, viewer",
+    "taskId": "T007",
+    "taskStatus": "blocked",
+    "sessionId": "ses_demo_human3"
+  },
+  {
+    "id": "evt_demo_015",
+    "timestamp": "2026-10-01T10:03:00.000Z",
+    "type": "task_updated",
+    "actor": "human",
+    "title": "T007 moved to in-progress",
+    "detail": "Per-list roles: owner, editor, viewer",
+    "taskId": "T007",
+    "taskStatus": "in-progress",
+    "sessionId": "ses_demo_human3"
+  },
+  {
+    "id": "evt_demo_014",
+    "timestamp": "2026-09-28T15:44:00.000Z",
+    "type": "memory_updated",
+    "actor": "ai",
+    "title": "Entry E004 saved",
+    "detail": "Tests run against a real Postgres, never mocks",
+    "sessionId": "ses_demo_ai3"
+  },
+  {
+    "id": "evt_demo_013",
+    "timestamp": "2026-09-28T08:16:00.000Z",
+    "type": "task_updated",
+    "actor": "ai",
+    "title": "T005 moved to in-progress",
+    "detail": "Invite collaborators by email",
+    "taskId": "T005",
+    "taskStatus": "in-progress",
+    "sessionId": "ses_demo_ai3"
+  },
+  {
+    "id": "evt_demo_012",
+    "timestamp": "2026-09-28T08:15:00.000Z",
+    "type": "session_start",
+    "actor": "ai",
+    "title": "Session started",
+    "detail": "Agent connected",
+    "sessionId": "ses_demo_ai3"
+  },
+  {
+    "id": "evt_demo_011",
+    "timestamp": "2026-09-26T11:52:00.000Z",
+    "type": "doc_updated",
+    "actor": "ai",
+    "title": "Edited docs/architecture/overview.md",
+    "detail": "docs/architecture/overview.md",
+    "sessionId": "ses_demo_ai2"
+  },
+  {
+    "id": "evt_demo_010",
+    "timestamp": "2026-09-26T08:31:00.000Z",
+    "type": "task_updated",
+    "actor": "ai",
+    "title": "T006 moved to in-progress",
+    "detail": "Live sync for shared lists",
+    "taskId": "T006",
+    "taskStatus": "in-progress",
+    "sessionId": "ses_demo_ai2"
+  },
+  {
+    "id": "evt_demo_009",
+    "timestamp": "2026-09-26T08:30:00.000Z",
+    "type": "session_start",
+    "actor": "ai",
+    "title": "Session started",
+    "detail": "Agent connected",
+    "sessionId": "ses_demo_ai2"
+  },
+  {
+    "id": "evt_demo_008",
+    "timestamp": "2026-09-25T17:05:00.000Z",
+    "type": "task_updated",
+    "actor": "human",
+    "title": "T004 moved to done",
+    "detail": "Share a list by link",
+    "taskId": "T004",
+    "taskStatus": "done",
+    "sessionId": "ses_demo_human2"
+  },
+  {
+    "id": "evt_demo_007",
+    "timestamp": "2026-09-24T16:40:00.000Z",
+    "type": "doc_updated",
+    "actor": "human",
+    "title": "Edited docs/product/sharing.md",
+    "detail": "docs/product/sharing.md",
+    "sessionId": "ses_demo_human2"
+  },
+  {
+    "id": "evt_demo_006",
+    "timestamp": "2026-09-22T09:12:00.000Z",
+    "type": "task_updated",
+    "actor": "human",
+    "title": "T004 moved to in-progress",
+    "detail": "Share a list by link",
+    "taskId": "T004",
+    "taskStatus": "in-progress",
+    "sessionId": "ses_demo_human2"
+  },
+  {
+    "id": "evt_demo_005",
+    "timestamp": "2026-09-21T08:07:14.000Z",
+    "type": "task_updated",
+    "actor": "human",
+    "title": "T008 created",
+    "detail": "Activity feed per list",
+    "taskId": "T008",
+    "sessionId": "ses_demo_human1"
+  },
+  {
+    "id": "evt_demo_004",
+    "timestamp": "2026-09-21T08:07:13.000Z",
+    "type": "task_updated",
+    "actor": "human",
+    "title": "T007 created",
+    "detail": "Per-list roles: owner, editor, viewer",
+    "taskId": "T007",
+    "sessionId": "ses_demo_human1"
+  },
+  {
+    "id": "evt_demo_003",
+    "timestamp": "2026-09-21T08:07:12.000Z",
+    "type": "task_updated",
+    "actor": "human",
+    "title": "T006 created",
+    "detail": "Live sync for shared lists",
+    "taskId": "T006",
+    "sessionId": "ses_demo_human1"
+  },
+  {
+    "id": "evt_demo_002",
+    "timestamp": "2026-09-21T08:07:11.000Z",
+    "type": "task_updated",
+    "actor": "human",
+    "title": "T005 created",
+    "detail": "Invite collaborators by email",
+    "taskId": "T005",
+    "sessionId": "ses_demo_human1"
+  },
+  {
+    "id": "evt_demo_001",
+    "timestamp": "2026-09-21T08:07:10.000Z",
+    "type": "task_updated",
+    "actor": "human",
+    "title": "T004 created",
+    "detail": "Share a list by link",
+    "taskId": "T004",
+    "sessionId": "ses_demo_human1"
+  },
+  {
+    "id": "evt_demo_000",
+    "timestamp": "2026-09-21T08:01:30.000Z",
+    "type": "session_start",
+    "actor": "ai",
+    "title": "Session started",
+    "detail": "Agent connected",
+    "sessionId": "ses_demo_ai1"
+  }
+]

@@ -63,3 +63,5 @@ PW_DIR=<dir with playwright> node e2e/demo-playground.mjs
 - `TryDemo` isn't rendered anywhere: it's the seam for R082's welcome screen ("Try the demo" link). R082 imports `@/components/shared/TryDemo`.
 - No `--help` text exists in the CLI, so nothing to list there.
 - The epic stays `in-progress`: T330–T334 are in review, waiting on a human to click through the scenario checks.
+- The sample's `.vibedoc-activity.json` was caught by the repo's `.gitignore` (`.vibedoc-activity.json`), so it wasn't committed; a `!examples/demo-project/.vibedoc-activity.json` negation fixes it. `npm pack --dry-run` lists every sample file, the chats, the anchor and the run's video.
+- The T330/T332/T333 specs need `vibedoc --demo` running on :3085 (or `VIBEDOC_URL`). Once those tasks are approved, the regression suite (R064) would run them against the normal app and fail: run them by hand with the demo up, or keep them out of the suite.
