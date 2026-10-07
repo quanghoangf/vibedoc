@@ -5,6 +5,7 @@ import * as chat from "./chat"
 import * as connect from "./connect"
 import * as docs from "./docs"
 import * as firstWeek from "./firstWeek"
+import * as feedback from "./feedback"
 import * as help from "./help"
 import * as memory from "./memory"
 import * as roadmap from "./roadmap"
@@ -14,7 +15,7 @@ import * as templates from "./templates"
 import * as tests from "./tests"
 import * as welcome from "./welcome"
 
-export const AREAS = { shell, board, roadmap, docs, templates, memory, tests, chat, settings, help, connect, welcome, firstWeek }
+export const AREAS = { shell, board, roadmap, docs, templates, memory, tests, chat, settings, help, connect, welcome, firstWeek, feedback }
 
 type Areas = typeof AREAS
 type AreaKey<A extends keyof Areas> = keyof Areas[A]["en"] & string

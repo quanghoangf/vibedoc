@@ -234,6 +234,7 @@ const PAGES = [
     ["Kết nối agent", async (page) => { await page.getByRole("button", { name: "Kiểm tra" }).click(); await page.waitForLoadState("networkidle") }],
     ["Kỹ năng", async (page) => { await page.getByRole("button", { name: /Thêm kỹ năng/ }).click() }],
     ["Agent", async (page) => { await page.getByRole("button", { name: /Thêm agent/ }).click() }],
+    ["Quyền riêng tư", async (page) => { await page.getByRole("switch", { name: "Phản hồi lần chạy đầu" }).waitFor() }],
   ].map(([section, then]) => ({ path: "/settings", name: `settings: ${section}`, open: async (page) => {
     await page.getByRole("button", { name: section, exact: true }).click()
     await page.waitForLoadState("networkidle")
@@ -372,6 +373,7 @@ try {
 
   // Empty project: every route's empty state, also at phone width
   const empty = makeFixture()
+  rmSync(path.join(empty, ".vibedoc/feedback.json")) // a first run: the R086 feedback card shows on every page
   try {
     for (const width of [1400, 390]) {
       const ctx = await browser.newContext({ viewport: { width, height: 900 } })
@@ -384,6 +386,7 @@ try {
         // at phone width the sidebar is a closed sheet, so wait for the app's main instead
         await ep.locator("main#main").waitFor()
         await ep.waitForLoadState("networkidle")
+        await ep.getByRole("region", { name: "Phản hồi lần chạy đầu" }).waitFor()
         await assertVietnamese(ep, `empty project ${r} @${width}`)
         await assertNoSideScroll(ep, `empty project ${r} @${width}`)
         if (process.env.SHOTS) await ep.screenshot({ path: path.join(process.env.SHOTS, `empty${r.replace(/\//g, "-")}-${width}.png`) })

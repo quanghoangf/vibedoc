@@ -15,6 +15,7 @@ export const en = {
   tabFrontend: "Frontend app",
   tabSkills: "Skills",
   tabAgents: "Agents",
+  tabPrivacy: "Privacy",
   // Appearance
   appearanceHint: "Customize the look and feel of the app.",
   theme: "Theme",
@@ -253,6 +254,7 @@ export const vi: Messages<typeof en> = {
   tabFrontend: "Ứng dụng frontend",
   tabSkills: "Kỹ năng",
   tabAgents: "Agent",
+  tabPrivacy: "Quyền riêng tư",
   // Appearance
   appearanceHint: "Tùy chỉnh giao diện của ứng dụng.",
   theme: "Chủ đề",

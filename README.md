@@ -167,6 +167,8 @@ your-project/
 
 VibeDoc's own state stays small and readable: `.vibedoc-activity.json` (the activity log) and `.vibedoc/` (settings, saved views, chats). Test runs go to `~/.vibedoc/runs/`, outside the repo.
 
+VibeDoc sends nothing about your project. On a first run it asks once whether to send anonymous first-run steps (off unless you say yes); see [First-run feedback & privacy](https://quanghoangf.github.io/vibedoc/docs/privacy/).
+
 ## Development
 
 ```bash

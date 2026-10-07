@@ -6,6 +6,7 @@ import { ArrowLeft, CircleHelp } from "lucide-react"
 import { GLOBAL_HELP_KEYS, SHORTCUT_SECTIONS, helpFor } from "@/lib/shortcuts"
 import { cn } from "@/lib/utils"
 import { useT } from "@/context/LanguageContext"
+import { StuckLink } from "@/components/layout/FirstRunFeedback"
 
 const KBD = "inline-block whitespace-nowrap rounded-sm border border-border2 bg-surface2 px-1.5 py-0.5 font-mono text-[11px] leading-none text-txt"
 // Long enough to move the pointer from the button onto the panel without it closing
@@ -143,6 +144,7 @@ function PanelBody({ pathname }: { pathname: string }) {
       <button type="button" onClick={() => setAll(true)} className="mt-3 self-start text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent">
         {t("shell.allShortcutsLink")}
       </button>
+      <StuckLink className="mt-2 self-start text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent" />
     </>
   )
 }

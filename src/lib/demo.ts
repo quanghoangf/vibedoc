@@ -19,3 +19,8 @@ export function isPlayground(): boolean {
 export function playgroundForbidden() {
   return NextResponse.json({ error: 'Not available in the demo' }, { status: 403 })
 }
+
+/** First-run feedback (R086) may be asked and sent: never in the demo or `vibedoc --demo`, nor with VIBEDOC_FEEDBACK=0 (CI, e2e). */
+export function feedbackAvailable(): boolean {
+  return !isDemo() && !isPlayground() && process.env.VIBEDOC_FEEDBACK !== '0'
+}
