@@ -3,11 +3,14 @@
 //   S2. a "pnpm" and an "npm" titled fence in a row render as one tab group; click and arrow keys switch tabs
 //   S3. a <details> block renders collapsed with a styled summary row that opens on click / Enter / Space
 //   Toolbar: Callout and Collapsible section insert the syntax, and the split preview renders it
+//   Done-when: the one doc renders at 390px without page overflow, and GitHub's renderer (gh api /markdown, skipped
+//   when gh isn't logged in) shows the same file as five alerts, plain code blocks and a details block
 // Fails on any browser console error. The fixture is a fresh mktemp project.
 //
 //   PORT=3189 pnpm dev   # then:
 //   BASE=http://localhost:3189 PW_DIR=<dir with node_modules/playwright> node e2e/richer-markdown.mjs
 import assert from "node:assert/strict"
+import { execFileSync } from "node:child_process"
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
@@ -19,7 +22,8 @@ const write = (f, s) => {
   writeFileSync(path.join(fx, f), s)
 }
 const KINDS = ["note", "tip", "important", "warning", "caution"]
-write("docs/rich.md", [
+// one doc with every construct: the epic's Done-when runs on it, in VibeDoc and through GitHub's renderer
+const RICH = [
   "# Rich",
   "",
   ...KINDS.flatMap((k) => [`> [!${k.toUpperCase()}]`, `> The ${k} body.`, ""]),
@@ -33,8 +37,8 @@ write("docs/rich.md", [
   "",
   "<details>", "<summary>More</summary>", "", "- hidden one", "- hidden two", "", "</details>",
   "",
-].join("\n"))
-
+].join("\n")
+write("docs/rich.md", RICH)
 write("docs/edit.md", "# Edit\n\nLine one\n")
 
 const browser = await launchChrome()
@@ -143,6 +147,31 @@ try {
   await preview.locator("details > summary").getByText("More").waitFor()
   assert.equal(await preview.locator("details").getAttribute("open"), null)
   console.log("ok  toolbar: Callout and Collapsible section insert syntax the preview renders as a callout and a details block")
+
+  // Done-when: the same doc at phone width has every construct and no horizontal page scroll
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/rich.md")}`)
+  await doc.locator('[data-alert="caution"]').waitFor()
+  assert.equal(await doc.locator("[data-alert]").count(), 5)
+  assert.equal(await doc.locator("[data-code-group] [role=tab]").count(), 2)
+  assert.equal(await doc.locator("details > summary").count(), 1)
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal page scroll at 390px")
+  console.log("ok  Done-when: one doc with five alerts, a code group and details renders at 390px without page overflow")
+
+  // Done-when: the file still reads correctly on GitHub (its own renderer); skipped when gh isn't logged in
+  let gh = null
+  try {
+    gh = execFileSync("gh", ["api", "-X", "POST", "/markdown", "-f", "mode=gfm", "-f", `text=${RICH}`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+  } catch {
+    console.log("skip GitHub render check: `gh api /markdown` unavailable (not logged in or offline)")
+  }
+  if (gh) {
+    for (const k of KINDS) assert.match(gh, new RegExp(`markdown-alert-${k}`), `GitHub renders ${k} as an alert`)
+    assert.match(gh, /pnpm add vibedoc[\s\S]*npm install vibedoc/, "both fences shown as code")
+    assert.doesNotMatch(gh, /title=/, "the fence title never shows as text")
+    assert.match(gh, /<details>\s*<summary>More<\/summary>/)
+    console.log("ok  Done-when: GitHub renders the same file with five alerts, two plain code blocks and a details block")
+  }
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("\nricher-markdown: all checks passed")

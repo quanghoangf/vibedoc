@@ -1,6 +1,6 @@
 # R089: Richer markdown
 **Parent:** R003
-**Status:** planned
+**Status:** done
 **Order:** 190
 **Tasks:** T400, T401, T402, T403, T404
 

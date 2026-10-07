@@ -1,5 +1,8 @@
 # T404: Richer markdown Done-when end to end, close R089
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 **Phase:** R089 — Richer markdown
 **Size:** S (~1 hr)
 **Depends on:** T401, T403
@@ -33,7 +36,12 @@ BASE=http://localhost:3189 PW_DIR=<dir with node_modules/playwright> node e2e/ri
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude_
 ### Steps
-- [ ] S1 — WHEN a doc contains `> [!WARNING]` followed by text → THEN VibeDoc renders a warning callout with its label, in light and dark themes
-- [ ] S2 — WHEN a doc has two fences in a row titled "pnpm" and "npm" → THEN they render as one block with two tabs, switchable by click and arrow keys
-- [ ] S3 — WHEN a doc contains `<details><summary>More</summary>…</details>` → THEN it renders collapsed with a styled summary row that opens on click
+- [x] S1 — WHEN a doc contains `> [!WARNING]` followed by text → THEN VibeDoc renders a warning callout with its label, in light and dark themes
+- [x] S2 — WHEN a doc has two fences in a row titled "pnpm" and "npm" → THEN they render as one block with two tabs, switchable by click and arrow keys
+- [x] S3 — WHEN a doc contains `<details><summary>More</summary>…</details>` → THEN it renders collapsed with a styled summary row that opens on click
+- [ ] Push a doc with all three constructs to a GitHub branch and open it there → five coloured alerts, two plain code blocks, a working details toggle
+- [ ] Open the same doc in VibeDoc on a phone-width window → the tab strip scrolls inside its block, the page doesn't scroll sideways
+### Regression risk
+- [ ] Docs with links, wikilinks and mermaid diagrams render and navigate as before
