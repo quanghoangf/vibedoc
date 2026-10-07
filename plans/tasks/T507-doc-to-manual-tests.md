@@ -60,11 +60,11 @@ Refinement inside the Lab Notebook system (DESIGN.md), not a new look:
 - **Key:** ⇧T (item keys are Shift+letter; bare `t` stays the Test review page jump), listed in the /docs Help panel and the full list; also a ⌘K command "Open in Test review".
 
 ## Manual tests
-_2026-10-07 — ai_
+_Auto: `e2e/doc-manual-tests.mjs` passed 2026-10-07 (items below marked [x] are what it proved). `pnpm build` and `pnpm typecheck` ok, lint 10 errors (baseline), `shortcuts` / `i18n` / `test-review` checks ok; e2e docs-lint, doc-meta-properties, richer-markdown, evidence, docs-links, quick-review and manual-tests-review (flaky, passed on rerun) pass._
 ### Steps
-- [x] 🤖 S4 — WHEN a task doc with manual tests is open in /docs → THEN one click (property row, heading action or header chip) opens that task in Test review (e2e/doc-manual-tests.mjs)
-- [x] 🤖 Open a task doc without `## Manual tests` → the Manual tests row reads "No manual tests yet" and there are no links; a normal doc shows none of it (e2e)
-- [x] 🤖 On a task doc press ⇧T → Test review opens on that task (e2e)
+- [x] S4 — WHEN a task doc with manual tests is open in /docs → THEN one click (property row, heading action or header chip) opens that task in Test review
+- [x] Open a task doc without `## Manual tests` → the Manual tests row reads "No manual tests yet" and there are no links; a normal doc shows none of it
+- [x] On a task doc press ⇧T → Test review opens on that task
 - [ ] The three touch points look like one system with the board's 🧪 badge, in light and dark (visual check)
 - [ ] Switch to Tiếng Việt at phone width → the row label truncates like the other labels, and the heading action wraps cleanly under a long heading
 ### Regression risk
