@@ -46,7 +46,7 @@ function SettingsSections() {
   const tabLabel = (l: MessageKey) => t(l)
   // ?tab=connect is the deep link to a section (R081: empty states and the welcome screen link to Connect)
   const tabParam = useSearchParams().get("tab")
-  const [activeTab, setActiveTab] = useState(TABS.some(x => x.id === tabParam) ? tabParam as string : TABS[0].id)
+  const [activeTab, setActiveTab] = useState(TABS.some(x => x.id === tabParam) ? tabParam as string : "appearance")
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [skills, setSkills] = useState<Skill[]>(DEFAULT_SKILLS)
   const [agents, setAgents] = useState<Agent[]>(DEFAULT_AGENTS)

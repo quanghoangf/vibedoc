@@ -10,6 +10,7 @@
 //      Install asks first, then adds the marketplace and installs the plugin → ✓.
 //   7. Cursor / Other (fresh fixture): paste config with the URL under mcpServers.vibedoc.url, no skills step;
 //      a tools/call from Cursor ticks the MCP step ✓ "Cursor" live.
+//   8. Phone width (390px): no horizontal page scroll on the panel.
 // The server must run with e2e/fixtures/claude-stub first on PATH (a fake `claude` that keeps its state in the cwd).
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
@@ -164,6 +165,14 @@ try {
   await rpc("tools/call", { name: "vibedoc_get_status", arguments: {} }, "Cursor/1.7 (darwin)", fx2)
   await mcp2.getByText(/Connected · Cursor · last call/).waitFor({ timeout: 5000 })
   console.log("✓ Cursor / Other get the config to paste, no skills step, and the MCP step ticks on Cursor's first call")
+
+  // 8. phone width
+  await page2.setViewportSize({ width: 390, height: 844 })
+  await page2.getByRole("radio", { name: "Claude Code" }).click()
+  await page2.getByRole("group", { name: "Skills (/vibedoc:*)" }).waitFor()
+  const overflow = await page2.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  assert.ok(overflow <= 0, `no horizontal scroll at 390px (overflow ${overflow}px)`)
+  console.log("✓ phone width has no horizontal scroll")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("connect-agent: ok")

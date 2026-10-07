@@ -45,7 +45,7 @@ cd your-project
 npx vibedoc
 ```
 
-VibeDoc opens in your browser and prints its MCP URL. Connect your agent (Claude Code shown; [Cursor, Windsurf and others](https://quanghoangf.github.io/vibedoc/docs/#2-connect-your-agent)):
+VibeDoc opens in your browser and prints its MCP URL. Connect your agent: in the app, **Settings → Connect agent** runs both steps below for you after you confirm, and ticks each one when it sees it working (Cursor and others get the config to paste). By hand (Claude Code shown; [Cursor, Windsurf and others](https://quanghoangf.github.io/vibedoc/docs/#2-connect-your-agent)):
 
 ```bash
 npx vibedoc --port 3333                                              # a fixed port keeps the MCP URL stable

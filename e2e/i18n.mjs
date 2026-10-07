@@ -231,7 +231,7 @@ const PAGES = [
     ["Giao diện"], ["Trình soạn thảo"], ["Dự án"],
     ["Trạng thái", async (page) => { await page.getByRole("textbox").last().fill("Đang thử") }],
     ["Ứng dụng frontend", async (page) => { await page.getByText("Không tìm thấy frontend web").waitFor() }],
-    ["MCP", async (page) => { await page.getByRole("button", { name: "Kiểm tra" }).click(); await page.waitForLoadState("networkidle") }],
+    ["Kết nối agent", async (page) => { await page.getByRole("button", { name: "Kiểm tra" }).click(); await page.waitForLoadState("networkidle") }],
     ["Kỹ năng", async (page) => { await page.getByRole("button", { name: /Thêm kỹ năng/ }).click() }],
     ["Agent", async (page) => { await page.getByRole("button", { name: /Thêm agent/ }).click() }],
   ].map(([section, then]) => ({ path: "/settings", name: `settings: ${section}`, open: async (page) => {

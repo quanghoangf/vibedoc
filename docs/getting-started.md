@@ -57,6 +57,8 @@ Add a hello line to README.md.
 
 The MCP server is at `http://localhost:<port>/api/mcp` (HTTP JSON-RPC). Use the port from the terminal.
 
+Easiest: open **Settings → Connect agent** (`/settings?tab=connect`) in VibeDoc. For Claude Code it adds the MCP server and installs the `/vibedoc:*` skills after you confirm each command; for Cursor or another agent it shows the config to paste. Each step turns ✓ only from evidence: the agent's first VibeDoc tool call, or the plugin found in `claude plugin list`. The commands below do the same by hand.
+
 ### Claude Code
 
 ```bash

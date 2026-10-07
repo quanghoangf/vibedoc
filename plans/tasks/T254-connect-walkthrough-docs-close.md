@@ -1,9 +1,11 @@
 # T254: Connect walkthrough end to end, docs, close R081
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R081 — Connect your agent
 **Size:** S (~1 hr)
 **Depends on:** T251, T252, T253
 **Covers:** S1, S2, S3, S4
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 
 ## Goal
 Prove the epic's flow end to end on a fresh project and point the docs at the panel instead of the README's manual steps.
@@ -36,7 +38,20 @@ BASE=http://localhost:3081 node e2e/connect-agent.mjs
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude-code_
+### Steps
 - [ ] S1 — WHEN the user clicks Connect for Claude Code and confirms → THEN VibeDoc is added to Claude Code's MCP servers and the step says what was changed
 - [ ] S2 — WHEN the connected agent makes its first VibeDoc call → THEN the MCP step turns ✓ without a reload
 - [ ] S3 — WHEN the vibedoc plugin is installed in Claude Code → THEN the skills step shows ✓ and lists `/vibedoc:roadmap` as the next thing to try
 - [ ] S4 — WHEN the user picks Cursor or "Other" → THEN they get the config to paste, and the MCP step still turns ✓ on the first call
+- [ ] Done-when walkthrough on a fresh repo with the real Claude Code: `npx vibedoc` → Settings → Connect agent → Connect Claude Code (confirm) → Install the skills (confirm) → start `claude` in the repo and ask it to call vibedoc_get_status → both steps ✓, without opening the README
+- [ ] README "Quick start", docs/getting-started.md §3 and the site's Getting started §2 point to Settings → Connect agent first; the commands are still there as the by-hand path
+### Regression risk
+- [ ] Settings with no `?tab=` still opens Appearance and the language switch works
+
+Automated: `e2e/connect-agent.mjs` (all of S1–S4 on fresh fixtures + phone width 390px, one clean pass), `e2e/i18n.mjs` (Connect tab in Vietnamese, every route), `pnpm --dir site test` (39 passed), build, lint (no new errors), `node src/lib/{agent-connect,claude-cli,i18n}.check.mts`.
+
+## Notes
+- R081 stays **in-progress**: T250–T254 are in review (each leaves a click-through for a human); set it done once they're approved.
+- The epic's Done-when ("from `npx vibedoc` …") needs R082: `bin/vibedoc.mjs` still opens `/setup` (the wizard), so today the panel is one click away in Settings, not on the first screen. R082 mounts `<ConnectAgentPanel />`.
+- `e2e/i18n.mjs`: the Settings tab it opens was renamed "MCP" → "Kết nối agent".
