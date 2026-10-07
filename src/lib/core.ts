@@ -45,6 +45,7 @@ import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
 import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
 import { isDemo } from './demo'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
+import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -3469,4 +3470,24 @@ export async function saveViews(views: SavedView[], root: string): Promise<void>
   const tmp = `${file}.tmp`
   await fs.writeFile(tmp, JSON.stringify({ views }, null, 2) + '\n', 'utf-8')
   await fs.rename(tmp, file)
+}
+
+// ─── Agent connection evidence (R081, .vibedoc/agent-connection.json) ─────────
+
+const AGENT_CONNECTION_FILE = path.join('.vibedoc', 'agent-connection.json')
+
+/** The newest recorded MCP tool call, or null when no agent has called one yet. */
+export async function getAgentConnection(root: string): Promise<AgentConnection | null> {
+  return parseConnection(await fs.readFile(path.join(root, AGENT_CONNECTION_FILE), 'utf-8').catch(() => null))
+}
+
+/** Records a tool call from `agent`; true when it wrote (first call, another agent, or the record went stale). */
+export async function recordAgentCall(root: string, agent: string, now = new Date()): Promise<boolean> {
+  if (isDemo() || !shouldRecordCall(await getAgentConnection(root), agent, now.getTime())) return false
+  const file = path.join(root, AGENT_CONNECTION_FILE)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  const tmp = `${file}.tmp`
+  await fs.writeFile(tmp, JSON.stringify({ agent, lastCall: now.toISOString() }, null, 2) + '\n', 'utf-8')
+  await fs.rename(tmp, file)
+  return true
 }

@@ -113,16 +113,12 @@ export const en = {
   idFormat: "use lowercase letters, digits and dashes",
   idBuiltin: "\"{id}\" already means a built-in status",
   // MCP
-  mcpTitle: "MCP Connection",
   mcpHint: "Configure the Model Context Protocol server for AI agents.",
   mcpEndpoint: "MCP Endpoint",
   test: "Test",
   connOk: "Connection successful",
   connFailed: "Connection failed",
-  agentConfig: "Agent Configuration",
-  agentConfigHint: "Copy the configuration for your coding agent:",
   copy: "Copy",
-  copied: "Copied",
   // Frontend app
   loginFailed: "Log in failed: {error}",
   cantSaveFrontend: "Couldn’t save the frontend app",
@@ -355,16 +351,12 @@ export const vi: Messages<typeof en> = {
   idFormat: "dùng chữ thường, chữ số và dấu gạch ngang",
   idBuiltin: "\"{id}\" đã là một trạng thái có sẵn",
   // MCP
-  mcpTitle: "Kết nối MCP",
   mcpHint: "Cấu hình máy chủ Model Context Protocol cho AI agent.",
   mcpEndpoint: "Endpoint MCP",
   test: "Kiểm tra",
   connOk: "Kết nối thành công",
   connFailed: "Kết nối thất bại",
-  agentConfig: "Cấu hình agent",
-  agentConfigHint: "Sao chép cấu hình cho coding agent của bạn:",
   copy: "Sao chép",
-  copied: "Đã sao chép",
   // Frontend app
   loginFailed: "Đăng nhập thất bại: {error}",
   cantSaveFrontend: "Không lưu được ứng dụng frontend",

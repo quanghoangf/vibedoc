@@ -1,60 +1,22 @@
 "use client"
 
 import { useState } from "react"
-import { Plug, Check, X, Copy, Loader2 } from "lucide-react"
+import { Plug, Check, X, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { resolveMcpEndpoint, type AppSettings } from "@/lib/settings"
 import { useOrigin } from "@/hooks/use-origin"
 import { useT } from "@/context/LanguageContext"
+import { ConnectAgentPanel } from "@/components/connect/ConnectAgentPanel"
 
 interface MCPSettingsProps {
   settings: AppSettings
   onSave: (settings: AppSettings) => void
 }
 
-const AGENT_CONFIGS = {
-  "claude-code": {
-    name: "Claude Code",
-    config: `{
-  "mcpServers": {
-    "vibedoc": {
-      "url": "{{ENDPOINT}}"
-    }
-  }
-}`,
-    path: "~/.claude/claude.json",
-  },
-  cursor: {
-    name: "Cursor",
-    config: `{
-  "mcp": {
-    "servers": {
-      "vibedoc": {
-        "url": "{{ENDPOINT}}"
-      }
-    }
-  }
-}`,
-    path: ".cursor/mcp.json",
-  },
-  windsurf: {
-    name: "Windsurf",
-    config: `{
-  "mcpServers": {
-    "vibedoc": {
-      "url": "{{ENDPOINT}}"
-    }
-  }
-}`,
-    path: ".windsurf/mcp.json",
-  },
-}
-
 export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<"success" | "error" | null>(null)
-  const [copied, setCopied] = useState<string | null>(null)
   const { t } = useT()
   const endpoint = resolveMcpEndpoint(settings.mcp.endpoint, useOrigin())
 
@@ -89,18 +51,12 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
     setTesting(false)
   }
 
-  const copyConfig = async (agentId: string) => {
-    const agent = AGENT_CONFIGS[agentId as keyof typeof AGENT_CONFIGS]
-    const config = agent.config.replace("{{ENDPOINT}}", endpoint)
-    await navigator.clipboard.writeText(config)
-    setCopied(agentId)
-    setTimeout(() => setCopied(null), 2000)
-  }
-
   return (
     <div className="space-y-8">
+      <ConnectAgentPanel mcpUrl={endpoint} />
+
       <div>
-        <h2 className="text-xl font-semibold text-txt mb-1">{t("settings.mcpTitle")}</h2>
+        <h3 className="text-sm font-semibold text-txt mb-1">{t("connect.advanced")}</h3>
         <p className="text-sm text-muted">{t("settings.mcpHint")}</p>
       </div>
 
@@ -146,45 +102,6 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
         )}
       </div>
 
-      {/* Agent Configs */}
-      <div className="space-y-3">
-        <label className="block text-sm font-medium text-txt">{t("settings.agentConfig")}</label>
-        <p className="text-xs text-muted">{t("settings.agentConfigHint")}</p>
-        <div className="space-y-2">
-          {Object.entries(AGENT_CONFIGS).map(([id, agent]) => (
-            <div
-              key={id}
-              className="flex items-center justify-between p-3 border border-border rounded-lg"
-            >
-              <div>
-                <div className="text-sm font-medium text-txt">{agent.name}</div>
-                <div className="text-xs text-muted font-mono">{agent.path}</div>
-              </div>
-              <button
-                onClick={() => copyConfig(id)}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors",
-                  copied === id
-                    ? "bg-green-500/20 text-green-400"
-                    : "bg-surface2 text-muted hover:text-txt"
-                )}
-              >
-                {copied === id ? (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    {t("settings.copied")}
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    {t("settings.copy")}
-                  </>
-                )}
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }

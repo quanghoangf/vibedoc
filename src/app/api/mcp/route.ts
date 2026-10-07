@@ -51,6 +51,7 @@ import {
   exportEntries,
   deleteEntry,
   sessionStartMemory,
+  recordAgentCall,
   backfillEpisodes,
   currentSessionId,
   writeRunEpisode,
@@ -807,6 +808,10 @@ export async function POST(req: NextRequest) {
     try {
       const root = rootFrom(req.nextUrl.searchParams.get("root"));
       const agent = typeof args.agent === "string" && args.agent.trim() ? args.agent.trim() : agentFromUserAgent(req.headers.get("user-agent"));
+      // R081: a tool call is the evidence that an agent is connected (initialize / tools/list are health checks)
+      void recordAgentCall(root, agent)
+        .then((wrote) => { if (wrote) emitUpdate("agent_connected", { root, agent }); })
+        .catch((e) => console.warn("[vibedoc] could not record the agent call:", e));
       const text = await handleTool(name, args, root, agent);
       return ok(id, { content: [{ type: "text", text }] });
     } catch (e: unknown) {

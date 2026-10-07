@@ -1,9 +1,11 @@
 # T250: Connection evidence + Connect panel with a live MCP step
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R081 — Connect your agent
 **Size:** M (2–3 hrs)
 **Depends on:** —
 **Covers:** S2
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 
 ## Goal
 VibeDoc records the first real MCP tool call from an agent and a "Connect your agent" panel in Settings shows the MCP step turning ✓ live, with the agent's name. This is the proof half of the epic; every later task plugs into this panel.
@@ -60,4 +62,20 @@ BASE=http://localhost:3081 node e2e/connect-agent.mjs
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude-code_
+### Steps
 - [ ] S2 — WHEN the connected agent makes its first VibeDoc call → THEN the MCP step turns ✓ without a reload
+- [ ] Open Settings → "Connect agent" is the first section and opens by default; the MCP step shows the `claude mcp add …` command with this app's URL and "Waiting for the first call"
+- [ ] Click Copy on the command → it reads Copied and the clipboard holds the command
+- [ ] Under Advanced, click Test → "Connection successful", and the MCP step still says Waiting
+- [ ] In a terminal in the project, start Claude Code (already connected) and ask it to call vibedoc_get_status → the step turns ✓ "Connected · Claude Code · last call …" without a reload
+- [ ] Switch the language to Tiếng Việt → the panel is in Vietnamese
+### Regression risk
+- [ ] Other Settings sections (Appearance, Frontend app) still open and save; `/settings` with no `?tab=` works
+
+Automated: `e2e/connect-agent.mjs` (deep link, Test/initialize/tools/list don't tick, tools/call ticks live with the agent name, reload keeps it, no rewrite within 60s) passed against `next dev -p 3081`.
+
+## Notes
+- `MCPSettings.tsx` was kept as the Connect tab's wrapper (panel + the Advanced endpoint field and Test) instead of being deleted; its wrong per-agent config list is gone (T253 brings Cursor/Other back inside the panel).
+- Panel text lives in a new i18n area `src/i18n/connect.ts` (the panel is also mounted outside Settings by R082).
+- Seam for R082 / R084: `<ConnectAgentPanel />` (no props needed), `GET /api/agent-connect` → `{ mcp }`, `getAgentConnection(root)` in core, SSE `agent_connected`. Deep link: `/settings?tab=connect`.
