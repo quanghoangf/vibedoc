@@ -6,7 +6,6 @@
 **Covers:** S3
 **Owner:** ai:claude-code
 **Started:** 2026-10-07
-**Done:** 2026-10-07
 
 ## Goal
 On a set-up project, later runs open where the user left off (e.g. /roadmap), not always the board.

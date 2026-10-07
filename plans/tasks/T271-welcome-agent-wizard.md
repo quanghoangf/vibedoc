@@ -6,7 +6,6 @@
 **Covers:** S4
 **Owner:** ai:claude-code
 **Started:** 2026-10-07
-**Done:** 2026-10-07
 
 ## Goal
 The welcome tells the user whether an agent is connected and hosts the place where R081's Connect panel goes, and the template wizard is reachable only as an optional "Write project docs" action.

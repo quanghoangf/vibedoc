@@ -6,7 +6,6 @@
 **Covers:** S1, S2, S3, S4
 **Owner:** ai:claude-code
 **Started:** 2026-10-07
-**Done:** 2026-10-07
 
 ## Goal
 Prove the epic's Done-when end to end and update the docs that still say `vibedoc` opens the setup wizard.

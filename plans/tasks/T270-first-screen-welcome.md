@@ -6,7 +6,6 @@
 **Covers:** S1, S2
 **Owner:** ai:claude-code
 **Started:** 2026-10-07
-**Done:** 2026-10-07
 
 ## Goal
 Opening VibeDoc lands on a screen that fits the project: a project with no tasks and no roadmap gets a welcome page offering the right first move (docs → plan the roadmap from them; empty → plan the first epics with the agent), and a set-up project goes straight to the board. `vibedoc` no longer opens the template wizard.
