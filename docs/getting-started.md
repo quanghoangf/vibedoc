@@ -13,6 +13,8 @@ npx vibedoc
 
 VibeDoc picks a free port, prints the URL in the terminal and opens the setup wizard (`/setup`) in your browser. The wizard can generate starter docs such as `CLAUDE.md`. It is optional: to skip it, click **Board** in the sidebar. Pin the port with `npx vibedoc --port 3333`.
 
+Want to look around first? `npx vibedoc --demo` opens a sample project with every part of VibeDoc filled in, in a throwaway copy that is deleted when you stop it. It runs no agents and never touches your files.
+
 To keep a `vibedoc` command instead of `npx`, install it once with any of these (Homebrew brings its own Node):
 
 | Channel | Install | Update | Uninstall |

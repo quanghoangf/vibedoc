@@ -1,9 +1,11 @@
 # T334: "Try the demo" links, docs, and the epic's end-to-end check
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R085 — Demo playground
 **Size:** S (~1 hr)
 **Depends on:** T331, T332, T333
 **Covers:** S1, S2, S3
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 
 ## Goal
 People find the demo: the site and the README say `npx vibedoc --demo`, and the welcome screen has a ready-made "Try the demo" link to drop in. The epic's Done-when is checked end to end.
@@ -39,9 +41,16 @@ People find the demo: the site and the README say `npx vibedoc --demo`, and the 
 - [ ] `pnpm lint`, `pnpm build`, `node src/lib/i18n.check.mts` pass
 
 ## Manual tests
+_2026-10-07 — ai · Auto: `e2e/demo-playground.mjs` passed 2026-10-07 (populated board, T004 video served with Range as video/webm, memory graph edges, nothing left behind) · site: `pnpm --dir site test` passed (copy-demo event + clipboard)_
+### Steps
 - [ ] S1 — WHEN the user runs `vibedoc --demo` → THEN the browser opens a populated sample project with a Demo banner
 - [ ] S2 — WHEN the user edits or moves things in the demo and quits → THEN no file outside VibeDoc's temporary demo copy has changed
 - [ ] S3 — WHEN the user clicks "Use VibeDoc on my project" → THEN they get the command for their own repo
+- [ ] Site home (`pnpm --dir site dev`): under the hero text, "Try the demo first: `npx vibedoc --demo`" with Copy; it reads well at 390px
+- [ ] README "Try the demo first" and docs/getting-started.md mention `npx vibedoc --demo`
+- [ ] Done when, by hand on a clean machine: `npx vibedoc --demo` (from the published package) shows the board, plays T004's video, shows /memory → Graph, and after Ctrl+C the temp folder is gone
+### Regression risk
+- [ ] The hero install tabs still copy their commands (the demo line shares the page's copy listener)
 
 ## Verify
 ```bash
@@ -49,3 +58,8 @@ pnpm lint && pnpm build && node src/lib/i18n.check.mts
 pnpm --dir site test
 PW_DIR=<dir with playwright> node e2e/demo-playground.mjs
 ```
+
+## Notes
+- `TryDemo` isn't rendered anywhere: it's the seam for R082's welcome screen ("Try the demo" link). R082 imports `@/components/shared/TryDemo`.
+- No `--help` text exists in the CLI, so nothing to list there.
+- The epic stays `in-progress`: T330–T334 are in review, waiting on a human to click through the scenario checks.

@@ -1,5 +1,6 @@
 // End-to-end check for `vibedoc --demo` (R085): the demo touches nothing outside its temporary copy (S2).
-//   1. Starts `node bin/vibedoc.mjs --demo --port $PORT --no-open` itself (needs a prior `pnpm build`).
+//   1. Starts `node bin/vibedoc.mjs --demo --port $PORT --no-open` itself (needs a prior `pnpm build`), then checks the
+//      epic's Done when: a populated board, T004's playable evidence video and the memory graph.
 //   2. Moves a task, edits a doc and ticks a manual test through the API: the changes land in the temp copy.
 //   3. Agent chat and test runs are refused (403); the chat page shows "doesn't run agents" instead of a composer.
 //   4. Ctrl+C (SIGINT): the server stops, the temp folder is gone, `examples/` is unchanged and `~/.vibedoc/runs` has the same entries.
@@ -42,6 +43,19 @@ try {
   const root = summary.root
   tmp = path.dirname(root)
   assert.ok(!root.startsWith(repo), "the demo runs on a copy, not on examples/")
+
+  // Done when (T334): a populated board, a playable evidence video and the memory graph
+  for (const [status, n] of Object.entries({ todo: 3, "in-progress": 1, review: 1, blocked: 1, done: 4, cancelled: 1 })) {
+    assert.equal(summary.tasks.board[status], n, `${n} ${status} task(s) on the board`)
+  }
+  const { json: runsJson } = await api("/api/tasks/T004/runs")
+  const run = runsJson.runs[0]
+  assert.equal(run.status, "passed")
+  const video = await fetch(`${BASE}/api/tasks/T004/runs/${run.runId}/${run.video}`, { headers: { Range: "bytes=0-1023" } })
+  assert.equal(video.status, 206, "the video is served with Range (seekable)")
+  assert.equal(video.headers.get("content-type"), "video/webm")
+  const { json: graph } = await api("/api/memory/graph")
+  assert.ok(graph.edges.length >= 5, "the memory graph has edges")
 
   // 2. Changes land in the copy
   assert.equal((await api("/api/tasks", { body: { taskId: "T008", status: "in-progress" } })).status, 200)

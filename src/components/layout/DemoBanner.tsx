@@ -36,7 +36,7 @@ export function DemoBanner() {
   )
 }
 
-function CommandRow({ command }: { command: string }) {
+export function CommandRow({ command }: { command: string }) {
   const { t } = useT()
   const [copied, setCopied] = useState(false)
   async function copy() {

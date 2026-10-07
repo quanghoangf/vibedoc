@@ -62,6 +62,14 @@ Then add the skills in Claude Code and plan your first epic:
 
 **Rather not read?** Paste [the install prompt](https://quanghoangf.github.io/vibedoc/docs/ai-install/) into your agent: it starts VibeDoc, connects it, adds the skills and reports back.
 
+### Try the demo first
+
+```bash
+npx vibedoc --demo
+```
+
+Opens a sample project (a roadmap in progress, tasks in every status, agent chats, a test run with its evidence video, memory and a doc graph) in a throwaway copy. Change anything; nothing touches your files, and the copy is deleted when you stop it. The demo runs no agents: "Use VibeDoc on my project" in its header gives you the command for your own repo.
+
 ### Install it
 
 `npx vibedoc` needs nothing installed. To keep a `vibedoc` command:
