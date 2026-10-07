@@ -16,7 +16,7 @@ import "@xyflow/react/dist/style.css"
 
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
-import { AlertTriangle, Bot, FileText, LayoutGrid, ListTree, Plus, Sparkles } from "lucide-react"
+import { AlertTriangle, Bot, FileText, LayoutGrid, ListTree, Plus, ScrollText, Sparkles } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -33,6 +33,7 @@ import { StatusDot, nodeTypes, useRoadmapStatusLabel, type RoadmapNode } from ".
 import { RoadmapItemSheet } from "./RoadmapItemSheet"
 import { NewItemDialog } from "./NewItemDialog"
 import { PlanFromSpecDialog } from "./PlanFromSpecDialog"
+import { ReleaseNotesDialog } from "./ReleaseNotesDialog"
 import { BreakdownEpicsDialog } from "./BreakdownEpicsDialog"
 import { ItemContextMenu, type ContextMenuState, type ItemActions } from "./ItemActionsMenu"
 import { useChats } from "@/context/ChatContext"
@@ -194,6 +195,7 @@ export function RoadmapTab() {
   // null = closed; "" = new horizon; "R001" = new feature under R001
   const [createParent, setCreateParent] = useState<string | null>(null)
   const [specOpen, setSpecOpen] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
   const [breakdownOpen, setBreakdownOpen] = useState(false)
   const draggingRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -490,6 +492,7 @@ export function RoadmapTab() {
         onSubmit={createItem}
       />
       <PlanFromSpecDialog open={specOpen} onOpenChange={setSpecOpen} />
+      <ReleaseNotesDialog open={notesOpen} onOpenChange={setNotesOpen} />
       <BreakdownEpicsDialog open={breakdownOpen} onOpenChange={setBreakdownOpen} items={items} />
     </>
   )
@@ -574,6 +577,9 @@ export function RoadmapTab() {
           )}
           <Button size="sm" variant="outline" onClick={() => setSpecOpen(true)}>
             <FileText /> {t("roadmap.planFromSpec")}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setNotesOpen(true)}>
+            <ScrollText /> {t("roadmap.releaseNotes")}
           </Button>
           {items.some((i) => i.parent !== null && i.status !== "done") && (
             <Button size="sm" variant="outline" onClick={() => setBreakdownOpen(true)}>

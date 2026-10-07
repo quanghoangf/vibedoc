@@ -16,7 +16,8 @@ export interface Proposal {
   status: ProposalStatus
 }
 
-export function ProposalCard({ proposal, onResolve }: { proposal: Proposal; onResolve: (status: ProposalStatus) => void }) {
+/** `actor`: who the write is logged as; an agent's proposal is "ai", a draft VibeDoc made for the user is "human". */
+export function ProposalCard({ proposal, onResolve, actor = "ai" }: { proposal: Proposal; onResolve: (status: ProposalStatus) => void; actor?: "ai" | "human" }) {
   const { rootParam, openDoc } = useApp()
   const { t, tn } = useT()
   const [before, setBefore] = useState<string | null>(null)
@@ -48,7 +49,7 @@ export function ProposalCard({ proposal, onResolve }: { proposal: Proposal; onRe
       const res = await fetch(`/api/docs${rootParam}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: proposal.path, edits: proposal.edits, actor: "ai" }),
+        body: JSON.stringify({ path: proposal.path, edits: proposal.edits, actor }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? t("chat.saveFailed"))
       onResolve("accepted")

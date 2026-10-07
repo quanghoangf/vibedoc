@@ -1,5 +1,8 @@
 # T442: Draft release notes on /roadmap: diff, Accept writes CHANGELOG.md
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 **Phase:** R091 — Release notes from done work
 **Size:** M (2–3 hrs)
 **Depends on:** T441
@@ -45,7 +48,12 @@ BASE=http://localhost:3191 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node
 ```
 
 ## Manual tests
+_Auto: `e2e/release-notes.mjs` (S1–S3 in one pass), `node src/lib/release-notes.check.mts`, `node src/lib/i18n.check.mts`, `pnpm build` passed 2026-10-07; lint has only the 14 pre-existing errors._
 ### Steps
-- [ ] S1 — WHEN the user clicks Draft release notes on /roadmap after finishing an epic → THEN a CHANGELOG.md diff shows a new `# Unreleased` section listing that epic and its done tasks since the last tag
-- [ ] S2 — WHEN the user closes the draft without accepting → THEN CHANGELOG.md is unchanged; after Accept the section is at the top and past entries are unchanged
-- [ ] S3 — WHEN a task was finished before the last tag, or is already in CHANGELOG.md → THEN it is not in the draft; nothing new → nothing to draft
+- [x] S1 — WHEN the user clicks Draft release notes on /roadmap after finishing an epic → THEN a CHANGELOG.md diff shows a new `# Unreleased` section listing that epic and its done tasks since the last tag
+- [x] S2 — WHEN the user closes the draft without accepting → THEN CHANGELOG.md is unchanged; after Accept the section is at the top and past entries are unchanged
+- [x] S3 — WHEN a task was finished before the last tag, or is already in CHANGELOG.md → THEN it is not in the draft; nothing new → nothing to draft
+- [ ] On this repo, /roadmap → Draft release notes → the draft reads well as a changelog section (epic headings, task titles)
+- [ ] Switch the language to Vietnamese → the button, dialog text and empty message are Vietnamese
+### Regression risk
+- [ ] An agent's vibedoc_propose_edit card in a chat still applies on Accept (ProposalCard gained an `actor` prop, default "ai")

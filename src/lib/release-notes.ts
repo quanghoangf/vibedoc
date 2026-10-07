@@ -42,7 +42,9 @@ export function collectReleaseNotes(input: { tasks: NoteTask[]; epics: NoteEpic[
     if (tasks.length) groups.push({ epic: { id: e.id, title: e.title, done: e.status === "done" }, tasks })
   }
   if (left.size) groups.push({ epic: null, tasks: [...left.values()].map((t) => ({ id: t.id, title: t.title })) })
-  return groups
+  // the Unreleased section already lists every one of them: nothing new to draft
+  const drafted = new Set(range ? input.changelog.slice(range[0], range[1]).match(/\bT\d+\b/g) : [])
+  return fresh.every((t) => drafted.has(t.id)) ? [] : groups
 }
 
 /** `# Unreleased (today)` + one `###` per epic (` — in progress` while unfinished) + `* title (Tnnn)` lines. */

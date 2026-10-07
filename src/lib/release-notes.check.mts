@@ -56,8 +56,10 @@ assert.equal(apply("", section), section)
 const once = apply(past, section)
 assert.equal(once, section + past)
 // a second draft replaces the Unreleased section, and its ids don't count as released
-const again = formatReleaseNotes(collectReleaseNotes({ tasks, epics, since: "2026-10-01", changelog: once }), "2026-10-08")
-assert.ok(again.includes("T003"))
+assert.deepEqual(collectReleaseNotes({ tasks, epics, since: "2026-10-01", changelog: once }), [], "all already drafted: nothing new")
+const more = [...tasks, task("T008", "2026-10-07")]
+const again = formatReleaseNotes(collectReleaseNotes({ tasks: more, epics, since: "2026-10-01", changelog: once }), "2026-10-08")
+assert.ok(again.includes("T003") && again.includes("T008"))
 assert.equal(apply(once, again), again + past)
 // a repeated first line: the anchor grows until it is unique
 const repeated = "# A\n\nx\n# A\n\ny\n"

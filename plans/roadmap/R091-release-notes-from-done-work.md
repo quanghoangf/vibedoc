@@ -1,6 +1,6 @@
 # R091: Release notes from done work
 **Parent:** R004
-**Status:** planned
+**Status:** done
 **Order:** 120
 **Tasks:** T440, T441, T442
 
