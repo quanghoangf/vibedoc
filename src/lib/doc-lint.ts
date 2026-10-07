@@ -4,9 +4,10 @@
 // read the result. Reused by later epics (a CI check, the doc upkeep agent), so keep it pure and the shapes stable.
 
 import type { DocGraph } from './doc-links'
+import type { Spec } from './specs'
 
 export type LintLevel = 'error' | 'warn'
-export type LintRule = 'broken-link' | 'stale-path' | 'bad-frontmatter' | 'no-h1' | 'empty-doc'
+export type LintRule = 'broken-link' | 'stale-path' | 'bad-frontmatter' | 'no-h1' | 'empty-doc' | 'orphan-doc' | 'spec-structure' | 'spec-changes'
 export type LintIssue = {
   path: string
   /** 1-based line in the raw file */
@@ -27,7 +28,19 @@ export const LINT_LEVEL: Record<LintRule, LintLevel> = {
   'bad-frontmatter': 'error',
   'no-h1': 'warn',
   'empty-doc': 'warn',
+  'orphan-doc': 'warn',
+  'spec-structure': 'warn',
+  'spec-changes': 'error',
 }
+
+/** A capability spec as `parseSpec` read it (core parses; pure libs don't import each other's values). */
+export type LintSpec = { path: string; spec: Spec }
+/**
+ * One op of an unmerged epic's `## Spec changes` that wouldn't apply (`applyDelta` run op by op), or a capability
+ * that isn't a slug (`op` / `name` empty then).
+ */
+export type LintSpecChange = { path: string; capability: string; op: string; name: string; message: string }
+export type LintOptions = { path?: string; specs?: readonly LintSpec[]; specChanges?: readonly LintSpecChange[] }
 
 const FM_LINE = /^(?:\s*$|\s*#|[A-Za-z_][\w-]*\s*:|["'][^"']+["']\s*:|\s*-\s|\s+\S)/
 
@@ -73,7 +86,7 @@ function fileIssues({ path, raw }: LintFile): LintIssue[] {
  * Lint `files` (every .md, as core reads them) against `graph` (`buildDocGraph` over the same files). `opts.path`
  * keeps one file's issues; the graph still resolves links against the whole project. Sorted by path, then line.
  */
-export function lintDocs(files: readonly LintFile[], graph: DocGraph, opts: { path?: string } = {}): LintIssue[] {
+export function lintDocs(files: readonly LintFile[], graph: DocGraph, opts: LintOptions = {}): LintIssue[] {
   const only = opts.path?.replace(/\\/g, '/').replace(/^\.?\//, '')
   const keep = (p: string) => !only || p === only
   const issues: LintIssue[] = []
@@ -84,7 +97,67 @@ export function lintDocs(files: readonly LintFile[], graph: DocGraph, opts: { pa
   for (const s of graph.stale) {
     if (keep(s.from)) issues.push({ path: s.from, line: s.line, level: LINT_LEVEL['stale-path'], rule: 'stale-path', message: `\`${s.target}\` names a file that doesn't exist`, target: s.target })
   }
+  const raws = new Map(files.map(f => [f.path, f.raw]))
+  const linked = new Set(graph.edges.map(e => e.to))
+  for (const n of graph.nodes) {
+    if (keep(n.path) && ORPHAN_KINDS.has(n.kind) && n.path.startsWith('docs/') && !linked.has(n.path)) {
+      issues.push({ path: n.path, line: 1, level: LINT_LEVEL['orphan-doc'], rule: 'orphan-doc', message: 'No other file links to this doc' })
+    }
+  }
+  for (const s of opts.specs ?? []) if (keep(s.path)) issues.push(...specIssues(s, raws.get(s.path) ?? ''))
+  for (const c of opts.specChanges ?? []) {
+    if (!keep(c.path)) continue
+    const lines = (raws.get(c.path) ?? '').split('\n')
+    const line = headingLine(lines, OP_RE(c.op, c.name)) || headingLine(lines, new RegExp(`^###\\s+${esc(c.capability)}\\s*$`, 'i'))
+      || headingLine(lines, /^##\s+Spec changes\s*$/i) || 1
+    issues.push({ path: c.path, line, level: LINT_LEVEL['spec-changes'], rule: 'spec-changes', message: `Spec changes for "${c.capability}": ${c.message}` })
+  }
   return issues.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line || a.rule.localeCompare(b.rule))
+}
+
+const ORPHAN_KINDS = new Set(['doc', 'adr', 'spec'])
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const OP_RE = (op: string, name: string) => (op && name ? new RegExp(`^####\\s+${esc(op)}\\s+Requirement:\\s*${esc(name)}`, 'i') : null)
+
+/** 1-based line of the `nth` (0-based) heading matching `re` outside code fences, 0 when none. */
+function headingLine(lines: string[], re: RegExp | null, nth = 0): number {
+  if (!re) return 0
+  let inFence = false
+  let seen = 0
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*```/.test(lines[i])) { inFence = !inFence; continue }
+    if (!inFence && re.test(lines[i].trim()) && seen++ === nth) return i + 1
+  }
+  return 0
+}
+
+/** A spec with no requirements, a requirement name used twice, a scenario without a WHEN or THEN bullet. */
+function specIssues({ path, spec }: LintSpec, raw: string): LintIssue[] {
+  const lines = raw.split('\n')
+  const out: LintIssue[] = []
+  const add = (line: number, message: string) => out.push({ path, line: line || 1, level: LINT_LEVEL['spec-structure'], rule: 'spec-structure', message })
+  if (!spec.requirements.length) add(headingLine(lines, /^#\s/), 'Capability spec has no "### Requirement:" heading')
+  const seen = new Map<string, number>()
+  for (const r of spec.requirements) {
+    const key = r.name.trim().toLowerCase()
+    const n = seen.get(key) ?? 0
+    seen.set(key, n + 1)
+    const reqRe = new RegExp(`^###\\s+Requirement:\\s*${esc(r.name)}\\s*$`, 'i')
+    if (n) add(headingLine(lines, reqRe, n), `Requirement "${r.name}" appears more than once`)
+    const scenarioSeen = new Map<string, number>()
+    for (const sc of r.scenarios) {
+      const k = sc.name.trim().toLowerCase()
+      const m = scenarioSeen.get(k) ?? 0
+      scenarioSeen.set(k, m + 1)
+      const missing = [!/\bWHEN\b/.test(sc.text) && 'WHEN', !/\bTHEN\b/.test(sc.text) && 'THEN'].filter(Boolean)
+      if (!missing.length) continue
+      // the scenario heading inside this requirement: search from the requirement's own heading
+      const from = headingLine(lines, reqRe, n)
+      const rel = headingLine(lines.slice(from), new RegExp(`^####\\s+Scenario:\\s*${esc(sc.name)}\\s*$`, 'i'), m)
+      add(rel ? from + rel : from, `Scenario "${sc.name}" has no ${missing.join(' or ')} bullet`)
+    }
+  }
+  return out
 }
 
 /** Totals for a lint run over `files` checked files. */

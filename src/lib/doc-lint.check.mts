@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict'
 import { formatLint, lintDocs, summarizeLint, type LintFile } from './doc-lint.ts'
 import { buildDocGraph, docNode, extractLinks } from './doc-links.ts'
+import { parseSpec } from './specs.ts'
 
 const graphOf = (files: LintFile[]) => buildDocGraph(files.map(f => ({ node: docNode(f.path, f.raw), links: extractLinks(f.raw, f.path) })))
 const lint = (files: LintFile[], path?: string) => lintDocs(files, graphOf(files), { path })
@@ -16,8 +17,8 @@ assert.deepEqual(lint(clean), [])
 assert.equal(formatLint(summarizeLint([], 2)), '✅ Docs check: no issues in 2 files')
 
 // broken link (error, with target) and stale backticked path (warn)
-const linky = [{ path: 'docs/a.md', raw: '# A\n\n[gone](missing.md)\nsee `docs/nope.md`\n' }]
-assert.deepEqual(rules(linky), ['docs/a.md:3 error broken-link', 'docs/a.md:4 warn stale-path'])
+const linky = [{ path: 'notes/a.md', raw: '# A\n\n[gone](missing.md)\nsee `docs/nope.md`\n' }]
+assert.deepEqual(rules(linky), ['notes/a.md:3 error broken-link', 'notes/a.md:4 warn stale-path'])
 assert.equal(lint(linky)[0].target, 'missing.md')
 
 // frontmatter: unclosed, and a line that isn't key: value
@@ -35,17 +36,44 @@ assert.deepEqual(rules([{ path: 'x.md', raw: '  \n\n' }]), ['x.md:1 warn empty-d
 assert.deepEqual(rules([{ path: 'x.md', raw: '---\nk: v\n---\n\n' }]), ['x.md:1 warn empty-doc'])
 
 // path filter: only that file, links still resolved project-wide
-const two = [...linky, { path: 'docs/c.md', raw: 'no title' }]
-assert.deepEqual(rules(two, 'docs/c.md'), ['docs/c.md:1 warn no-h1'])
-assert.deepEqual(rules(two, './docs/a.md').length, 2)
+const two = [...linky, { path: 'notes/c.md', raw: 'no title' }]
+assert.deepEqual(rules(two, 'notes/c.md'), ['notes/c.md:1 warn no-h1'])
+assert.deepEqual(rules(two, './notes/a.md').length, 2)
 
 // summary + format: counts, grouped by file, errors' files first, cap
 const s = summarizeLint(lint(two), 2)
 assert.deepEqual([s.errors, s.warnings, s.files], [1, 2, 2])
 const text = formatLint(s)
 assert.match(text, /^🩺 Docs check: 1 error · 2 warnings in 2 of 2 files/)
-assert.ok(text.indexOf('**docs/a.md**') < text.indexOf('**docs/c.md**'))
+assert.ok(text.indexOf('**notes/a.md**') < text.indexOf('**notes/c.md**'))
 assert.match(text, / {2}L3 error broken-link: Link to "missing.md" points to no file/)
 assert.match(formatLint(s, 1), /… 2 more\. Pass `path` to check one file\./)
+
+// orphan: a docs/** doc nobody links to (warn); a link from anywhere clears it; non-docs files never count
+assert.deepEqual(rules([{ path: 'docs/lonely.md', raw: '# L\n' }, { path: 'README.md', raw: '# R\n' }]), ['docs/lonely.md:1 warn orphan-doc'])
+assert.deepEqual(rules([{ path: 'docs/lonely.md', raw: '# L\n' }, { path: 'README.md', raw: '# R\n[l](docs/lonely.md)\n' }]), [])
+
+// spec structure: no requirements, duplicate requirement, scenario without THEN (line = its heading)
+const specFile = (raw: string) => ({ path: 'docs/specs/memory.md', raw })
+const specRules = (raw: string) => {
+  const f = specFile(raw)
+  const files = [f, { path: 'README.md', raw: '# R\n[m](docs/specs/memory.md)\n' }]
+  return lintDocs(files, graphOf(files), { specs: [{ path: f.path, spec: parseSpec(f.path, f.raw) }] }).map(i => `${i.line} ${i.rule}: ${i.message}`)
+}
+assert.deepEqual(specRules('# Memory\n\nNothing yet.\n'), ['1 spec-structure: Capability spec has no "### Requirement:" heading'])
+const spec = ['# Memory', '', '### Requirement: Save', 'It SHALL save.', '#### Scenario: ok', '- WHEN x', '- THEN y',
+  '#### Scenario: half', '- WHEN x', '', '### Requirement: Save', 'Again.'].join('\n')
+assert.deepEqual(specRules(spec), [
+  '8 spec-structure: Scenario "half" has no THEN bullet',
+  '11 spec-structure: Requirement "Save" appears more than once',
+])
+
+// spec changes (error): line = the op heading, else the capability heading, else ## Spec changes
+const epic = { path: 'plans/roadmap/R001-x.md', raw: ['# R001: X', '', '## Spec changes', '### memory', '#### MODIFIED Requirement: Ghost', 'text'].join('\n') }
+const ch = (op: string, name: string, capability = 'memory') => lintDocs([epic], graphOf([epic]), { specChanges: [{ path: epic.path, capability, op, name, message: 'boom' }] })
+  .map(i => `${i.line} ${i.level} ${i.rule}: ${i.message}`)
+assert.deepEqual(ch('MODIFIED', 'Ghost'), ['5 error spec-changes: Spec changes for "memory": boom'])
+assert.deepEqual(ch('', '', 'memory'), ['4 error spec-changes: Spec changes for "memory": boom'])
+assert.deepEqual(ch('', '', 'Not A Slug'), ['3 error spec-changes: Spec changes for "Not A Slug": boom'])
 
 console.log('doc-lint: ok')

@@ -1,5 +1,5 @@
 # T382: Doc lint: orphan docs, capability specs, spec changes
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R088 — Docs quality gate
 **Size:** S (~1 hr)
 **Depends on:** T381
@@ -35,3 +35,13 @@ node src/lib/doc-lint.check.mts
 node src/lib/specs.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-07 — ai_
+### Steps
+- [ ] S1 — WHEN an agent calls `vibedoc_check_docs` → THEN it gets every doc issue grouped by file with level, rule and line, and a clean project says so in one line
+- [ ] Ask the agent to run `vibedoc_check_docs` on this repo → `orphan-doc` warnings for the docs nobody links to (e.g. docs/CONVENTIONS.md)
+- [ ] Add `#### MODIFIED Requirement: Ghost` under a planned epic's `## Spec changes` → `spec-changes` error at that heading line; remove it
+- [ ] Remove the `- THEN` bullet from a scenario in docs/specs/memory.md → `spec-structure` warning at that scenario's heading; undo
+### Regression risk
+- [ ] The epic sheet's "Merge into capability spec" preview still shows the same errors as before (it doesn't use the lint)

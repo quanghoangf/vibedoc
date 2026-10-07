@@ -431,6 +431,9 @@ Lint the docs (R088): every `.md` file VibeDoc sees (the same set as /graph). Re
 | `bad-frontmatter` | error | a leading `---` block that is never closed, or a line in it that isn't `key: value`, a list item, indented, a comment or blank |
 | `no-h1` | warn | no `# Title` heading outside code fences (a frontmatter `title:` counts as one) |
 | `empty-doc` | warn | nothing but whitespace after the frontmatter |
+| `orphan-doc` | warn | a doc, ADR or capability spec under `docs/` that no other file links to |
+| `spec-structure` | warn | a capability spec (`docs/specs/<slug>.md`) with no `### Requirement:`, a requirement name used twice, or a scenario with no WHEN or THEN bullet |
+| `spec-changes` | error | an epic's `## Spec changes` op that wouldn't merge (MODIFIED / REMOVED / RENAMED a requirement the spec lacks, ADDED one it has, a capability that isn't a slug); epics with `**Spec merged:**` are skipped |
 
 **Returns:** `✅ Docs check: no issues in N files`, or `🩺 Docs check: E errors · W warnings in F of N files` followed by issues grouped by file (files with errors first), `  L12 error broken-link: …`, capped at 150 lines. The same data as JSON: `GET /api/docs/lint[?path=]` → `{files, errors, warnings, issues: [{path, line, level, rule, message, target?}]}`.
 

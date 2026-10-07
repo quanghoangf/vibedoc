@@ -114,7 +114,7 @@ export const TOOLS = [
   {
     name: "vibedoc_check_docs",
     description:
-      "Lint the project's docs (.md files): broken links, stale backticked paths, unparseable frontmatter, no H1 title, empty docs. Returns issues grouped by file with level (error / warn), rule and line; a clean project says so in one line. Pass `path` to check one file, e.g. after editing it, and fix its errors before marking a docs task done.",
+      "Lint the project's docs (.md files): broken links, stale backticked paths, unparseable frontmatter, no H1 title, empty docs, orphan docs, capability spec structure and epic `## Spec changes` that wouldn't merge. Returns issues grouped by file with level (error / warn), rule and line; a clean project says so in one line. Pass `path` to check one file, e.g. after editing it, and fix its errors before marking a docs task done.",
     inputSchema: {
       type: "object",
       properties: { path: { type: "string", description: "Optional: one file to check (relative to the project root)" } },
