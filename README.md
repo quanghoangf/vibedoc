@@ -45,11 +45,10 @@ cd your-project
 npx vibedoc
 ```
 
-VibeDoc opens in your browser and prints its MCP URL. Connect your agent (Claude Code shown; [Cursor, Windsurf and others](https://quanghoangf.github.io/vibedoc/docs/#2-connect-your-agent)):
+VibeDoc opens in your browser and prints its MCP URL and the command to connect Claude Code. A project keeps the same address on every run, so you connect once ([Cursor, Windsurf and others](https://quanghoangf.github.io/vibedoc/docs/#2-connect-your-agent)):
 
 ```bash
-npx vibedoc --port 3333                                              # a fixed port keeps the MCP URL stable
-claude mcp add --transport http vibedoc http://localhost:3333/api/mcp
+claude mcp add --transport http vibedoc http://localhost:3333/api/mcp   # use the URL VibeDoc printed
 ```
 
 Then add the skills in Claude Code and plan your first epic:

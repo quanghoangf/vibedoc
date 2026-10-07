@@ -1,9 +1,12 @@
 # T231: Same address on every run + printed MCP URL and connect command
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R080 — Stable address & startup
 **Size:** M (2–3 hrs)
 **Depends on:** —
 **Covers:** S1
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 
 ## Goal
 `vibedoc` in a project comes up at the same port every run and prints the app URL, the MCP URL and the one `claude mcp add` command, so an agent connected once stays connected.
@@ -48,4 +51,11 @@ pnpm lint && pnpm build
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude-code_
+### Steps
 - [ ] S1 — WHEN the user runs `vibedoc` in a project, stops it and runs it again → THEN both runs serve the same URL and the MCP URL printed in the terminal is unchanged
+- [ ] Run `npx vibedoc` in a project with no `.vibedoc/port` → the terminal shows App, MCP and the `claude mcp add` command on a port from 3333 up, and `.vibedoc/port` holds it
+- [ ] Run `npx vibedoc --port 4000` → it serves on 4000, and the next plain `npx vibedoc` uses 4000 too
+- [ ] Run `npx vibedoc --port abc` → it stops with "--port needs a number from 1 to 65535"
+### Regression risk
+- [ ] `npx vibedoc --version` still prints only the version

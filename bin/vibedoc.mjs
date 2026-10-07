@@ -3,29 +3,11 @@ import { spawn } from 'node:child_process'
 import { setTimeout } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import net from 'node:net'
 import { createRequire } from 'node:module'
+import { appUrl, firstFreePort, parsePortArg, readSavedPort, savePort, startupBanner } from './address.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
-
-function isPortFree(port) {
-  return new Promise((resolve) => {
-    const server = net.createServer()
-    server.once('error', () => resolve(false))
-    server.once('listening', () => server.close(() => resolve(true)))
-    server.listen(port)
-  })
-}
-
-async function findFreeRandomPort() {
-  for (let i = 0; i < 20; i++) {
-    // Random port in ephemeral range 49152–65535 (avoids all common service ports)
-    const candidate = Math.floor(Math.random() * (65535 - 49152 + 1)) + 49152
-    if (await isPortFree(candidate)) return candidate
-  }
-  throw new Error('Could not find a free port after 20 attempts')
-}
 
 // Parse args
 const args = process.argv.slice(2)
@@ -37,24 +19,30 @@ if (args.some((a) => a === '--version' || a === '-v')) {
   process.exit(0)
 }
 
-const portIndex = args.indexOf('--port')
-const port = portIndex !== -1 && args[portIndex + 1] ? args[portIndex + 1] : await findFreeRandomPort()
-
 // Capture the user's cwd before spawning Next.js (which runs from projectRoot)
 const VIBEDOC_ROOT = process.env.VIBEDOC_ROOT || process.cwd()
 
+// The project's address (R080): --port N, else the saved port, else the first free one from 3333; saved for next time
+const portArg = parsePortArg(args)
+if (portArg.error) {
+  console.error(`\n✗ ${portArg.error}\n`)
+  process.exit(1)
+}
+const port = portArg.port ?? readSavedPort(VIBEDOC_ROOT) ?? (await firstFreePort())
+if (!savePort(VIBEDOC_ROOT, port)) console.log(`   (Couldn't save the port to ${path.join(VIBEDOC_ROOT, '.vibedoc', 'port')}; the next run may use another one.)`)
+
 console.log('\n🚀 Starting VibeDoc...\n')
-console.log(`   Project root: ${VIBEDOC_ROOT}`)
 
 // Start Next.js server
 const isWindows = process.platform === 'win32'
 const npmCmd = isWindows ? 'npx.cmd' : 'npx'
 
-const server = spawn(npmCmd, ['next', 'start', '-p', port], {
+const server = spawn(npmCmd, ['next', 'start', '-p', String(port)], {
   stdio: 'inherit',
   cwd: projectRoot,
   shell: isWindows,
-  env: { ...process.env, VIBEDOC_ROOT }
+  // VIBEDOC_PORT: the app's own port, for an in-app Connect panel (R081)
+  env: { ...process.env, VIBEDOC_ROOT, VIBEDOC_PORT: String(port) }
 })
 
 server.on('error', (err) => {
@@ -65,18 +53,16 @@ server.on('error', (err) => {
 // Wait for server to be ready, then open browser
 await setTimeout(2500)
 
-const url = `http://localhost:${port}/setup`
+const url = `${appUrl(port)}/setup`
 
+console.log(`\n✓ VibeDoc is running\n\n${startupBanner({ root: VIBEDOC_ROOT, port })}\n`)
 try {
   const open = (await import('open')).default
   await open(url)
-  console.log(`\n✓ VibeDoc running at ${url}\n`)
-  console.log('Press Ctrl+C to stop the server.\n')
 } catch {
-  console.log(`\n✓ VibeDoc running at ${url}`)
-  console.log('Open this URL in your browser.\n')
-  console.log('Press Ctrl+C to stop the server.\n')
+  console.log(`   Open ${url} in your browser.`)
 }
+console.log('   Press Ctrl+C to stop the server.\n')
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
