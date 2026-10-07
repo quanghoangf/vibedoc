@@ -3,6 +3,7 @@
 //   2. The page URL /docs?doc=<path> with Accept: text/markdown serves the same body (S2)
 //   3. Paths outside the project, in dot-folders or not .md are refused, never read (S3)
 //   4. A wrong path on /md/ or vibedoc_read_doc names up to 5 similar docs, the right one first (S3)
+//   5. /llms.txt: title, doc sections with /md/ links + registry descriptions, specs, open epics; ?section=; no llms-full.txt (S1)
 // The fixture is removed in `finally`.
 //
 //   PORT=3187 pnpm dev   # then:
@@ -27,6 +28,9 @@ write("docs/guides/setup.md", GUIDE)
 write("docs/architecture/overview.md", "# Architecture overview\n\nSee `docs/guides/setup.md`.\n")
 write(".vibedoc/secret.md", "# secret\n")
 write("notes.txt", "not a doc\n")
+write("docs/specs/lists.md", "# Lists\n\n## Purpose\nHow lists behave.\n\n### Requirement: Create\nA list has a name.\n")
+write("docs/REGISTRY.md", ["# Document Registry", "", "<!-- REGISTRY_ANNOTATIONS_START -->", "| Path | Description | Keywords |", "|------|-------------|----------|",
+  "| docs/guides/setup.md | How to install and run the app | setup |", "<!-- REGISTRY_ANNOTATIONS_END -->", ""].join("\n"))
 
 const get = (p, headers = {}) => fetch(`${BASE}${p}`, { headers })
 async function mcp(name, args) {
@@ -86,6 +90,25 @@ try {
   miss = await mcp("vibedoc_read_doc", { query: "archtecture-overvew" })
   assert.match(miss, /Doc not found: "archtecture-overvew"\. Did you mean:\n- docs\/architecture\/overview\.md/)
   console.log("ok  S3: a wrong path on /md/ and vibedoc_read_doc names the right doc first, links work")
+
+  // 5. S1: /llms.txt
+  res = await get(`/llms.txt${q}`)
+  assert.equal(res.status, 200)
+  assert.match(res.headers.get("content-type") ?? "", /^text\/plain/)
+  const index = await res.text()
+  assert.match(index, new RegExp(`^# ${path.basename(fx)}\\n`))
+  assert.match(index, /- \[docs\/guides\/setup\.md\]\(http:\/\/[^)]+\/md\/docs\/guides\/setup\.md\?root=[^)]+\): How to install and run the app\n/)
+  assert.match(index, /## Capability specs\n- \[Lists\]\([^)]+\/md\/docs\/specs\/lists\.md[^)]*\): How lists behave\./)
+  assert.match(index, /## Open epics\n- \[R002: Epic\]\([^)]+\/md\/plans\/roadmap\/R002-epic\.md[^)]*\): planned/)
+  assert.doesNotMatch(index, /R001: Now/, "horizons are not epics")
+  assert.doesNotMatch(index, /\.vibedoc|llms-full/)
+  // every link in it fetches
+  for (const [, url] of index.matchAll(/\]\((http[^)]+)\)/g)) assert.equal((await fetch(url)).status, 200, url)
+  const section = await (await get(`/llms.txt${q}&section=other`)).text()
+  assert.match(section, /## other\n/)
+  assert.doesNotMatch(section, /Capability specs|Open epics/)
+  assert.equal((await get(`/llms-full.txt${q}`)).status, 404)
+  console.log("ok  S1: /llms.txt lists doc sections with descriptions, specs and open epics; every link fetches; ?section= narrows; no llms-full.txt")
 } finally {
   rmSync(fx, { recursive: true, force: true })
 }

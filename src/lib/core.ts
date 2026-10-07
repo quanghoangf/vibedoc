@@ -35,11 +35,12 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
-import { applyDelta, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
+import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { forAgent } from './audience'
 import { similarPaths } from './similar-paths'
+import type { LlmsInput } from './llms-txt'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } from './memory-sections'
@@ -2709,6 +2710,29 @@ export async function updateRegistryAnnotation(
 
   const newContent = content.slice(0, start) + newAnnotationsBlock + content.slice(end + ANNOTATIONS_END.length)
   await writeDoc(REGISTRY_PATH, newContent, root)
+}
+
+/**
+ * R087: what /llms.txt lists, read fresh from the files: every doc outside plans/ (tasks and epics are
+ * reached through the open epics) and docs/specs/ (listed as specs), with its REGISTRY.md description.
+ */
+const EPIC_RANK: Record<RoadmapStatus, number> = { 'in-progress': 0, planned: 1, paused: 2, done: 3 }
+
+export async function getLlmsIndex(root: string): Promise<Pick<LlmsInput, 'title' | 'docs' | 'specs' | 'epics'>> {
+  const [docs, registry, specs, { items }] = await Promise.all([listDocs(root), readRegistry(root), listSpecs(root), listRoadmap(root)])
+  const notes = registry.exists ? parseAnnotations(registry.content) : new Map<string, { description: string }>()
+  return {
+    title: path.basename(path.resolve(root)),
+    docs: docs
+      .filter(d => d.section !== 'plans' && !isSpecPath(d.path))
+      .map(d => ({ path: d.path, section: d.section, description: notes.get(d.path)?.description || undefined })),
+    specs: specs.map(s => ({ path: `docs/specs/${s.capability}.md`, title: s.title, purpose: s.purpose })),
+    epics: items
+      .filter(i => i.parent && i.status !== 'done')
+      // in-progress, then planned, then paused; map order within each
+      .sort((a, b) => EPIC_RANK[a.status] - EPIC_RANK[b.status] || a.order - b.order)
+      .map(i => ({ id: i.id, title: i.title, status: i.status, path: i.file.replace(/\\/g, '/') })),
+  }
 }
 
 /**

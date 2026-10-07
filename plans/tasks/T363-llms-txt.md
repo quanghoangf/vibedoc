@@ -1,5 +1,7 @@
 # T363: /llms.txt index served from the files
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Done:** 2026-10-07
 **Phase:** R087 — Agent-ready docs
 **Size:** M (2–3 hrs)
 **Depends on:** T361
@@ -36,5 +38,14 @@ pnpm lint && pnpm build
 BASE=http://localhost:3187 PW_DIR=. node e2e/agent-ready-docs.mjs
 ```
 
+## Notes
+- Docs under `plans/` (tasks, roadmap) and `docs/specs/` are left out of the doc sections: epics and specs have their own sections. Above 150 docs the index lists sections only (`MAX_INLINE_DOCS`), each a `?section=` link. Open epics: in-progress, planned, then paused.
+
 ## Manual tests
-- [ ] S1 — WHEN an agent fetches `/llms.txt` → THEN it gets the title, every doc section with `/md/` links and descriptions, the specs and open epics, and no `llms-full.txt` exists
+_2026-10-07 — ai · e2e: `e2e/agent-ready-docs.mjs` (passed)_
+### Steps
+- [x] S1 — `curl http://localhost:3333/llms.txt` → `# <project>`, doc sections with `/md/` links and REGISTRY.md descriptions, `## Capability specs`, `## Open epics`; `/llms-full.txt` is 404
+- [x] `curl 'http://localhost:3333/llms.txt?section=overview'` → only that section
+- [ ] Read /llms.txt for this repo as if you were an agent new to it: the sections and descriptions tell you where to start
+### Regression risk
+- [ ] /docs, /board and the other app pages still load (a new top-level route sits next to them)
