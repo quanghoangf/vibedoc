@@ -61,8 +61,7 @@ try {
   browser = await launchChrome()
   const page = await browser.newPage()
   await page.goto(`${BASE}/chat`)
-  await page.getByRole("heading", { name: "Run chats side by side" }).waitFor()
-  await page.keyboard.press("c") // a new chat (none are saved yet)
+  await page.getByText("What should I work on next?").first().waitFor() // the sample's saved chats are readable
   await page.getByText("The demo doesn't run agents.").first().waitFor()
   assert.equal(await page.locator("textarea").count(), 0, "no chat composer in the demo")
 
