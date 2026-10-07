@@ -1,6 +1,6 @@
 # R092: Doc upkeep agent
 **Parent:** R004
-**Status:** planned
+**Status:** done
 **Order:** 130
 **Tasks:** T460, T461, T462
 

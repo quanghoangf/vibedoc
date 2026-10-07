@@ -5,13 +5,14 @@
 //   3. /docs?doc=docs/guide.md shows "May be outdated" with T001 and src/a.ts → src/b.ts; docs/index.md shows nothing.
 //   4. Fix docs → a new chat whose prompt names the doc, T001, the old → new path, the doc's other issues and
 //      vibedoc_propose_edit.
+//   5. Done-when: the stubbed agent proposes src/a.ts → src/b.ts; Accept fixes the doc and the flag clears.
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
 //   PORT=3192 pnpm dev   # then:
 //   BASE=http://localhost:3192 PW_DIR=node_modules/.pnpm/playwright@<v>/node_modules/playwright node e2e/doc-upkeep.mjs
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat, toolTurn } from "./stub-chat.mjs"
 
@@ -53,10 +54,23 @@ const errors = []
 try {
   // 1. the renaming task isn't done yet → no flag
   assert.doesNotMatch(await mcp("vibedoc_check_docs", {}), /outdated-ref/)
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+  page.on("console", (m) => {
+    if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text())
+  })
+  page.on("pageerror", (e) => errors.push(e.message))
+  const calls = await stubChat(page, () => toolTurn("tu1", "vibedoc_propose_edit", {
+    path: "docs/guide.md", edits: [{ old_string: "`src/a.ts`", new_string: "`src/b.ts`" }],
+  }, "Pointed the entry point at src/b.ts."), { root: fx })
+  await page.goto(`${BASE}/docs?doc=docs/guide.md`)
+  await page.locator("#entry-point").waitFor()
+  assert.equal(await page.locator("[data-doc-outdated]").count(), 0)
   console.log("ok  a rename by a task that isn't done flags nothing")
 
-  // 2. T001 done → the doc is flagged at the line naming the old path; the task file naming it is not
+  // 2. T001 done → the doc is flagged at the line naming the old path (live on the open doc); the task file is not
   await mcp("vibedoc_update_task", { taskId: "T001", status: "done" })
+  const badge = page.getByRole("region", { name: "May be outdated" })
+  await badge.waitFor()
   const report = await mcp("vibedoc_check_docs", {})
   assert.match(report, /\*\*docs\/guide\.md\*\*\n {2}L5 warn outdated-ref: `src\/a\.ts` was renamed to `src\/b\.ts` by T001/)
   assert.equal(report.match(/outdated-ref/g)?.length, 1)
@@ -67,23 +81,14 @@ try {
   })
   console.log("ok  S1: T001 done → vibedoc_check_docs flags docs/guide.md (outdated-ref, T001, src/a.ts → src/b.ts)")
 
-  // 3. the doc header badge
-  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
-  page.on("console", (m) => {
-    if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text())
-  })
-  page.on("pageerror", (e) => errors.push(e.message))
-  const calls = await stubChat(page, () => toolTurn("tu1", "vibedoc_propose_edit", {
-    path: "docs/guide.md", edits: [{ old_string: "`src/a.ts`", new_string: "`src/b.ts`" }],
-  }, "Pointed the entry point at src/b.ts."), { root: fx })
+  // 3. the doc header box, shown without a reload; an unflagged doc shows nothing
+  assert.equal((await badge.locator("[data-outdated-ref]").innerText()).replace(/\s+/g, " ").trim(), "T001 src/a.ts → src/b.ts L5")
   await page.goto(`${BASE}/docs?doc=docs/index.md`)
   await page.locator("#index").waitFor()
   assert.equal(await page.locator("[data-doc-outdated]").count(), 0)
   await page.goto(`${BASE}/docs?doc=docs/guide.md`)
-  const badge = page.getByRole("region", { name: "May be outdated" })
   await badge.waitFor()
-  assert.equal((await badge.locator("[data-outdated-ref]").innerText()).replace(/\s+/g, " ").trim(), "T001 src/a.ts → src/b.ts L5")
-  console.log("ok  S1: the doc header shows May be outdated: T001 src/a.ts → src/b.ts; an unflagged doc shows nothing")
+  console.log("ok  S1: the open doc shows May be outdated: T001 src/a.ts → src/b.ts live; an unflagged doc shows nothing")
 
   // 4. Fix docs → a new chat with the prompt
   await badge.getByRole("button", { name: "Fix docs" }).click()
@@ -95,6 +100,15 @@ try {
   assert.match(prompt, /- L7 error broken-link: Link to "setup\.md" points to no file/)
   assert.match(prompt, /vibedoc_propose_edit, never write the doc directly/)
   console.log("ok  S2: Fix docs opens a chat whose prompt names the doc, T001, src/a.ts → src/b.ts, the broken link and vibedoc_propose_edit")
+
+  // 5. Done-when: the proposal carries the corrected path; Accept fixes the doc and the flag clears
+  const chat = page.getByRole("dialog")
+  await chat.getByText("src/b.ts", { exact: false }).first().waitFor()
+  await chat.getByRole("button", { name: "Accept", exact: true }).click()
+  await page.waitForFunction(() => !document.querySelector("[data-doc-outdated]"))
+  assert.equal(readFileSync(path.join(fx, "docs/guide.md"), "utf8"), guide.replace("`src/a.ts`", "`src/b.ts`"))
+  assert.doesNotMatch(await mcp("vibedoc_check_docs", {}), /outdated-ref/)
+  console.log("ok  Done-when: Accept writes the corrected path; the box and the outdated-ref issue are gone")
 
   assert.deepEqual(errors, [], `browser console errors:\n${errors.join("\n")}`)
 } finally {

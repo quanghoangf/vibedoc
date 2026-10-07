@@ -1,5 +1,5 @@
 # T462: Doc upkeep Done-when end to end, close R092
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R092 — Doc upkeep agent
 **Size:** S (~1 hr)
 **Depends on:** T461
@@ -31,5 +31,10 @@ PORT=3192 pnpm dev   # then: BASE=http://localhost:3192 node e2e/doc-upkeep.mjs
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN a done task's commits rename or delete a file and a doc still names its old path → THEN that doc is flagged and the flag clears once the doc no longer names the old path
-- [ ] S2 — WHEN the user clicks Fix docs on a flagged doc → THEN the agent's `vibedoc_propose_edit` with the corrected path fixes the doc on Accept
+_2026-10-07 — ai_
+### Steps
+- [x] S1 — WHEN a done task's commits rename or delete a file and a doc still names its old path → THEN that doc is flagged and the flag clears once the doc no longer names the old path (e2e/doc-upkeep.mjs)
+- [x] S2 — WHEN the user clicks Fix docs on a flagged doc → THEN the agent's `vibedoc_propose_edit` with the corrected path fixes the doc on Accept (e2e/doc-upkeep.mjs, stubbed agent)
+- [ ] In a real project: rename a file in a commit naming a task, mark the task done, open a doc naming the old path → the box appears; Fix docs with a real agent → it proposes the new path; Accept → the box is gone
+### Regression risk
+- [ ] Accepting an agent's doc edit in the chat still updates an open editor buffer without losing unsaved typing
