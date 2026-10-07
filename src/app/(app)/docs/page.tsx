@@ -153,6 +153,9 @@ export default function DocsPage() {
     return err
   }
 
+  // R087: the doc as agents get it (agent-only notes in, human-only blocks out), same URL an agent fetches
+  const mdUrl = (path: string) => `/md/${path.split("/").map(encodeURIComponent).join("/")}${rootParam === "?" ? "" : rootParam}`
+
   const docActions: DocActions = {
     rename: (path) => setPathDialog({ mode: "rename", path }),
     move: (path) => setPathDialog({ mode: "move", path }),
@@ -170,7 +173,15 @@ export default function DocsPage() {
     },
     copyPath: (path) => { navigator.clipboard.writeText(path) },
     copyLink: (path) => { navigator.clipboard.writeText(`${window.location.origin}/docs?doc=${encodeURIComponent(path)}`) },
-    chat: (path) => askAgent(`Let's talk about ${path}. Read it first.`, { newChat: true }),
+    chat: (path) => askAgent(`Let's talk about ${path}. Read it first with vibedoc_read_doc.`, { newChat: true }),
+    copyPage: async (path) => {
+      const res = await fetch(mdUrl(path))
+      if (!res.ok) return toast((await res.text()).trim())
+      await navigator.clipboard.writeText(await res.text())
+      toast(t("docs.pageCopied"))
+    },
+    viewMarkdown: (path) => { window.open(mdUrl(path), "_blank", "noopener") },
+    copyAgentLink: (path) => { navigator.clipboard.writeText(`${window.location.origin}${mdUrl(path)}`) },
     remove: async (path) => {
       const wasOpen = selectedDoc?.path === path
       const res = await fetch(`/api/docs${rootParam}`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) })

@@ -36,9 +36,12 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
-import { applyDelta, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
+import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
+import { forAgent } from './audience'
+import { similarPaths } from './similar-paths'
+import type { LlmsInput } from './llms-txt'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { rankDocs, type SearchResult } from './doc-search'
 import type { DocLint } from './doc-lint'
@@ -487,6 +490,32 @@ export async function readDoc(query: string, root: string): Promise<{ path: stri
   throw new Error(`Doc not found: "${query}"`)
 }
 
+/**
+ * R087: one doc by its exact project-relative path, for URLs any agent can fetch (`/md/<path>`).
+ * Refuses (error starting "Refused") absolute paths, `..` escapes, dot-folders, node_modules and non-.md files;
+ * a missing file throws `Doc not found`. No fuzzy fallback: a URL never serves a neighbouring file.
+ */
+export async function readDocExact(docPath: string, root: string): Promise<{ path: string; content: string }> {
+  const rel = docPath.replace(/\\/g, '/').replace(/^\.\//, '')
+  const segs = rel.split('/')
+  if (!rel.endsWith('.md') || path.isAbsolute(docPath) || segs.some(s => !s || s.startsWith('.') || s === 'node_modules')) {
+    throw new Error(`Refused: "${docPath}" is not a project doc path`)
+  }
+  const resolvedRoot = path.resolve(root)
+  const fullPath = path.resolve(root, rel)
+  if (!fullPath.startsWith(resolvedRoot + path.sep)) throw new Error(`Refused: "${docPath}" is outside the project`)
+  try {
+    return { path: rel, content: await fs.readFile(fullPath, 'utf8') }
+  } catch {
+    throw new Error(`Doc not found: "${docPath}"`)
+  }
+}
+
+/** R087: up to 5 doc paths that look like `query`, for a "did you mean" on a miss. */
+export async function suggestDocs(query: string, root: string): Promise<string[]> {
+  return similarPaths(query, (await listDocs(root)).map(d => d.path), tokenize)
+}
+
 export async function writeDoc(docPath: string, content: string, root: string): Promise<void> {
   const resolvedRoot = path.resolve(root)
   const fullPath = path.resolve(root, docPath)
@@ -526,7 +555,7 @@ export async function getContext(paths: string[], root: string): Promise<string>
   for (const p of paths) {
     try {
       const { content } = await readDoc(p, root)
-      parts.push(`--- FILE: ${p} ---\n\n${content.trim()}`)
+      parts.push(`--- FILE: ${p} ---\n\n${forAgent(content).trim()}`)
     } catch {
       // skip missing or unreadable files
     }
@@ -831,8 +860,8 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
  * The task settings from .vibedoc/settings.json (R055): `tasks.sizeDays` over the defaults (automatic due dates)
  * and `statuses` (custom statuses; the built-ins when unset). `runs.keep` (R059): test runs kept per task, default 5.
  */
-export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number; autoSendBack: boolean; maxAutoFixes: number }> {
-  let s: { tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown; maxAutoFixes?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
+export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number; autoSendBack: boolean; maxAutoFixes: number; agentHeader: boolean }> {
+  let s: { docs?: { agentHeader?: unknown }; tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown; maxAutoFixes?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
   try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
   const budget = Number(s?.memory?.sessionBudgetTokens)
   return {
@@ -846,6 +875,8 @@ export async function readProjectSettings(root: string): Promise<{ sizeDays: Siz
     autoSendBack: s?.tests?.autoSendBack !== false,
     // R065: automatic send-backs in a row before a failed Run goes to a human instead (`tests.maxAutoFixes`)
     maxAutoFixes: Number.isInteger(s?.tests?.maxAutoFixes) && (s?.tests?.maxAutoFixes as number) >= 1 ? (s?.tests?.maxAutoFixes as number) : 3,
+    // R087: the one-line context header on vibedoc_read_doc (`docs.agentHeader`, default on)
+    agentHeader: s?.docs?.agentHeader !== false,
   }
 }
 
@@ -2728,6 +2759,29 @@ export async function updateRegistryAnnotation(
 
   const newContent = content.slice(0, start) + newAnnotationsBlock + content.slice(end + ANNOTATIONS_END.length)
   await writeDoc(REGISTRY_PATH, newContent, root)
+}
+
+/**
+ * R087: what /llms.txt lists, read fresh from the files: every doc outside plans/ (tasks and epics are
+ * reached through the open epics) and docs/specs/ (listed as specs), with its REGISTRY.md description.
+ */
+const EPIC_RANK: Record<RoadmapStatus, number> = { 'in-progress': 0, planned: 1, paused: 2, done: 3 }
+
+export async function getLlmsIndex(root: string): Promise<Pick<LlmsInput, 'title' | 'docs' | 'specs' | 'epics'>> {
+  const [docs, registry, specs, { items }] = await Promise.all([listDocs(root), readRegistry(root), listSpecs(root), listRoadmap(root)])
+  const notes = registry.exists ? parseAnnotations(registry.content) : new Map<string, { description: string }>()
+  return {
+    title: path.basename(path.resolve(root)),
+    docs: docs
+      .filter(d => d.section !== 'plans' && !isSpecPath(d.path))
+      .map(d => ({ path: d.path, section: d.section, description: notes.get(d.path)?.description || undefined })),
+    specs: specs.map(s => ({ path: `docs/specs/${s.capability}.md`, title: s.title, purpose: s.purpose })),
+    epics: items
+      .filter(i => i.parent && i.status !== 'done')
+      // in-progress, then planned, then paused; map order within each
+      .sort((a, b) => EPIC_RANK[a.status] - EPIC_RANK[b.status] || a.order - b.order)
+      .map(i => ({ id: i.id, title: i.title, status: i.status, path: i.file.replace(/\\/g, '/') })),
+  }
 }
 
 /**

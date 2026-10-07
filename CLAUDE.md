@@ -40,6 +40,9 @@ src/
       tasks/run/route.ts    ← Run a task's spec from VibeDoc (one per project, live SSE `test_run`); run/cancel stops it
       suite/run/route.ts    ← Regression suite: every done task's spec in one Playwright run (SSE `suite_run`); shares the run lock
       roadmap/*           ← Roadmap list + create/update/delete/layout
+    llms.txt/route.ts     ← /llms.txt: docs index for any agent, built from the files (R087)
+    md/[...path]/route.ts ← /md/<path>: one doc as text/markdown, agent view (R087)
+  proxy.ts                ← /docs?doc= with Accept: text/markdown → /md/<path>
   components/
     roadmap/              ← Roadmap canvas, nodes, editor
   context/

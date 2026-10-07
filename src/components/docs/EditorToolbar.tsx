@@ -5,7 +5,7 @@ import {
   Heading1, Heading2, Heading3,
   Link2, Code, Code2, Quote,
   Minus, List, ListOrdered,
-  MessageSquareWarning, SquareChevronDown,
+  MessageSquareWarning, SquareChevronDown, Bot, User,
 } from "lucide-react"
 import type { EditorView } from "@codemirror/view"
 import { Button } from "@/components/ui/button"
@@ -113,6 +113,9 @@ export function EditorToolbar({ editorView }: EditorToolbarProps) {
   function hr() { if (v) insertAtCursor(v, "\n---\n") }
   function unorderedList() { if (v) prefixLine(v, "- ") }
   function orderedList() { if (v) prefixLine(v, "1. ") }
+  // R087: notes only agents read / blocks only people read (src/lib/audience.ts)
+  function agentOnly() { if (v) wrapSelection(v, "<!-- agent-only\n", "\n-->") }
+  function humanOnly() { if (v) wrapSelection(v, "<!-- human-only:start -->\n", "\n<!-- human-only:end -->") }
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -135,6 +138,9 @@ export function EditorToolbar({ editorView }: EditorToolbarProps) {
         <ToolBtn icon={<Minus className="h-3.5 w-3.5" />} label={t("docs.horizontalRule")} onClick={hr} />
         <ToolBtn icon={<List className="h-3.5 w-3.5" />} label={t("docs.unorderedList")} onClick={unorderedList} />
         <ToolBtn icon={<ListOrdered className="h-3.5 w-3.5" />} label={t("docs.orderedList")} onClick={orderedList} />
+        <Separator orientation="vertical" className="h-4 mx-1" />
+        <ToolBtn icon={<Bot className="h-3.5 w-3.5" />} label={t("docs.agentOnlyNote")} onClick={agentOnly} />
+        <ToolBtn icon={<User className="h-3.5 w-3.5" />} label={t("docs.humanOnlyBlock")} onClick={humanOnly} />
       </div>
     </TooltipProvider>
   )

@@ -1,8 +1,8 @@
 # R087: Agent-ready docs
 **Parent:** R003
-**Status:** planned
+**Status:** done
 **Order:** 170
-**Tasks:** —
+**Tasks:** T360, T361, T362, T363, T364, T365, T366
 
 Any agent can read the project's docs, even one without MCP: an `/llms.txt` index, each doc as plain markdown at a URL, a short context header on `vibedoc_read_doc`, and notes written only for agents or only for humans. Adapted from Fern's agent-facing docs (llms.txt, `.md` URLs, agent directives, `<llms-only>`), kept local and derived from the files.
 

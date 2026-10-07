@@ -24,6 +24,7 @@ import { parseManualTests } from "@/lib/manual-tests";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
 import { formatLint } from "@/lib/doc-lint";
+import { formatAgentHeader, forAgent } from "@/lib/audience";
 import { failedRunNote } from "@/lib/work-queue";
 import { endpointDetail, formatEndpoint, formatEndpointList } from "@/lib/openapi";
 import {
@@ -31,6 +32,7 @@ import {
   readOpenApi,
   listDocs,
   readDoc,
+  suggestDocs,
   searchDocs,
   getDocLint,
   writeDoc,
@@ -78,6 +80,7 @@ import {
   noteDocEdit,
   setDocProperties,
   readProjectSettings,
+  docLastEdit,
   logSessionStart,
   readActivity,
   getDocGraph,
@@ -111,7 +114,7 @@ import { emitUpdate } from "@/lib/events";
 import { groupSessions, sessionDuration, sessionsForTask } from "@/lib/sessions";
 import { dueState, localToday, roadmapHealth, type TaskInfo } from "@/lib/roadmap-health";
 import { autoFixLine, latestReview } from "@/lib/review";
-import { PRIORITIES, type Priority } from "@/lib/doc-priority";
+import { PRIORITIES, docPriority, type Priority } from "@/lib/doc-priority";
 import { MEMORY_SOURCES, TOOLS } from "@/lib/mcp-tools";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
@@ -273,17 +276,25 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       });
 
     case "vibedoc_read_doc": {
-      const { path: docPath, content } = await readDoc(
-        String(args.query),
-        root,
-      );
+      const query = String(args.query);
+      const { path: docPath, content } = await readDoc(query, root).catch(async (e: Error) => {
+        // R087: a miss names the docs the agent probably meant
+        const hits = await suggestDocs(query, root);
+        throw new Error(hits.length ? `${e.message}. Did you mean:\n${hits.map((p) => `- ${p}`).join("\n")}` : e.message);
+      });
       emitUpdate("doc_read", { path: docPath });
       // R093: count the agent's read (the in-app chat's too); recording never fails the call
       void noteDocRead(root, docPath)
         .then(() => emitUpdate("doc_usage_updated", { path: docPath }))
         .catch((e) => console.warn("[vibedoc] could not record the doc read:", e));
-      const related = formatRelatedFiles(docLinks(await getDocGraph(root), docPath));
-      return `## ${docPath}\n\n${content}` + (related ? `\n\n---\n\n${related}` : "");
+      const [graph, settings, lastEdit] = await Promise.all([getDocGraph(root), readProjectSettings(root), docLastEdit(root, docPath)]);
+      const links = docLinks(graph, docPath);
+      const related = formatRelatedFiles(links);
+      // R087: one line of context first, unless `docs.agentHeader: false`
+      const header = settings.agentHeader
+        ? formatAgentHeader({ path: docPath, priority: docPriority(content), lastEdit, inbound: links ? new Set(links.in.map((l) => l.path)).size : null }) + "\n\n"
+        : "";
+      return `${header}## ${docPath}\n\n${forAgent(content)}` + (related ? `\n\n---\n\n${related}` : "");
     }
 
     case "vibedoc_list_docs": {
