@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import net from 'node:net'
 import { createRequire } from 'node:module'
+import { prepareDemo } from './demo.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
@@ -40,11 +41,16 @@ if (args.some((a) => a === '--version' || a === '-v')) {
 const portIndex = args.indexOf('--port')
 const port = portIndex !== -1 && args[portIndex + 1] ? args[portIndex + 1] : await findFreeRandomPort()
 
+// --demo (R085): the sample project in a throwaway temp copy, removed when this process ends
+const demo = args.includes('--demo') ? prepareDemo() : null
+if (demo) process.on('exit', demo.cleanup) // exit handlers run sync code only: cleanup uses rmSync
+const demoEnv = demo ? { VIBEDOC_PLAYGROUND: '1', VIBEDOC_RUNS_DIR: demo.runsDir } : {}
+
 // Capture the user's cwd before spawning Next.js (which runs from projectRoot)
-const VIBEDOC_ROOT = process.env.VIBEDOC_ROOT || process.cwd()
+const VIBEDOC_ROOT = demo?.root || process.env.VIBEDOC_ROOT || process.cwd()
 
 console.log('\n🚀 Starting VibeDoc...\n')
-console.log(`   Project root: ${VIBEDOC_ROOT}`)
+console.log(demo ? `   Demo: a sample project in a temporary copy (${VIBEDOC_ROOT}), deleted when you stop VibeDoc` : `   Project root: ${VIBEDOC_ROOT}`)
 
 // Start Next.js server
 const isWindows = process.platform === 'win32'
@@ -54,18 +60,19 @@ const server = spawn(npmCmd, ['next', 'start', '-p', port], {
   stdio: 'inherit',
   cwd: projectRoot,
   shell: isWindows,
-  env: { ...process.env, VIBEDOC_ROOT }
+  env: { ...process.env, VIBEDOC_ROOT, ...demoEnv }
 })
 
 server.on('error', (err) => {
   console.error('Failed to start server:', err.message)
   process.exit(1)
 })
+server.on('exit', (code) => process.exit(code ?? 0))
 
 // Wait for server to be ready, then open browser
 await setTimeout(2500)
 
-const url = `http://localhost:${port}/setup`
+const url = `http://localhost:${port}${demo ? '/board' : '/setup'}`
 
 try {
   const open = (await import('open')).default

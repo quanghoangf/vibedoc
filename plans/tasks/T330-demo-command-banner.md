@@ -1,9 +1,11 @@
 # T330: `vibedoc --demo` opens a throwaway sample project with a Demo banner
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R085 — Demo playground
 **Size:** L (half a day)
 **Depends on:** —
 **Covers:** S1, S3
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 
 ## Goal
 One command, `vibedoc --demo`, copies the sample project to a temporary folder, starts VibeDoc on it and opens the board. Every page shows a "Demo" banner whose "Use VibeDoc on my project" button gives the command for the user's own repo. Closing the CLI removes the copy.
@@ -58,8 +60,18 @@ One command, `vibedoc --demo`, copies the sample project to a temporary folder, 
 - [ ] `node bin/demo.check.mts` and `node bin/vibedoc.check.mts` pass; `node src/lib/i18n.check.mts` passes
 
 ## Manual tests
+_2026-10-07 — ai · Spec: `e2e/vibedoc/T330-demo-command-banner.spec.ts` · Auto: passed 2026-10-07_
+### Steps
 - [ ] S1 — WHEN the user runs `vibedoc --demo` → THEN the browser opens a populated sample project with a Demo banner
 - [ ] S3 — WHEN the user clicks "Use VibeDoc on my project" → THEN they get the command for their own repo
+- [x] 🤖 Open /board in the demo → the Listly board shows with a "Demo" banner
+- [x] 🤖 Click "Use VibeDoc on my project" → a dialog shows `cd your-project` and `npx vibedoc` with copy buttons
+- [x] 🤖 The project switcher lists only "listly"
+- [ ] `pnpm build && node bin/vibedoc.mjs --demo` → the terminal says it's a temporary copy, the browser opens on /board
+- [ ] Click a copy button in the dialog, paste somewhere → the command was copied
+- [ ] Press Ctrl+C in the terminal → the temp folder printed at start is gone; `git status examples/` is clean
+### Regression risk
+- [ ] `node bin/vibedoc.mjs` (no `--demo`) in a project → no banner, the browser opens /setup, the project switcher lists sibling projects
 
 ## Verify
 ```bash

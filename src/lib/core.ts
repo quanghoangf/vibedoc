@@ -43,7 +43,7 @@ import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } fro
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
 import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
 import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
-import { isDemo } from './demo'
+import { isDemo, isPlayground } from './demo'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -177,7 +177,7 @@ export function getConfiguredRoot(): string {
 
 /** The project root for a request's `?root=` override. The read-only demo pins the configured root, so visitors can't read other host folders. */
 export function rootFrom(override?: string | null): string {
-  return (!isDemo() && override) || getConfiguredRoot()
+  return (!isDemo() && !isPlayground() && override) || getConfiguredRoot()
 }
 
 // ─── Frontend app (R057) ──────────────────────────────────────────────────────
@@ -372,7 +372,7 @@ export async function discoverProjects(searchBase?: string): Promise<Project[]> 
   const base = searchBase || path.dirname(getConfiguredRoot())
   const projects: Project[] = []
 
-  if (!isDemo()) try {
+  if (!isDemo() && !isPlayground()) try {
     const entries = await fs.readdir(base, { withFileTypes: true })
     for (const entry of entries) {
       if (!entry.isDirectory()) continue

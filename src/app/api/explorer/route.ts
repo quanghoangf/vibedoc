@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getConfiguredRoot, rootFrom, listExplorerFiles, enrichDescription } from '@/lib/core'
+import { rootFrom, listExplorerFiles, enrichDescription } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { isDemo, demoForbidden } from '@/lib/demo'
 
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const body = await req.json()
-    const root = (body.root as string) || getConfiguredRoot()
+    const root = rootFrom(body.root as string | undefined)
     const filePath = body.path as string
     if (!filePath) return NextResponse.json({ error: 'path is required' }, { status: 400 })
     const description = await enrichDescription(filePath, root)
