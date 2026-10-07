@@ -36,12 +36,13 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
-import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
+import { applyDelta, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { rankDocs, type SearchResult } from './doc-search'
-import { lintDocs, summarizeLint, type DocLint, type LintSpecChange } from './doc-lint'
+import type { DocLint } from './doc-lint'
+import { lintProject } from './doc-lint-project'
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } from './memory-sections'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
@@ -2508,30 +2509,8 @@ export async function logSessionStart(root: string, actor: 'ai' | 'human' = 'ai'
  */
 export async function getDocLint(root: string, file?: string): Promise<DocLint> {
   const [files, graph] = await Promise.all([readMarkdownFiles(root), getDocGraph(root)])
-  const one = file?.replace(/\\/g, '/').replace(/^\.?\//, '')
-  const specs = files.filter(f => isSpecPath(f.path)).map(f => ({ path: f.path, spec: parseSpec(f.path, f.raw) }))
-  const specRaw = new Map(files.filter(f => isSpecPath(f.path)).map(f => [specSlug(f.path), f.raw]))
-  const specChanges: LintSpecChange[] = []
-  for (const f of files) {
-    if (!/^plans\/roadmap\/R\d+[^/]*\.md$/.test(f.path) || /^\*\*Spec merged:\*\*/m.test(f.raw)) continue
-    for (const c of parseSpecChanges(f.raw)) {
-      if (!/^[a-z0-9][a-z0-9._-]*$/.test(c.capability)) {
-        specChanges.push({ path: f.path, capability: c.capability, op: '', name: '', message: 'not a capability slug (docs/specs/<slug>.md)' })
-        continue
-      }
-      // op by op, so each error points at its own heading; same result as previewSpecMerge's one applyDelta call
-      let raw = specRaw.get(c.capability) ?? null
-      for (const op of c.ops) {
-        const res = applyDelta(raw, [op], c.capability)
-        raw = res.raw
-        for (const message of res.errors) specChanges.push({ path: f.path, capability: c.capability, op: op.op, name: op.name, message })
-      }
-    }
-  }
-  return summarizeLint(lintDocs(files, graph, { path: one, specs, specChanges }), one ? files.filter(f => f.path === one).length : files.length)
+  return lintProject(files, graph, file)
 }
-
-const specSlug = (p: string) => p.replace(/^docs\/specs\//, '').replace(/\.md$/, '')
 
 // ─── Status summary ───────────────────────────────────────────────────────────
 

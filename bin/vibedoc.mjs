@@ -22,6 +22,21 @@ async function openBrowser(url) {
 
 // Parse args
 const args = process.argv.slice(2)
+// `vibedoc check` (R090): the docs lint for CI from the prebuilt bundle; never starts the app
+if (args[0] === 'check') {
+  let run
+  try {
+    run = (await import('../dist/cli/check.mjs')).default
+  } catch (e) {
+    console.error(`✗ The docs check bundle is missing (${e.code ?? e.message}). In a VibeDoc checkout run: pnpm build:cli`)
+    process.exit(2)
+  }
+  const code = await run(args.slice(1))
+  // flush a large --json report through a pipe before exiting (the rest of this file would start the app)
+  await new Promise((resolve) => process.stdout.write('', resolve))
+  process.exit(code)
+}
+
 // --no-open / VIBEDOC_NO_OPEN=1: start without opening a browser tab (scripts, e2e)
 const noOpen = args.includes('--no-open') || process.env.VIBEDOC_NO_OPEN === '1'
 

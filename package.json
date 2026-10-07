@@ -39,6 +39,7 @@
     "examples/demo-runs/listly/",
     "dist/testing/",
     "dist/lib/",
+    "dist/cli/",
     "src/testing/playwright-fixture.ts",
     "src/testing/vibedoc-reporter.ts",
     "src/lib/runs-paths.ts",
@@ -62,9 +63,10 @@
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "release": "semantic-release",
-    "prepublishOnly": "next build && npm run build:playwright",
+    "prepublishOnly": "next build && npm run build:playwright && npm run build:cli",
     "build:playwright": "tsc -p tsconfig.playwright.json",
-    "version": "node -e \"const f='plugin/.claude-plugin/plugin.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f));j.version=require('./package.json').version;fs.writeFileSync(f,JSON.stringify(j,null,2)+'\\n')\""
+    "version": "node -e \"const f='plugin/.claude-plugin/plugin.json',fs=require('fs'),j=JSON.parse(fs.readFileSync(f));j.version=require('./package.json').version;fs.writeFileSync(f,JSON.stringify(j,null,2)+'\\n')\"",
+    "build:cli": "esbuild src/cli/check.ts --bundle --platform=node --format=esm --target=node18 --packages=external --outfile=dist/cli/check.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
@@ -123,6 +125,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "concurrently": "^10.0.5",
+    "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "latest",
     "postcss": "^8.5.28",
