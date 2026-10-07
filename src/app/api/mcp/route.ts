@@ -51,6 +51,7 @@ import {
   exportEntries,
   deleteEntry,
   sessionStartMemory,
+  recordAgentCall,
   backfillEpisodes,
   currentSessionId,
   writeRunEpisode,
@@ -93,6 +94,7 @@ import {
 } from "@/lib/core";
 import type { TextEdit } from "@/lib/diff";
 import { agentFromUserAgent } from "@/lib/owner";
+import { CHAT_CALL_HEADER } from "@/lib/agent-connect";
 import type { StatusDef } from "@/lib/statuses";
 import { planTarget, validatePlan, type Plan } from "@/lib/plan";
 import { isDemo } from "@/lib/demo";
@@ -807,6 +809,13 @@ export async function POST(req: NextRequest) {
     try {
       const root = rootFrom(req.nextUrl.searchParams.get("root"));
       const agent = typeof args.agent === "string" && args.agent.trim() ? args.agent.trim() : agentFromUserAgent(req.headers.get("user-agent"));
+      // R081: a tool call is the evidence that an agent is connected (initialize / tools/list are health checks;
+      // VibeDoc's own chat marks its calls, since it isn't the user's agent)
+      if (!req.headers.get(CHAT_CALL_HEADER)) {
+        void recordAgentCall(root, agent)
+          .then((wrote) => { if (wrote) emitUpdate("agent_connected", { root, agent }); })
+          .catch((e) => console.warn("[vibedoc] could not record the agent call:", e));
+      }
       const text = await handleTool(name, args, root, agent);
       return ok(id, { content: [{ type: "text", text }] });
     } catch (e: unknown) {

@@ -14,6 +14,7 @@ import { emitUpdate } from '@/lib/events'
 import { groupSessions } from '@/lib/sessions'
 import { buildEpisode, isHandoffWritten, mergeSources, turnSessions } from '@/lib/episodes'
 import { isDemo, demoForbidden } from '@/lib/demo'
+import { CHAT_CALL_HEADER } from '@/lib/agent-connect'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -79,7 +80,8 @@ export async function POST(req: NextRequest) {
   const args = [
     '-p', prompt,
     '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-    '--mcp-config', JSON.stringify({ mcpServers: { vibedoc: { type: 'http', url: mcpUrl } } }),
+    // R081: the header keeps this chat's tool calls from counting as "your agent is connected"
+    '--mcp-config', JSON.stringify({ mcpServers: { vibedoc: { type: 'http', url: mcpUrl, headers: { [CHAT_CALL_HEADER]: '1' } } } }),
     '--strict-mcp-config',
     '--tools', '',
     '--allowedTools', 'mcp__vibedoc__*',

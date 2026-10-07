@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { Suspense, useState, useEffect, useCallback } from "react"
+import { useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
@@ -20,23 +21,32 @@ import type { AppSettings, Skill, Agent } from "@/lib/settings"
 import { DEFAULT_SETTINGS, DEFAULT_SKILLS, DEFAULT_AGENTS } from "@/lib/settings"
 import { applyTheme, applyAccent, applyFontSize, applyFonts } from "@/lib/applySettings"
 
-// label: a message key, or a name shown as written (MCP)
-const TABS: { id: string; label: MessageKey | "MCP"; icon: typeof Palette }[] = [
+const TABS: { id: string; label: MessageKey; icon: typeof Palette }[] = [
+  { id: "connect", label: "connect.tab", icon: Plug },
   { id: "appearance", label: "settings.tabAppearance", icon: Palette },
   { id: "editor", label: "settings.tabEditor", icon: Type },
   { id: "project", label: "settings.tabProject", icon: FolderCog },
   { id: "statuses", label: "settings.tabStatuses", icon: Columns3 },
   { id: "frontend", label: "settings.tabFrontend", icon: AppWindow },
-  { id: "mcp", label: "MCP", icon: Plug },
   { id: "skills", label: "settings.tabSkills", icon: Zap },
   { id: "agents", label: "settings.tabAgents", icon: Bot },
 ]
 
 export default function SettingsPage() {
+  return (
+    <Suspense>
+      <SettingsSections />
+    </Suspense>
+  )
+}
+
+function SettingsSections() {
   const { rootParam, setEditorSettings, setAutoRefreshSeconds } = useApp()
   const { t } = useT()
-  const tabLabel = (l: MessageKey | "MCP") => (l === "MCP" ? l : t(l))
-  const [activeTab, setActiveTab] = useState("appearance")
+  const tabLabel = (l: MessageKey) => t(l)
+  // ?tab=connect is the deep link to a section (R081: empty states and the welcome screen link to Connect)
+  const tabParam = useSearchParams().get("tab")
+  const [activeTab, setActiveTab] = useState(TABS.some(x => x.id === tabParam) ? tabParam as string : "appearance")
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [skills, setSkills] = useState<Skill[]>(DEFAULT_SKILLS)
   const [agents, setAgents] = useState<Agent[]>(DEFAULT_AGENTS)
@@ -183,7 +193,7 @@ export default function SettingsPage() {
             <StatusesSettings settings={settings} onSave={saveSettings} />
           )}
           {activeTab === "frontend" && <FrontendSettings rootParam={rootParam} />}
-          {activeTab === "mcp" && (
+          {activeTab === "connect" && (
             <MCPSettings settings={settings} onSave={saveSettings} />
           )}
           {activeTab === "skills" && (

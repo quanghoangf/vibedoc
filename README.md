@@ -45,7 +45,7 @@ cd your-project
 npx vibedoc
 ```
 
-VibeDoc opens in your browser and prints its MCP URL and the command to connect Claude Code. A project keeps the same address on every run, so you connect once ([Cursor, Windsurf and others](https://quanghoangf.github.io/vibedoc/docs/#2-connect-your-agent)):
+VibeDoc opens in your browser and prints its MCP URL and the command to connect Claude Code. A project keeps the same address on every run, so you connect once. In the app, **Settings → Connect agent** runs both steps below for you after you confirm, and ticks each one when it sees it working (Cursor and others get the config to paste). By hand (Claude Code shown; [Cursor, Windsurf and others](https://quanghoangf.github.io/vibedoc/docs/#2-connect-your-agent)):
 
 ```bash
 claude mcp add --transport http vibedoc http://localhost:3333/api/mcp   # use the URL VibeDoc printed
