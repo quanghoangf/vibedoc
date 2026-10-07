@@ -10,6 +10,7 @@ import { OwnerChip } from "@/components/shared/OwnerChip"
 import { TaskDueField, TaskOwnerField, TaskSizeField } from "./TaskFields"
 import { toast } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
+import { QuickReviewButton } from "./QuickReview"
 import { useTestRun } from "@/components/manual-tests/useTestRun"
 import { useSuiteRun } from "@/components/manual-tests/useSuiteRun"
 import { isRunning } from "@/lib/test-run-events"
@@ -95,7 +96,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
 
       <p className={cn("mt-1 line-clamp-2 text-[13px] font-medium leading-snug", done ? "text-muted" : "text-txt")}>{task.title}</p>
 
-      {(epic || changesRequested || needsHuman || findings > 0 || deps.length > 0 || tests || (task.status === "review" && task.lastRun)) && (
+      {(epic || changesRequested || needsHuman || findings > 0 || deps.length > 0 || tests || (task.status === "review" && !demo)) && (
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
           {epic && (
             <span className="inline-flex min-w-0 max-w-full items-center gap-1 text-[11px] text-muted" title={task.phase}>
@@ -181,6 +182,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
             </Link>
           )}
           {tests?.spec && !demo && !playground && <CardRun taskId={task.id} />}
+          <QuickReviewButton task={task} />
         </div>
       )}
     </div>

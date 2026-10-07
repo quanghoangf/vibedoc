@@ -7,6 +7,7 @@ import { useTaskGroups } from "./useTaskGroups"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
 import { localToday } from "@/lib/roadmap-health"
+import { QuickReviewButton } from "../QuickReview"
 import { TaskDueField, TaskOwnerField, TaskSizeField, TaskStatusField } from "../TaskFields"
 import { epicOf, type PropertyKey, type SortProp, type SortRule, type TaskGroup, type ViewState } from "@/lib/board-views"
 import type { Task, TaskStatus } from "@/types"
@@ -28,7 +29,7 @@ const LABEL: Record<PropertyKey, MessageKey> = {
   status: "board.status", epic: "board.epic", size: "board.size", due: "board.due", deps: "board.dependsOn", tests: "board.tests", agent: "board.agent", owner: "board.owner",
 }
 const WIDTH: Record<PropertyKey, string> = {
-  status: "w-[120px]", epic: "w-[170px]", size: "w-[56px]", due: "w-[92px]", deps: "w-[140px]", tests: "w-[72px]", agent: "w-[88px]", owner: "w-[104px]",
+  status: "w-[120px]", epic: "w-[170px]", size: "w-[56px]", due: "w-[92px]", deps: "w-[140px]", tests: "w-[128px]", agent: "w-[88px]", owner: "w-[104px]",
 }
 /** Hidden below md: the phone table keeps ID · Title · Status · Due · Agent. */
 const WIDE_ONLY = new Set<PropertyKey>(["epic", "size", "deps", "tests", "owner"])
@@ -152,12 +153,15 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
       case "tests":
         return (
           <td key={p} className={cn(cls, cellMono)}>
-            {task.manualTests ? (
-              <span className="inline-flex items-center gap-1">
-                <FlaskConical className="size-3" aria-hidden />
-                {task.manualTests.done}/{task.manualTests.total}
-              </span>
-            ) : "—"}
+            <span className="inline-flex items-center gap-1.5">
+              {task.manualTests ? (
+                <span data-tests-count className="inline-flex items-center gap-1">
+                  <FlaskConical className="size-3" aria-hidden />
+                  {task.manualTests.done}/{task.manualTests.total}
+                </span>
+              ) : "—"}
+              <QuickReviewButton task={task} />
+            </span>
           </td>
         )
       case "agent":

@@ -87,7 +87,7 @@ try {
   // 3. No gate: a task without a report goes straight to done (reset T003 to show it)
   await mcp("vibedoc_update_task", { taskId: "T003", status: "todo" })
   await page.goto(`${BASE}/board`)
-  const card = page.locator("[draggable=true]", { hasText: "Third" })
+  const card = page.locator("[draggable=true]:visible", { hasText: "Third" })
   await card.dragTo(page.locator('[data-column="done"]'))
   for (let i = 0; i < 30 && !file("T003").includes("✅ Done"); i++) await page.waitForTimeout(100)
   assert.match(file("T003"), /\*\*Status:\*\* ✅ Done/)
