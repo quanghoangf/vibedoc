@@ -1,6 +1,6 @@
 # R093: Doc usage signals
 **Parent:** R004
-**Status:** planned
+**Status:** done
 **Order:** 140
 **Tasks:** T480, T481
 
