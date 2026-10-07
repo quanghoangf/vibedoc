@@ -1,5 +1,7 @@
 # T352: "Stuck? Tell us" link to a prefilled GitHub issue
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 **Phase:** R086 — First-run feedback
 **Size:** S (~1 hr)
 **Depends on:** T350
@@ -45,4 +47,10 @@ BASE=http://localhost:3086 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node
 ```
 
 ## Manual tests
-- [ ] S4 — WHEN the user clicks "Stuck? Tell us" → THEN a GitHub issue opens prefilled with the VibeDoc version, OS and the last step reached, and nothing from the project
+_Auto: `e2e/first-run-feedback.mjs` (part 4) + `e2e/i18n.mjs` passed 2026-10-07._
+### Steps
+- [x] S4 — WHEN the user clicks "Stuck? Tell us" → THEN a GitHub issue opens prefilled with the VibeDoc version, OS and the last step reached, and nothing from the project
+- [ ] Click "Stuck? Tell us" in the Help panel while logged in to GitHub → the new-issue form opens in a new tab with the title and body filled (the `first-run` label only applies if it exists in the repo)
+- [ ] Hover the link → the tooltip says what the issue will contain
+### Regression risk
+- [ ] The Help panel still peeks on hover and closes on Esc; "All shortcuts" still works

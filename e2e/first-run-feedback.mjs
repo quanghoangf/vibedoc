@@ -4,15 +4,18 @@
 //      an epic lands on the roadmap and a task is done (S3).
 //   3. Yes on a second project → `started` is sent once, then agent connected / first roadmap / first task done are
 //      each sent once, in order, as they happen; the requests carry the step and nothing from the project (S2).
-//   4. Settings → Privacy on a declined project: on → `started`, then the next step (ones reached while off never); off → nothing (S5).
+//   4. "Stuck? Tell us" (card + Help panel) is a new-issue URL with the version and last step, nothing from the project (S4).
+//   5. Settings → Privacy on a declined project: on → `started`, then the next step (ones reached while off never); off → nothing (S5).
 // GoatCounter is intercepted (never reached). Fails on any browser console error. Fixtures removed in `finally`.
 //
 //   BASE=http://localhost:3086 PW_DIR=node_modules/@playwright/test node e2e/first-run-feedback.mjs
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { launchChrome, stubChat } from "./stub-chat.mjs"
+
+const { version: VERSION } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"))
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const STEPS = ["started", "agent-connected", "first-roadmap", "first-task-done"]
@@ -53,6 +56,16 @@ async function openProject(browser, fx) {
   return { page, hits, errors }
 }
 
+/** S4: the link opens a prefilled new issue that names only the version, OS and step. */
+async function checkStuck(link, fx, step) {
+  const u = new URL(await link.getAttribute("href"))
+  assert.equal(u.origin + u.pathname, "https://github.com/quanghoangf/vibedoc/issues/new")
+  assert.equal(await link.getAttribute("target"), "_blank")
+  const body = u.searchParams.get("body")
+  assert.match(body, new RegExp(`VibeDoc ${VERSION.replace(/\./g, "\\.")} · .+ · last first-run step: ${step}$`))
+  assert.ok(!u.href.includes(path.basename(fx)) && !body.includes(fx), "nothing from the project in the issue")
+}
+
 const until = async (fn, what) => {
   for (let i = 0; i < 100; i++) { if (await fn()) return; await new Promise((r) => setTimeout(r, 100)) }
   assert.fail(`timed out waiting for ${what}`)
@@ -72,6 +85,7 @@ try {
     for (const s of STEPS) {
       await card.getByText(`GET https://vibedoc.goatcounter.com/count?p=${encodeURIComponent(`/first-run/${s}`)}`, { exact: false }).waitFor()
     }
+    await checkStuck(card.getByRole("link", { name: "Stuck? Tell us" }), fxNo, "started")
     await card.getByRole("button", { name: "No thanks" }).click()
     await card.waitFor({ state: "detached" })
     await page.reload()
@@ -83,6 +97,9 @@ try {
     await page.reload()
     await page.waitForLoadState("networkidle")
     assert.deepEqual(hits, [], "opted out: no request to GoatCounter")
+    // The Help panel's link reports the furthest step, consent or not
+    await page.locator('[aria-keyshortcuts="?"]').first().click()
+    await checkStuck(page.getByRole("region", { name: "Help" }).getByRole("link", { name: "Stuck? Tell us" }), fxNo, "first-task-done")
     assert.deepEqual(errors, [])
     await page.close()
   }

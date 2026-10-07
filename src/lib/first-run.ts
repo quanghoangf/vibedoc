@@ -74,3 +74,27 @@ export function markSent(state: FeedbackState, step: StepId): FeedbackState {
 export function isStep(s: unknown): s is StepId {
   return typeof s === 'string' && (STEPS as readonly string[]).includes(s)
 }
+
+/** The furthest step reached (funnel order), what the "Stuck? Tell us" issue reports. */
+export function lastStep(reached: StepId[]): StepId {
+  return [...STEPS].reverse().find((s) => reached.includes(s)) ?? 'started'
+}
+
+/**
+ * "Stuck? Tell us": a new GitHub issue prefilled with only the VibeDoc version, the OS name and the last step.
+ * The user reads and submits it themselves; nothing from the project goes in.
+ */
+export function issueUrl(p: { version: string; os: string; lastStep: StepId }): string {
+  const body = [
+    '**What were you trying to do?**',
+    '',
+    '',
+    '**What happened instead?**',
+    '',
+    '',
+    '---',
+    `VibeDoc ${p.version} · ${p.os || 'unknown OS'} · last first-run step: ${p.lastStep}`,
+  ].join('\n')
+  const q = new URLSearchParams({ title: 'Stuck during setup: ', body, labels: 'first-run' })
+  return `${GITHUB}/issues/new?${q}`
+}

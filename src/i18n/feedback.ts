@@ -21,6 +21,8 @@ export const en = {
   toggle: "First-run feedback",
   toggleHint: "Sends each first-run step once, from now on. Steps you already reached are not sent.",
   unavailable: "Off here: the demo and VIBEDOC_FEEDBACK=0 never send anything.",
+  stuck: "Stuck? Tell us",
+  stuckHint: "Opens a GitHub issue with your VibeDoc version, OS and setup step. You see it before sending.",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -41,4 +43,6 @@ export const vi: Messages<typeof en> = {
   toggle: "Phản hồi lần chạy đầu",
   toggleHint: "Gửi mỗi bước của lần chạy đầu một lần, từ bây giờ. Các bước bạn đã qua sẽ không được gửi.",
   unavailable: "Đang tắt: bản demo và VIBEDOC_FEEDBACK=0 không bao giờ gửi gì.",
+  stuck: "Bị kẹt? Báo cho chúng tôi",
+  stuckHint: "Mở một issue GitHub kèm phiên bản VibeDoc, hệ điều hành và bước cài đặt của bạn. Bạn xem trước khi gửi.",
 }

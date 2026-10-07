@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
-import { STEPS, stepUrl, type StepId } from "@/lib/first-run"
+import { STEPS, issueUrl, stepUrl, type StepId } from "@/lib/first-run"
 
 const STEP_LABEL: Record<StepId, MessageKey> = {
   started: "feedback.stepStarted",
@@ -15,7 +15,7 @@ const STEP_LABEL: Record<StepId, MessageKey> = {
 // Events that can reach a step (session_start = an agent connected)
 const STEP_EVENTS = ["session_start", "task_updated", "task_created", "roadmap_updated", "feedback_updated"]
 
-interface FeedbackStatus { available: boolean; consent: boolean | null; pending: StepId[] }
+interface FeedbackStatus { available: boolean; consent: boolean | null; pending: StepId[]; version: string; lastStep: StepId }
 
 /** Exactly what VibeDoc can send (the card and Settings → Privacy): each step with its request, then what never goes. */
 export function FeedbackDetails() {
@@ -33,6 +33,42 @@ export function FeedbackDetails() {
       </ul>
       <p>{t("feedback.neverSent")}</p>
     </div>
+  )
+}
+
+/** The OS family only (never the version or the machine). */
+function osName(): string {
+  const p = ((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform || navigator.platform || "").toLowerCase()
+  if (p.startsWith("mac")) return "macOS"
+  if (p.startsWith("win")) return "Windows"
+  if (p.includes("linux")) return "Linux"
+  return ""
+}
+
+/**
+ * "Stuck? Tell us" (R086): a prefilled GitHub issue the user reads and submits, with or without consent. Pass the
+ * version and last step when they are at hand (the card), else it asks /api/feedback. Seam for R084's checklist.
+ */
+export function StuckLink({ info, className }: { info?: Pick<FeedbackStatus, "version" | "lastStep">; className?: string }) {
+  const { t } = useT()
+  const { rootParam } = useApp()
+  const [fetched, setFetched] = useState<Pick<FeedbackStatus, "version" | "lastStep"> | null>(null)
+  useEffect(() => {
+    if (info) return
+    fetch(`/api/feedback${rootParam}`).then((r) => r.json()).then(setFetched).catch(() => {})
+  }, [info, rootParam])
+  const s = info ?? fetched
+  if (!s?.version) return null
+  return (
+    <a
+      href={issueUrl({ version: s.version, os: osName(), lastStep: s.lastStep })}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={t("feedback.stuckHint")}
+      className={className ?? "text-xs text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"}
+    >
+      {t("feedback.stuck")}
+    </a>
   )
 }
 
@@ -118,7 +154,8 @@ export function FirstRunFeedback() {
         <div className="mt-2"><FeedbackDetails /></div>
       </details>
       <p className="mt-2 text-xs text-muted">{t("feedback.changeLater")}</p>
-      <div className="mt-3 flex flex-wrap justify-end gap-2">
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+        <span className="mr-auto"><StuckLink info={status} /></span>
         <button type="button" onClick={() => answer(false)} className="rounded-md border border-border px-3 py-1.5 text-xs text-txt hover:bg-surface">
           {t("feedback.no")}
         </button>

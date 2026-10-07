@@ -7,16 +7,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rootFrom, readFeedback, saveFeedback, firstRunReached } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
-import { applyConsent, pendingSteps } from '@/lib/first-run'
+import { applyConsent, lastStep, pendingSteps } from '@/lib/first-run'
+import { VIBEDOC_VERSION } from '@/lib/version'
 import { feedbackAvailable, demoForbidden } from '@/lib/demo'
 
 export const dynamic = 'force-dynamic'
 
+/** `version` + `lastStep` feed the "Stuck? Tell us" link, which works with or without consent. */
 export async function GET(req: NextRequest) {
   const root = rootFrom(req.nextUrl.searchParams.get('root'))
-  if (!feedbackAvailable()) return NextResponse.json({ available: false, consent: null, pending: [] })
-  const [state, reached] = await Promise.all([readFeedback(root), firstRunReached(root)])
-  return NextResponse.json({ available: true, consent: state.consent, pending: pendingSteps(state, reached) })
+  const reached = await firstRunReached(root)
+  const stuck = { version: VIBEDOC_VERSION, lastStep: lastStep(reached) }
+  if (!feedbackAvailable()) return NextResponse.json({ available: false, consent: null, pending: [], ...stuck })
+  const state = await readFeedback(root)
+  return NextResponse.json({ available: true, consent: state.consent, pending: pendingSteps(state, reached), ...stuck })
 }
 
 export async function POST(req: NextRequest) {

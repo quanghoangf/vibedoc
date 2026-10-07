@@ -1,6 +1,6 @@
 // node src/lib/first-run.check.mts
 import assert from "node:assert/strict"
-import { EMPTY_FEEDBACK, STEPS, applyConsent, isStep, markSent, parseFeedback, pendingSteps, reachedSteps, stepUrl } from "./first-run.ts"
+import { EMPTY_FEEDBACK, STEPS, applyConsent, isStep, issueUrl, lastStep, markSent, parseFeedback, pendingSteps, reachedSteps, stepUrl } from "./first-run.ts"
 
 // parse: lenient, unknown steps dropped, order = funnel order
 assert.deepEqual(parseFeedback(null), EMPTY_FEEDBACK)
@@ -49,3 +49,15 @@ for (const s of STEPS) {
 }
 assert.ok(isStep("started") && !isStep("x") && !isStep(3))
 console.log("first-run ok")
+
+// last step + the Stuck issue
+assert.equal(lastStep(["started"]), "started")
+assert.equal(lastStep(["started", "first-roadmap", "agent-connected"]), "first-roadmap")
+assert.equal(lastStep([]), "started")
+const issue = new URL(issueUrl({ version: "1.16.0", os: "macOS", lastStep: "agent-connected" }))
+assert.equal(issue.origin + issue.pathname, "https://github.com/quanghoangf/vibedoc/issues/new")
+assert.deepEqual([...issue.searchParams.keys()], ["title", "body", "labels"])
+assert.match(issue.searchParams.get("body"), /VibeDoc 1\.16\.0 · macOS · last first-run step: agent-connected$/)
+assert.equal(issue.searchParams.get("labels"), "first-run")
+assert.match(new URL(issueUrl({ version: "1", os: "", lastStep: "started" })).searchParams.get("body"), /unknown OS/)
+console.log("first-run issue ok")
