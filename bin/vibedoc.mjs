@@ -1,34 +1,30 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
-import { setTimeout } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import net from 'node:net'
 import { createRequire } from 'node:module'
+import { addressChangedMessage, appUrl, parsePortArg, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, waitUntilReady } from './address.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
 
-function isPortFree(port) {
-  return new Promise((resolve) => {
-    const server = net.createServer()
-    server.once('error', () => resolve(false))
-    server.once('listening', () => server.close(() => resolve(true)))
-    server.listen(port)
-  })
-}
+// The page the browser opens on start (which page that is belongs to R082's first-run screen)
+const START_PATH = '/setup'
 
-async function findFreeRandomPort() {
-  for (let i = 0; i < 20; i++) {
-    // Random port in ephemeral range 49152–65535 (avoids all common service ports)
-    const candidate = Math.floor(Math.random() * (65535 - 49152 + 1)) + 49152
-    if (await isPortFree(candidate)) return candidate
+async function openBrowser(url) {
+  if (noOpen) return console.log(`   Open ${url} in your browser.`)
+  try {
+    const open = (await import('open')).default
+    await open(url)
+  } catch {
+    console.log(`   Open ${url} in your browser.`)
   }
-  throw new Error('Could not find a free port after 20 attempts')
 }
 
 // Parse args
 const args = process.argv.slice(2)
+// --no-open / VIBEDOC_NO_OPEN=1: start without opening a browser tab (scripts, e2e)
+const noOpen = args.includes('--no-open') || process.env.VIBEDOC_NO_OPEN === '1'
 
 // --version / -v: print VibeDoc's own version (relative to this file, not the cwd) and exit
 if (args.some((a) => a === '--version' || a === '-v')) {
@@ -37,46 +33,39 @@ if (args.some((a) => a === '--version' || a === '-v')) {
   process.exit(0)
 }
 
-const portIndex = args.indexOf('--port')
-const port = portIndex !== -1 && args[portIndex + 1] ? args[portIndex + 1] : await findFreeRandomPort()
-
 // Capture the user's cwd before spawning Next.js (which runs from projectRoot)
 const VIBEDOC_ROOT = process.env.VIBEDOC_ROOT || process.cwd()
 
-console.log('\n🚀 Starting VibeDoc...\n')
-console.log(`   Project root: ${VIBEDOC_ROOT}`)
-
-// Start Next.js server
-const isWindows = process.platform === 'win32'
-const npmCmd = isWindows ? 'npx.cmd' : 'npx'
-
-const server = spawn(npmCmd, ['next', 'start', '-p', port], {
-  stdio: 'inherit',
-  cwd: projectRoot,
-  shell: isWindows,
-  env: { ...process.env, VIBEDOC_ROOT }
-})
-
-server.on('error', (err) => {
-  console.error('Failed to start server:', err.message)
+// The project's address (R080): --port N, else the saved port, else the first free one from 3333; saved for next time
+const portArg = parsePortArg(args)
+if (portArg.error) {
+  console.error(`\n✗ ${portArg.error}\n`)
   process.exit(1)
-})
-
-// Wait for server to be ready, then open browser
-await setTimeout(2500)
-
-const url = `http://localhost:${port}/setup`
-
-try {
-  const open = (await import('open')).default
-  await open(url)
-  console.log(`\n✓ VibeDoc running at ${url}\n`)
-  console.log('Press Ctrl+C to stop the server.\n')
-} catch {
-  console.log(`\n✓ VibeDoc running at ${url}`)
-  console.log('Open this URL in your browser.\n')
-  console.log('Press Ctrl+C to stop the server.\n')
 }
+const address = await resolveAddress({ root: VIBEDOC_ROOT, explicit: portArg.port, saved: readSavedPort(VIBEDOC_ROOT) })
+if (address.error) {
+  console.error(`\n✗ ${address.error}\n`)
+  process.exit(1)
+}
+if (address.running) {
+  // Already serving this project: don't start a second one on another port
+  console.log(`\n✓ VibeDoc is already running for this project\n\n${startupBanner({ root: VIBEDOC_ROOT, port: address.running })}\n`)
+  await openBrowser(`${appUrl(address.running)}${START_PATH}`)
+  process.exit(0)
+}
+const port = address.start
+if (!savePort(VIBEDOC_ROOT, port)) console.log(`   (Couldn't save the port to ${path.join(VIBEDOC_ROOT, '.vibedoc', 'port')}; the next run may use another one.)`)
+
+console.log('\n🚀 Starting VibeDoc...\n')
+
+// Start Next.js directly with this Node (no npx), so stopping VibeDoc stops the server too
+const nextBin = createRequire(import.meta.url).resolve('next/dist/bin/next')
+const server = spawn(process.execPath, [nextBin, 'start', '-p', String(port)], {
+  stdio: ['inherit', 'inherit', 'pipe'],
+  cwd: projectRoot,
+  // VIBEDOC_PORT: the app's own port, for an in-app Connect panel (R081)
+  env: { ...process.env, VIBEDOC_ROOT, VIBEDOC_PORT: String(port) }
+})
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
@@ -89,3 +78,41 @@ process.on('SIGTERM', () => {
   server.kill('SIGTERM')
   process.exit(0)
 })
+
+// Show the app's errors live, and keep the tail to explain a failed start
+let stderr = ''
+server.stderr.on('data', (chunk) => {
+  process.stderr.write(chunk)
+  stderr = (stderr + chunk).slice(-8000)
+})
+
+function failed(reason) {
+  const tail = tailLines(stderr)
+  console.error(`\n✗ VibeDoc could not start: ${reason}${tail.length ? `\n\n   Last output:\n${tail.map((l) => `   ${l}`).join('\n')}` : ''}\n`)
+}
+
+server.on('error', (err) => {
+  failed(err.message)
+  process.exit(1)
+})
+
+// Open the browser only once the app answers, never on a page that isn't up yet
+const ready = await waitUntilReady({ port, child: server })
+if (ready !== 'ready') {
+  if (ready === 'timeout') {
+    server.kill('SIGTERM')
+    failed(`the app didn't answer on ${appUrl(port)} within 60 seconds`)
+    process.exit(1)
+  }
+  failed(`the app exited with code ${ready.exit}`)
+  process.exit(ready.exit || 1)
+}
+server.on('exit', (code) => process.exit(code ?? 0))
+
+const url = `${appUrl(port)}${START_PATH}`
+
+console.log(`\n✓ VibeDoc is ready\n\n${startupBanner({ root: VIBEDOC_ROOT, port })}\n`)
+if (address.changedFrom) console.log(`${addressChangedMessage({ oldPort: address.changedFrom, newPort: port })}\n`)
+await openBrowser(url)
+console.log('   Press Ctrl+C to stop the server.\n')
+

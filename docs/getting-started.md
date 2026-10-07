@@ -11,7 +11,7 @@ cd your-project
 npx vibedoc
 ```
 
-VibeDoc picks a free port, prints the URL in the terminal and opens the setup wizard (`/setup`) in your browser. The wizard can generate starter docs such as `CLAUDE.md`. It is optional: to skip it, click **Board** in the sidebar. Pin the port with `npx vibedoc --port 3333`.
+VibeDoc prints the app URL, the MCP URL and the command to connect Claude Code in the terminal and opens the setup wizard (`/setup`) in your browser. The wizard can generate starter docs such as `CLAUDE.md`. It is optional: to skip it, click **Board** in the sidebar. A project keeps its port between runs (first free from 3333, saved in `.vibedoc/port`), so the MCP URL doesn't change. Choose it with `npx vibedoc --port 4000`. The browser opens once the app answers; `--no-open` (or `VIBEDOC_NO_OPEN=1`) starts it without opening a tab. If the app can't start, VibeDoc prints why and exits with a non-zero code.
 
 To keep a `vibedoc` command instead of `npx`, install it once with any of these (Homebrew brings its own Node):
 
