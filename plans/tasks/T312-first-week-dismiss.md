@@ -17,10 +17,10 @@ The user can dismiss the checklist and it never comes back for this project; whe
 
 ## Scope
 - [ ] `dismissFirstWeek(root)` / `restoreFirstWeek(root)` in core; `getFirstWeek()` returns `dismissed`
-- [ ] `POST /api/first-week/dismiss` and `POST /api/first-week/restore`, each `emitUpdate('first_week_updated')`; `FirstWeek.tsx` refetches on it (other tabs hide too)
+- [ ] `POST /api/first-week/dismiss` and `POST /api/first-week/restore`, each `emitUpdate('first_week_updated')`; `AppContext` refreshes on it (other tabs hide too); the clicking tab hides at once
 - [ ] A dismiss button (✕, accessible name) in the section header; dismiss shows `undoToast()` (`components/ui/toast.tsx`) whose Undo calls restore
 - [ ] Finished state as above
-- [ ] CLAUDE.md: add `.vibedoc/first-week.json` to the list of files VibeDoc writes
+- [ ] CLAUDE.md: add `.vibedoc/first-week.json` to the list of files VibeDoc writes; add `/.vibedoc/first-week.json` to this repo's `.gitignore` (a dismissal is per install: a teammate who clones gets their own first week)
 - [ ] Extend `e2e/first-week.mjs`: dismiss → gone; reload → still gone; another project (second fixture) still shows it
 
 **Out of scope:** re-opening a dismissed checklist from Settings (not asked for).
@@ -30,7 +30,8 @@ The user can dismiss the checklist and it never comes back for this project; whe
 - `src/app/api/first-week/dismiss/route.ts`, `src/app/api/first-week/restore/route.ts` — new
 - `src/components/layout/FirstWeek.tsx`
 - `src/i18n/firstWeek.ts`
-- `CLAUDE.md`
+- `CLAUDE.md`, `.gitignore`
+- `src/context/AppContext.tsx` — refresh on `first_week_updated`
 - `e2e/first-week.mjs`
 
 ## Acceptance criteria
