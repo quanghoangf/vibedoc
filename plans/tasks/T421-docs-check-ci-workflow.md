@@ -1,5 +1,5 @@
 # T421: Sample GitHub Actions workflow + epic Done-when
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R090 — Docs check in CI
 **Size:** S (~1 hr)
 **Depends on:** T420
@@ -35,5 +35,10 @@ node bin/check.check.mts
 ```
 
 ## Manual tests
+_2026-10-07 — ai_
 ### Steps
 - [ ] S4 — WHEN a team copies the sample GitHub Actions workflow from the site docs → THEN a PR that breaks a doc link fails the job, and passes once the link is fixed
+- [ ] `pnpm --dir site dev`, open /vibedoc/docs/docs-check/ → "Docs check in CI" is in the Start sidebar after Troubleshooting, with the rules table, exit codes and the workflow YAML
+- [ ] Copy the YAML into a test repo after the next release, open a PR with a broken `[x](missing.md)` link → the "Docs check" job fails with the broken-link line; fix it → the job passes
+### Regression risk
+- [ ] The other Start pages (Troubleshooting, Privacy, Changelog) still show in the sidebar in the same order
