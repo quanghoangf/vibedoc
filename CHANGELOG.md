@@ -1,3 +1,43 @@
+# [1.17.0](https://github.com/quanghoangf/vibedoc/compare/v1.16.0...v1.17.0) (2026-10-07)
+
+
+### Bug Fixes
+
+* **cli:** set the start page after --demo is parsed ([c902aa0](https://github.com/quanghoangf/vibedoc/commit/c902aa083c7c1923be6a42a03dd63b2b825b972b))
+* **connect:** the in-app chat's tool calls no longer count as a connected agent (T250) ([3042e7d](https://github.com/quanghoangf/vibedoc/commit/3042e7d487d76967c1ab3ba897d0b851626c7b0a))
+* **demo:** commit the sample's activity log, which .gitignore caught (T334) ([1d8c267](https://github.com/quanghoangf/vibedoc/commit/1d8c267c53135bd976f670b46fef4df7f0d5cd16))
+* **feedback:** retry unsent steps, skip step events when opted out ([1c8e2cf](https://github.com/quanghoangf/vibedoc/commit/1c8e2cf520d5b23f27302d4d203d71940bfc2026))
+
+
+### Features
+
+* **board:** teaching empty state with copy command and agent connect line (T290) ([b9e8762](https://github.com/quanghoangf/vibedoc/commit/b9e876254f7630bdecc5e69a200baeb0aed1127e))
+* **cli:** open the browser only when the app answers, explain a failed start (T233) ([21662c2](https://github.com/quanghoangf/vibedoc/commit/21662c2568606694a828b358ef628b1131f9ef42))
+* **cli:** reuse a running VibeDoc, else move ports and say how to reconnect (T232) ([2a2f59c](https://github.com/quanghoangf/vibedoc/commit/2a2f59cef23eb5749cf591eb6e56b6b086c76c33))
+* **cli:** same address for a project on every run, print MCP URL and connect command (T231) ([95c61f8](https://github.com/quanghoangf/vibedoc/commit/95c61f8c4134e9f455c61055c8b14c985375da7e))
+* **connect:** connection evidence and Connect agent panel with a live MCP step (T250) ([ff90e91](https://github.com/quanghoangf/vibedoc/commit/ff90e916ce925d6ad1649b46c8a32c07562d2b37))
+* **connect:** Cursor and other agents get a config to paste with the same live check (T253) ([d268d3d](https://github.com/quanghoangf/vibedoc/commit/d268d3d0de533e0413db59c607d00ce10e955f42))
+* **connect:** one-click Claude Code MCP connect with confirm and replace (T251) ([76ddd46](https://github.com/quanghoangf/vibedoc/commit/76ddd46d20650c63d1d021939c198f201ddda6e8))
+* **connect:** skills step detects and installs the vibedoc plugin (T252) ([577b3a0](https://github.com/quanghoangf/vibedoc/commit/577b3a06c0088efd5a9e561184e6244db658247d))
+* **demo:** a lived-in sample with chats, activity, scenarios and dates near today (T332) ([0fbcf92](https://github.com/quanghoangf/vibedoc/commit/0fbcf923315b37c0134d5c78a119000ccaf452c1))
+* **demo:** a recorded sample test run with a playable evidence video (T333) ([29ca5c3](https://github.com/quanghoangf/vibedoc/commit/29ca5c31d3bdbc409b67f9a32227b002bbd23780))
+* **demo:** the demo runs no agents and leaves nothing behind (T331) ([d3fb059](https://github.com/quanghoangf/vibedoc/commit/d3fb05935cee1d8d3a2da3046f61590d56816a37))
+* **demo:** Try the demo on the site and in the docs, and the epic's end-to-end check (T334) ([53f88b0](https://github.com/quanghoangf/vibedoc/commit/53f88b0ad263c7564566c392fa7af9d7758eac5e))
+* **demo:** vibedoc --demo opens a throwaway sample project with a Demo banner (T330) ([a149e4c](https://github.com/quanghoangf/vibedoc/commit/a149e4cf26a1e572600d9e9b72aa32de31645374))
+* **feedback:** consent card and anonymous first-run step events (T350) ([e2020ab](https://github.com/quanghoangf/vibedoc/commit/e2020abed46c6ca2133d18c1e7e8a179ff0d8bb9))
+* **feedback:** first-run funnel script and privacy docs (T353) ([bfd21ec](https://github.com/quanghoangf/vibedoc/commit/bfd21eccc206beab690bc23a1f380529e6222ae7))
+* **feedback:** Settings → Privacy switch for first-run feedback (T351) ([1b0ef0c](https://github.com/quanghoangf/vibedoc/commit/1b0ef0cb543bc089c59dad848dff4b0876300329))
+* **feedback:** Stuck? Tell us link to a prefilled GitHub issue (T352) ([e6e51b3](https://github.com/quanghoangf/vibedoc/commit/e6e51b38029f21e7a295687c347b220d8bcff94d))
+* **first-run:** agent row and optional Write project docs on the welcome (T271) ([af86939](https://github.com/quanghoangf/vibedoc/commit/af86939a9986dc9831160e2e0fbb173cc2bbb32e))
+* **first-run:** project-aware first screen and /start welcome (T270) ([1a037c7](https://github.com/quanghoangf/vibedoc/commit/1a037c74010195167916bf5652c270df40c9f387))
+* **first-run:** reopen the last page used on a set-up project (T272) ([b8a0337](https://github.com/quanghoangf/vibedoc/commit/b8a03373cbae65fd9c5c8be8037cc6c5bd9fd358))
+* **memory:** teaching empty states for memory, activity and chat (T292) ([710fa16](https://github.com/quanghoangf/vibedoc/commit/710fa165f6c6b61926d53d565b877c056b0ad5ff))
+* **onboarding:** dismiss the first-week checklist per project, All done when finished (T312) ([19c6260](https://github.com/quanghoangf/vibedoc/commit/19c62609a9b6d26a64680ae299181a6b355611bd))
+* **onboarding:** first-week checklist derived from the project, live in the sidebar (T310) ([70b8f1d](https://github.com/quanghoangf/vibedoc/commit/70b8f1dfe64a1fb26fe9bb331d47a72842644059))
+* **onboarding:** first-week next step is one click, page link or command to copy (T311) ([d0ef027](https://github.com/quanghoangf/vibedoc/commit/d0ef0278574e0f2e0171ecfedbf25230edc69e58))
+* **roadmap:** teaching empty states for roadmap, graph, docs and explorer (T291) ([1615ff8](https://github.com/quanghoangf/vibedoc/commit/1615ff806dc302be528620d20905305c6371fb8a))
+* **testing:** teaching empty states for test review, suite and run player (T293) ([86f99f0](https://github.com/quanghoangf/vibedoc/commit/86f99f0f2117c7318f9a60834bbbc742d172ae52))
+
 # [1.16.0](https://github.com/quanghoangf/vibedoc/compare/v1.15.0...v1.16.0) (2026-10-06)
 
 
