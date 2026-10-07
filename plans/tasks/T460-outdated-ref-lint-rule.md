@@ -1,5 +1,5 @@
 # T460: "May be outdated" lint rule from done tasks' renames
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R092 — Doc upkeep agent
 **Size:** M (2–3 hrs)
 **Depends on:** —
@@ -45,4 +45,10 @@ pnpm lint && pnpm build
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN a done task's commits rename or delete a file and a doc still names its old path → THEN that doc is flagged "may be outdated" with the task and the old → new path, and the flag clears once the doc no longer names it
+_2026-10-07 — ai_
+### Steps
+- [x] S1 — WHEN a done task's commits rename or delete a file and a doc still names its old path → THEN that doc is flagged "may be outdated" with the task and the old → new path, and the flag clears once the doc no longer names it (vibedoc_check_docs part: e2e/doc-upkeep.mjs)
+- [ ] In a project where a done task's commit (subject names the task) renamed a file a doc names, open /docs → the check line counts one more warning; open it → "May be outdated" under that doc
+- [ ] Switch to Tiếng Việt → the rule reads "Có thể đã lỗi thời"
+### Regression risk
+- [ ] /docs check line on this repo still shows the same counts as before (no outdated-ref on main)

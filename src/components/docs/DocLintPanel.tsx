@@ -18,6 +18,7 @@ const RULE_LABEL: Record<LintRule, MessageKey> = {
   "orphan-doc": "docs.lintRuleOrphanDoc",
   "spec-structure": "docs.lintRuleSpecStructure",
   "spec-changes": "docs.lintRuleSpecChanges",
+  "outdated-ref": "docs.lintRuleOutdatedRef",
 }
 
 // SSE events that can change what the lint finds (a file or a link moved)

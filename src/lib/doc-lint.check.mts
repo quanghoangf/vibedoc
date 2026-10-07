@@ -81,4 +81,11 @@ const sec = lint([{ path: 'notes/s.md', raw: '# S\n\n## Setup\n\n```\n## not thi
 assert.deepEqual(sec.map(i => [i.line, i.heading]), [[8, 'Setup']])
 assert.equal(lint([{ path: 'notes/t.md', raw: 'no heading' }])[0].heading, undefined)
 
+// outdated-ref (R092): warn, target = old path, task + new path carried for the Fix docs prompt
+const g = { path: 'docs/g.md', raw: '# G\n\n## Files\nSee `src/a.ts`.\n' }
+const od = lintDocs([g], graphOf([g]), { outdated: [{ path: g.path, line: 4, taskId: 'T001', from: 'src/a.ts', to: 'src/b.ts' }, { path: g.path, line: 4, taskId: 'T002', from: 'src/x.ts' }] })
+  .filter(i => i.rule === 'outdated-ref')
+assert.deepEqual(od.map(i => `${i.line} ${i.level} ${i.message}`), ['4 warn `src/a.ts` was renamed to `src/b.ts` by T001', '4 warn `src/x.ts` was deleted by T002'])
+assert.deepEqual([od[0].target, od[0].task, od[0].renamedTo, od[0].heading, od[1].renamedTo], ['src/a.ts', 'T001', 'src/b.ts', 'Files', undefined])
+
 console.log('doc-lint: ok')

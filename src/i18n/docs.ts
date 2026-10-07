@@ -200,6 +200,7 @@ export const en = {
   lintRuleOrphanDoc: "Not linked from anywhere",
   lintRuleSpecStructure: "Spec structure",
   lintRuleSpecChanges: "Spec changes won't merge",
+  lintRuleOutdatedRef: "May be outdated",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -388,4 +389,5 @@ export const vi: Messages<typeof en> = {
   lintRuleOrphanDoc: "Không có liên kết nào tới",
   lintRuleSpecStructure: "Cấu trúc spec",
   lintRuleSpecChanges: "Thay đổi spec không gộp được",
+  lintRuleOutdatedRef: "Có thể đã lỗi thời",
 }

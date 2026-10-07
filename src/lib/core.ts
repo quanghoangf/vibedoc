@@ -42,6 +42,7 @@ import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } f
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { rankDocs, type SearchResult } from './doc-search'
 import { lintDocs, summarizeLint, type DocLint, type LintSpecChange } from './doc-lint'
+import { NAME_STATUS_LOG_ARGS, outdatedRefs, parseNameStatusLog, type LogCommit, type OutdatedRef } from './doc-upkeep'
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } from './memory-sections'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
@@ -2510,7 +2511,40 @@ export async function getDocLint(root: string, file?: string): Promise<DocLint> 
       }
     }
   }
-  return summarizeLint(lintDocs(files, graph, { path: one, specs, specChanges }), one ? files.filter(f => f.path === one).length : files.length)
+  const outdated = await docOutdatedRefs(root, files.filter(f => DOC_KINDS.has(f.item.node.kind) && (!one || f.path === one)))
+  return summarizeLint(lintDocs(files, graph, { path: one, specs, specChanges, outdated }), one ? files.filter(f => f.path === one).length : files.length)
+}
+
+const DOC_KINDS = new Set(['doc', 'adr', 'spec'])
+const UPKEEP_LOG_COMMITS = 500
+// ponytail: newest log per root, keyed by HEAD; a commit or checkout re-runs one git log (~0.3s on 500 commits)
+const upkeepLogCache: Map<string, { head: string; commits: LogCommit[] }> = (() => {
+  const g = globalThis as { __vibedocUpkeepLog?: Map<string, { head: string; commits: LogCommit[] }> }
+  return (g.__vibedocUpkeepLog ??= new Map())
+})()
+
+/**
+ * R092: docs naming a path a done task's commits renamed or deleted (the subject names the task, as verify context
+ * finds them). Derived on read over the newest 500 commits; no git or no commits → none.
+ */
+async function docOutdatedRefs(root: string, docs: { path: string; raw: string }[]): Promise<OutdatedRef[]> {
+  if (!docs.length) return []
+  let commits: LogCommit[]
+  try {
+    const head = (await git(['rev-parse', 'HEAD'], root)).trim()
+    const hit = upkeepLogCache.get(root)
+    if (hit?.head === head) commits = hit.commits
+    else {
+      commits = parseNameStatusLog(await git([...NAME_STATUS_LOG_ARGS, '-n', String(UPKEEP_LOG_COMMITS)], root))
+      upkeepLogCache.set(root, { head, commits })
+    }
+  } catch {
+    return [] // not a git repo, or no commits yet: nothing can be outdated
+  }
+  const olds = [...new Set(commits.flatMap(c => c.changes.map(ch => ch.from)))]
+  const there = new Set(await Promise.all(olds.map(p => fs.access(path.join(root, p)).then(() => p, () => ''))))
+  const { tasks } = await listTasks(root)
+  return outdatedRefs({ docs, commits, doneTaskIds: new Set(tasks.filter(t => t.status === 'done').map(t => t.id)), exists: p => there.has(p) })
 }
 
 const specSlug = (p: string) => p.replace(/^docs\/specs\//, '').replace(/\.md$/, '')
