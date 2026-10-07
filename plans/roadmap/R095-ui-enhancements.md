@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** planned
 **Order:** 360
-**Tasks:** T504
+**Tasks:** T504, T505
 
 Small fixes to layout and behaviour that make daily use smoother. Each task is one self-contained polish item found while using VibeDoc.
 
@@ -14,3 +14,6 @@ Small fixes to layout and behaviour that make daily use smoother. Each task is o
 ### S1: Docs explorer scrolls on its own
 - WHEN a long doc is open on /docs and the user scrolls the doc
 - THEN the docs explorer on the left stays in place at full viewport height, and scrolling inside the explorer moves only the explorer
+### S2: Task and epic properties in /docs
+- WHEN a task or epic file is opened in /docs
+- THEN its `**Key:** Value` meta lines show as property rows (status, phase, owner, dates…) instead of one plain-text paragraph, and status / owner / size / priority / due are editable like on the board
