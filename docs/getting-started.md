@@ -11,7 +11,7 @@ cd your-project
 npx vibedoc
 ```
 
-VibeDoc picks a free port, prints the URL in the terminal and opens the setup wizard (`/setup`) in your browser. The wizard can generate starter docs such as `CLAUDE.md`. It is optional: to skip it, click **Board** in the sidebar. Pin the port with `npx vibedoc --port 3333`.
+VibeDoc picks a free port, prints the URL in the terminal and opens your browser on the screen that fits the project. A new project gets a welcome (`/start`) with one first move: with docs, **Generate roadmap from your docs**; with nothing yet, **Plan the first epics with the agent**. A project that already has tasks or a roadmap opens the board, or the page you used last. The template wizard that drafts starter docs such as `CLAUDE.md` is optional: **Write project docs** on the welcome opens it (`/setup`). Pin the port with `npx vibedoc --port 3333`.
 
 To keep a `vibedoc` command instead of `npx`, install it once with any of these (Homebrew brings its own Node):
 

@@ -1,6 +1,6 @@
 # R082: Smart first screen
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 340
 **Tasks:** T270, T271, T272, T273
 
