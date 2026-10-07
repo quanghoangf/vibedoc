@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useRef, useState, type CSSProperties, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
@@ -9,7 +9,7 @@ import { StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
 import { TaskRuns } from "./TaskRuns"
 import Link from "next/link"
-import { Bot, Calendar, Check, ChevronRight, Copy, CircleDashed, CornerUpLeft, Flag, FlaskConical, Map as MapIcon, ListChecks, MessageSquare, MoreHorizontal, Pencil, Ruler, ScanSearch, Trash2, User } from "lucide-react"
+import { Bot, Calendar, Check, ChevronRight, Copy, CircleDashed, CornerUpLeft, FileText, Flag, FlaskConical, Map as MapIcon, ListChecks, MessageSquare, MoreHorizontal, Ruler, ScanSearch, Trash2, User } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
@@ -19,8 +19,7 @@ import { epicOf } from "@/lib/board-views"
 import { localToday, dueState } from "@/lib/roadmap-health"
 import { DueChip } from "@/components/roadmap/RoadmapNodes"
 import { itemKeyLabel, useItemCommands } from "@/components/shared/item-commands"
-import { deleteTaskWithUndo, updateTask } from "./task-api"
-import type { TaskMetaPatch } from "@/types"
+import { deleteTaskWithUndo } from "./task-api"
 import { AgentMark } from "@/components/chat/AgentMark"
 import { useApp } from "@/context/AppContext"
 import { toast } from "@/components/ui/toast"
@@ -31,6 +30,8 @@ import { SEVERITIES, formatFindingsNote, type Verification } from "@/lib/verific
 import { verifyTask } from "@/lib/ask-agent"
 import type { AutoRun } from "@/lib/manual-tests"
 import { useT } from "@/context/LanguageContext"
+import { readCookie } from "@/lib/player-prefs"
+import { clampPanelWidth, panelWidthCookie, parsePanelWidth, PANEL_DEFAULT_WIDTH, PANEL_KEYBOARD_STEP, PANEL_MIN_WIDTH, PANEL_WIDTH_COOKIE } from "@/lib/panel-width"
 import { useStatusLabel } from "@/components/shared/StatusIcon"
 import type { MessageKey } from "@/i18n"
 
@@ -67,9 +68,50 @@ export function TaskDetailPanel({ task: openTask, onClose, onMove }: TaskDetailP
   const [task, setTask] = useState(openTask)
   if (openTask && openTask !== task) setTask(openTask)
 
+  const { t } = useT()
+  // Drag the left edge (or ←/→ on it) to resize; the width is remembered per browser in a cookie
+  // read on first render: the sheet's content only mounts in the browser, so there's no server markup to mismatch
+  const [width, setWidth] = useState(() => typeof document === "undefined"
+    ? PANEL_DEFAULT_WIDTH
+    : clampPanelWidth(parsePanelWidth(readCookie(document.cookie, PANEL_WIDTH_COOKIE)), window.innerWidth))
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const resizeTo = (w: number) => {
+    const next = clampPanelWidth(w, window.innerWidth)
+    setWidth(next)
+    document.cookie = panelWidthCookie(next)
+  }
+
   return (
     <Sheet open={!!openTask} onOpenChange={(open) => { if (!open) onClose() }}>
-      <SheetContent side="right" aria-describedby={undefined} className="p-0 gap-0 sm:max-w-[420px] border-border flex flex-col">
+      <SheetContent
+        side="right"
+        aria-describedby={undefined}
+        style={{ "--panel-w": `${width}px` } as CSSProperties}
+        className="p-0 gap-0 sm:w-(--panel-w) sm:max-w-none border-border flex flex-col"
+      >
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t("board.resizeTaskPanel")}
+          aria-valuenow={width}
+          aria-valuemin={PANEL_MIN_WIDTH}
+          tabIndex={0}
+          data-panel-resize
+          onPointerDown={(e) => {
+            e.preventDefault()
+            e.currentTarget.setPointerCapture(e.pointerId)
+            dragRef.current = { startX: e.clientX, startWidth: width }
+          }}
+          // the edge is on the left: dragging left widens the panel
+          onPointerMove={(e) => { if (dragRef.current) resizeTo(dragRef.current.startWidth - (e.clientX - dragRef.current.startX)) }}
+          onPointerUp={() => { dragRef.current = null }}
+          onDoubleClick={() => resizeTo(PANEL_DEFAULT_WIDTH)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowLeft") { e.preventDefault(); resizeTo(width + PANEL_KEYBOARD_STEP) }
+            else if (e.key === "ArrowRight") { e.preventDefault(); resizeTo(width - PANEL_KEYBOARD_STEP) }
+          }}
+          className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize max-sm:hidden after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:transition-colors hover:after:bg-accent/60 focus-visible:outline-none focus-visible:after:bg-accent active:after:bg-accent"
+        />
         {task && <TaskDetailBody task={task} active={!!openTask} onClose={onClose} onMove={onMove} title={(text) => <SheetTitle className="text-base font-semibold leading-snug text-txt">{text}</SheetTitle>} />}
       </SheetContent>
     </Sheet>
@@ -92,19 +134,17 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
 }) {
   const nextStatuses = NEXT_STATUS[task.status] || []
   const { chats, showAbout } = useChats()
-  const { rootParam, demo } = useApp()
+  const { rootParam, demo, openDoc } = useApp()
   const chat = chatFor(chats, { kind: "task", id: task.id })
-  // the edit form shows while this matches the open task
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const editing = editingId === task.id
   const [error, setError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const statusDefs = useStatusDefs()
   const statusLabel = useStatusLabel()
   const { t } = useT()
   const chatAbout = () => { onClose(); showAbout({ kind: "task", id: task.id }) }
-  useItemCommands(active && !editing ? `${task.id} · ${task.title}` : null, [
-    { action: "edit", label: t("board.edit"), run: () => setEditingId(task.id) },
+  const openFull = () => { onClose(); void openDoc(task.file) }
+  useItemCommands(active ? `${task.id} · ${task.title}` : null, [
+    { action: "open", label: t("board.openFullDoc"), run: openFull },
     { action: "status", label: t("board.changeStatus"), run: () => setMenuOpen(true) },
     { action: "chat", label: t("board.chatAboutTask"), run: chatAbout },
     { action: "remove", label: t("board.delete"), run: () => { remove() } },
@@ -125,15 +165,26 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
       <ItemPanelHeader
         kicker={<TaskCrumb task={task} onNavigate={onClose} />}
         title={title ? title(task.title) : <h2 className="text-base font-semibold leading-snug text-txt">{task.title}</h2>}
-        menu={demo ? undefined :
+        menu={<div className="ml-auto flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={openFull}
+            aria-label={t("board.openFullDoc")}
+            title={`${t("board.openFullDoc")} (${itemKeyLabel("open")})`}
+            data-open-full-doc
+            className="grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt"
+          >
+            <FileText className="size-4" aria-hidden />
+          </button>
+          {!demo &&
             <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
               <DropdownMenuTrigger asChild>
-                <button type="button" aria-label={t("board.actionsFor", { id: task.id })} className="ml-auto grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
+                <button type="button" aria-label={t("board.actionsFor", { id: task.id })} className="grid size-6 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt">
                   <MoreHorizontal className="size-4" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onSelect={() => setEditingId(task.id)}><Pencil /> {t("board.edit")}<DropdownMenuShortcut>{itemKeyLabel("edit")}</DropdownMenuShortcut></DropdownMenuItem>
+                <DropdownMenuItem onSelect={openFull}><FileText /> {t("board.openFullDoc")}<DropdownMenuShortcut>{itemKeyLabel("open")}</DropdownMenuShortcut></DropdownMenuItem>
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger><StatusIcon status={displayStatus(task)} /> {t("board.status")}<DropdownMenuShortcut>{itemKeyLabel("status")}</DropdownMenuShortcut></DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
@@ -148,14 +199,12 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> {t("board.delete")}<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
               </DropdownMenuContent>
-            </DropdownMenu>
-        }
+            </DropdownMenu>}
+        </div>}
         properties={taskProperties(task, t)}
       />
 
       {error && <p role="alert" className="px-5 py-2 text-xs text-danger border-b border-border">{error}</p>}
-
-      {editing && <TaskEditForm key={`edit-${task.id}`} task={task} rootParam={rootParam} onDone={() => setEditingId(null)} />}
 
       {/* Quick actions (none in the read-only demo) */}
       {!demo && <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-border shrink-0">
@@ -343,76 +392,7 @@ function taskProperties(task: Task, t: (key: MessageKey) => string): ItemPropert
   ]
 }
 
-const FIELD = "w-full rounded-md border border-border bg-bg px-2.5 py-1.5 text-sm text-txt focus:border-accent/60 focus:outline-hidden"
 
-/** Title and meta fields; sends only what changed, so the body and other fields stay as they are. */
-function TaskEditForm({ task, rootParam, onDone }: { task: Task; rootParam: string; onDone: () => void }) {
-  const [base] = useState(task)
-  const [title, setTitle] = useState(task.title)
-  const [size, setSize] = useState(task.size === "—" ? "" : task.size)
-  const [phase, setPhase] = useState(task.phase === "—" ? "" : task.phase)
-  const [dependsOn, setDependsOn] = useState(task.dependsOn === "—" ? "" : task.dependsOn)
-  const [due, setDue] = useState(task.due ?? "")
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const { t } = useT()
-  const orDash = (v: string) => (v.trim() === "—" ? "" : v.trim())
-
-  async function save() {
-    const patch: TaskMetaPatch = {}
-    if (title.trim() && title.trim() !== base.title) patch.title = title
-    if (size.trim() !== orDash(base.size)) patch.size = size
-    if (phase.trim() !== orDash(base.phase)) patch.phase = phase
-    if (dependsOn.trim() !== orDash(base.dependsOn)) patch.dependsOn = dependsOn
-    if ((due || null) !== base.due) patch.due = due || null
-    if (Object.keys(patch).length === 0) return onDone()
-    setBusy(true)
-    setError(null)
-    try {
-      await updateTask(task.id, patch, rootParam)
-      onDone()
-    } catch (e) {
-      setError((e as Error).message)
-      setBusy(false)
-    }
-  }
-
-  return (
-    <form
-      onSubmit={(e) => { e.preventDefault(); save() }}
-      onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); onDone() } }}
-      className="flex flex-col gap-3 px-5 py-4 border-b border-border shrink-0 bg-surface2/40"
-    >
-      <label className="flex flex-col gap-1 text-xs text-muted">
-        {t("board.title")}
-        <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} className={FIELD} />
-      </label>
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-xs text-muted">
-          {t("board.size")}
-          <input value={size} onChange={(e) => setSize(e.target.value)} placeholder="S / M / L" className={FIELD} />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">
-          {t("board.due")}
-          <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className={cn(FIELD, "scheme-light dark:scheme-dark")} />
-        </label>
-      </div>
-      <label className="flex flex-col gap-1 text-xs text-muted">
-        {t("board.epicPhase")}
-        <input value={phase} onChange={(e) => setPhase(e.target.value)} placeholder={t("board.epicPhasePlaceholder")} className={FIELD} />
-      </label>
-      <label className="flex flex-col gap-1 text-xs text-muted">
-        {t("board.dependsOn")}
-        <input value={dependsOn} onChange={(e) => setDependsOn(e.target.value)} placeholder="T001, T002" className={cn(FIELD, "font-mono")} />
-      </label>
-      {error && <p role="alert" className="text-xs text-danger">{error}</p>}
-      <div className="flex items-center gap-2">
-        <button type="submit" disabled={busy} className="text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110 disabled:opacity-40">{t("board.save")}</button>
-        <button type="button" onClick={onDone} disabled={busy} className="text-xs text-muted hover:text-txt">{t("board.cancel")}</button>
-      </div>
-    </form>
-  )
-}
 
 export type ReviewAction = "approve" | "send-back"
 

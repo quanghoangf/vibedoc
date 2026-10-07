@@ -18,6 +18,11 @@ The task quick view on /board is a fixed 420px sheet, so long task bodies wrap i
 - T507 adds `testReviewHref()`; use it for any test link here.
 - Run `/impeccable redesign` on the panel before writing markup; record its decisions in the task report. DESIGN.md tokens only; UI text in `src/i18n/board.ts` (en + vi).
 
+## Already shipped (2026-10-07, before this task ran)
+- The sheet's left edge resizes it (drag, ←/→, double-click resets), width in the `vibedoc-panel-width` cookie (`src/lib/panel-width.ts` + check); `e2e/board-task-panel.mjs`
+- Header button + ⇧O "Open full document" (`openDoc(task.file)`); the panel's Edit form and ⇧E were removed (title/meta are edited inline or in the full doc)
+- What remains here: the `/impeccable redesign` of the top half (dependencies, tests, runs, chat at a glance)
+
 ## Scope
 - [ ] Draggable left edge on the sheet (pointer + keyboard, `role="separator"`), width from ~380px to ~70% of the viewport, remembered in a cookie (pure helper + `.check.mts`)
 - [ ] Wider panel uses the space: body text gets a readable max line length; at wide widths the property rows can sit in two columns if the redesign calls for it

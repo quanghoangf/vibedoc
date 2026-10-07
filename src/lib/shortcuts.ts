@@ -35,6 +35,7 @@ export const CHAT_KEY = "c"
  */
 export const ITEM_KEYS = {
   edit: { key: "E", label: "⇧E", help: "help.itemEdit" },
+  open: { key: "O", label: "⇧O", help: "help.itemOpen" },
   status: { key: "S", label: "⇧S", help: "help.itemStatus" },
   duplicate: { key: "D", label: "⇧D", help: "docs.duplicate" },
   chat: { key: "C", label: "⇧C", help: "help.itemChat" },
@@ -126,7 +127,11 @@ export interface PageHelp {
   tips: readonly MessageKey[]
 }
 
-const itemKeys = Object.values(ITEM_KEYS).map(({ label, help }) => ({ key: label, label: help }))
+const itemKeysWithout = (skip: ItemAction) =>
+  (Object.keys(ITEM_KEYS) as ItemAction[]).filter((a) => a !== skip).map((a) => ({ key: ITEM_KEYS[a].label, label: ITEM_KEYS[a].help }))
+// the board's task panel opens the full doc (⇧O) and has no edit form; roadmap and docs items edit / rename (⇧E)
+const boardItemKeys = itemKeysWithout("edit")
+const itemKeys = itemKeysWithout("open")
 const board = (k: string) => OTHER_SHORTCUTS.find((s) => s.section === "Board" && s.key === k)!
 
 /**
@@ -136,7 +141,7 @@ const board = (k: string) => OTHER_SHORTCUTS.find((s) => s.section === "Board" &
 export const PAGE_HELP: Readonly<Record<string, PageHelp>> = {
   "/board": {
     title: "shell.board",
-    keys: [board("n"), board("v"), board("1–4"), board("f"), { key: "/", label: "help.focusSearch" }, board("⇧-click"), ...itemKeys],
+    keys: [board("n"), board("v"), board("1–4"), board("f"), { key: "/", label: "help.focusSearch" }, board("⇧-click"), ...boardItemKeys],
     tips: [
       "help.tipBoardDrag",
       "help.tipBoardView",
