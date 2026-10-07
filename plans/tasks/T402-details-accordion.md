@@ -1,5 +1,8 @@
 # T402: `<details>` styled as an accordion
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 **Phase:** R089 — Richer markdown
 **Size:** S (~1 hr)
 **Depends on:** T400
@@ -34,5 +37,10 @@ BASE=http://localhost:3189 PW_DIR=<dir with node_modules/playwright> node e2e/ri
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude_
 ### Steps
-- [ ] S3 — WHEN a doc contains `<details><summary>More</summary>…</details>` → THEN it renders collapsed with a styled summary row that opens on click
+- [x] S3 — WHEN a doc contains `<details><summary>More</summary>…</details>` → THEN it renders collapsed with a styled summary row that opens on click
+- [ ] Hover a summary row in light and dark → it tints one step; the chevron turns down when open
+- [ ] Write `<details open>` → it starts open with a rule under the summary
+### Regression risk
+- [ ] Other raw HTML in docs (e.g. `<br>`, `<kbd>`) still renders unchanged

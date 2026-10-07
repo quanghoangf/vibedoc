@@ -1,6 +1,7 @@
 // Browser check for R089 (Richer markdown) on a fixture doc in the /docs preview:
 //   S1. the five GFM alerts render as labelled callouts; WARNING's colour follows the light / dark theme
 //   S2. a "pnpm" and an "npm" titled fence in a row render as one tab group; click and arrow keys switch tabs
+//   S3. a <details> block renders collapsed with a styled summary row that opens on click / Enter / Space
 // Fails on any browser console error. The fixture is a fresh mktemp project.
 //
 //   PORT=3189 pnpm dev   # then:
@@ -28,6 +29,8 @@ write("docs/rich.md", [
   '```bash title="npm"', "npm install vibedoc", "```",
   "",
   "```bash", "echo untitled", "```",
+  "",
+  "<details>", "<summary>More</summary>", "", "- hidden one", "- hidden two", "", "</details>",
   "",
 ].join("\n"))
 
@@ -98,6 +101,25 @@ try {
   assert.equal(await npm.getAttribute("tabindex"), "-1")
   assert.equal(await doc.locator("pre").filter({ hasText: "echo untitled" }).count(), 1, "an untitled fence stays a plain block")
   console.log("ok  S2: pnpm/npm fences are one tab group; click, ArrowLeft (wrapping) and Home switch it, focus follows")
+
+  // S3: details starts closed with a styled summary row; click and the keyboard open / close it
+  const details = doc.locator("details")
+  const summary = details.locator("summary")
+  const hidden = details.getByText("hidden one")
+  assert.equal(await details.getAttribute("open"), null, "collapsed by default")
+  assert.equal(await hidden.isVisible(), false)
+  assert.equal(await summary.evaluate((el) => getComputedStyle(el).cursor), "pointer")
+  assert.equal(await summary.evaluate((el) => getComputedStyle(el, "::before").content), '""', "chevron drawn")
+  await summary.click()
+  await hidden.waitFor()
+  assert.equal(await details.getAttribute("open"), "")
+  assert.equal(await details.locator("ul > li").count(), 2, "markdown inside renders")
+  await summary.focus()
+  await page.keyboard.press("Enter")
+  await hidden.waitFor({ state: "hidden" })
+  await page.keyboard.press("Space")
+  await hidden.waitFor()
+  console.log("ok  S3: details renders collapsed with a styled summary; click, Enter and Space toggle it")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("\nricher-markdown: all checks passed")
