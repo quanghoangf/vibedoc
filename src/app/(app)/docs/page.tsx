@@ -8,6 +8,7 @@ import { DocPathDialog, type DocActions } from "@/components/docs/DocActionsMenu
 import { askAgent } from "@/lib/ask-agent"
 import { toast, undoToast } from "@/components/ui/toast"
 import type { DocFile } from "@/types"
+import type { ApiSpecList } from "@/components/docs/ApiReference"
 import { tNow, useT } from "@/context/LanguageContext"
 
 async function send(url: string, method: string, body: unknown): Promise<string | null> {
@@ -40,6 +41,34 @@ export default function DocsPage() {
   useEffect(() => {
     fetchDocs()
   }, [fetchDocs])
+
+  // R094: the project's OpenAPI spec → "API reference" row; `?api=` (list or "GET /path") is restored on arrival
+  const [apiSpec, setApiSpec] = useState<ApiSpecList | null>(null)
+  const [apiOpen, setApiOpen] = useState<string | null>(null)
+  useEffect(() => {
+    if (!activeProject) return
+    let live = true
+    fetch(`/api/openapi${rootParam}`)
+      .then((r) => r.json())
+      .then((d: ApiSpecList) => {
+        if (!live) return
+        setApiSpec(d)
+        if (d.path) setApiOpen((cur) => cur ?? new URLSearchParams(window.location.search).get("api"))
+      })
+      .catch(() => {})
+    return () => { live = false }
+  }, [activeProject, rootParam])
+
+  const openApi = useCallback((key: string | null) => {
+    setApiOpen(key)
+    const u = new URL(window.location.href)
+    if (key) {
+      u.searchParams.set("api", key)
+      u.searchParams.delete("doc")
+      setSelectedDoc(null)
+    } else u.searchParams.delete("api")
+    window.history.replaceState(window.history.state, "", u)
+  }, [setSelectedDoc])
 
   // Priorities live in each doc's frontmatter, so any edit (picker, agent, typing) can change the list's badges
   const searchingRef = useRef(false)
@@ -74,6 +103,7 @@ export default function DocsPage() {
     const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(path)}`)
     const data = await res.json()
     setSelectedDoc(data)
+    if (apiOpen) openApi(null)
   }
 
   // ?doc=path (Copy link) opens that doc once on arrival
@@ -176,6 +206,9 @@ export default function DocsPage() {
         onDocDeleted={handleDocDeleted}
         onDocRenamed={handleDocRenamed}
         rootParam={rootParam}
+        apiSpec={apiSpec}
+        apiOpen={apiOpen}
+        onApiOpen={openApi}
       />
       <NewDocModal
         open={newDocOpen}

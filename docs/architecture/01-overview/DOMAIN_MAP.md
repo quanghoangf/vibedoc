@@ -7,7 +7,7 @@
 graph TB
     subgraph VibeDoc["VibeDoc Process"]
         WebUI["Web UI (browser)<br/>Kanban<br/>Docs viewer<br/>Activity<br/>Memory"]
-        MCP["MCP Server<br/>/api/mcp<br/>46 tools<br/>JSON-RPC"]
+        MCP["MCP Server<br/>/api/mcp<br/>47 tools<br/>JSON-RPC"]
         SSE["SSE Bus<br/>/api/events<br/>emitUpdate<br/>singleton"]
 
         API["API Routes<br/>/api/tasks /api/docs<br/>/api/memory /api/decisions<br/>/api/activity /api/projects"]
