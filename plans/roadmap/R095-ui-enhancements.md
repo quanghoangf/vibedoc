@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** planned
 **Order:** 360
-**Tasks:** T504, T505, T506
+**Tasks:** T504, T505, T506, T507
 
 Small fixes to layout and behaviour that make daily use smoother. Each task is one self-contained polish item found while using VibeDoc.
 
@@ -20,3 +20,6 @@ Small fixes to layout and behaviour that make daily use smoother. Each task is o
 ### S3: Linked docs without duplicates
 - WHEN a doc both links to and is linked from the same items
 - THEN the Linked docs panel lists each item once, marked with the direction(s) it links
+### S4: From a task doc to its manual tests
+- WHEN a task doc with manual tests is open in /docs
+- THEN its test state shows on the page and one click opens that task in Test review
