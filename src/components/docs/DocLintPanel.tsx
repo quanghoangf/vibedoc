@@ -22,7 +22,7 @@ const RULE_LABEL: Record<LintRule, MessageKey> = {
 }
 
 // SSE events that can change what the lint finds (a file or a link moved)
-const RELINT = new Set(["doc_updated", "doc_created", "doc_deleted", "doc_renamed", "decision_logged", "roadmap_updated", "task_updated", "task_created", "memory_updated"])
+export const RELINT = new Set(["doc_updated", "doc_created", "doc_deleted", "doc_renamed", "decision_logged", "roadmap_updated", "task_updated", "task_created", "memory_updated"])
 
 /**
  * R088: the docs check line ("2 errors · 5 warnings") above the doc list; it opens the issues grouped by file, and

@@ -1,5 +1,5 @@
 # T461: "May be outdated" badge + Fix docs on the doc
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R092 — Doc upkeep agent
 **Size:** M (2–3 hrs)
 **Depends on:** T460
@@ -11,7 +11,7 @@ An open doc with `outdated-ref` issues shows a "May be outdated" badge in its he
 ## Context
 - Epic: `plans/roadmap/R092-doc-upkeep-agent.md`
 - Data: `GET /api/docs/lint?path=<doc>` (T460) — no new route. Refetch on the same SSE events as `DocLintPanel` (`RELINT`).
-- Fix docs → `askAgent(prompt, { newChat: true })` (`src/lib/ask-agent.ts`); the demo playground already toasts there. Prompt built by pure `fixDocsPrompt()` in `src/lib/doc-upkeep.ts`: names the doc, each task, the old → new paths, the doc's other lint issues, and says to use `vibedoc_propose_edit` (never write the doc directly) and `vibedoc_check_docs` with the path afterwards. Agent prompts stay English (R078).
+- Fix docs → `askAgent(prompt)` (shown, not a background chat, so the user sees the proposal) (`src/lib/ask-agent.ts`); the demo playground already toasts there. Prompt built by pure `fixDocsPrompt()` in `src/lib/doc-upkeep.ts`: names the doc, each task, the old → new paths, the doc's other lint issues, and says to use `vibedoc_propose_edit` (never write the doc directly) and `vibedoc_check_docs` with the path afterwards. Agent prompts stay English (R078).
 - CLAUDE.md: UI text in `src/i18n/docs.ts` (en + vi), `useT()`; Tailwind only; no localStorage.
 
 ## Scope
@@ -41,5 +41,12 @@ PORT=3192 pnpm dev   # then: BASE=http://localhost:3192 node e2e/doc-upkeep.mjs
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN a done task's commits rename or delete a file and a doc still names its old path → THEN the doc header shows "May be outdated" with the task and old → new path
-- [ ] S2 — WHEN the user clicks Fix docs on a flagged doc → THEN the agent chat gets a prompt naming the doc, the task, the old → new paths and other lint issues
+_2026-10-07 — ai_
+### Steps
+- [x] S1 — WHEN a done task's commits rename or delete a file and a doc still names its old path → THEN the doc header shows "May be outdated" with the task and old → new path (e2e/doc-upkeep.mjs)
+- [x] S2 — WHEN the user clicks Fix docs on a flagged doc → THEN the agent chat gets a prompt naming the doc, the task, the old → new paths and other lint issues (e2e/doc-upkeep.mjs)
+- [ ] With a real agent connected, click Fix docs → the chat opens and the agent proposes an edit (diff card) instead of writing the doc
+- [ ] The amber box sits under the doc properties and reads well in light and dark themes, and at phone width
+- [ ] Switch to Tiếng Việt → "Có thể đã lỗi thời" and "Sửa tài liệu"
+### Regression risk
+- [ ] Opening any unflagged doc shows no box and the title block looks as before

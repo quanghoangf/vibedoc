@@ -201,6 +201,11 @@ export const en = {
   lintRuleSpecStructure: "Spec structure",
   lintRuleSpecChanges: "Spec changes won't merge",
   lintRuleOutdatedRef: "May be outdated",
+  outdatedTitle: "May be outdated",
+  outdatedHint: "Done tasks renamed or deleted files this doc names",
+  outdatedDeleted: "deleted",
+  fixDocs: "Fix docs",
+  fixDocsHint: "Ask the agent to propose the fixes; nothing changes until you accept",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -390,4 +395,9 @@ export const vi: Messages<typeof en> = {
   lintRuleSpecStructure: "Cấu trúc spec",
   lintRuleSpecChanges: "Thay đổi spec không gộp được",
   lintRuleOutdatedRef: "Có thể đã lỗi thời",
+  outdatedTitle: "Có thể đã lỗi thời",
+  outdatedHint: "Các task đã xong đã đổi tên hoặc xóa tệp mà tài liệu này nhắc tới",
+  outdatedDeleted: "đã xóa",
+  fixDocs: "Sửa tài liệu",
+  fixDocsHint: "Nhờ agent đề xuất bản sửa; không có gì thay đổi cho tới khi bạn chấp nhận",
 }

@@ -1,6 +1,6 @@
 // Self-check for doc upkeep. Run: node src/lib/doc-upkeep.check.mts
 import assert from 'node:assert/strict'
-import { outdatedRefs, parseNameStatusLog } from './doc-upkeep.ts'
+import { fixDocsPrompt, outdatedRefs, parseNameStatusLog } from './doc-upkeep.ts'
 
 const log = [
   '\x1eccc\x1ffeat: more (T003)', '', 'M\tsrc/x.ts', 'R100\tsrc/b.ts\tsrc/c.ts', '',
@@ -31,3 +31,17 @@ assert.deepEqual(run(['T001'], [{ path: 'docs/x.md', raw: '# X\nnothing here\n' 
 assert.deepEqual(outdatedRefs({ docs: [doc], commits: parseNameStatusLog('\x1ed\x1fx (T0011)\n\nD\tsrc/old.ts\n'), doneTaskIds: new Set(['T001']), exists: () => false }), [])
 
 console.log('doc-upkeep: ok')
+
+const prompt = fixDocsPrompt('docs/guide.md', [
+  { line: 1, level: 'warn', rule: 'orphan-doc', message: 'No other file links to this doc' },
+  { line: 5, level: 'warn', rule: 'outdated-ref', message: 'x', target: 'src/a.ts', task: 'T001', renamedTo: 'src/b.ts' },
+  { line: 9, level: 'warn', rule: 'outdated-ref', message: 'y', target: 'src/old.ts', task: 'T001' },
+])
+assert.match(prompt, /^Fix docs: docs\/guide\.md may be outdated/)
+assert.match(prompt, /- L5: T001 renamed `src\/a\.ts` → `src\/b\.ts`/)
+assert.match(prompt, /- L9: T001 deleted `src\/old\.ts`/)
+assert.match(prompt, /- L1 warn orphan-doc: No other file links to this doc/)
+assert.match(prompt, /T001 with vibedoc_get_task/)
+assert.match(prompt, /vibedoc_propose_edit, never write the doc directly/)
+assert.match(prompt, /vibedoc_check_docs with path "docs\/guide\.md"/)
+console.log('fixDocsPrompt: ok')

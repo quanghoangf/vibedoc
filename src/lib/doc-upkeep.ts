@@ -70,3 +70,28 @@ export function outdatedRefs(input: {
   }
   return out.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line)
 }
+
+/** The lint issue fields `fixDocsPrompt` reads (a `LintIssue` from doc-lint.ts fits). */
+export type PromptIssue = { line: number; level: string; rule: string; message: string; target?: string; task?: string; renamedTo?: string }
+
+/**
+ * R092 Fix docs: the chat prompt for one doc. Names the doc, each done task with its old → new paths, the doc's
+ * other docs check issues, and how to fix (propose, never write). Agent prompts stay English (R078).
+ */
+export function fixDocsPrompt(path: string, issues: readonly PromptIssue[]): string {
+  const refs = issues.filter(i => i.rule === 'outdated-ref')
+  const other = issues.filter(i => i.rule !== 'outdated-ref')
+  const tasks = [...new Set(refs.map(r => r.task).filter(Boolean))]
+  const out = [`Fix docs: ${path} may be outdated. Done tasks renamed or deleted files it names:`]
+  for (const r of refs) out.push(`- L${r.line}: ${r.task} ${r.renamedTo ? `renamed \`${r.target}\` → \`${r.renamedTo}\`` : `deleted \`${r.target}\``}`)
+  if (other.length) {
+    out.push('', 'Other docs check issues in this doc:')
+    for (const i of other) out.push(`- L${i.line} ${i.level} ${i.rule}: ${i.message}`)
+  }
+  out.push('',
+    `Read the doc with vibedoc_read_doc${tasks.length ? ` and ${tasks.join(', ')} with vibedoc_get_task (vibedoc_verify_context has the diff)` : ''}. ` +
+    'Then propose the corrections with vibedoc_propose_edit, never write the doc directly: point each old path to its new one, ' +
+    'reword or drop mentions of deleted files, and fix the other issues if you can. ' +
+    `Afterwards run vibedoc_check_docs with path "${path}".`)
+  return out.join('\n')
+}

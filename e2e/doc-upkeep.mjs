@@ -2,6 +2,9 @@
 // finishing a task that renames a file flags the doc mentioning it, and Fix docs proposes the corrected path.
 //   1. T001's commit renames src/a.ts → src/b.ts; docs/guide.md still names src/a.ts. T001 in review → no flag.
 //   2. T001 done → vibedoc_check_docs lists `warn outdated-ref` on the doc (not on the task file naming the path).
+//   3. /docs?doc=docs/guide.md shows "May be outdated" with T001 and src/a.ts → src/b.ts; docs/index.md shows nothing.
+//   4. Fix docs → a new chat whose prompt names the doc, T001, the old → new path, the doc's other issues and
+//      vibedoc_propose_edit.
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
 //   PORT=3192 pnpm dev   # then:
@@ -10,7 +13,7 @@ import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { makeFixture } from "./stub-chat.mjs"
+import { launchChrome, makeFixture, stubChat, toolTurn } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3192"
 const fx = makeFixture()
@@ -26,7 +29,7 @@ writeFileSync(path.join(fx, "plans/tasks/T001-rename.md"), [
 mkdirSync(path.join(fx, "src"), { recursive: true })
 mkdirSync(path.join(fx, "docs"), { recursive: true })
 writeFileSync(path.join(fx, "src/a.ts"), "export const a = 1\n")
-const guide = "# Guide\n\n## Entry point\n\nThe app starts in `src/a.ts`.\n"
+const guide = "# Guide\n\n## Entry point\n\nThe app starts in `src/a.ts`.\n\nSee [setup](setup.md).\n"
 writeFileSync(path.join(fx, "docs/guide.md"), guide)
 writeFileSync(path.join(fx, "docs/index.md"), "# Index\n\n- [Guide](guide.md)\n")
 git("init", "-q")
@@ -45,6 +48,8 @@ async function mcp(name, args) {
   return d.result?.content?.[0]?.text ?? JSON.stringify(d)
 }
 
+const browser = await launchChrome()
+const errors = []
 try {
   // 1. the renaming task isn't done yet → no flag
   assert.doesNotMatch(await mcp("vibedoc_check_docs", {}), /outdated-ref/)
@@ -61,6 +66,38 @@ try {
     target: "src/a.ts", task: "T001", renamedTo: "src/b.ts", heading: "Entry point",
   })
   console.log("ok  S1: T001 done → vibedoc_check_docs flags docs/guide.md (outdated-ref, T001, src/a.ts → src/b.ts)")
+
+  // 3. the doc header badge
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+  page.on("console", (m) => {
+    if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text())
+  })
+  page.on("pageerror", (e) => errors.push(e.message))
+  const calls = await stubChat(page, () => toolTurn("tu1", "vibedoc_propose_edit", {
+    path: "docs/guide.md", edits: [{ old_string: "`src/a.ts`", new_string: "`src/b.ts`" }],
+  }, "Pointed the entry point at src/b.ts."), { root: fx })
+  await page.goto(`${BASE}/docs?doc=docs/index.md`)
+  await page.locator("#index").waitFor()
+  assert.equal(await page.locator("[data-doc-outdated]").count(), 0)
+  await page.goto(`${BASE}/docs?doc=docs/guide.md`)
+  const badge = page.getByRole("region", { name: "May be outdated" })
+  await badge.waitFor()
+  assert.equal((await badge.locator("[data-outdated-ref]").innerText()).replace(/\s+/g, " ").trim(), "T001 src/a.ts → src/b.ts L5")
+  console.log("ok  S1: the doc header shows May be outdated: T001 src/a.ts → src/b.ts; an unflagged doc shows nothing")
+
+  // 4. Fix docs → a new chat with the prompt
+  await badge.getByRole("button", { name: "Fix docs" }).click()
+  await page.getByText("Pointed the entry point at src/b.ts.").waitFor()
+  assert.equal(calls.length, 1)
+  const prompt = calls[0].message
+  assert.match(prompt, /^Fix docs: docs\/guide\.md may be outdated/)
+  assert.match(prompt, /- L5: T001 renamed `src\/a\.ts` → `src\/b\.ts`/)
+  assert.match(prompt, /- L7 error broken-link: Link to "setup\.md" points to no file/)
+  assert.match(prompt, /vibedoc_propose_edit, never write the doc directly/)
+  console.log("ok  S2: Fix docs opens a chat whose prompt names the doc, T001, src/a.ts → src/b.ts, the broken link and vibedoc_propose_edit")
+
+  assert.deepEqual(errors, [], `browser console errors:\n${errors.join("\n")}`)
 } finally {
+  await browser.close()
   rmSync(fx, { recursive: true, force: true })
 }
