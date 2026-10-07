@@ -22,7 +22,9 @@ export const en = {
   sessionHandoff: "Session handoff",
   history: "History",
   noMemory: "No MEMORY.md yet.",
-  noMemorySub: "AI will create one at the end of the first session.",
+  noMemoryLead: "At the end of each session your agent writes a handoff here: what it did and what comes next, so the next session picks up where this one stopped. Add these lines to your CLAUDE.md so it does.",
+  copyClaudeLines: "Copy lines for CLAUDE.md",
+  openBoard: "Open the board",
   addToClaude: "Add to your CLAUDE.md system prompt:",
 
   // Entry types
@@ -125,7 +127,7 @@ export const en = {
 
   // Memory graph
   loadingGraph: "Loading graph…",
-  noEntriesToDraw: "No entries to draw yet.",
+  noEntriesToDraw: "Nothing to draw yet. Once the agent saves an entry, it shows here linked to the docs, tasks and epics it mentions.",
   memoryGraph: "Memory graph",
 
   // Activity page
@@ -147,7 +149,7 @@ export const en = {
   loadFailed: "Couldn't load sessions. Showing the last data we had; it retries on the next update.",
   loadingSessions: "Loading sessions",
   noActivity: "No activity yet",
-  noActivityHint: "Moves on the board and every agent call through the MCP server show up here as they happen. Use Connect in the header to hook up Claude Code or Cursor.",
+  noActivityHint: "Every move on the board and every call your agent makes through VibeDoc shows up here as it happens, grouped into sessions, so you can see what the agent did while you were away.",
   filterByKind: "Filter by kind",
   filterByActor: "Filter by actor",
   everyone: "Everyone",
@@ -220,7 +222,9 @@ export const vi: Messages<typeof en> = {
   sessionHandoff: "Bàn giao phiên làm việc",
   history: "Lịch sử",
   noMemory: "Chưa có MEMORY.md.",
-  noMemorySub: "AI sẽ tạo tệp này khi kết thúc phiên làm việc đầu tiên.",
+  noMemoryLead: "Cuối mỗi phiên, agent viết bản bàn giao ở đây: đã làm gì và việc gì tiếp theo, để phiên sau làm tiếp đúng chỗ. Thêm các dòng này vào CLAUDE.md để agent làm vậy.",
+  copyClaudeLines: "Sao chép các dòng cho CLAUDE.md",
+  openBoard: "Mở bảng",
   addToClaude: "Thêm vào system prompt trong CLAUDE.md của bạn:",
 
   typeConvention: "quy ước",
@@ -315,7 +319,7 @@ export const vi: Messages<typeof en> = {
   restoreHint: "Tệp hiện tại được lưu trước, nên bạn có thể hoàn tác.",
 
   loadingGraph: "Đang tải đồ thị…",
-  noEntriesToDraw: "Chưa có mục nào để vẽ.",
+  noEntriesToDraw: "Chưa có gì để vẽ. Khi agent lưu một mục ghi nhớ, mục đó hiện ở đây cùng liên kết tới tài liệu, việc và epic nó nhắc tới.",
   memoryGraph: "Đồ thị bộ nhớ",
 
   quiet: "Yên ắng trong 24 giờ qua",
@@ -336,7 +340,7 @@ export const vi: Messages<typeof en> = {
   loadFailed: "Không tải được các phiên. Đang hiện dữ liệu gần nhất; sẽ thử lại ở lần cập nhật tới.",
   loadingSessions: "Đang tải các phiên",
   noActivity: "Chưa có hoạt động",
-  noActivityHint: "Các thay đổi trên bảng và mọi lần agent gọi qua máy chủ MCP sẽ hiện ở đây ngay khi xảy ra. Dùng Kết nối ở đầu trang để nối Claude Code hoặc Cursor.",
+  noActivityHint: "Mọi thay đổi trên bảng và mọi lần agent gọi qua VibeDoc hiện ở đây ngay khi xảy ra, gom theo phiên, để bạn thấy agent đã làm gì khi bạn vắng mặt.",
   filterByKind: "Lọc theo loại",
   filterByActor: "Lọc theo người làm",
   everyone: "Mọi người",

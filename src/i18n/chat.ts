@@ -75,6 +75,7 @@ export const en = {
   chatDeleted: "This chat was deleted",
   backToChats: "Back to all chats",
   sideBySide: "Run chats side by side",
+  orStartWith: "Or start with a question:",
   sideBySideHint: "Each chat is its own Claude Code session, up to 4 at once. Start one here, or from an epic on the roadmap or a task on the board.",
 
   // Context rail
@@ -329,6 +330,7 @@ export const vi: Messages<typeof en> = {
   chatDeleted: "Cuộc trò chuyện này đã bị xóa",
   backToChats: "Về tất cả trò chuyện",
   sideBySide: "Chạy nhiều cuộc trò chuyện song song",
+  orStartWith: "Hoặc bắt đầu bằng một câu hỏi:",
   sideBySideHint: "Mỗi cuộc trò chuyện là một phiên Claude Code riêng, tối đa 4 cuộc cùng lúc. Bắt đầu ở đây, hoặc từ một epic trên lộ trình hay một việc trên bảng.",
 
   context: "Ngữ cảnh",

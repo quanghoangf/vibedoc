@@ -1,5 +1,7 @@
 # T292: Memory, activity and chat empty states
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 **Phase:** R083 — Teaching empty states
 **Size:** M (2–3 hrs)
 **Depends on:** T290
@@ -31,6 +33,9 @@ Memory, Activity and Chat in an empty project explain what the agent puts there 
 - `src/i18n/memory.ts`, `src/i18n/chat.ts`
 - `e2e/empty-states.mjs`
 
+## Notes
+- Built: /memory has one empty state per page, the handoff pane (both views); the entries list and the memory graph keep a teaching line without their own action, so the page has one primary action. The connect line now reads "Your agent isn't connected yet." everywhere (it no longer says "can't run this", which didn't fit a copy button). `memory.noMemorySub` was removed (replaced by `noMemoryLead`).
+
 ## Acceptance criteria
 - [ ] Each page above, empty project: a `[data-empty-state]` with a lead and one `[data-empty-action]` (memory: the handoff pane and the entries list may each have one; count per state)
 - [ ] Activity with no agent → primary action is the Connect link; after an MCP call the activity has rows, so the empty state is gone
@@ -45,7 +50,13 @@ BASE=http://localhost:3083 PW_DIR=. node e2e/i18n.mjs
 ```
 
 ## Manual tests
+_2026-10-07 — ai · Spec: `e2e/vibedoc/T292-memory-activity-chat-empty-states.spec.ts` · Auto: passed 2026-10-07_
 ### Steps
-- [ ] S1 — WHEN the user opens /memory, /activity, /chat in an empty project → THEN each says what fills it and offers one action
-- [ ] S2 — WHEN no agent is connected → THEN Activity and the memory handoff link to Connect
-- [ ] S4 — WHEN the language is Tiếng Việt → THEN these empty states are Vietnamese
+- [x] 🤖 S1 — WHEN the user opens /memory, /activity, /chat in an empty project → THEN each says what fills it and offers one action
+- [x] 🤖 Click Copy lines for CLAUDE.md → the button says Copied
+- [x] 🤖 S2 — WHEN no agent is connected → THEN Activity and the memory handoff link to Connect
+- [x] 🤖 S4 — WHEN the language is Tiếng Việt → THEN these empty states are Vietnamese
+- [ ] Paste after Copy lines for CLAUDE.md → the pasted text is the full block shown under "Add to your CLAUDE.md system prompt"
+- [ ] /chat in an empty project: click New chat → an empty chat opens ready to type
+### Regression risk
+- [ ] /memory with a MEMORY.md still shows the handoff, and /activity with events still lists the sessions

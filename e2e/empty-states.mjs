@@ -16,13 +16,18 @@ import { launchChrome } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3083"
 
-/** @type {{ path: string, name: string, agent?: boolean, command?: string }[]} */
+/** @type {{ path: string, name: string, agent?: boolean, command?: string, href?: RegExp }[]} */
 const PAGES = [
   { path: "/board", name: "board", agent: true, command: "/vibedoc:roadmap" },
   { path: "/roadmap", name: "roadmap", agent: true, command: "/vibedoc:roadmap" },
   { path: "/graph", name: "graph" },
   { path: "/docs", name: "docs" },
   { path: "/explorer", name: "explorer" },
+  { path: "/memory", name: "memory", agent: true },
+  { path: "/memory?view=graph", name: "memory graph", agent: true },
+  // no agent yet: the action itself is Connect
+  { path: "/activity", name: "activity", href: /connect/ },
+  { path: "/chat", name: "chat" },
 ]
 
 const browser = await launchChrome()
@@ -71,6 +76,7 @@ try {
     for (const p of PAGES) {
       const s = await emptyState(page, p)
       assert.ok(s.text.length > 60, `${p.name} (${lang}): a "what fills this" line, got "${s.text}"`)
+      if (p.href) assert.match(await page.locator("[data-empty-action] a").getAttribute("href"), p.href, `${p.name}: the action links to ${p.href}`)
       if (p.command) assert.ok(s.action.includes(p.command), `${p.name}: the action is ${p.command}, got "${s.action}"`)
       assert.equal(s.hint, p.agent ? 1 : 0, `${p.name} (${lang}): connect line ${p.agent ? "shown" : "not shown"} with no agent`)
       if (p.agent) {

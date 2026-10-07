@@ -88,7 +88,7 @@ export const en = {
   connectSettingsLink: "Settings → MCP",
 
   // Empty states (R083): the connect line, the copy-command button
-  agentNotConnected: "Your agent isn't connected yet, so it can't run this.",
+  agentNotConnected: "Your agent isn't connected yet.",
   connectYourAgent: "Connect your agent →",
   copyThis: "Copy {command}",
   copied: "Copied",
@@ -201,7 +201,7 @@ export const vi: Messages<typeof en> = {
   connectSettings: "Cấu hình agent và kiểm tra kết nối ở",
   connectSettingsLink: "Cài đặt → MCP",
 
-  agentNotConnected: "Agent của bạn chưa được kết nối nên chưa chạy được lệnh này.",
+  agentNotConnected: "Agent của bạn chưa được kết nối.",
   connectYourAgent: "Kết nối agent →",
   copyThis: "Sao chép {command}",
   copied: "Đã sao chép",
