@@ -53,6 +53,9 @@ export function itemActionForKey(key: string): ItemAction | undefined {
 export const DOCS_LIST_KEY = { key: "\\", label: "⌘\\" } as const
 export const TOGGLE_DOCS_LIST_EVENT = "vibedoc:toggle-docs-list"
 
+/** ⇧T on an open task doc with manual tests: that task in Test review (T507) */
+export const DOC_TESTS_KEY = { key: "T", label: "⇧T" } as const
+
 /** Keys on /graph: the help sheet's Graph section and the selected-file card's kbd strip read this one list. */
 export const GRAPH_KEYS = {
   search: { key: "/", label: "help.graphFind" },
@@ -97,6 +100,7 @@ export const OTHER_SHORTCUTS: readonly { key: string; label: MessageKey; section
   ...Object.values(TEST_REVIEW_KEYS).map(({ key, label }) => ({ key, label, section: "Test review" as const })),
   ...Object.values(ITEM_KEYS).map(({ label, help }) => ({ key: label, label: help, section: "Open item" as const })),
   { key: "/", label: "help.focusSearchWhere", section: "Editing & other" },
+  { key: DOC_TESTS_KEY.label, label: "help.docTests", section: "Open item" },
   { key: DOCS_LIST_KEY.label, label: "help.toggleDocsList", section: "Editing & other" },
   { key: "⌘B", label: "help.toggleSidebar", section: "Editing & other" },
   { key: "?", label: "help.pinHelp", section: "Editing & other" },
@@ -160,7 +164,7 @@ export const PAGE_HELP: Readonly<Record<string, PageHelp>> = {
   },
   "/docs": {
     title: "shell.docs",
-    keys: [{ key: "/", label: "help.focusSearch" }, { key: "⌘P", label: "help.goToFile" }, { key: DOCS_LIST_KEY.label, label: "help.toggleDocsList" }, ...itemKeys],
+    keys: [{ key: "/", label: "help.focusSearch" }, { key: "⌘P", label: "help.goToFile" }, { key: DOCS_LIST_KEY.label, label: "help.toggleDocsList" }, { key: DOC_TESTS_KEY.label, label: "help.docTests" }, ...itemKeys],
     tips: [
       "help.tipDocsPreview",
       "help.tipDocsLinks",

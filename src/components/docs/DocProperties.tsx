@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react"
 import Link from "next/link"
-import { BookOpen, Bot, Calendar, CalendarCheck, CalendarClock, CircleDashed, Clock, Flag, GitBranch, Hash, ListChecks, Map as MapIcon, Plus, Ruler, Trash2, Type, User } from "lucide-react"
+import { BookOpen, Bot, Calendar, CalendarCheck, CalendarClock, CircleDashed, Clock, Flag, FlaskConical, GitBranch, Hash, ListChecks, Map as MapIcon, Plus, Ruler, Trash2, Type, User } from "lucide-react"
 import { PropertyRows, type ItemProperty } from "@/components/shared/ItemPanelHeader"
 import { PriorityBadge, PriorityField } from "@/components/shared/PriorityBadge"
 import { InlineText } from "@/components/shared/InlineProperty"
@@ -13,6 +13,7 @@ import { useApp } from "@/context/AppContext"
 import { PRIORITIES, PROPERTY_KEY, docProperties, parsePriority } from "@/lib/doc-priority"
 import { TaskDueField, TaskOwnerField, TaskPriorityField, TaskSizeField, TaskStatusField } from "@/components/board/TaskFields"
 import { OwnerChip } from "@/components/shared/OwnerChip"
+import { TestsRowValue, useDocTask } from "./DocTests"
 import type { MetaBlock } from "@/lib/meta-block"
 import type { Task } from "@/types"
 
@@ -144,7 +145,6 @@ export function DocProperties({ path, content, meta = [], lastEdit, words, minut
   )
 }
 
-const TASK_FILE = /^plans\/tasks\/(T\d+)[^/]*\.md$/i
 const EPIC_FILE = /^plans\/roadmap\/(R\d+)[^/]*\.md$/i
 const ITEM_ID = /\b[TR]\d+\b/g
 const YMD = /^\d{4}-\d{2}-\d{2}$/
@@ -175,11 +175,9 @@ function IdChips({ value }: { value: string }) {
  * Started / Done local dates, anything else plain text. An epic's rows are read-only.
  */
 function useMetaRows(path: string, meta: MetaBlock["entries"]): ItemProperty[] {
-  const { board } = useApp()
   const { t } = useT()
   const f = useFormat()
-  const taskId = TASK_FILE.exec(path)?.[1].toUpperCase()
-  const task = taskId ? Object.values(board ?? {}).flat().find((x) => x.id === taskId) : undefined
+  const task = useDocTask(path)
   if (meta.length === 0 && !task) return []
 
   const known: Record<string, { label: string; icon: typeof Type }> = {
@@ -225,5 +223,7 @@ function useMetaRows(path: string, meta: MetaBlock["entries"]): ItemProperty[] {
   }
   // a task always offers the board's editable fields, even when the file doesn't name them yet
   if (task) for (const k of Object.keys(editable)) if (!seen.has(k)) row(k, editable[k](task))
+  // T507: the checklist's state, one click from Test review; "No manual tests yet" when the file has none
+  if (task) rows.push({ id: "manual-tests", icon: FlaskConical, label: t("shell.manualTests"), value: <TestsRowValue task={task} /> })
   return rows
 }

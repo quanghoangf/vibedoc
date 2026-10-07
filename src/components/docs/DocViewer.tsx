@@ -23,6 +23,9 @@ import { graphHref } from "@/lib/doc-links"
 import { useT } from "@/context/LanguageContext"
 import { DocUsage } from "./DocUsage"
 import { DocUpkeep } from "./DocUpkeep"
+import { TestChip, useDocTask, useDocTestsKey } from "./DocTests"
+import { testReviewHref } from "@/lib/test-review"
+import { useRouter } from "next/navigation"
 
 const kbdClass = "rounded-sm border border-border bg-surface2 px-1 font-mono text-[10px] leading-4 text-txt"
 
@@ -50,6 +53,11 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
   const [linksColumn, setLinksColumn] = useState(true)
   const [linksSheet, setLinksSheet] = useState(false)
   const { t, tn } = useT()
+  const router = useRouter()
+  // T507: a task doc with a `## Manual tests` checklist leads to Test review from the header, the row and the heading
+  const docTask = useDocTask(path)
+  const testsTask = docTask?.manualTests ? { ...docTask, manualTests: docTask.manualTests } : null
+  useDocTestsKey(docTask)
   useItemCommands(doc && docActions ? path : null, docActions ? [
     { action: "edit", label: t("docs.rename"), run: () => docActions.rename(path) },
     { action: "duplicate", label: t("docs.duplicate"), run: () => docActions.duplicate(path) },
@@ -58,6 +66,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
     { id: "view-markdown", label: t("docs.viewAsMarkdown"), run: () => docActions.viewMarkdown(path) },
     { id: "copy-agent-link", label: t("docs.copyAgentLink"), run: () => docActions.copyAgentLink(path) },
     { action: "remove", label: t("board.delete"), run: () => docActions.remove(path) },
+    ...(testsTask ? [{ id: "test-review", label: t("board.openInTestReview"), run: () => router.push(testReviewHref(testsTask.id)) }] : []),
   ] : [])
 
   if (!doc) {
@@ -182,11 +191,13 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
                 <Waypoints className="size-3.5" aria-hidden />
               </Link>
             </Button>
+            {testsTask && <TestChip task={testsTask} className="mx-0.5" />}
             {linksButton(() => setLinksSheet(true), "xl:hidden")}
             {linksButton(() => setLinksColumn((v) => !v), "max-xl:hidden", linksColumn)}
             {docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
           </>
         )}
+        headingAction={testsTask ? { id: "manual-tests" /* the `## Manual tests` heading's slug */, node: <TestChip task={testsTask} label={t("board.openInTestReview")} /> } : undefined}
         aside={
           // the column opens and closes (0 ↔ 18rem) so the prose reflow reads as one movement
           <div

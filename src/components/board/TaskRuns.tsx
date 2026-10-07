@@ -11,6 +11,7 @@ import type { RunManifest, RunStep } from "@/lib/runs-paths"
 import { useTestRun } from "@/components/manual-tests/useTestRun"
 import { useSuiteRun } from "@/components/manual-tests/useSuiteRun"
 import { isRunning } from "@/lib/test-run-events"
+import { testReviewHref } from "@/lib/test-review"
 
 /**
  * A task's recorded test runs (R059): the picked run's step screenshots + video, newest run first.
@@ -74,7 +75,7 @@ export function TaskRuns({ taskId, latest, spec, onNavigate }: { taskId: string;
           </button>
         )}
         <Link
-          href={`/manual-tests?tab=all&task=${encodeURIComponent(taskId)}&view=evidence`}
+          href={testReviewHref(taskId, "evidence")}
           onClick={onNavigate}
           className="ml-auto rounded-sm text-xs text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
         >

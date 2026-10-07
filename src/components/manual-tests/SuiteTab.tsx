@@ -14,9 +14,10 @@ import type { RunManifest } from "@/lib/runs-paths"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { CopyCommand } from "@/components/shared/CopyCommand"
 import { useT } from "@/context/LanguageContext"
+import { testReviewHref } from "@/lib/test-review"
 
 const clock = (ms: number) => (ms < 60_000 ? `${(Math.max(0, ms) / 1000).toFixed(1)}s` : `${Math.floor(ms / 60_000)}m ${String(Math.round((ms % 60_000) / 1000)).padStart(2, "0")}s`)
-const evidenceHref = (taskId: string) => `/manual-tests?tab=all&task=${taskId}&view=evidence`
+const evidenceHref = (taskId: string) => testReviewHref(taskId, "evidence")
 
 /**
  * /manual-tests?tab=suite (R064): every done task's spec in one run. Live rows while it goes; afterwards the

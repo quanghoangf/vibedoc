@@ -251,6 +251,9 @@ body {
 .prose-dark a { color: var(--color-accent); text-decoration: none; }
 .prose-dark a:hover { text-decoration: underline; }
 .prose-dark a[data-wiki] { cursor: pointer; }
+/* T507: our own action inside a heading (Open in Test review): its chip keeps its own tone, not the prose link look */
+.prose-dark .heading-action { display: inline-flex; margin-left: 0.625rem; vertical-align: middle; font-weight: 400; }
+.prose-dark .heading-action a { color: revert-layer; text-decoration: revert-layer; }
 /* A doc link that resolves to no file (R056): muted, dashed, also on hover */
 .prose-dark a[data-broken], .prose-dark a[data-broken]:hover {
   color: var(--color-muted); text-decoration: underline dashed; text-underline-offset: 3px; cursor: not-allowed;

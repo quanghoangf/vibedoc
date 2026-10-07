@@ -19,6 +19,7 @@ import { AgentDot, AgentMark } from "@/components/chat/AgentMark"
 import { useChats } from "@/context/ChatContext"
 import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
 import { pickNextTask } from "@/lib/work-queue"
+import { testReviewHref } from "@/lib/test-review"
 import { ItemActionsMenu, type ItemActions } from "./ItemActionsMenu"
 import { useItemCommands } from "@/components/shared/item-commands"
 import { OwnerChip } from "@/components/shared/OwnerChip"
@@ -517,7 +518,7 @@ function ScenarioProof({ status, task }: { status: ScenarioStatus; task: string 
   const label = status === "passed" ? t("board.runPassed") : status === "failed" ? t("board.runFailed") : t("roadmap.proofUnproven")
   if (!task) return <span className={cls}>{label}</span>
   return (
-    <Link href={`/manual-tests?tab=all&task=${task}&view=evidence`} title={t("roadmap.taskEvidence", { id: task })} className={cn(cls, "hover:border-accent/50")}>
+    <Link href={testReviewHref(task, "evidence")} title={t("roadmap.taskEvidence", { id: task })} className={cn(cls, "hover:border-accent/50")}>
       {label}
     </Link>
   )

@@ -28,6 +28,7 @@ import { chatFor } from "@/lib/chats"
 import { latestReview, reviewHistory, type ReviewEntry, type ReviewMark } from "@/lib/review"
 import { SEVERITIES, formatFindingsNote, type Verification } from "@/lib/verification"
 import { verifyTask } from "@/lib/ask-agent"
+import { testReviewHref } from "@/lib/test-review"
 import type { AutoRun } from "@/lib/manual-tests"
 import { useT } from "@/context/LanguageContext"
 import { readCookie } from "@/lib/player-prefs"
@@ -247,7 +248,7 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
         >
           {/* R062: decide from the proof */}
           <Link
-            href={`/manual-tests?tab=all&task=${encodeURIComponent(task.id)}&view=evidence`}
+            href={testReviewHref(task.id, "evidence")}
             onClick={onClose}
             className="inline-flex items-center gap-1.5 rounded-sm border border-accent/50 bg-accent/15 px-2.5 py-1 text-xs text-txt transition-colors hover:bg-accent/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
