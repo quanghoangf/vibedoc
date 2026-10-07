@@ -216,6 +216,14 @@ body {
 .prose-dark code { font-family: var(--font-mono); font-size: 0.8rem; background: var(--color-surface2); border: 1px solid var(--color-border); padding: 1px 5px; border-radius: 4px; color: var(--color-teal); }
 .prose-dark pre { background: color-mix(in srgb, var(--color-bg) 50%, var(--color-surface)); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; }
 .prose-dark pre code { background: none; border: none; padding: 0; color: color-mix(in srgb, var(--color-txt) 85%, var(--color-accent)); font-size: 0.8rem; }
+/* Code tabs (R089): one framed block, a mono tab strip on top, the selected tab underlined in accent */
+.prose-dark .md-code-group { border: 1px solid var(--color-border); border-radius: 8px; background: color-mix(in srgb, var(--color-bg) 50%, var(--color-surface)); margin-bottom: 1rem; min-width: 0; }
+.prose-dark .md-code-group [role="tablist"] { display: flex; overflow-x: auto; border-bottom: 1px solid var(--color-border); padding: 0 0.5rem; }
+.prose-dark .md-code-group [role="tab"] { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); padding: 0.45rem 0.6rem; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; cursor: pointer; transition: color var(--duration-fast) var(--ease-out-soft); }
+.prose-dark .md-code-group [role="tab"]:hover { color: var(--color-txt); }
+.prose-dark .md-code-group [role="tab"][aria-selected="true"] { color: var(--color-txt); border-bottom-color: var(--color-accent); }
+.prose-dark .md-code-group [role="tab"]:focus-visible, .prose-dark .md-code-group [role="tabpanel"]:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; border-radius: 4px; }
+.prose-dark .md-code-group [role="tabpanel"] > pre { border: 0; margin: 0; background: transparent; border-radius: 0 0 8px 8px; }
 .prose-dark table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.8rem; }
 .prose-dark th { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--color-border2); color: var(--color-muted); font-weight: 500; font-family: var(--font-mono); text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; }
 .prose-dark td { padding: 6px 10px; border-bottom: 1px solid var(--color-surface2); color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); }

@@ -1,5 +1,6 @@
 // Browser check for R089 (Richer markdown) on a fixture doc in the /docs preview:
 //   S1. the five GFM alerts render as labelled callouts; WARNING's colour follows the light / dark theme
+//   S2. a "pnpm" and an "npm" titled fence in a row render as one tab group; click and arrow keys switch tabs
 // Fails on any browser console error. The fixture is a fresh mktemp project.
 //
 //   PORT=3189 pnpm dev   # then:
@@ -21,6 +22,12 @@ write("docs/rich.md", [
   "",
   ...KINDS.flatMap((k) => [`> [!${k.toUpperCase()}]`, `> The ${k} body.`, ""]),
   "> A plain quote.",
+  "",
+  '```bash title="pnpm"', "pnpm add vibedoc", "```",
+  "",
+  '```bash title="npm"', "npm install vibedoc", "```",
+  "",
+  "```bash", "echo untitled", "```",
   "",
 ].join("\n"))
 
@@ -63,6 +70,34 @@ try {
   }
   assert.notEqual(colours.dark.warning, colours.light.warning, "warning follows the theme")
   console.log("ok  S1: five alerts render as labelled callouts, coloured per kind in light and dark")
+
+  // S2: one tablist with pnpm + npm; click and arrow keys switch the visible code, focus follows
+  const group = doc.locator("[data-code-group]")
+  assert.equal(await group.count(), 1, "one code group")
+  assert.deepEqual(await group.getByRole("tab").allTextContents(), ["pnpm", "npm"])
+  const pnpm = group.getByRole("tab", { name: "pnpm", exact: true })
+  const npm = group.getByRole("tab", { name: "npm", exact: true })
+  const shown = async () => (await group.getByRole("tabpanel").textContent()).trim()
+  assert.equal(await pnpm.getAttribute("aria-selected"), "true")
+  assert.equal(await shown(), "pnpm add vibedoc")
+  const controls = await pnpm.getAttribute("aria-controls")
+  assert.ok(controls && (await page.locator(`[id="${controls}"]`).textContent()).includes("pnpm add"), "aria-controls points at its panel")
+  await npm.click()
+  assert.equal(await npm.getAttribute("aria-selected"), "true")
+  assert.equal(await pnpm.getAttribute("aria-selected"), "false")
+  assert.equal(await shown(), "npm install vibedoc")
+  await page.keyboard.press("ArrowLeft")
+  assert.equal(await pnpm.getAttribute("aria-selected"), "true")
+  assert.ok(await pnpm.evaluate((el) => el === document.activeElement), "focus follows the arrow key")
+  assert.equal(await shown(), "pnpm add vibedoc")
+  await page.keyboard.press("ArrowLeft") // wraps to the last tab
+  assert.equal(await npm.getAttribute("aria-selected"), "true")
+  await page.keyboard.press("Home")
+  assert.equal(await pnpm.getAttribute("aria-selected"), "true")
+  assert.equal(await pnpm.getAttribute("tabindex"), "0")
+  assert.equal(await npm.getAttribute("tabindex"), "-1")
+  assert.equal(await doc.locator("pre").filter({ hasText: "echo untitled" }).count(), 1, "an untitled fence stays a plain block")
+  console.log("ok  S2: pnpm/npm fences are one tab group; click, ArrowLeft (wrapping) and Home switch it, focus follows")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("\nricher-markdown: all checks passed")

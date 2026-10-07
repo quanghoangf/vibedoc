@@ -1,5 +1,8 @@
 # T401: Consecutive titled fences as code tabs
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 **Phase:** R089 — Richer markdown
 **Size:** M (2–3 hrs)
 **Depends on:** T400
@@ -43,5 +46,11 @@ BASE=http://localhost:3189 PW_DIR=<dir with node_modules/playwright> node e2e/ri
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude_
 ### Steps
-- [ ] S2 — WHEN a doc has two fences in a row titled "pnpm" and "npm" → THEN they render as one block with two tabs, switchable by click and arrow keys
+- [x] S2 — WHEN a doc has two fences in a row titled "pnpm" and "npm" → THEN they render as one block with two tabs, switchable by click and arrow keys
+- [ ] In /docs, Tab into a code group → the selected tab shows the accent focus ring; Right/Left/Home/End move between tabs and the code under it changes
+- [ ] Look at a code group in light and dark → tab strip, underline and code read clearly in both
+- [ ] Edit the doc and type below a code group → the live preview keeps the group (it goes back to the first tab, by design)
+### Regression risk
+- [ ] A ```mermaid fence and a plain code block still render as before (diagram, plain pre)
