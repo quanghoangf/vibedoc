@@ -367,8 +367,8 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         }`}
       >
         {showEditor && (
-          // the doc's own text (R078: never translated; e2e/i18n.mjs skips [data-user-content])
-          <div data-user-content className={`animate-pane-in flex flex-col overflow-hidden min-h-0 ${showPreview ? "max-md:hidden" : ""}`}>
+          // the doc's own text (R078: never translated; e2e/i18n.mjs skips [data-user-content]); data-synced = the Yjs room is live
+          <div data-user-content data-synced={isSynced || undefined} className={`animate-pane-in flex flex-col overflow-hidden min-h-0 ${showPreview ? "max-md:hidden" : ""}`}>
             {baseExtensions.length === 0 ? (
               // Modules not yet loaded — show a plain fallback
               <div className="flex-1 overflow-auto whitespace-pre-wrap bg-bg px-4 py-3 font-mono text-sm text-txt">

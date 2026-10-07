@@ -18,7 +18,8 @@ import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 const BASE = process.env.BASE ?? "http://localhost:3195"
 const fx = makeFixture()
 const q = `?root=${encodeURIComponent(fx)}`
-const T1 = "plans/tasks/T001-alpha.md"
+// unique per run: the Yjs room is the doc path, on a ws server other checkouts may share
+const T1 = `plans/tasks/T001-alpha-${Date.now()}.md`
 writeFileSync(path.join(fx, T1), [
   "# T001: Alpha", "**Status:** 📋 Todo", "**Phase:** R002 — Epic", "**Size:** S", "**Depends on:** T002", "**Covers:** S1",
   "**Owner:** human", "**Due:** 2026-12-01", "**Started:** 2026-10-01", "",
@@ -59,6 +60,7 @@ try {
   // 2. status from the row: file, board, row, buffer
   await page.getByRole("tab", { name: "Split" }).click()
   await page.locator(".cm-content").getByText("**Status:** 📋 Todo").waitFor()
+  await page.locator("[data-synced] .cm-content").waitFor() // a change before the room syncs can't reach the buffer
   await props.getByRole("button", { name: "Status of T001" }).click()
   await page.getByRole("menuitem", { name: "In progress" }).click()
   await props.getByRole("button", { name: "Status of T001" }).getByText("In progress").waitFor()
