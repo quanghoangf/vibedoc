@@ -1,6 +1,6 @@
 # R090: Docs check in CI
 **Parent:** R004
-**Status:** planned
+**Status:** done
 **Order:** 110
 **Tasks:** T420, T421
 
