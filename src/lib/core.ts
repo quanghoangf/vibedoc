@@ -31,6 +31,7 @@ import { failedMarksForRun, flakyFor, formatEvidence, matchItems, ticksForRun } 
 import { stepVerdict } from './honesty'
 import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
+import { collectReleaseNotes, formatReleaseNotes, releaseNotesEdits } from './release-notes'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
@@ -2118,6 +2119,42 @@ export async function getFileAtCommit(relPath: string, sha: string, root: string
   // commit.path is relative to the repo top level, which may be above root
   const top = (await git(['rev-parse', '--show-toplevel'], root)).trim()
   return git(['show', `${commit.sha}:${commit.path}`], top)
+}
+
+// ─── Release notes from done work (R091) ──────────────────────────────────────
+
+export type ReleaseNotesDraft = {
+  path: string
+  /** The last git tag and its commit date; null without git or tags (then every dated done task counts) */
+  since: { tag: string; date: string } | null
+  section: string
+  edits: TextEdit[]
+  /** Tasks in the draft; 0 = nothing new to draft (section and edits are empty) */
+  count: number
+}
+
+/** Read-only: done work since the last tag as a `# Unreleased` section for CHANGELOG.md, as edits the user accepts. */
+export async function getReleaseNotesDraft(root: string): Promise<ReleaseNotesDraft> {
+  const file = 'CHANGELOG.md'
+  let since: ReleaseNotesDraft['since'] = null
+  try {
+    const tag = (await git(['describe', '--tags', '--abbrev=0'], root)).trim()
+    if (tag) since = { tag, date: (await git(['log', '-1', '--format=%cs', tag], root)).trim() }
+  } catch (e) {
+    // no git, or no tag yet: every done task with a Done date counts
+    console.warn('release notes: no git tag, drafting from every done task', e instanceof Error ? e.message.split('\n')[0] : e)
+  }
+  const changelog = await fs.readFile(path.join(root, file), 'utf8').catch((e: NodeJS.ErrnoException) => {
+    if (e.code === 'ENOENT') return ''
+    throw e
+  })
+  const [{ tasks }, { items }] = await Promise.all([listTasks(root), listRoadmap(root)])
+  const epics = items.filter(i => i.parent !== null).sort((a, b) => a.order - b.order)
+  const groups = collectReleaseNotes({ tasks, epics, since: since?.date ?? null, changelog })
+  const count = groups.reduce((n, g) => n + g.tasks.length, 0)
+  if (!count) return { path: file, since, section: '', edits: [], count }
+  const section = formatReleaseNotes(groups, localToday())
+  return { path: file, since, section, edits: releaseNotesEdits(changelog, section), count }
 }
 
 /** Keyword recall over the entries: compact hits, no bodies (R048). */
