@@ -1,5 +1,5 @@
 # T506: Linked docs panel without duplicates, redesigned with /impeccable bolder
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R095 — UI enhancements
 **Size:** M (2–3 hrs)
 **Covers:** S3
@@ -45,7 +45,19 @@ PORT=3195 pnpm dev   # separate terminal
 BASE=http://localhost:3195 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules/playwright node e2e/docs-links.mjs
 ```
 
+## Design decisions (/impeccable bolder)
+- **One list, not two.** "Links to" and "Linked from" are merged into a single list (pure `mergeLinkRows`); direction became a per-row property instead of a section, so the repetition is gone and the panel reads as one set of relationships.
+- **All / To / From filter** at the top as a segmented control with unique counts (`All 14 · To 4 · From 14` on T216). It replaces the two section headers as the panel's header and gives back the one-direction view the old sections had.
+- **Stronger group headers:** Tasks / Epics / Docs promoted from a muted 11px line to Label Caps with the kind icon, a count and a hairline rule under it.
+- **Item title leads:** 13px medium in text colour; id stays mono 11px muted; the snippet (`L33 · context`) sits indented below in 11px muted, shown for rows that link here (where the other file names this one), never for out-only rows.
+- **Direction marker** at the row's right edge as a lucide icon (ArrowRight → links to, ArrowLeft ← linked from, ArrowLeftRight ⇄ both), with a tooltip and screen-reader text. "Both" is drawn in text colour, one-way in Pencil Grey, so mutual links stand out without a new colour. No glyphs, no new tokens, broken / stale sections untouched.
+
 ## Manual tests
+_2026-10-07 — ai:claude-code_
 ### Steps
-- [ ] S3 — WHEN a doc that both links to and is linked from the same items is opened → THEN each item shows once in Linked docs with its direction marked
-- [ ] The panel reads clearly in both themes (visual check after /impeccable bolder)
+- [ ] S3 — WHEN /docs?doc=plans/tasks/T216-dates-numbers-vietnamese-glyphs.md is opened → THEN Linked docs lists T215, T217, T223 and R078 once each with the ⇄ marker, and T218… T224 with ← and an `L27 · …` snippet (14 rows for 14 unique files)
+- [ ] Click To, then From, then All in the panel → the list narrows to that direction and the counts match the rows shown
+- [ ] Hover a row → its preview card shows; click a row → the task / epic / doc opens
+- [ ] The panel reads clearly in light and dark themes, and in Vietnamese at 390px (the Linked docs sheet)
+### Regression risk
+- [ ] The doc header's link count still counts unique files, and the Broken / Stale paths sections and Show in graph still work

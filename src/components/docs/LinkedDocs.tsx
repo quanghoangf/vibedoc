@@ -1,15 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useRef } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { FileQuestion, Unlink, Waypoints } from "lucide-react"
+import { ArrowLeft, ArrowLeftRight, ArrowRight, FileQuestion, Unlink, Waypoints } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { cn } from "@/lib/utils"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { GROUPS, KIND_ICON, useOpenNode } from "@/components/memory/EntryRelated"
 import { displayStatus } from "@/lib/statuses"
-import { graphHref, type LinkRow } from "@/lib/doc-links"
+import { graphHref, mergeLinkRows, type LinkDirection, type LinkRow, type MergedLinkRow } from "@/lib/doc-links"
 import type { NodeKind } from "@/lib/memory-graph"
 import type { DocLinksData } from "./useDocLinks"
 import { LinkPreview, type PreviewTarget } from "./LinkPreview"
@@ -19,6 +19,19 @@ import { useT } from "@/context/LanguageContext"
 /** Label Caps (DESIGN.md): mono 10px/500, 0.06em, uppercase. */
 const LABEL_CAPS = "flex items-center font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted"
 const ROW = "rounded-md px-2 py-1 text-left text-sm outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
+
+/** Direction markers: → links to, ← linked from, ⇄ both. Both reads in text colour, one way stays muted. */
+const DIRECTION = {
+  out: { Icon: ArrowRight, label: "docs.linksTo" },
+  in: { Icon: ArrowLeft, label: "docs.linkedFrom" },
+  both: { Icon: ArrowLeftRight, label: "docs.dirBoth" },
+} as const
+type Filter = "all" | "to" | "from"
+const FILTERS: { id: Filter; label: "docs.linksAll" | "docs.linksToFilter" | "docs.linksFromFilter"; keep: (d: LinkDirection) => boolean }[] = [
+  { id: "all", label: "docs.linksAll", keep: () => true },
+  { id: "to", label: "docs.linksToFilter", keep: (d) => d !== "in" },
+  { id: "from", label: "docs.linksFromFilter", keep: (d) => d !== "out" },
+]
 
 const NODE_KINDS = new Set<string>(GROUPS.map((g) => g.kind))
 /** Rows carry data-preview-* so one delegated LinkPreview serves the whole panel. */
@@ -42,6 +55,7 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
   const { board } = useApp()
   const open = useOpenNode((id) => router.push(`/memory?entry=${id}`))
   const { t } = useT()
+  const [filter, setFilter] = useState<Filter>("all")
   const tasks = useMemo(() => new Map(Object.values(board ?? {}).flat().map((t) => [t.id, t])), [board])
   const ref = useRef<HTMLDivElement>(null)
   // What each row showed last time (data-sig), so a live update flashes only the rows it changed. Reset while the
@@ -62,53 +76,87 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
     seen.current = next
   }, [links, board])
 
-  const row = (r: LinkRow, withLine: boolean, section: string) => {
+  const row = (r: MergedLinkRow) => {
     const kind = (NODE_KINDS.has(r.kind) ? r.kind : "doc") as NodeKind
     const id = idOf(r)
     const task = kind === "task" ? tasks.get(id) : undefined
     // tasks from the live board, epics from the row (their roadmap status): one StatusIcon for both
     const status = task ? displayStatus(task) : kind === "epic" ? r.status : undefined
     const Icon = KIND_ICON[kind]
+    const dir = DIRECTION[r.direction]
+    // where this file names the open doc; an out-only row has no snippet of its own
+    const snippet = r.direction !== "out" ? r.context ?? r.text : null
     return (
-      <li key={`${r.path}:${r.line}`}>
+      <li key={r.path}>
         <button
           type="button"
           onClick={() => { open({ id, kind, label: r.label, path: r.path }); onNavigate?.() }}
           data-preview-path={r.path}
           data-preview-kind={kind}
           data-preview-label={r.label}
-          data-row-key={`${section}:${r.path}${withLine ? `:${r.line}` : ""}`}
-          data-sig={`${r.label}|${status ?? ""}|${withLine ? r.context ?? r.text : ""}`}
-          className={cn("flex w-full flex-col", ROW)}
+          data-direction={r.direction}
+          data-row-key={r.path}
+          data-sig={`${r.label}|${status ?? ""}|${r.direction}|${snippet ?? ""}`}
+          className={cn("flex w-full flex-col gap-0.5", ROW)}
         >
           <span className="flex w-full min-w-0 items-center gap-2">
             {status ? <StatusIcon status={status} className="size-3.5 shrink-0" /> : <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />}
             {id !== r.path && <span className="shrink-0 font-mono text-[11px] text-muted">{id}</span>}
-            <span className="min-w-0 truncate text-txt">{r.label}</span>
+            <span className="min-w-0 truncate text-[13px] font-medium text-txt">{r.label}</span>
+            <span title={t(dir.label)} className={cn("ml-auto shrink-0", r.direction === "both" ? "text-txt" : "text-muted")}>
+              <dir.Icon className="size-3.5" aria-hidden />
+              <span className="sr-only">{t(dir.label)}</span>
+            </span>
           </span>
-          {withLine && <span className="w-full truncate pl-5.5 text-[11px] text-muted"><span className="font-mono">L{r.line}</span> · {r.context ?? r.text}</span>}
+          {snippet && <span className="w-full truncate pl-5.5 text-[11px] text-muted"><span className="font-mono">L{r.line}</span> · {snippet}</span>}
         </button>
       </li>
     )
   }
 
-  const section = (title: string, rows: LinkRow[], empty: string, withLine: boolean) => (
-    <div className="flex flex-col gap-1.5">
-      <h3 className={LABEL_CAPS}>
-        {title}<span className="ml-auto">{rows.length}</span>
-      </h3>
-      {!rows.length ? <p className="px-2 text-xs text-muted">{empty}</p> : GROUPS.map(({ kind, label }) => {
-        const group = rows.filter((r) => (NODE_KINDS.has(r.kind) ? r.kind : "doc") === kind)
-        if (!group.length) return null
-        return (
-          <div key={kind}>
-            <p className="px-2 text-[11px] text-muted">{t(label)}</p>
-            <ul>{group.map((r) => row(r, withLine, title))}</ul>
+  // One list, every linked file once, grouped by kind; the filter narrows it to one direction
+  const linked = (rows: MergedLinkRow[]) => {
+    const shown = rows.filter((r) => FILTERS.find((f) => f.id === filter)?.keep(r.direction))
+    const empty = filter === "from" ? t("docs.nothingLinksHere") : t("docs.noLinksYet")
+    return (
+      <div className="flex flex-col gap-3">
+        {rows.length > 0 && (
+          <div role="group" aria-label={t("docs.linkFilter")} className="flex rounded-md border border-border p-0.5">
+            {FILTERS.map((f) => {
+              const n = rows.filter((r) => f.keep(r.direction)).length
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  aria-pressed={filter === f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={cn(
+                    "flex flex-1 items-center justify-center gap-1.5 rounded-sm px-2 py-1 text-xs outline-none transition-colors duration-(--duration-fast) focus-visible:ring-2 focus-visible:ring-accent",
+                    filter === f.id ? "bg-surface2 font-medium text-txt" : "text-muted hover:text-txt",
+                  )}
+                >
+                  {t(f.label)}<span className="font-mono text-[11px] text-muted">{n}</span>
+                </button>
+              )
+            })}
           </div>
-        )
-      })}
-    </div>
-  )
+        )}
+        {!shown.length ? <p className="px-2 text-xs text-muted">{empty}</p> : GROUPS.map(({ kind, label }) => {
+          const group = shown.filter((r) => (NODE_KINDS.has(r.kind) ? r.kind : "doc") === kind)
+          if (!group.length) return null
+          const Icon = KIND_ICON[kind]
+          return (
+            <section key={kind} className="flex flex-col gap-1">
+              <h3 className={cn(LABEL_CAPS, "gap-1.5 border-b border-border px-2 pb-1.5")}>
+                <Icon className="size-3" aria-hidden />{t(label)}<span className="ml-auto">{group.length}</span>
+              </h3>
+              <ul>{group.map(row)}</ul>
+            </section>
+          )
+        })}
+      </div>
+    )
+  }
 
   // Broken links and stale path mentions: each row scrolls the preview to the spot and flashes it
   const missSection = (title: string, rows: LinkRow[], broken: boolean) => rows.length > 0 && (
@@ -135,16 +183,15 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
     </div>
   )
 
-  // one row per target: a doc linking the same file twice lists it once
-  const out = links ? [...new Map(links.out.map((r) => [r.path, r])).values()] : []
+  // one row per linked file, whichever way it links (T506)
+  const rows = useMemo(() => links ? mergeLinkRows(links.out, links.in) : [], [links])
   // the wrapper is always mounted so LinkPreview's delegated listeners attach once
   return (
     <div ref={ref} data-preview-bounds>
       <LinkPreview containerRef={ref} resolve={previewOf} />
       {!links ? <p className="text-xs text-muted">{t("docs.loadingLinks")}</p> : (
         <div className="flex flex-col gap-5">
-          {section(t("docs.linksTo"), out, t("docs.noLinksYet"), false)}
-          {section(t("docs.linkedFrom"), links.in, t("docs.nothingLinksHere"), true)}
+          {linked(rows)}
           {missSection(t("docs.broken"), links.broken, true)}
           {missSection(t("docs.stalePaths"), links.stale, false)}
           {path && (
