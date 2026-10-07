@@ -1,7 +1,7 @@
 {
   "name": "vibedoc",
   "description": "Plan and run work with VibeDoc: roadmap → epic breakdown → work an epic → what next. Uses the vibedoc_* MCP tools when VibeDoc is connected.",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "author": {
     "name": "quanghoangf"
   },
