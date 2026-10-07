@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** planned
 **Order:** 360
-**Tasks:** T504, T505, T506, T507
+**Tasks:** T504, T505, T506, T507, T508
 
 Small fixes to layout and behaviour that make daily use smoother. Each task is one self-contained polish item found while using VibeDoc.
 
@@ -23,3 +23,6 @@ Small fixes to layout and behaviour that make daily use smoother. Each task is o
 ### S4: From a task doc to its manual tests
 - WHEN a task doc with manual tests is open in /docs
 - THEN its test state shows on the page and one click opens that task in Test review
+### S5: Epic pane left, task detail beside it
+- WHEN the user opens an epic on /roadmap and clicks one of its tasks
+- THEN the epic stays in a pane on the left and the task's detail fills the rest of the screen, like Test review's list · detail
