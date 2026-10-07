@@ -1,5 +1,7 @@
 # T362: Wrong doc path suggests up to 5 similar docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Done:** 2026-10-07
 **Phase:** R087 — Agent-ready docs
 **Size:** S (~1 hr)
 **Depends on:** T361
@@ -38,4 +40,10 @@ BASE=http://localhost:3187 PW_DIR=. node e2e/agent-ready-docs.mjs
 ```
 
 ## Manual tests
-- [ ] S3 — WHEN an agent asks `/md/` or `vibedoc_read_doc` for a doc that doesn't exist → THEN the answer names up to 5 similar docs
+_2026-10-07 — ai · e2e: `e2e/agent-ready-docs.mjs` (passed)_
+### Steps
+- [x] S3 — `curl http://localhost:3333/md/docs/archtecture-overvew.md` (typo) → 404 "Doc not found" + "Did you mean:" with the real doc first, at most 5 `/md/` links
+- [x] S3 — Ask the agent to `vibedoc_read_doc` a misspelt doc → the error names the right doc
+- [ ] Try a few real typos of docs in this repo → the first suggestion is the doc you meant
+### Regression risk
+- [ ] `vibedoc_read_doc "HLD"` (a short name) still finds docs/architecture/.../HLD.md

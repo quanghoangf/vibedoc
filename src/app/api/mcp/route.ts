@@ -29,6 +29,7 @@ import {
   rootFrom,
   listDocs,
   readDoc,
+  suggestDocs,
   searchDocs,
   writeDoc,
   createDoc,
@@ -256,10 +257,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       });
 
     case "vibedoc_read_doc": {
-      const { path: docPath, content } = await readDoc(
-        String(args.query),
-        root,
-      );
+      const query = String(args.query);
+      const { path: docPath, content } = await readDoc(query, root).catch(async (e: Error) => {
+        // R087: a miss names the docs the agent probably meant
+        const hits = await suggestDocs(query, root);
+        throw new Error(hits.length ? `${e.message}. Did you mean:\n${hits.map((p) => `- ${p}`).join("\n")}` : e.message);
+      });
       emitUpdate("doc_read", { path: docPath });
       const related = formatRelatedFiles(docLinks(await getDocGraph(root), docPath));
       return `## ${docPath}\n\n${forAgent(content)}` + (related ? `\n\n---\n\n${related}` : "");

@@ -39,6 +39,7 @@ import { applyDelta, parseSpecChanges, formatRelatedSpecs, formatSpecContext, pa
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { forAgent } from './audience'
+import { similarPaths } from './similar-paths'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } from './memory-sections'
@@ -505,6 +506,11 @@ export async function readDocExact(docPath: string, root: string): Promise<{ pat
   } catch {
     throw new Error(`Doc not found: "${docPath}"`)
   }
+}
+
+/** R087: up to 5 doc paths that look like `query`, for a "did you mean" on a miss. */
+export async function suggestDocs(query: string, root: string): Promise<string[]> {
+  return similarPaths(query, (await listDocs(root)).map(d => d.path), tokenize)
 }
 
 export async function writeDoc(docPath: string, content: string, root: string): Promise<void> {
