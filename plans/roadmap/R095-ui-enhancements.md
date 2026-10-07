@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** planned
 **Order:** 360
-**Tasks:** T504, T505, T506, T507, T508, T509, T510
+**Tasks:** T504, T505, T506, T507, T508, T509, T510, T511
 
 Small fixes to layout and behaviour that make daily use smoother. Each task is one self-contained polish item found while using VibeDoc.
 
@@ -32,3 +32,6 @@ Small fixes to layout and behaviour that make daily use smoother. Each task is o
 ### S7: Quick review from the board
 - WHEN a task is in Review on /board and the user clicks its Review button
 - THEN its manual tests open in a quick review where items can be ticked and the task approved or sent back, without leaving the board
+### S8: Sidebar children
+- WHEN the user expands a page in the sidebar
+- THEN its children list what needs action there first, then recently viewed or used items, each opening the exact item, and the page collapses back
