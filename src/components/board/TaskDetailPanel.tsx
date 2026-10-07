@@ -9,7 +9,7 @@ import { StatusIcon } from "@/components/shared/StatusIcon"
 import { TaskSessions } from "./TaskSessions"
 import { TaskRuns } from "./TaskRuns"
 import Link from "next/link"
-import { Bot, Calendar, Check, ChevronRight, Copy, CircleDashed, CornerUpLeft, FileText, Flag, FlaskConical, Map as MapIcon, ListChecks, MessageSquare, MoreHorizontal, Ruler, ScanSearch, Trash2, User } from "lucide-react"
+import { Bot, Calendar, CalendarRange, Check, ChevronRight, CirclePlay, Copy, CircleDashed, CornerUpLeft, FileText, Flag, FlaskConical, Link2, Map as MapIcon, ListChecks, MessageSquare, MoreHorizontal, Ruler, ScanSearch, Trash2, User } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
@@ -24,12 +24,14 @@ import { AgentMark } from "@/components/chat/AgentMark"
 import { useApp } from "@/context/AppContext"
 import { toast } from "@/components/ui/toast"
 import { useChats } from "@/context/ChatContext"
-import { chatFor } from "@/lib/chats"
+import { chatFor, chatStatus } from "@/lib/chats"
+import { depIds } from "@/lib/work-queue"
+import { testReviewHref } from "@/lib/test-review"
+import { StatusMarker } from "@/components/chat/StatusMarker"
+import { useChatText } from "@/components/chat/chat-text"
 import { latestReview, reviewHistory, type ReviewEntry, type ReviewMark } from "@/lib/review"
 import { SEVERITIES, formatFindingsNote, type Verification } from "@/lib/verification"
 import { verifyTask } from "@/lib/ask-agent"
-import { testReviewHref } from "@/lib/test-review"
-import type { AutoRun } from "@/lib/manual-tests"
 import { useT } from "@/context/LanguageContext"
 import { readCookie } from "@/lib/player-prefs"
 import { clampPanelWidth, panelWidthCookie, parsePanelWidth, PANEL_DEFAULT_WIDTH, PANEL_KEYBOARD_STEP, PANEL_MIN_WIDTH, PANEL_WIDTH_COOKIE } from "@/lib/panel-width"
@@ -202,7 +204,10 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
               </DropdownMenuContent>
             </DropdownMenu>}
         </div>}
-        properties={taskProperties(task, t)}
+        properties={taskProperties(task, t, { chat: !!chat, onNavigate: onClose, onChat: chatAbout })}
+        // a wide panel (or /roadmap's inline detail) lays the rows out in two columns
+        className="@container"
+        propertiesClassName="@2xl:grid-cols-[minmax(6.5rem,8.5rem)_minmax(0,1fr)_minmax(6.5rem,8.5rem)_minmax(0,1fr)] @2xl:gap-x-4"
       />
 
       {error && <p role="alert" className="px-5 py-2 text-xs text-danger border-b border-border">{error}</p>}
@@ -259,7 +264,7 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
 
       {/* Body, then activity: one scroll area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="px-5 py-4">
+        <div className="max-w-[72ch] px-5 py-4">
           {task.raw ? (
             <MarkdownRenderer content={bodyOf(task.raw)} basePath={task.file} />
           ) : (
@@ -267,26 +272,8 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
           )}
         </div>
         <section aria-label={t("shell.activity")} className="border-t border-border">
-          {task.manualTests && (
-            <Link
-              href={`/manual-tests#${task.id}`}
-              onClick={onClose}
-              className="group flex items-center gap-2 px-5 py-2.5 border-b border-border shrink-0 text-xs text-muted hover:bg-surface2 hover:text-txt transition-colors"
-            >
-              <FlaskConical className="size-3.5" />
-              <span className={cn("font-mono", task.manualTests.done === task.manualTests.total && "text-teal")}>
-                {task.manualTests.done}/{task.manualTests.total}
-              </span>
-              {t("board.manualTestsTicked")}
-              {task.manualTests.auto > 0 && (
-                <span className="inline-flex items-center gap-1"><span aria-hidden>·</span><Bot className="size-3.5" aria-hidden /><span className="font-mono">{task.manualTests.auto}</span> {t("board.automated")}</span>
-              )}
-              <span className="ml-auto text-accent opacity-0 transition-opacity group-hover:opacity-100">{t("board.openChecklist")}</span>
-            </Link>
-          )}
-          {task.manualTests && (task.manualTests.spec || task.manualTests.autoRun) && (
-            <AutoTestsLine spec={task.manualTests.spec} autoRun={task.manualTests.autoRun} />
-          )}
+          {/* the result and ticks are in the header's Tests row; the spec path stays here to copy */}
+          {task.manualTests?.spec && <AutoTestsLine spec={task.manualTests.spec} />}
 
           {task.verification && (
             <VerificationBlock
@@ -309,12 +296,11 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
   )
 }
 
-/** "Spec: `path` · last run passed 2026-10-04" (R058). The spec lives in the target repo, so the path is copied, not linked. */
-function AutoTestsLine({ spec, autoRun }: { spec: string | null; autoRun: AutoRun | null }) {
+/** "Spec: `path`" (R058). The spec lives in the target repo, so the path is copied, not linked. */
+function AutoTestsLine({ spec }: { spec: string }) {
   const { t } = useT()
   const [copied, setCopied] = useState(false)
   const copy = async () => {
-    if (!spec) return
     try {
       await navigator.clipboard.writeText(spec)
       setCopied(true)
@@ -325,27 +311,18 @@ function AutoTestsLine({ spec, autoRun }: { spec: string | null; autoRun: AutoRu
   }
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-5 py-2 border-b border-border text-xs text-muted">
-      {spec && (
-        <span className="inline-flex min-w-0 items-center gap-1">
-          {t("board.spec")} <code className="select-all truncate font-mono text-txt">{spec}</code>
-          <button
-            type="button"
-            onClick={copy}
-            aria-label={copied ? t("board.copied") : t("board.copyPath", { path: spec })}
-            className="rounded-sm p-1 hover:bg-surface2 hover:text-txt focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            {copied ? <Check className="size-3" aria-hidden /> : <Copy className="size-3" aria-hidden />}
-          </button>
-          <span className="sr-only" role="status">{copied ? t("board.copiedToClipboard") : ""}</span>
-        </span>
-      )}
-      {spec && autoRun && <span aria-hidden>·</span>}
-      {autoRun && (
-        <span>
-          {t("board.lastRun")} <span className={cn("font-mono", autoRun.result === "failed" ? "text-danger" : "text-teal")}>{autoRun.result === "failed" ? t("board.runFailed") : t("board.runPassed")}</span>{" "}
-          <span className="font-mono">{autoRun.date}</span>
-        </span>
-      )}
+      <span className="inline-flex min-w-0 items-center gap-1">
+        {t("board.spec")} <code className="select-all truncate font-mono text-txt">{spec}</code>
+        <button
+          type="button"
+          onClick={copy}
+          aria-label={copied ? t("board.copied") : t("board.copyPath", { path: spec })}
+          className="rounded-sm p-1 hover:bg-surface2 hover:text-txt focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          {copied ? <Check className="size-3" aria-hidden /> : <Copy className="size-3" aria-hidden />}
+        </button>
+        <span className="sr-only" role="status">{copied ? t("board.copiedToClipboard") : ""}</span>
+      </span>
     </div>
   )
 }
@@ -376,9 +353,16 @@ function bodyOf(raw: string): string {
   return lines.slice(i).join("\n")
 }
 
-/** Status · owner · due · size · epic, in the shared header grid. */
-function taskProperties(task: Task, t: (key: MessageKey) => string): ItemProperty[] {
+const GLANCE_LINK = "inline-flex min-w-0 flex-wrap items-center gap-y-0.5 gap-1.5 rounded-sm text-xs transition-colors duration-(--duration-fast) hover:text-txt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+
+/**
+ * The header grid: the editable fields (status · priority · owner · due · size · epic), then what the task is
+ * waiting on and what proves it (T509): dependencies, scenarios, tests, last run, verification, chat, dates.
+ * Rows without data drop out; each value links to where it lives.
+ */
+function taskProperties(task: Task, t: (key: MessageKey) => string, glance: { chat: boolean; onNavigate: () => void; onChat: () => void }): ItemProperty[] {
   const epic = task.phase && task.phase !== "—" ? epicOf(task.phase) : null
+  const deps = depIds(task.dependsOn)
   return [
     { label: t("board.status"), id: "status", icon: CircleDashed, value: <TaskStatusField task={task} chip /> },
     { label: t("board.priority"), id: "priority", icon: Flag, value: <TaskPriorityField task={task} /> },
@@ -386,14 +370,134 @@ function taskProperties(task: Task, t: (key: MessageKey) => string): ItemPropert
     { label: t("board.due"), id: "due", icon: Calendar, value: <TaskDueField task={task}>{task.due ? <DueChip due={task.due} state={dueState(task.due, task.status === "done" ? "done" : "planned", localToday())} /> : <span className="text-muted">—</span>}</TaskDueField> },
     { label: t("board.size"), id: "size", icon: Ruler, value: <TaskSizeField task={task} /> },
     { label: t("board.epic"), id: "epic", icon: MapIcon, value: epic && <span className="flex min-w-0 items-center gap-1.5">{epic.id && <span className="font-mono text-[11px] text-muted">{epic.id}</span>}<span className="truncate">{epic.title}</span></span> },
+    { label: t("board.dependsOn"), id: "deps", icon: Link2, value: deps.length > 0 && <DepChips ids={deps} /> },
     // R068: the epic scenarios this task covers (read-only; edit the **Covers:** line)
     ...(task.covers?.length ? [{ label: t("board.covers"), id: "covers", icon: ListChecks, value: (
       <span className="flex flex-wrap gap-1">{task.covers.map((id) => <span key={id} className="rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted">{id}</span>)}</span>
     ) }] : []),
+    { label: t("board.tests"), id: "tests", icon: FlaskConical, value: task.manualTests && <TestsGlance task={task} onNavigate={glance.onNavigate} /> },
+    { label: t("board.glanceRun"), id: "run", icon: CirclePlay, value: task.lastRun && <RunGlance task={task} onNavigate={glance.onNavigate} /> },
+    { label: t("board.verification"), id: "verification", icon: ScanSearch, value: task.verification && <VerificationGlance taskId={task.id} v={task.verification} /> },
+    { label: t("board.glanceChat"), id: "chat", icon: MessageSquare, value: glance.chat && <ChatGlance task={task} onChat={glance.onChat} /> },
+    { label: t("board.glanceDates"), id: "dates", icon: CalendarRange, value: task.started && <DatesGlance started={task.started} finished={task.finished} /> },
   ]
 }
 
+/** Each dependency with its status; a click opens it on the board (`/board?task=` re-opens the panel there). */
+function DepChips({ ids }: { ids: string[] }) {
+  const { board } = useApp()
+  const statusLabel = useStatusLabel()
+  const { t } = useT()
+  const byId = new Map((board ? Object.values(board).flat() : []).map((d) => [d.id, d]))
+  return (
+    <span className="flex min-w-0 flex-wrap gap-1" data-glance="deps">
+      {ids.map((id) => {
+        const dep = byId.get(id)
+        if (!dep) return <span key={id} title={t("board.glanceDepMissing", { id })} className="rounded-sm border border-dashed border-border px-1.5 py-0.5 font-mono text-[10px] text-muted">{id}</span>
+        const status = displayStatus(dep)
+        return (
+          <Link
+            key={id}
+            href={`/board?task=${encodeURIComponent(id)}`}
+            title={`${dep.title} · ${statusLabel(status)}`}
+            aria-label={`${id} ${dep.title}, ${statusLabel(status)}`}
+            className="inline-flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 hover:text-txt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <StatusIcon status={status} className="size-3" /> {id}
+          </Link>
+        )
+      })}
+    </span>
+  )
+}
 
+/** "3/5 ticked · 🤖 2 · passed 10-04" → the task in Test review. */
+function TestsGlance({ task, onNavigate }: { task: Task; onNavigate: () => void }) {
+  const { t } = useT()
+  const m = task.manualTests
+  if (!m) return null
+  return (
+    <Link href={testReviewHref(task.id)} onClick={onNavigate} title={t("board.glanceOpenTests", { id: task.id })} className={cn(GLANCE_LINK, "text-muted")} data-glance="tests">
+      <span className={cn("whitespace-nowrap font-mono text-[11px]", m.total > 0 && m.done === m.total ? "text-teal" : "text-txt")}>{t("board.glanceTicked", { done: m.done, total: m.total })}</span>
+      {m.auto > 0 && <span className="inline-flex items-center gap-1"><span aria-hidden>·</span><Bot className="size-3.5" aria-label={t("board.automated")} /><span className="font-mono text-[11px]">{m.auto}</span></span>}
+      {m.autoRun && (
+        <span className="inline-flex items-center gap-1">
+          <span aria-hidden>·</span>
+          <span className={cn("whitespace-nowrap font-mono text-[11px]", m.autoRun.result === "failed" ? "text-danger" : "text-teal")}>{m.autoRun.result === "failed" ? t("board.runFailed") : t("board.runPassed")}</span>
+          <span className="font-mono text-[11px]">{m.autoRun.date.slice(5)}</span>
+        </span>
+      )}
+    </Link>
+  )
+}
+
+/** "passed 4/4" or "failed at step 2 · name" → that run's evidence. */
+function RunGlance({ task, onNavigate }: { task: Task; onNavigate: () => void }) {
+  const { t } = useT()
+  const r = task.lastRun
+  if (!r) return null
+  return (
+    <Link href={testReviewHref(task.id, "evidence")} onClick={onNavigate} title={t("board.glanceOpenEvidence")} className={cn(GLANCE_LINK, "text-muted")} data-glance="run">
+      {r.status === "failed" && r.failed ? (
+        <>
+          <span className="shrink-0 font-mono text-[11px] text-danger">{t("board.glanceRunFailed", { n: r.failed.index })}</span>
+          <span className="truncate">{r.failed.name}</span>
+        </>
+      ) : (
+        <span className={cn("font-mono text-[11px]", r.status === "failed" ? "text-danger" : "text-teal")}>
+          {r.status === "failed" ? t("board.runFailed") : t("board.glanceRunPassed", { passed: r.passed, steps: r.steps })}
+        </span>
+      )}
+    </Link>
+  )
+}
+
+/** Critical + major findings (the ones worth a fix), else "nothing found"; a click scrolls to the report below. */
+function VerificationGlance({ taskId, v }: { taskId: string; v: Verification }) {
+  const { t, tn } = useT()
+  const critical = v.findings.filter((f) => f.severity === "critical").length
+  const serious = critical + v.findings.filter((f) => f.severity === "major").length
+  return (
+    <button
+      type="button"
+      onClick={() => document.getElementById(verificationId(taskId))?.scrollIntoView({ behavior: "smooth", block: "start" })}
+      title={t("board.glanceShowFindings")}
+      className={cn(GLANCE_LINK, "text-muted")}
+      data-glance="verification"
+    >
+      {!v.findings.length ? <span className="text-teal">{t("board.glanceVerified")}</span>
+        : <span className={cn("font-mono text-[11px]", v.outdated ? "text-muted" : critical ? "text-danger" : serious ? "text-amber" : "text-muted")}>{tn("board.findings", serious || v.findings.length)}</span>}
+      {v.outdated && <span className="text-amber">· {t("board.glanceOutdated")}</span>}
+    </button>
+  )
+}
+
+/** The chat about this task: its state (running, needs you, idle…); a click opens it. */
+function ChatGlance({ task, onChat }: { task: Task; onChat: () => void }) {
+  const { chats } = useChats()
+  const text = useChatText()
+  const chat = chatFor(chats, { kind: "task", id: task.id })
+  if (!chat) return null
+  const status = chatStatus(chat)
+  return (
+    <button type="button" onClick={onChat} className={cn(GLANCE_LINK, status === "needs-answer" ? "text-amber" : status === "error" ? "text-danger" : "text-muted")} data-glance="chat">
+      <StatusMarker status={status} showIdle />
+      <span className="truncate">{text.status(status)}</span>
+    </button>
+  )
+}
+
+/** Started → Done as local calendar dates (mono, no time). */
+function DatesGlance({ started, finished }: { started: string; finished: string | null }) {
+  const { t } = useT()
+  return (
+    <span className="flex flex-wrap items-center gap-x-1.5 font-mono text-[11px] text-muted" data-glance="dates">
+      {finished ? <><span className="whitespace-nowrap">{started}</span><span aria-hidden>→</span><span className="sr-only">–</span><span className="whitespace-nowrap text-txt">{finished}</span></> : t("board.glanceStartedOnly", { date: started })}
+    </span>
+  )
+}
+
+const verificationId = (taskId: string) => `verification-${taskId}`
 
 export type ReviewAction = "approve" | "send-back"
 
@@ -549,7 +653,7 @@ function VerificationBlock({ taskId, verification: v, canSendBack, onSent }: { t
   }
 
   return (
-    <section aria-label={t("board.verification")} className="flex flex-col gap-2 px-5 py-3 border-b border-border shrink-0">
+    <section id={verificationId(taskId)} aria-label={t("board.verification")} className="flex scroll-mt-2 flex-col gap-2 px-5 py-3 border-b border-border shrink-0">
       <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted">
         {t("board.verification")}
         <span className="normal-case tracking-normal">{v.at} · {v.by}{v.sha ? ` · at ${v.sha}` : ""}</span>

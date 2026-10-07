@@ -44,12 +44,14 @@ export function PropertyRows({ properties, className, children }: {
  * ⋯ menu always at its right end, the title, then a properties grid.
  * `title` is a node so a Sheet can pass its SheetTitle.
  */
-export function ItemPanelHeader({ kicker, title, menu, properties, className, children }: {
+export function ItemPanelHeader({ kicker, title, menu, properties, className, propertiesClassName, children }: {
   kicker: ReactNode
   title: ReactNode
   menu?: ReactNode
   properties: ItemProperty[]
   className?: string
+  /** e.g. a container-query two-column grid on a wide panel */
+  propertiesClassName?: string
   /** Extra header content under the properties (e.g. an epic's progress) */
   children?: ReactNode
 }) {
@@ -60,7 +62,7 @@ export function ItemPanelHeader({ kicker, title, menu, properties, className, ch
         {menu}
       </div>
       <div className="text-base font-semibold leading-snug text-txt">{title}</div>
-      <PropertyRows properties={properties} className="-my-0.5" />
+      <PropertyRows properties={properties} className={cn("-my-0.5", propertiesClassName)} />
       {children}
     </header>
   )

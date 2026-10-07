@@ -1,5 +1,5 @@
 # T509: Board task quick view: resizable, and more at a glance
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R095 — UI enhancements
 **Size:** L (half a day)
 **Depends on:** T508
@@ -55,9 +55,24 @@ BASE=http://localhost:3195 PW_DIR=$PW node e2e/board-task-panel.mjs
 BASE=http://localhost:3195 PW_DIR=$PW node e2e/manual-tests-review.mjs
 ```
 
+## Redesign decisions (/impeccable)
+Mode: Operate, inside the existing "Lab Notebook" world (DESIGN.md tokens only; refinement of structure, not a new look).
+- **One vocabulary:** everything at a glance is another row in the shared `PropertyRows` grid (icon + label → value), not a new card strip. Editable fields first (Status · Priority · Owner · Due · Size · Epic, unchanged), then what the task waits on and what proves it: Depends on · Covers · Tests · Last run · Verification · Chat · Worked (Started → Done). Rows without data drop out.
+- **Each value links to its place:** dependency chips (`StatusIcon` + mono id, dashed when the task doesn't exist) → `/board?task=`; Tests (`1/2 ticked · 🤖 n · passed MM-DD`) → `testReviewHref(id)`; Last run (`passed 4/4` / `failed at step N · name`) → the evidence view; Verification (critical + major count, red with a critical, amber otherwise; "nothing found" teal; "outdated" amber) scrolls to the report below; Chat (`StatusMarker` + state, idle shown) opens it.
+- **Wide panel uses the space:** the header is a container; from 42rem (`@2xl`) the rows sit in two columns, so a 13-row header stays ~7 rows tall. The same applies to /roadmap's inline task detail (T508), which got wider for free. Body capped at 72ch.
+- **No duplicates:** the "N/M manual tests ticked" row under the body moved up into Tests; the line below keeps only the spec path to copy.
+- **Actions unchanged:** move buttons, Verify, Chat and Approve / Send back stay where they were (no reason found to move them).
+- Mono 10–11px for ids, counts and dates; status hues only for state (teal settled, amber watch, red stopped). No new type sizes, colours or shadows.
+
 ## Manual tests
+_Auto: `e2e/board-task-panel.mjs` passed 2026-10-07, twice in a row (items below marked [x] are what it proved). `pnpm typecheck` + `pnpm build` ok, lint 10 errors (baseline, none in the touched files), `panel-width` / `i18n` checks ok; `quick-review`, `verification`, `roadmap-epic-pane`, `i18n` e2e pass, `manual-tests-review` passed on its rerun (known flaky)._
 ### Steps
-- [ ] S6 — WHEN the user drags the task quick view's edge on /board → THEN it resizes, keeps the width after a reload, and shows dependencies, tests, runs and chat state at a glance
-- [ ] The redesigned header reads clearly at narrow and wide widths (visual check after /impeccable redesign)
+- [x] S6 — WHEN the user drags the task quick view's edge on /board → THEN it resizes, keeps the width after a reload, and shows dependencies, tests, runs and chat state at a glance
+- [x] Open a task with dependencies, tests, findings and a chat (e.g. a Review task) → the header shows Depends on (each with its status icon), Covers, Tests `done/total ticked`, Verification `N findings`, Chat state and Worked dates without scrolling
+- [x] Click a dependency chip → that task's panel opens on the board; the Tests row links to Test review for this task
+- [x] Widen the panel past ~670px → the rows sit in two columns; narrow it → one column
+- [ ] Click the Verification row → the panel scrolls to the findings block
+- [ ] The header reads clearly at narrow and wide widths, light and dark, English and Vietnamese (visual)
+- [ ] /roadmap → open an epic → click a task: the inline detail shows the same rows (two columns at that width)
 ### Regression risk
-- [ ] Approve / Send back from the panel still moves the card
+- [ ] Approve / Send back from the panel still moves the card; editing Status / Due inline still saves
