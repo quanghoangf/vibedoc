@@ -2,7 +2,8 @@
  * /api/chat
  *
  * Chat with an agent from the UI, billed to the local Claude Code login (OpenClaw-style).
- * Spawns `claude -p` per turn and pipes its stream-json (NDJSON) output to the browser.
+ * Spawns `claude -p` per turn and pipes its stream-json (NDJSON) output to the browser. The turn outlives the request:
+ * a reloaded page re-attaches with GET /api/conversations/turn?id= (src/lib/chat-turns.ts).
  * Native tools are disabled: the agent can only use VibeDoc's own MCP tools, so every
  * write goes through core.ts and emits SSE updates like any other MCP client.
  */
@@ -15,6 +16,7 @@ import { groupSessions } from '@/lib/sessions'
 import { buildEpisode, isHandoffWritten, mergeSources, turnSessions } from '@/lib/episodes'
 import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 import { CHAT_CALL_HEADER } from '@/lib/agent-connect'
+import { beginTurn, isTurnRunning, turnStream } from '@/lib/chat-turns'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -100,42 +102,41 @@ export async function POST(req: NextRequest) {
   const env = { ...process.env }
   delete env.ANTHROPIC_API_KEY
 
-  const encoder = new TextEncoder()
-  const stream = new ReadableStream({
-    start(controller) {
-      const since = new Date().toISOString()
-      const child = spawn('claude', args, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
-      let stderr = ''
-      let pending = ''
-      let lastMessage: string | undefined
-      let closed = false
-      const send = (line: string) => { if (!closed) controller.enqueue(encoder.encode(line)) }
-      const close = () => { if (!closed) { closed = true; controller.close() } }
-      const fail = (message: string) => send(JSON.stringify({ type: 'error', message }) + '\n')
+  // The turn belongs to the server (chat-turns.ts): the browser's request only follows it, so a reload or a closed
+  // tab no longer kills the agent. Stop is POST /api/conversations/turn/cancel.
+  const id = typeof conversationId === 'string' && conversationId ? conversationId : `anon-${Date.now()}`
+  if (isTurnRunning(root, id)) return Response.json({ error: 'This chat is already running a turn' }, { status: 409 })
+  const since = new Date().toISOString()
+  const child = spawn('claude', args, { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] })
+  const turn = beginTurn(root, id, child)
+  let stderr = ''
+  let pending = ''
+  let lastMessage: string | undefined
+  const fail = (message: string) => turn.push(JSON.stringify({ type: 'error', message }) + '\n')
 
-      child.stdout.on('data', (chunk: Buffer) => {
-        const text = chunk.toString('utf8')
-        send(text)
-        const lines = (pending + text).split('\n')
-        pending = lines.pop() ?? ''
-        for (const line of lines) lastMessage = assistantText(line) ?? lastMessage
-      })
-      child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8') })
-      child.on('error', (e: NodeJS.ErrnoException) => {
-        fail(e.code === 'ENOENT' ? 'Claude Code CLI not found on PATH. Install it and run `claude` once to log in.' : e.message)
-        close()
-      })
-      child.on('close', (code) => {
-        if (code !== 0 && code !== null) fail(stderr.trim() || `claude exited with code ${code}`)
-        close()
-        lastMessage = assistantText(pending) ?? lastMessage
-        writeTurnEpisodes(root, since, typeof conversationId === 'string' ? conversationId : null, lastMessage)
-          .catch(e => console.warn(`[vibedoc] episode not written: ${(e as Error).message}`))
-      })
-      req.signal.addEventListener('abort', () => { child.kill('SIGTERM'); close() })
-    },
+  child.stdout.on('data', (chunk: Buffer) => {
+    const text = chunk.toString('utf8')
+    turn.push(text)
+    const lines = (pending + text).split('\n')
+    pending = lines.pop() ?? ''
+    for (const line of lines) lastMessage = assistantText(line) ?? lastMessage
+  })
+  child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8') })
+  child.on('error', (e: NodeJS.ErrnoException) => {
+    fail(e.code === 'ENOENT' ? 'Claude Code CLI not found on PATH. Install it and run `claude` once to log in.' : e.message)
+    turn.end()
+  })
+  child.on('close', (code, signal) => {
+    // Stop (cancelTurn): a page that replays this turn later shows it as stopped, unless the agent had said something
+    if (signal === 'SIGTERM') { if (!(assistantText(pending) ?? lastMessage)) fail('Stopped.') }
+    else if (code !== 0 && code !== null) fail(stderr.trim() || `claude exited with code ${code}`)
+    turn.end()
+    lastMessage = assistantText(pending) ?? lastMessage
+    writeTurnEpisodes(root, since, typeof conversationId === 'string' ? conversationId : null, lastMessage)
+      .catch(e => console.warn(`[vibedoc] episode not written: ${(e as Error).message}`))
   })
 
+  const stream = turnStream(root, id, req.signal)!
   return new Response(stream, {
     headers: { 'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-cache, no-transform' },
   })

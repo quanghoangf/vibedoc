@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // A fake `claude` CLI for e2e/connect-agent.mjs and src/lib/claude-cli.check.mts (R081). Put this folder first on
 // PATH. State lives in the cwd (the project VibeDoc runs it in): .claude-stub.json, every call appended to
-// .claude-stub.log as "<argv joined by spaces>". Mimics Claude Code 2.1's output for the commands VibeDoc runs.
+// .claude-stub.log as "<argv joined by spaces>". Mimics Claude Code 2.1's output for the commands VibeDoc runs,
+// plus a slow `-p` chat turn for e2e/chat-reload.mjs.
 const fs = require("node:fs")
 const path = require("node:path")
 const args = process.argv.slice(2)
@@ -31,6 +32,28 @@ if (cmd === "mcp add") {
   if (!(state.marketplaces ?? []).some((m) => m.name === "vibedoc")) { console.error(`Plugin "${args[2]}" not found in any marketplace`); process.exit(1) }
   state.plugins = [...(state.plugins ?? []), { id: args[2], version: "1.16.0", scope: "user", enabled: true }]; save()
   console.log(`✔ Successfully installed plugin: ${args[2]} (scope: user)`)
+} else if (args[0] === "-p") {
+  // A chat turn (e2e/chat-reload.mjs): stream-json over ~4s, slow enough to reload the page mid-turn.
+  // CLAUDE_STUB_TURN_MS overrides the length; the reply names the prompt so the test can find it.
+  const prompt = args[1]
+  const words = ["Checked", "the", "task", "and", "found", "nothing", "wrong:", JSON.stringify(prompt.slice(-30))]
+  const step = Number(process.env.CLAUDE_STUB_TURN_MS ?? 4000) / words.length
+  const out = (o) => process.stdout.write(JSON.stringify(o) + "\n")
+  const sid = "stub-session-1"
+  out({ type: "system", subtype: "init", session_id: sid })
+  out({ type: "stream_event", session_id: sid, event: { type: "message_start" } })
+  let i = 0
+  const timer = setInterval(() => {
+    if (i < words.length) {
+      out({ type: "stream_event", session_id: sid, event: { type: "content_block_delta", delta: { type: "text_delta", text: (i ? " " : "") + words[i] } } })
+      i++
+      return
+    }
+    clearInterval(timer)
+    out({ type: "assistant", session_id: sid, message: { content: [{ type: "text", text: words.join(" ") }] } })
+    out({ type: "result", session_id: sid, is_error: false, result: words.join(" ") })
+  }, step)
+  process.on("SIGTERM", () => process.exit(143))
 } else {
   console.error(`claude stub: unknown command ${args.join(" ")}`); process.exit(2)
 }

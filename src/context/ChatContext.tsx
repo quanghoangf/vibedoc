@@ -6,7 +6,7 @@
  * .vibedoc/chats/<id>.json (/api/conversations) at turn end, card resolution and attach changes.
  */
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { tNow } from "@/context/LanguageContext"
@@ -18,7 +18,7 @@ import { asRenderablePlan, planTarget } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
 import { ASK_AGENT_EVENT, OPEN_CHAT_EVENT, openAgentChat, type AskAgentDetail } from "@/lib/ask-agent"
 import {
-  addChat, attachContext, attachKey, attentionQueue, chatFor, chatStatus, chatTitle, defaultChat, epicOf, fromSaved, isActionableError, isWaiting,
+  addChat, attachContext, attachKey, attentionQueue, chatFor, chatStatus, chatTitle, defaultChat, epicOf, fromSaved, INTERRUPTED, isActionableError, isWaiting,
   itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, toSaved, waitingTitle,
   type Attach, type Chat, type ChatStatus, type ItemAgent,
 } from "@/lib/chats"
@@ -120,23 +120,41 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const onChatPage = pathname === "/chat"
   const docPath = pathname === "/docs" ? selectedDoc?.path : undefined
 
+  // Picks a server-side turn back up after a reload (an Effect Event: the load effect below shouldn't re-run per render)
+  const resumeTurn = useEffectEvent((id: string) => {
+    void follow(id, (signal) => fetch(`/api/conversations/turn${rootParam}&id=${encodeURIComponent(id)}`, { signal }))
+  })
+
   // A Claude session belongs to one project: stop everything and load that project's chats
   useEffect(() => {
     for (const ac of abortsRef.current.values()) ac.abort()
     abortsRef.current.clear()
     dirtyRef.current.clear()
     let cancelled = false
+    // The server keeps a turn running when the page reloads (src/lib/chat-turns.ts): ask which ones it still has
+    const turnsReq = fetch(`/api/conversations/turn${rootParam}`)
+      .then((r) => (r.ok ? r.json() : { turns: [] }))
+      .then((d: { turns?: { id: string }[] }) => new Set((d.turns ?? []).map((t) => t.id)))
+      .catch(() => new Set<string>())
     fetch(`/api/conversations${rootParam}`)
       .then((r) => (r.ok ? r.json() : { chats: [] }))
-      .then((d: { chats?: unknown[] }) => {
+      .then(async (d: { chats?: unknown[] }) => {
+        const turns = await turnsReq
         if (cancelled) return
         // Read-only demo: no chats at all, so no item shows a chat mark to click
         const loadedChats = (demo ? [] : d.chats ?? []).map((c) => fromSaved<ChatMessage>(c)).filter((c): c is ChatTab => !!c)
-        notifiedRef.current = Object.fromEntries(loadedChats.map((c) => [c.id, chatStatus(c)]))
-        setChats(loadedChats)
+        // A turn cut off by the reload that the server still has (running or just ended): drop the "interrupted"
+        // note, show it running again and replay it from the start
+        const resumable = new Set(loadedChats.filter((c) => turns.has(c.id) && c.messages[c.messages.length - 1]?.error === INTERRUPTED).map((c) => c.id))
+        const shown = loadedChats.map((c) => (resumable.has(c.id)
+          ? { ...c, busy: true, messages: [...c.messages.slice(0, -1), blank("assistant")] }
+          : c))
+        notifiedRef.current = Object.fromEntries(shown.map((c) => [c.id, chatStatus(c)]))
+        setChats(shown)
         setModalId(null)
         setCurrentId(null)
         setLoaded(true)
+        for (const id of resumable) resumeTurn(id)
       })
       .catch((e) => {
         console.warn("[vibedoc] could not load chats:", e)
@@ -360,15 +378,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       ...(chat?.notes.length ? [`[${chat.notes.join(" ")}]`] : []),
     ]
     const outgoing = prefix.length ? `${prefix.join("\n")}\n\n${message}` : message
+    await follow(chatId, (signal) => fetch(`/api/chat${rootParam}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: outgoing, sessionId: chat?.sessionId ?? null, docPath, conversationId: chatId }),
+      signal,
+    }))
+  }
+
+  // Reads one turn's NDJSON into chat `chatId` (a new turn, or one picked back up after a reload), then saves it
+  async function follow(chatId: string, open: (signal: AbortSignal) => Promise<Response>) {
     const ac = new AbortController()
     abortsRef.current.set(chatId, ac)
     try {
-      const res = await fetch(`/api/chat${rootParam}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: outgoing, sessionId: chat?.sessionId ?? null, docPath, conversationId: chatId }),
-        signal: ac.signal,
-      })
+      const res = await open(ac.signal)
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => null)
         throw new Error(data?.error ?? `Request failed (${res.status})`)
@@ -401,8 +424,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Aborting the fetch makes /api/chat kill its `claude -p` child
+  // The turn runs on the server (it survives a reload), so Stop asks the server to kill it, then stops reading
   function stop(chatId: string) {
+    fetch(`/api/conversations/turn/cancel${rootParam}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: chatId }),
+    }).catch((e) => console.warn(`[vibedoc] could not stop chat ${chatId}:`, e))
     abortsRef.current.get(chatId)?.abort()
   }
 
