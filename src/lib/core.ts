@@ -486,6 +486,27 @@ export async function readDoc(query: string, root: string): Promise<{ path: stri
   throw new Error(`Doc not found: "${query}"`)
 }
 
+/**
+ * R087: one doc by its exact project-relative path, for URLs any agent can fetch (`/md/<path>`).
+ * Refuses (error starting "Refused") absolute paths, `..` escapes, dot-folders, node_modules and non-.md files;
+ * a missing file throws `Doc not found`. No fuzzy fallback: a URL never serves a neighbouring file.
+ */
+export async function readDocExact(docPath: string, root: string): Promise<{ path: string; content: string }> {
+  const rel = docPath.replace(/\\/g, '/').replace(/^\.\//, '')
+  const segs = rel.split('/')
+  if (!rel.endsWith('.md') || path.isAbsolute(docPath) || segs.some(s => !s || s.startsWith('.') || s === 'node_modules')) {
+    throw new Error(`Refused: "${docPath}" is not a project doc path`)
+  }
+  const resolvedRoot = path.resolve(root)
+  const fullPath = path.resolve(root, rel)
+  if (!fullPath.startsWith(resolvedRoot + path.sep)) throw new Error(`Refused: "${docPath}" is outside the project`)
+  try {
+    return { path: rel, content: await fs.readFile(fullPath, 'utf8') }
+  } catch {
+    throw new Error(`Doc not found: "${docPath}"`)
+  }
+}
+
 export async function writeDoc(docPath: string, content: string, root: string): Promise<void> {
   const resolvedRoot = path.resolve(root)
   const fullPath = path.resolve(root, docPath)

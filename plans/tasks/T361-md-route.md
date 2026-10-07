@@ -1,5 +1,7 @@
 # T361: Each doc as markdown at /md/<path>
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Done:** 2026-10-07
 **Phase:** R087 — Agent-ready docs
 **Size:** M (2–3 hrs)
 **Depends on:** T360
@@ -39,5 +41,10 @@ BASE=http://localhost:3187 PW_DIR=. node e2e/agent-ready-docs.mjs
 ```
 
 ## Manual tests
-- [ ] S2 — WHEN an agent requests `/md/<path>` (or the doc URL with `Accept: text/markdown`) → THEN it gets the file as `text/markdown`, agent-only shown, human-only removed
-- [ ] S3 — WHEN a path is outside the project or in a dot-folder → THEN it is refused
+_2026-10-07 — ai · e2e: `e2e/agent-ready-docs.mjs` (passed)_
+### Steps
+- [x] S2 — `curl http://localhost:3333/md/<a doc path>` → the doc as `text/markdown`, agent-only notes shown, human-only blocks removed
+- [x] S2 — `curl -H 'Accept: text/markdown' 'http://localhost:3333/docs?doc=<a doc path>'` → the same markdown
+- [x] S3 — `curl 'http://localhost:3333/md/.vibedoc/settings.json'` and `/md/docs%2F..%2F..%2Fx.md` → `Refused …`, status 400
+### Regression risk
+- [ ] Open /docs?doc=<path> in the browser → the docs page still opens on that doc
