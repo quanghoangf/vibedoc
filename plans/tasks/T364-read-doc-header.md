@@ -1,5 +1,7 @@
 # T364: Context header on vibedoc_read_doc
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Done:** 2026-10-07
 **Phase:** R087 — Agent-ready docs
 **Size:** S (~1 hr)
 **Depends on:** T360
@@ -32,4 +34,10 @@ BASE=http://localhost:3187 PW_DIR=. node e2e/agent-ready-docs.mjs
 ```
 
 ## Manual tests
-- [ ] S5 — WHEN an agent calls `vibedoc_read_doc` → THEN the reply starts with one line giving path, priority, last edit and inbound link count, and it is gone after `docs.agentHeader: false`
+_2026-10-07 — ai · e2e: `e2e/agent-ready-docs.mjs` (passed)_
+### Steps
+- [x] S5 — Ask the agent to read a doc with `vibedoc_read_doc` → the reply starts with `> <path> · <priority> · edited <date> by <who> · N inbound links · propose edits with vibedoc_propose_edit`
+- [x] S5 — Add `{"docs": {"agentHeader": false}}` to `.vibedoc/settings.json` and read the doc again → the line is gone
+- [ ] Compare the inbound count with the doc's Linked docs panel on /docs → the numbers agree
+### Regression risk
+- [ ] Other keys in `.vibedoc/settings.json` (statuses, sizeDays) still apply after adding `docs`

@@ -4,6 +4,7 @@
 //   3. Paths outside the project, in dot-folders or not .md are refused, never read (S3)
 //   4. A wrong path on /md/ or vibedoc_read_doc names up to 5 similar docs, the right one first (S3)
 //   5. /llms.txt: title, doc sections with /md/ links + registry descriptions, specs, open epics; ?section=; no llms-full.txt (S1)
+//   6. vibedoc_read_doc starts with a context line (path, priority, last edit, inbound links); off with docs.agentHeader: false (S5)
 // The fixture is removed in `finally`.
 //
 //   PORT=3187 pnpm dev   # then:
@@ -25,7 +26,8 @@ const GUIDE = [
   "Then read [the overview](../architecture/overview.md).", "",
 ].join("\n")
 write("docs/guides/setup.md", GUIDE)
-write("docs/architecture/overview.md", "# Architecture overview\n\nSee `docs/guides/setup.md`.\n")
+write("docs/architecture/overview.md", "---\npriority: P1\n---\n# Architecture overview\n\nSee `docs/guides/setup.md`.\n")
+write("README.md", "# App\n\nStart with [the overview](docs/architecture/overview.md).\n")
 write(".vibedoc/secret.md", "# secret\n")
 write("notes.txt", "not a doc\n")
 write("docs/specs/lists.md", "# Lists\n\n## Purpose\nHow lists behave.\n\n### Requirement: Create\nA list has a name.\n")
@@ -109,6 +111,19 @@ try {
   assert.doesNotMatch(section, /Capability specs|Open epics/)
   assert.equal((await get(`/llms-full.txt${q}`)).status, 404)
   console.log("ok  S1: /llms.txt lists doc sections with descriptions, specs and open epics; every link fetches; ?section= narrows; no llms-full.txt")
+
+  // 6. S5: context header
+  let read = await mcp("vibedoc_read_doc", { query: "docs/architecture/overview.md" })
+  assert.match(read.split("\n")[0], /^> docs\/architecture\/overview\.md · P1 · 2 inbound links · propose edits with vibedoc_propose_edit$/)
+  // an edit shows up as the last edit
+  assert.equal((await fetch(`${BASE}/api/docs${q}`, { method: "PUT", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ path: "docs/architecture/overview.md", edits: [{ old_string: "See", new_string: "Read" }], actor: "ai" }) })).status, 200)
+  read = await mcp("vibedoc_read_doc", { query: "docs/architecture/overview.md" })
+  assert.match(read.split("\n")[0], /^> docs\/architecture\/overview\.md · P1 · edited \d{4}-\d\d-\d\d by ai · 2 inbound links · /)
+  writeFileSync(path.join(fx, ".vibedoc/settings.json"), JSON.stringify({ docs: { agentHeader: false } }))
+  read = await mcp("vibedoc_read_doc", { query: "docs/architecture/overview.md" })
+  assert.match(read, /^## docs\/architecture\/overview\.md\n/)
+  console.log("ok  S5: vibedoc_read_doc starts with path · priority · last edit · inbound links; gone with docs.agentHeader: false")
 } finally {
   rmSync(fx, { recursive: true, force: true })
 }

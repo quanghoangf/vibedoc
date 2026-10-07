@@ -70,7 +70,7 @@ export const TOOLS = [
   {
     name: "vibedoc_read_doc",
     description:
-      'Read a doc file by name. Use: "CLAUDE", "HLD", "EVENT_CATALOG", "MEMORY", "user-service/API", "ADR-001". Ends with a "## Related files" footer when the doc has links: what it links to, what links to it (docs by path; tasks, epics, entries, ADRs by id) broken links ([x](y.md) / [[y]] to no file) and stale paths (backticked paths to missing files), so you know what to read next. You get the agent view: `<!-- agent-only … -->` notes are shown, `<!-- human-only:start/end -->` blocks are removed (so an edit can\'t match text inside them).',
+      'Read a doc file by name. Starts with one `> path · priority · last edit · inbound links` line (off with `docs.agentHeader: false` in .vibedoc/settings.json); a wrong name lists up to 5 similar docs. Use: "CLAUDE", "HLD", "EVENT_CATALOG", "MEMORY", "user-service/API", "ADR-001". Ends with a "## Related files" footer when the doc has links: what it links to, what links to it (docs by path; tasks, epics, entries, ADRs by id) broken links ([x](y.md) / [[y]] to no file) and stale paths (backticked paths to missing files), so you know what to read next. You get the agent view: `<!-- agent-only … -->` notes are shown, `<!-- human-only:start/end -->` blocks are removed (so an edit can\'t match text inside them).',
     inputSchema: {
       type: "object",
       properties: {

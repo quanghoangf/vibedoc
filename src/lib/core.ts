@@ -875,8 +875,8 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
  * The task settings from .vibedoc/settings.json (R055): `tasks.sizeDays` over the defaults (automatic due dates)
  * and `statuses` (custom statuses; the built-ins when unset). `runs.keep` (R059): test runs kept per task, default 5.
  */
-export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number; autoSendBack: boolean; maxAutoFixes: number }> {
-  let s: { tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown; maxAutoFixes?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
+export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number; autoSendBack: boolean; maxAutoFixes: number; agentHeader: boolean }> {
+  let s: { docs?: { agentHeader?: unknown }; tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown; maxAutoFixes?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
   try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
   const budget = Number(s?.memory?.sessionBudgetTokens)
   return {
@@ -890,6 +890,8 @@ export async function readProjectSettings(root: string): Promise<{ sizeDays: Siz
     autoSendBack: s?.tests?.autoSendBack !== false,
     // R065: automatic send-backs in a row before a failed Run goes to a human instead (`tests.maxAutoFixes`)
     maxAutoFixes: Number.isInteger(s?.tests?.maxAutoFixes) && (s?.tests?.maxAutoFixes as number) >= 1 ? (s?.tests?.maxAutoFixes as number) : 3,
+    // R087: the one-line context header on vibedoc_read_doc (`docs.agentHeader`, default on)
+    agentHeader: s?.docs?.agentHeader !== false,
   }
 }
 

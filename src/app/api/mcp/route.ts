@@ -23,7 +23,7 @@ import { parseScenarios, scenarioStatus, type ScenarioTask } from "@/lib/scenari
 import { parseManualTests } from "@/lib/manual-tests";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
-import { forAgent } from "@/lib/audience";
+import { formatAgentHeader, forAgent } from "@/lib/audience";
 import { failedRunNote } from "@/lib/work-queue";
 import {
   rootFrom,
@@ -74,6 +74,7 @@ import {
   noteDocEdit,
   setDocProperties,
   readProjectSettings,
+  docLastEdit,
   logSessionStart,
   readActivity,
   getDocGraph,
@@ -107,7 +108,7 @@ import { emitUpdate } from "@/lib/events";
 import { groupSessions, sessionDuration, sessionsForTask } from "@/lib/sessions";
 import { dueState, localToday, roadmapHealth, type TaskInfo } from "@/lib/roadmap-health";
 import { autoFixLine, latestReview } from "@/lib/review";
-import { PRIORITIES, type Priority } from "@/lib/doc-priority";
+import { PRIORITIES, docPriority, type Priority } from "@/lib/doc-priority";
 import { MEMORY_SOURCES, TOOLS } from "@/lib/mcp-tools";
 
 // Simple hand-rolled MCP handler (avoids stdio transport issues in Next.js)
@@ -264,8 +265,14 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         throw new Error(hits.length ? `${e.message}. Did you mean:\n${hits.map((p) => `- ${p}`).join("\n")}` : e.message);
       });
       emitUpdate("doc_read", { path: docPath });
-      const related = formatRelatedFiles(docLinks(await getDocGraph(root), docPath));
-      return `## ${docPath}\n\n${forAgent(content)}` + (related ? `\n\n---\n\n${related}` : "");
+      const [graph, settings, lastEdit] = await Promise.all([getDocGraph(root), readProjectSettings(root), docLastEdit(root, docPath)]);
+      const links = docLinks(graph, docPath);
+      const related = formatRelatedFiles(links);
+      // R087: one line of context first, unless `docs.agentHeader: false`
+      const header = settings.agentHeader
+        ? formatAgentHeader({ path: docPath, priority: docPriority(content), lastEdit, inbound: links ? new Set(links.in.map((l) => l.path)).size : null }) + "\n\n"
+        : "";
+      return `${header}## ${docPath}\n\n${forAgent(content)}` + (related ? `\n\n---\n\n${related}` : "");
     }
 
     case "vibedoc_list_docs": {

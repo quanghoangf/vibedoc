@@ -72,3 +72,22 @@ export function forAgent(md: string): string {
     return [line]
   }
 }
+
+export interface AgentHeaderInput {
+  path: string
+  priority?: string | null
+  /** From the activity log: who last edited the doc and when (ISO) */
+  lastEdit?: { actor: string; at: string } | null
+  /** Files that link to this doc */
+  inbound?: number | null
+}
+
+/** R087: the one line `vibedoc_read_doc` starts with, so an agent knows what it is reading. Unknown parts are left out. */
+export function formatAgentHeader({ path, priority, lastEdit, inbound }: AgentHeaderInput): string {
+  const parts = [path]
+  if (priority) parts.push(priority)
+  if (lastEdit) parts.push(`edited ${lastEdit.at.slice(0, 10)} by ${lastEdit.actor}`)
+  if (inbound != null) parts.push(`${inbound} inbound link${inbound === 1 ? '' : 's'}`)
+  parts.push('propose edits with vibedoc_propose_edit')
+  return `> ${parts.join(' · ')}`
+}
