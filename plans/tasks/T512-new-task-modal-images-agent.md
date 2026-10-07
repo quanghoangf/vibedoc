@@ -56,10 +56,9 @@ PORT=3195 pnpm dev   # separate terminal
 BASE=http://localhost:3195 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules/playwright node e2e/new-task-modal.mjs
 ```
 
-## Manual tests
+## Decisions
 _Report by the implementing agent. Verify ran: `node src/lib/attachments.check.mts` ok, `pnpm build` ok, lint 10 errors (baseline 11), `node src/lib/i18n.check.mts` ok, `e2e/new-task-modal.mjs` passed twice on :3207 (BASE=http://localhost:3207). The ticked items were proven by that e2e run; the rest need a human._
 
-**Decisions**
 - Fork (a): `claude -p` was checked first with a stub stdio MCP server whose tool returned an `image` content block; the model named the image's colour, so tool results with images reach it. New MCP tool `vibedoc_get_attachment { path }` (48 tools; HLD, DOMAIN_MAP, README, PRODUCT updated) answers with the image itself.
 - Create posts multipart (`task` JSON + `image` files) only when images are attached; images are checked by their bytes (PNG/JPEG/WebP/GIF, ≤ 5 MB, never SVG) before anything is written, saved under `plans/tasks/assets/<id>/<n>.<ext>` and linked under the description.
 - Start with agent uploads the images first to `plans/tasks/assets/draft-<stamp>/` (`POST /api/tasks/attachments`) and the prompt names them; the agent's task keeps linking that folder (moving it to `assets/<id>/` on Accept is a follow-up). The chat opens (new `open` option on `askAgent`).
@@ -67,6 +66,7 @@ _Report by the implementing agent. Verify ran: `node src/lib/attachments.check.m
 - Relative `![]()` images load through `GET /api/files/image?path=` in /docs and the board panel. Test review renders the evidence doc, not the task body, so it shows no task images.
 - /impeccable was not named by the task, so it wasn't run.
 
+## Manual tests
 ### Steps
 - [x] S9 — WHEN the user opens New Task, picks an epic and dependencies, pastes a screenshot and creates → THEN the task is linked to the epic with the image visible in its body (e2e: keyboard only, `n` → epic R002, T001 + T002, size M, P1, attached PNG, ⌘↵ → Phase/Depends on/Size/Priority lines, epic **Tasks:**, assets/T003/1.png shown in the board panel and /docs)
 - [ ] S9 — WHEN the user clicks Start with agent on a rough draft → THEN a chat opens with the draft and ends with a task proposal to accept (e2e proved it with a stubbed chat; check once with the real agent: it should look at the image with vibedoc_get_attachment, ask what's missing, then propose)
