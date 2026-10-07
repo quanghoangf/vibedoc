@@ -43,6 +43,7 @@ import { undoToast } from "@/components/ui/toast"
 import { tNow, useT } from "@/context/LanguageContext"
 import { useFlowAriaLabels } from "@/components/shared/flow-labels"
 import type { MessageKey } from "@/i18n"
+import { recordRecent } from "@/components/layout/sidebar-store"
 
 type ApiResult<T> = { data?: T; error?: string }
 
@@ -486,6 +487,9 @@ export function RoadmapTab() {
       requestAnimationFrame(() => showTop(rf))
     }
   }, [mapShown, showTop])
+  // T511: the sidebar lists recently opened epics under Roadmap
+  const openedId = selected?.id
+  useEffect(() => { if (openedId) recordRecent("epic", openedId) }, [openedId])
 
   const report = (err: string | null) => { if (err) setError(err) }
   const actions: ItemActions = {

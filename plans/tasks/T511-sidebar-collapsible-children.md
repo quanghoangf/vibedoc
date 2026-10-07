@@ -1,5 +1,5 @@
 # T511: Sidebar pages with collapsible children: recent and needs-action items
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R095 — UI enhancements
 **Size:** L (half a day)
 **Covers:** S8
@@ -58,9 +58,28 @@ PORT=3195 pnpm dev   # separate terminal
 BASE=http://localhost:3195 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules/playwright node e2e/sidebar-children.mjs
 ```
 
+## Design decisions
+/impeccable shape, no interview (autonomous run, assumptions marked). 🤖 items below were proven by `e2e/sidebar-children.mjs` (8/8 passed 2026-10-07).
+- Operate mode, inside the existing VibeDoc world (DESIGN.md): no new tokens, shadcn `SidebarMenuSub` for the indent + 1px rule
+- Children only on Board, Manual tests, Roadmap, Docs, Memory; Activity, Explorer and Graph stay flat (no item to open)
+- At most 5 children per page: needs-action first (max 3, then a muted "+N more" row linking to the page), recents fill the rest; a recent that also needs action shows once
+- Needs-action row: 6px filled dot (Signal Red = failed / blocked / overdue / lint errors, Burner Amber = the rest) + text in Paper White + the reason in the same ink at 10px. Recent row: 6px hollow ring in Rule Line Strong, muted text, "Viewed"
+- Labels: mono 10px id (T/R/E) then the title; docs by file name; memory flags fold into one "Cleanup · N flags" row → `/memory?cleanup=1`
+- Open by default only on the current page or when it needs action; an explicit chevron / ←/→ choice is kept in the `vibedoc-sidebar` cookie. Nothing to show = no chevron (no empty state row)
+- Icon rail: children hidden, an amber 6px dot on the icon of a page with needs-action (same as the Chats rail)
+- Motion: children slide in with the shell's `animate-slide-in`, the chevron rotates 150ms; both off under reduced motion (global rule)
+- Assumption: the roadmap epic sheet stays modal, so the sidebar isn't clickable while it is open (existing behaviour)
+
 ## Manual tests
+_2026-10-07 — ai_
 ### Steps
 - [ ] S8 — WHEN the user expands a page in the sidebar → THEN its children list what needs action there first, then recently viewed items, and each opens the exact item
-- [ ] The sidebar still reads calmly with several pages expanded (visual check after /impeccable)
+- [x] 🤖 Task T001 in review + epic R002 overdue, open /activity → Board and Manual tests list T001, Roadmap lists R002 "Overdue", as needs-action
+- [x] 🤖 Open T002 on /board and docs/x.md on /docs, reload → T002 under Board and docs/x.md under Docs show as "Viewed"
+- [x] 🤖 Click R002 / T002 / docs/x.md in the sidebar → the epic sheet, the task panel and the doc open
+- [x] 🤖 Click Board's chevron → its children hide; reload → still hidden; focus Board, → shows them, ← hides them, Enter opens /board
+- [x] 🤖 Approve T001 through `/api/tasks/review` → it leaves Board's needs-action without a reload
+- [x] 🤖 Ctrl+B (icon rail) → no children, an amber dot on Roadmap, none on Activity; Vietnamese hints ("Quá hạn", "Đã xem"); 390px drawer lists children and one opens its item
+- [ ] The sidebar still reads calmly with several pages expanded, in light and dark (visual check after /impeccable)
 ### Regression risk
-- [ ] The Chats section and the sidebar's icon-only mode behave as before
+- [ ] The Chats section and the sidebar's icon-only mode behave as before (Chats rail icon, waiting dot, kbd hints on hover)

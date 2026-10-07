@@ -22,6 +22,8 @@ import { countNeedsYou } from "@/lib/test-review"
 import { VIBEDOC_VERSION } from "@/lib/version"
 import { SidebarChats } from "./SidebarChats"
 import { FirstWeek } from "./FirstWeek"
+import { isChildPage, PageChildren, PageDisclosureButton, RecentWatcher, usePageChildren, usePageDisclosure } from "./SidebarPageChildren"
+import type { SidebarChild, SidebarPage } from "@/lib/sidebar-items"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
@@ -56,6 +58,32 @@ function openShortcutHelp() {
 }
 
 
+type RowProps = { onKeyDown?: (e: React.KeyboardEvent) => void; className?: string; dot?: React.ReactNode }
+
+/** A page link; pages with children (T511) get a chevron, ←/→ on the link, and a dot on the icon rail. */
+function PageRow({ href, kids, label, children }: { href: string; kids: SidebarChild[]; label: string; children: (p: RowProps) => React.ReactNode }) {
+  if (!isChildPage(href) || !kids.length) return <SidebarMenuItem>{children({})}</SidebarMenuItem>
+  return <PageRowWithChildren page={href} kids={kids} label={label}>{children}</PageRowWithChildren>
+}
+
+function PageRowWithChildren({ page, kids, label, children }: { page: SidebarPage; kids: SidebarChild[]; label: string; children: (p: RowProps) => React.ReactNode }) {
+  const { t } = useT()
+  const { open, needsAction, onKeyDown } = usePageDisclosure(page, kids)
+  // icon rail only: the children are hidden there, so the icon carries "needs you"
+  const dot = needsAction && (
+    <span className="absolute right-1 top-1 hidden size-1.5 rounded-full bg-amber group-data-[collapsible=icon]:block" data-needs-action-dot>
+      <span className="sr-only">{t("shell.pageNeedsAction")}</span>
+    </span>
+  )
+  return (
+    <SidebarMenuItem>
+      {children({ onKeyDown, className: "relative pr-8", dot })}
+      <PageDisclosureButton page={page} label={label} open={open} />
+      {open && <PageChildren page={page} label={label} kids={kids} />}
+    </SidebarMenuItem>
+  )
+}
+
 interface AppSidebarProps {
   board: TaskBoard | null
 }
@@ -74,6 +102,7 @@ export function AppSidebar({ board }: AppSidebarProps) {
     "/board": { n: active, label: t("shell.badgeActive") },
     "/manual-tests": { n: testsNeedYou, label: t("shell.badgeNeedsYou") },
   }
+  const children = usePageChildren()
 
   return (
     <Sidebar collapsible="icon">
@@ -90,6 +119,7 @@ export function AppSidebar({ board }: AppSidebarProps) {
         {!demo && <SidebarChats />}
         {/* Keyed by project: its hide / seen-open state belongs to one project */}
         <FirstWeek key={activeProject ?? ""} />
+        <RecentWatcher />
         {NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{t(group.label)}</SidebarGroupLabel>
@@ -100,22 +130,25 @@ export function AppSidebar({ board }: AppSidebarProps) {
                   const key = shortcutFor(href)
                   const b = badge[href]
                   return (
-                    <SidebarMenuItem key={href}>
-                      <SidebarMenuButton
-                        asChild
-                        isActive={pathname.startsWith(href)}
-                        tooltip={{ children: <span className="flex items-center gap-2">{label}{key && <kbd className={kbdClass}>{key}</kbd>}</span> }}
-                      >
-                        <Link href={href} aria-keyshortcuts={key}>
-                          <Icon />
-                          <span>{label}</span>
-                          {b?.n > 0 && (
-                            <span className="ml-auto font-mono text-[10px] tabular-nums text-muted">{b.n}<span className="sr-only"> {b.label}</span></span>
-                          )}
-                          {key && <kbd aria-hidden className={cn(kbdClass, !(b?.n > 0) && "ml-auto", "hidden group-hover/menu-item:inline group-focus-within/menu-item:inline")}>{key}</kbd>}
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
+                    <PageRow key={href} href={href} kids={isChildPage(href) ? children[href] : []} label={label}>
+                      {(rowProps) => (
+                        <SidebarMenuButton
+                          asChild
+                          isActive={pathname.startsWith(href)}
+                          tooltip={{ children: <span className="flex items-center gap-2">{label}{key && <kbd className={kbdClass}>{key}</kbd>}</span> }}
+                        >
+                          <Link href={href} aria-keyshortcuts={key} onKeyDown={rowProps.onKeyDown} className={rowProps.className}>
+                            <Icon />
+                            <span>{label}</span>
+                            {b?.n > 0 && (
+                              <span className="ml-auto font-mono text-[10px] tabular-nums text-muted">{b.n}<span className="sr-only"> {b.label}</span></span>
+                            )}
+                            {key && <kbd aria-hidden className={cn(kbdClass, !(b?.n > 0) && "ml-auto", "hidden group-hover/menu-item:inline group-focus-within/menu-item:inline")}>{key}</kbd>}
+                            {rowProps.dot}
+                          </Link>
+                        </SidebarMenuButton>
+                      )}
+                    </PageRow>
                   )
                 })}
               </SidebarMenu>
