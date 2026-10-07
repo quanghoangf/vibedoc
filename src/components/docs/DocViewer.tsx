@@ -21,6 +21,7 @@ import { DocProperties } from "./DocProperties"
 import { graphHref } from "@/lib/doc-links"
 import { useT } from "@/context/LanguageContext"
 import { DocUsage } from "./DocUsage"
+import { DocUpkeep } from "./DocUpkeep"
 
 const kbdClass = "rounded-sm border border-border bg-surface2 px-1 font-mono text-[10px] leading-4 text-txt"
 
@@ -203,6 +204,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
             <div className="mt-5">
               <DocProperties path={doc.path} content={raw} lastEdit={lastEdit} words={stats.words} minutes={stats.minutes} />
             </div>
+            <DocUpkeep path={doc.path} />
           </header>
         }
       />

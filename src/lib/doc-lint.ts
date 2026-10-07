@@ -7,7 +7,7 @@ import type { DocGraph } from './doc-links'
 import type { Spec } from './specs'
 
 export type LintLevel = 'error' | 'warn'
-export type LintRule = 'broken-link' | 'stale-path' | 'bad-frontmatter' | 'no-h1' | 'empty-doc' | 'orphan-doc' | 'spec-structure' | 'spec-changes'
+export type LintRule = 'broken-link' | 'stale-path' | 'bad-frontmatter' | 'no-h1' | 'empty-doc' | 'orphan-doc' | 'spec-structure' | 'spec-changes' | 'outdated-ref'
 export type LintIssue = {
   path: string
   /** 1-based line in the raw file */
@@ -19,6 +19,9 @@ export type LintIssue = {
   target?: string
   /** text of the nearest heading at or above `line` (outside code fences), so a viewer can scroll to that section */
   heading?: string
+  /** outdated-ref (R092): the done task whose commits renamed / deleted `target`, and the new path when renamed */
+  task?: string
+  renamedTo?: string
 }
 export type LintFile = { path: string; raw: string }
 /** Everything a caller shows: totals over the checked files, issues sorted by path then line. */
@@ -33,6 +36,7 @@ export const LINT_LEVEL: Record<LintRule, LintLevel> = {
   'orphan-doc': 'warn',
   'spec-structure': 'warn',
   'spec-changes': 'error',
+  'outdated-ref': 'warn',
 }
 
 /** A capability spec as `parseSpec` read it (core parses; pure libs don't import each other's values). */
@@ -42,7 +46,9 @@ export type LintSpec = { path: string; spec: Spec }
  * that isn't a slug (`op` / `name` empty then).
  */
 export type LintSpecChange = { path: string; capability: string; op: string; name: string; message: string }
-export type LintOptions = { path?: string; specs?: readonly LintSpec[]; specChanges?: readonly LintSpecChange[] }
+/** R092: a doc naming a path a done task renamed (`to`) or deleted, as `outdatedRefs` (doc-upkeep.ts) finds it. */
+export type LintOutdated = { path: string; line: number; taskId: string; from: string; to?: string }
+export type LintOptions = { path?: string; specs?: readonly LintSpec[]; specChanges?: readonly LintSpecChange[]; outdated?: readonly LintOutdated[] }
 
 const FM_LINE = /^(?:\s*$|\s*#|[A-Za-z_][\w-]*\s*:|["'][^"']+["']\s*:|\s*-\s|\s+\S)/
 
@@ -113,6 +119,11 @@ export function lintDocs(files: readonly LintFile[], graph: DocGraph, opts: Lint
     const line = headingLine(lines, OP_RE(c.op, c.name)) || headingLine(lines, new RegExp(`^###\\s+${esc(c.capability)}\\s*$`, 'i'))
       || headingLine(lines, /^##\s+Spec changes\s*$/i) || 1
     issues.push({ path: c.path, line, level: LINT_LEVEL['spec-changes'], rule: 'spec-changes', message: `Spec changes for "${c.capability}": ${c.message}` })
+  }
+  for (const o of opts.outdated ?? []) {
+    if (!keep(o.path)) continue
+    const message = o.to ? `\`${o.from}\` was renamed to \`${o.to}\` by ${o.taskId}` : `\`${o.from}\` was deleted by ${o.taskId}`
+    issues.push({ path: o.path, line: o.line, level: LINT_LEVEL['outdated-ref'], rule: 'outdated-ref', message, target: o.from, task: o.taskId, ...(o.to && { renamedTo: o.to }) })
   }
   for (const i of issues) {
     const h = headingAbove(raws.get(i.path) ?? '', i.line)

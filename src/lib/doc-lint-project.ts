@@ -2,14 +2,14 @@
 // + `lintDocs` over every .md, no fs. Core's `getDocLint` and the CLI bundle (`src/cli/check.ts`) both call it, so CI
 // reports exactly what the app shows. Imports values from other libs, so no `.check.mts` may import it directly.
 
-import { lintDocs, summarizeLint, type DocLint, type LintFile, type LintSpecChange } from './doc-lint'
+import { lintDocs, summarizeLint, type DocLint, type LintFile, type LintOutdated, type LintSpecChange } from './doc-lint'
 import type { DocGraph } from './doc-links'
 import { applyDelta, isSpecPath, parseSpec, parseSpecChanges } from './specs'
 
 const specSlug = (p: string) => p.replace(/^docs\/specs\//, '').replace(/\.md$/, '')
 
-/** Every issue in `files` (or only `file`'s, a root-relative path), totals over the checked files. */
-export function lintProject(files: LintFile[], graph: DocGraph, file?: string): DocLint {
+/** Every issue in `files` (or only `file`'s, a root-relative path), totals over the checked files. `outdated` (R092) needs git, so core passes it; the CLI doesn't. */
+export function lintProject(files: LintFile[], graph: DocGraph, file?: string, outdated: readonly LintOutdated[] = []): DocLint {
   const one = file?.replace(/\\/g, '/').replace(/^\.?\//, '')
   const specs = files.filter(f => isSpecPath(f.path)).map(f => ({ path: f.path, spec: parseSpec(f.path, f.raw) }))
   const specRaw = new Map(files.filter(f => isSpecPath(f.path)).map(f => [specSlug(f.path), f.raw]))
@@ -30,5 +30,5 @@ export function lintProject(files: LintFile[], graph: DocGraph, file?: string): 
       }
     }
   }
-  return summarizeLint(lintDocs(files, graph, { path: one, specs, specChanges }), one ? files.filter(f => f.path === one).length : files.length)
+  return summarizeLint(lintDocs(files, graph, { path: one, specs, specChanges, outdated }), one ? files.filter(f => f.path === one).length : files.length)
 }
