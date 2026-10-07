@@ -2,6 +2,7 @@
 //   S1. the five GFM alerts render as labelled callouts; WARNING's colour follows the light / dark theme
 //   S2. a "pnpm" and an "npm" titled fence in a row render as one tab group; click and arrow keys switch tabs
 //   S3. a <details> block renders collapsed with a styled summary row that opens on click / Enter / Space
+//   Toolbar: Callout and Collapsible section insert the syntax, and the split preview renders it
 // Fails on any browser console error. The fixture is a fresh mktemp project.
 //
 //   PORT=3189 pnpm dev   # then:
@@ -33,6 +34,8 @@ write("docs/rich.md", [
   "<details>", "<summary>More</summary>", "", "- hidden one", "- hidden two", "", "</details>",
   "",
 ].join("\n"))
+
+write("docs/edit.md", "# Edit\n\nLine one\n")
 
 const browser = await launchChrome()
 const errors = []
@@ -120,6 +123,26 @@ try {
   await page.keyboard.press("Space")
   await hidden.waitFor()
   console.log("ok  S3: details renders collapsed with a styled summary; click, Enter and Space toggle it")
+
+  // Toolbar (T403): Callout turns the current line into a NOTE alert with NOTE selected; Collapsible inserts details
+  await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/edit.md")}`)
+  await page.getByRole("tab", { name: "Split" }).click()
+  const editor = page.locator(".cm-content")
+  await editor.getByText("Line one").click()
+  await page.getByRole("button", { name: "Callout", exact: true }).click()
+  await page.keyboard.type("WARNING")
+  assert.match((await editor.locator(".cm-line").allTextContents()).join("\n"), /> \[!WARNING\]\n> Line one/)
+  const preview = page.locator(".doc-preview")
+  await preview.locator('[data-alert="warning"]').getByText("Line one").waitFor()
+  await page.keyboard.press("ControlOrMeta+End")
+  await page.keyboard.press("Enter")
+  await page.keyboard.press("Enter")
+  await page.getByRole("button", { name: "Collapsible section", exact: true }).click()
+  await page.keyboard.type("More")
+  assert.match((await editor.locator(".cm-line").allTextContents()).join("\n"), /<details>\n<summary>More<\/summary>\n\n…\n\n<\/details>/)
+  await preview.locator("details > summary").getByText("More").waitFor()
+  assert.equal(await preview.locator("details").getAttribute("open"), null)
+  console.log("ok  toolbar: Callout and Collapsible section insert syntax the preview renders as a callout and a details block")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("\nricher-markdown: all checks passed")

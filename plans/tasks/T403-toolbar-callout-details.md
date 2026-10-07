@@ -1,5 +1,8 @@
 # T403: Editor toolbar inserts for callout and details
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 **Phase:** R089 — Richer markdown
 **Size:** S (~1 hr)
 **Depends on:** T400, T402
@@ -34,7 +37,16 @@ pnpm build && pnpm lint
 BASE=http://localhost:3189 PW_DIR=<dir with node_modules/playwright> node e2e/richer-markdown.mjs
 ```
 
+## Notes
+- Fixed on the way: `MarkdownEditor` read `editorRef.current.view` during render, so the toolbar got `null` until something else re-rendered and every toolbar button did nothing right after opening a doc. The view is now state set by `onCreateEditor` (also clears 3 React Compiler lint errors).
+
 ## Manual tests
+_2026-10-07 — ai:claude_
 ### Steps
-- [ ] S1 — WHEN a doc contains `> [!WARNING]` followed by text → THEN VibeDoc renders a warning callout with its label, in light and dark themes
-- [ ] S3 — WHEN a doc contains `<details><summary>More</summary>…</details>` → THEN it renders collapsed with a styled summary row that opens on click
+- [x] S1 — WHEN a doc contains `> [!WARNING]` followed by text → THEN VibeDoc renders a warning callout with its label, in light and dark themes
+- [x] S3 — WHEN a doc contains `<details><summary>More</summary>…</details>` → THEN it renders collapsed with a styled summary row that opens on click
+- [ ] Open a doc in Edit, select three lines, click Callout (speech-bubble icon) → each line gets `> `, a `> [!NOTE]` line sits on top with NOTE selected; type TIP → the preview turns teal
+- [ ] Put the cursor mid-line and click Collapsible section → the block starts on its own line after a blank line, "Summary" is selected
+- [ ] Switch the language to Tiếng Việt → both new toolbar tooltips are in Vietnamese
+### Regression risk
+- [ ] Bold / Heading / Link toolbar buttons work right after opening a doc, before typing anything
