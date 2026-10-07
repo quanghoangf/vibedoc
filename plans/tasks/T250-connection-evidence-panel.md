@@ -78,5 +78,6 @@ Automated: `e2e/connect-agent.mjs` (deep link, Test/initialize/tools/list don't 
 ## Notes
 - `MCPSettings.tsx` was kept as the Connect tab's wrapper (panel + the Advanced endpoint field and Test) instead of being deleted; its wrong per-agent config list is gone (T253 brings Cursor/Other back inside the panel).
 - `/settings` with no `?tab=` still opens Appearance (e2e/i18n.mjs switches the language there); Connect is first in the list and reached by `?tab=connect`.
+- VibeDoc's own chat (`/api/chat` → `claude -p`) would have ticked the step on its first tool call; its `--mcp-config` now sends `x-vibedoc-chat: 1` and `/api/mcp` doesn't record those calls (e2e step 2 checks it).
 - Panel text lives in a new i18n area `src/i18n/connect.ts` (the panel is also mounted outside Settings by R082).
 - Seam for R082 / R084: `<ConnectAgentPanel />` (no props needed), `GET /api/agent-connect` → `{ mcp }`, `getAgentConnection(root)` in core, SSE `agent_connected`. Deep link: `/settings?tab=connect`.

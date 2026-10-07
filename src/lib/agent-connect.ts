@@ -8,6 +8,9 @@ export interface AgentConnection {
   lastCall: string
 }
 
+/** Sent by VibeDoc's own chat (`claude -p` from /api/chat): its tool calls are not the user's agent connecting. */
+export const CHAT_CALL_HEADER = 'x-vibedoc-chat'
+
 /** A recorded call is rewritten at most this often for the same agent. */
 export const RECORD_EVERY_MS = 60_000
 

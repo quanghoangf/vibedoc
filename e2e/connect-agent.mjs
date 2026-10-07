@@ -1,6 +1,7 @@
 // Browser + MCP check for R081 (Connect your agent) on a fixture project.
 //   1. /settings?tab=connect opens on the Connect panel; the MCP step waits for a call.
-//   2. The panel's Test button (tools/list) and a plain initialize / tools/list POST leave it unticked.
+//   2. The panel's Test button (tools/list), a plain initialize / tools/list POST and a tools/call from VibeDoc's own
+//      chat (x-vibedoc-chat header) leave it unticked.
 //   3. A tools/call with a Claude Code User-Agent turns it ✓ "Claude Code" without a reload; a reload keeps it,
 //      and a second call within 60s doesn't rewrite .vibedoc/agent-connection.json.
 //   4. Connect Claude Code: the dialog shows the command and nothing runs until Confirm; Confirm runs
@@ -33,10 +34,10 @@ const stubState = path.join(fx, ".claude-stub.json")
 const calls = () => (existsSync(stubLog) ? readFileSync(stubLog, "utf8").trim().split("\n") : []).filter((c) => !c.endsWith("list --json"))
 const setStub = (patch) => writeFileSync(stubState, JSON.stringify({ ...JSON.parse(readFileSync(stubState, "utf8")), ...patch }))
 
-async function rpc(method, params, ua = "e2e", root = fx) {
+async function rpc(method, params, ua = "e2e", root = fx, extra = {}) {
   const res = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(root)}`, {
     method: "POST",
-    headers: { "content-type": "application/json", "user-agent": ua },
+    headers: { "content-type": "application/json", "user-agent": ua, ...extra },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   })
   return res.json()
@@ -66,10 +67,12 @@ try {
   await page.getByText("Connection successful").waitFor()
   await rpc("initialize", {}, "claude-code/2.1.292")
   await rpc("tools/list", {}, "claude-code/2.1.292")
+  // VibeDoc's own chat (`claude -p` from /api/chat) marks its tool calls; they aren't the user's agent
+  await rpc("tools/call", { name: "vibedoc_get_status", arguments: {} }, "claude-code/2.1.292", fx, { "x-vibedoc-chat": "1" })
   await page.waitForTimeout(500)
   await step.getByText("Waiting for the first call").waitFor()
   assert.throws(() => statSync(evidence), "no evidence file after health checks")
-  console.log("✓ Test button, initialize and tools/list leave the step unticked")
+  console.log("✓ Test button, initialize, tools/list and the in-app chat's calls leave the step unticked")
 
   // 3. first tool call → ✓ live
   await rpc("tools/call", { name: "vibedoc_get_status", arguments: {} }, "claude-code/2.1.292 (cli)")
