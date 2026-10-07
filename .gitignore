@@ -44,5 +44,6 @@ docs/REGISTRY.md
 /.vibedoc/chats/
 /.vibedoc/episodes/
 /.vibedoc/memory-history/
+/.vibedoc/first-week.json
 /test-results/
 /dist/

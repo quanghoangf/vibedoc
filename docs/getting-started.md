@@ -102,6 +102,22 @@ Ask the agent to follow this loop. The board updates live while it works.
 
 To make this the default, paste the session protocol from the [README](https://github.com/quanghoangf/vibedoc#recommended-claudemd-snippet) into your project's `CLAUDE.md`.
 
+## First week checklist
+
+
+The sidebar shows a **First week** checklist until you finish it or dismiss it. It ticks itself from what is in the project, so you never tick anything by hand:
+
+| Step | Ticks when |
+|---|---|
+| Agent connected | any agent call shows up in the activity log |
+| Roadmap created | `plans/roadmap/` has an item |
+| First epic broken down | an epic has linked tasks |
+| First task done by the agent | an agent finished a task |
+| First test run with evidence | a task has a recorded test run |
+| First memory entry | `memory/entries/` has an entry |
+
+The first open step shows where to go, or the exact command to copy (`claude mcp add …`, `/vibedoc:roadmap`, `/vibedoc:breakdown R002`, `/vibedoc:work R002`). Dismiss it with ✕: it stays hidden for this project (`.vibedoc/first-week.json`; add that file to your `.gitignore` if teammates should still see their own checklist).
+
 ## 5. Frontend app
 
 If the project has a web frontend, VibeDoc finds it so browser tests can run against it. Open **Settings → Frontend app**.

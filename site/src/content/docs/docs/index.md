@@ -104,6 +104,21 @@ Ask the agent to work the task, or run `/vibedoc:work R001` for a whole epic. Th
 
 Then review the task on **Test review**: its checklist, the screenshots and video of the run. See [Evidence](/vibedoc/docs/concepts/evidence/).
 
+## First week checklist
+
+The sidebar shows a **First week** checklist until you finish it or dismiss it. It ticks itself from what is in the project, so you never tick anything by hand:
+
+| Step | Ticks when |
+|---|---|
+| Agent connected | any agent call shows up in the activity log |
+| Roadmap created | `plans/roadmap/` has an item |
+| First epic broken down | an epic has linked tasks |
+| First task done by the agent | an agent finished a task |
+| First test run with evidence | a task has a recorded test run |
+| First memory entry | `memory/entries/` has an entry |
+
+The first open step shows where to go, or the exact command to copy (`claude mcp add …`, `/vibedoc:roadmap`, `/vibedoc:breakdown R002`, `/vibedoc:work R002`). Dismiss it with ✕: it stays hidden for this project (`.vibedoc/first-week.json`; add that file to your `.gitignore` if teammates should still see their own checklist).
+
 ## Language
 
 VibeDoc's interface comes in English and Vietnamese (Tiếng Việt). Pick one in **Settings → Appearance → Language**. The switch is instant, with no reload. The choice is saved for this browser (a `vibedoc-lang` cookie), not in the project, so teammates each keep their own. Your docs, tasks and the agent's replies stay in the language they were written in. A few fonts in Settings have no Vietnamese letters and say so.
