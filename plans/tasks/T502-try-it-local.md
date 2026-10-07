@@ -42,7 +42,7 @@ From an endpoint in the API reference the user fills path/query params and a bod
 node src/lib/openapi.check.mts
 pnpm lint && pnpm build
 PORT=3194 pnpm dev &   # then:
-BASE=http://localhost:3194 node e2e/api-reference.mjs
+BASE=http://localhost:3194 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/api-reference.mjs
 ```
 
 ## Manual tests

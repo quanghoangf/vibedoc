@@ -1,5 +1,5 @@
 # T501: API reference view in /docs
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R094 — API reference from OpenAPI
 **Size:** L (half a day)
 **Depends on:** T500
@@ -44,9 +44,17 @@ A project with an OpenAPI spec shows an "API reference" entry in /docs; opening 
 node src/lib/i18n.check.mts
 pnpm lint && pnpm build
 PORT=3194 pnpm dev &   # then:
-BASE=http://localhost:3194 node e2e/api-reference.mjs
+BASE=http://localhost:3194 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/api-reference.mjs
 ```
 
 ## Manual tests
 - [ ] S1 — WHEN a project keeps an openapi.yaml and the user opens /docs → THEN an "API reference" entry lists every endpoint grouped by tag, and one endpoint shows its parameters, body and responses
 - [ ] S4 — WHEN the project has no OpenAPI spec → THEN /docs shows no API reference entry
+### Steps
+- [x] 🤖 Put `e2e/fixtures/todos-openapi.yaml` at `<project>/api/openapi.yaml`, open /docs → "API reference · 5 endpoints" is pinned above the tree
+- [x] 🤖 Click it → endpoints grouped under TODOS and META, with method badges and summaries
+- [x] 🤖 Open GET /todos/{id} → the `id` path param (required) and the 200 / 404 shapes; reload keeps it open
+- [ ] At 390px: the list row opens the reference full-width and "All endpoints" / ✕ get you back
+- [ ] Method badge colours (GET teal, POST violet, DELETE red) read well in light and dark themes
+### Regression risk
+- [ ] Opening a doc from the tree, search, and ⌘\ (collapse list) still work with and without the reference open

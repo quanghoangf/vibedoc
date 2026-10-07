@@ -1844,7 +1844,7 @@ export type OpenApiFile = { path: string; spec: OpenApiSpec } | { path: string; 
 
 /** The project's OpenAPI 3.x spec: the shallowest `openapi.(yaml|yml|json)` outside node_modules and dot-folders. Null when none. */
 export async function readOpenApi(root: string): Promise<OpenApiFile | null> {
-  const files = (await glob(OPENAPI_GLOB, { cwd: root, nodir: true, ignore: '**/node_modules/**', posix: true }))
+  const files = (await glob(OPENAPI_GLOB, { cwd: root, nodir: true, ignore: ['**/node_modules/**', '**/{dist,build,.next,out}/**'], posix: true }))
     .sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b))
   const rel = files[0]
   if (!rel) return null

@@ -1,6 +1,6 @@
 # R094: API reference from OpenAPI
 **Parent:** R004
-**Status:** planned
+**Status:** in-progress
 **Order:** 150
 **Tasks:** T500, T501, T502, T503
 

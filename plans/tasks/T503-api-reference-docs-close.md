@@ -31,7 +31,7 @@ The epic's Done-when is checked end to end and written down: README mentions the
 ```bash
 node src/lib/openapi.check.mts
 pnpm lint && pnpm build
-BASE=http://localhost:3194 node e2e/api-reference.mjs
+BASE=http://localhost:3194 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/api-reference.mjs
 ```
 
 ## Manual tests

@@ -227,9 +227,11 @@ interface DocListProps {
   className?: string
   /** Slid shut (⌘\); content stays mounted but inert */
   collapsed?: boolean
+  /** Pinned above the tree while not searching (R094: the API reference row) */
+  top?: React.ReactNode
 }
 
-export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, rootParam = "", docActions, className, collapsed: listCollapsed = false }: DocListProps) {
+export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, rootParam = "", docActions, className, collapsed: listCollapsed = false, top }: DocListProps) {
   const [selectMode, setSelectMode] = useState(false)
   const { t } = useT()
   const filterLabel = (f: PriorityFilter) => (FILTER_LABELS[f].startsWith("docs.") ? t(FILTER_LABELS[f] as MessageKey) : FILTER_LABELS[f])
@@ -489,6 +491,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
               })
             ) : (
               <>
+                {!isSearching && top}
                 {!isSearching && agentConfigs.length > 0 && (
                   <div className="mb-2">
                     <div className="flex items-center gap-1.5 px-2 py-1">
