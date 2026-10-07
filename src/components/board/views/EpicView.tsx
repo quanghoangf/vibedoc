@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { Bot, ChevronRight, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { QuickReviewButton } from "../QuickReview"
 import type { Task, TaskStatus } from "@/types"
 import { depOutline, isReady, sizeOf, type TaskGroup, type ViewState } from "@/lib/board-views"
 import { STATUS_META, StatusIcon, useCategoryLabel } from "@/components/shared/StatusIcon"
@@ -245,13 +246,13 @@ function EpicSection({
           const done = task.status === "done"
           const size = sizeOf(task)
           return (
-            <li key={task.id}>
+            <li key={task.id} className="flex items-center">
               <button
                 type="button"
                 onClick={() => onOpenTask(task)}
                 style={{ paddingLeft: 16 + depth * 26 }}
                 className={cn(
-                  "relative flex h-[38px] w-full items-center gap-2.5 rounded-md pr-3 text-left transition-colors duration-(--duration-fast) ease-out-soft hover:bg-surface2",
+                  "relative flex h-[38px] min-w-0 flex-1 items-center gap-2.5 rounded-md pr-3 text-left transition-colors duration-(--duration-fast) ease-out-soft hover:bg-surface2",
                   RING,
                 )}
               >
@@ -287,6 +288,7 @@ function EpicSection({
                 <span className="flex-1" />
                 {size && <span className="font-mono text-[10px] text-muted">{size}</span>}
               </button>
+              <QuickReviewButton task={task} className="mr-2" />
             </li>
           )
         })}

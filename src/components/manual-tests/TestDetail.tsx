@@ -322,7 +322,7 @@ function Inline({ text }: { text: string }) {
 }
 
 /** A step reads "do this → see that": the action, then the expected result on its own line. */
-function StepText({ text, checked }: { text: string; checked: boolean }) {
+export function StepText({ text, checked }: { text: string; checked: boolean }) {
   const at = text.indexOf(" → ")
   const action = at < 0 ? text : text.slice(0, at)
   const expected = at < 0 ? null : text.slice(at + 3)

@@ -230,3 +230,8 @@ export function selectionLabel(r: ReviewRow): string {
   const left = r.left ? `${r.left} ${r.left === 1 ? "check" : "checks"} left` : r.manual.total + r.auto.total ? "all checks ticked" : "no checklist"
   return `${r.id} · ${run} · ${left}`
 }
+
+/** The task in Test review (/manual-tests), on its checklist or its Evidence view. */
+export function testReviewHref(taskId: string, view?: "evidence"): string {
+  return `/manual-tests?tab=all&task=${encodeURIComponent(taskId)}${view ? `&view=${view}` : ""}`
+}

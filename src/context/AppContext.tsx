@@ -11,6 +11,7 @@ import type { Task, TaskBoard, ActivityEvent, Project } from "@/lib/core"
 import type { Summary, SelectedDoc } from "@/types"
 import type { Priority } from "@/lib/doc-priority"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings"
+import { parseManualTests, toggleManualTest, untestedItems } from "@/lib/manual-tests"
 
 /** The SSE link to /api/events. EventSource retries on its own, so "disconnected" means "retrying". */
 export type Connection = "connecting" | "live" | "disconnected"
@@ -36,6 +37,8 @@ interface AppContextValue {
   moveTask: (taskId: string, status: string) => Promise<void>
   /** Optimistic owner / due / size edit (R055); rolls back with a toast when the write fails */
   updateTaskFields: (taskId: string, patch: { owner?: string | null; due?: string | null; size?: string; priority?: Priority | null }) => Promise<void>
+  /** Optimistic tick of one `## Manual tests` item (T510): the card's 🧪 count moves at once; rolls back with a toast */
+  tickManualTest: (taskId: string, index: number, checked: boolean) => Promise<void>
   /** `link`: a raw link target in the doc to scroll to and flash once it renders (`?link=`). */
   openDoc: (path: string, link?: string) => Promise<void>
   editorSettings: AppSettings["editor"]
@@ -231,6 +234,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [demo, rootParam, refresh])
 
+  const tickManualTest = useCallback(async (taskId: string, index: number, checked: boolean) => {
+    if (demo) return
+    setBoard((prev) => {
+      if (!prev) return prev
+      const next = { ...prev }
+      for (const col of Object.keys(next) as (keyof TaskBoard)[]) {
+        next[col] = next[col].map((t) => {
+          if (t.id !== taskId || !t.raw || !t.manualTests) return t
+          const raw = toggleManualTest(t.raw, index, checked)
+          const tests = parseManualTests(raw)
+          return tests ? { ...t, raw, manualTests: { ...t.manualTests, done: tests.done, untested: untestedItems(tests).length } } : t
+        })
+      }
+      return next
+    })
+    try {
+      const res = await fetch(`/api/tasks/manual-tests${rootParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: taskId, index, checked }),
+      })
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`)
+    } catch (e) {
+      toast(tNow("tests.tickError", { id: taskId, error: (e as Error).message }))
+      refresh() // roll back to the files
+    }
+  }, [demo, rootParam, refresh])
+
   const openDoc = useCallback(async (docPath: string, link?: string) => {
     const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(docPath)}`)
     const data = await res.json()
@@ -262,6 +293,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       refresh,
       moveTask,
       updateTaskFields,
+      tickManualTest,
       openDoc,
       editorSettings,
       setEditorSettings,

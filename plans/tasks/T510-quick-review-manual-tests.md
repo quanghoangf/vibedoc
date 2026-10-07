@@ -1,5 +1,5 @@
 # T510: Quick review of a task's manual tests from the board
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R095 — UI enhancements
 **Size:** M (2–3 hrs)
 **Covers:** S7
@@ -50,7 +50,14 @@ BASE=http://localhost:3195 PW_DIR=$PW node e2e/manual-tests-review.mjs
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude-code_
 ### Steps
 - [ ] S7 — WHEN a task is in Review on /board and the user clicks its Review button → THEN its manual tests open in a quick review where items can be ticked and the task approved or sent back
+- [ ] Open /board?view=table with a task in review → its 🧪 cell shows a Review button; other rows show none
+- [ ] Click Review → a popover under the button shows the id + title, an "Auto run passed/failed · date" line, the checklist (🤖 items with a robot icon) and Approve / Send back… → tick a box → the row's 🧪 count goes up at once
+- [ ] Press Esc → the popover closes and focus is back on the Review button (Tab from the title also reaches it)
+- [ ] On a phone-width window (≤ 640px) open a review card on /board → the quick review shows as a centred dialog over a dimmed page, scrollable when long
+- [ ] Footer links "Open in Test review" and "Evidence" → open /manual-tests on that task (checklist / Evidence view)
 ### Regression risk
 - [ ] /manual-tests still ticks and approves the same task correctly
+- [ ] Clicking a board card (not its Review button) still opens the task panel, and dragging a review card between columns still works
