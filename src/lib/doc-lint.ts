@@ -17,6 +17,8 @@ export type LintIssue = {
   message: string
   /** link rules: the raw link target, so a viewer can reveal it (`/docs?doc=&link=`) */
   target?: string
+  /** text of the nearest heading at or above `line` (outside code fences), so a viewer can scroll to that section */
+  heading?: string
 }
 export type LintFile = { path: string; raw: string }
 /** Everything a caller shows: totals over the checked files, issues sorted by path then line. */
@@ -112,7 +114,24 @@ export function lintDocs(files: readonly LintFile[], graph: DocGraph, opts: Lint
       || headingLine(lines, /^##\s+Spec changes\s*$/i) || 1
     issues.push({ path: c.path, line, level: LINT_LEVEL['spec-changes'], rule: 'spec-changes', message: `Spec changes for "${c.capability}": ${c.message}` })
   }
+  for (const i of issues) {
+    const h = headingAbove(raws.get(i.path) ?? '', i.line)
+    if (h) i.heading = h
+  }
   return issues.sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line || a.rule.localeCompare(b.rule))
+}
+
+/** Text of the last `#` heading on or before 1-based `line`, outside code fences; '' when none. */
+function headingAbove(raw: string, line: number): string {
+  let inFence = false
+  let found = ''
+  const lines = raw.split('\n')
+  for (let i = 0; i < Math.min(line, lines.length); i++) {
+    if (/^\s*```/.test(lines[i])) { inFence = !inFence; continue }
+    const m = inFence ? null : /^#{1,6}\s+(.+?)\s*#*\s*$/.exec(lines[i])
+    if (m) found = m[1]
+  }
+  return found
 }
 
 const ORPHAN_KINDS = new Set(['doc', 'adr', 'spec'])

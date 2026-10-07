@@ -1,5 +1,5 @@
 # T383: Lint line + panel on /docs, opens each issue
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R088 — Docs quality gate
 **Size:** M (2–3 hrs)
 **Depends on:** T381
@@ -38,3 +38,15 @@ node src/lib/i18n.check.mts
 pnpm lint && pnpm build
 PORT=3188 pnpm dev   # then: BASE=http://localhost:3188 node e2e/docs-lint.mjs
 ```
+
+## Manual tests
+_2026-10-07 — ai_
+### Steps
+- [x] S2 — WHEN the user opens /docs on a project with issues → THEN a line shows "N errors · M warnings", and clicking an issue opens the doc at that spot (e2e/docs-lint.mjs)
+- [x] S3 — WHEN anyone searches docs for words in a doc's title → THEN that doc ranks above docs that only mention the words in the body (e2e/docs-lint.mjs)
+- [ ] Open /docs on this repo → under the Docs header a line reads "0 errors · 52 warnings" (or the current counts); click it → issues grouped by file
+- [ ] Click a "Missing file" issue → that doc opens and the backticked path flashes in view
+- [ ] Click a "Not linked from anywhere" issue → that doc opens at the top
+- [ ] Switch the language to Tiếng Việt → the line and rule labels are Vietnamese
+### Regression risk
+- [ ] Doc search box, Select mode and the sort/filter menu in the doc list still work with the new line above the search

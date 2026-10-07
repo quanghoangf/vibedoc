@@ -177,7 +177,7 @@ const slug = (h: string) => {
 }
 
 /** Scroll to a heading; retries while a just-opened doc renders. */
-function scrollToHeading(hash: string, tries = 15) {
+export function scrollToHeading(hash: string, tries = 15) {
   const el = document.getElementById(slug(hash))
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches
   if (el) el.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "start" })

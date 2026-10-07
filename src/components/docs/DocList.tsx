@@ -26,6 +26,7 @@ import { PriorityBadge } from "@/components/shared/PriorityBadge"
 import { isSpecPath } from "@/lib/specs"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
+import { DocLintPanel } from "./DocLintPanel"
 
 // ─── Selection context (scoped to DocList, not exported) ──────────────────────
 
@@ -440,6 +441,8 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
             )}
           </div>
         </div>
+
+        {!selectMode && <DocLintPanel />}
 
         {/* Search (hidden in select mode) */}
         {!selectMode && (

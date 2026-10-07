@@ -76,4 +76,9 @@ assert.deepEqual(ch('MODIFIED', 'Ghost'), ['5 error spec-changes: Spec changes f
 assert.deepEqual(ch('', '', 'memory'), ['4 error spec-changes: Spec changes for "memory": boom'])
 assert.deepEqual(ch('', '', 'Not A Slug'), ['3 error spec-changes: Spec changes for "Not A Slug": boom'])
 
+// heading: the section an issue sits in, for viewers to scroll to
+const sec = lint([{ path: 'notes/s.md', raw: '# S\n\n## Setup\n\n```\n## not this\n```\n[x](gone.md)\n' }])
+assert.deepEqual(sec.map(i => [i.line, i.heading]), [[8, 'Setup']])
+assert.equal(lint([{ path: 'notes/t.md', raw: 'no heading' }])[0].heading, undefined)
+
 console.log('doc-lint: ok')
