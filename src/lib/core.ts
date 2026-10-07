@@ -39,6 +39,7 @@ import { applyDelta, parseSpecChanges, formatRelatedSpecs, formatSpecContext, pa
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
+import { rankDocs, type SearchResult } from './doc-search'
 import { findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, pruneDismissed, sortedLog, type HealthFlag, type RecallLog } from './memory-health'
 import { mergeMemory, parseMemory, passedKeys, SECTIONS, type MemoryParams } from './memory-sections'
 import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, replaceEntryRefs, validateEntryInput, type Entry, type EntryInput, type EntryType } from './entries'
@@ -127,11 +128,7 @@ export interface ExplorerFile {
   mtime: string
 }
 
-export interface SearchResult {
-  file: string
-  hits: { line: number; text: string }[]
-  totalHits: number
-}
+export type { SearchResult } from './doc-search'
 
 export interface ActivityEvent {
   id: string
@@ -553,27 +550,10 @@ export async function createDoc(docPath: string, content: string, root: string, 
   try { const { exists } = await readRegistry(root); if (exists) await rebuildRegistry(root, actor, false) } catch {}
 }
 
+/** Ranked doc search (R088): title > heading > body over the cached .md files (`readMarkdownFiles`). */
 export async function searchDocs(query: string, root: string): Promise<SearchResult[]> {
-  const files = await glob('**/*.md', {
-    cwd: root,
-    ignore: ['node_modules/**', '.git/**', '.next/**'],
-    nodir: true,
-  })
-  const qLower = query.toLowerCase()
-  const results: SearchResult[] = []
-
-  for (const f of files) {
-    try {
-      const content = await fs.readFile(path.join(root, f), 'utf8')
-      const lines = content.split('\n')
-      const hits = lines
-        .map((line, i) => ({ line: i + 1, text: line.trim().slice(0, 120) }))
-        .filter(h => h.text.toLowerCase().includes(qLower))
-      if (hits.length > 0) results.push({ file: f, hits: hits.slice(0, 4), totalHits: hits.length })
-    } catch {}
-  }
-
-  return results.sort((a, b) => b.totalHits - a.totalHits).slice(0, 20)
+  const files = await readMarkdownFiles(root)
+  return rankDocs(files.map(f => ({ path: f.path, raw: f.raw })), query, tokenize)
 }
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
@@ -2714,43 +2694,53 @@ async function memoryGraphFiles(root: string): Promise<GraphItem[]> {
 // ponytail: in-process cache only; a second VibeDoc process keeps its own. On globalThis so dev HMR keeps it.
 // Entries are keyed by mtime only, so bump DOC_GRAPH_CACHE_VERSION whenever docNode / extractLinks change what they
 // return: an HMR'd dev server would otherwise keep serving nodes built by the old code.
-const DOC_GRAPH_CACHE_VERSION = 3
-const docGraphCache: Map<string, { mtimeMs: number; item: DocItem }> = (() => {
-  const g = globalThis as { __vibedocDocGraphCache?: { v: number; map: Map<string, { mtimeMs: number; item: DocItem }> } }
+const DOC_GRAPH_CACHE_VERSION = 4
+type CachedMd = { mtimeMs: number; raw: string; item: DocItem }
+const docGraphCache: Map<string, CachedMd> = (() => {
+  const g = globalThis as { __vibedocDocGraphCache?: { v: number; map: Map<string, CachedMd> } }
   if (g.__vibedocDocGraphCache?.v !== DOC_GRAPH_CACHE_VERSION) g.__vibedocDocGraphCache = { v: DOC_GRAPH_CACHE_VERSION, map: new Map() }
   return g.__vibedocDocGraphCache.map
 })()
 
-/** Resolved links between every .md file (R056). Only files whose mtime changed since the last call are re-read. */
-export async function getDocGraph(root: string): Promise<DocGraph> {
+/**
+ * Every .md of the project (outside node_modules / .git / .next) with its text and graph item, sorted by path.
+ * Shared by the doc graph, search and lint (R056, R088): only files whose mtime changed since the last call are re-read.
+ */
+export async function readMarkdownFiles(root: string): Promise<{ path: string; raw: string; item: DocItem }[]> {
   const files = (await glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**'], nodir: true }))
     .map(f => f.replace(/\\/g, '/')).sort()
   const keyOf = (f: string) => `${root}\u0000${f}`
   let reread = 0
-  const items = await Promise.all(files.map(async (f): Promise<DocItem | null> => {
+  const out = await Promise.all(files.map(async (f) => {
     const key = keyOf(f)
     try {
       const { mtimeMs } = await fs.stat(path.join(root, f))
       const hit = docGraphCache.get(key)
-      if (hit && hit.mtimeMs === mtimeMs) return hit.item
+      if (hit && hit.mtimeMs === mtimeMs) return { path: f, raw: hit.raw, item: hit.item }
       const raw = await fs.readFile(path.join(root, f), 'utf8')
       reread++
       const item = { node: docNode(f, raw), links: extractLinks(raw, f) }
-      docGraphCache.set(key, { mtimeMs, item })
-      return item
+      docGraphCache.set(key, { mtimeMs, raw, item })
+      return { path: f, raw, item }
     } catch (e) {
       docGraphCache.delete(key)
-      console.warn(`doc graph: skipped ${f}`, e)
+      console.warn(`doc files: skipped ${f}`, e)
       return null
     }
   }))
   const live = new Set(files.map(keyOf))
   for (const key of docGraphCache.keys()) if (key.startsWith(`${root}\u0000`) && !live.has(key)) docGraphCache.delete(key)
-  if (reread) console.log(`doc graph: read ${reread} of ${files.length} files`)
+  if (reread) console.log(`doc files: read ${reread} of ${files.length} files`)
+  return out.filter((o): o is { path: string; raw: string; item: DocItem } => !!o)
+}
+
+/** Resolved links between every .md file (R056), over the mtime-cached `readMarkdownFiles`. */
+export async function getDocGraph(root: string): Promise<DocGraph> {
+  const items = (await readMarkdownFiles(root)).map(f => f.item)
   // .md files in dot folders (.claude/skills, .impeccable): not graph nodes, but a mention of one isn't stale
   const hidden = (await glob('.*/**/*.md', { cwd: root, dot: true, ignore: ['.git/**', '.next/**', '**/node_modules/**'], nodir: true }))
     .map(f => f.replace(/\\/g, '/'))
-  return buildDocGraph(items.filter((i): i is DocItem => !!i), hidden)
+  return buildDocGraph(items, hidden)
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────

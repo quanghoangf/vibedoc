@@ -1,5 +1,5 @@
 # T380: Ranked doc search over cached files
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R088 — Docs quality gate
 **Size:** M (2–3 hrs)
 **Depends on:** —
@@ -42,3 +42,13 @@ node src/lib/doc-search.check.mts
 node src/lib/doc-links.check.mts
 pnpm lint && pnpm build
 ```
+
+## Manual tests
+_2026-10-07 — ai_
+### Steps
+- [ ] S3 — WHEN anyone searches docs for words in a doc's title → THEN that doc ranks above docs that only mention the words in the body
+- [ ] On /docs type "high level design" in the search box → HLD.md is the first result
+- [ ] Search the same words again with no file changed → the server log shows no new `doc files: read N` line
+- [ ] Search "the" (only a stopword) → files containing "the" still show (substring fallback)
+### Regression risk
+- [ ] /graph still shows the same nodes and broken links as before (it now reads through the shared file cache)
