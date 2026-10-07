@@ -1,5 +1,5 @@
 # T503: Done-when check, docs, close R094
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R094 — API reference from OpenAPI
 **Size:** S (~1 hr)
 **Depends on:** T502
@@ -37,3 +37,8 @@ BASE=http://localhost:3194 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node
 ## Manual tests
 - [ ] S1 — WHEN a project keeps an openapi.yaml and the user opens /docs → THEN its endpoints show
 - [ ] S2 — WHEN an agent calls `vibedoc_get_endpoint` → THEN it gets the request and response shape
+### Steps
+- [x] 🤖 `e2e/api-reference.mjs` walks the Done-when: /docs lists the example spec's endpoints, `vibedoc_get_endpoint` returns request + response shapes (passed)
+- [ ] README "Also:" line mentions the API reference and reads naturally
+### Regression risk
+- [ ] `e2e/i18n.mjs` still passes (ran: all routes Vietnamese at 1400px and 390px)

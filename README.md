@@ -135,7 +135,7 @@ your agent    →  http://localhost:<port>/api/mcp  46 MCP tools, same files, sa
   </tr>
 </table>
 
-Also: an agent chat inside the app that plans with you and proposes edits as diffs, live activity and session history, saved board views, and a docs editor with live collaboration.
+Also: an agent chat inside the app that plans with you and proposes edits as diffs, live activity and session history, saved board views, a docs editor with live collaboration, and an API reference from your `openapi.yaml` (endpoints and schemas in Docs, Try it against your local app, `vibedoc_get_endpoint` for the agent).
 
 ## Recommended CLAUDE.md snippet
 
