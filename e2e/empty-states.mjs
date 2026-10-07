@@ -4,12 +4,15 @@
 //   2. `agent: true` pages say the agent isn't connected (`[data-connect-hint]`, link to Connect) until an agent
 //      has called VibeDoc; after one MCP call (vibedoc_read_memory logs an `ai` session_start) the line is gone.
 //   3. The same in Vietnamese (cookie vibedoc-lang=vi): the empty state text differs from the English one.
-// `expect` (optional) checks page-specific text, e.g. which command the action copies. Each R083 task adds its pages.
+//   4. The same at phone width (390px), with no sideways scroll.
+//   5. Every route under src/app/(app)/ is in PAGES or in NOT_EMPTY with a reason (found from the folder, so a new
+//      page fails until it is listed) (T294).
+// `command` / `href` (optional) check what the action copies or links to.
 // Fails on any browser console error. The fixtures are removed in `finally`.
 //
 //   BASE=http://localhost:3083 PW_DIR=<dir with node_modules/playwright> node e2e/empty-states.mjs
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { launchChrome } from "./stub-chat.mjs"
@@ -32,6 +35,20 @@ const PAGES = [
   { path: "/manual-tests?tab=suite", name: "test review: suite", agent: true, command: "/vibedoc:work" },
 ]
 
+/** Pages that always have content, so they have no empty state. */
+const NOT_EMPTY = {
+  "/settings": "the settings form",
+  "/setup": "the project-docs wizard",
+  "/getting-started": "VibeDoc's own guide",
+}
+
+// Every (app) route is checked or says why not
+const appDir = new URL("../src/app/(app)/", import.meta.url)
+const ROUTES = readdirSync(appDir, { recursive: true }).filter((f) => path.basename(f) === "page.tsx")
+  .map((f) => `/${path.dirname(f).split(path.sep).filter((s) => !/^\(.*\)$/.test(s)).join("/")}`)
+const listed = new Set([...PAGES.map((p) => p.path.split("?")[0]), ...Object.keys(NOT_EMPTY)])
+assert.deepEqual(ROUTES.filter((r) => !listed.has(r)), [], "every (app) route is in PAGES or NOT_EMPTY")
+
 const browser = await launchChrome()
 const errors = []
 const empty = mkdtempSync(path.join(tmpdir(), "vibedoc-empty-"))
@@ -40,8 +57,8 @@ mkdirSync(path.join(withEpic, "plans/roadmap"), { recursive: true })
 writeFileSync(path.join(withEpic, "plans/roadmap/R001-now.md"), "# R001: Now\n**Status:** planned\n**Order:** 10\n**Tasks:** —\n")
 writeFileSync(path.join(withEpic, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** —\n")
 
-async function open(root, lang) {
-  const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } })
+async function open(root, lang, width = 1400) {
+  const ctx = await browser.newContext({ viewport: { width, height: 900 } })
   await ctx.addCookies([{ name: "vibedoc-lang", value: lang, url: BASE }])
   await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE })
   const page = await ctx.newPage()
@@ -73,10 +90,12 @@ async function emptyState(page, p) {
 
 try {
   const texts = {}
-  for (const lang of ["en", "vi"]) {
-    const { ctx, page } = await open(empty, lang)
+  for (const [lang, width] of [["en", 1400], ["vi", 1400], ["vi", 390]]) {
+    const { ctx, page } = await open(empty, lang, width)
     for (const p of PAGES) {
       const s = await emptyState(page, p)
+      const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+      assert.ok(over <= 1, `${p.name} @${width}: the page scrolls sideways by ${over}px`)
       assert.ok(s.text.length > 60, `${p.name} (${lang}): a "what fills this" line, got "${s.text}"`)
       if (p.href) assert.match(await page.locator("[data-empty-action] a").getAttribute("href"), p.href, `${p.name}: the action links to ${p.href}`)
       if (p.command) assert.ok(s.action.includes(p.command), `${p.name}: the action is ${p.command}, got "${s.action}"`)
@@ -86,10 +105,11 @@ try {
         assert.match(href, /connect/i, `${p.name}: the connect line links to Connect`)
       }
       texts[`${p.name}:${lang}`] = s.text
-      console.log(`ok  ${p.name} (${lang}): what-fills-this line, one action${p.agent ? ", connect line" : ""}`)
+      console.log(`ok  ${p.name} (${lang} @${width}): what-fills-this line, one action${p.agent ? ", connect line" : ""}`)
     }
     await ctx.close()
   }
+  console.log(`ok  ${ROUTES.length} routes: ${PAGES.length} empty states checked, ${Object.keys(NOT_EMPTY).join(", ")} always have content`)
   for (const p of PAGES) assert.notEqual(texts[`${p.name}:en`], texts[`${p.name}:vi`], `${p.name}: Vietnamese differs from English`)
 
   // The board's command follows the roadmap: an epic to break down → /vibedoc:breakdown
