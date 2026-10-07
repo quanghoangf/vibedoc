@@ -2761,9 +2761,28 @@ function agentConnected(events: ActivityEvent[]): boolean {
   return events.some(e => e.actor === 'ai')
 }
 
+// Per install, not shared through git (the repo's .gitignore lists it): a teammate who clones gets their own first week
+const FIRST_WEEK_FILE = path.join('.vibedoc', 'first-week.json')
+
+async function firstWeekDismissed(root: string): Promise<boolean> {
+  try {
+    return Boolean(JSON.parse(await fs.readFile(path.join(root, FIRST_WEEK_FILE), 'utf8'))?.dismissed)
+  } catch {
+    return false
+  }
+}
+
+/** Hide (true) or bring back (false) the first-week checklist for this project (R084). */
+export async function setFirstWeekDismissed(root: string, dismissed: boolean): Promise<void> {
+  const file = path.join(root, FIRST_WEEK_FILE)
+  if (!dismissed) return fs.rm(file, { force: true })
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, JSON.stringify({ dismissed: new Date().toISOString() }, null, 2) + '\n', 'utf8')
+}
+
 /** The first-week checklist (R084), derived from the project's files on every read; `tasks` = listTasks(root).tasks. */
-export async function getFirstWeek(root: string, tasks: Task[]): Promise<FirstWeek & { epicToBreakDown: string | null; epicToWork: string | null }> {
-  const [events, { items }, entries] = await Promise.all([readActivity(root, ACTIVITY_CAP), listRoadmap(root), listEntries(root)])
+export async function getFirstWeek(root: string, tasks: Task[]): Promise<FirstWeek & { epicToBreakDown: string | null; epicToWork: string | null; dismissed: boolean }> {
+  const [events, { items }, entries, dismissed] = await Promise.all([readActivity(root, ACTIVITY_CAP), listRoadmap(root), listEntries(root), firstWeekDismissed(root)])
   const epics = items.filter(i => i.parent)
   // An agent owns a task it started; a direct todo → done by an agent leaves no owner, so its done event counts too
   const aiDone = new Set(events.filter(e => e.actor === 'ai' && e.taskStatus === 'done' && e.taskId).map(e => e.taskId))
@@ -2778,6 +2797,7 @@ export async function getFirstWeek(root: string, tasks: Task[]): Promise<FirstWe
     }),
     epicToBreakDown: epics.find(e => e.status !== 'done' && e.tasks.length === 0)?.id ?? null,
     epicToWork: epics.find(e => e.status !== 'done' && e.tasks.length > 0)?.id ?? null,
+    dismissed,
   }
 }
 

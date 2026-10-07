@@ -1,9 +1,12 @@
 # T312: Dismiss per project, and a finished state
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude
 **Phase:** R084 — First-week checklist
 **Size:** S (~1 hr)
 **Depends on:** T310
 **Covers:** S3
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 
 ## Goal
 The user can dismiss the checklist and it never comes back for this project; when every step ticks it says so once and then leaves the sidebar.
@@ -45,6 +48,17 @@ pnpm lint && pnpm build
 BASE=http://localhost:3084 PW_DIR=<dir with node_modules/playwright> node e2e/first-week.mjs
 ```
 
+## Notes
+- One route instead of two: `POST /api/first-week { dismissed: true | false }` (false = Undo).
+- `FirstWeek` is keyed by the active project in `AppSidebar`, so a hide / "seen open" never leaks into another project.
+- The finished state ("All done" + Close) is exercised end to end by T313's e2e (it needs all six steps).
+
 ## Manual tests
+_2026-10-07 — ai:claude_
 ### Steps
-- [ ] S3 — WHEN the user dismisses the checklist → THEN it doesn't come back for this project
+- [x] S3 — WHEN the user dismisses the checklist → THEN it doesn't come back for this project
+- [ ] Click ✕ on "First week" → it disappears and a toast offers Undo; Undo → it is back
+- [ ] Dismiss, then restart the dev server and reload → still hidden for this project, shown in another project
+- [ ] Finish the last step while the page is open → "All done" with Close; Close hides it; a reload doesn't bring it back
+### Regression risk
+- [ ] The Chats section above it still collapses and starts new chats

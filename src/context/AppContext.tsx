@@ -150,7 +150,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setTimeout(() => setLiveIndicator(false), 2000)
         // R084: roadmap changes can tick the first-week checklist (a layout drag can't)
         const roadmapChange = msg.type === "roadmap_updated" && msg.payload?.kind !== "layout"
-        if (roadmapChange || ["task_updated", "task_created", "decision_logged", "memory_updated", "session_start"].includes(msg.type)) {
+        if (roadmapChange || ["task_updated", "task_created", "decision_logged", "memory_updated", "session_start", "first_week_updated"].includes(msg.type)) {
           refresh()
         }
       } catch {}

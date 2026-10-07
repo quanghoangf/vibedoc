@@ -2,18 +2,20 @@
 //   1. The sidebar shows "First week" 0/6, every row unticked
 //   2. A human moves a task to done → "First task done" stays unticked
 //   3. An agent claims and finishes a task over /api/mcp → "First task done" ticks without a reload (S1)
+//   5. Dismiss → gone, after a reload too; Undo brings it back; another project still shows it (S3)
 //   4. The first unticked step is open with its page or exact command; Copy copies it; commands carry real ids (S2)
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
 //   PORT=3084 pnpm dev   # then:
 //   BASE=http://localhost:3084 PW_DIR=<dir with node_modules/playwright> node e2e/first-week.mjs
 import assert from "node:assert/strict"
-import { rmSync, writeFileSync } from "node:fs"
+import { existsSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3084"
 const fx = makeFixture()
+const other = makeFixture()
 rmSync(path.join(fx, "plans/roadmap"), { recursive: true }) // a project with nothing yet
 const q = `?root=${encodeURIComponent(fx)}`
 const task = (id, title) => writeFileSync(path.join(fx, `plans/tasks/${id}-${title.toLowerCase()}.md`),
@@ -96,9 +98,31 @@ try {
   assert.equal(await action.count(), 0)
   console.log("ok  after the roadmap ticks, the open step is /vibedoc:breakdown R002; rows open and close on click")
 
+  // S3: dismiss for this project only
+  await fw.getByRole("button", { name: "Dismiss checklist" }).click()
+  await fw.waitFor({ state: "detached" })
+  await page.getByText("First-week checklist dismissed for this project").waitFor()
+  assert.ok(existsSync(path.join(fx, ".vibedoc/first-week.json")))
+  await page.getByRole("button", { name: "Undo" }).click()
+  await fw.waitFor()
+  assert.ok(!existsSync(path.join(fx, ".vibedoc/first-week.json")))
+  await fw.getByRole("button", { name: "Dismiss checklist" }).click()
+  await fw.waitFor({ state: "detached" })
+  await page.reload()
+  await page.getByRole("link", { name: "Board" }).first().waitFor()
+  await page.getByRole("group", { name: "Chats" }).waitFor()
+  assert.equal(await fw.count(), 0, "still dismissed after a reload")
+  const page2 = await context.newPage()
+  await stubChat(page2, [], { root: other })
+  await page2.goto(`${BASE}/board`)
+  await page2.getByRole("group", { name: "First week" }).getByText("1 of 6 steps done").waitFor() // the stock fixture has a roadmap
+  await page2.close()
+  console.log("ok  S3: dismiss hides it (Undo brings it back), a reload keeps it hidden, another project still shows it")
+
   assert.deepEqual(errors, [], "no browser console errors")
   console.log("ok  no console errors")
 } finally {
   await browser.close()
   rmSync(fx, { recursive: true, force: true })
+  rmSync(other, { recursive: true, force: true })
 }

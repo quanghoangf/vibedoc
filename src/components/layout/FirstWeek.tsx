@@ -2,9 +2,10 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Check, ChevronRight, Circle, Copy, ListChecks } from "lucide-react"
+import { Check, ChevronRight, Circle, Copy, ListChecks, PartyPopper, X } from "lucide-react"
 import {
   SidebarGroup,
+  SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
@@ -16,20 +17,26 @@ import { stepAction, type FirstWeekStepId } from "@/lib/first-week"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { useOrigin } from "@/hooks/use-origin"
+import { toast, undoToast } from "@/components/ui/toast"
 
 const focusRing = "outline-none focus-visible:ring-2 focus-visible:ring-accent"
 
 /** R084: the VibeDoc loop once, ticked from the project's files (summary.firstWeek), live with every summary refresh. */
 export function FirstWeek() {
-  const { summary, demo } = useApp()
+  const { summary, demo, rootParam } = useApp()
   const { t } = useT()
+  // The clicking tab hides at once; other tabs follow the first_week_updated refresh
+  const [hidden, setHidden] = useState(false)
+  // Finished while on screen → "All done" until closed; a checklist that loads finished never shows
+  const [sawOpen, setSawOpen] = useState(false)
   const origin = useOrigin()
   // The open step: the one the user clicked ("none" = they closed it), else the next unticked one (S2).
   // A pick lasts until the next step changes, so a new tick always opens the step after it.
   const [pick, setPick] = useState<{ id: FirstWeekStepId | "none"; next: FirstWeekStepId | null } | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
   const fw = summary?.firstWeek
-  if (demo || !fw) return null
+  if (fw && fw.next !== null && !fw.dismissed && !sawOpen) setSawOpen(true)
+  if (demo || !fw || fw.dismissed || hidden || (fw.next === null && !sawOpen)) return null
   const open = pick && pick.next === fw.next ? pick.id : fw.next
   const count = t("firstWeek.progress", { done: fw.done, total: fw.total })
   const countLabel = t("firstWeek.progressLabel", { done: fw.done, total: fw.total })
@@ -44,6 +51,27 @@ export function FirstWeek() {
     }
   }
 
+  async function setDismissed(dismissed: boolean) {
+    const res = await fetch(`/api/first-week${rootParam}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dismissed }),
+    })
+    if (!res.ok) throw new Error(String((await res.json().catch(() => null))?.error ?? res.status))
+  }
+
+  async function dismiss(undo: boolean) {
+    setHidden(true)
+    try {
+      await setDismissed(true)
+    } catch (e) {
+      setHidden(false)
+      toast(t("firstWeek.dismissFailed", { message: (e as Error).message }))
+      return
+    }
+    if (undo) undoToast(t("firstWeek.dismissedToast"), async () => { await setDismissed(false); setHidden(false) })
+  }
+
   return (
     <SidebarGroup role="group" aria-label={t("firstWeek.title")} data-testid="first-week">
       <SidebarGroupLabel>
@@ -51,6 +79,10 @@ export function FirstWeek() {
         <span aria-hidden className="ml-auto font-mono tabular-nums">{count}</span>
         <span className="sr-only">{countLabel}</span>
       </SidebarGroupLabel>
+      <SidebarGroupAction title={t("firstWeek.dismiss")} onClick={() => void dismiss(true)} className="group-data-[collapsible=icon]:hidden">
+        <X />
+        <span className="sr-only">{t("firstWeek.dismiss")}</span>
+      </SidebarGroupAction>
       <SidebarGroupContent>
         <SidebarMenu>
           {/* Icon-collapsed sidebar: one icon, the count in its tooltip */}
@@ -59,6 +91,17 @@ export function FirstWeek() {
               <ListChecks />
             </SidebarMenuButton>
           </SidebarMenuItem>
+          {fw.next === null && (
+            <SidebarMenuItem className="group-data-[collapsible=icon]:hidden">
+              <div className="mx-2 mb-1 flex items-start gap-2 rounded-md border border-border bg-bg p-2 text-xs" data-testid="first-week-finished">
+                <PartyPopper aria-hidden className="mt-0.5 size-3.5 shrink-0 text-teal" />
+                <p className="min-w-0 flex-1">{t("firstWeek.allDone")}</p>
+                <button type="button" onClick={() => void dismiss(false)} className={cn("shrink-0 rounded-sm text-accent hover:underline", focusRing)}>
+                  {t("firstWeek.close")}
+                </button>
+              </div>
+            </SidebarMenuItem>
+          )}
           {fw.steps.map((s) => {
             const expanded = !s.done && open === s.id
             const action = stepAction(s.id, { origin, epicToBreakDown: fw.epicToBreakDown, epicToWork: fw.epicToWork })

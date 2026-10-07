@@ -24,6 +24,11 @@ export const en = {
   copy: "Copy",
   copied: "Copied",
   copyCommand: "Copy command: {command}",
+  dismiss: "Dismiss checklist",
+  dismissedToast: "First-week checklist dismissed for this project",
+  dismissFailed: "Couldn't dismiss the checklist: {message}",
+  allDone: "All done: you've been through the whole loop once.",
+  close: "Close",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -48,4 +53,9 @@ export const vi: Messages<typeof en> = {
   copy: "Sao chép",
   copied: "Đã sao chép",
   copyCommand: "Sao chép lệnh: {command}",
+  dismiss: "Ẩn danh sách",
+  dismissedToast: "Đã ẩn danh sách tuần đầu cho dự án này",
+  dismissFailed: "Không ẩn được danh sách: {message}",
+  allDone: "Xong hết: bạn đã đi hết vòng làm việc một lần.",
+  close: "Đóng",
 }

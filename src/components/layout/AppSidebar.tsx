@@ -62,7 +62,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ board }: AppSidebarProps) {
   const pathname = usePathname()
-  const { demo } = useApp()
+  const { demo, activeProject } = useApp()
   const { t } = useT()
   const settingsKey = shortcutFor("/settings")
   // Tasks that need you on /manual-tests: a failed run, in review, or checks left on unfinished work (same rule as its tab)
@@ -88,7 +88,8 @@ export function AppSidebar({ board }: AppSidebarProps) {
       </SidebarHeader>
       <SidebarContent>
         {!demo && <SidebarChats />}
-        <FirstWeek />
+        {/* Keyed by project: its hide / seen-open state belongs to one project */}
+        <FirstWeek key={activeProject ?? ""} />
         {NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{t(group.label)}</SidebarGroupLabel>
