@@ -33,6 +33,7 @@ import { VIBEDOC_VERSION } from './version'
 import { localToday } from './roadmap-health'
 import { collectReleaseNotes, formatReleaseNotes, releaseNotesEdits } from './release-notes'
 import { docPriority, parsePriority, setDocProperty, type Priority } from './doc-priority'
+import { ATTACHMENTS_DIR, imageError, imageMarkdown, imageMimeOf, isAttachmentFolder, isServableImage, nextImageNumber, sniffImage } from './attachments'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
@@ -1329,7 +1330,9 @@ export interface CreateTaskParams {
   dependsOn?: string
   due?: string
   covers?: string[]     // R068: **Covers:** scenario ids of the task's epic
+  priority?: string     // P0–P3
   body?: string         // replaces the template sections below the meta block
+  images?: Uint8Array[] // T512: written to plans/tasks/assets/<id>/ and linked under the description
 }
 
 /** Serialized with next_task claims and plan applies, so concurrent creates never pick the same id. */
@@ -1365,16 +1368,26 @@ async function createTaskUnlocked(params: CreateTaskParams, root: string, actor:
   // A new task in an epic with a deadline takes the epic's due (R055)
   const epicId = params.phase?.trim().match(/^(R\d+)\b/i)?.[1]
   if (!due && epicId) due = (await getRoadmapItem(epicId, root).catch(() => null))?.due ?? null
+  const priority = params.priority ? parsePriority(params.priority) : null
+  if (params.priority && !priority) throw new RoadmapError(`priority must be P0, P1, P2 or P3 (got ${JSON.stringify(params.priority)})`)
+  // Check every image before writing anything, so a refused one leaves no task behind
+  for (const img of params.images ?? []) {
+    const bad = imageError(img)
+    if (bad) throw new RoadmapError(bad)
+  }
+  const links: string[] = []
+  for (const img of params.images ?? []) links.push(await saveTaskAttachment(id, img, root))
+  const description = [params.description, imageMarkdown(links)].filter(Boolean).join('\n\n')
 
   const meta = `# ${id}: ${title}
 **Status:** 📋 Ready
 **Phase:** ${params.phase || '—'}
 **Size:** ${params.size || '—'}
 **Depends on:** ${params.dependsOn || '—'}
-${due ? `**Due:** ${due}\n` : ''}${params.covers?.length ? `**Covers:** ${params.covers.join(', ')}\n` : ''}`
+${due ? `**Due:** ${due}\n` : ''}${priority ? `**Priority:** ${priority}\n` : ''}${params.covers?.length ? `**Covers:** ${params.covers.join(', ')}\n` : ''}`
   const content = params.body !== undefined ? `${meta}\n${params.body.trim()}\n` : `${meta}
 ## What to build
-${params.description || '—'}
+${description || '—'}
 
 ## Scope
 - [ ]
@@ -1390,6 +1403,36 @@ ${params.description || '—'}
   // logged so the graph's Recent (touchedPaths) and the activity feed see new tasks
   await appendActivity(root, { type: 'task_updated', actor, title: `${id} created`, detail: title, taskId: id })
   return getTask(id, root)
+}
+
+/**
+ * T512: write one image into `plans/tasks/assets/<folder>/<n>.<ext>` (type from its bytes, name generated).
+ * Returns the link relative to the task files (`assets/<folder>/<n>.<ext>`). Throws RoadmapError when refused.
+ */
+export async function saveTaskAttachment(folder: string, bytes: Uint8Array, root: string): Promise<string> {
+  if (!isAttachmentFolder(folder)) throw new RoadmapError(`Invalid attachment folder: ${folder}`)
+  const bad = imageError(bytes)
+  if (bad) throw new RoadmapError(bad)
+  const dir = path.join(root, ATTACHMENTS_DIR, folder)
+  await fs.mkdir(dir, { recursive: true })
+  const name = `${nextImageNumber(await fs.readdir(dir))}.${sniffImage(bytes)}`
+  await fs.writeFile(path.join(dir, name), bytes, { flag: 'wx' })
+  return `assets/${folder}/${name}`
+}
+
+/** T512: an image inside the project by its relative path (same guards as readDocExact, image types only, symlinks resolved). */
+export async function readProjectImage(rel: string, root: string): Promise<{ data: Buffer; mime: string }> {
+  const mime = imageMimeOf(rel)
+  if (!isServableImage(rel) || !mime) throw new RoadmapError(`Refused: "${rel}" is not a project image path`)
+  const realRoot = await fs.realpath(root)
+  let full: string
+  try {
+    full = await fs.realpath(path.join(root, rel))
+  } catch {
+    throw new RoadmapError(`Image not found: "${rel}"`, 404)
+  }
+  if (!full.startsWith(realRoot + path.sep)) throw new RoadmapError(`Refused: "${rel}" is outside the project`)
+  return { data: await fs.readFile(full), mime }
 }
 
 /** Validate against the current files, then keep the selected keys. Throws RoadmapError on any problem. */

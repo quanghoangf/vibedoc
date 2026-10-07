@@ -232,7 +232,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // No deps on purpose: re-subscribes each render so the handler sees the current `chats`/`send`.
   useEffect(() => {
     function onAsk(e: Event) {
-      const { message, newChat } = (e as CustomEvent<AskAgentDetail>).detail ?? {}
+      const { message, newChat, open } = (e as CustomEvent<AskAgentDetail>).detail ?? {}
       if (!message) return
       // `vibedoc --demo` (R085) runs no agents: every Ask / Verify / Generate button lands here
       if (playground) return void toast(tNow("chat.playgroundNoAgents"))
@@ -246,7 +246,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const id = "chatId" in route ? route.chatId : create(route.attach)
       send(id, message)
       // newChat asks (the multi-epic breakdown dialog) run in the background: the sidebar and roadmap show them
-      if (!newChat) show(id)
+      if (!newChat || open) show(id)
     }
     function onOpen(e: Event) {
       const chatId = (e as CustomEvent<{ chatId: string }>).detail?.chatId
