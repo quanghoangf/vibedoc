@@ -1,3 +1,11 @@
+# [1.20.0](https://github.com/quanghoangf/vibedoc/compare/v1.19.0...v1.20.0) (2026-10-07)
+
+
+### Features
+
+* **board:** task panel shows dependencies, tests, runs, findings and chat at a glance (T509) ([eae6e91](https://github.com/quanghoangf/vibedoc/commit/eae6e911d627acb77502eb63e4c16314319c7420))
+* **docs:** open a task doc's manual tests in Test review ([1e61778](https://github.com/quanghoangf/vibedoc/commit/1e61778055f3baf992dd1b88d6f9881283b7fde1))
+
 # [1.19.0](https://github.com/quanghoangf/vibedoc/compare/v1.18.0...v1.19.0) (2026-10-07)
 
 
