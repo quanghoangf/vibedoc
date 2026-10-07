@@ -1,5 +1,5 @@
 # T420: `vibedoc check` CLI over a prebuilt lint bundle
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R090 — Docs check in CI
 **Size:** M (2–3 hrs)
 **Depends on:** —
@@ -46,7 +46,13 @@ pnpm lint && pnpm typecheck && pnpm build
 ```
 
 ## Manual tests
+_2026-10-07 — ai_
 ### Steps
 - [ ] S1 — WHEN `npx vibedoc check` runs in a repo with a broken doc link, with no VibeDoc server running → THEN it prints the issue as `formatLint` text (path, line, rule) and exits 1
 - [ ] S2 — WHEN the link is fixed and only warnings are left → THEN it prints the summary and exits 0
 - [ ] S3 — WHEN it runs with `--json` (optionally `--root <dir>`) → THEN stdout is the `DocLint` JSON and the exit code follows the same rule
+- [ ] In this repo run `pnpm build:cli && node bin/vibedoc.mjs check` → "0 errors · 53 warnings in 43 of 445 files", exit 0, no browser opens and no port is taken
+- [ ] `node bin/vibedoc.mjs check --json` → same JSON as `GET /api/docs/lint` on a running VibeDoc for this repo
+- [ ] Delete `dist/cli/` and run `node bin/vibedoc.mjs check` → "bundle is missing … pnpm build:cli", exit 2
+### Regression risk
+- [ ] `node bin/vibedoc.mjs --no-open` still starts the app and the /docs lint panel shows the same counts as before
