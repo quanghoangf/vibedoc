@@ -1,12 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Check, Circle, Copy } from "lucide-react"
+import { Check, Circle, Copy, Loader2 } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { useOrigin } from "@/hooks/use-origin"
-import { agentLabel, claudeMcpAddCommand } from "@/lib/agent-connect"
+import { agentLabel, claudeMcpAddCommand, claudeMcpRemoveCommand } from "@/lib/agent-connect"
 
 interface McpStatus { connected: boolean; agent: string | null; lastCall: string | null }
 
@@ -59,6 +60,8 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
           </div>
         </div>
 
+        <ClaudeMcpConnect url={url} />
+
         <div className="space-y-1">
           <div className="text-xs text-muted">{t("connect.runInProject")}</div>
           <CommandBlock command={claudeMcpAddCommand(url)} />
@@ -73,6 +76,100 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
         </p>
       </div>
     </section>
+  )
+}
+
+interface ConnectResult { ok: boolean; missing: boolean; exists: boolean; output: string; error: string | null }
+
+/** One-click `claude mcp add` (S1): nothing runs until the user confirms the exact command; the result names what changed. */
+function ClaudeMcpConnect({ url }: { url: string }) {
+  const { rootParam, activeProject } = useApp()
+  const { t } = useT()
+  const [confirm, setConfirm] = useState<"add" | "replace" | null>(null)
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<ConnectResult | null>(null)
+  const commands = confirm === "replace"
+    ? [claudeMcpRemoveCommand(), claudeMcpAddCommand(url)]
+    : [claudeMcpAddCommand(url)]
+
+  const run = async (replace: boolean) => {
+    setConfirm(null)
+    setRunning(true)
+    try {
+      const res = await fetch(`/api/agent-connect${rootParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step: "mcp", url, replace }),
+      })
+      const d = await res.json().catch(() => null)
+      setResult({
+        ok: res.ok && d?.ok === true, missing: d?.missing === true, exists: d?.exists === true,
+        output: d?.output ?? "", error: d?.error ?? (res.ok ? null : String(res.status)),
+      })
+    } catch (e) {
+      setResult({ ok: false, missing: false, exists: false, output: "", error: (e as Error).message })
+    }
+    setRunning(false)
+  }
+
+  return (
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={() => setConfirm("add")}
+        disabled={running}
+        className="flex items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-50"
+      >
+        {running && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {t("connect.connectClaude")}
+      </button>
+
+      {result?.ok && (
+        <div className="space-y-1 text-sm text-green-400" role="status">
+          <div>{t("connect.changed")}</div>
+          <pre className="whitespace-pre-wrap break-all rounded bg-surface2 p-2 font-mono text-xs text-txt">{result.output}</pre>
+        </div>
+      )}
+      {result && !result.ok && (
+        <div className="space-y-1 text-sm" role="alert">
+          <div className="text-amber-400">
+            {result.missing ? t("connect.claudeMissing") : result.exists ? t("connect.alreadyExists") : t("connect.claudeError")}
+          </div>
+          {!result.missing && result.error && (
+            <pre className="whitespace-pre-wrap break-all rounded bg-surface2 p-2 font-mono text-xs text-txt">{result.error}</pre>
+          )}
+          {result.exists ? (
+            <button type="button" onClick={() => setConfirm("replace")} className="rounded-lg border border-border px-3 py-1 text-sm text-txt hover:bg-surface2">
+              {t("connect.replace")}
+            </button>
+          ) : (
+            <div className="text-xs text-muted">{t("connect.runYourself")}</div>
+          )}
+        </div>
+      )}
+
+      {confirm && (
+        <Dialog open onOpenChange={(v) => { if (!v) setConfirm(null) }}>
+          <DialogContent className="max-w-lg space-y-3">
+            <DialogTitle className="text-sm font-semibold text-txt">
+              {confirm === "replace" ? t("connect.confirmReplaceTitle") : t("connect.confirmTitle")}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted">
+              {t("connect.confirmBody", { root: activeProject ?? "" })}
+            </DialogDescription>
+            {commands.map(c => <CommandBlock key={c} command={c} />)}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setConfirm(null)} className="rounded-lg px-3 py-1.5 text-sm text-muted hover:text-txt">
+                {t("connect.cancel")}
+              </button>
+              <button type="button" onClick={() => run(confirm === "replace")} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg hover:bg-accent/90">
+                {confirm === "replace" ? t("connect.confirmReplace") : t("connect.confirm")}
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </div>
   )
 }
 

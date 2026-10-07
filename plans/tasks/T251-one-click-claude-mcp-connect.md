@@ -1,9 +1,11 @@
 # T251: One-click Claude Code MCP connect with confirm
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R081 — Connect your agent
 **Size:** M (2–3 hrs)
 **Depends on:** T250
 **Covers:** S1
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 
 ## Goal
 The MCP step gets a Connect button for Claude Code: after the user confirms the exact command, VibeDoc runs it and says what changed. A failure shows Claude's real error and the fix, and the copy-the-command fallback stays.
@@ -55,4 +57,18 @@ BASE=http://localhost:3081 node e2e/connect-agent.mjs
 ```
 
 ## Manual tests
+_2026-10-07 — ai:claude-code_
+### Steps
 - [ ] S1 — WHEN the user clicks Connect for Claude Code and confirms → THEN VibeDoc is added to Claude Code's MCP servers and the step says what was changed
+- [ ] Settings → Connect agent → click "Connect Claude Code" → a dialog shows the exact `claude mcp add …` command and the project folder; Cancel closes it and `claude mcp list` (in the project) shows no change
+- [ ] Click again → Run it → the step shows "Done. Claude Code says:" with "Added HTTP MCP server vibedoc … File modified: ~/.claude.json [project: …]"; `claude mcp list` in the project now lists vibedoc with this URL
+- [ ] Click Connect again → Run it → "already exists" message + Replace…; Replace… → a second dialog with remove + add; Replace it → the result shows "Removed …" then "Added …"
+- [ ] With `claude` not on PATH (start VibeDoc with a PATH without it) → Connect → "Claude Code isn't installed or isn't on PATH" and the command to copy is still there
+### Regression risk
+- [ ] An already-connected Claude Code session keeps working after Replace with the same URL (restart Claude Code, call vibedoc_get_status)
+
+Automated: `e2e/connect-agent.mjs` (confirm-first, Cancel runs nothing, add result shown, already exists → Replace → remove + add, cross-site POST 403) and `node src/lib/claude-cli.check.mts` (ENOENT → missing, add / already exists / remove argv against the stub) passed against `next dev -p 3081` with `e2e/fixtures/claude-stub` on PATH.
+
+## Notes
+- No agent picker yet (T253 adds it); the Connect button is Claude Code's.
+- Demo-mode refusal is the same `isDemo()` guard as other mutating routes; not covered by the e2e.

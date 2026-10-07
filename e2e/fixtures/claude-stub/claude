@@ -1,0 +1,25 @@
+#!/usr/bin/env node
+// A fake `claude` CLI for e2e/connect-agent.mjs and src/lib/claude-cli.check.mts (R081). Put this folder first on
+// PATH. State lives in the cwd (the project VibeDoc runs it in): .claude-stub.json, every call appended to
+// .claude-stub.log as "<argv joined by spaces>". Mimics Claude Code 2.1's output for the commands VibeDoc runs.
+const fs = require("node:fs")
+const path = require("node:path")
+const args = process.argv.slice(2)
+const stateFile = path.join(process.cwd(), ".claude-stub.json")
+const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, "utf8")) : {}
+const save = () => fs.writeFileSync(stateFile, JSON.stringify(state))
+fs.appendFileSync(path.join(process.cwd(), ".claude-stub.log"), args.join(" ") + "\n")
+const cmd = args.slice(0, 2).join(" ")
+
+if (cmd === "mcp add") {
+  if (state.mcp) { console.error("MCP server vibedoc already exists in local config"); process.exit(1) }
+  state.mcp = args[args.length - 1]; save()
+  console.log(`Added HTTP MCP server vibedoc with URL: ${state.mcp} to local config`)
+  console.log(`File modified: ${process.env.HOME}/.claude.json [project: ${process.cwd()}]`)
+} else if (cmd === "mcp remove") {
+  if (!state.mcp) { console.error("No MCP server found with name: vibedoc"); process.exit(1) }
+  delete state.mcp; save()
+  console.log("Removed MCP server vibedoc from local config")
+} else {
+  console.error(`claude stub: unknown command ${args.join(" ")}`); process.exit(2)
+}

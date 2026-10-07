@@ -34,6 +34,11 @@ export function claudeMcpAddCommand(url: string): string {
   return `claude mcp add --transport http vibedoc ${url}`
 }
 
+/** Removes the project's (local scope) vibedoc server; the Replace flow runs it before the add. */
+export function claudeMcpRemoveCommand(): string {
+  return 'claude mcp remove vibedoc -s local'
+}
+
 const AGENT_NAMES: Record<string, string> = {
   claude: 'Claude Code', cursor: 'Cursor', codex: 'Codex', copilot: 'Copilot', gemini: 'Gemini',
   windsurf: 'Windsurf', cline: 'Cline', opencode: 'opencode',
@@ -43,4 +48,20 @@ const AGENT_NAMES: Record<string, string> = {
 export function agentLabel(agent: string | null | undefined): string | null {
   if (!agent || agent === 'agent') return null
   return AGENT_NAMES[agent] ?? agent
+}
+
+/** The MCP URL the Connect step may pass to `claude mcp add`: http(s) only, nothing a shell or CLI could misread. */
+export function validMcpUrl(url: unknown): url is string {
+  if (typeof url !== 'string' || url.length > 2000 || /\s/.test(url) || url.startsWith('-')) return false
+  try {
+    const u = new URL(url)
+    return u.protocol === 'http:' || u.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+/** `claude mcp add` refused because a server named vibedoc is already configured for this project. */
+export function mcpAlreadyExists(output: string): boolean {
+  return /already exists/i.test(output)
 }

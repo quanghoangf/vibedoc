@@ -3,19 +3,26 @@
 //   2. The panel's Test button (tools/list) and a plain initialize / tools/list POST leave it unticked.
 //   3. A tools/call with a Claude Code User-Agent turns it ✓ "Claude Code" without a reload; a reload keeps it,
 //      and a second call within 60s doesn't rewrite .vibedoc/agent-connection.json.
+//   4. Connect Claude Code: the dialog shows the command and nothing runs until Confirm; Confirm runs
+//      `claude mcp add` in the project and shows what changed; again → "already exists" + Replace → remove + add.
+//   5. A cross-site POST is refused (403).
+// The server must run with e2e/fixtures/claude-stub first on PATH (a fake `claude` that keeps its state in the cwd).
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
+//   PATH=$PWD/e2e/fixtures/claude-stub:$PATH pnpm exec next dev -p 3081
 //   PW_DIR=<dir with node_modules/playwright> BASE=http://localhost:3081 node e2e/connect-agent.mjs
 //
 // Uses the real /api/mcp and routes (only /api/projects is stubbed); writes only a fresh mktemp fixture.
 import assert from "node:assert/strict"
-import { readFileSync, rmSync, statSync } from "node:fs"
+import { existsSync, readFileSync, rmSync, statSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const fx = makeFixture()
 const evidence = path.join(fx, ".vibedoc/agent-connection.json")
+const stubLog = path.join(fx, ".claude-stub.log")
+const calls = () => (existsSync(stubLog) ? readFileSync(stubLog, "utf8").trim().split("\n") : [])
 
 async function rpc(method, params, ua = "e2e") {
   const res = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(fx)}`, {
@@ -67,6 +74,44 @@ try {
   await page.reload()
   await page.getByRole("group", { name: "MCP server" }).getByText(/Connected · Claude Code/).waitFor()
   console.log("✓ reload keeps ✓; a second call within 60s doesn't rewrite the evidence")
+
+  // 4. one-click connect, confirm first
+  const step2 = page.getByRole("group", { name: "MCP server" })
+  await step2.getByRole("button", { name: "Connect Claude Code" }).click()
+  const dialog = page.getByRole("dialog", { name: "Add VibeDoc to Claude Code?" })
+  await dialog.getByText(/claude mcp add --transport http vibedoc http:\/\/localhost:\d+\/api\/mcp/).waitFor()
+  await dialog.getByText(fx).waitFor()
+  assert.deepEqual(calls(), [], "nothing runs before Confirm")
+  await dialog.getByRole("button", { name: "Cancel" }).click()
+  assert.deepEqual(calls(), [], "Cancel runs nothing")
+  await step2.getByRole("button", { name: "Connect Claude Code" }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Run it" }).click()
+  await step2.getByText(/Added HTTP MCP server vibedoc with URL: http:\/\/localhost:\d+\/api\/mcp to local config/).waitFor()
+  await step2.getByText(/File modified: .*\.claude\.json/).waitFor()
+  assert.match(calls()[0], /^mcp add --transport http vibedoc http:\/\/localhost:\d+\/api\/mcp$/)
+  console.log("✓ Connect asks first, then runs claude mcp add in the project and names what changed")
+
+  await step2.getByRole("button", { name: "Connect Claude Code" }).click()
+  await page.getByRole("dialog").getByRole("button", { name: "Run it" }).click()
+  await step2.getByText("already exists in local config").waitFor()
+  await step2.getByRole("button", { name: "Replace…" }).click()
+  const replace = page.getByRole("dialog", { name: "Replace the vibedoc server in Claude Code?" })
+  await replace.getByText("claude mcp remove vibedoc -s local").waitFor()
+  assert.equal(calls().length, 2, "Replace runs nothing before its confirm")
+  await replace.getByRole("button", { name: "Replace it" }).click()
+  await step2.getByText(/Removed MCP server vibedoc/).waitFor()
+  assert.deepEqual(calls().slice(2).map((c) => c.split(" ").slice(0, 2).join(" ")), ["mcp remove", "mcp add"])
+  console.log("✓ already exists → Replace (after its confirm) runs remove then add")
+
+  // 5. cross-site POST refused
+  const cross = await fetch(`${BASE}/api/agent-connect?root=${encodeURIComponent(fx)}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "https://evil.example" },
+    body: JSON.stringify({ step: "mcp", url: "http://localhost:1/api/mcp" }),
+  })
+  assert.equal(cross.status, 403)
+  assert.equal(calls().length, 4, "the refused POST ran nothing")
+  console.log("✓ a cross-site POST is refused")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("connect-agent: ok")
