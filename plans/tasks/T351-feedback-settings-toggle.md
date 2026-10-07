@@ -1,5 +1,7 @@
 # T351: Turn first-run feedback on or off in Settings
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 **Phase:** R086 — First-run feedback
 **Size:** S (~1 hr)
 **Depends on:** T350
@@ -42,4 +44,11 @@ BASE=http://localhost:3086 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node
 ```
 
 ## Manual tests
-- [ ] S5 — WHEN the user turns first-run feedback off (or on) in Settings → THEN sending stops (or starts) from the next step on
+_Auto: `e2e/first-run-feedback.mjs` (part 4) + `e2e/i18n.mjs` (Settings → Quyền riêng tư) passed 2026-10-07._
+### Steps
+- [x] S5 — WHEN the user turns first-run feedback off (or on) in Settings → THEN sending stops (or starts) from the next step on
+- [x] Settings → Privacy on a declined project → the switch reads off; turning it on sends `started` only, not steps reached while off
+- [ ] Start with `VIBEDOC_FEEDBACK=0` → Settings → Privacy shows the "Off here" note and the switch is disabled
+- [ ] Settings → Privacy on a phone-width window → the tab is in the top strip and the request URLs wrap without sideways scroll
+### Regression risk
+- [ ] The other Settings tabs (Appearance, Agents) still switch and save

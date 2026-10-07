@@ -46,12 +46,16 @@ export function FirstRunFeedback() {
   const { rootParam } = useApp()
   const [status, setStatus] = useState<FeedbackStatus | null>(null)
   const sending = useRef(false)
+  // A stale GET can still list a step this tab just sent: never send one twice from here
+  const sentHere = useRef(new Set<StepId>())
 
   const sendPending = useCallback(async (pending: StepId[]) => {
     if (sending.current) return
     sending.current = true
     try {
       for (const step of pending) {
+        if (sentHere.current.has(step)) continue
+        sentHere.current.add(step)
         // no-cors: the answer is opaque and unneeded; keepalive lets it finish if the tab closes
         await fetch(stepUrl(step), { mode: "no-cors", keepalive: true, credentials: "omit", referrerPolicy: "no-referrer" })
         await fetch(`/api/feedback/sent${rootParam}`, {
@@ -67,15 +71,14 @@ export function FirstRunFeedback() {
     }
   }, [rootParam])
 
-  const load = useCallback(async () => {
-    try {
-      const s: FeedbackStatus = await fetch(`/api/feedback${rootParam}`).then((r) => r.json())
-      setStatus(s)
-      if (s.available && s.consent === true && s.pending.length) await sendPending(s.pending)
-    } catch {
-      setStatus(null)
-    }
-  }, [rootParam, sendPending])
+  const load = useCallback(() =>
+    fetch(`/api/feedback${rootParam}`)
+      .then((r) => r.json() as Promise<FeedbackStatus>)
+      .then((s) => {
+        setStatus(s)
+        if (s.available && s.consent === true && s.pending.length) return sendPending(s.pending)
+      })
+      .catch(() => setStatus(null)), [rootParam, sendPending])
 
   useEffect(() => {
     load()
@@ -90,12 +93,12 @@ export function FirstRunFeedback() {
   const answer = async (consent: boolean) => {
     setStatus((s) => (s ? { ...s, consent } : s))
     try {
-      const r = await fetch(`/api/feedback${rootParam}`, {
+      await fetch(`/api/feedback${rootParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ consent }),
-      }).then((res) => res.json())
-      if (consent && r.pending?.length) await sendPending(r.pending)
+      })
+      await load()
     } catch (e) {
       console.warn("[vibedoc] first-run feedback answer not saved", e)
     }

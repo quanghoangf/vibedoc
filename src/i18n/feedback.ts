@@ -16,6 +16,11 @@ export const en = {
   yes: "Yes, send these",
   no: "No thanks",
   showDetails: "What exactly is sent?",
+  // Settings → Privacy
+  privacyHint: "What VibeDoc may send about this project. Nothing leaves without your yes.",
+  toggle: "First-run feedback",
+  toggleHint: "Sends each first-run step once, from now on. Steps you already reached are not sent.",
+  unavailable: "Off here: the demo and VIBEDOC_FEEDBACK=0 never send anything.",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -32,4 +37,8 @@ export const vi: Messages<typeof en> = {
   yes: "Có, gửi những thứ này",
   no: "Không, cảm ơn",
   showDetails: "Chính xác thì gửi những gì?",
+  privacyHint: "Những gì VibeDoc có thể gửi về dự án này. Không gì được gửi đi nếu bạn chưa đồng ý.",
+  toggle: "Phản hồi lần chạy đầu",
+  toggleHint: "Gửi mỗi bước của lần chạy đầu một lần, từ bây giờ. Các bước bạn đã qua sẽ không được gửi.",
+  unavailable: "Đang tắt: bản demo và VIBEDOC_FEEDBACK=0 không bao giờ gửi gì.",
 }

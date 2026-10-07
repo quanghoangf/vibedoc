@@ -4,6 +4,7 @@
 //      an epic lands on the roadmap and a task is done (S3).
 //   3. Yes on a second project → `started` is sent once, then agent connected / first roadmap / first task done are
 //      each sent once, in order, as they happen; the requests carry the step and nothing from the project (S2).
+//   4. Settings → Privacy on a declined project: on → `started`, then the next step (ones reached while off never); off → nothing (S5).
 // GoatCounter is intercepted (never reached). Fails on any browser console error. Fixtures removed in `finally`.
 //
 //   BASE=http://localhost:3086 PW_DIR=node_modules/@playwright/test node e2e/first-run-feedback.mjs
@@ -59,6 +60,7 @@ const until = async (fn, what) => {
 
 const fxNo = emptyFixture()
 const fxYes = emptyFixture()
+const fxSettings = emptyFixture()
 const browser = await launchChrome()
 try {
   // ── S1 + S3: the card, then No thanks ─────────────────────────────────────────
@@ -108,9 +110,37 @@ try {
     assert.deepEqual(errors, [])
     await page.close()
   }
+  // ── S5: Settings → Privacy ────────────────────────────────────────────────────
+  {
+    const { page, hits, errors } = await openProject(browser, fxSettings)
+    await page.getByRole("region", { name: "First-run feedback" }).getByRole("button", { name: "No thanks" }).click()
+    await post(fxSettings, "/api/mcp", { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_read_memory", arguments: {} } })
+    await page.goto(`${BASE}/settings`)
+    await page.getByRole("button", { name: "Privacy", exact: true }).first().click()
+    const sw = page.getByRole("switch", { name: "First-run feedback" })
+    assert.equal(await sw.getAttribute("aria-checked"), "false", "declined → off")
+    await sw.click()
+    await until(async () => (await sw.getAttribute("aria-checked")) === "true", "switch on")
+    // On from here: `started` (like a yes on the card); agent-connected was reached while off, so it is never sent
+    await until(() => hits.length === 1, "started on opt-in")
+    await new Promise((r) => setTimeout(r, 800))
+    assert.equal(hits.length, 1, "steps reached before turning it on are not sent")
+    assert.equal((await post(fxSettings, "/api/roadmap/create", { title: "First epic", parent: "R001" })).status, 201)
+    await until(() => hits.length === 2, "first-roadmap after turning it on")
+    assert.deepEqual(hits.map((u) => new URL(u).searchParams.get("p")), ["/first-run/started", "/first-run/first-roadmap"])
+    await sw.click()
+    await until(async () => (await sw.getAttribute("aria-checked")) === "false", "switch off")
+    writeFileSync(path.join(fxSettings, "plans/tasks/T001-first.md"), "# T001: First\n**Status:** 📋 Todo\n\n## Goal\nOne.\n")
+    await post(fxSettings, "/api/tasks", { taskId: "T001", status: "done" })
+    await new Promise((r) => setTimeout(r, 800))
+    assert.equal(hits.length, 2, "off again: nothing more is sent")
+    assert.deepEqual(errors, [])
+    await page.close()
+  }
   console.log("first-run-feedback: ok")
 } finally {
   await browser.close()
   rmSync(fxNo, { recursive: true, force: true })
   rmSync(fxYes, { recursive: true, force: true })
+  rmSync(fxSettings, { recursive: true, force: true })
 }

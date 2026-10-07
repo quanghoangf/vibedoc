@@ -234,6 +234,7 @@ const PAGES = [
     ["MCP", async (page) => { await page.getByRole("button", { name: "Kiểm tra" }).click(); await page.waitForLoadState("networkidle") }],
     ["Kỹ năng", async (page) => { await page.getByRole("button", { name: /Thêm kỹ năng/ }).click() }],
     ["Agent", async (page) => { await page.getByRole("button", { name: /Thêm agent/ }).click() }],
+    ["Quyền riêng tư", async (page) => { await page.getByRole("switch", { name: "Phản hồi lần chạy đầu" }).waitFor() }],
   ].map(([section, then]) => ({ path: "/settings", name: `settings: ${section}`, open: async (page) => {
     await page.getByRole("button", { name: section, exact: true }).click()
     await page.waitForLoadState("networkidle")

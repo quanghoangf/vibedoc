@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
-import { Palette, Type, FolderCog, Plug, Zap, Bot, Settings, Columns3, AppWindow } from "lucide-react"
+import { Palette, Type, FolderCog, Plug, Zap, Bot, Settings, Columns3, AppWindow, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeSettings } from "@/components/settings/ThemeSettings"
 import { EditorSettings } from "@/components/settings/EditorSettings"
@@ -14,6 +14,7 @@ import { SkillsSettings } from "@/components/settings/SkillsSettings"
 import { AgentsSettings } from "@/components/settings/AgentsSettings"
 import { StatusesSettings } from "@/components/settings/StatusesSettings"
 import { FrontendSettings } from "@/components/settings/FrontendSettings"
+import { PrivacySettings } from "@/components/settings/PrivacySettings"
 import { setStatusDefs } from "@/components/shared/status-defs"
 import { statusDefs } from "@/lib/statuses"
 import type { AppSettings, Skill, Agent } from "@/lib/settings"
@@ -30,6 +31,7 @@ const TABS: { id: string; label: MessageKey | "MCP"; icon: typeof Palette }[] = 
   { id: "mcp", label: "MCP", icon: Plug },
   { id: "skills", label: "settings.tabSkills", icon: Zap },
   { id: "agents", label: "settings.tabAgents", icon: Bot },
+  { id: "privacy", label: "settings.tabPrivacy", icon: ShieldCheck },
 ]
 
 export default function SettingsPage() {
@@ -189,6 +191,7 @@ export default function SettingsPage() {
           {activeTab === "skills" && (
             <SkillsSettings skills={skills} onSave={saveSkills} />
           )}
+          {activeTab === "privacy" && <PrivacySettings rootParam={rootParam} />}
           {activeTab === "agents" && (
             <AgentsSettings agents={agents} skills={skills} onSave={saveAgents} />
           )}
