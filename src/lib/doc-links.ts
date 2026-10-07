@@ -313,6 +313,25 @@ export function docLinks(graph: DocGraph, path: string): { out: LinkRow[]; in: L
   }
 }
 
+export type LinkDirection = 'out' | 'in' | 'both'
+export type MergedLinkRow = LinkRow & { direction: LinkDirection }
+
+/**
+ * One row per linked file for the Linked docs panel (T506): `out` and `in` rows of the same path become one
+ * `both` row. Rows linking in keep their own line / text / context (the snippet of where this file is named);
+ * out-only rows keep the first out row's. Order: out rows first, then files that only link in.
+ */
+export function mergeLinkRows(out: LinkRow[], inRows: LinkRow[]): MergedLinkRow[] {
+  const rows = new Map<string, MergedLinkRow>()
+  for (const r of out) if (!rows.has(r.path)) rows.set(r.path, { ...r, direction: 'out' })
+  for (const r of inRows) {
+    const o = rows.get(r.path)
+    if (!o) rows.set(r.path, { ...r, direction: 'in' })
+    else if (o.direction === 'out') rows.set(r.path, { ...r, status: r.status ?? o.status, direction: 'both' })
+  }
+  return [...rows.values()]
+}
+
 /**
  * Footer for vibedoc_read_doc (T096): the files a doc links to and is linked from, each named so an agent can
  * pass it straight to a tool (tasks, epics, entries, ADRs by id; docs by path). Empty string when no links.

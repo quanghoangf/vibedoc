@@ -1,6 +1,6 @@
 // Self-check for doc-links. Run: node src/lib/doc-links.check.mts
 import assert from 'node:assert/strict'
-import { buildDocGraph, docLinks, docNode, extractLinks, graphHref, formatRelatedFiles, isExampleTarget, resolveLink, touchedPaths, type DocItem } from './doc-links.ts'
+import { buildDocGraph, docLinks, docNode, extractLinks, graphHref, formatRelatedFiles, isExampleTarget, mergeLinkRows, resolveLink, touchedPaths, type DocItem } from './doc-links.ts'
 
 // extractLinks: every kind, line numbers, link text
 const raw = [
@@ -249,5 +249,18 @@ assert.deepEqual(extractLinks([
 assert.equal(graphHref('docs/a b.md'), '/graph?node=docs%2Fa+b.md&focus=1')
 assert.equal(graphHref('docs/architecture/decisions/ADR-001-x.md'), '/graph?node=docs%2Farchitecture%2Fdecisions%2FADR-001-x.md&focus=1')
 assert.equal(graphHref('plans/tasks/T001-x.md'), '/graph?node=plans%2Ftasks%2FT001-x.md&focus=1&kinds=doc%2Cadr%2Cspec%2Ctask')
+
+// mergeLinkRows: one row per path; both directions keep the in side's snippet; duplicates collapse
+{
+  const r = (path: string, line: number, extra: object = {}) => ({ path, kind: 'task', label: path, line, text: path, ...extra })
+  const merged = mergeLinkRows(
+    [r('T1', 3), r('T2', 4), r('T1', 9), r('R1', 5, { status: 'planned' })],
+    [r('T1', 20, { context: 'from T1' }), r('D1', 7, { context: 'from D1' }), r('R1', 11)],
+  )
+  assert.deepEqual(merged.map(m => [m.path, m.direction, m.line]), [['T1', 'both', 20], ['T2', 'out', 4], ['R1', 'both', 11], ['D1', 'in', 7]])
+  assert.equal(merged[0].context, 'from T1')
+  assert.equal(merged[2].status, 'planned', 'a both row keeps the out side status when the in side has none')
+  assert.deepEqual(mergeLinkRows([], []), [])
+}
 
 console.log('doc-links: ok')

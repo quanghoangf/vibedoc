@@ -1,7 +1,7 @@
 // Browser check for R056 (Doc link graph), end to end on a fixture project. The epic's Done-when:
 // opening a doc shows the docs it links to and the docs that link to it, each one click away; /graph shows
 // every doc link in the repo and clicking a node opens it; vibedoc_read_doc ends with the resolved related files.
-//   1. a.md: clicking the `b` link opens b.md; b.md's Linked docs panel lists a.md under Linked from.
+//   1. a.md: clicking the `b` link opens b.md; b.md's Linked docs panel lists a.md once, marked both ways.
 //   2. a.md: the broken link is muted, the stale `docs/gone.md` mention is marked (not broken); hovering a link
 //      shows its preview card.
 //   3. /graph: a, b, c (and d) with edges; clicking a selects it and dims the unrelated d → c edge; Open → /docs.
@@ -79,17 +79,31 @@ try {
   const doc = page.locator(".doc-preview")
   const panel = page.locator('aside[aria-label="Linked docs"]')
 
-  // 1. Click through a → b; b's panel lists a under Linked from
+  // 1. Click through a → b; b's panel lists a once, both ways
   await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/a.md")}`)
   await panel.getByText("Charlie").waitFor() // links data loaded
   await doc.getByRole("link", { name: "b", exact: true }).click()
   await page.locator("h1", { hasText: "Bravo" }).first().waitFor()
-  const linkedFrom = panel.locator("div:has(> h3:text-is('Linked from'))")
-  await linkedFrom.getByRole("button", { name: /Alpha/ }).waitFor()
-  console.log("ok  clicking the b link opens b.md; its panel lists a.md under Linked from")
+  // a ↔ b link both ways: one row for a, marked both; the filter counts unique files
+  const aRow = panel.locator('button[data-preview-path="docs/a.md"]')
+  await aRow.waitFor()
+  assert.equal(await aRow.count(), 1, "a.md is listed once")
+  assert.equal(await aRow.getAttribute("data-direction"), "both")
+  assert.match(await aRow.innerText(), /Links both ways/)
+  assert.match(await aRow.innerText(), /L3 · b$/, "the both row shows where a names b")
+  const filter = panel.getByRole("group", { name: "Show links" })
+  assert.deepEqual((await filter.getByRole("button").allInnerTexts()).map((s) => s.replace(/\s+/g, "")), ["All1", "To1", "From1"])
+  await filter.getByRole("button", { name: /^To/ }).click()
+  await panel.locator('[data-preview-path="docs/a.md"]').waitFor()
+  await filter.getByRole("button", { name: /^All/ }).click()
+  // a merged row still carries its preview: hovering it shows a's card
+  await aRow.hover()
+  await page.getByRole("tooltip").getByText("docs/a.md").waitFor()
+  await page.mouse.move(0, 0)
+  console.log("ok  clicking the b link opens b.md; its panel lists a.md once, linking both ways, with its snippet and preview")
 
   // a is one click away from b's panel
-  await linkedFrom.getByRole("button", { name: /Alpha/ }).click()
+  await aRow.click()
   await page.locator("h1", { hasText: "Alpha" }).first().waitFor()
   await panel.getByText("Charlie").waitFor()
 
