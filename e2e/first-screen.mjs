@@ -2,6 +2,7 @@
 //   S1  docs, no tasks/roadmap → /start, first start "Generate roadmap from your docs" (opens an agent chat)
 //   S2  nothing → /start, "Plan the first epics with the agent"
 //   set up (a task) → /board, never the welcome
+//   S3  set up → the last page used (cookie vibedoc-last), a bad cookie → /board
 //   S4  "Write project docs" → the template wizard (/setup); the agent row says connected once an `ai` event is logged
 // Fixtures are temp dirs passed as ?root= (and as the only project via stubChat), removed in `finally`.
 //
@@ -85,6 +86,15 @@ try {
     await page.waitForURL(/\/board\b/)
     assert.equal(await page.getByRole("heading", { name: "Welcome to VibeDoc" }).count(), 0)
     console.log("ok  set-up project → board, no welcome")
+    await page.goto(`${BASE}/roadmap?root=${encodeURIComponent(setUp)}`)
+    await page.locator("main#main").waitFor()
+    await page.goto(`${BASE}/?root=${encodeURIComponent(setUp)}`)
+    await page.waitForURL(/\/roadmap\b/)
+    console.log("ok  S3 set-up project reopens the last page used (/roadmap)")
+    await ctx.addCookies([{ name: "vibedoc-last", value: "/start", url: BASE }])
+    const res = await page.request.get(`${BASE}/?root=${encodeURIComponent(setUp)}`, { maxRedirects: 0 })
+    assert.match(res.headers()["location"] ?? "", /^\/board\b/)
+    console.log("ok  a cookie naming a page that isn't reopened → /board")
     await ctx.close()
   }
   assert.deepEqual(errors, [], "no page errors")

@@ -25,3 +25,20 @@ export function firstScreen(p: { tasks: number; roadmapItems: number; demo?: boo
 export function welcomeKind(docPaths: string[]): 'docs' | 'empty' {
   return hasProjectDocs(docPaths) ? 'docs' : 'empty'
 }
+
+/** Per-browser cookie with the last (app) page used (R082): `/` reopens it on a set-up project. */
+export const LAST_PAGE_COOKIE = 'vibedoc-last'
+
+/** Pages `/` may reopen. Never /start or /setup: a set-up project skips the welcome and the wizard is on request only. */
+const REOPENABLE = ['/board', '/roadmap', '/docs', '/graph', '/chat', '/memory', '/activity', '/manual-tests', '/explorer', '/settings', '/getting-started']
+
+/** The page `/` opens for a set-up project: the remembered one when it is a known page, else the board. */
+export function lastPageTarget(cookie: string | undefined | null): string {
+  return cookie && REOPENABLE.includes(cookie) ? cookie : '/board'
+}
+
+/** The cookie to remember `pathname`, or null when it isn't a page to reopen (its top-level route is kept). */
+export function lastPageCookie(pathname: string): string | null {
+  const top = '/' + (pathname.split('/')[1] ?? '')
+  return REOPENABLE.includes(top) ? `${LAST_PAGE_COOKIE}=${top}; path=/; max-age=31536000; samesite=lax` : null
+}

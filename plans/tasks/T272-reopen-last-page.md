@@ -1,9 +1,12 @@
 # T272: Reopen the last page used
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R082 — Smart first screen
 **Size:** S (~1 hr)
 **Depends on:** T270
 **Covers:** S3
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 
 ## Goal
 On a set-up project, later runs open where the user left off (e.g. /roadmap), not always the board.
@@ -46,4 +49,16 @@ BASE=http://localhost:3082 PW_DIR=. node e2e/first-screen.mjs
 ```
 
 ## Manual tests
+_2026-10-07 — ai · Spec: `e2e/vibedoc/T272-reopen-last-page.spec.ts` · Auto: passed 2026-10-07_
+### Steps
 - [ ] S3 — WHEN VibeDoc opens a project that already has tasks or a roadmap → THEN it opens the board (or the last page used), not the welcome
+- [x] 🤖 Open VibeDoc on a set-up project for the first time → the board opens
+- [x] 🤖 Go to Roadmap, then open VibeDoc again → the roadmap opens, not the board
+- [x] 🤖 Open the setup wizard, then open VibeDoc again → still the roadmap (the wizard is never reopened)
+- [ ] Stop `vibedoc`, start it again → the browser opens on the page you used last
+### Regression risk
+- [ ] Deep links still open as given (`/board?task=T001`, `/roadmap?item=R002`), not the remembered page
+
+## Notes
+- Only the top-level route is remembered (`/docs/x` → `/docs`), no query. One value per browser, not per project (as planned).
+- The demo always opens `/board` (some pages are blocked there).
