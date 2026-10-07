@@ -1,8 +1,8 @@
 # R088: Docs quality gate
 **Parent:** R003
-**Status:** planned
+**Status:** done
 **Order:** 180
-**Tasks:** —
+**Tasks:** T380, T381, T382, T383, T384
 
 The agent and the user see what is wrong with the docs in one place, and doc search ranks whole files instead of matching substrings line by line. Adapted from Fern's `fern check` / `docs link check` and its ranked search, without a CLI or a search service.
 
