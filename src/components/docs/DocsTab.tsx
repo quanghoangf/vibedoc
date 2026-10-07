@@ -52,7 +52,8 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
   const noDocs = !selectedDoc && !showApi && !apiSpec?.path && docs.length === 0 && !docSearch.trim()
 
   return (
-    <div className="flex h-full relative" style={{ minHeight: "calc(100vh - 3rem)" }}>
+    // A fixed height (the header is 3rem), so the list and the doc each scroll in their own pane, never the page
+    <div className="relative flex h-[calc(100svh-3rem)] min-h-0 overflow-hidden">
       <DocList
         top={apiSpec?.path && onApiOpen ? <ApiReferenceRow count={apiSpec.endpoints?.length ?? 0} active={showApi} onClick={() => onApiOpen(API_LIST)} /> : null}
         className={selectedDoc || showApi || noDocs ? "max-md:hidden" : undefined}
