@@ -20,6 +20,7 @@ import { stripFrontmatter } from "@/lib/doc-priority"
 import { DocProperties } from "./DocProperties"
 import { graphHref } from "@/lib/doc-links"
 import { useT } from "@/context/LanguageContext"
+import { DocUsage } from "./DocUsage"
 
 const kbdClass = "rounded-sm border border-border bg-surface2 px-1 font-mono text-[10px] leading-4 text-txt"
 
@@ -35,9 +36,11 @@ interface DocViewerProps {
   onNewDocClick?: () => void
   listCollapsed?: boolean
   onToggleList?: () => void
+  /** opens a doc from the usage lists on the landing (R093) */
+  onDocClick?: (path: string) => void
 }
 
-export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, content, docCount, onNewDocClick, listCollapsed = false, onToggleList }: DocViewerProps) {
+export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, content, docCount, onNewDocClick, listCollapsed = false, onToggleList, onDocClick }: DocViewerProps) {
   const { rootParam, setSelectedDoc, editorSettings } = useApp()
   const path = doc?.path ?? ""
   const links = useDocLinks(doc?.path)
@@ -79,6 +82,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
             <kbd className={kbdClass}>⌘K</kbd> {t("docs.searchContent")}
           </span>
         </div>
+        {!!docCount?.files && <DocUsage onDocClick={onDocClick} />}
       </div>
     )
   }

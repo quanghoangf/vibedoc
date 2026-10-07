@@ -49,6 +49,7 @@ import { isDemo, isPlayground } from './demo'
 import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './first-run'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
 import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
+import { parseUsage, recordRead, recordSearch, summarizeUsage, type DocUsage, type UsageSummary } from './doc-usage'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -3607,4 +3608,48 @@ export async function recordAgentCall(root: string, agent: string, now = new Dat
   await fs.writeFile(tmp, JSON.stringify({ agent, lastCall: now.toISOString() }, null, 2) + '\n', 'utf-8')
   await fs.rename(tmp, file)
   return true
+}
+
+// ─── R093: doc usage signals (.vibedoc/doc-usage.json) ────────────────────────
+
+const DOC_USAGE_FILE = path.join('.vibedoc', 'doc-usage.json')
+let docUsageLock: Promise<unknown> = Promise.resolve()
+
+async function readDocUsage(root: string): Promise<DocUsage> {
+  return parseUsage(await fs.readFile(path.join(root, DOC_USAGE_FILE), 'utf-8').catch(() => null))
+}
+
+/** Read-modify-write under one lock: an agent's reads arrive in bursts and must not overwrite each other. */
+function updateDocUsage(root: string, change: (u: DocUsage) => DocUsage): Promise<boolean> {
+  const run = docUsageLock.then(async () => {
+    if (isDemo()) return false
+    const file = path.join(root, DOC_USAGE_FILE)
+    const prev = await readDocUsage(root)
+    const next = change(prev)
+    if (next === prev) return false
+    await fs.mkdir(path.dirname(file), { recursive: true })
+    const tmp = `${file}.tmp`
+    await fs.writeFile(tmp, JSON.stringify(next, null, 2) + '\n', 'utf-8')
+    await fs.rename(tmp, file)
+    return true
+  })
+  docUsageLock = run.catch(() => {})
+  return run
+}
+
+/** Counts an agent's read of `docPath` (MCP vibedoc_read_doc; the in-app chat's reads count too). */
+export function noteDocRead(root: string, docPath: string, now = new Date()): Promise<boolean> {
+  return updateDocUsage(root, (u) => recordRead(u, docPath, now))
+}
+
+/** Counts an agent search that found nothing; a search that finds something clears its earlier misses. True when it wrote. */
+export function noteDocSearch(root: string, query: string, found: boolean, now = new Date()): Promise<boolean> {
+  return updateDocUsage(root, (u) => recordSearch(u, query, found, now))
+}
+
+/** /docs usage: most read by agents, never read (docs only, as /graph counts them), searches that found nothing. */
+export async function getDocUsage(root: string): Promise<UsageSummary> {
+  const [usage, docs] = await Promise.all([readDocUsage(root), listDocs(root)])
+  const paths = docs.map((d) => d.path)
+  return summarizeUsage(usage, paths, paths.filter((p) => docNode(p, '').kind === 'doc'))
 }

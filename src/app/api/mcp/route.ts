@@ -52,6 +52,8 @@ import {
   deleteEntry,
   sessionStartMemory,
   recordAgentCall,
+  noteDocRead,
+  noteDocSearch,
   backfillEpisodes,
   currentSessionId,
   writeRunEpisode,
@@ -260,6 +262,10 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         root,
       );
       emitUpdate("doc_read", { path: docPath });
+      // R093: count the agent's read (the in-app chat's too); recording never fails the call
+      void noteDocRead(root, docPath)
+        .then(() => emitUpdate("doc_usage_updated", { path: docPath }))
+        .catch((e) => console.warn("[vibedoc] could not record the doc read:", e));
       const related = formatRelatedFiles(docLinks(await getDocGraph(root), docPath));
       return `## ${docPath}\n\n${content}` + (related ? `\n\n---\n\n${related}` : "");
     }
@@ -282,6 +288,10 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
     case "vibedoc_search_docs": {
       const results = await searchDocs(String(args.query), root);
+      // R093: record a search that found nothing (and clear it once it finds something); never fails the call
+      void noteDocSearch(root, String(args.query ?? ""), results.length > 0)
+        .then((wrote) => { if (wrote) emitUpdate("doc_usage_updated", { query: String(args.query ?? "") }) })
+        .catch((e) => console.warn("[vibedoc] could not record the doc search:", e));
       if (!results.length) return `No results for "${args.query}"`;
       const lines = [`🔍 "${args.query}" — ${results.length} file(s)\n`];
       for (const r of results) {

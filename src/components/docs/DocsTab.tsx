@@ -70,6 +70,7 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
           onNewDocClick={onNewDocClick}
           listCollapsed={hideList}
           onToggleList={() => window.dispatchEvent(new Event(TOGGLE_DOCS_LIST_EVENT))}
+          onDocClick={onDocSelect}
         />
       </div>
     </div>
