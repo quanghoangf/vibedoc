@@ -37,7 +37,7 @@ node scripts/first-run-funnel.mjs --check
 node src/lib/first-run.check.mts
 pnpm lint && pnpm build
 pnpm --dir site build
-BASE=http://localhost:3086 PW_DIR=. node e2e/first-run-feedback.mjs
+BASE=http://localhost:3086 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/first-run-feedback.mjs
 ```
 
 ## Manual tests

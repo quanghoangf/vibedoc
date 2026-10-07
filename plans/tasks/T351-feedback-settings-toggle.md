@@ -37,8 +37,8 @@ The user can change their answer any time: Settings has a "Privacy" tab with the
 ```bash
 node src/lib/i18n.check.mts
 pnpm lint && pnpm build
-BASE=http://localhost:3086 PW_DIR=. node e2e/first-run-feedback.mjs
-BASE=http://localhost:3086 PW_DIR=. node e2e/i18n.mjs
+BASE=http://localhost:3086 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/first-run-feedback.mjs
+BASE=http://localhost:3086 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/i18n.mjs
 ```
 
 ## Manual tests

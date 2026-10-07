@@ -1,5 +1,7 @@
 # T350: Consent card and first-run step events
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 **Phase:** R086 — First-run feedback
 **Size:** L (half a day)
 **Depends on:** —
@@ -62,12 +64,17 @@ node src/lib/first-run.check.mts
 node src/lib/i18n.check.mts
 pnpm lint && pnpm build
 PORT=3086 pnpm dev &   # then:
-BASE=http://localhost:3086 PW_DIR=. node e2e/first-run-feedback.mjs
-BASE=http://localhost:3086 PW_DIR=. node e2e/i18n.mjs
+BASE=http://localhost:3086 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/first-run-feedback.mjs
+BASE=http://localhost:3086 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/i18n.mjs
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN a project is opened in VibeDoc for the first time → THEN a card asks in plain words, shows exactly what would be sent, and doesn't come back once answered
-- [ ] S2 — WHEN the user opts in and goes through start → agent connected → first roadmap → first task done → THEN one anonymous event per step is sent
-- [ ] S3 — WHEN the user declines, or never answers → THEN no request leaves VibeDoc for the analytics host
-- [ ] Human: with a real opt-in from localhost, the `/first-run/started` event shows on the vibedoc.goatcounter.com dashboard
+_Auto: `e2e/first-run-feedback.mjs` + `e2e/i18n.mjs` passed 2026-10-07 (items below marked [x] are what they proved)._
+### Steps
+- [x] S1 — WHEN a project is opened in VibeDoc for the first time → THEN a card asks in plain words, shows exactly what would be sent, and doesn't come back once answered
+- [x] S2 — WHEN the user opts in and goes through start → agent connected → first roadmap → first task done → THEN one anonymous event per step is sent
+- [x] S3 — WHEN the user declines, or never answers → THEN no request leaves VibeDoc for the analytics host
+- [ ] Open a brand-new project at phone width → the card fits the screen, buttons reachable, Help button still clickable
+- [ ] Human: opt in on a real project from localhost → `/first-run/started` shows as an event on the vibedoc.goatcounter.com dashboard (GoatCounter may reject localhost / no-referrer hits; this is the one thing no test can prove)
+### Regression risk
+- [ ] The Help launcher (bottom-right) still opens and isn't covered by the card on desktop

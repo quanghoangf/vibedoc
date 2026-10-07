@@ -44,6 +44,7 @@ import { entrySlug, formatEntry, nextEntryId, normalizeEntryId, parseEntry, repl
 import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
 import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
 import { isDemo } from './demo'
+import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './first-run'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -3460,6 +3461,34 @@ export async function readViews(root: string): Promise<SavedView[] | null> {
     console.warn(`[vibedoc] ignoring unreadable ${VIEWS_FILE}: ${(e as Error).message}`)
     return null
   }
+}
+
+// ─── First-run feedback (R086) ────────────────────────────────────────────────
+
+const FEEDBACK_FILE = path.join('.vibedoc', 'feedback.json')
+
+/** The project's first-run feedback answer; "never asked" when the file is missing or unreadable. */
+export async function readFeedback(root: string): Promise<FeedbackState> {
+  const raw = await fs.readFile(path.join(root, FEEDBACK_FILE), 'utf-8').catch(() => null)
+  if (raw == null) return parseFeedback(null)
+  try {
+    return parseFeedback(JSON.parse(raw))
+  } catch (e) {
+    console.warn(`[vibedoc] ignoring unreadable ${FEEDBACK_FILE}: ${(e as Error).message}`)
+    return parseFeedback(null)
+  }
+}
+
+export async function saveFeedback(root: string, state: FeedbackState): Promise<void> {
+  const file = path.join(root, FEEDBACK_FILE)
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(file, JSON.stringify(state, null, 2) + '\n', 'utf-8')
+}
+
+/** The first-run steps this project has reached, from its tasks, roadmap and activity log. */
+export async function firstRunReached(root: string): Promise<StepId[]> {
+  const [{ tasks }, { items }, activity] = await Promise.all([listTasks(root), listRoadmap(root), readActivity(root, Infinity)])
+  return reachedSteps({ tasks, roadmap: items, activity })
 }
 
 export async function saveViews(views: SavedView[], root: string): Promise<void> {

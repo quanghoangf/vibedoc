@@ -40,8 +40,8 @@ A new user who gets stuck can tell the maintainer in one click: a one-line "Stuc
 node src/lib/first-run.check.mts
 node src/lib/i18n.check.mts
 pnpm lint && pnpm build
-BASE=http://localhost:3086 PW_DIR=. node e2e/first-run-feedback.mjs
-BASE=http://localhost:3086 PW_DIR=. node e2e/i18n.mjs
+BASE=http://localhost:3086 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/first-run-feedback.mjs
+BASE=http://localhost:3086 PW_DIR=$PWD/node_modules/.pnpm/playwright@1.63.0/node_modules node e2e/i18n.mjs
 ```
 
 ## Manual tests

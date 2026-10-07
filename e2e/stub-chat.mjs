@@ -43,13 +43,16 @@ export function toolTurn(id, tool, input, text = "") {
   ]
 }
 
-/** A fresh fixture project: horizon R001 with epic R002, and an empty plans/tasks. */
+/** A fresh fixture project: horizon R001 with epic R002, an empty plans/tasks, first-run feedback declined. */
 export function makeFixture() {
   const fx = mkdtempSync(path.join(tmpdir(), "vibedoc-e2e-"))
   mkdirSync(path.join(fx, "plans/roadmap"), { recursive: true })
   mkdirSync(path.join(fx, "plans/tasks"), { recursive: true })
   writeFileSync(path.join(fx, "plans/roadmap/R001-now.md"), "# R001: Now\n**Status:** planned\n**Order:** 10\n**Tasks:** —\n")
   writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** —\n")
+  // R086: answered, so scripts don't meet the first-run feedback card (delete it to see the card)
+  mkdirSync(path.join(fx, ".vibedoc"), { recursive: true })
+  writeFileSync(path.join(fx, ".vibedoc/feedback.json"), JSON.stringify({ consent: false, sent: [] }))
   return fx
 }
 

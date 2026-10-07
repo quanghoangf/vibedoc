@@ -16,6 +16,7 @@ import { ItemCommandKeys } from "@/components/shared/item-commands"
 import { ChatProvider, useChats } from "@/context/ChatContext"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { HelpLauncher } from "@/components/layout/HelpLauncher"
+import { FirstRunFeedback } from "@/components/layout/FirstRunFeedback"
 import { CHAT_KEY, pageForKey, pageTitle, shouldHandleShortcut } from "@/lib/shortcuts"
 import { useT } from "@/context/LanguageContext"
 
@@ -139,6 +140,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           ) : children}
         </main>
         {!demo && <ChatModal />}
+        {!demo && <FirstRunFeedback />}
         <Toaster />
         <ItemCommandKeys />
 
