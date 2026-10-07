@@ -44,7 +44,9 @@ export function usePageChildren(): Record<SidebarPage, SidebarChild[]> {
     load()
     // One fetch per burst of changes (an agent finishing a task sends several)
     const onSse = (e: Event) => {
-      if (QUIET_EVENTS.has((e as CustomEvent).detail?.type)) return
+      const msg = (e as CustomEvent).detail
+      // a map drag only moves positions
+      if (QUIET_EVENTS.has(msg?.type) || (msg?.type === "roadmap_updated" && msg.payload?.kind === "layout")) return
       clearTimeout(timer)
       timer = setTimeout(load, 600)
     }
