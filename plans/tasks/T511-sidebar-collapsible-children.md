@@ -1,5 +1,5 @@
 # T511: Sidebar pages with collapsible children: recent and needs-action items
-**Status:** 📋 Todo
+**Status:** 🔨 In progress
 **Phase:** R095 — UI enhancements
 **Size:** L (half a day)
 **Covers:** S8
