@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { ArrowLeft, Bot, Link2, PanelLeftClose, PanelLeftOpen, Plus, Unlink, User, Waypoints } from "lucide-react"
 import { DOCS_LIST_KEY } from "@/lib/shortcuts"
 import { stripFrontmatter } from "@/lib/doc-priority"
+import { parseMetaBlock, stripMetaBlock } from "@/lib/meta-block"
 import { DocProperties } from "./DocProperties"
 import { graphHref } from "@/lib/doc-links"
 import { useT } from "@/context/LanguageContext"
@@ -107,7 +108,9 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
   const slash = doc.path.lastIndexOf("/")
   const fileName = doc.path.slice(slash + 1)
   const raw = content ?? doc.content
-  const body = stripFrontmatter(raw)
+  // the meta block under the H1 (task / epic files) shows as property rows, not as body text (T505)
+  const body = stripMetaBlock(stripFrontmatter(raw))
+  const meta = parseMetaBlock(raw).entries
   const stats = docStats(body)
   const title = stats.title ?? fileName.replace(/\.md$/, "")
   const lastEdit = doc.lastEdit
@@ -202,7 +205,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
           <header className="mb-8 border-b border-border pb-4">
             <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-balance text-txt">{title}</h1>
             <div className="mt-5">
-              <DocProperties path={doc.path} content={raw} lastEdit={lastEdit} words={stats.words} minutes={stats.minutes} />
+              <DocProperties path={doc.path} content={raw} meta={meta} lastEdit={lastEdit} words={stats.words} minutes={stats.minutes} />
             </div>
             <DocUpkeep path={doc.path} />
           </header>

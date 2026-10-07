@@ -14,6 +14,7 @@ import { glob } from 'glob'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { applyEdits, type TextEdit } from './diff'
+import { META_LINE, parseMetaBlock } from './meta-block'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 import { pickNextTask, type QueueResult } from './work-queue'
 import { selectPlan, validatePlan, type Plan } from './plan'
@@ -3027,7 +3028,6 @@ export class RoadmapError extends Error {
 const ROADMAP_DIR = path.join('plans', 'roadmap')
 const ROADMAP_LAYOUT = path.join(ROADMAP_DIR, 'layout.json')
 const ROADMAP_STATUSES: RoadmapStatus[] = ['planned', 'in-progress', 'paused', 'done']
-const META_LINE = /^\*\*([^*]+):\*\*/
 
 function normalizeRoadmapId(id: unknown): string {
   const s = String(id ?? '').trim().toUpperCase()
@@ -3085,16 +3085,9 @@ function cleanOrder(order: unknown): number {
   return n
 }
 
-/** Index of the first line after the H1 + contiguous `**Key:** Value` block. */
+/** Index of the first line after the H1 + contiguous `**Key:** Value` block (`parseMetaBlock`). */
 function roadmapMetaEnd(lines: string[]): number {
-  let i = lines.findIndex(l => l.startsWith('# '))
-  i = i < 0 ? 0 : i + 1
-  // Tolerate blank lines between the H1 and the meta block (common in hand-written files).
-  let j = i
-  while (j < lines.length && lines[j].trim() === '') j++
-  if (j < lines.length && META_LINE.test(lines[j])) i = j
-  while (i < lines.length && META_LINE.test(lines[i])) i++
-  return i
+  return parseMetaBlock(lines.join('\n')).end
 }
 
 function parseRoadmapFile(file: string, content: string): RoadmapItem {

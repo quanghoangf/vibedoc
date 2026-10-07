@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { BookOpen, Bot, Clock, Flag, Plus, Trash2, Type, User } from "lucide-react"
+import { useState, type ReactNode } from "react"
+import Link from "next/link"
+import { BookOpen, Bot, Calendar, CalendarCheck, CalendarClock, CircleDashed, Clock, Flag, GitBranch, Hash, ListChecks, Map as MapIcon, Plus, Ruler, Trash2, Type, User } from "lucide-react"
 import { PropertyRows, type ItemProperty } from "@/components/shared/ItemPanelHeader"
 import { PriorityBadge, PriorityField } from "@/components/shared/PriorityBadge"
 import { InlineText } from "@/components/shared/InlineProperty"
@@ -10,19 +11,26 @@ import { useFormat, useT } from "@/context/LanguageContext"
 import { toast } from "@/components/ui/toast"
 import { useApp } from "@/context/AppContext"
 import { PRIORITIES, PROPERTY_KEY, docProperties, parsePriority } from "@/lib/doc-priority"
+import { TaskDueField, TaskOwnerField, TaskPriorityField, TaskSizeField, TaskStatusField } from "@/components/board/TaskFields"
+import { OwnerChip } from "@/components/shared/OwnerChip"
+import type { MetaBlock } from "@/lib/meta-block"
+import type { Task } from "@/types"
 
-// A doc's properties, Notion-style: its frontmatter keys (priority gets a picker, the rest are text),
-// then what VibeDoc knows about it (last edit, length). "Add a property" writes a new frontmatter key.
+// A doc's properties, Notion-style: a task / epic file's `**Key:** Value` meta block (T505), its frontmatter
+// keys (priority gets a picker, the rest are text), then what VibeDoc knows about it (last edit, length).
+// "Add a property" writes a new frontmatter key.
 
 const addRow = "flex h-7 items-center gap-2 rounded-sm px-1.5 -mx-1.5 text-[13px] text-muted outline-hidden transition-colors hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent/60"
 
 /** "due-date" → "Due date"; the file keeps the key as written */
 const labelOf = (key: string) => (key.charAt(0).toUpperCase() + key.slice(1)).replace(/[-_]+/g, " ")
 
-export function DocProperties({ path, content, lastEdit, words, minutes }: {
+export function DocProperties({ path, content, meta = [], lastEdit, words, minutes }: {
   path: string
   /** Live doc text, frontmatter included */
   content: string
+  /** The `**Key:** Value` lines under the H1 (`parseMetaBlock(content).entries`); shown first, see `useMetaRows` */
+  meta?: MetaBlock["entries"]
   lastEdit?: { actor: "ai" | "human"; at: string } | null
   words: number
   minutes: number
@@ -76,7 +84,7 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
     </DropdownMenu>
   )
 
-  const rows: ItemProperty[] = []
+  const rows: ItemProperty[] = useMetaRows(path, meta)
   if (priority) {
     rows.push({ id: "priority", icon: Flag, label: nameMenu("priority", t("board.priority")), value: <PriorityField label={t("board.priorityOf", { id: path })} value={priority} onChange={(v) => save("priority", v)} /> })
   }
@@ -134,4 +142,88 @@ export function DocProperties({ path, content, lastEdit, words, minutes }: {
       )}
     </PropertyRows>
   )
+}
+
+const TASK_FILE = /^plans\/tasks\/(T\d+)[^/]*\.md$/i
+const EPIC_FILE = /^plans\/roadmap\/(R\d+)[^/]*\.md$/i
+const ITEM_ID = /\b[TR]\d+\b/g
+const YMD = /^\d{4}-\d{2}-\d{2}$/
+
+/** Task and epic ids in a meta value as chips opening the item: T → /board?task=, R → /roadmap?item= */
+function IdChips({ value }: { value: string }) {
+  const { t } = useT()
+  const ids = value.match(ITEM_ID) ?? []
+  if (ids.length === 0) return <span data-user-content className="truncate">{value}</span>
+  // "R095 — UI enhancements": one id, keep its name beside the chip
+  const rest = ids.length === 1 ? value.replace(ids[0], "").replace(/^\s*[—–:-]\s*/, "").trim() : ""
+  return (
+    <span className="flex min-w-0 flex-wrap items-center gap-1">
+      {ids.map((id, i) => (
+        <Link key={`${id}-${i}`} href={id.startsWith("T") ? `/board?task=${id}` : `/roadmap?item=${id}`} title={t("docs.openItem", { id })}
+          className="rounded-sm border border-border bg-surface2 px-1.5 font-mono text-[11px] leading-5 text-txt transition-colors hover:border-accent/60 hover:text-accent focus-visible:ring-2 focus-visible:ring-accent/60 outline-hidden">
+          {id}
+        </Link>
+      ))}
+      {rest && <span data-user-content className="min-w-0 truncate text-muted">{rest}</span>}
+    </span>
+  )
+}
+
+/**
+ * Rows for a task / epic file's meta block, in file order. On a task file (found in AppContext `board` by id)
+ * Status, Owner, Size, Priority and Due are the board's own editable fields and always show; ids become chips,
+ * Started / Done local dates, anything else plain text. An epic's rows are read-only.
+ */
+function useMetaRows(path: string, meta: MetaBlock["entries"]): ItemProperty[] {
+  const { board } = useApp()
+  const { t } = useT()
+  const f = useFormat()
+  const taskId = TASK_FILE.exec(path)?.[1].toUpperCase()
+  const task = taskId ? Object.values(board ?? {}).flat().find((x) => x.id === taskId) : undefined
+  if (meta.length === 0 && !task) return []
+
+  const known: Record<string, { label: string; icon: typeof Type }> = {
+    status: { label: t("docs.metaStatus"), icon: CircleDashed },
+    phase: { label: t("docs.metaPhase"), icon: MapIcon },
+    parent: { label: t("docs.metaParent"), icon: MapIcon },
+    "depends on": { label: t("docs.metaDependsOn"), icon: GitBranch },
+    tasks: { label: t("docs.metaTasks"), icon: ListChecks },
+    owner: { label: t("docs.metaOwner"), icon: User },
+    size: { label: t("docs.metaSize"), icon: Ruler },
+    priority: { label: t("docs.metaPriority"), icon: Flag },
+    due: { label: t("docs.metaDue"), icon: Calendar },
+    started: { label: t("docs.metaStarted"), icon: CalendarClock },
+    done: { label: t("docs.metaDone"), icon: CalendarCheck },
+    covers: { label: t("docs.metaCovers"), icon: ListChecks },
+    order: { label: t("docs.metaOrder"), icon: Hash },
+    specs: { label: t("docs.metaSpecs"), icon: BookOpen },
+    "spec merged": { label: t("docs.metaSpecMerged"), icon: CalendarCheck },
+  }
+  const editable: Record<string, (task: Task) => ReactNode> = {
+    status: (x) => <TaskStatusField task={x} chip />,
+    owner: (x) => <TaskOwnerField task={x} />,
+    size: (x) => <TaskSizeField task={x} />,
+    priority: (x) => <TaskPriorityField task={x} />,
+    due: (x) => <TaskDueField task={x} />,
+  }
+
+  const rows: ItemProperty[] = []
+  const seen = new Set<string>()
+  const row = (key: string, value: ReactNode, label = key) => {
+    const k = known[key]
+    seen.add(key)
+    rows.push({ id: `meta:${key}`, icon: k?.icon ?? Type, label: k?.label ?? label, value })
+  }
+  for (const { key, value } of meta) {
+    const k = key.toLowerCase()
+    if (seen.has(k)) continue
+    if (task && editable[k]) row(k, editable[k](task))
+    else if (k === "phase" || k === "parent" || k === "depends on" || k === "tasks") row(k, <IdChips value={value} />)
+    else if ((k === "started" || k === "done" || k === "spec merged") && YMD.test(value)) row(k, <span className="font-mono text-xs" title={value}>{f.day(value)}</span>)
+    else if (k === "owner" && value) row(k, <OwnerChip owner={value} className="text-xs" />)
+    else row(k, <span data-user-content className="truncate">{value || "—"}</span>, key)
+  }
+  // a task always offers the board's editable fields, even when the file doesn't name them yet
+  if (task) for (const k of Object.keys(editable)) if (!seen.has(k)) row(k, editable[k](task))
+  return rows
 }

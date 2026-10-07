@@ -18,6 +18,7 @@ import { askAgent } from "@/lib/ask-agent"
 import type { TextEdit } from "@/lib/diff"
 import { docStats } from "@/lib/headings"
 import { setDocProperty, stripFrontmatter } from "@/lib/doc-priority"
+import { stripMetaBlock } from "@/lib/meta-block"
 
 export type ViewMode = "edit" | "split" | "preview"
 
@@ -366,8 +367,8 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
         }`}
       >
         {showEditor && (
-          // the doc's own text (R078: never translated; e2e/i18n.mjs skips [data-user-content])
-          <div data-user-content className={`animate-pane-in flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${showPreview ? "max-md:hidden" : ""}`}>
+          // the doc's own text (R078: never translated; e2e/i18n.mjs skips [data-user-content]); data-synced = the Yjs room is live
+          <div data-user-content data-synced={isSynced || undefined} className={`animate-pane-in flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden ${showPreview ? "max-md:hidden" : ""}`}>
             {baseExtensions.length === 0 ? (
               // Modules not yet loaded — show a plain fallback
               <div className="flex-1 overflow-auto whitespace-pre-wrap bg-bg px-4 py-3 font-mono text-sm text-txt">
@@ -403,8 +404,9 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
                 </Button>}
               </div>
             )}
+            {/* a task / epic file's `**Key:** Value` block shows as property rows in the title block (T505) */}
             <MarkdownRenderer
-              content={previewContent}
+              content={stripMetaBlock(previewContent)}
               className={docStats(stripFrontmatter(previewContent)).title ? "doc-preview doc-preview-titled" : "doc-preview"}
               highlightSince={aiEditAt}
               docPath={docPath}
