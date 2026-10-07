@@ -1,19 +1,33 @@
 // Browser check for the board's task quick view (T509 part): drag its left edge → wider, remembered after a reload;
 // ←/→ on the edge resize too; the header's "Open full document" (and ⇧O) opens the task file in /docs; no Edit in the
-// panel's menu. Fails on any browser console error.
+// panel's menu; the header shows a task's dependencies (with their statuses), tests, verification, chat and dates
+// at a glance, each linking to its place, in two columns once the panel is wide. Fails on any browser console error.
 //
 //   BASE=http://localhost:3000 PW_DIR=<dir with node_modules/playwright> node e2e/board-task-panel.mjs
 //
 // Uses the real routes (only /api/projects is stubbed); writes only a fresh mktemp fixture.
 import assert from "node:assert/strict"
-import { writeFileSync } from "node:fs"
+import { mkdirSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const fx = makeFixture()
-writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** in-progress\n**Order:** 10\n**Tasks:** T001\n")
+writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** in-progress\n**Order:** 10\n**Tasks:** T001, T002\n")
 writeFileSync(path.join(fx, "plans/tasks/T001-first.md"), "# T001: First task\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n\n## Goal\nSomething to build.\n")
+// T002 has everything the glance rows show: a dependency (T001, todo) and a missing one, covers, tests, findings, a chat, dates
+writeFileSync(path.join(fx, "plans/tasks/T002-second.md"), [
+  "# T002: Second task", "**Status:** 👀 Review", "**Phase:** R002 — Epic", "**Depends on:** T001, T099", "**Covers:** S1",
+  "**Started:** 2026-10-01", "**Done:** 2026-10-03", "", "## Goal", "Two.", "",
+  "## Manual tests", "_2026-10-03 — ai_ · Spec: `e2e/x.spec.ts` · Auto: passed 2026-10-03", "### Steps", "- [x] 🤖 Open the page → it loads", "- [ ] Click Save → saved", "",
+  "## Verification", "_2026-10-03 — ai:x_", "- [critical] AC1 — broken · `src/a.ts:1`", "- [minor] AC2 — nit", "",
+].join("\n"))
+mkdirSync(path.join(fx, ".vibedoc/chats"), { recursive: true })
+const at = new Date().toISOString()
+writeFileSync(path.join(fx, ".vibedoc/chats/c-t2.json"), JSON.stringify({
+  id: "c-t2", title: "Task T002", sessionId: "s2", busy: false, notes: [], attach: { kind: "task", id: "T002" }, createdAt: at, updatedAt: at,
+  messages: [{ role: "user", text: "Look at T002.", tools: [], proposals: [], plans: [], questions: [] }, { role: "assistant", text: "Done.", tools: [], proposals: [], plans: [], questions: [] }],
+}))
 
 const browser = await launchChrome()
 const errors = []
@@ -27,11 +41,11 @@ try {
   const edge = page.locator("[data-panel-resize]")
   const width = async () => Math.round((await sheet.boundingBox()).width)
   // the sheet slides in: measure only once its left edge stops moving
-  const settled = async () => {
-    await sheet.waitFor()
+  const settled = async (el = sheet) => {
+    await el.waitFor()
     let last = -1
     for (let i = 0; i < 40; i++) {
-      const x = Math.round((await sheet.boundingBox()).x)
+      const x = Math.round((await el.boundingBox()).x)
       if (x === last) return
       last = x
       await page.waitForTimeout(50)
@@ -79,6 +93,35 @@ try {
   await page.keyboard.press("Shift+O")
   await page.waitForURL(/\/docs/)
   console.log("ok  ⇧O opens the full document")
+
+  // 5. at a glance: dependencies with their status, covers, tests → Test review, findings, chat, dates
+  await page.goto(`${BASE}/board?task=T002`)
+  const second = page.getByRole("dialog", { name: "Second task" })
+  await settled(second)
+  const header = second.locator("[data-item-header]")
+  await header.getByRole("link", { name: "T001 First task, Todo" }).waitFor()
+  await header.getByText("T099", { exact: true }).waitFor()
+  await header.getByText("S1", { exact: true }).waitFor()
+  await header.getByText("1/2 ticked").waitFor()
+  await header.getByText("1 finding").waitFor() // critical + major only
+  await header.locator("[data-glance=chat]").getByText("Idle").waitFor()
+  await header.getByText("2026-10-03").waitFor()
+  assert.equal(await header.locator("[data-glance=tests]").getAttribute("href"), "/manual-tests?tab=all&task=T002")
+  // wide panel → the rows sit in two columns: Priority starts right of Status
+  const rowX = async (name) => Math.round((await header.locator("dt", { hasText: name }).first().boundingBox()).x)
+  assert.ok((await rowX("Priority")) > (await rowX("Status")) + 100, "two columns when wide")
+  // the dependency opens that task on the board
+  await header.getByRole("link", { name: "T001 First task, Todo" }).click()
+  await page.getByRole("dialog", { name: "First task" }).waitFor()
+  console.log("ok  glance rows: deps + status, covers, tests, findings, chat, dates; two columns when wide; dep opens its task")
+
+  // 6. narrow panel → one column
+  await page.setViewportSize({ width: 600, height: 900 })
+  await page.goto(`${BASE}/board?task=T002`)
+  await settled(second)
+  await header.getByText("1/2 ticked").waitFor()
+  assert.ok(Math.abs((await rowX("Priority")) - (await rowX("Status"))) <= 2, "one column when narrow")
+  console.log("ok  one column on a narrow panel")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("ok  no console errors")
