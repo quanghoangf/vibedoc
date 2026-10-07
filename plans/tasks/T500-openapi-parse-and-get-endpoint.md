@@ -1,5 +1,5 @@
 # T500: OpenAPI parsing + MCP vibedoc_get_endpoint
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R094 — API reference from OpenAPI
 **Size:** M (2–3 hrs)
 **Depends on:** —
@@ -23,7 +23,7 @@ An agent can ask `vibedoc_get_endpoint {method, path}` and get one endpoint's pa
 - [ ] `src/lib/openapi.check.mts` (assert-based, YAML + JSON inline): parse, list, path-level params merged, `$ref` resolved, cycle stops, external ref left, unknown endpoint, non-3.x refused
 - [ ] core: `readOpenApi(root)` → `{ path, spec } | { path, error } | null`
 - [ ] MCP `vibedoc_get_endpoint { method?, path? }` in `src/lib/mcp-tools.ts` + its case in `src/app/api/mcp/route.ts`: both given → `formatEndpoint`; missing / unknown → the endpoint list (with a "No endpoint X" line); no spec → "No OpenAPI spec found (openapi.yaml / openapi.yml / openapi.json, OpenAPI 3.x)"
-- [ ] Example spec `examples/openapi/openapi.yaml` (a small "todos" API: tags, path params, query param, a `$ref`'d body, 200/404 responses, one self-referencing schema) for the e2e scripts
+- [ ] Example spec `e2e/fixtures/todos-openapi.yaml` (not named `openapi.yaml`, so VibeDoc's own /docs doesn't pick it up) (a small "todos" API: tags, path params, query param, a `$ref`'d body, 200/404 responses, one self-referencing schema) for the e2e scripts
 - [ ] Tool count 45 → 46 in `PRODUCT.md`, `README.md`, `DOMAIN_MAP.md`, `HLD.md`
 
 **Out of scope:** the /docs view (T501), Try it (T502), external `$ref`s, multiple specs per project.
@@ -32,7 +32,7 @@ An agent can ask `vibedoc_get_endpoint {method, path}` and get one endpoint's pa
 - `src/lib/openapi.ts`, `src/lib/openapi.check.mts` — new
 - `src/lib/core.ts` — `readOpenApi` (follow `listSpecs` ~line 1843 for glob + read)
 - `src/lib/mcp-tools.ts`, `src/app/api/mcp/route.ts` — new tool (follow `vibedoc_get_spec`)
-- `examples/openapi/openapi.yaml` — new
+- `e2e/fixtures/todos-openapi.yaml` (not named `openapi.yaml`, so VibeDoc's own /docs doesn't pick it up) — new
 - `package.json`, `pnpm-lock.yaml`
 
 ## Implementation notes
@@ -53,3 +53,9 @@ pnpm lint && pnpm build
 ## Manual tests
 - [ ] S2 — WHEN an agent calls `vibedoc_get_endpoint` with a method and path → THEN it gets parameters, request body and response shapes with local `$ref`s resolved; an unknown endpoint lists the ones that exist
 - [ ] S4 — WHEN the project has no OpenAPI spec → THEN `vibedoc_get_endpoint` says no spec was found
+### Steps
+- [ ] Copy `e2e/fixtures/todos-openapi.yaml` to `<project>/api/openapi.yaml`, ask the agent for `vibedoc_get_endpoint GET /todos/{id}` → the `id` path param and a 200 shape with title, priority, id, done, createdAt, `subtasks?: Todo[]`
+- [ ] Ask for `GET /x` → "No endpoint GET /x." then the list of 5 endpoints
+- [ ] Put a Swagger 2.0 file at `openapi.json` → the tool answers with "Swagger 2.0 isn't supported"
+### Regression risk
+- [ ] Other MCP tools still listed (tools/list shows 46) and `vibedoc_get_spec` still works

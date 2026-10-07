@@ -1,0 +1,121 @@
+openapi: 3.0.3
+info:
+  title: Todos API
+  version: 1.0.0
+servers:
+  - url: http://localhost:4010
+paths:
+  /todos:
+    get:
+      tags: [todos]
+      summary: List todos
+      operationId: listTodos
+      parameters:
+        - name: done
+          in: query
+          description: Only done (true) or open (false) todos
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: The todos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Todo'
+    post:
+      tags: [todos]
+      summary: Create a todo
+      operationId: createTodo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewTodo'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+  /todos/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Todo id
+        schema:
+          type: string
+    get:
+      tags: [todos]
+      summary: Get one todo
+      operationId: getTodo
+      responses:
+        '200':
+          description: The todo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Todo'
+        '404':
+          description: No todo with that id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [todos]
+      summary: Delete a todo
+      operationId: deleteTodo
+      responses:
+        '204':
+          description: Deleted
+  /health:
+    get:
+      tags: [meta]
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            text/plain:
+              schema:
+                type: string
+components:
+  schemas:
+    NewTodo:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        priority:
+          type: string
+          enum: [low, normal, high]
+    Todo:
+      allOf:
+        - $ref: '#/components/schemas/NewTodo'
+        - type: object
+          required: [id, done]
+          properties:
+            id:
+              type: string
+            done:
+              type: boolean
+            createdAt:
+              type: string
+              format: date-time
+            subtasks:
+              type: array
+              items:
+                $ref: '#/components/schemas/Todo'
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string

@@ -68,6 +68,19 @@ export const TOOLS = [
     },
   },
   {
+    name: "vibedoc_get_endpoint",
+    description:
+      "Look up one HTTP endpoint in the project's OpenAPI 3.x spec (openapi.yaml / openapi.yml / openapi.json): parameters, request body and response shapes, with local $refs resolved. Call it before calling or changing that endpoint. Without method + path (or for an unknown one) it lists every endpoint.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        method: { type: "string", description: 'HTTP method, e.g. "GET"' },
+        path: { type: "string", description: 'Path exactly as in the spec, e.g. "/todos/{id}"' },
+      },
+      required: [],
+    },
+  },
+  {
     name: "vibedoc_read_doc",
     description:
       'Read a doc file by name. Use: "CLAUDE", "HLD", "EVENT_CATALOG", "MEMORY", "user-service/API", "ADR-001". Ends with a "## Related files" footer when the doc has links: what it links to, what links to it (docs by path; tasks, epics, entries, ADRs by id) broken links ([x](y.md) / [[y]] to no file) and stale paths (backticked paths to missing files), so you know what to read next.',

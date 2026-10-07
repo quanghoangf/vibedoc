@@ -48,6 +48,7 @@ import { isDemo, isPlayground } from './demo'
 import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './first-run'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
 import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
+import { OPENAPI_GLOB, parseOpenApi, type OpenApiSpec } from './openapi'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1835,6 +1836,23 @@ export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>
   // rank everything so the score filter in formatRelated sees all candidates before the limit
   const entries = await listEntries(root)
   return formatRelated(rankEntries(entries, taskQuery(task), { limit: entries.length }), limit)
+}
+
+// ─── OpenAPI spec (R094) ──────────────────────────────────────────────────────
+
+export type OpenApiFile = { path: string; spec: OpenApiSpec } | { path: string; error: string }
+
+/** The project's OpenAPI 3.x spec: the shallowest `openapi.(yaml|yml|json)` outside node_modules and dot-folders. Null when none. */
+export async function readOpenApi(root: string): Promise<OpenApiFile | null> {
+  const files = (await glob(OPENAPI_GLOB, { cwd: root, nodir: true, ignore: '**/node_modules/**', posix: true }))
+    .sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b))
+  const rel = files[0]
+  if (!rel) return null
+  try {
+    return { path: rel, ...parseOpenApi(await fs.readFile(path.join(root, rel), 'utf8')) }
+  } catch (e) {
+    return { path: rel, error: (e as Error).message }
+  }
 }
 
 // ─── Capability specs (R066) ──────────────────────────────────────────────────

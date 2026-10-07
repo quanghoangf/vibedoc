@@ -21,7 +21,7 @@ A project with an OpenAPI spec shows an "API reference" entry in /docs; opening 
 - [ ] `src/components/docs/ApiReference.tsx` (new): endpoint list (tag groups, method badge, path, summary) + detail (parameters: name, in, required, shape, description; request body: content type + shape; responses: status, description, shape); a parse error shows the message; phone width works
 - [ ] `DocList` row "API reference" (+ endpoint count) when `/api/openapi` has a path; docs page wires `?api`
 - [ ] i18n keys in a new `src/i18n/apiRef.ts` (en + vi), merged in `src/i18n/index.ts`
-- [ ] `e2e/api-reference.mjs` (new, style of `e2e/first-week.mjs`): fixture with `examples/openapi/openapi.yaml` copied in → /docs shows the row, list grouped by tag, open `GET /todos/{id}` shows params + 200 shape; fixture without a spec → no row; no console errors
+- [ ] `e2e/api-reference.mjs` (new, style of `e2e/first-week.mjs`): fixture with `e2e/fixtures/todos-openapi.yaml` (not named `openapi.yaml`, so VibeDoc's own /docs doesn't pick it up) copied in → /docs shows the row, list grouped by tag, open `GET /todos/{id}` shows params + 200 shape; fixture without a spec → no row; no console errors
 
 **Out of scope:** Try it (T502), editing the spec, search inside the reference.
 

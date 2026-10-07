@@ -24,8 +24,10 @@ import { parseManualTests } from "@/lib/manual-tests";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
 import { failedRunNote } from "@/lib/work-queue";
+import { endpointDetail, formatEndpoint, formatEndpointList } from "@/lib/openapi";
 import {
   rootFrom,
+  readOpenApi,
   listDocs,
   readDoc,
   searchDocs,
@@ -246,6 +248,18 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       const req = findRequirement(found.spec, String(args.requirement));
       if (!req) throw new Error(`No requirement "${String(args.requirement)}" in ${found.path}. Requirements: ${found.spec.requirements.map((r) => r.name).join(", ") || "none"}`);
       return `## ${found.path} · ${found.spec.title}\n\n${formatRequirement(req)}`;
+    }
+
+    case "vibedoc_get_endpoint": {
+      const file = await readOpenApi(root);
+      if (!file) return "No OpenAPI spec found (openapi.yaml / openapi.yml / openapi.json, OpenAPI 3.x).";
+      if ("error" in file) throw new Error(`${file.path}: ${file.error}`);
+      const method = String(args.method ?? "").trim();
+      const p = String(args.path ?? "").trim();
+      const detail = method && p ? endpointDetail(file.spec, method, p) : null;
+      if (detail) return formatEndpoint(detail);
+      const list = formatEndpointList(file.spec, file.path);
+      return method || p ? `No endpoint ${method.toUpperCase()} ${p}.\n\n${list}` : list;
     }
 
     case "vibedoc_spec_context":
