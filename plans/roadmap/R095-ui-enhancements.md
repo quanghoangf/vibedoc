@@ -2,7 +2,7 @@
 **Parent:** R002
 **Status:** planned
 **Order:** 360
-**Tasks:** T504, T505
+**Tasks:** T504, T505, T506
 
 Small fixes to layout and behaviour that make daily use smoother. Each task is one self-contained polish item found while using VibeDoc.
 
@@ -17,3 +17,6 @@ Small fixes to layout and behaviour that make daily use smoother. Each task is o
 ### S2: Task and epic properties in /docs
 - WHEN a task or epic file is opened in /docs
 - THEN its `**Key:** Value` meta lines show as property rows (status, phase, owner, dates…) instead of one plain-text paragraph, and status / owner / size / priority / due are editable like on the board
+### S3: Linked docs without duplicates
+- WHEN a doc both links to and is linked from the same items
+- THEN the Linked docs panel lists each item once, marked with the direction(s) it links
