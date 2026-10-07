@@ -1,5 +1,8 @@
 # T440: Release notes lib: pick new done work, format the section, build the edit
-**Status:** 📋 Todo
+**Status:** ✅ Done
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
+**Done:** 2026-10-07
 **Phase:** R091 — Release notes from done work
 **Size:** S (~1 hr)
 **Depends on:** —
@@ -37,5 +40,8 @@ pnpm lint && pnpm build
 ```
 
 ## Manual tests
+_Auto: `node src/lib/release-notes.check.mts` passed 2026-10-07 (exclusion by tag date and changelog ids, edit rules, past entries byte-for-byte). Lint has only the 14 pre-existing errors; build passes._
 ### Steps
-- [ ] S3 — WHEN a task was finished before the last tag, or its id is already in CHANGELOG.md → THEN it is not in the draft; nothing new → nothing to draft
+- [x] S3 — WHEN a task was finished before the last tag, or its id is already in CHANGELOG.md → THEN it is not in the draft; nothing new → nothing to draft
+### Regression risk
+- [ ] None user-facing: a new pure module, nothing imports it yet
