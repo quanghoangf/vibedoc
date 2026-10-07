@@ -92,11 +92,11 @@ const PAGES = [
     await page.getByText(/liên kết tới việc không tồn tại/).first().waitFor()
   } },
   { path: "/roadmap?item=R002", name: "roadmap: epic sheet + menu", open: async (page) => {
-    await page.getByRole("dialog").getByRole("button", { name: "Thao tác cho R002" }).click()
+    await page.getByRole("complementary", { name: /R002/ }).getByRole("button", { name: "Thao tác cho R002" }).click()
     await page.getByRole("menuitem", { name: /Nhân bản/ }).waitFor()
   } },
   { path: "/roadmap?item=R002", name: "roadmap: epic edit form", open: async (page) => {
-    await page.getByRole("dialog").getByRole("button", { name: "Sửa" }).click()
+    await page.getByRole("complementary", { name: /R002/ }).getByRole("button", { name: "Sửa" }).click()
     await page.getByText("Nội dung (markdown)").waitFor()
   } },
   { path: "/roadmap", name: "roadmap: break down dialog", open: async (page) => {
@@ -119,7 +119,7 @@ const PAGES = [
   } },
   { path: "/docs?doc=docs%2Fa.md", name: "docs: viewer, properties, linked docs, doc menu", open: async (page) => {
     await page.getByRole("heading", { level: 1, name: "A" }).first().waitFor()
-    await page.getByText("Liên kết tới").first().waitFor()
+    await page.getByRole("group", { name: "Hiện liên kết" }).first().waitFor()
     await page.getByRole("button", { name: "Thao tác cho docs/a.md" }).last().click()
     await page.getByRole("menuitem", { name: /Chuyển vào thư mục/ }).waitFor()
   } },

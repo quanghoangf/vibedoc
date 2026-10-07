@@ -72,7 +72,7 @@ try {
   await page.goto(`${BASE}/activity`)
   await kids(page, "roadmap").first().click()
   await page.waitForURL(/\/roadmap\?item=R002/)
-  await page.getByRole("dialog").getByText("Late epic").first().waitFor()
+  await page.getByRole("complementary", { name: /R002/ }).getByText("Late epic").first().waitFor()
   await page.keyboard.press("Escape") // the epic sheet is modal
   await page.getByRole("dialog").waitFor({ state: "detached" })
   await kids(page, "board").filter({ hasText: "T002" }).click()
