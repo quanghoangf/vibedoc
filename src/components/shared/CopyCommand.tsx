@@ -17,7 +17,7 @@ export function CopyCommand({ command, prompt = true }: { command: string; promp
       // clipboard blocked (insecure origin, permissions): the command stays selectable
     }
   }
-  return (
+  const pill = (
     <div className="inline-flex max-w-full items-center gap-3 rounded-lg border border-border bg-surface py-2 pl-4 pr-2 font-mono text-sm">
       <span className="min-w-0 select-all break-all text-txt">{prompt && <span className="text-muted" aria-hidden>$ </span>}{command}</span>
       <button
@@ -29,6 +29,14 @@ export function CopyCommand({ command, prompt = true }: { command: string; promp
         {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
       </button>
       <span className="sr-only" role="status">{copied ? t("shell.copiedToClipboard") : ""}</span>
+    </div>
+  )
+  // a slash command says where it runs: it's a Claude Code skill (the vibedoc plugin), not a shell command
+  if (prompt) return pill
+  return (
+    <div className="flex max-w-full flex-col items-center gap-1.5">
+      <span className="text-xs text-muted">{t("shell.runInClaudeCode")}</span>
+      {pill}
     </div>
   )
 }

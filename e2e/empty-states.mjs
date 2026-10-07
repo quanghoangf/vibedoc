@@ -19,6 +19,10 @@ const BASE = process.env.BASE ?? "http://localhost:3083"
 /** @type {{ path: string, name: string, agent?: boolean, command?: string }[]} */
 const PAGES = [
   { path: "/board", name: "board", agent: true, command: "/vibedoc:roadmap" },
+  { path: "/roadmap", name: "roadmap", agent: true, command: "/vibedoc:roadmap" },
+  { path: "/graph", name: "graph" },
+  { path: "/docs", name: "docs" },
+  { path: "/explorer", name: "explorer" },
 ]
 
 const browser = await launchChrome()

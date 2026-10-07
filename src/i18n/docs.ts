@@ -163,6 +163,9 @@ export const en = {
   reEnrich: "Re-enrich",
   openInDocs: "Open in Docs",
   noFiles: "No files to display",
+  explorerEmptyTitle: "No markdown files yet",
+  explorerEmptyLead: "Every markdown file in your repo shows here with a one-line description, so you and your agent find the right doc without opening each one.",
+  writeProjectDocs: "Write project docs",
   outlineCount_one: "Outline, {n} heading",
   outlineCount_other: "Outline, {n} headings",
 } as const
@@ -318,6 +321,9 @@ export const vi: Messages<typeof en> = {
   reEnrich: "Tạo lại mô tả",
   openInDocs: "Mở trong Tài liệu",
   noFiles: "Không có tệp để hiển thị",
+  explorerEmptyTitle: "Chưa có tệp markdown nào",
+  explorerEmptyLead: "Mọi tệp markdown trong repo hiện ở đây kèm mô tả một dòng, để bạn và agent tìm đúng tài liệu mà không phải mở từng tệp.",
+  writeProjectDocs: "Viết tài liệu dự án",
   outlineCount_one: "Mục lục, {n} tiêu đề",
   outlineCount_other: "Mục lục, {n} tiêu đề",
 }

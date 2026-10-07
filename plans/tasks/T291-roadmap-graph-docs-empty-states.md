@@ -1,5 +1,7 @@
 # T291: Roadmap, graph, docs and explorer empty states
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude-code
+**Started:** 2026-10-07
 **Phase:** R083 — Teaching empty states
 **Size:** M (2–3 hrs)
 **Depends on:** T290
@@ -31,6 +33,9 @@ The planning and reference pages of an empty project say what fills them and giv
 - `src/i18n/roadmap.ts`, `src/i18n/docs.ts`
 - `e2e/empty-states.mjs`
 
+## Notes
+- Built: a slash-command `CopyCommand` (`prompt={false}`) now carries a "Run in Claude Code" caption, since the `/vibedoc:*` skills are a Claude Code plugin. Roadmap: "Generate roadmap" is primary only when it has a source (ROADMAP.md or tasks); otherwise the starter becomes the secondary "Starter horizons" button.
+
 ## Acceptance criteria
 - [ ] Each of the four pages in an empty project: one `[data-empty-state]` with a lead and exactly one `[data-empty-action]`
 - [ ] Roadmap: connect line only when the primary action is the `/vibedoc:roadmap` command and no agent yet
@@ -46,7 +51,12 @@ BASE=http://localhost:3083 PW_DIR=. node e2e/i18n.mjs
 ```
 
 ## Manual tests
+_2026-10-07 — ai · Spec: `e2e/vibedoc/T291-roadmap-graph-docs-empty-states.spec.ts` · Auto: passed 2026-10-07_
 ### Steps
-- [ ] S1 — WHEN the user opens /roadmap, /graph, /docs, /explorer in an empty project → THEN each says what fills it and offers one action
-- [ ] S2 — WHEN no agent is connected → THEN the roadmap's command action has the Connect link
-- [ ] S4 — WHEN the language is Tiếng Việt → THEN these empty states are Vietnamese
+- [x] 🤖 S1 — WHEN the user opens /roadmap, /graph, /docs, /explorer in an empty project → THEN each says what fills it and offers one action
+- [x] 🤖 S2 — WHEN no agent is connected → THEN the roadmap's command action has the Connect link
+- [x] 🤖 With tasks to group → the roadmap's primary action is Generate roadmap, with no connect line
+- [x] 🤖 S4 — WHEN the language is Tiếng Việt → THEN these empty states are Vietnamese
+- [ ] /roadmap in an empty project: the secondary row (Starter horizons, Plan with agent, Plan from spec, Create first horizon) reads as secondary under the one primary action, and each still works
+### Regression risk
+- [ ] /graph on a project with linked docs still draws the map (the empty state only shows with no edges)

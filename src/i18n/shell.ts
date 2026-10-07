@@ -92,6 +92,7 @@ export const en = {
   connectYourAgent: "Connect your agent →",
   copyThis: "Copy {command}",
   copied: "Copied",
+  runInClaudeCode: "Run in Claude Code",
   copiedToClipboard: "Copied to clipboard",
 
   // Project switcher
@@ -204,6 +205,7 @@ export const vi: Messages<typeof en> = {
   connectYourAgent: "Kết nối agent →",
   copyThis: "Sao chép {command}",
   copied: "Đã sao chép",
+  runInClaudeCode: "Chạy trong Claude Code",
   copiedToClipboard: "Đã sao chép vào bộ nhớ tạm",
 
   selectProject: "Chọn dự án",

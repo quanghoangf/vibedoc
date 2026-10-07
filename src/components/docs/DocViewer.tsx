@@ -54,7 +54,8 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
 
   if (!doc) {
     return (
-      <div className="mx-auto flex max-w-xl flex-col gap-4 px-6 pt-[18vh] pb-12">
+      // an empty project's page is a teaching empty state (R083): what fills it, and New doc as its one action
+      <div data-empty-state={docCount?.files === 0 ? "" : undefined} className="mx-auto flex max-w-xl flex-col gap-4 px-6 pt-[18vh] pb-12">
         <h2 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-balance text-txt">
           {docCount === undefined ? t("docs.pickDoc") : docCount.files === 0 ? t("docs.noDocs") : docCount.files === docCount.docs
             ? tn("docs.docsInProject", docCount.files)
@@ -65,9 +66,11 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-3">
           {onNewDocClick && (
-            <Button size="sm" onClick={onNewDocClick}>
-              <Plus className="size-4" aria-hidden /> {t("docs.newDoc")}
-            </Button>
+            <span data-empty-action={docCount?.files === 0 ? "" : undefined}>
+              <Button size="sm" onClick={onNewDocClick}>
+                <Plus className="size-4" aria-hidden /> {t("docs.newDoc")}
+              </Button>
+            </span>
           )}
           <span className="flex items-center gap-1.5 text-xs text-muted">
             <kbd className={kbdClass}>⌘P</kbd> {t("docs.jumpToDoc")}
