@@ -27,7 +27,7 @@ A comment marker on the line above a plain list. VibeDoc draws the list; everywh
 
 | Marker | Draws |
 |---|---|
-| `<!-- vibedoc:steps -->` | cards stacked top to bottom, joined by arrows |
+| `<!-- vibedoc:steps -->` | numbered steps, top to bottom, on a connecting rail |
 | `<!-- vibedoc:cards -->` | a grid of cards |
 | `<!-- vibedoc:compare -->` | 2–3 columns side by side; each item's nested bullets are its points |
 | `<!-- vibedoc:timeline -->` | a rail with a dot per item; the item titled "Now" gets the accent |

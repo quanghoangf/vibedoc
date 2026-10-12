@@ -189,11 +189,13 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--color-border2) 60%, var(--color-muted)); }
 
 /* Markdown rendering — theme-aware via tokens (dark values match the original palette) */
-.prose-dark h1 { font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-txt); margin-bottom: 1rem; }
-.prose-dark h2 { font-size: 1.1rem; font-weight: 600; color: color-mix(in srgb, var(--color-accent) 75%, var(--color-txt)); margin: 1.5rem 0 0.5rem; border-bottom: 1px solid var(--color-border); padding-bottom: 0.25rem; }
-.prose-dark h3 { font-size: 0.95rem; font-weight: 600; color: var(--color-accent); margin: 1rem 0 0.4rem; }
-.prose-dark p { font-size: 0.9rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.7; margin-bottom: 0.75rem; }
-.prose-dark ul, .prose-dark ol { padding-left: 1.25rem; margin-bottom: 0.75rem; }
+/* Reading view: neutral ink headings with more air above than below, near-full-ink body at a comfortable size;
+   colour is left to links, callouts and state (the Highlighter Rule) */
+.prose-dark h1 { font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-txt); margin-bottom: 1.25rem; text-wrap: balance; }
+.prose-dark h2 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.35; color: var(--color-txt); margin: 2.25rem 0 0.75rem; text-wrap: balance; }
+.prose-dark h3 { font-size: 1.05rem; font-weight: 600; line-height: 1.4; color: var(--color-txt); margin: 1.75rem 0 0.5rem; }
+.prose-dark p { font-size: 0.9375rem; color: color-mix(in srgb, var(--color-txt) 86%, var(--color-muted)); line-height: 1.75; margin-bottom: 1rem; }
+.prose-dark ul, .prose-dark ol { padding-left: 1.4rem; margin-bottom: 1rem; }
 /* Tailwind's preflight strips list markers; prose needs them back */
 .prose-dark ul { list-style: disc; }
 .prose-dark ol { list-style: decimal; }
@@ -212,69 +214,86 @@ body {
 .prose-dark.prose-evidence a { color: var(--color-accent-edge); }
 /* A long log clamps to 6 lines (TestEvidence's Show full log), fading out so the cut reads as "more below" */
 .prose-dark.prose-evidence pre[data-clamped] > code { display: block; max-height: 6lh; overflow-y: clip; mask-image: linear-gradient(to bottom, black 60%, transparent); }
-.prose-dark li { font-size: 0.875rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.7; margin-bottom: 0.2rem; }
-.prose-dark code { font-family: var(--font-mono); font-size: 0.8rem; background: var(--color-surface2); border: 1px solid var(--color-border); padding: 1px 5px; border-radius: 4px; color: var(--color-teal); }
-.prose-dark pre { background: color-mix(in srgb, var(--color-bg) 50%, var(--color-surface)); border: 1px solid var(--color-border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; }
-.prose-dark pre code { background: none; border: none; padding: 0; color: color-mix(in srgb, var(--color-txt) 85%, var(--color-accent)); font-size: 0.8rem; }
+.prose-dark li { font-size: 0.9375rem; color: color-mix(in srgb, var(--color-txt) 86%, var(--color-muted)); line-height: 1.75; margin-bottom: 0.35rem; }
+.prose-dark li > ul, .prose-dark li > ol { margin: 0.35rem 0 0; }
+.prose-dark code { font-family: var(--font-mono); font-size: 0.85em; background: var(--color-surface2); padding: 0.15em 0.4em; border-radius: 6px; color: var(--color-txt); }
+.prose-dark pre { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 1rem 1.25rem; overflow-x: auto; margin-bottom: 1.25rem; }
+.prose-dark pre code { background: none; border: none; padding: 0; color: color-mix(in srgb, var(--color-txt) 90%, var(--color-muted)); font-size: 0.8125rem; line-height: 1.7; }
 /* Code tabs (R089): one framed block, a mono tab strip on top, the selected tab underlined in accent */
-.prose-dark .md-code-group { border: 1px solid var(--color-border); border-radius: 8px; background: color-mix(in srgb, var(--color-bg) 50%, var(--color-surface)); margin-bottom: 1rem; min-width: 0; }
+.prose-dark .md-code-group { border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); margin-bottom: 1.25rem; min-width: 0; }
 .prose-dark .md-code-group [role="tablist"] { display: flex; overflow-x: auto; border-bottom: 1px solid var(--color-border); padding: 0 0.5rem; }
 .prose-dark .md-code-group [role="tab"] { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); padding: 0.45rem 0.6rem; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; cursor: pointer; transition: color var(--duration-fast) var(--ease-out-soft); }
 .prose-dark .md-code-group [role="tab"]:hover { color: var(--color-txt); }
 .prose-dark .md-code-group [role="tab"][aria-selected="true"] { color: var(--color-txt); border-bottom-color: var(--color-accent); }
 .prose-dark .md-code-group [role="tab"]:focus-visible, .prose-dark .md-code-group [role="tabpanel"]:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; border-radius: 4px; }
-.prose-dark .md-code-group [role="tabpanel"] > pre { border: 0; margin: 0; background: transparent; border-radius: 0 0 8px 8px; }
+.prose-dark .md-code-group [role="tabpanel"] > pre { border: 0; margin: 0; background: transparent; border-radius: 0 0 12px 12px; }
 /* <details> as an accordion (R089): a framed summary row with a chevron that turns when open */
-.prose-dark details { border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); margin-bottom: 1rem; }
-.prose-dark details > summary { list-style: none; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; font-weight: 500; color: var(--color-txt); cursor: pointer; border-radius: 7px; transition: background-color var(--duration-fast) var(--ease-out-soft); }
+.prose-dark details { border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); margin-bottom: 1.25rem; }
+.prose-dark details > summary { list-style: none; display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; font-size: 0.9375rem; font-weight: 500; color: var(--color-txt); cursor: pointer; border-radius: 11px; transition: background-color var(--duration-fast) var(--ease-out-soft); }
 .prose-dark details > summary::-webkit-details-marker { display: none; }
 .prose-dark details > summary::before { content: ""; width: 0.4rem; height: 0.4rem; flex-shrink: 0; border-right: 1.5px solid var(--color-muted); border-bottom: 1.5px solid var(--color-muted); transform: rotate(-45deg); transition: transform var(--duration-fast) var(--ease-out-soft); }
 .prose-dark details[open] > summary::before { transform: rotate(45deg); }
 .prose-dark details > summary:hover { background: var(--color-surface2); }
 .prose-dark details > summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
-.prose-dark details[open] > summary { border-bottom: 1px solid var(--color-border); border-radius: 7px 7px 0 0; }
-.prose-dark details > :not(summary) { margin-left: 0.75rem; margin-right: 0.75rem; }
-.prose-dark details > :nth-child(2) { margin-top: 0.75rem; }
-.prose-dark details > :last-child:not(summary) { margin-bottom: 0.75rem; }
-.prose-dark table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.8rem; }
-.prose-dark th { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--color-border2); color: var(--color-muted); font-weight: 500; font-family: var(--font-mono); text-transform: uppercase; font-size: 10px; letter-spacing: 0.06em; }
-.prose-dark td { padding: 6px 10px; border-bottom: 1px solid var(--color-surface2); color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); }
-.prose-dark blockquote { border-left: 2px solid var(--color-accent); padding-left: 1rem; margin: 1rem 0; color: var(--color-muted); font-style: italic; }
+.prose-dark details[open] > summary { border-bottom: 1px solid var(--color-border); border-radius: 11px 11px 0 0; }
+.prose-dark details > :not(summary) { margin-left: 1rem; margin-right: 1rem; }
+.prose-dark details > :nth-child(2) { margin-top: 0.9rem; }
+.prose-dark details > :last-child:not(summary) { margin-bottom: 0.9rem; }
+/* tables: one rounded frame, a tinted header row, hairlines between rows */
+.prose-dark table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; margin-bottom: 1.25rem; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.prose-dark th { text-align: left; padding: 0.6rem 0.9rem; background: var(--color-surface); border-bottom: 1px solid var(--color-border); color: var(--color-txt); font-weight: 600; font-size: 0.8125rem; }
+.prose-dark td { padding: 0.6rem 0.9rem; border-top: 1px solid var(--color-border); color: color-mix(in srgb, var(--color-txt) 86%, var(--color-muted)); vertical-align: top; }
+.prose-dark tr:first-child > td { border-top: 0; }
+.prose-dark blockquote { border-left: 1px solid var(--color-border2); padding-left: 1rem; margin: 1.25rem 0; color: var(--color-muted); }
+.prose-dark blockquote p { color: inherit; }
 /* GFM alerts (R089): one status hue per kind, NOTE stays neutral; the label is the kind's ink */
-.prose-dark .md-alert { --alert: var(--color-muted); border-left: 3px solid var(--alert); background: color-mix(in srgb, var(--alert) 8%, transparent); border-radius: 0 8px 8px 0; padding: 0.6rem 1rem; margin: 1rem 0; }
+.prose-dark .md-alert { --alert: var(--color-muted); border: 1px solid color-mix(in srgb, var(--alert) 22%, transparent); background: color-mix(in srgb, var(--alert) 7%, transparent); border-radius: 12px; padding: 0.85rem 1.1rem; margin: 1.25rem 0; }
 .prose-dark .md-alert[data-alert="tip"] { --alert: var(--color-teal); }
 .prose-dark .md-alert[data-alert="important"] { --alert: var(--color-accent); }
 .prose-dark .md-alert[data-alert="warning"] { --alert: var(--color-amber); }
 .prose-dark .md-alert[data-alert="caution"] { --alert: var(--color-danger); }
-.prose-dark .md-alert-title { font-family: var(--font-mono); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--alert); margin-bottom: 0.25rem; }
+.prose-dark .md-alert-title { display: flex; align-items: center; gap: 0.45rem; font-size: 0.875rem; font-weight: 600; line-height: 1.4; color: var(--alert); margin-bottom: 0.3rem; }
+.prose-dark .md-alert-icon { flex-shrink: 0; }
+.prose-dark .md-alert p:not(.md-alert-title) { color: color-mix(in srgb, var(--color-txt) 86%, var(--color-muted)); }
 .prose-dark .md-alert > :last-child { margin-bottom: 0; }
 /* Visual blocks (R096): a list under <!-- vibedoc:steps|cards --> as cards; steps stack with a Pencil Grey arrow, cards tile */
-.prose-dark .md-visual { margin: 1rem 0; }
+.prose-dark .md-visual { margin: 1.5rem 0; }
 .prose-dark .md-visual > ol, .prose-dark .md-visual > ul { list-style: none; padding: 0; margin: 0; }
 .prose-dark .md-visual li { margin: 0; color: inherit; }
-.prose-dark .md-visual-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; padding: 0.65rem 0.9rem; min-width: 0; height: 100%; }
-.prose-dark .md-visual-icon { display: block; font-size: 1.15rem; line-height: 1; margin-bottom: 0.4rem; }
-.prose-dark .md-visual-title { display: block; color: var(--color-txt); font-weight: 600; font-size: 0.875rem; line-height: 1.4; }
-.prose-dark .md-visual-body { font-size: 0.875rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.6; }
-.prose-dark .md-visual-detail { margin-top: 0.35rem; font-size: 0.8rem; color: var(--color-muted); line-height: 1.6; }
+.prose-dark .md-visual-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; padding: 1rem 1.125rem; min-width: 0; height: 100%; }
+.prose-dark .md-visual-icon { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 10px; background: var(--color-surface2); font-size: 1.1rem; line-height: 1; margin-bottom: 0.75rem; }
+.prose-dark .md-visual-title { display: block; color: var(--color-txt); font-weight: 600; font-size: 0.9375rem; line-height: 1.45; }
+.prose-dark .md-visual-body { margin-top: 0.2rem; font-size: 0.875rem; color: color-mix(in srgb, var(--color-txt) 80%, var(--color-muted)); line-height: 1.65; }
+.prose-dark .md-visual-detail { margin-top: 0.4rem; font-size: 0.8125rem; color: var(--color-muted); line-height: 1.65; }
 .prose-dark .md-visual-detail > :last-child { margin-bottom: 0; }
 .prose-dark .md-visual-detail p, .prose-dark .md-visual-detail li { font-size: inherit; color: inherit; margin-bottom: 0.25rem; }
-.prose-dark .md-visual-arrow { display: block; margin: 0.3rem auto; color: var(--color-muted); }
-.prose-dark .md-visual[data-visual="cards"] > ul, .prose-dark .md-visual[data-visual="cards"] > ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: 0.75rem; }
+/* steps: a numbered badge per step on a quiet connecting rail; the step itself sits on the page, no box */
+.prose-dark .md-visual[data-visual="steps"] li { position: relative; display: grid; grid-template-columns: 1.75rem minmax(0, 1fr); column-gap: 0.9rem; padding-bottom: 1.25rem; }
+.prose-dark .md-visual[data-visual="steps"] li:last-child { padding-bottom: 0; }
+.prose-dark .md-visual[data-visual="steps"] li:not(:last-child)::before { content: ""; position: absolute; left: calc(0.875rem - 0.5px); top: 2.15rem; bottom: 0.4rem; width: 1px; background: var(--color-border2); }
+.prose-dark .md-visual-num { display: grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 9999px; background: var(--color-surface2); border: 1px solid var(--color-border2); color: var(--color-txt); font-size: 0.8125rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.prose-dark .md-visual[data-visual="steps"] .md-visual-card { background: transparent; border: 0; border-radius: 0; padding: 0.15rem 0 0; }
+.prose-dark .md-visual[data-visual="steps"] .md-visual-icon { display: inline; width: auto; height: auto; background: none; font-size: 1em; margin: 0 0.4em 0 0; }
+.prose-dark .md-visual[data-visual="steps"] .md-visual-title { display: inline; }
+.prose-dark .md-visual[data-visual="cards"] > ul, .prose-dark .md-visual[data-visual="cards"] > ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: 0.875rem; }
 @media (max-width: 480px) { .prose-dark .md-visual[data-visual="cards"] > ul, .prose-dark .md-visual[data-visual="cards"] > ol { grid-template-columns: 1fr; } }
 /* compare: 2–3 columns side by side, stacked on phones */
-.prose-dark .md-visual[data-visual="compare"] > ul, .prose-dark .md-visual[data-visual="compare"] > ol { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.75rem; }
+.prose-dark .md-visual[data-visual="compare"] > ul, .prose-dark .md-visual[data-visual="compare"] > ol { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.875rem; }
 @media (max-width: 640px) { .prose-dark .md-visual[data-visual="compare"] > ul, .prose-dark .md-visual[data-visual="compare"] > ol { grid-auto-flow: row; } }
-.prose-dark .md-visual[data-visual="compare"] .md-visual-title { padding-bottom: 0.4rem; margin-bottom: 0.4rem; border-bottom: 1px solid var(--color-border); }
+.prose-dark .md-visual[data-visual="compare"] .md-visual-title { font-size: 1rem; }
+.prose-dark .md-visual[data-visual="compare"] .md-visual-body { margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--color-border); }
+.prose-dark .md-visual[data-visual="compare"] .md-visual-detail { font-size: 0.875rem; color: color-mix(in srgb, var(--color-txt) 80%, var(--color-muted)); }
+.prose-dark .md-visual[data-visual="compare"] .md-visual-detail ul { padding-left: 1.1rem; }
 /* timeline: a 1px rail, a dot per item, mono label; the accent only on the item titled "now" */
 .prose-dark .md-visual[data-visual="timeline"] > ol, .prose-dark .md-visual[data-visual="timeline"] > ul { position: relative; padding-left: 1.4rem; }
 .prose-dark .md-visual[data-visual="timeline"] > ol::before, .prose-dark .md-visual[data-visual="timeline"] > ul::before { content: ""; position: absolute; left: 0.35rem; top: 0.5rem; bottom: 0.5rem; width: 1px; background: var(--color-border); }
 .prose-dark .md-visual[data-visual="timeline"] li { position: relative; }
-.prose-dark .md-visual[data-visual="timeline"] li + li { margin-top: 0.6rem; }
-.prose-dark .md-visual-dot { position: absolute; left: -1.4rem; top: 0.85rem; width: 9px; height: 9px; margin-left: calc(0.35rem - 4px); border-radius: 50%; background: var(--color-bg); border: 1px solid var(--color-muted); }
+.prose-dark .md-visual[data-visual="timeline"] li + li { margin-top: 0.9rem; }
+.prose-dark .md-visual-dot { position: absolute; left: -1.4rem; top: 0.7rem; width: 9px; height: 9px; margin-left: calc(0.35rem - 4px); border-radius: 50%; background: var(--color-bg); border: 1.5px solid var(--color-muted); }
 .prose-dark .md-visual[data-visual="timeline"] li[data-now] .md-visual-dot { background: var(--color-accent); border-color: var(--color-accent); }
 .prose-dark .md-visual[data-visual="timeline"] .md-visual-card { border-color: transparent; background: transparent; padding: 0.35rem 0; }
-.prose-dark .md-visual[data-visual="timeline"] li[data-now] .md-visual-card { border-color: var(--color-border); background: var(--color-surface); padding: 0.35rem 0.75rem; }
+.prose-dark .md-visual[data-visual="timeline"] li[data-now] .md-visual-card { border-color: var(--color-border); background: var(--color-surface); padding: 0.6rem 0.9rem; }
+.prose-dark .md-visual[data-visual="timeline"] li[data-now] .md-visual-dot { top: 1.15rem; }
 .prose-dark .md-visual[data-visual="timeline"] .md-visual-title { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; color: var(--color-muted); letter-spacing: 0.02em; }
 .prose-dark .md-visual[data-visual="timeline"] li[data-now] .md-visual-title { color: var(--color-accent); }
 .prose-dark a { color: var(--color-accent); text-decoration: none; }
@@ -290,12 +309,12 @@ body {
 /* A backticked path to a file that doesn't exist (a stale mention, not a link): muted, not the healthy code teal; title says why */
 .prose-dark :not(pre) > code[data-stale] { color: var(--color-muted); text-decoration: underline dotted var(--color-muted); text-underline-offset: 3px; cursor: help; }
 .prose-dark strong { color: var(--color-txt); font-weight: 600; }
-.prose-dark hr { border: none; border-top: 1px solid var(--color-border); margin: 1.5rem 0; }
+.prose-dark hr { border: none; border-top: 1px solid var(--color-border); margin: 2.25rem 0; }
 /* Docs reading pane: prose held to a reading measure, mermaid diagrams may use the full width.
    The opening H1 is shown as the doc header's title, so the preview keeps it only for outline scroll. */
 .doc-preview { display: grid; grid-template-columns: minmax(0, 1fr) min(72ch, 100%) minmax(0, 1fr); }
 .doc-preview > * { grid-column: 2; min-width: 0; }
-.doc-preview > .mermaid { grid-column: 1 / -1; }
+
 .doc-preview-titled > h1:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 /* Docs motion: a pane that appears on a mode switch fades in; a newly opened doc settles into place. */
 .animate-pane-in { animation: pane-in var(--duration-base) var(--ease-out-soft); }
@@ -399,7 +418,8 @@ body {
 }
 
 /* Mermaid diagrams */
-.mermaid { margin: 1rem 0; text-align: center; }
+.mermaid { margin: 1.5rem 0; text-align: center; }
+.prose-dark .mermaid:has(> svg) { border: 1px solid var(--color-border); border-radius: 12px; padding: 1.5rem 1rem; overflow-x: auto; }
 /* Diagrams in the notebook's own ink (R096, theme from src/lib/mermaid-theme.ts): flat, ruled, on the page itself */
 .mermaid svg { max-width: 100%; height: auto; background: transparent !important; }
 .mermaid { position: relative; }
@@ -414,6 +434,10 @@ body {
 .diagram-stage svg { width: 100%; height: 100%; max-width: none !important; }
 /* themeVariables.dropShadow covers most diagrams; sequence actors point at the svg's own shadow filter regardless */
 :is(.mermaid, .diagram-stage) svg * { filter: none !important; }
+/* labels are measured at the theme's size before they reach the page: prose's `p` rule must not resize them */
+:is(.mermaid, .diagram-stage) foreignObject p { font-size: inherit; line-height: inherit; margin: 0; color: inherit; }
+/* soft corners on boxes (flowchart / state nodes, sequence actors); ER tables keep square cells */
+:is(.mermaid, .diagram-stage) :is(.node rect.basic, .node rect.label-container, .node > rect, rect.actor, .stateGroup > rect) { rx: 8px; ry: 8px; }
 :is(.mermaid, .diagram-stage) :is(.edgeLabel, .edgeLabel rect, .labelBkg) { background-color: rgb(var(--rgb-bg)) !important; fill: rgb(var(--rgb-bg)) !important; }
 /* the one accent: `class A accent` (or `A:::accent`) in a flowchart marks the node that matters */
 :is(.mermaid, .diagram-stage) .node.accent :is(rect, polygon, circle, path) { stroke: rgb(var(--rgb-accent)) !important; stroke-width: 1.5px !important; }
@@ -427,14 +451,26 @@ body {
 :is(.mermaid, .diagram-stage) .node.sc-failed :is(rect, polygon, path) { stroke: rgb(var(--rgb-danger)) !important; }
 :is(.mermaid, .diagram-stage) .node.sc-uncovered :is(rect, polygon, path) { stroke: rgb(var(--rgb-danger)) !important; stroke-dasharray: 4 3; }
 .derived-diagram .mermaid { margin: 0.25rem 0; text-align: left; overflow-x: auto; }
+.prose-dark.derived-diagram .mermaid:has(> svg) { border: 0; border-radius: 0; padding: 0; }
 /* derived diagrams shrink to fit only down to 75% (DerivedDiagram sets min-width), then scroll sideways */
 .derived-diagram g.node[role="link"]:focus-visible { outline: none; }
 .derived-diagram g.node[role="link"]:focus-visible :is(rect, polygon, path) { stroke: rgb(var(--rgb-accent)) !important; stroke-width: 2px !important; }
 .derived-diagram g.node[role="link"]:hover :is(rect, polygon, path) { fill: rgb(var(--rgb-surface2)) !important; }
 /* a diagram that won't parse: the CAUTION alert's tones (R089), the error and the source in place */
-.mermaid-error { --alert: var(--color-danger); text-align: left; border-left: 3px solid var(--alert); background: color-mix(in srgb, var(--alert) 8%, transparent); border-radius: 0 8px 8px 0; padding: 0.6rem 1rem; }
-.mermaid-error-message { font-family: var(--font-mono); font-size: 12px; color: var(--alert); margin: 0 0 0.5rem; }
-.mermaid-error pre { margin: 0; font-size: 12px; white-space: pre-wrap; }
+.mermaid-error { --alert: var(--color-danger); text-align: left; border: 1px solid color-mix(in srgb, var(--alert) 22%, transparent); background: color-mix(in srgb, var(--alert) 7%, transparent); border-radius: 12px; padding: 0.85rem 1.1rem; }
+.mermaid-error .mermaid-error-title { display: flex; align-items: center; gap: 0.45rem; font-size: 0.875rem; font-weight: 600; line-height: 1.4; color: var(--alert); margin: 0 0 0.3rem; }
+.mermaid-error .mermaid-error-message { font-size: 0.875rem; line-height: 1.6; color: color-mix(in srgb, var(--color-txt) 86%, var(--color-muted)); margin: 0 0 0.75rem; }
+.mermaid-error pre { margin: 0; font-size: 12px; white-space: pre-wrap; border-radius: 8px; }
+/* the source with line numbers; the line the parser stopped on gets the alert's tint */
+.mermaid-error pre.mermaid-error-source { display: grid; padding: 0.6rem 0; counter-reset: none; }
+.mermaid-error-row { display: block; padding: 0 1rem 0 0; }
+.mermaid-error-row::before { content: attr(data-line); display: inline-block; width: 2.5rem; padding-right: 0.75rem; text-align: right; color: var(--color-muted); user-select: none; }
+.mermaid-error-row[data-bad] { background: color-mix(in srgb, var(--alert) 14%, transparent); }
+.mermaid-error-row[data-bad]::before { color: var(--alert); font-weight: 600; }
+.prose-dark .mermaid-error details.mermaid-error-details { border: 0; background: none; margin: 0.5rem 0 0; }
+.prose-dark .mermaid-error details.mermaid-error-details > summary { padding: 0.25rem 0; font-size: 0.8125rem; color: var(--color-muted); border: 0; border-radius: 4px; }
+.prose-dark .mermaid-error details.mermaid-error-details > summary:hover { background: none; color: var(--color-txt); }
+.prose-dark .mermaid-error details.mermaid-error-details > pre { margin: 0.35rem 0 0; color: var(--color-muted); }
 
 /* Board view switch (BoardTab → document.startViewTransition): the tab underline glides, the view settles in.
    The reduced-motion rule above turns every view-transition pseudo-element off. */

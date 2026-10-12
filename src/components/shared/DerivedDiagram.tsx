@@ -12,8 +12,6 @@ import type { Task } from "@/types"
 // authored diagrams' theme, fullscreen viewer and error box apply as is. Mermaid's own `click` needs a looser
 // securityLevel than our antiscript, so node clicks are one delegated listener on the wrapper instead.
 
-const MIN_SCALE = 0.75
-
 // a flowchart node's DOM id: <svg id>-flowchart-<nodeId>-<n>
 const NODE_ID_RE = /(?:^|-)flowchart-([A-Za-z]\w*)-\d+$/
 const ITEM_ID_RE = /^[TS]\d+$/
@@ -35,14 +33,16 @@ export function DerivedDiagram({ source, label, onOpen, isLink = isItemId }: { s
       return id && isLink(id) ? id : null
     }
     // Mermaid draws after a debounce and again on a theme switch: make every task node a focusable link as it appears
+    // (MarkdownRenderer floors its width, as for any diagram)
     const mark = () => {
-      // Mermaid draws width 100% capped at the natural width; a narrow pane may shrink it to MIN_SCALE (labels stay
-      // ~10px), past that the diagram scrolls sideways (CSS) and the fullscreen viewer shows it whole
-      for (const svg of root.querySelectorAll<SVGSVGElement>(".mermaid > svg:not([data-min-width])")) {
-        const natural = parseFloat(svg.style.maxWidth)
-        if (!natural) continue
-        svg.dataset.minWidth = ""
-        svg.style.minWidth = `${Math.round(natural * MIN_SCALE)}px`
+      // a map wider than the pane opens on the item it is about (the accent node), not on its left edge
+      for (const svg of root.querySelectorAll<SVGSVGElement>(".mermaid > svg:not([data-centred])")) {
+        const focus = svg.querySelector("g.node.accent")
+        const box = svg.parentElement
+        if (!focus || !box) continue
+        svg.dataset.centred = ""
+        const f = focus.getBoundingClientRect(), b = box.getBoundingClientRect()
+        box.scrollLeft += f.left + f.width / 2 - (b.left + b.width / 2)
       }
       for (const node of root.querySelectorAll<SVGGElement>("g.node:not([tabindex])")) {
         const id = idOf(node)

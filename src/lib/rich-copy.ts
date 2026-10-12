@@ -28,8 +28,10 @@ const box = (p: Palette, extra = "") => `border:1px solid ${p.border};background
 export function visualBlockToHtml(kind: string, items: RichItem[], p: Palette): string {
   const table = (rows: string) => `<table style="${FONT};font-size:14px;line-height:1.5;border-collapse:collapse;width:100%">${rows}</table>`
   if (kind === "steps") {
-    return table(items.map((it, i) => `<tr><td style="${box(p)}">${card(it, p)}</td></tr>` +
-      (i < items.length - 1 ? `<tr><td style="text-align:center;color:${p.muted};padding:2px 0">↓</td></tr>` : "")).join(""))
+    // a round number badge per step, like the page (paste targets that drop the radius still show a boxed number)
+    const num = `display:inline-block;width:24px;height:24px;line-height:24px;border-radius:12px;border:1px solid ${p.border};background:${p.surface};color:${p.ink};text-align:center;font-weight:600;font-size:13px`
+    return table(items.map((it, i) => `<tr><td style="width:1%;vertical-align:top;padding:8px 12px 8px 0"><span style="${num}">${i + 1}</span></td>` +
+      `<td style="vertical-align:top;padding:10px 0 8px">${card(it, p)}</td></tr>`).join(""))
   }
   if (kind === "compare") {
     return table(`<tr>${items.map((it) => `<td style="${box(p, `width:${Math.floor(100 / items.length)}%`)}">${card(it, p)}</td>`).join("")}</tr>`)

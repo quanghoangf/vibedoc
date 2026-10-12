@@ -17,9 +17,10 @@ for (const kind of ['steps', 'cards', 'compare', 'timeline']) {
   assert.match(html, /Asks wait/)
   assert.match(html, /One goal <code>a<\/code>/, `${kind}: the rendered inline markup is kept`)
 }
-// steps: 3 cards, 2 arrows; icon escaped text before the title
+// steps: 3 rows, each a numbered badge beside its text; icon escaped text before the title
 const steps = visualBlockToHtml('steps', items, p)
-assert.equal((steps.match(/↓/g) ?? []).length, 2)
+assert.doesNotMatch(steps, /↓/)
+assert.deepEqual([...steps.matchAll(/text-align:center;font-weight:600;font-size:13px">(\d)</g)].map((m) => m[1]), ['1', '2', '3'])
 assert.equal((steps.match(/border:1px solid #e0e0ee/g) ?? []).length, 3)
 assert.match(steps, />🎯 Focus</)
 // cards: 2 per row, an odd last one padded

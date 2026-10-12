@@ -145,10 +145,10 @@ The user can re-tint the notebook without changing its structure. Settings → A
 A near-monochrome indigo-grey notebook with one violet highlighter and a fixed set of status inks.
 
 ### Primary
-- **Lab Violet** (`lab-violet`): the only accent. Used for focus rings, the selected nav item, links, the Review status, primary buttons, markdown `h3` and blockquote rules, and the "flash" when a card updates live. Anything set on an accent fill takes **Accent Ink** (`accent-ink`, `--rgb-accent-fg` → `text-accent-fg`), near-black in both themes: white fails 4.5:1 on all four accents, the ink passes on all four. It is stored as an RGB triplet (`--rgb-accent`) so every use can take opacity (`/5`, `/15`, `/30`), and Settings can swap it for purple, green or orange.
+- **Lab Violet** (`lab-violet`): the only accent. Used for focus rings, the selected nav item, links, the Review status, primary buttons, prose links, the accent diagram node and the "Now" timeline item, and the "flash" when a card updates live. Anything set on an accent fill takes **Accent Ink** (`accent-ink`, `--rgb-accent-fg` → `text-accent-fg`), near-black in both themes: white fails 4.5:1 on all four accents, the ink passes on all four. It is stored as an RGB triplet (`--rgb-accent`) so every use can take opacity (`/5`, `/15`, `/30`), and Settings can swap it for purple, green or orange.
 
 ### Secondary
-- **Reagent Teal** (`reagent-teal`): Done and inline `code` in prose. It means "settled / healthy". Light mode swaps in a darker ink (15 118 96) that clears 4.5:1 on paper and paper-tint-deep (5.55 / 4.90); the dark value was 1.78:1 on white.
+- **Reagent Teal** (`reagent-teal`): Done, and the Tip callout. It means "settled / healthy". Light mode swaps in a darker ink (15 118 96) that clears 4.5:1 on paper and paper-tint-deep (5.55 / 4.90); the dark value was 1.78:1 on white.
 
 ### Tertiary
 - **Burner Amber** (`burner-amber`): In progress, "changes requested", and warning or at-risk markers. It means "active, watch this". Light mode swaps in a darker ink (170 80 10) that clears 4.5:1 on paper and paper-tint-deep.
@@ -180,9 +180,9 @@ A near-monochrome indigo-grey notebook with one violet highlighter and a fixed s
 
 ### Hierarchy
 - **Display** (600, 1.6rem, -0.02em): the doc `h1` only. VibeDoc has no hero type.
-- **Headline** (600, 1.1rem): doc `h2`, tinted 75% toward the accent, with a hairline underline.
+- **Headline** (600, 1.25rem, -0.01em): doc `h2` in Page-White Text, no underline, 2.25rem above and 0.75rem below; `h3` 1.05rem in the same ink.
 - **Title** (500, 13px, snug): card titles, list rows and panel headings; 2-line clamp on cards.
-- **Body** (400, 0.875rem, 1.7): prose paragraphs and list items. UI body text is `text-sm` / 13px at tighter leading.
+- **Body** (400, 0.9375rem, 1.75): prose paragraphs and list items, mixed 86% toward Pencil Grey. UI body text is `text-sm` / 13px at tighter leading.
 - **Label** (mono 400, 11px): task/epic IDs, due dates, counts, keyboard hints.
 - **Label Caps** (mono 500, 10px, 0.06em, uppercase): table headers and section labels.
 
@@ -307,3 +307,7 @@ An empty page teaches (R083): a muted lucide icon, a 15px medium title in Paper 
 - **Don't** show the task files' status emoji in the UI.
 - **Don't** add new arbitrary type sizes beyond 10/11/13px and the rem scale.
 - **Don't** use CSS-in-JS or `localStorage` for theme state. Tailwind + `data-*` attributes on `<html>` only.
+
+### Doc Reading View
+The rendered markdown (`.prose-dark`, docs preview, task bodies, chat replies) reads like a calm answer, not a form. Headings and inline code are neutral ink; colour stays on links, callouts and state. Blocks share one shape: 12px radius, a Rule Line border, Carbon fill where a fill is needed, and more space around a block than inside it. Callouts are a 7% tint of their hue with a 22% hairline and a lucide icon beside a sans title (Note muted, Tip teal, Important accent, Warning amber, Caution red), never a coloured side bar. Tables sit in one rounded frame with a Carbon header row in sans. Visual blocks: steps are numbered 28px badges (Graphite, Rule Line Strong ring) on a 1px rail with the step's text on the page; cards put the author's emoji in a 36px Graphite tile; compare splits each column's lead from its points with a hairline; the timeline's Now item is the one accent. Mermaid diagrams use the sans reading font at 14px with 8px node corners, sit in a bordered frame in the reading column, shrink to fit only down to 75% and then scroll sideways (Fullscreen shows them whole); derived maps open scrolled to their accent node. A diagram that won't parse uses the Caution callout's look: an icon + "This diagram couldn't be drawn", the line and the problem in words (`explainMermaidError` in `src/lib/mermaid-error.ts`), the source with line numbers and the failing line tinted, and Mermaid's raw message folded under Details.
+

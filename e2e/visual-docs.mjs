@@ -108,10 +108,15 @@ try {
   await error.waitFor()
   assert.equal(await error.getAttribute("role"), "note")
   assert.equal(await doc.locator(".mermaid > svg").count(), 3, "the valid diagrams still render")
-  assert.equal((await error.locator("pre").textContent()).trim(), BROKEN, "the source is shown")
-  assert.match(await error.locator(".mermaid-error-message").textContent(), /^Parse error on line 2: Expecting /, "the error says where and what")
+  assert.equal(await error.locator(".mermaid-error-title").textContent(), "This diagram couldn't be drawn")
+  assert.equal(await error.locator(".mermaid-error-message").textContent(), "Line 2: expected a box name after the arrow, found another arrow.", "the error says where and what, in words")
+  assert.deepEqual(await error.locator(".mermaid-error-row").allTextContents(), BROKEN.split("\n"), "the source is shown, a row per line")
+  assert.deepEqual(await error.locator(".mermaid-error-row").evaluateAll((rows) => rows.map((r) => [r.dataset.line, "bad" in r.dataset])), [["1", false], ["2", true]], "numbered, the failing line marked")
+  const details = error.locator("details.mermaid-error-details")
+  assert.equal(await details.evaluate((d) => d.open), false, "Mermaid's own message is folded")
+  assert.match(await details.locator("pre").textContent(), /^Parse error on line 2:[\s\S]*got 'LINK'$/, "and kept whole under Details")
   assert.equal(await page.locator("body > [id^=dmermaid], body > svg[id^=mermaid]").count(), 0, "no stray error graphic left on the page")
-  console.log("ok  broken diagram: error and source inline, the other three render")
+  console.log("ok  broken diagram: a titled box says the line and the problem in words, numbered source with the bad line marked, raw message under Details; the other three render")
 
   // stroke of the flowchart's plain node and the accent node vs the tokens, as the browser computes both
   const read = () => doc.evaluate((root) => {
@@ -321,26 +326,26 @@ try {
   await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/blocks.md")}`)
   await page.setViewportSize({ width: 1280, height: 900 })
 
-  // S3 steps: three cards in an <ol>, two arrows between them, title / body / detail split
+  // S3 steps: three steps in an <ol>, each with its drawn number badge, title / body / detail split
   const steps = preview.locator('[data-visual="steps"]')
   await steps.waitFor()
   assert.equal(await steps.getByRole("list").count(), 1, "list semantics kept")
   assert.equal(await steps.locator("ol > li").count(), 3)
   assert.equal(await steps.locator(".md-visual-card").count(), 3)
-  assert.equal(await steps.locator(".md-visual-arrow").count(), 2, "N−1 arrows")
+  assert.deepEqual(await steps.locator(".md-visual-num").allTextContents(), ["1", "2", "3"], "a number per step")
   assert.equal(await steps.locator(".md-visual-title").first().textContent(), "Focus")
   assert.equal(await steps.locator(".md-visual-body").first().textContent(), "One main goal at a time.")
   assert.equal((await steps.locator(".md-visual-detail").first().textContent()).trim(), "Example: finish the transaction flow.")
-  const [cardTop, arrowTop, nextTop] = await steps.evaluate((el) => [".md-visual-card", ".md-visual-arrow"]
-    .map((s) => el.querySelector(s).getBoundingClientRect().top).concat(el.querySelectorAll(".md-visual-card")[1].getBoundingClientRect().top))
-  assert.ok(cardTop < arrowTop && arrowTop < nextTop, "cards stack with the arrow between them")
-  // card border = the rule-line token, arrow = Pencil Grey, in light and in dark
+  const [numLeft, cardLeft, cardTop, nextTop] = await steps.evaluate((el) => {
+    const [num, card, next] = [el.querySelector(".md-visual-num"), el.querySelector(".md-visual-card"), el.querySelectorAll(".md-visual-card")[1]].map((e) => e.getBoundingClientRect())
+    return [num.left, card.left, card.top, next.top]
+  })
+  assert.ok(numLeft < cardLeft && cardTop < nextTop, "steps stack, each number left of its text")
+  // the badge is a strong-rule ring, in light and in dark
   const look = await steps.evaluate((root) => {
     const read = () => ({
-      border: getComputedStyle(root.querySelector(".md-visual-card")).borderTopColor,
-      arrow: getComputedStyle(root.querySelector(".md-visual-arrow")).color,
-      rule: getComputedStyle(document.documentElement).getPropertyValue("--rgb-border").trim(),
-      grey: getComputedStyle(document.documentElement).getPropertyValue("--rgb-muted").trim(),
+      border: getComputedStyle(root.querySelector(".md-visual-num")).borderTopColor,
+      rule: getComputedStyle(document.documentElement).getPropertyValue("--rgb-border2").trim(),
     })
     const html = document.documentElement
     const wasDark = html.classList.contains("dark")
@@ -353,16 +358,15 @@ try {
   })
   const rgb = (triplet) => `rgb(${triplet.split(/\s+/).join(", ")})`
   for (const mode of ["dark", "light"]) {
-    assert.equal(look[mode].border, rgb(look[mode].rule), `${mode}: card border is the rule line`)
-    assert.equal(look[mode].arrow, rgb(look[mode].grey), `${mode}: arrow is Pencil Grey`)
+    assert.equal(look[mode].border, rgb(look[mode].rule), `${mode}: number ring is the strong rule line`)
   }
-  assert.notEqual(look.dark.border, look.light.border, "cards follow the theme")
-  console.log("ok  S3: a steps block renders 3 cards with 2 arrows, rule-line borders and Pencil Grey arrows in light and dark")
+  assert.notEqual(look.dark.border, look.light.border, "steps follow the theme")
+  console.log("ok  S3: a steps block renders 3 numbered steps with strong-rule rings in light and dark")
 
   // S3 cards: a grid of four cards, the icon kept; the unmarked list and the task list stay plain lists
   const cards = preview.locator('[data-visual="cards"]')
   assert.equal(await cards.locator(".md-visual-card").count(), 4)
-  assert.equal(await cards.locator(".md-visual-arrow").count(), 0)
+  assert.equal(await cards.locator(".md-visual-num").count(), 0)
   assert.equal(await cards.locator(".md-visual-icon").textContent(), "🧭")
   assert.equal(await cards.locator("ul").evaluate((el) => getComputedStyle(el).display), "grid")
   const tops = await cards.locator(".md-visual-card").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))

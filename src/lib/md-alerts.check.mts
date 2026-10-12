@@ -9,7 +9,7 @@ const html = (s: string) => md.parse(s) as string
 
 for (const kind of ALERT_KINDS) {
   const out = html(`> [!${kind.toUpperCase()}]\n> Body **bold**\n`)
-  assert.match(out, new RegExp(`<div class="md-alert" data-alert="${kind}" role="note"><p class="md-alert-title">${kind[0].toUpperCase()}${kind.slice(1)}</p>`))
+  assert.match(out, new RegExp(`<div class="md-alert" data-alert="${kind}" role="note"><p class="md-alert-title"><svg class="md-alert-icon" aria-hidden="true"[^>]*>.*?</svg>${kind[0].toUpperCase()}${kind.slice(1)}</p>`))
   assert.match(out, /<p>Body <strong>bold<\/strong><\/p>/)
   assert.doesNotMatch(out, /blockquote|\[!/)
 }

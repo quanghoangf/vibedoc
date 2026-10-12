@@ -2,9 +2,9 @@
 // time so light and dark both follow. Hairlines, surfaces and ink only; the one accent is a CSS rule on `class X accent`
 // (globals.css), not a variable. Pure, so `node src/lib/mermaid-theme.check.mts` runs it bare.
 
-/** The `--rgb-*` tokens (RGB triplets like "124 106 247") and the mono font stack (labels are set in mono, like IDs), keyed without the prefix. */
+/** The `--rgb-*` tokens (RGB triplets like "124 106 247") and the reading font stack (labels are read as language, so sans), keyed without the prefix. */
 export const MERMAID_TOKENS = ["bg", "surface", "surface2", "border2", "txt", "muted"] as const
-export type MermaidTokens = Partial<Record<(typeof MERMAID_TOKENS)[number] | "fontMono", string>>
+export type MermaidTokens = Partial<Record<(typeof MERMAID_TOKENS)[number] | "fontSans", string>>
 
 /** "124 106 247" (or "124, 106, 247") → "#7c6af7"; a hex value passes through. Mermaid derives shades with khroma, which wants hex. */
 export function toHex(value: string | undefined, fallback: string): string {
@@ -23,13 +23,13 @@ export function mermaidThemeVariables(tokens: MermaidTokens, dark: boolean): Rec
   const rule = c("border2", "#d0d0e4", "#2d2d3d")
   const ink = c("txt", "#1a1a2e", "#e8e8f0")
   const muted = c("muted", "#6b6b80", "#8c8ca0")
-  const mono = tokens.fontMono?.trim()
+  const sans = tokens.fontSans?.trim()
   return {
     darkMode: dark,
     // the page shows through (globals.css keeps the svg unfilled); bg is what khroma derives from and edge labels sit on
     background: bg,
-    fontFamily: `${mono ? mono + ", " : ""}ui-monospace, Menlo, monospace`,
-    fontSize: "13px",
+    fontFamily: `${sans ? sans + ", " : ""}system-ui, sans-serif`,
+    fontSize: "14px",
     // flat, ruled surfaces: no drop shadow under nodes (Mermaid 12 adds one by default)
     dropShadow: "none",
     primaryColor: surface,

@@ -1,5 +1,5 @@
 // Visual blocks (R096): a plain list right under `<!-- vibedoc:steps|cards|compare|timeline -->` renders as stacked
-// cards joined by arrows (steps), a grid of cards (cards), 2–3 columns side by side (compare; more items fall back to
+// numbered steps on a connecting rail (steps), a grid of cards (cards), 2–3 columns side by side (compare; more items fall back to
 // cards) or a vertical rail of dated items (timeline). The marker is an HTML comment, so GitHub, /md/
 // and vibedoc_read_doc show the normal list. Pure: `node src/lib/md-visual-blocks.check.mts`.
 import { Lexer } from "marked"
@@ -69,9 +69,6 @@ export function renderedKind(kind: VisualKind, items: number): VisualKind {
   return kind === "compare" && items > MAX_COMPARE ? "cards" : kind
 }
 
-// lucide arrow-down, Pencil Grey via CSS
-const ARROW = '<svg class="md-visual-arrow" aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>'
-
 export const visualBlocksExtension: TokenizerAndRendererExtension = {
   name: "visual",
   level: "block",
@@ -81,6 +78,7 @@ export const visualBlocksExtension: TokenizerAndRendererExtension = {
     const opts = this.parser.options
     // item text goes back through the same parser, so links, code and [[wikilinks]] still work
     const inline = (s: string) => this.parser.parseInline(Lexer.lexInline(s, opts))
+    const first = list.ordered && typeof list.start === "number" ? list.start : 1
     const items = list.items.map((item, i) => {
       const { icon, title, body, detail } = splitItem(item.text)
       const card = [
@@ -89,13 +87,14 @@ export const visualBlocksExtension: TokenizerAndRendererExtension = {
         body ? `<div class="md-visual-body">${inline(body)}</div>` : "",
         detail ? `<div class="md-visual-detail">${this.parser.parse(Lexer.lex(detail, opts))}</div>` : "",
       ].join("")
-      const arrow = kind === "steps" && i < list.items.length - 1 ? ARROW : ""
+      // the number is drawn (list-style is off); the <ol> already gives it to screen readers
+      const num = kind === "steps" ? `<span class="md-visual-num" aria-hidden="true">${first + i}</span>` : ""
       if (kind === "timeline") {
         // the one accent goes to the item whose label says "now"; every other dot stays neutral
         const now = NOW_RE.test(title) ? " data-now" : ""
         return `<li${now}><span class="md-visual-dot" aria-hidden="true"></span><div class="md-visual-card">${card}</div></li>`
       }
-      return `<li><div class="md-visual-card">${card}</div>${arrow}</li>`
+      return `<li>${num}<div class="md-visual-card">${card}</div></li>`
     })
     const tag = list.ordered ? "ol" : "ul"
     const start = list.ordered && list.start !== 1 && list.start !== "" ? ` start="${list.start}"` : ""

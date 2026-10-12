@@ -20,6 +20,7 @@ import { decorateDiagram, useDiagramTools } from "./diagram-viewer"
 import { tNow } from "@/context/LanguageContext"
 import { resolveImageSrc } from "@/lib/attachments"
 import { MERMAID_TOKENS, mermaidThemeVariables, type MermaidTokens } from "@/lib/mermaid-theme"
+import { explainMermaidError, type MermaidErrorKind } from "@/lib/mermaid-error"
 
 // Configure marked for GitHub Flavored Markdown
 marked.setOptions({
@@ -73,24 +74,59 @@ marked.use({
 /** The design tokens Mermaid's themeVariables are built from, as computed now (follows .dark and the font setting). */
 function readTokens(): MermaidTokens {
   const css = getComputedStyle(document.documentElement)
-  const tokens: MermaidTokens = { fontMono: css.getPropertyValue("--app-font-mono") }
+  const tokens: MermaidTokens = { fontSans: css.getPropertyValue("--app-font-sans") }
   for (const k of MERMAID_TOKENS) tokens[k] = css.getPropertyValue(`--rgb-${k}`)
   return tokens
 }
 
-/** A diagram that won't parse: its error (first line) and its source, in place of the diagram. */
+// a wide diagram shrinks to fit only down to 75% (labels stay ~10px), then its frame scrolls sideways; Fullscreen
+// shows it whole. Mermaid sets max-width to the natural width.
+const MIN_DIAGRAM_SCALE = 0.75
+function floorDiagramWidth(node: HTMLElement) {
+  const svg = node.querySelector<SVGSVGElement>(":scope > svg")
+  const natural = svg ? parseFloat(svg.style.maxWidth) : 0
+  if (svg && natural) svg.style.minWidth = `${Math.round(natural * MIN_DIAGRAM_SCALE)}px`
+}
+
+const ERROR_PROBLEM = {
+  arrow: "docs.diagramErrorArrow", end: "docs.diagramErrorEnd", text: "docs.diagramErrorText",
+  type: "docs.diagramErrorType", other: "docs.diagramErrorOther",
+} as const satisfies Record<MermaidErrorKind, string>
+// lucide octagon-alert, the Caution callout's icon
+const ERROR_ICON = '<svg class="md-alert-icon" aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16h.01"/><path d="M12 8v4"/><path d="M15.312 2a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586l-4.688-4.688A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2z"/></svg>'
+
+/**
+ * A diagram that won't parse, said for a person: a title, the line and the problem in words, the source with line
+ * numbers and the bad line marked, and Mermaid's own message folded under Details.
+ */
 function showMermaidError(node: HTMLElement, src: string, e: unknown) {
-  const box = document.createElement("div")
-  box.className = "mermaid-error"
+  const { line, kind, raw } = explainMermaidError(e)
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string) => {
+    const x = document.createElement(tag)
+    x.className = className
+    if (text !== undefined) x.textContent = text
+    return x
+  }
+  const box = el("div", "mermaid-error")
   box.setAttribute("role", "note")
-  const msg = document.createElement("p")
-  msg.className = "mermaid-error-message"
-  // a parse error is "Parse error on line N:", the source line, a ^ pointer, then "Expecting …": keep the first and last
-  const lines = String((e as { message?: unknown })?.message ?? e).split("\n").map((l) => l.trim()).filter(Boolean)
-  msg.textContent = lines.length > 1 ? `${lines[0]} ${lines[lines.length - 1]}` : (lines[0] ?? "")
-  const pre = document.createElement("pre")
-  pre.textContent = src
-  box.append(msg, pre)
+  const title = el("p", "mermaid-error-title")
+  title.innerHTML = ERROR_ICON
+  title.append(tNow("docs.diagramErrorTitle"))
+  const problem = tNow(ERROR_PROBLEM[kind])
+  const msg = el("p", "mermaid-error-message", line ? tNow("docs.diagramErrorLine", { line, problem }) : tNow("docs.diagramErrorUnknown"))
+  const pre = el("pre", "mermaid-error-source")
+  src.replace(/\n$/, "").split("\n").forEach((text, i) => {
+    const row = el("span", "mermaid-error-row", text || " ")
+    row.dataset.line = String(i + 1)
+    if (i + 1 === line) row.dataset.bad = ""
+    pre.append(row)
+  })
+  box.append(title, msg, pre)
+  if (raw) {
+    const details = el("details", "mermaid-error-details")
+    details.append(el("summary", "", tNow("docs.diagramErrorDetails")), el("pre", "", raw))
+    box.append(details)
+  }
   node.replaceChildren(box)
 }
 
@@ -192,6 +228,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
     // all: a theme switch re-renders the diagrams already drawn, from the source kept in data-source
     const render = async (all: boolean) => {
       const m = await import("mermaid")
+      // labels are measured once, at render: measure them in the page's font, not its fallback
+      await document.fonts.ready
       if (cancelled || !container.isConnected) return
       // Query AFTER the async import resolves — gets current DOM, not stale snapshot
       const nodes = Array.from(container.querySelectorAll<HTMLElement>(all ? ".mermaid" : ".mermaid:not([data-processed])"))
@@ -213,6 +251,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
           if (cancelled || mine !== pass) return
           node.innerHTML = svg
           bindFunctions?.(node)
+          floorDiagramWidth(node)
           decorateDiagram(node)
         } catch (e) {
           if (cancelled || mine !== pass) return
