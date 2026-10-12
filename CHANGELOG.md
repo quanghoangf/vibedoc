@@ -1,3 +1,21 @@
+# [1.21.0](https://github.com/quanghoangf/vibedoc/compare/v1.20.0...v1.21.0) (2026-10-12)
+
+
+### Features
+
+* **board:** task dependency diagram in the panel and the task doc (T520) ([ea01a20](https://github.com/quanghoangf/vibedoc/commit/ea01a202dba32a51fc5cc2a805532ed97b47f1d6))
+* **docs:** calmer reading view, readable diagrams and plain-language diagram errors ([fc7c5eb](https://github.com/quanghoangf/vibedoc/commit/fc7c5ebadca54eedc47b79a686990ca873dfb3c1))
+* **docs:** compare and timeline visual blocks (T516) ([d4661fa](https://github.com/quanghoangf/vibedoc/commit/d4661fafb3f6d0251dd9785a74cd7e6b9f51873a))
+* **docs:** copy visual blocks as formatted HTML and diagrams as images (T517) ([054f1ed](https://github.com/quanghoangf/vibedoc/commit/054f1ed8bf46522bae3ddc60e4bcb128361c47e2))
+* **docs:** diagram toolbar with fullscreen zoom/pan viewer and copy source (T514) ([d2d122b](https://github.com/quanghoangf/vibedoc/commit/d2d122b78b19c57ae9a0c8bddbb4d67fca89254d))
+* **docs:** Insert visual menu for diagram templates and visual blocks (T518) ([c4eed5c](https://github.com/quanghoangf/vibedoc/commit/c4eed5cbf8f5ca28aece0f81d8bbf604524241b1))
+* **docs:** link map at the top of the Linked docs panel (T522) ([694efb1](https://github.com/quanghoangf/vibedoc/commit/694efb125bc06ebcbcdcf63dd8be998be5839e61))
+* **docs:** mermaid diagrams in VibeDoc's tokens, parse errors shown inline (T513) ([87e45ec](https://github.com/quanghoangf/vibedoc/commit/87e45ecb6a5c2761585c2e78d7067f151bbf532f))
+* **docs:** steps and cards visual blocks from a marked list (T515) ([9a20750](https://github.com/quanghoangf/vibedoc/commit/9a207501cb38cd1a9e10fa80d30573dbd60c3eb6))
+* **mcp:** task dependencies on get_task and the epic map on get_roadmap {id} (T523) ([fa472f4](https://github.com/quanghoangf/vibedoc/commit/fa472f4bda5324d2fbc99cc62217d49e51d1fa5d))
+* **plugin:** skills add diagrams and visual blocks; visual docs page (T519) ([015b778](https://github.com/quanghoangf/vibedoc/commit/015b7784a71d40484533ef2efacc70821f7301d4))
+* **roadmap:** epic map of tasks and the scenarios they cover (T521) ([b8adc3c](https://github.com/quanghoangf/vibedoc/commit/b8adc3c7becd168b5363e519ca0a8fc3b25f849f))
+
 # [1.20.0](https://github.com/quanghoangf/vibedoc/compare/v1.19.0...v1.20.0) (2026-10-07)
 
 
