@@ -15,10 +15,15 @@ import type { Task } from "@/types"
 const MIN_SCALE = 0.75
 
 // a flowchart node's DOM id: <svg id>-flowchart-<nodeId>-<n>
-const NODE_ID_RE = /(?:^|-)flowchart-([TS]\d+)-\d+$/
+const NODE_ID_RE = /(?:^|-)flowchart-([A-Za-z]\w*)-\d+$/
+const ITEM_ID_RE = /^[TS]\d+$/
+const isItemId = (id: string) => ITEM_ID_RE.test(id)
 
-/** A rendered Mermaid flowchart whose task / scenario nodes (ids `T\d+`, `S\d+`) open, by click or Enter / Space. */
-export function DerivedDiagram({ source, label, onOpen }: { source: string; label: string; onOpen: (id: string) => void }) {
+/**
+ * A rendered Mermaid flowchart whose clickable nodes (default: task / scenario ids `T\d+`, `S\d+`; `isLink` decides)
+ * open by click or Enter / Space.
+ */
+export function DerivedDiagram({ source, label, onOpen, isLink = isItemId }: { source: string; label: string; onOpen: (id: string) => void; isLink?: (id: string) => boolean }) {
   const ref = useRef<HTMLElement>(null)
   const { t } = useT()
   useEffect(() => {
@@ -26,7 +31,8 @@ export function DerivedDiagram({ source, label, onOpen }: { source: string; labe
     if (!root) return
     const idOf = (el: Element | null) => {
       const node = el?.closest("g.node")
-      return node ? NODE_ID_RE.exec(node.id)?.[1] ?? null : null
+      const id = node ? NODE_ID_RE.exec(node.id)?.[1] ?? null : null
+      return id && isLink(id) ? id : null
     }
     // Mermaid draws after a debounce and again on a theme switch: make every task node a focusable link as it appears
     const mark = () => {
@@ -59,7 +65,7 @@ export function DerivedDiagram({ source, label, onOpen }: { source: string; labe
     root.addEventListener("click", onClick)
     root.addEventListener("keydown", onKey)
     return () => { mo.disconnect(); root.removeEventListener("click", onClick); root.removeEventListener("keydown", onKey) }
-  }, [onOpen, t])
+  }, [onOpen, t, isLink])
   return (
     <section ref={ref} aria-label={label} data-derived-diagram>
       <MarkdownRenderer content={"```mermaid\n" + source + "\n```\n"} className="derived-diagram" />

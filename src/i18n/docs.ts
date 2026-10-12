@@ -247,6 +247,8 @@ export const en = {
   diagramZoomIn: "Zoom in",
   diagramZoomOut: "Zoom out",
   diagramFit: "Fit",
+  // Link map (R097, T522)
+  linkMap: "Map of links to and from this doc",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -481,4 +483,6 @@ export const vi: Messages<typeof en> = {
   diagramZoomIn: "Phóng to",
   diagramZoomOut: "Thu nhỏ",
   diagramFit: "Vừa khung",
+  // Link map (R097, T522)
+  linkMap: "Sơ đồ liên kết đến và đi từ tài liệu này",
 }

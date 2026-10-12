@@ -1,6 +1,6 @@
 // node src/lib/item-diagrams.check.mts
 import assert from 'node:assert/strict'
-import { depGraphMermaid, depIdsOf, epicGraph, epicGraphMermaid, taskNeighbourhood, type DiagramTask } from './item-diagrams.ts'
+import { depGraphMermaid, depIdsOf, docLinkMermaid, epicGraph, epicGraphMermaid, taskNeighbourhood, type DiagramTask } from './item-diagrams.ts'
 
 const T = (id: string, dependsOn = '', status = 'todo', title = `Task ${id}`): DiagramTask => ({ id, title, status, dependsOn })
 
@@ -89,5 +89,26 @@ assert.equal(esrc, [
 ].join('\n'))
 // no scenarios → tasks only
 assert.doesNotMatch(epicGraphMermaid(epicGraph(['T1'], [E('T1', '', 'todo', [])], [])), /S\d/)
+
+// doc links: in left, out right (both = <-->), broken dashed and not clickable, ids for items, short labels
+const lf = (path: string, direction: 'in' | 'out' | 'both', id = path, label = path) => ({ path, label, id, direction })
+const dl = docLinkMermaid('HLD', [lf('docs/a.md', 'in', 'docs/a.md', 'Overview of the whole system'), lf('plans/tasks/T001-x.md', 'out', 'T001', 'Do it'), lf('docs/c.md', 'both', 'docs/c.md', 'C')], ['docs/gone/missing.md'])
+assert.equal(dl.source, [
+  'flowchart TB',
+  '  self["HLD"]',
+  '  in0["Overview of the who…"] --> self',
+  '  self --> out0["T001 · Do it"]',
+  '  self <--> out1["C"]',
+  '  self -.-> broken0["missing.md"]',
+  '  class broken0 st-missing',
+  '  class self accent',
+].join('\n'))
+assert.deepEqual(dl.targets, { in0: 'docs/a.md', out0: 'plans/tasks/T001-x.md', out1: 'docs/c.md' })
+// cap per side → "+N more" nodes that go to the graph
+const manyLinks = docLinkMermaid('X', Array.from({ length: 11 }, (_, i) => lf(`d${i}.md`, i < 10 ? 'in' : 'out')), ['b1.md', 'b2.md'], 8)
+assert.match(manyLinks.source, /morein\["\+2 more"\] -\.- self/)
+assert.doesNotMatch(manyLinks.source, /moreout/, '1 out + 2 broken fit in 8')
+assert.equal(manyLinks.targets.morein, 'more')
+assert.equal(Object.keys(manyLinks.targets).filter((k) => k.startsWith('in')).length, 8)
 
 console.log('item-diagrams: ok')

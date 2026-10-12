@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, ArrowLeftRight, ArrowRight, FileQuestion, Unlink, Waypoints } from "lucide-react"
@@ -15,6 +15,8 @@ import type { DocLinksData } from "./useDocLinks"
 import { LinkPreview, type PreviewTarget } from "./LinkPreview"
 import { flashElement, revealLink } from "./MarkdownRenderer"
 import { useT } from "@/context/LanguageContext"
+import { DerivedDiagram } from "@/components/shared/DerivedDiagram"
+import { docLinkMermaid } from "@/lib/item-diagrams"
 
 /** Label Caps (DESIGN.md): mono 10px/500, 0.06em, uppercase. */
 const LABEL_CAPS = "flex items-center font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted"
@@ -76,6 +78,10 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
     seen.current = next
   }, [links, board])
 
+  const openRow = (r: LinkRow) => {
+    const kind = (NODE_KINDS.has(r.kind) ? r.kind : "doc") as NodeKind
+    open({ id: idOf(r), kind, label: r.label, path: r.path })
+  }
   const row = (r: MergedLinkRow) => {
     const kind = (NODE_KINDS.has(r.kind) ? r.kind : "doc") as NodeKind
     const id = idOf(r)
@@ -191,6 +197,7 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
       <LinkPreview containerRef={ref} resolve={previewOf} />
       {!links ? <p className="text-xs text-muted">{t("docs.loadingLinks")}</p> : (
         <div className="flex flex-col gap-5">
+          {path && <LinkMap path={path} rows={rows} broken={links.broken} onOpenRow={(r) => { openRow(r); onNavigate?.() }} onMore={() => { router.push(graphHref(path)); onNavigate?.() }} />}
           {linked(rows)}
           {missSection(t("docs.broken"), links.broken, true)}
           {missSection(t("docs.stalePaths"), links.stale, false)}
@@ -202,6 +209,35 @@ export function LinkedDocs({ links, path, onNavigate }: { links: DocLinksData | 
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/** T522: the open doc between what links to it (left) and what it links to (right); clicking a file opens it. */
+function LinkMap({ path, rows, broken, onOpenRow, onMore }: {
+  path: string
+  rows: MergedLinkRow[]
+  broken: LinkRow[]
+  onOpenRow: (r: LinkRow) => void
+  onMore: () => void
+}) {
+  const { t } = useT()
+  const self = path.split("/").pop()?.replace(/\.md$/i, "") ?? path
+  const { source, targets } = useMemo(
+    () => docLinkMermaid(self, rows.map((r) => ({ path: r.path, label: r.label, id: idOf(r), direction: r.direction })), broken.map((b) => b.path)),
+    [self, rows, broken],
+  )
+  const byPath = useMemo(() => new Map(rows.map((r) => [r.path, r])), [rows])
+  const isLink = useCallback((id: string) => id in targets, [targets])
+  const onOpen = useCallback((id: string) => {
+    const target = targets[id]
+    if (target === "more") onMore()
+    else if (target) { const r = byPath.get(target); if (r) onOpenRow(r) }
+  }, [targets, byPath, onOpenRow, onMore])
+  if (rows.length === 0 && broken.length === 0) return null
+  return (
+    <div data-link-map>
+      <DerivedDiagram source={source} label={t("docs.linkMap")} onOpen={onOpen} isLink={isLink} />
     </div>
   )
 }

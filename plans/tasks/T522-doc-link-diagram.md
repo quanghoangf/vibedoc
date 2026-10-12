@@ -1,5 +1,8 @@
 # T522: Doc link mini graph
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude
+**Started:** 2026-10-12
+**Done:** 2026-10-12
 **Phase:** R097 — Diagrams from project data
 **Size:** M (2–3 hrs)
 **Depends on:** T520
@@ -39,6 +42,9 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/derived-diagrams.mjs
 ```
 
 ## Manual tests
+_Auto: `e2e/derived-diagrams.mjs` passed 2026-10-12 (items below marked [x] are what it proved). `item-diagrams` + `i18n` checks, `pnpm build` ok, lint 10 errors (baseline); `docs-links` (locators scoped to the list rows, the map names the same files) and `visual-docs` e2e pass._
+
+_Notes: top to bottom (inbound above, the doc, outbound + broken below), not left to right: the panel is an 18rem column and three columns didn't fit. Labels cut at 20 characters. Shape by kind wasn't needed: items show their id (`T001 · …`)._
 ### Steps
-- [ ] S3 — WHEN a doc is opened → THEN a small graph shows the docs linking to it and the docs it links to
+- [x] S3 — WHEN a doc is opened → THEN a small graph shows the docs linking to it and the docs it links to
 - [ ] Phone width: the Linked docs sheet shows the graph without horizontal scroll

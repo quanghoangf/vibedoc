@@ -81,7 +81,7 @@ try {
 
   // 1. Click through a → b; b's panel lists a once, both ways
   await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/a.md")}`)
-  await panel.getByText("Charlie").waitFor() // links data loaded
+  await panel.locator("[data-preview-path]").getByText("Charlie").waitFor() // links data loaded
   await doc.getByRole("link", { name: "b", exact: true }).click()
   await page.locator("h1", { hasText: "Bravo" }).first().waitFor()
   // a ↔ b link both ways: one row for a, marked both; the filter counts unique files
@@ -105,7 +105,7 @@ try {
   // a is one click away from b's panel
   await aRow.click()
   await page.locator("h1", { hasText: "Alpha" }).first().waitFor()
-  await panel.getByText("Charlie").waitFor()
+  await panel.locator("[data-preview-path]").getByText("Charlie").waitFor()
 
   // 2. Broken link is muted; hovering a resolved link shows its preview
   const broken = doc.locator("a[data-broken]")
@@ -373,7 +373,7 @@ try {
 
   // 8. T111: Show in graph from a doc → /graph selected on it with Focus 1 (d is 2 hops away, so it's cut)
   await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/a.md")}`)
-  await panel.getByText("Charlie").waitFor()
+  await panel.locator("[data-preview-path]").getByText("Charlie").waitFor()
   assert.equal(await panel.getByRole("link", { name: "Show in graph" }).getAttribute("href"), "/graph?node=docs%2Fa.md&focus=1")
   await page.getByRole("link", { name: "Show in graph" }).first().click()
   await page.waitForURL(/\/graph\?node=docs%2Fa\.md&focus=1/)

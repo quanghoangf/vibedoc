@@ -44,8 +44,8 @@ const GLYPH: Record<string, string> = { todo: "○", "in-progress": "◐", revie
 const MAX_TITLE = 32
 
 /** Text inside a Mermaid `["…"]` label: quotes and angle brackets as entities, long titles cut. */
-function label(s: string): string {
-  const cut = s.length > MAX_TITLE ? s.slice(0, MAX_TITLE - 1).trimEnd() + "…" : s
+function label(s: string, max = MAX_TITLE): string {
+  const cut = s.length > max ? s.slice(0, max - 1).trimEnd() + "…" : s
   return cut.replace(/&/g, "#amp;").replace(/"/g, "#quot;").replace(/</g, "#lt;").replace(/>/g, "#gt;")
 }
 
@@ -106,4 +106,30 @@ export function epicGraphMermaid(g: EpicGraph): string {
   for (const n of g.tasks) lines.push(`  class ${n.id} st-${n.status}`)
   for (const s of g.scenarios) lines.push(`  class ${s.id} sc-${s.covered ? s.status : 'uncovered'}`)
   return lines.join('\n')
+}
+
+export interface LinkedFile { path: string; label: string; id: string; direction: 'in' | 'out' | 'both' }
+export const LINK_CAP = 8
+// the side panel is 18rem: two short labels side by side fit at 75%
+const LINK_TITLE = 20
+
+/**
+ * A doc's links as `flowchart TB` (it lives in an 18rem column): files linking to it above, the doc in the middle
+ * (the accent), files it links to below (`<-->` when both ways), broken links dashed below. At most `cap` per side, the rest
+ * a "+N more" node. `targets` maps each clickable node id to its file path, or "more" for the overflow nodes.
+ */
+export function docLinkMermaid(selfLabel: string, files: LinkedFile[], broken: string[], cap = LINK_CAP): { source: string; targets: Record<string, string> } {
+  const left = files.filter((f) => f.direction === 'in')
+  const right = files.filter((f) => f.direction !== 'in')
+  const lines = ['flowchart TB', `  self["${label(selfLabel, LINK_TITLE)}"]`]
+  const targets: Record<string, string> = {}
+  const text = (f: LinkedFile) => label(f.id !== f.path ? `${f.id} · ${f.label}` : f.label, LINK_TITLE)
+  left.slice(0, cap).forEach((f, i) => { lines.push(`  in${i}["${text(f)}"] --> self`); targets[`in${i}`] = f.path })
+  right.slice(0, cap).forEach((f, i) => { lines.push(`  self ${f.direction === 'both' ? '<-->' : '-->'} out${i}["${text(f)}"]`); targets[`out${i}`] = f.path })
+  broken.slice(0, Math.max(0, cap - right.length)).forEach((b, i) => lines.push(`  self -.-> broken${i}["${label(b.split('/').pop() ?? b, LINK_TITLE)}"]`, `  class broken${i} st-missing`))
+  const moreIn = left.length - cap, moreOut = right.length + broken.length - cap
+  if (moreIn > 0) { lines.push(`  morein["+${moreIn} more"] -.- self`); targets.morein = 'more' }
+  if (moreOut > 0) { lines.push(`  self -.- moreout["+${moreOut} more"]`); targets.moreout = 'more' }
+  lines.push('  class self accent')
+  return { source: lines.join('\n'), targets }
 }

@@ -5,12 +5,13 @@
 //   S2/S4 (T521). an epic shows its tasks (dependency order) and scenarios, a dotted edge per covered scenario,
 //         scenarios coloured passed / unproven / uncovered; a task node opens the task beside the pane, a scenario node
 //         scrolls to and flashes its row; a task status change recolours the map live
+//   S3 (T522). a doc's Linked docs panel opens with a link map: files linking to it above, files it links to below, a broken link dashed; clicking a file opens it in /docs
 // Fails on any browser console error. The fixture is a fresh mktemp project.
 //
 //   PORT=3189 pnpm dev   # then:
 //   BASE=http://localhost:3189 PW_DIR=<dir with node_modules/playwright> node e2e/derived-diagrams.mjs
 import assert from "node:assert/strict"
-import { rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
@@ -27,6 +28,12 @@ writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), [
   "Body.", "", "## Scenarios", "### S1: Log in", "- WHEN a user logs in", "- THEN they see the board",
   "### S2: Log out", "- WHEN they log out", "- THEN they see the login page", "### S3: Reset", "- WHEN they reset", "- THEN a mail goes out", "",
 ].join("\n"))
+
+mkdirSync(path.join(fx, "docs"), { recursive: true })
+writeFileSync(path.join(fx, "docs/hub.md"), "# Hub\n\nSee [out](out.md) and [gone](gone.md).\n")
+writeFileSync(path.join(fx, "docs/out.md"), "# Outbound\n\nNothing.\n")
+writeFileSync(path.join(fx, "docs/a.md"), "# Alpha\n\nBack to [hub](hub.md).\n")
+writeFileSync(path.join(fx, "docs/b.md"), "# Beta\n\nAlso [hub](hub.md).\n")
 
 const browser = await launchChrome()
 const errors = []
@@ -116,6 +123,25 @@ try {
   await fetch(`${BASE}/api/tasks?root=${encodeURIComponent(fx)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId: "T003", status: "in-progress" }) })
   await page.waitForFunction(() => /\bst-in-progress\b/.test(document.querySelector('[data-epic-diagram] g.node[id*="flowchart-T003-"]')?.getAttribute("class") ?? ""), null, { timeout: 15000 })
   console.log("ok  S4: a task status change recolours the epic map live")
+
+  // S3: the link map in the Linked docs panel
+  await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/hub.md")}`)
+  const linksBtn = page.getByRole("button", { name: /^Linked docs/ }).locator("visible=true").first()
+  if ((await linksBtn.getAttribute("aria-pressed")) !== "true") await linksBtn.click()
+  const lmap = page.locator("[data-link-map]").locator("visible=true").first()
+  const lnode = (id) => lmap.locator(`g.node[id*="flowchart-${id}-"]`)
+  await lnode("self").waitFor()
+  assert.equal(await lmap.locator("g.node").count(), 5, "hub + 2 inbound + 1 outbound + 1 broken")
+  assert.match(await lnode("self").getAttribute("class"), /\baccent\b/)
+  assert.match(await lnode("broken0").getAttribute("class"), /\bst-missing\b/)
+  assert.equal(await lmap.locator('g.node[role="link"]').count(), 3, "files are links; the doc itself and broken ones are not")
+  const ys = async (id) => (await lnode(id).boundingBox()).y
+  assert.ok((await ys("in0")) < (await ys("self")) && (await ys("self")) < (await ys("out0")), "inbound above, outbound below")
+  assert.match(await lnode("out0").textContent(), /Outbound/)
+  await lnode("out0").click()
+  await page.waitForURL(/doc=docs%2Fout\.md|doc=docs\/out\.md/)
+  await page.getByRole("heading", { level: 1, name: "Outbound" }).first().waitFor()
+  console.log("ok  S3: the link map shows 2 inbound, 1 outbound and 1 broken link; clicking a file opens it")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("\nderived-diagrams: all checks passed")
