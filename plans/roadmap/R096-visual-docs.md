@@ -1,6 +1,6 @@
 # R096: Visual docs
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 370
 **Tasks:** T513, T514, T515, T516, T517, T518, T519
 

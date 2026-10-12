@@ -248,6 +248,20 @@ body {
 .prose-dark .md-alert[data-alert="caution"] { --alert: var(--color-danger); }
 .prose-dark .md-alert-title { font-family: var(--font-mono); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--alert); margin-bottom: 0.25rem; }
 .prose-dark .md-alert > :last-child { margin-bottom: 0; }
+/* Visual blocks (R096): a list under <!-- vibedoc:steps|cards --> as cards; steps stack with a Pencil Grey arrow, cards tile */
+.prose-dark .md-visual { margin: 1rem 0; }
+.prose-dark .md-visual > ol, .prose-dark .md-visual > ul { list-style: none; padding: 0; margin: 0; }
+.prose-dark .md-visual li { margin: 0; color: inherit; }
+.prose-dark .md-visual-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; padding: 0.65rem 0.9rem; min-width: 0; height: 100%; }
+.prose-dark .md-visual-icon { display: block; font-size: 1.15rem; line-height: 1; margin-bottom: 0.4rem; }
+.prose-dark .md-visual-title { display: block; color: var(--color-txt); font-weight: 600; font-size: 0.875rem; line-height: 1.4; }
+.prose-dark .md-visual-body { font-size: 0.875rem; color: color-mix(in srgb, var(--color-txt) 55%, var(--color-muted)); line-height: 1.6; }
+.prose-dark .md-visual-detail { margin-top: 0.35rem; font-size: 0.8rem; color: var(--color-muted); line-height: 1.6; }
+.prose-dark .md-visual-detail > :last-child { margin-bottom: 0; }
+.prose-dark .md-visual-detail p, .prose-dark .md-visual-detail li { font-size: inherit; color: inherit; margin-bottom: 0.25rem; }
+.prose-dark .md-visual-arrow { display: block; margin: 0.3rem auto; color: var(--color-muted); }
+.prose-dark .md-visual[data-visual="cards"] > ul, .prose-dark .md-visual[data-visual="cards"] > ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: 0.75rem; }
+@media (max-width: 480px) { .prose-dark .md-visual[data-visual="cards"] > ul, .prose-dark .md-visual[data-visual="cards"] > ol { grid-template-columns: 1fr; } }
 .prose-dark a { color: var(--color-accent); text-decoration: none; }
 .prose-dark a:hover { text-decoration: underline; }
 .prose-dark a[data-wiki] { cursor: pointer; }
