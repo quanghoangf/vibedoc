@@ -1,11 +1,11 @@
 # T513: Mermaid in VibeDoc's own style, errors shown inline
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R096 — Visual docs
 **Size:** M (2–3 hrs)
 **Covers:** S1
 
 ## Goal
-```mermaid diagrams in docs render with VibeDoc's design tokens (DESIGN.md "Lab Notebook": hairlines, one accent, mono labels) in light and dark, instead of Mermaid's stock `neutral` / `dark` themes. A diagram with a syntax error shows the error and its source in place, not a blank box and a console line.
+`` ```mermaid `` diagrams in docs render with VibeDoc's design tokens (DESIGN.md "Lab Notebook": hairlines, one accent, mono labels) in light and dark, instead of Mermaid's stock `neutral` / `dark` themes. A diagram with a syntax error shows the error and its source in place, not a blank box and a console line.
 
 ## Context
 - Epic: `plans/roadmap/R096-visual-docs.md`
@@ -44,8 +44,13 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/visual-docs.mjs
 ```
 
 ## Manual tests
+_Auto: `e2e/visual-docs.mjs` passed 2026-10-12 (items marked [x] are what it proved); `e2e/richer-markdown.mjs` passed (regression). `node src/lib/mermaid-theme.check.mts` + `pnpm build` ok, lint 10 errors (baseline, none in the touched files). Mermaid parse errors show their first and last line ("Parse error on line N: Expecting …"), not the first alone: the first line says only where. Edges use the muted ink, not the rule line: a rule-line arrow is 1.4:1 on white._
 ### Steps
-- [ ] S1 — WHEN a doc has a ```mermaid flowchart → THEN it renders with VibeDoc's tokens (hairlines, one accent) in light and dark, matching the rest of the page
+- [x] S1 — WHEN a doc has a ```mermaid flowchart → THEN it renders with VibeDoc's tokens (hairlines, one accent) in light and dark, matching the rest of the page
+- [x] Put a broken ```mermaid block in a doc → a red callout shows "Parse error on line N: Expecting …" and the source; the other diagrams on the page still render
+- [ ] Switch Settings → Appearance between light and dark with a doc open → its diagrams re-colour without a reload
 - [ ] Open docs/architecture/02-high-level-design/HLD.md → its sequence diagrams read clearly in light and dark
+- [ ] In a flowchart, add `class B accent` → node B gets the accent border, nothing else does
 ### Regression risk
-- [ ] Code tabs, alerts and a plain code block on the same page render as before
+- [x] Code tabs, alerts and a plain code block on the same page render as before
+- [ ] Typing in Split mode on a doc with a diagram → the preview diagram updates after a pause and doesn't flicker on every keystroke

@@ -371,7 +371,17 @@ body {
 
 /* Mermaid diagrams */
 .mermaid { margin: 1rem 0; text-align: center; }
-.mermaid svg { max-width: 100%; height: auto; border-radius: 8px; }
+/* Diagrams in the notebook's own ink (R096, theme from src/lib/mermaid-theme.ts): flat, ruled, on the page itself */
+.mermaid svg { max-width: 100%; height: auto; background: transparent !important; }
+/* themeVariables.dropShadow covers most diagrams; sequence actors point at the svg's own shadow filter regardless */
+.mermaid svg * { filter: none !important; }
+.mermaid .edgeLabel, .mermaid .edgeLabel rect, .mermaid .labelBkg { background-color: rgb(var(--rgb-bg)) !important; fill: rgb(var(--rgb-bg)) !important; }
+/* the one accent: `class A accent` (or `A:::accent`) in a flowchart marks the node that matters */
+.mermaid .node.accent :is(rect, polygon, circle, path) { stroke: rgb(var(--rgb-accent)) !important; stroke-width: 1.5px !important; }
+/* a diagram that won't parse: the CAUTION alert's tones (R089), the error and the source in place */
+.mermaid-error { --alert: var(--color-danger); text-align: left; border-left: 3px solid var(--alert); background: color-mix(in srgb, var(--alert) 8%, transparent); border-radius: 0 8px 8px 0; padding: 0.6rem 1rem; }
+.mermaid-error-message { font-family: var(--font-mono); font-size: 12px; color: var(--alert); margin: 0 0 0.5rem; }
+.mermaid-error pre { margin: 0; font-size: 12px; white-space: pre-wrap; }
 
 /* Board view switch (BoardTab → document.startViewTransition): the tab underline glides, the view settles in.
    The reduced-motion rule above turns every view-transition pseudo-element off. */
