@@ -23,6 +23,7 @@ import { parseScenarios, scenarioStatus, type ScenarioTask } from "@/lib/scenari
 import { parseManualTests } from "@/lib/manual-tests";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
+import { epicGraph, formatEpicMap, formatTaskDeps } from "@/lib/item-diagrams";
 import { formatLint } from "@/lib/doc-lint";
 import { formatAgentHeader, forAgent } from "@/lib/audience";
 import { failedRunNote } from "@/lib/work-queue";
@@ -379,7 +380,9 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
     case "vibedoc_get_task": {
       const task = await getTask(String(args.taskId), root);
-      return `## ${task.file}\n\n${task.raw}` +
+      // R097: what it waits on / what waits on it, the text of the panel's dependency diagram
+      const deps = formatTaskDeps(task.id, (await listTasks(root)).tasks);
+      return `## ${task.file}\n\n${task.raw}` + withGap(deps) +
         (task.verification?.outdated ? "\n\n⚠️ The Verification findings above are outdated: commits for this task landed after them. Re-verify with vibedoc_verify_context." : "") +
         withGap(await relatedEntries(task, root)) + withGap(await relatedSpecs(task, root));
     }
@@ -767,6 +770,16 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         (atRisk.has(i.id) ? " ⚠ at risk" : "") + scenarioLine(i) +
         // R069: a human merges them from the epic sheet; agents don't
         (i.status === "done" && !i.specMerged && parseSpecChanges(i.body).length ? " · spec changes not merged (a human merges them on the epic sheet)" : "");
+      // T523: one item. An epic → its line + the map (tasks in dependency order, covers, scenarios); a horizon → its section
+      if (typeof args.id === "string" && args.id.trim()) {
+        const want = args.id.trim().toUpperCase();
+        const item = items.find((i) => i.id.toUpperCase() === want);
+        if (!item) throw new Error(`No roadmap item ${args.id}. Call vibedoc_get_roadmap without id for the list.`);
+        if (item.parent === null) return [`### ${fmt(item)}`, ...items.filter((i) => i.parent === item.id).map((c) => `- ${fmt(c)}`)].join("\n");
+        const scenarios = item.scenarios.map((sc) => ({ id: sc.id, name: sc.name, status: scenarioStatus(sc.id, evidence.filter((t) => item.tasks.includes(t.id))).status }));
+        const map = formatEpicMap(epicGraph(item.tasks, allTasks.map((t) => ({ id: t.id, title: t.title, status: t.status, dependsOn: t.dependsOn, covers: t.covers ?? [] })), scenarios));
+        return `### ${fmt(item)}\n\n${map}`;
+      }
       const horizons = items.filter((i) => i.parent === null);
       const lines = ["## Roadmap"];
       for (const h of horizons) {

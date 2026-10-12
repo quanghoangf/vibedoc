@@ -171,7 +171,7 @@ export const TOOLS = [
   {
     name: "vibedoc_get_task",
     description:
-      "Read a specific task file including scope, criteria, and definition of done.",
+      "Read a specific task file including scope, criteria, and definition of done. Ends with ## Dependencies (what it waits on and what waits on it, with statuses) when it has any.",
     inputSchema: {
       type: "object",
       properties: {
@@ -692,8 +692,8 @@ export const TOOLS = [
   {
     name: "vibedoc_get_roadmap",
     description:
-      "Get the product roadmap: horizons (spine nodes, e.g. v2.0) with their nested feature items, statuses and linked tasks.",
-    inputSchema: { type: "object", properties: {}, required: [] },
+      "Get the product roadmap: horizons (spine nodes, e.g. v2.0) with their nested feature items, statuses and linked tasks. Pass id for one item: an epic returns its tasks in dependency order with the scenarios each covers and every scenario's status (passed / failed / unproven), a horizon its epics.",
+    inputSchema: { type: "object", properties: { id: { type: "string", description: "A roadmap item id (e.g. R097) to get only that item" } }, required: [] },
   },
   {
     name: "vibedoc_create_roadmap_item",

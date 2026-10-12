@@ -1,6 +1,6 @@
 # R097: Diagrams from project data
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 380
 **Tasks:** T520, T521, T522, T523
 

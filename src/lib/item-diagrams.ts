@@ -133,3 +133,56 @@ export function docLinkMermaid(selfLabel: string, files: LinkedFile[], broken: s
   lines.push('  class self accent')
   return { source: lines.join('\n'), targets }
 }
+
+// --- the same structure as text, for agents (T523): MCP replies, never Mermaid (lines are cheaper to read) ---
+
+/** `## Dependencies` for vibedoc_get_task: what the task waits on and what waits on it; "" when neither. */
+export function formatTaskDeps(id: string, tasks: DiagramTask[]): string {
+  const byId = new Map(tasks.map((t) => [t.id, t]))
+  const focus = byId.get(id)
+  if (!focus) return ''
+  const one = (tid: string) => {
+    const t = byId.get(tid)
+    return t ? `${tid} ${GLYPH[t.status] ?? '○'} ${t.status} (${t.title})` : `${tid} (no task file)`
+  }
+  const waits = depIdsOf(focus.dependsOn).filter((d) => d !== id)
+  const blocks = tasks.filter((t) => t.id !== id && depIdsOf(t.dependsOn).includes(id)).map((t) => t.id)
+  if (waits.length === 0 && blocks.length === 0) return ''
+  const lines = ['## Dependencies']
+  if (waits.length) lines.push(`Waits on: ${waits.map(one).join(' · ')}`)
+  if (blocks.length) lines.push(`Blocks: ${blocks.map(one).join(' · ')}`)
+  return lines.join('\n')
+}
+
+/** Tasks in dependency order (a task after the ones it waits on inside the epic; ties keep the epic's order). */
+export function dependencyOrder(g: EpicGraph): DepNode[] {
+  const placed = new Set<string>()
+  const out: DepNode[] = []
+  const waitsOn = (id: string) => g.deps.filter(([, b]) => b === id).map(([a]) => a)
+  while (out.length < g.tasks.length) {
+    const next = g.tasks.find((t) => !placed.has(t.id) && waitsOn(t.id).every((d) => placed.has(d)))
+      // a cycle: take the first one left so the list still ends
+      ?? g.tasks.find((t) => !placed.has(t.id))!
+    placed.add(next.id)
+    out.push(next)
+  }
+  return out
+}
+
+/** The epic map for vibedoc_get_roadmap { id }: tasks in dependency order with what they cover, then the scenarios. */
+export function formatEpicMap(g: EpicGraph): string {
+  if (g.tasks.length === 0 && g.scenarios.length === 0) return 'No tasks yet.'
+  const lines = ['Tasks (dependency order):']
+  for (const t of dependencyOrder(g)) {
+    const after = g.deps.filter(([, b]) => b === t.id).map(([a]) => a)
+    const covers = g.covers.filter(([a]) => a === t.id).map(([, s]) => s)
+    lines.push(`- ${GLYPH[t.status ?? ''] ?? '○'} ${t.id} ${t.title} — ${t.status}` + (after.length ? ` · after ${after.join(', ')}` : '') + (covers.length ? ` · covers ${covers.join(', ')}` : ''))
+  }
+  if (g.tasks.length === 0) lines.push('- (none)')
+  if (g.scenarios.length) {
+    lines.push(`Scenarios: ${g.scenarios.map((s) => `${SC_GLYPH[s.status]} ${s.id} ${s.name} — ${s.status}`).join(' · ')}`)
+    const uncovered = g.scenarios.filter((s) => !s.covered).map((s) => s.id)
+    if (uncovered.length) lines.push(`Not covered by any task: ${uncovered.join(', ')}`)
+  }
+  return lines.join('\n')
+}

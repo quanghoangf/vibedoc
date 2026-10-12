@@ -6,6 +6,8 @@
 //         scenarios coloured passed / unproven / uncovered; a task node opens the task beside the pane, a scenario node
 //         scrolls to and flashes its row; a task status change recolours the map live
 //   S3 (T522). a doc's Linked docs panel opens with a link map: files linking to it above, files it links to below, a broken link dashed; clicking a file opens it in /docs
+//   S5 (T523). vibedoc_get_task ends with ## Dependencies (both sides with statuses); vibedoc_get_roadmap { id } gives
+//         an epic's tasks in dependency order with covers and scenario statuses; without id the reply is unchanged
 // Fails on any browser console error. The fixture is a fresh mktemp project.
 //
 //   PORT=3189 pnpm dev   # then:
@@ -123,6 +125,25 @@ try {
   await fetch(`${BASE}/api/tasks?root=${encodeURIComponent(fx)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId: "T003", status: "in-progress" }) })
   await page.waitForFunction(() => /\bst-in-progress\b/.test(document.querySelector('[data-epic-diagram] g.node[id*="flowchart-T003-"]')?.getAttribute("class") ?? ""), null, { timeout: 15000 })
   console.log("ok  S4: a task status change recolours the epic map live")
+
+  // S5: the same structure as text over MCP
+  const mcp = async (name, args) => {
+    const r = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(fx)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }) })
+    const j = await r.json()
+    return j.result?.content?.[0]?.text ?? JSON.stringify(j)
+  }
+  const got = await mcp("vibedoc_get_task", { taskId: "T002" })
+  assert.match(got, /\n## Dependencies\nWaits on: T001 ✓ done \(First task\) · T099 \(no task file\)\nBlocks: T003 ◐ in-progress \(Third task\)/)
+  assert.doesNotMatch(await mcp("vibedoc_get_task", { taskId: "T004" }), /## Dependencies/, "nothing for a task without links")
+  const epic = await mcp("vibedoc_get_roadmap", { id: "r002" })
+  assert.match(epic, /^### ◐ \*\*R002\*\* Epic/)
+  assert.match(epic, /Tasks \(dependency order\):\n- ✓ T001 First task — done · covers S1\n- ◑ T002 Second task — review · after T001 · covers S2\n- ◐ T003 Third task — in-progress · after T002/)
+  assert.match(epic, /Scenarios: ✓ S1 Log in — passed · \? S2 Log out — unproven · \? S3 Reset — unproven\nNot covered by any task: S3/)
+  const all = await mcp("vibedoc_get_roadmap", {})
+  assert.match(all, /^## Roadmap/)
+  assert.doesNotMatch(all, /dependency order/, "no id → the overview as before")
+  assert.match(await mcp("vibedoc_get_roadmap", { id: "R404" }), /No roadmap item R404/)
+  console.log("ok  S5: get_task ends with ## Dependencies; get_roadmap {id} gives the epic map as text")
 
   // S3: the link map in the Linked docs panel
   await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/hub.md")}`)

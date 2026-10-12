@@ -1,5 +1,8 @@
 # T523: Agents get the same structure as text; close R097
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude
+**Started:** 2026-10-12
+**Done:** 2026-10-12
 **Phase:** R097 — Diagrams from project data
 **Size:** M (2–3 hrs)
 **Depends on:** T520, T521
@@ -49,5 +52,6 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/derived-diagrams.mjs
 ```
 
 ## Manual tests
+_Auto: `e2e/derived-diagrams.mjs` passed 2026-10-12, Done-when end to end (task, epic and doc diagrams, live updates, MCP text). `item-diagrams` check, `pnpm build`, `pnpm --dir site test` (40 passed) ok, lint 10 errors (baseline); `scenarios` e2e passes. R097 stays in-progress until its tasks are approved._
 ### Steps
-- [ ] S5 — WHEN an agent calls `vibedoc_get_task` or `vibedoc_get_roadmap` → THEN the reply includes the dependency / coverage structure as compact text
+- [x] S5 — WHEN an agent calls `vibedoc_get_task` or `vibedoc_get_roadmap` → THEN the reply includes the dependency / coverage structure as compact text

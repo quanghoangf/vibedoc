@@ -1,6 +1,6 @@
 // node src/lib/item-diagrams.check.mts
 import assert from 'node:assert/strict'
-import { depGraphMermaid, depIdsOf, docLinkMermaid, epicGraph, epicGraphMermaid, taskNeighbourhood, type DiagramTask } from './item-diagrams.ts'
+import { dependencyOrder, depGraphMermaid, depIdsOf, docLinkMermaid, epicGraph, epicGraphMermaid, formatEpicMap, formatTaskDeps, taskNeighbourhood, type DiagramTask } from './item-diagrams.ts'
 
 const T = (id: string, dependsOn = '', status = 'todo', title = `Task ${id}`): DiagramTask => ({ id, title, status, dependsOn })
 
@@ -110,5 +110,28 @@ assert.match(manyLinks.source, /morein\["\+2 more"\] -\.- self/)
 assert.doesNotMatch(manyLinks.source, /moreout/, '1 out + 2 broken fit in 8')
 assert.equal(manyLinks.targets.morein, 'more')
 assert.equal(Object.keys(manyLinks.targets).filter((k) => k.startsWith('in')).length, 8)
+
+// MCP text: get_task's ## Dependencies (both sides, statuses, missing files), nothing without links
+const tt = [T('T1', '', 'done', 'One'), T('T2', 'T1, T99', 'review', 'Two'), T('T3', 'T2', 'todo', 'Three'), T('T4')]
+assert.equal(formatTaskDeps('T2', tt), '## Dependencies\nWaits on: T1 ✓ done (One) · T99 (no task file)\nBlocks: T3 ○ todo (Three)')
+assert.equal(formatTaskDeps('T3', tt), '## Dependencies\nWaits on: T2 ◑ review (Two)')
+assert.equal(formatTaskDeps('T4', tt), '')
+assert.equal(formatTaskDeps('T9', tt), '')
+
+// epic map text: dependency order (T3 listed first in the epic but waits on T1), covers, scenarios, uncovered
+const og = epicGraph(['T3', 'T1', 'T2'], [E('T1', '', 'done', ['S1']), E('T2', '', 'todo', []), E('T3', 'T1', 'in-progress', ['S1', 'S2'])],
+  [{ id: 'S1', name: 'Login', status: 'passed' }, { id: 'S2', name: 'Logout', status: 'unproven' }, { id: 'S3', name: 'Reset', status: 'unproven' }])
+assert.deepEqual(dependencyOrder(og).map((t) => t.id), ['T1', 'T3', 'T2'])
+assert.equal(formatEpicMap(og), [
+  'Tasks (dependency order):',
+  '- ✓ T1 Task T1 — done · covers S1',
+  '- ◐ T3 Task T3 — in-progress · after T1 · covers S1, S2',
+  '- ○ T2 Task T2 — todo',
+  'Scenarios: ✓ S1 Login — passed · ? S2 Logout — unproven · ? S3 Reset — unproven',
+  'Not covered by any task: S3',
+].join('\n'))
+// a cycle still lists every task once
+assert.equal(dependencyOrder(epicGraph(['T1', 'T2'], [E('T1', 'T2', 'todo', []), E('T2', 'T1', 'todo', [])], [])).length, 2)
+assert.equal(formatEpicMap(epicGraph([], [], [])), 'No tasks yet.')
 
 console.log('item-diagrams: ok')
