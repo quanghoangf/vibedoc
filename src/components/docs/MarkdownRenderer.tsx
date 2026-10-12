@@ -17,6 +17,7 @@ import { LinkPreview } from "./LinkPreview"
 import { useCodeTabs } from "./code-tabs"
 import { tNow } from "@/context/LanguageContext"
 import { resolveImageSrc } from "@/lib/attachments"
+import { MERMAID_TOKENS, mermaidThemeVariables, type MermaidTokens } from "@/lib/mermaid-theme"
 
 // Configure marked for GitHub Flavored Markdown
 marked.setOptions({
@@ -62,6 +63,30 @@ marked.use({
     }
   }
 })
+
+/** The design tokens Mermaid's themeVariables are built from, as computed now (follows .dark and the font setting). */
+function readTokens(): MermaidTokens {
+  const css = getComputedStyle(document.documentElement)
+  const tokens: MermaidTokens = { fontMono: css.getPropertyValue("--app-font-mono") }
+  for (const k of MERMAID_TOKENS) tokens[k] = css.getPropertyValue(`--rgb-${k}`)
+  return tokens
+}
+
+/** A diagram that won't parse: its error (first line) and its source, in place of the diagram. */
+function showMermaidError(node: HTMLElement, src: string, e: unknown) {
+  const box = document.createElement("div")
+  box.className = "mermaid-error"
+  box.setAttribute("role", "note")
+  const msg = document.createElement("p")
+  msg.className = "mermaid-error-message"
+  // a parse error is "Parse error on line N:", the source line, a ^ pointer, then "Expecting …": keep the first and last
+  const lines = String((e as { message?: unknown })?.message ?? e).split("\n").map((l) => l.trim()).filter(Boolean)
+  msg.textContent = lines.length > 1 ? `${lines[0]} ${lines[lines.length - 1]}` : (lines[0] ?? "")
+  const pre = document.createElement("pre")
+  pre.textContent = src
+  box.append(msg, pre)
+  node.replaceChildren(box)
+}
 
 const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
@@ -156,28 +181,53 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
     if (!container) return
 
     let cancelled = false
+    let pass = 0 // a newer pass (theme switch) supersedes an unfinished one
+
+    // all: a theme switch re-renders the diagrams already drawn, from the source kept in data-source
+    const render = async (all: boolean) => {
+      const m = await import("mermaid")
+      if (cancelled || !container.isConnected) return
+      // Query AFTER the async import resolves — gets current DOM, not stale snapshot
+      const nodes = Array.from(container.querySelectorAll<HTMLElement>(all ? ".mermaid" : ".mermaid:not([data-processed])"))
+      if (nodes.length === 0) return
+      const mine = ++pass
+      // claim every node before the first await, so a pass started meanwhile neither re-takes nor drops them
+      for (const node of nodes) {
+        node.dataset.source ??= node.textContent ?? ""
+        node.dataset.processed = "true"
+      }
+      const dark = document.documentElement.classList.contains("dark")
+      m.default.initialize({ startOnLoad: false, theme: "base", themeVariables: mermaidThemeVariables(readTokens(), dark), securityLevel: "antiscript" })
+      for (const node of nodes) {
+        const src = node.dataset.source ?? ""
+        try {
+          // parse first: a bad diagram never reaches render, which would leave Mermaid's error graphic behind
+          await m.default.parse(src)
+          const { svg, bindFunctions } = await m.default.render(`mermaid-${mine}-${Math.random().toString(36).slice(2)}`, src)
+          if (cancelled || mine !== pass) return
+          node.innerHTML = svg
+          bindFunctions?.(node)
+        } catch (e) {
+          if (cancelled || mine !== pass) return
+          showMermaidError(node, src, e)
+        }
+      }
+    }
 
     // Debounce so rapid keystrokes (live preview) don't thrash mermaid
-    const timer = setTimeout(() => {
-      if (cancelled) return
-      import("mermaid").then((m) => {
-        if (cancelled || !container.isConnected) return
-        // Query AFTER the async import resolves — gets current DOM, not stale snapshot
-        const nodes = Array.from(
-          container.querySelectorAll<HTMLElement>(".mermaid:not([data-processed])")
-        )
-        if (nodes.length === 0) return
-        const dark = document.documentElement.classList.contains("dark")
-        m.default.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral", darkMode: dark, securityLevel: "antiscript" })
-        // Do NOT suppress errors — suppressing causes mermaid to silently revert
-        // the diagram element back to showing raw source text on parse failure.
-        m.default.run({ nodes }).catch((e) => { console.error("[mermaid]", e) })
-      })
-    }, 120)
+    const timer = setTimeout(() => { if (!cancelled) void render(false) }, 120)
+    // <html class> also carries other flags: only a light/dark flip re-colours
+    let dark = document.documentElement.classList.contains("dark")
+    const mo = new MutationObserver(() => {
+      const now = document.documentElement.classList.contains("dark")
+      if (now !== dark) { dark = now; void render(true) }
+    })
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
 
     return () => {
       cancelled = true
       clearTimeout(timer)
+      mo.disconnect()
     }
   }, [html])
 
