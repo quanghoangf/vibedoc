@@ -373,6 +373,9 @@ export const en = {
   legendPlanned: "Planned: queued in dependency order",
   dueDate: "Due date",
   dueDateNone: "Due date (none set in these tasks)",
+  // Dependency diagram (R097, T520)
+  depDiagram: "Dependencies",
+  depDiagramOpen: "Open {title}",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -731,4 +734,7 @@ export const vi: Messages<typeof en> = {
   legendPlanned: "Đã lên kế hoạch: xếp theo thứ tự phụ thuộc",
   dueDate: "Hạn chót",
   dueDateNone: "Hạn chót (các việc này chưa đặt)",
+  // Dependency diagram (R097, T520)
+  depDiagram: "Phụ thuộc",
+  depDiagramOpen: "Mở {title}",
 }

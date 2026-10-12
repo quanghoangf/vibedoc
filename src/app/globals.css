@@ -416,6 +416,16 @@ body {
 :is(.mermaid, .diagram-stage) :is(.edgeLabel, .edgeLabel rect, .labelBkg) { background-color: rgb(var(--rgb-bg)) !important; fill: rgb(var(--rgb-bg)) !important; }
 /* the one accent: `class A accent` (or `A:::accent`) in a flowchart marks the node that matters */
 :is(.mermaid, .diagram-stage) .node.accent :is(rect, polygon, circle, path) { stroke: rgb(var(--rgb-accent)) !important; stroke-width: 1.5px !important; }
+/* R097 derived diagrams: a task node's status (the label's glyph says it too, so colour is never the only signal) */
+:is(.mermaid, .diagram-stage) .node.st-done :is(rect, polygon, path) { stroke: rgb(var(--rgb-teal)) !important; }
+:is(.mermaid, .diagram-stage) :is(.node.st-in-progress, .node.st-review) :is(rect, polygon, path) { stroke: rgb(var(--rgb-amber)) !important; }
+:is(.mermaid, .diagram-stage) .node.st-blocked :is(rect, polygon, path) { stroke: rgb(var(--rgb-danger)) !important; }
+:is(.mermaid, .diagram-stage) :is(.node.st-cancelled, .node.st-paused) { opacity: 0.6; }
+:is(.mermaid, .diagram-stage) .node.st-missing :is(rect, polygon, path) { stroke-dasharray: 4 3; }
+.derived-diagram .mermaid { margin: 0.25rem 0; text-align: left; }
+.derived-diagram g.node[role="link"]:focus-visible { outline: none; }
+.derived-diagram g.node[role="link"]:focus-visible :is(rect, polygon, path) { stroke: rgb(var(--rgb-accent)) !important; stroke-width: 2px !important; }
+.derived-diagram g.node[role="link"]:hover :is(rect, polygon, path) { fill: rgb(var(--rgb-surface2)) !important; }
 /* a diagram that won't parse: the CAUTION alert's tones (R089), the error and the source in place */
 .mermaid-error { --alert: var(--color-danger); text-align: left; border-left: 3px solid var(--alert); background: color-mix(in srgb, var(--alert) 8%, transparent); border-radius: 0 8px 8px 0; padding: 0.6rem 1rem; }
 .mermaid-error-message { font-family: var(--font-mono); font-size: 12px; color: var(--alert); margin: 0 0 0.5rem; }

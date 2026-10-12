@@ -19,6 +19,7 @@ import { DOCS_LIST_KEY } from "@/lib/shortcuts"
 import { stripFrontmatter } from "@/lib/doc-priority"
 import { parseMetaBlock, stripMetaBlock } from "@/lib/meta-block"
 import { DocProperties } from "./DocProperties"
+import { TaskDepsDiagram } from "@/components/shared/DerivedDiagram"
 import { graphHref } from "@/lib/doc-links"
 import { useT } from "@/context/LanguageContext"
 import { DocUsage } from "./DocUsage"
@@ -219,6 +220,7 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
               <DocProperties path={doc.path} content={raw} meta={meta} lastEdit={lastEdit} words={stats.words} minutes={stats.minutes} />
             </div>
             <DocUpkeep path={doc.path} />
+            {docTask && <TaskDepsDiagram task={docTask} className="mt-4" />}
           </header>
         }
       />

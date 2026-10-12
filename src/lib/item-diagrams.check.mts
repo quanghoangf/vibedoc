@@ -1,0 +1,61 @@
+// node src/lib/item-diagrams.check.mts
+import assert from 'node:assert/strict'
+import { depGraphMermaid, depIdsOf, taskNeighbourhood, type DiagramTask } from './item-diagrams.ts'
+
+const T = (id: string, dependsOn = '', status = 'todo', title = `Task ${id}`): DiagramTask => ({ id, title, status, dependsOn })
+
+assert.deepEqual(depIdsOf('T1, t2 and T1 (after T03)'), ['T1', 'T2', 'T03'])
+
+// no deps and no dependents → nothing to draw; unknown task → nothing
+assert.equal(taskNeighbourhood('T1', [T('T1'), T('T2')]), null)
+assert.equal(taskNeighbourhood('T9', [T('T1')]), null)
+
+// chain T1 → T2 → T3 → T4 seen from T3: two hops up, one down
+const chain = [T('T1', '', 'done'), T('T2', 'T1', 'in-progress'), T('T3', 'T2'), T('T4', 'T3')]
+const c = taskNeighbourhood('T3', chain)!
+assert.deepEqual(c.nodes.map((n) => n.id), ['T3', 'T2', 'T4', 'T1'])
+assert.deepEqual(c.edges, [['T2', 'T3'], ['T1', 'T2'], ['T3', 'T4']])
+assert.equal(c.more, 0)
+// three hops up is out of reach
+assert.ok(!taskNeighbourhood('T4', chain)!.nodes.some((n) => n.id === 'T1'))
+
+// diamond: T4 waits on T2 and T3, both on T1 → T1 once, all four edges
+const d = taskNeighbourhood('T4', [T('T1'), T('T2', 'T1'), T('T3', 'T1'), T('T4', 'T2, T3')])!
+assert.deepEqual(d.nodes.map((n) => n.id), ['T4', 'T2', 'T3', 'T1'])
+assert.equal(d.edges.length, 4)
+
+// a cycle doesn't loop; a self-reference is ignored
+const cy = taskNeighbourhood('T1', [T('T1', 'T2, T1'), T('T2', 'T1')])!
+assert.deepEqual(cy.nodes.map((n) => n.id), ['T1', 'T2'])
+assert.deepEqual(cy.edges, [['T2', 'T1'], ['T1', 'T2']])
+
+// a dependency with no task file is a node with status null
+const miss = taskNeighbourhood('T1', [T('T1', 'T99')])!
+assert.deepEqual(miss.nodes[1], { id: 'T99', title: '', status: null })
+
+// cap: 20 dependents → 12 nodes, 9 more
+const many = [T('T0'), ...Array.from({ length: 20 }, (_, i) => T(`T${i + 1}`, 'T0'))]
+const m = taskNeighbourhood('T0', many)!
+assert.equal(m.nodes.length, 12)
+assert.equal(m.more, 9)
+assert.equal(m.edges.length, 11)
+
+// mermaid: glyph + id + title, focus = accent, statuses as classes, missing dashed, titles escaped and cut
+const src = depGraphMermaid(taskNeighbourhood('T2', [T('T1', '', 'done', 'Say "hi" <b>'), T('T2', 'T1, T99', 'review'), T('T3', 'T2', 'todo', 'x'.repeat(40))])!, 'T2')
+assert.equal(src, [
+  'flowchart LR',
+  '  T2["◑ T2 · Task T2"]',
+  '  T1["✓ T1 · Say #quot;hi#quot; #lt;b#gt;"]',
+  '  T99["T99 · ?"]',
+  `  T3["○ T3 · ${'x'.repeat(31)}…"]`,
+  '  T1 --> T2',
+  '  T99 --> T2',
+  '  T2 --> T3',
+  '  class T2 accent',
+  '  class T1 st-done',
+  '  class T99 st-missing',
+  '  class T3 st-todo',
+].join('\n'))
+assert.match(depGraphMermaid(m, 'T0'), /\n {2}more\["\+9 more"\]\n {2}T0 -\.- more\n/)
+
+console.log('item-diagrams: ok')

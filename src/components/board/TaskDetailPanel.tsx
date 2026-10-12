@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
 import { ItemPanelHeader, type ItemProperty } from "@/components/shared/ItemPanelHeader"
+import { TaskDepsDiagram } from "@/components/shared/DerivedDiagram"
 import { TaskDueField, TaskOwnerField, TaskPriorityField, TaskSizeField, TaskStatusField } from "./TaskFields"
 import { epicOf } from "@/lib/board-views"
 import { localToday, dueState } from "@/lib/roadmap-health"
@@ -264,6 +265,8 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
 
       {/* Body, then activity: one scroll area */}
       <div className="flex-1 overflow-y-auto">
+        {/* R097: what it waits on and what waits on it, drawn */}
+        <TaskDepsDiagram task={task} onNavigate={onClose} />
         <div className="max-w-[72ch] px-5 py-4">
           {task.raw ? (
             <MarkdownRenderer content={bodyOf(task.raw)} basePath={task.file} />

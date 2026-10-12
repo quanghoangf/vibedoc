@@ -1,5 +1,8 @@
 # T520: Task dependency diagram
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude
+**Started:** 2026-10-12
+**Done:** 2026-10-12
 **Phase:** R097 — Diagrams from project data
 **Size:** L (half a day)
 **Depends on:** T513
@@ -45,8 +48,11 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/derived-diagrams.mjs
 ```
 
 ## Manual tests
+_Auto: `e2e/derived-diagrams.mjs` passed 2026-10-12 (items below marked [x] are what it proved). `item-diagrams` + `i18n` checks, `pnpm build` ok, lint 10 errors (baseline); `board-task-panel`, `roadmap-epic-pane`, `visual-docs`, `i18n` e2e pass._
+
+_Notes: the diagram is generated Mermaid rendered through `MarkdownRenderer` (so T513's theme and T514's fullscreen viewer apply), in `src/components/shared/DerivedDiagram.tsx`; it sits at the top of the panel's scroll area (shared with /roadmap's inline detail) and under the properties in a task doc. Node clicks go to `/board?task=` like the Depends on chips._
 ### Steps
-- [ ] S1 — WHEN a task has `Depends on` and dependents → THEN its panel and doc show a diagram of both sides with each task's status, and clicking a node opens that task
-- [ ] S4 — WHEN a task changes status while its diagram is open → THEN the diagram updates without a reload
+- [x] S1 — WHEN a task has `Depends on` and dependents → THEN its panel and doc show a diagram of both sides with each task's status, and clicking a node opens that task
+- [x] S4 — WHEN a task changes status while its diagram is open → THEN the diagram updates without a reload
 ### Regression risk
 - [ ] T509's glance rows (Depends on chips) and the panel resize still work
