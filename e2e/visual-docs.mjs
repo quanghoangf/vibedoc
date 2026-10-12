@@ -5,6 +5,8 @@
 //         editor re-renders the preview's diagram
 //   S2 (T514). hover/Tab shows a diagram's Fullscreen · Copy source toolbar; fullscreen zooms with + / wheel, drag pans,
 //       Fit resets, Esc closes and focus returns to the button; Copy source puts the ```mermaid fence on the clipboard
+//   S5 (T518). the editor's Insert visual menu inserts each of the 4 diagram templates and 4 visual blocks; the Split
+//       preview renders all 8 without an error; the menu works by keyboard and focus returns to the editor
 //   S3. a list under <!-- vibedoc:steps --> renders N cards with N−1 arrows, one under <!-- vibedoc:cards --> a grid
 //       (one column at 390px, no page overflow); /md/<path> and GitHub (gh api /markdown, skipped when gh isn't
 //       logged in) still show the plain list
@@ -40,6 +42,7 @@ write("docs/diagrams.md", [
   "",
 ].join("\n"))
 
+write("docs/blank.md", "# Blank\n")
 write("docs/live.md", "# Live\n\n```mermaid\nflowchart LR\n  A --> B\n```\n")
 
 const BLOCKS = [
@@ -224,6 +227,39 @@ try {
   assert.equal(await preview.locator(".mermaid-error").count(), 0, "a finished edit leaves no error box")
   assert.equal(await preview.locator(".mermaid > svg").count(), 1)
   console.log("ok  live preview: typing re-renders the diagram after the debounce")
+
+  // S5 (T518): Insert visual — every entry renders; keyboard works; focus returns to the editor
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/blank.md")}`)
+  await page.getByRole("tab", { name: "Split" }).click()
+  const cm = page.locator(".cm-content")
+  await cm.waitFor()
+  const insertBtn = page.getByRole("button", { name: "Insert diagram or visual block" })
+  const toEnd = async () => { await cm.click(); await page.keyboard.press("ControlOrMeta+End") }
+  // first one by keyboard: focus the button, Enter opens, ArrowDown to Sequence, Enter inserts
+  await toEnd()
+  await insertBtn.focus()
+  await page.keyboard.press("Enter")
+  await page.getByRole("menuitem", { name: "Flowchart" }).waitFor()
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute("role") === "menuitem" ? document.activeElement.textContent : null)
+  // Radix wires its roving focus a beat after the menu opens; an ArrowDown sent at once is dropped
+  await page.waitForTimeout(150)
+  for (let i = 0; i < 4 && (await focused()) !== "Sequence diagram"; i++) { await page.keyboard.press("ArrowDown"); await page.waitForTimeout(50) }
+  assert.equal(await focused(), "Sequence diagram", "arrow keys move through the menu")
+  await page.keyboard.press("Enter")
+  await page.waitForFunction(() => document.activeElement?.closest(".cm-editor") !== null)
+  const entries = ["Flowchart", "State diagram", "Data model (ER)", "Steps", "Cards", "Compare", "Timeline"]
+  for (const name of entries) {
+    await toEnd()
+    await insertBtn.click()
+    await page.getByRole("menuitem", { name, exact: true }).click()
+  }
+  await preview.locator('[data-visual="timeline"]').waitFor()
+  await page.waitForFunction(() => document.querySelectorAll(".doc-preview .mermaid > svg").length === 4, null, { timeout: 15000 })
+  assert.equal(await preview.locator(".mermaid-error").count(), 0, "every template parses")
+  for (const kind of ["steps", "cards", "compare", "timeline"]) assert.equal(await preview.locator(`[data-visual="${kind}"]`).count(), 1, kind)
+  assert.match(await cm.textContent(), /sequenceDiagram/, "the keyboard pick was Sequence")
+  console.log("ok  S5: Insert visual inserts 4 diagrams and 4 visual blocks that all render; keyboard works, focus returns to the editor")
 
   // S3 visual blocks (T515)
   await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/blocks.md")}`)

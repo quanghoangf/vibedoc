@@ -5,13 +5,15 @@ import {
   Heading1, Heading2, Heading3,
   Link2, Code, Code2, Quote,
   Minus, List, ListOrdered,
-  MessageSquareWarning, SquareChevronDown, Bot, User,
+  MessageSquareWarning, SquareChevronDown, Bot, User, Shapes,
 } from "lucide-react"
 import type { EditorView } from "@codemirror/view"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useT } from "@/context/LanguageContext"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { BLOCK_TEMPLATES, DIAGRAM_TEMPLATES, blockInsert, type BlockTemplate, type DiagramTemplate } from "./visual-templates"
 
 interface EditorToolbarProps {
   editorView: EditorView | null
@@ -45,6 +47,9 @@ function insertAtCursor(view: EditorView, text: string) {
   })
   view.focus()
 }
+
+const DIAGRAM_LABEL = { flowchart: "docs.tplFlowchart", sequence: "docs.tplSequence", state: "docs.tplState", er: "docs.tplEr" } as const
+const BLOCK_LABEL = { steps: "docs.tplSteps", cards: "docs.tplCards", compare: "docs.tplCompare", timeline: "docs.tplTimeline" } as const
 
 interface ToolBtnProps {
   icon: React.ReactNode
@@ -116,6 +121,15 @@ export function EditorToolbar({ editorView }: EditorToolbarProps) {
   // R087: notes only agents read / blocks only people read (src/lib/audience.ts)
   function agentOnly() { if (v) wrapSelection(v, "<!-- agent-only\n", "\n-->") }
   function humanOnly() { if (v) wrapSelection(v, "<!-- human-only:start -->\n", "\n<!-- human-only:end -->") }
+  // T518: a diagram or visual block on its own lines at the cursor (replacing a selection)
+  function insertVisual(lines: readonly string[]) {
+    if (!v) return
+    const { from } = v.state.selection.main
+    const line = v.state.doc.lineAt(from)
+    const before = line.number > 1 ? v.state.doc.line(line.number - 1).text : ""
+    const atStart = from === line.from && line.text.trim() === ""
+    insertAtCursor(v, blockInsert(lines, atStart ? before : line.text, atStart))
+  }
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -134,6 +148,30 @@ export function EditorToolbar({ editorView }: EditorToolbarProps) {
         <ToolBtn icon={<Quote className="h-3.5 w-3.5" />} label={t("docs.blockquote")} onClick={blockquote} />
         <ToolBtn icon={<MessageSquareWarning className="h-3.5 w-3.5" />} label={t("docs.callout")} onClick={callout} />
         <ToolBtn icon={<SquareChevronDown className="h-3.5 w-3.5" />} label={t("docs.collapsible")} onClick={collapsible} />
+        <DropdownMenu>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label={t("docs.insertVisual")}>
+                  <Shapes className="h-3.5 w-3.5" />
+                </Button>
+              </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{t("docs.insertVisual")}</TooltipContent>
+          </Tooltip>
+          {/* focus goes back to the editor, where the inserted text is, not to the button */}
+          <DropdownMenuContent align="start" onCloseAutoFocus={(e) => { e.preventDefault(); v?.focus() }}>
+            <DropdownMenuLabel className="text-[11px] text-muted">{t("docs.visualDiagram")}</DropdownMenuLabel>
+            {(Object.keys(DIAGRAM_TEMPLATES) as DiagramTemplate[]).map((k) => (
+              <DropdownMenuItem key={k} onSelect={() => insertVisual(DIAGRAM_TEMPLATES[k])}>{t(DIAGRAM_LABEL[k])}</DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[11px] text-muted">{t("docs.visualBlock")}</DropdownMenuLabel>
+            {(Object.keys(BLOCK_TEMPLATES) as BlockTemplate[]).map((k) => (
+              <DropdownMenuItem key={k} onSelect={() => insertVisual(BLOCK_TEMPLATES[k])}>{t(BLOCK_LABEL[k])}</DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Separator orientation="vertical" className="h-4 mx-1" />
         <ToolBtn icon={<Minus className="h-3.5 w-3.5" />} label={t("docs.horizontalRule")} onClick={hr} />
         <ToolBtn icon={<List className="h-3.5 w-3.5" />} label={t("docs.unorderedList")} onClick={unorderedList} />

@@ -249,6 +249,18 @@ export const en = {
   diagramFit: "Fit",
   // Link map (R097, T522)
   linkMap: "Map of links to and from this doc",
+  // Editor: Insert visual (T518)
+  insertVisual: "Insert diagram or visual block",
+  visualDiagram: "Diagram",
+  visualBlock: "Visual block",
+  tplFlowchart: "Flowchart",
+  tplSequence: "Sequence diagram",
+  tplState: "State diagram",
+  tplEr: "Data model (ER)",
+  tplSteps: "Steps",
+  tplCards: "Cards",
+  tplCompare: "Compare",
+  tplTimeline: "Timeline",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -485,4 +497,16 @@ export const vi: Messages<typeof en> = {
   diagramFit: "Vừa khung",
   // Link map (R097, T522)
   linkMap: "Sơ đồ liên kết đến và đi từ tài liệu này",
+  // Editor: Insert visual (T518)
+  insertVisual: "Chèn sơ đồ hoặc khối trực quan",
+  visualDiagram: "Sơ đồ",
+  visualBlock: "Khối trực quan",
+  tplFlowchart: "Lưu đồ",
+  tplSequence: "Sơ đồ tuần tự",
+  tplState: "Sơ đồ trạng thái",
+  tplEr: "Mô hình dữ liệu (ER)",
+  tplSteps: "Các bước",
+  tplCards: "Thẻ",
+  tplCompare: "So sánh",
+  tplTimeline: "Dòng thời gian",
 }

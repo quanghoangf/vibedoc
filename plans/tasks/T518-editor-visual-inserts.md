@@ -1,5 +1,8 @@
 # T518: Editor toolbar: insert diagrams and visual blocks
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude
+**Started:** 2026-10-12
+**Done:** 2026-10-12
 **Phase:** R096 — Visual docs
 **Size:** S (~1 hr)
 **Depends on:** T513, T516
@@ -38,5 +41,6 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/visual-docs.mjs
 ```
 
 ## Manual tests
+_Auto: `e2e/visual-docs.mjs` passed 2026-10-12, twice (items below marked [x] are what it proved). `i18n` check, `pnpm build` ok, lint 10 errors (baseline); `richer-markdown` e2e passes. Templates live in `src/components/docs/visual-templates.ts`._
 ### Steps
-- [ ] S5 — WHEN the user picks a diagram template or a visual block from the editor toolbar → THEN the source is inserted at the cursor and the live preview shows it rendered
+- [x] S5 — WHEN the user picks a diagram template or a visual block from the editor toolbar → THEN the source is inserted at the cursor and the live preview shows it rendered
