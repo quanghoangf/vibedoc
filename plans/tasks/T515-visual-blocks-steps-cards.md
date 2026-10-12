@@ -1,5 +1,5 @@
 # T515: Visual blocks: steps and cards
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R096 — Visual docs
 **Size:** L (half a day)
 **Covers:** S3
@@ -51,8 +51,15 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/visual-docs.mjs
 ```
 
 ## Manual tests
+_2026-10-12 — ai_
+_Auto: `e2e/visual-docs.mjs` passed 2026-10-12 (items marked [x] are what it proved). `node src/lib/md-visual-blocks.check.mts` ok, `pnpm build` ok, lint 10 errors (baseline, none in the touched files), `e2e/richer-markdown.mjs` (code tabs on the chained hook) passes._
 ### Steps
-- [ ] S3 — WHEN a doc has `<!-- vibedoc:steps -->` above a numbered list of bold titles with text → THEN VibeDoc shows one card per item joined by arrows, and GitHub / `vibedoc_read_doc` still show the numbered list
-- [ ] Cards block at 390px → one column, no horizontal scroll
+- [x] S3 — Open a doc with `<!-- vibedoc:steps -->` above a 3-item numbered list of bold titles → three cards joined by two down arrows; the bold is the title, the rest of the line the text, the next line muted
+- [x] A `<!-- vibedoc:cards -->` list of four items → a grid of cards, a leading emoji in the title shows as the icon
+- [x] Cards block at 390px → one column, no horizontal scroll
+- [x] Doc ⋯ → View as Markdown (`/md/<path>`) → the comment and the plain numbered list, unchanged
+- [ ] Switch light ↔ dark → cards (thin border, no shadow) and grey arrows look right in both
+- [ ] Edit → Split, type a `<!-- vibedoc:steps -->` list → the live preview shows the cards
 ### Regression risk
 - [ ] Task checklists (`- [ ]`) and nested lists render as before
+- [ ] Two titled fences in a row still render as one code tab group

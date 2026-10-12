@@ -9,6 +9,7 @@ import { stripFrontmatter } from "@/lib/doc-priority"
 import { isExampleTarget } from "@/lib/doc-links"
 import { alertExtension } from "@/lib/md-alerts"
 import { codeTabsExtension, groupFences } from "@/lib/md-code-tabs"
+import { groupVisualBlocks, visualBlocksExtension } from "@/lib/md-visual-blocks"
 import { useApp } from "@/context/AppContext"
 import { useOpenNode } from "@/components/memory/EntryRelated"
 import { toast } from "@/components/ui/toast"
@@ -27,8 +28,12 @@ marked.setOptions({
 
 // GFM alerts `> [!NOTE]` … `> [!CAUTION]` as callouts (R089)
 marked.use({ extensions: [alertExtension] })
-// Consecutive titled fences (```bash title="pnpm") as one tabbed block (R089)
-marked.use({ extensions: [codeTabsExtension], hooks: { processAllTokens: groupFences } })
+// Consecutive titled fences (```bash title="pnpm") as one tabbed block (R089), and a list under
+// <!-- vibedoc:steps|cards --> as cards (R096): one processAllTokens hook runs both groupings
+marked.use({
+  extensions: [codeTabsExtension, visualBlocksExtension],
+  hooks: { processAllTokens: (tokens) => groupVisualBlocks(groupFences(tokens)) },
+})
 
 // Intercept mermaid code blocks — emit a div instead of <pre><code>
 marked.use({

@@ -54,6 +54,18 @@ emitUpdate('task_updated', { taskId, status, task })
 - **Color tokens from tailwind.config** — use `text-accent`, `bg-surface2`, `border-border` etc. Don't hardcode hex.
 - **Dark theme only** — no light mode variants needed
 
+## Visual blocks
+Put `<!-- vibedoc:steps -->` or `<!-- vibedoc:cards -->` on the line above a plain list (`-` or `1.`; a blank line between is fine). VibeDoc renders `steps` as stacked cards joined by arrows and `cards` as a grid (one column on phones). The marker is an HTML comment, so GitHub, `/md/<path>` and `vibedoc_read_doc` show the normal list.
+
+```md
+<!-- vibedoc:steps -->
+1. **🎯 Focus** — One main goal at a time.
+   Example: finish the transaction flow.
+2. **Queue** — New asks go to a queue.
+```
+
+Each item: the leading **bold** is the title (a leading emoji in it becomes the icon), the rest of the first line the description, and the lines or paragraphs after it the muted detail. Links, code and `[[wikilinks]]` work inside. An unknown kind leaves the list as it is. Parsing: `src/lib/md-visual-blocks.ts`.
+
 ## MCP tool naming
 All MCP tools are prefixed `vibedoc_`. Pattern: `vibedoc_[verb]_[noun]`.
 Examples: `vibedoc_read_doc`, `vibedoc_update_task`, `vibedoc_log_decision`
