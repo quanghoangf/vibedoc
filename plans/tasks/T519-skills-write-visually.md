@@ -1,5 +1,8 @@
 # T519: Agent skills write visually; docs page; close R096
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude
+**Started:** 2026-10-12
+**Done:** 2026-10-12
 **Phase:** R096 — Visual docs
 **Size:** M (2–3 hrs)
 **Depends on:** T513, T516
@@ -43,5 +46,8 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/visual-docs.mjs
 ```
 
 ## Manual tests
+_Auto: `e2e/visual-docs.mjs` passed 2026-10-12 incl. the Done-when section (all four blocks + a diagram in light and dark at 390px, `vibedoc_read_doc` returns the plain markdown). `pnpm --dir site build` ok (the new page builds); `vibedoc check` shows no new issues in the changed docs. Not run: a real `/vibedoc:breakdown` with the updated skill (needs a Claude session) — that is the S6 check below. R096 stays in-progress until its tasks are approved._
+
+_Notes: the full guide is `plugin/skills/work/visuals.md`; each SKILL.md gets a short paragraph with the syntax inline, because the in-app chat reads only SKILL.md (`readPlanningSkill`)._
 ### Steps
 - [ ] S6 — WHEN an agent runs `/vibedoc:breakdown` or `/vibedoc:work` on work with a flow, states or steps → THEN the task or doc it writes contains a fitting diagram or visual block instead of only prose

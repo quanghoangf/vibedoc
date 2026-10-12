@@ -14,6 +14,8 @@
 //       logged in) still show the plain list
 //   S3 (T516). <!-- vibedoc:compare --> renders 2 columns side by side at 1400px and stacked at 390px; a 4-item compare
 //       falls back to cards; <!-- vibedoc:timeline --> renders a dot per item with the accent only on "Now"
+//   Done-when (T519). one doc with a diagram and all four visual blocks renders in light and dark at 390px without page
+//       overflow, and vibedoc_read_doc returns it as the plain lists and the mermaid fence
 // Fails on any browser console error. The fixture is a fresh mktemp project. Later R096 tasks add sections.
 //
 //   PORT=3189 pnpm dev   # then:
@@ -44,6 +46,15 @@ write("docs/diagrams.md", [
   "",
 ].join("\n"))
 
+const ALL = [
+  "# All visuals", "",
+  "```mermaid", "flowchart LR", "  A[Write] --> B[Render]", "  class B accent", "```", "",
+  "<!-- vibedoc:steps -->", "1. **One** — first", "2. **Two** — second", "",
+  "<!-- vibedoc:cards -->", "- **A** — a", "- **B** — b", "",
+  "<!-- vibedoc:compare -->", "- **Left** — l", "  - point", "- **Right** — r", "  - point", "",
+  "<!-- vibedoc:timeline -->", "1. **Then** — before", "2. **Now** — today", "",
+].join("\n")
+write("docs/all.md", ALL)
 write("docs/blank.md", "# Blank\n")
 write("docs/live.md", "# Live\n\n```mermaid\nflowchart LR\n  A --> B\n```\n")
 
@@ -414,6 +425,21 @@ try {
   assert.ok(t2 > t1 && l1 === l2, "compare stacks at 390px")
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal page scroll at 390px")
   console.log("ok  S3: compare is 2 columns (stacked at 390px, >3 items → cards); timeline has 4 dots, the accent only on Now")
+
+  // Done-when: everything on one page, light and dark, phone width; agents read the plain text
+  await page.setViewportSize({ width: 390, height: 844 })
+  for (const dark of [false, true]) {
+    await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/all.md")}`)
+    await page.evaluate((d) => document.documentElement.classList.toggle("dark", d), dark)
+    await preview.locator(".mermaid > svg").waitFor()
+    for (const kind of ["steps", "cards", "compare", "timeline"]) assert.equal(await preview.locator(`[data-visual="${kind}"]`).count(), 1, `${kind} (${dark ? "dark" : "light"})`)
+    assert.equal(await preview.locator(".mermaid-error").count(), 0)
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `no page overflow at 390px (${dark ? "dark" : "light"})`)
+  }
+  const mcp = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(fx)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_read_doc", arguments: { query: "docs/all.md" } } }) })
+  const agentText = (await mcp.json()).result.content[0].text
+  assert.ok(agentText.includes(ALL.trim()), "vibedoc_read_doc returns the file's markdown: the fence and the marked plain lists")
+  console.log("ok  Done-when: a diagram and all four blocks render light and dark at 390px; vibedoc_read_doc returns the plain markdown")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("\nvisual-docs: all checks passed")

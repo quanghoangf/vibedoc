@@ -95,6 +95,8 @@ For every epic, write a short body. The person who breaks the epic into tasks la
 **Done when:** <an observable success signal>
 ```
 
+When the outcome is easiest to grasp as a picture (a journey through steps, two options, phases over time), add one visual after the body: a visual block (`<!-- vibedoc:steps -->`, `compare` or `timeline` on the line above a plain list of `**Title** — line` items) or a small Mermaid flowchart. Keep it business-level, like the rest of the epic: user steps, not services. Which type fits what: `../work/visuals.md`.
+
 An epic may also state its promise as numbered scenarios, after the body. They become its acceptance tests: `/vibedoc:breakdown` gives every task the scenarios it covers and seeds its test checklist from them, and the epic shows each scenario as passed, failed or unproven. Write them when the "Done when" has more than one observable outcome; they are optional.
 
 ```

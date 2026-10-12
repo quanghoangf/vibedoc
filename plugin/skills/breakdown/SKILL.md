@@ -162,6 +162,8 @@ Use this template. The board parser reads only the contiguous `**Key:** Value` b
 ```
 ````
 
+**Show the shape.** When a task's change has a flow, a sequence of calls or states, put a small Mermaid diagram in its Context (≤ 7 nodes); for an ordered set of steps or options, a visual block: `<!-- vibedoc:steps -->` (or `compare`, `cards`, `timeline`) on the line above a plain list of `**Title** — line` items. It stays plain text, so the implementing agent reads it like the rest. Which type fits what: `../work/visuals.md`. Skip it when the prose is already short.
+
 `**Covers:**` lists the epic's scenario ids the task makes true; leave the line out when the epic has no `## Scenarios`. In the terminal, also start the task's `## Manual tests` with one step per covered scenario (`- [ ] S1 — WHEN … → THEN …`). `**Due:**` is optional. Add it only when the user gave a target date in the interview: spread the dates across the tasks in dependency order so the last task lands on the epic's due date. Use a local calendar date (`YYYY-MM-DD`). The roadmap sheet shows it and flags overdue tasks.
 
 Adjust the headings to the project if its existing tasks use a different but richer format. Keep **Goal, Scope, Files, Acceptance criteria and Verify** in all cases. They are what lets an agent work without asking questions.
