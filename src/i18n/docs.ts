@@ -247,6 +247,12 @@ export const en = {
   diagramZoomIn: "Zoom in",
   diagramZoomOut: "Zoom out",
   diagramFit: "Fit",
+  // Copy that keeps the look (T517)
+  diagramCopyImage: "Copy diagram as image",
+  diagramImageCopied: "Copied the diagram as an image (and its source as text)",
+  blockCopy: "Copy (keeps the look when pasted)",
+  blockCopied: "Copied: paste into Docs, Notion or Slack to keep the look, or into an editor for the markdown",
+  blockCopiedPlain: "Copied the markdown (this browser can't copy the formatted version)",
   // Link map (R097, T522)
   linkMap: "Map of links to and from this doc",
   // Editor: Insert visual (T518)
@@ -495,6 +501,12 @@ export const vi: Messages<typeof en> = {
   diagramZoomIn: "Phóng to",
   diagramZoomOut: "Thu nhỏ",
   diagramFit: "Vừa khung",
+  // Copy that keeps the look (T517)
+  diagramCopyImage: "Sao chép sơ đồ dạng ảnh",
+  diagramImageCopied: "Đã sao chép sơ đồ dạng ảnh (kèm mã nguồn dạng văn bản)",
+  blockCopy: "Sao chép (giữ nguyên giao diện khi dán)",
+  blockCopied: "Đã sao chép: dán vào Docs, Notion hoặc Slack để giữ giao diện, hoặc vào trình soạn thảo để lấy markdown",
+  blockCopiedPlain: "Đã sao chép markdown (trình duyệt này không sao chép được bản định dạng)",
   // Link map (R097, T522)
   linkMap: "Sơ đồ liên kết đến và đi từ tài liệu này",
   // Editor: Insert visual (T518)

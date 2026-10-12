@@ -1,5 +1,8 @@
 # T517: Copy that keeps the look
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude
+**Started:** 2026-10-12
+**Done:** 2026-10-12
 **Phase:** R096 — Visual docs
 **Size:** M (2–3 hrs)
 **Depends on:** T514, T516
@@ -43,6 +46,9 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/visual-docs.mjs
 ```
 
 ## Manual tests
+_Auto: `e2e/visual-docs.mjs` passed 2026-10-12 (it reads the clipboard back: text/html + text/plain for a block, image/png + the fence for a diagram, the plain fallback without ClipboardItem). `rich-copy` + `md-visual-blocks` + `i18n` checks, `pnpm build` ok, lint 10 errors (baseline); `richer-markdown` e2e passes. The paste into Google Docs / Notion / Slack is yours to check._
+
+_Notes: Mermaid's labels are HTML in `<foreignObject>`, which taints a canvas, so Copy image swaps each label for SVG `<text>` with its rendered lines (`labelAsText` in `diagram-viewer.tsx`) and inlines the page's computed styles; the PNG follows the current theme. Copied HTML uses the light palette and tables (Google Docs keeps tables, drops flex/grid)._
 ### Steps
 - [ ] S4 — WHEN the user copies a visual block and pastes it into Google Docs or Notion → THEN the cards keep their layout; pasted into a code editor it is the markdown source
 - [ ] Copy image on a diagram, paste into Slack or Google Docs → the diagram appears as an image

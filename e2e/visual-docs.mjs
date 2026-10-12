@@ -7,6 +7,8 @@
 //       Fit resets, Esc closes and focus returns to the button; Copy source puts the ```mermaid fence on the clipboard
 //   S5 (T518). the editor's Insert visual menu inserts each of the 4 diagram templates and 4 visual blocks; the Split
 //       preview renders all 8 without an error; the menu works by keyboard and focus returns to the editor
+//   S4 (T517). Copy on a visual block puts text/html (inline styles, no classes) + text/plain (the markdown) on the
+//       clipboard; Copy image on a diagram puts image/png + the fenced source; without ClipboardItem the markdown is copied
 //   S3. a list under <!-- vibedoc:steps --> renders N cards with N−1 arrows, one under <!-- vibedoc:cards --> a grid
 //       (one column at 390px, no page overflow); /md/<path> and GitHub (gh api /markdown, skipped when gh isn't
 //       logged in) still show the plain list
@@ -202,6 +204,49 @@ try {
     const clip = await p2.evaluate(() => navigator.clipboard.readText())
     assert.equal(clip, "```mermaid\nflowchart LR\n  A[Request] --> B[Core]\n  B --> C[(Files)]\n  class B accent\n```\n")
     console.log("ok  S2: Copy source puts the mermaid fence on the clipboard")
+
+    // S4: Copy image → a PNG plus the source as text
+    await first.hover()
+    await first.getByRole("button", { name: "Copy diagram as image" }).click()
+    await p2.getByText(/Copied the diagram as an image/).waitFor()
+    const img = await p2.evaluate(async () => {
+      const [item] = await navigator.clipboard.read()
+      const png = await item.getType("image/png")
+      const bmp = await createImageBitmap(png)
+      return { types: item.types, size: png.size, w: bmp.width, text: await (await item.getType("text/plain")).text() }
+    })
+    assert.ok(img.types.includes("image/png") && img.size > 1000, `a PNG (${img.types}, ${img.size} bytes)`)
+    assert.ok(img.w > 400, `drawn at 2× (${img.w}px wide)`)
+    assert.match(img.text, /^```mermaid\nflowchart LR\n/)
+    console.log("ok  S4: Copy image puts a PNG and the mermaid source on the clipboard")
+
+    // S4: Copy on a visual block → formatted HTML + the markdown
+    await p2.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/blocks.md")}`)
+    const stepsBlock = p2.locator('.doc-preview [data-visual="steps"]')
+    await stepsBlock.hover()
+    await stepsBlock.getByRole("button", { name: "Copy (keeps the look when pasted)" }).click()
+    await p2.getByText(/Copied: paste into Docs/).waitFor()
+    const rich = await p2.evaluate(async () => {
+      const [item] = await navigator.clipboard.read()
+      return { types: item.types, html: await (await item.getType("text/html")).text(), text: await (await item.getType("text/plain")).text() }
+    })
+    assert.ok(rich.types.includes("text/html") && rich.types.includes("text/plain"), String(rich.types))
+    assert.match(rich.html, /<table style="/)
+    assert.match(rich.html, /Focus/)
+    assert.match(rich.html, /Example: finish the transaction flow/)
+    assert.doesNotMatch(rich.html, /class="md-visual/, "inline styles, not the page's classes")
+    assert.equal(rich.text, "<!-- vibedoc:steps -->\n1. **Focus** — One main goal at a time.\n   Example: finish the transaction flow.\n2. **Queue** — New asks go to a queue.\n3. **Ship** — Small and often.")
+    console.log("ok  S4: Copy on a steps block puts formatted HTML and its markdown on the clipboard")
+
+    // no ClipboardItem: the markdown, and the toast says so
+    await p2.evaluate(() => { delete window.ClipboardItem })
+    await stepsBlock.hover()
+    await stepsBlock.getByRole("button", { name: "Copy (keeps the look when pasted)" }).click()
+    await p2.getByText(/Copied the markdown/).waitFor()
+    assert.match(await p2.evaluate(() => navigator.clipboard.readText()), /^<!-- vibedoc:steps -->/)
+    console.log("ok  S4: without ClipboardItem the markdown is copied and the toast says so")
+    await p2.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/diagrams.md")}`)
+    await first.locator(":scope > svg").waitFor()
 
     // phone: the viewer fills the screen and the zoom buttons are there
     await p2.setViewportSize({ width: 390, height: 844 })

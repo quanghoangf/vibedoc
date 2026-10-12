@@ -405,7 +405,8 @@ body {
 .mermaid { position: relative; }
 /* T514: Fullscreen · Copy source, top-right, shown on hover / keyboard focus (always on touch screens) */
 .diagram-tools { position: absolute; top: 0.25rem; right: 0.25rem; display: flex; gap: 2px; padding: 2px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); opacity: 0; transition: opacity 120ms; }
-.mermaid:hover .diagram-tools, .mermaid:focus-within .diagram-tools { opacity: 1; }
+.mermaid:hover .diagram-tools, .mermaid:focus-within .diagram-tools, .md-visual:hover > .diagram-tools, .md-visual:focus-within > .diagram-tools { opacity: 1; }
+.prose-dark .md-visual { position: relative; }
 @media (hover: none) { .diagram-tools { opacity: 1; } }
 .diagram-tools button { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 4px; color: var(--color-muted); }
 .diagram-tools button:hover { color: var(--color-txt); background: var(--color-surface2); }

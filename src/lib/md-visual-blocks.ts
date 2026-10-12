@@ -100,6 +100,8 @@ export const visualBlocksExtension: TokenizerAndRendererExtension = {
     const tag = list.ordered ? "ol" : "ul"
     const start = list.ordered && list.start !== 1 && list.start !== "" ? ` start="${list.start}"` : ""
     // role=list: list-style: none drops list semantics in Safari
-    return `<div class="md-visual" data-visual="${kind}"><${tag} role="list"${start}>${items.join("")}</${tag}></div>\n`
+    // the markdown it came from, for Copy (T517): the plain-text half of the clipboard
+    const source = (token as unknown as VisualToken).raw.replace(/\s+$/, "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    return `<div class="md-visual" data-visual="${kind}" data-source="${source}"><${tag} role="list"${start}>${items.join("")}</${tag}></div>\n`
   },
 }
