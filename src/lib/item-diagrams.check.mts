@@ -1,6 +1,6 @@
 // node src/lib/item-diagrams.check.mts
 import assert from 'node:assert/strict'
-import { depGraphMermaid, depIdsOf, taskNeighbourhood, type DiagramTask } from './item-diagrams.ts'
+import { depGraphMermaid, depIdsOf, epicGraph, epicGraphMermaid, taskNeighbourhood, type DiagramTask } from './item-diagrams.ts'
 
 const T = (id: string, dependsOn = '', status = 'todo', title = `Task ${id}`): DiagramTask => ({ id, title, status, dependsOn })
 
@@ -57,5 +57,37 @@ assert.equal(src, [
   '  class T3 st-todo',
 ].join('\n'))
 assert.match(depGraphMermaid(m, 'T0'), /\n {2}more\["\+9 more"\]\n {2}T0 -\.- more\n/)
+
+// epic: tasks in the epic only (cancelled + missing dropped), deps inside the epic, coverage edges, uncovered scenario
+const E = (id: string, dependsOn: string, status: string, covers: string[]) => ({ id, title: `Task ${id}`, status, dependsOn, covers })
+const eg = epicGraph(['T1', 'T2', 'T3', 'T4', 'T9'], [
+  E('T1', '', 'done', ['S1']), E('T2', 'T1, T50', 'in-progress', ['S1', 'S2', 'S7']), E('T3', 'T2', 'cancelled', ['S3']), E('T4', '', 'todo', []), E('T50', '', 'done', []),
+], [{ id: 'S1', name: 'Login', status: 'passed' }, { id: 'S2', name: 'Logout', status: 'unproven' }, { id: 'S3', name: 'Reset', status: 'failed' }])
+assert.deepEqual(eg.tasks.map((t) => t.id), ['T1', 'T2', 'T4'])
+assert.deepEqual(eg.deps, [['T1', 'T2']], 'T50 is outside the epic')
+assert.deepEqual(eg.covers, [['T1', 'S1'], ['T2', 'S1'], ['T2', 'S2']], 'S7 is not a scenario of the epic')
+assert.deepEqual(eg.scenarios.map((s) => s.covered), [true, true, false], 'S3 only covered by a cancelled task')
+const esrc = epicGraphMermaid(eg)
+assert.equal(esrc, [
+  'flowchart TB',
+  '  T1["✓ T1 · Task T1"]',
+  '  T2["◐ T2 · Task T2"]',
+  '  T4["○ T4 · Task T4"]',
+  '  S1(["✓ S1 · Login"])',
+  '  S2(["? S2 · Logout"])',
+  '  S3(["✕ S3 · Reset"])',
+  '  T1 --> T2',
+  '  T1 -.-> S1',
+  '  T2 -.-> S1',
+  '  T2 -.-> S2',
+  '  class T1 st-done',
+  '  class T2 st-in-progress',
+  '  class T4 st-todo',
+  '  class S1 sc-passed',
+  '  class S2 sc-unproven',
+  '  class S3 sc-uncovered',
+].join('\n'))
+// no scenarios → tasks only
+assert.doesNotMatch(epicGraphMermaid(epicGraph(['T1'], [E('T1', '', 'todo', [])], [])), /S\d/)
 
 console.log('item-diagrams: ok')

@@ -222,6 +222,9 @@ export const en = {
   missWikilink: "wikilink",
   showAllFiles: "Show all {n} files",
   todayMarker: "Today",
+  // Epic map (R097, T521)
+  diagram: "Map of tasks and scenarios",
+  showDiagram: "Show the map ({n} tasks)",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -435,4 +438,7 @@ export const vi: Messages<typeof en> = {
   missWikilink: "wikilink",
   showAllFiles: "Hiện cả {n} tệp",
   todayMarker: "Hôm nay",
+  // Epic map (R097, T521)
+  diagram: "Sơ đồ task và kịch bản",
+  showDiagram: "Hiện sơ đồ ({n} task)",
 }

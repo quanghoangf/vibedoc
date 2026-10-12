@@ -1,21 +1,23 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
-import { depGraphMermaid, taskNeighbourhood } from "@/lib/item-diagrams"
+import { depGraphMermaid, epicGraph, epicGraphMermaid, taskNeighbourhood, type EpicScenario } from "@/lib/item-diagrams"
 import type { Task } from "@/types"
 
 // Diagrams derived from project data (R097). The source is generated Mermaid, rendered by MarkdownRenderer, so the
 // authored diagrams' theme, fullscreen viewer and error box apply as is. Mermaid's own `click` needs a looser
 // securityLevel than our antiscript, so node clicks are one delegated listener on the wrapper instead.
 
-// a flowchart node's DOM id: <svg id>-flowchart-<nodeId>-<n>
-const NODE_ID_RE = /(?:^|-)flowchart-(T\d+)-\d+$/
+const MIN_SCALE = 0.75
 
-/** A rendered Mermaid flowchart whose task nodes (ids `T\d+`) open their task, by click or Enter / Space. */
+// a flowchart node's DOM id: <svg id>-flowchart-<nodeId>-<n>
+const NODE_ID_RE = /(?:^|-)flowchart-([TS]\d+)-\d+$/
+
+/** A rendered Mermaid flowchart whose task / scenario nodes (ids `T\d+`, `S\d+`) open, by click or Enter / Space. */
 export function DerivedDiagram({ source, label, onOpen }: { source: string; label: string; onOpen: (id: string) => void }) {
   const ref = useRef<HTMLElement>(null)
   const { t } = useT()
@@ -28,6 +30,14 @@ export function DerivedDiagram({ source, label, onOpen }: { source: string; labe
     }
     // Mermaid draws after a debounce and again on a theme switch: make every task node a focusable link as it appears
     const mark = () => {
+      // Mermaid draws width 100% capped at the natural width; a narrow pane may shrink it to MIN_SCALE (labels stay
+      // ~10px), past that the diagram scrolls sideways (CSS) and the fullscreen viewer shows it whole
+      for (const svg of root.querySelectorAll<SVGSVGElement>(".mermaid > svg:not([data-min-width])")) {
+        const natural = parseFloat(svg.style.maxWidth)
+        if (!natural) continue
+        svg.dataset.minWidth = ""
+        svg.style.minWidth = `${Math.round(natural * MIN_SCALE)}px`
+      }
       for (const node of root.querySelectorAll<SVGGElement>("g.node:not([tabindex])")) {
         const id = idOf(node)
         if (!id) continue
@@ -77,6 +87,37 @@ export function TaskDepsDiagram({ task, onNavigate, className = "px-5 pt-3" }: {
     <div className={className} data-task-deps={task.id}>
       <h3 className="mb-1 text-[11px] font-medium tracking-wide text-muted uppercase">{t("board.depDiagram")}</h3>
       <DerivedDiagram source={source} label={t("board.depDiagram")} onOpen={open} />
+    </div>
+  )
+}
+
+// ponytail: past this many tasks the map is too dense to read in a sheet; it opens on request (fullscreen helps)
+const EPIC_DIAGRAM_OPEN_MAX = 20
+
+/** An epic's tasks with dependency order and the scenarios each covers (T521); nothing for an epic without tasks. */
+export function EpicDiagram({ taskIds, tasks, scenarios, onOpenTask, onOpenScenario }: {
+  taskIds: string[]
+  tasks: Task[]
+  scenarios: EpicScenario[]
+  onOpenTask: (id: string) => void
+  onOpenScenario: (id: string) => void
+}) {
+  const { t } = useT()
+  const [show, setShow] = useState(false)
+  const graph = useMemo(() => epicGraph(taskIds, tasks.map((x) => ({ ...x, covers: x.covers ?? [] })), scenarios), [taskIds, tasks, scenarios])
+  const source = useMemo(() => epicGraphMermaid(graph), [graph])
+  const open = useCallback((id: string) => (id.startsWith("S") ? onOpenScenario(id) : onOpenTask(id)), [onOpenScenario, onOpenTask])
+  if (graph.tasks.length === 0) return null
+  if (graph.tasks.length > EPIC_DIAGRAM_OPEN_MAX && !show) {
+    return (
+      <button type="button" onClick={() => setShow(true)} className="self-start rounded-sm border border-border px-2.5 py-1 text-xs text-muted hover:border-border2 hover:text-txt" data-epic-diagram-show>
+        {t("roadmap.showDiagram", { n: graph.tasks.length })}
+      </button>
+    )
+  }
+  return (
+    <div data-epic-diagram>
+      <DerivedDiagram source={source} label={t("roadmap.diagram")} onOpen={open} />
     </div>
   )
 }

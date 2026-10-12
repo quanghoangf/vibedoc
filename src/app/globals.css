@@ -422,7 +422,11 @@ body {
 :is(.mermaid, .diagram-stage) .node.st-blocked :is(rect, polygon, path) { stroke: rgb(var(--rgb-danger)) !important; }
 :is(.mermaid, .diagram-stage) :is(.node.st-cancelled, .node.st-paused) { opacity: 0.6; }
 :is(.mermaid, .diagram-stage) .node.st-missing :is(rect, polygon, path) { stroke-dasharray: 4 3; }
-.derived-diagram .mermaid { margin: 0.25rem 0; text-align: left; }
+:is(.mermaid, .diagram-stage) .node.sc-passed :is(rect, polygon, path) { stroke: rgb(var(--rgb-teal)) !important; }
+:is(.mermaid, .diagram-stage) .node.sc-failed :is(rect, polygon, path) { stroke: rgb(var(--rgb-danger)) !important; }
+:is(.mermaid, .diagram-stage) .node.sc-uncovered :is(rect, polygon, path) { stroke: rgb(var(--rgb-danger)) !important; stroke-dasharray: 4 3; }
+.derived-diagram .mermaid { margin: 0.25rem 0; text-align: left; overflow-x: auto; }
+/* derived diagrams shrink to fit only down to 75% (DerivedDiagram sets min-width), then scroll sideways */
 .derived-diagram g.node[role="link"]:focus-visible { outline: none; }
 .derived-diagram g.node[role="link"]:focus-visible :is(rect, polygon, path) { stroke: rgb(var(--rgb-accent)) !important; stroke-width: 2px !important; }
 .derived-diagram g.node[role="link"]:hover :is(rect, polygon, path) { fill: rgb(var(--rgb-surface2)) !important; }

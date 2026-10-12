@@ -1,5 +1,8 @@
 # T521: Epic diagram: tasks and scenario coverage
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude
+**Started:** 2026-10-12
+**Done:** 2026-10-12
 **Phase:** R097 — Diagrams from project data
 **Size:** M (2–3 hrs)
 **Depends on:** T520
@@ -40,7 +43,10 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/derived-diagrams.mjs
 ```
 
 ## Manual tests
+_Auto: `e2e/derived-diagrams.mjs` passed 2026-10-12 (items below marked [x] are what it proved). `item-diagrams` + `i18n` checks, `pnpm build` ok, lint 10 errors (baseline); `roadmap-epic-pane`, `scenarios`, `board-task-panel` e2e pass._
+
+_Notes: no Tasks / Scenarios subgraph boxes and top to bottom (`flowchart TB`): in the narrow epic pane, the boxes and a left-to-right layout shrank labels unreadably. Scenarios are stadium shapes with `S…` ids instead. Derived diagrams shrink to fit only down to 75% (`DerivedDiagram` sets `min-width`), then scroll sideways; fullscreen shows them whole._
 ### Steps
-- [ ] S2 — WHEN an epic with tasks and scenarios is opened → THEN a diagram shows its tasks with status and which scenario each covers, coloured passed / failed / unproven
-- [ ] S4 — WHEN one of the epic's tasks changes status while the epic is open → THEN the diagram updates without a reload
+- [x] S2 — WHEN an epic with tasks and scenarios is opened → THEN a diagram shows its tasks with status and which scenario each covers, coloured passed / failed / unproven
+- [x] S4 — WHEN one of the epic's tasks changes status while the epic is open → THEN the diagram updates without a reload
 - [ ] Open R095 → the diagram reads clearly in light and dark

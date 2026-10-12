@@ -24,6 +24,8 @@ import { ItemActionsMenu, type ItemActions } from "./ItemActionsMenu"
 import { useItemCommands } from "@/components/shared/item-commands"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
+import { EpicDiagram } from "@/components/shared/DerivedDiagram"
+import { flashElement } from "@/components/docs/MarkdownRenderer"
 import { InlineDate, InlineSelect } from "@/components/shared/InlineProperty"
 import { PriorityField } from "@/components/shared/PriorityBadge"
 import { toast } from "@/components/ui/toast"
@@ -110,6 +112,9 @@ function ItemPanel(props: RoadmapItemSheetProps & { item: RoadmapItem }) {
 /** Read-first view: where it sits, how far along, what's next, and the brief. */
 function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onOpenTask, selectedTaskId, tasksById, progressById, onEdit, actions, onSave }: RoadmapItemSheetProps & { item: RoadmapItem; onEdit: () => void }) {
   const isHorizon = item.parent === null
+  // T521: the map's scenario colours, from the same proof as the Scenarios list
+  const scenarioProof = scenarioEvidence(item, tasksById)
+  const epicScenarios = item.scenarios.map((sc) => ({ id: sc.id, name: sc.name, status: scenarioStatus(sc.id, scenarioProof).status }))
   const parent = items.find((i) => i.id === item.parent)
   const epics = items.filter((i) => i.parent === item.id).sort((a, b) => a.order - b.order)
   const progress = progressById[item.id]
@@ -218,6 +223,18 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
       </ItemPanelHeader>
 
       <div className="flex flex-1 flex-col gap-6 px-6 py-5">
+        {!isHorizon && item.tasks.length > 0 && <EpicDiagram
+          taskIds={item.tasks}
+          tasks={Object.values(tasksById)}
+          scenarios={epicScenarios}
+          onOpenTask={onOpenTask}
+          onOpenScenario={(id) => {
+            const row = document.getElementById(scenarioRowId(id))
+            if (!row) return
+            row.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })
+            flashElement(row)
+          }}
+        />}
         {!isHorizon && item.tasks.length > 0 && <LinkedTasks item={item} tasksById={tasksById} onOpen={onOpenTask} selectedId={selectedTaskId ?? null} />}
         {!isHorizon && item.scenarios.length > 0 && <Scenarios item={item} tasksById={tasksById} onOpen={onOpenTask} />}
 
@@ -459,6 +476,16 @@ function ItemForm({ item, items, onClose, onSave, onDelete, onCancel }: RoadmapI
   )
 }
 
+/** R068: each scenario's proof comes from its covering tasks' checklists and last auto run (the list and T521's map). */
+function scenarioEvidence(item: RoadmapItem, tasksById: Record<string, Task>): ScenarioTask[] {
+  return item.tasks.map((id) => tasksById[id]).filter((t): t is Task => !!t && t.status !== "cancelled").map((t) => {
+    const tests = t.raw ? parseManualTests(t.raw) : null
+    return { id: t.id, covers: t.covers ?? [], items: tests?.items ?? [], autoResult: tests?.autoRun?.result ?? null }
+  })
+}
+
+const scenarioRowId = (id: string) => `scenario-${id}`
+
 /** R068: the epic's WHEN/THEN scenarios, each with the epic's tasks whose **Covers:** names it. */
 function Scenarios({ item, tasksById, onOpen }: {
   item: RoadmapItem
@@ -468,17 +495,13 @@ function Scenarios({ item, tasksById, onOpen }: {
   const tasks = item.tasks.map((id) => tasksById[id]).filter((t): t is Task => !!t && t.status !== "cancelled")
   const covered = coverageOf(item.scenarios, tasks)
   const { t } = useT()
-  // R068: each scenario's proof, from its covering tasks' checklists and last auto run
-  const evidence: ScenarioTask[] = tasks.map((t) => {
-    const tests = t.raw ? parseManualTests(t.raw) : null
-    return { id: t.id, covers: t.covers ?? [], items: tests?.items ?? [], autoResult: tests?.autoRun?.result ?? null }
-  })
+  const evidence = scenarioEvidence(item, tasksById)
   return (
     <section aria-label={t("roadmap.scenarios")} className="flex flex-col gap-2">
       <p className={SECTION}>{t("roadmap.scenariosCount", { n: item.scenarios.length })}</p>
       <ul className="flex flex-col gap-3">
         {item.scenarios.map((sc) => (
-          <li key={sc.id} aria-label={`${sc.id} ${sc.name}`} className="flex flex-col gap-1">
+          <li key={sc.id} id={scenarioRowId(sc.id)} aria-label={`${sc.id} ${sc.name}`} className="flex scroll-mt-4 flex-col gap-1 rounded-sm">
             <p className="flex items-baseline gap-2 text-sm">
               <span className="shrink-0 font-mono text-[11px] text-muted">{sc.id}</span>
               <span className="min-w-0 flex-1 text-txt">{sc.name}</span>

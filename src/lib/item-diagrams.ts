@@ -64,3 +64,46 @@ export function depGraphMermaid(g: DepGraph, focusId: string): string {
   for (const n of g.nodes) lines.push(`  class ${n.id} ${n.id === focusId ? "accent" : n.status === null ? "st-missing" : `st-${n.status}`}`)
   return lines.join("\n")
 }
+
+export type ScenarioState = 'passed' | 'failed' | 'unproven'
+export interface EpicScenario { id: string; name: string; status: ScenarioState }
+export interface EpicTask extends DiagramTask { covers: string[] }
+export interface EpicGraph { tasks: DepNode[]; scenarios: (EpicScenario & { covered: boolean })[]; deps: [string, string][]; covers: [string, string][] }
+
+/** An epic's tasks (cancelled ones dropped, missing files skipped), their dependency edges inside the epic, and which scenario each covers. */
+export function epicGraph(taskIds: string[], tasks: EpicTask[], scenarios: EpicScenario[]): EpicGraph {
+  const byId = new Map(tasks.map((t) => [t.id, t]))
+  const own = taskIds.map((id) => byId.get(id)).filter((t): t is EpicTask => !!t && t.status !== 'cancelled')
+  const ids = new Set(own.map((t) => t.id))
+  const scIds = new Set(scenarios.map((s) => s.id))
+  const deps: [string, string][] = []
+  const covers: [string, string][] = []
+  for (const t of own) {
+    for (const d of depIdsOf(t.dependsOn)) if (d !== t.id && ids.has(d)) deps.push([d, t.id])
+    for (const s of t.covers) if (scIds.has(s)) covers.push([t.id, s])
+  }
+  const covered = new Set(covers.map(([, s]) => s))
+  return {
+    tasks: own.map((t) => ({ id: t.id, title: t.title, status: t.status })),
+    scenarios: scenarios.map((s) => ({ ...s, covered: covered.has(s.id) })),
+    deps, covers,
+  }
+}
+
+const SC_GLYPH: Record<ScenarioState, string> = { passed: '✓', failed: '✕', unproven: '?' }
+
+/**
+ * `flowchart TB`: tasks in dependency order top to bottom, the scenarios (stadium shapes, `S…` ids) below them, a
+ * dotted edge from each task to every scenario it covers. Top to bottom and no subgraph boxes: the epic sheet is a
+ * narrow pane, and width is what keeps 13px labels readable. Scenario classes `sc-passed|failed|unproven`, `sc-uncovered` when no task covers it.
+ */
+export function epicGraphMermaid(g: EpicGraph): string {
+  const lines = ['flowchart TB']
+  for (const n of g.tasks) lines.push(`  ${n.id}["${GLYPH[n.status ?? ''] ?? '○'} ${n.id} · ${label(n.title)}"]`)
+  for (const s of g.scenarios) lines.push(`  ${s.id}(["${SC_GLYPH[s.status]} ${s.id} · ${label(s.name)}"])`)
+  for (const [a, b] of g.deps) lines.push(`  ${a} --> ${b}`)
+  for (const [t, s] of g.covers) lines.push(`  ${t} -.-> ${s}`)
+  for (const n of g.tasks) lines.push(`  class ${n.id} st-${n.status}`)
+  for (const s of g.scenarios) lines.push(`  class ${s.id} sc-${s.covered ? s.status : 'uncovered'}`)
+  return lines.join('\n')
+}
