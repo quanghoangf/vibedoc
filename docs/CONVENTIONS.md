@@ -55,7 +55,7 @@ emitUpdate('task_updated', { taskId, status, task })
 - **Dark theme only** — no light mode variants needed
 
 ## Visual blocks
-Put `<!-- vibedoc:steps -->` or `<!-- vibedoc:cards -->` on the line above a plain list (`-` or `1.`; a blank line between is fine). VibeDoc renders `steps` as stacked cards joined by arrows and `cards` as a grid (one column on phones). The marker is an HTML comment, so GitHub, `/md/<path>` and `vibedoc_read_doc` show the normal list.
+Put `<!-- vibedoc:steps -->`, `<!-- vibedoc:cards -->`, `<!-- vibedoc:compare -->` or `<!-- vibedoc:timeline -->` on the line above a plain list (`-` or `1.`; a blank line between is fine). VibeDoc renders `steps` as stacked cards joined by arrows, `cards` as a grid (one column on phones), `compare` as 2–3 columns side by side (each item's nested list = its points; stacked on phones; more than 3 items render as cards) and `timeline` as a vertical rail with a dot per item (the title is the date or phase label; only an item titled with the word "now" gets the accent). The marker is an HTML comment, so GitHub, `/md/<path>` and `vibedoc_read_doc` show the normal list.
 
 ```md
 <!-- vibedoc:steps -->

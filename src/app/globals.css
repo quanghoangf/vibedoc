@@ -262,6 +262,21 @@ body {
 .prose-dark .md-visual-arrow { display: block; margin: 0.3rem auto; color: var(--color-muted); }
 .prose-dark .md-visual[data-visual="cards"] > ul, .prose-dark .md-visual[data-visual="cards"] > ol { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: 0.75rem; }
 @media (max-width: 480px) { .prose-dark .md-visual[data-visual="cards"] > ul, .prose-dark .md-visual[data-visual="cards"] > ol { grid-template-columns: 1fr; } }
+/* compare: 2–3 columns side by side, stacked on phones */
+.prose-dark .md-visual[data-visual="compare"] > ul, .prose-dark .md-visual[data-visual="compare"] > ol { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.75rem; }
+@media (max-width: 640px) { .prose-dark .md-visual[data-visual="compare"] > ul, .prose-dark .md-visual[data-visual="compare"] > ol { grid-auto-flow: row; } }
+.prose-dark .md-visual[data-visual="compare"] .md-visual-title { padding-bottom: 0.4rem; margin-bottom: 0.4rem; border-bottom: 1px solid var(--color-border); }
+/* timeline: a 1px rail, a dot per item, mono label; the accent only on the item titled "now" */
+.prose-dark .md-visual[data-visual="timeline"] > ol, .prose-dark .md-visual[data-visual="timeline"] > ul { position: relative; padding-left: 1.4rem; }
+.prose-dark .md-visual[data-visual="timeline"] > ol::before, .prose-dark .md-visual[data-visual="timeline"] > ul::before { content: ""; position: absolute; left: 0.35rem; top: 0.5rem; bottom: 0.5rem; width: 1px; background: var(--color-border); }
+.prose-dark .md-visual[data-visual="timeline"] li { position: relative; }
+.prose-dark .md-visual[data-visual="timeline"] li + li { margin-top: 0.6rem; }
+.prose-dark .md-visual-dot { position: absolute; left: -1.4rem; top: 0.85rem; width: 9px; height: 9px; margin-left: calc(0.35rem - 4px); border-radius: 50%; background: var(--color-bg); border: 1px solid var(--color-muted); }
+.prose-dark .md-visual[data-visual="timeline"] li[data-now] .md-visual-dot { background: var(--color-accent); border-color: var(--color-accent); }
+.prose-dark .md-visual[data-visual="timeline"] .md-visual-card { border-color: transparent; background: transparent; padding: 0.35rem 0; }
+.prose-dark .md-visual[data-visual="timeline"] li[data-now] .md-visual-card { border-color: var(--color-border); background: var(--color-surface); padding: 0.35rem 0.75rem; }
+.prose-dark .md-visual[data-visual="timeline"] .md-visual-title { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; color: var(--color-muted); letter-spacing: 0.02em; }
+.prose-dark .md-visual[data-visual="timeline"] li[data-now] .md-visual-title { color: var(--color-accent); }
 .prose-dark a { color: var(--color-accent); text-decoration: none; }
 .prose-dark a:hover { text-decoration: underline; }
 .prose-dark a[data-wiki] { cursor: pointer; }

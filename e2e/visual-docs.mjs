@@ -6,6 +6,8 @@
 //   S3. a list under <!-- vibedoc:steps --> renders N cards with N−1 arrows, one under <!-- vibedoc:cards --> a grid
 //       (one column at 390px, no page overflow); /md/<path> and GitHub (gh api /markdown, skipped when gh isn't
 //       logged in) still show the plain list
+//   S3 (T516). <!-- vibedoc:compare --> renders 2 columns side by side at 1400px and stacked at 390px; a 4-item compare
+//       falls back to cards; <!-- vibedoc:timeline --> renders a dot per item with the accent only on "Now"
 // Fails on any browser console error. The fixture is a fresh mktemp project. Later R096 tasks add sections.
 //
 //   PORT=3189 pnpm dev   # then:
@@ -61,6 +63,14 @@ const BLOCKS = [
   "",
 ].join("\n")
 write("docs/blocks.md", BLOCKS)
+
+write("docs/compare.md", [
+  "# Compare", "",
+  "<!-- vibedoc:compare -->", "- **Mermaid** — text in the doc", "  - diffs and agents read it", "  - less design freedom",
+  "- **HTML/SVG** — a separate file", "  - publish-quality", "",
+  "<!-- vibedoc:compare -->", "- a", "- b", "- c", "- d", "",
+  "<!-- vibedoc:timeline -->", "1. **2026 Q3** — R089 richer markdown", "2. **Now** — R096 visual docs", "3. **Next** — R097 diagrams from data", "4. **Later** — more", "",
+].join("\n"))
 
 const browser = await launchChrome()
 const errors = []
@@ -224,6 +234,32 @@ try {
     assert.doesNotMatch(gh, /vibedoc:steps/, "the marker never shows as text")
     console.log("ok  S3: GitHub renders the same file as a numbered list and a bullet list")
   }
+
+  // S3 (T516): compare side by side on desktop, stacked on phones; >3 items → cards; timeline dots, one accent
+  await page.setViewportSize({ width: 1400, height: 900 })
+  await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/compare.md")}`)
+  const compare = preview.locator('[data-visual="compare"]')
+  await compare.waitFor()
+  assert.equal(await compare.count(), 1, "the 4-item compare is not a compare")
+  assert.equal(await preview.locator('[data-visual="cards"] .md-visual-card').count(), 4, "4-item compare falls back to cards")
+  const colTops = async () => compare.locator(".md-visual-card").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
+  const colLefts = async () => compare.locator(".md-visual-card").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)))
+  let [t1, t2] = await colTops()
+  let [l1, l2] = await colLefts()
+  assert.ok(t1 === t2 && l2 > l1 + 100, "two columns side by side at 1400px")
+  assert.equal(await compare.locator(".md-visual-detail li").count(), 3, "nested points kept")
+  const timeline = preview.locator('[data-visual="timeline"]')
+  assert.equal(await timeline.locator(".md-visual-dot").count(), 4)
+  assert.equal(await timeline.locator("li[data-now]").count(), 1)
+  const dots = await timeline.locator(".md-visual-dot").evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor))
+  const accent = await page.evaluate(() => `rgb(${getComputedStyle(document.documentElement).getPropertyValue("--rgb-accent").trim().split(/\s+/).join(", ")})`)
+  assert.deepEqual(dots.map((c) => c === accent), [false, true, false, false], "only the Now dot is the accent")
+  await page.setViewportSize({ width: 390, height: 844 })
+  ;[t1, t2] = await colTops()
+  ;[l1, l2] = await colLefts()
+  assert.ok(t2 > t1 && l1 === l2, "compare stacks at 390px")
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal page scroll at 390px")
+  console.log("ok  S3: compare is 2 columns (stacked at 390px, >3 items → cards); timeline has 4 dots, the accent only on Now")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("\nvisual-docs: all checks passed")

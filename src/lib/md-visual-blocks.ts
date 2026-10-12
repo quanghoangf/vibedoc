@@ -1,21 +1,22 @@
-// Visual blocks (R096): a plain list right under `<!-- vibedoc:steps -->` or `<!-- vibedoc:cards -->` renders as
-// stacked cards joined by arrows (steps) or a grid of cards (cards). The marker is an HTML comment, so GitHub, /md/
+// Visual blocks (R096): a plain list right under `<!-- vibedoc:steps|cards|compare|timeline -->` renders as stacked
+// cards joined by arrows (steps), a grid of cards (cards), 2–3 columns side by side (compare; more items fall back to
+// cards) or a vertical rail of dated items (timeline). The marker is an HTML comment, so GitHub, /md/
 // and vibedoc_read_doc show the normal list. Pure: `node src/lib/md-visual-blocks.check.mts`.
 import { Lexer } from "marked"
 import type { Token, Tokens, TokenizerAndRendererExtension } from "marked"
 
 export const VISUAL_KINDS = ["steps", "cards", "compare", "timeline"] as const
 export type VisualKind = (typeof VISUAL_KINDS)[number]
-// compare + timeline render in T516; until then their lists stay plain
-const RENDERED: readonly VisualKind[] = ["steps", "cards"]
+// compare reads side by side only up to this many columns; more items render as cards
+export const MAX_COMPARE = 3
 
 const MARKER_RE = /^<!--\s*vibedoc:([\w-]+)\s*-->\s*$/
 
-/** The kind named by a `<!-- vibedoc:<kind> -->` html token, if this module renders it. */
+/** The kind named by a `<!-- vibedoc:<kind> -->` html token, if it is one of VISUAL_KINDS. */
 function markerKind(t: Token | undefined): VisualKind | null {
   if (t?.type !== "html") return null
   const kind = MARKER_RE.exec(t.raw.trim())?.[1] as VisualKind | undefined
-  return kind && RENDERED.includes(kind) ? kind : null
+  return kind && VISUAL_KINDS.includes(kind) ? kind : null
 }
 
 interface VisualToken { type: "visual"; raw: string; kind: VisualKind; list: Tokens.List }
@@ -61,6 +62,13 @@ export function splitItem(text: string): VisualItem {
   return { ...(icon ? { icon: icon[1] } : {}), title, body: m[2].trim(), detail }
 }
 
+const NOW_RE = /\bnow\b/i
+
+/** compare with more than MAX_COMPARE items doesn't fit side by side: it renders as cards. */
+export function renderedKind(kind: VisualKind, items: number): VisualKind {
+  return kind === "compare" && items > MAX_COMPARE ? "cards" : kind
+}
+
 // lucide arrow-down, Pencil Grey via CSS
 const ARROW = '<svg class="md-visual-arrow" aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>'
 
@@ -68,7 +76,8 @@ export const visualBlocksExtension: TokenizerAndRendererExtension = {
   name: "visual",
   level: "block",
   renderer(token) {
-    const { kind, list } = token as unknown as VisualToken
+    const { list } = token as unknown as VisualToken
+    const kind = renderedKind((token as unknown as VisualToken).kind, list.items.length)
     const opts = this.parser.options
     // item text goes back through the same parser, so links, code and [[wikilinks]] still work
     const inline = (s: string) => this.parser.parseInline(Lexer.lexInline(s, opts))
@@ -81,6 +90,11 @@ export const visualBlocksExtension: TokenizerAndRendererExtension = {
         detail ? `<div class="md-visual-detail">${this.parser.parse(Lexer.lex(detail, opts))}</div>` : "",
       ].join("")
       const arrow = kind === "steps" && i < list.items.length - 1 ? ARROW : ""
+      if (kind === "timeline") {
+        // the one accent goes to the item whose label says "now"; every other dot stays neutral
+        const now = NOW_RE.test(title) ? " data-now" : ""
+        return `<li${now}><span class="md-visual-dot" aria-hidden="true"></span><div class="md-visual-card">${card}</div></li>`
+      }
       return `<li><div class="md-visual-card">${card}</div>${arrow}</li>`
     })
     const tag = list.ordered ? "ol" : "ul"

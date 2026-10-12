@@ -1,7 +1,7 @@
 // node src/lib/md-visual-blocks.check.mts
 import assert from 'node:assert/strict'
 import { Marked } from 'marked'
-import { groupVisualBlocks, splitItem, visualBlocksExtension } from './md-visual-blocks.ts'
+import { groupVisualBlocks, renderedKind, splitItem, visualBlocksExtension } from './md-visual-blocks.ts'
 
 // splitItem: bold title (+ emoji icon), rest of the first line = body, following lines = detail
 assert.deepEqual(splitItem('**Focus** — One main goal at a time.\nExample: finish the transaction flow.'),
@@ -36,7 +36,24 @@ assert.doesNotMatch(cards, /md-visual-arrow/)
 // a marker with no list → nothing; unknown or not-yet-rendered kinds → the plain list
 assert.equal(blocks(html('<!-- vibedoc:steps -->\n\nJust text.\n')), 0)
 assert.equal(html('<!-- vibedoc:nope -->\n- a\n'), '<!-- vibedoc:nope -->\n<ul>\n<li>a</li>\n</ul>\n')
-assert.equal(blocks(html('<!-- vibedoc:timeline -->\n- a\n')), 0)
+// compare: 2–3 columns, each item's nested list kept as its points; more than 3 → cards
+const cmp = html('<!-- vibedoc:compare -->\n- **Option A** — fast\n  - no build step\n  - less control\n- **Option B** — flexible\n  - full control\n')
+assert.match(cmp, /data-visual="compare"><ul role="list">/)
+assert.equal((cmp.match(/class="md-visual-card"/g) ?? []).length, 2)
+assert.match(cmp, /<div class="md-visual-detail"><ul>\n<li>no build step<\/li>\n<li>less control<\/li>\n<\/ul>/)
+assert.match(html('<!-- vibedoc:compare -->\n- a\n- b\n- c\n- d\n'), /data-visual="cards"/)
+assert.equal(renderedKind('compare', 3), 'compare')
+assert.equal(renderedKind('compare', 4), 'cards')
+assert.equal(renderedKind('steps', 9), 'steps')
+
+// timeline: a dot per item; label = title, body + detail beside it; only a "now" item is marked
+const tl = html('<!-- vibedoc:timeline -->\n1. **2026 Q3** — shipped R089\n2. **Now** — R096 visual docs\n   in review\n3. **Later** — R097\n4. **Snowfall** — not now-ish\n')
+assert.match(tl, /data-visual="timeline"><ol role="list">/)
+assert.equal((tl.match(/class="md-visual-dot"/g) ?? []).length, 4)
+assert.equal((tl.match(/<li data-now>/g) ?? []).length, 1, 'only the item titled Now (Snowfall does not count)')
+assert.match(tl, /<li data-now><span class="md-visual-dot" aria-hidden="true"><\/span><div class="md-visual-card"><strong class="md-visual-title">Now<\/strong><div class="md-visual-body">R096 visual docs<\/div><div class="md-visual-detail"><p>in review<\/p>/)
+assert.doesNotMatch(tl, /md-visual-arrow/)
+
 // lists without a marker render exactly as before
 const plain = new Marked({ gfm: true })
 for (const s of ['- a\n- b\n', '1. **x** y\n2. z\n', '- [ ] todo\n- [x] done\n', '- a\n  - nested\n']) assert.equal(html(s), plain.parse(s))

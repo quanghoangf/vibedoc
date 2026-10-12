@@ -1,5 +1,8 @@
 # T516: Visual blocks: compare and timeline
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude
+**Started:** 2026-10-12
+**Done:** 2026-10-12
 **Phase:** R096 — Visual docs
 **Size:** M (2–3 hrs)
 **Depends on:** T515
@@ -38,6 +41,8 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/visual-docs.mjs
 ```
 
 ## Manual tests
+_Auto: `e2e/visual-docs.mjs` passed 2026-10-12 (items below marked [x] are what it proved). `md-visual-blocks` check, `pnpm build` ok._
 ### Steps
-- [ ] S3 — WHEN a doc has `<!-- vibedoc:compare -->` / `<!-- vibedoc:timeline -->` above a list → THEN VibeDoc shows columns / a timeline, and GitHub / `vibedoc_read_doc` still show the list
-- [ ] Compare at 390px → columns stack, nothing overflows
+- [x] S3 — WHEN a doc has `<!-- vibedoc:compare -->` / `<!-- vibedoc:timeline -->` above a list → THEN VibeDoc shows columns / a timeline, and GitHub / `vibedoc_read_doc` still show the list
+- [x] Compare at 390px → columns stack, nothing overflows
+- [ ] Look at a compare and a timeline in light and dark → rail, dots and the Now accent read clearly (visual)
