@@ -16,6 +16,7 @@ import { toast } from "@/components/ui/toast"
 import { useDocLinks, type DocLinksData } from "./useDocLinks"
 import { LinkPreview } from "./LinkPreview"
 import { useCodeTabs } from "./code-tabs"
+import { decorateDiagram, useDiagramTools } from "./diagram-viewer"
 import { tNow } from "@/context/LanguageContext"
 import { resolveImageSrc } from "@/lib/attachments"
 import { MERMAID_TOKENS, mermaidThemeVariables, type MermaidTokens } from "@/lib/mermaid-theme"
@@ -212,6 +213,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
           if (cancelled || mine !== pass) return
           node.innerHTML = svg
           bindFunctions?.(node)
+          decorateDiagram(node)
         } catch (e) {
           if (cancelled || mine !== pass) return
           showMermaidError(node, src, e)
@@ -237,6 +239,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
   }, [html])
 
   useCodeTabs(containerRef, html)
+  const diagramDialog = useDiagramTools(containerRef, html)
 
   // A host span appended to the heading; a new html resets the container's markup, so it is re-made per render of it
   const actionId = headingAction?.id
@@ -263,6 +266,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
       />
       {docPath && <DocLinks docPath={docPath} html={html} containerRef={containerRef} />}
       {actionHost && headingAction && createPortal(headingAction.node, actionHost)}
+      {diagramDialog}
     </>
   )
 })

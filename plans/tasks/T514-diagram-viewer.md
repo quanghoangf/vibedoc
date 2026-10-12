@@ -1,5 +1,8 @@
 # T514: Diagram viewer: fullscreen, zoom, pan, copy source
-**Status:** 📋 Todo
+**Status:** 👀 Review
+**Owner:** ai:claude
+**Started:** 2026-10-12
+**Done:** 2026-10-12
 **Phase:** R096 — Visual docs
 **Size:** M (2–3 hrs)
 **Depends on:** T513
@@ -43,8 +46,9 @@ BASE=http://localhost:3189 PW_DIR=$PW node e2e/visual-docs.mjs
 ```
 
 ## Manual tests
+_Auto: `e2e/visual-docs.mjs` passed 2026-10-12 (items below marked [x] are what it proved). `zoom-pan` + `i18n` checks, `pnpm build` ok, lint 10 errors (baseline); `richer-markdown` e2e passes._
 ### Steps
-- [ ] S2 — WHEN the user opens a large diagram fullscreen → THEN they can zoom and pan it and copy its source; a diagram with a syntax error shows the error inline, not a blank box
+- [x] S2 — WHEN the user opens a large diagram fullscreen → THEN they can zoom and pan it and copy its source; a diagram with a syntax error shows the error inline, not a blank box
 - [ ] Vietnamese labels on the toolbar and dialog read correctly
 ### Regression risk
 - [ ] Agent edits to the open doc still flash only the changed blocks; diagram toolbars don't duplicate after a re-render

@@ -3,6 +3,8 @@
 //         the `accent` class = the accent) in light and in dark, and a theme switch re-colours them without a reload;
 //         a broken diagram shows its error and source inline while the others still render; typing in the Split
 //         editor re-renders the preview's diagram
+//   S2 (T514). hover/Tab shows a diagram's Fullscreen · Copy source toolbar; fullscreen zooms with + / wheel, drag pans,
+//       Fit resets, Esc closes and focus returns to the button; Copy source puts the ```mermaid fence on the clipboard
 //   S3. a list under <!-- vibedoc:steps --> renders N cards with N−1 arrows, one under <!-- vibedoc:cards --> a grid
 //       (one column at 390px, no page overflow); /md/<path> and GitHub (gh api /markdown, skipped when gh isn't
 //       logged in) still show the plain list
@@ -83,13 +85,13 @@ try {
   await stubChat(page, [], { root: fx })
   await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/diagrams.md")}`)
   const doc = page.locator(".doc-preview")
-  await doc.locator(".mermaid svg").nth(2).waitFor()
+  await doc.locator(".mermaid > svg").nth(2).waitFor()
 
   // the broken one: error message + its source in place; the three valid ones are svgs
   const error = doc.locator(".mermaid-error")
   await error.waitFor()
   assert.equal(await error.getAttribute("role"), "note")
-  assert.equal(await doc.locator(".mermaid svg").count(), 3, "the valid diagrams still render")
+  assert.equal(await doc.locator(".mermaid > svg").count(), 3, "the valid diagrams still render")
   assert.equal((await error.locator("pre").textContent()).trim(), BROKEN, "the source is shown")
   assert.match(await error.locator(".mermaid-error-message").textContent(), /^Parse error on line 2: Expecting /, "the error says where and what")
   assert.equal(await page.locator("body > [id^=dmermaid], body > svg[id^=mermaid]").count(), 0, "no stray error graphic left on the page")
@@ -108,7 +110,7 @@ try {
       actor: actor && getComputedStyle(actor).stroke,
       state: state && getComputedStyle(state).stroke,
       label: getComputedStyle(root.querySelector(".mermaid svg .nodeLabel, .mermaid svg .node text")).color,
-      svgBg: getComputedStyle(root.querySelector(".mermaid svg")).backgroundColor,
+      svgBg: getComputedStyle(root.querySelector(".mermaid > svg")).backgroundColor,
       shadows: Array.from(root.querySelectorAll(".mermaid svg *")).filter((el) => getComputedStyle(el).filter !== "none").length,
     }
   })
@@ -135,21 +137,92 @@ try {
   check(second, startDark ? "light" : "dark")
   assert.notEqual(second.rule, first.rule, "the rule line differs between themes")
   assert.equal(await page.evaluate(() => window.__noReload), true, "no reload")
-  assert.equal(await doc.locator(".mermaid svg").count(), 3)
+  assert.equal(await doc.locator(".mermaid > svg").count(), 3)
   assert.equal(await doc.locator(".mermaid-error").count(), 1, "the broken one stays an error after the switch")
   console.log("ok  T513: flowchart, sequence and state diagrams follow the tokens in light and dark; a switch re-colours them")
+
+  // S2 (T514): the diagram toolbar, fullscreen zoom/pan, copy source
+  {
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, permissions: ["clipboard-read", "clipboard-write"] })
+    const p2 = await ctx.newPage()
+    p2.on("console", (m) => { if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text()) })
+    p2.on("pageerror", (e) => errors.push(e.message))
+    await stubChat(p2, [], { root: fx })
+    await p2.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/diagrams.md")}`)
+    const first = p2.locator(".doc-preview .mermaid").first()
+    await first.locator(":scope > svg").waitFor()
+    const full = first.getByRole("button", { name: "Open diagram fullscreen" })
+    assert.equal(await full.evaluate((b) => getComputedStyle(b.parentElement).opacity), "0", "toolbar hidden until hover")
+    await first.hover()
+    await p2.waitForFunction(() => getComputedStyle(document.querySelector(".doc-preview .diagram-tools")).opacity === "1")
+    assert.equal(await p2.locator(".doc-preview .mermaid-error .diagram-tools").count(), 0, "no toolbar on a broken diagram")
+
+    // keyboard: focus the button, Enter opens the viewer
+    await full.focus()
+    await p2.keyboard.press("Enter")
+    const viewer = p2.locator("[data-diagram-viewer]")
+    // the dialog zooms/slides in: measure only after its animations end
+    const settle = () => viewer.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
+    await viewer.waitFor()
+    await settle()
+    assert.equal(await viewer.getByRole("heading", { name: "Diagram" }).count() + await viewer.getByText("Diagram", { exact: true }).count() > 0, true)
+    const scale = viewer.locator("[data-diagram-scale]")
+    const stage = viewer.locator("[data-diagram-stage]")
+    assert.equal(await scale.textContent(), "100%")
+    const strokes = await stage.evaluate((el) => {
+      const shape = (n) => getComputedStyle(el.querySelector(`.node[id*="-${n}-"] :is(rect, path, polygon)`)).stroke
+      return { plain: shape("A"), hot: shape("B"), accent: `rgb(${getComputedStyle(document.documentElement).getPropertyValue("--rgb-accent").trim().split(/\s+/).join(", ")})` }
+    })
+    assert.ok(strokes.hot === strokes.accent && strokes.plain !== strokes.accent, "the accent node keeps the accent in the viewer")
+    await p2.keyboard.press("+")
+    assert.equal(await scale.textContent(), "125%", "+ zooms in")
+    const t0 = await stage.evaluate((el) => el.style.transform)
+    const box = await viewer.locator(".diagram-stage").boundingBox()
+    await p2.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await p2.mouse.down()
+    await p2.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2 + 40, { steps: 6 })
+    await p2.mouse.up()
+    assert.notEqual(await stage.evaluate((el) => el.style.transform), t0, "drag pans")
+    await p2.mouse.move(box.x + 200, box.y + 200)
+    await p2.mouse.wheel(0, -300)
+    await p2.waitForFunction(() => document.querySelector("[data-diagram-scale]").textContent !== "125%")
+    await viewer.getByRole("button", { name: "Fit" }).click()
+    assert.equal(await scale.textContent(), "100%", "Fit resets")
+    await p2.keyboard.press("Escape")
+    await viewer.waitFor({ state: "detached" })
+    assert.equal(await p2.evaluate(() => document.activeElement?.getAttribute("aria-label")), "Open diagram fullscreen", "focus returns to the button")
+    console.log("ok  S2: fullscreen opens by keyboard, + and wheel zoom, drag pans, Fit resets, Esc closes and returns focus")
+
+    await first.hover()
+    await first.getByRole("button", { name: "Copy diagram source" }).click()
+    await p2.getByText("Copied the diagram source").waitFor()
+    const clip = await p2.evaluate(() => navigator.clipboard.readText())
+    assert.equal(clip, "```mermaid\nflowchart LR\n  A[Request] --> B[Core]\n  B --> C[(Files)]\n  class B accent\n```\n")
+    console.log("ok  S2: Copy source puts the mermaid fence on the clipboard")
+
+    // phone: the viewer fills the screen and the zoom buttons are there
+    await p2.setViewportSize({ width: 390, height: 844 })
+    await first.getByRole("button", { name: "Open diagram fullscreen" }).click()
+    await viewer.waitFor()
+    await settle()
+    const vb = await viewer.boundingBox()
+    assert.ok(vb.width >= 389 && vb.height >= 840, `viewer fills the phone screen (${vb.width}x${vb.height})`)
+    assert.ok(await viewer.getByRole("button", { name: "Zoom in" }).isVisible())
+    console.log("ok  S2: on a phone the viewer fills the screen with zoom buttons")
+    await ctx.close()
+  }
 
   // live editor preview: typing a new node re-renders the diagram after the debounce, themed, and never as an error
   await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/live.md")}`)
   await page.getByRole("tab", { name: "Split" }).click()
   const preview = page.locator(".doc-preview")
-  await preview.locator(".mermaid svg").waitFor()
+  await preview.locator(".mermaid > svg").waitFor()
   await page.locator(".cm-content").getByText("A --> B").click()
   await page.keyboard.press("End")
   await page.keyboard.type(" --> Cnew", { delay: 30 })
   await preview.locator(".mermaid svg .node").filter({ hasText: "Cnew" }).waitFor()
   assert.equal(await preview.locator(".mermaid-error").count(), 0, "a finished edit leaves no error box")
-  assert.equal(await preview.locator(".mermaid svg").count(), 1)
+  assert.equal(await preview.locator(".mermaid > svg").count(), 1)
   console.log("ok  live preview: typing re-renders the diagram after the debounce")
 
   // S3 visual blocks (T515)

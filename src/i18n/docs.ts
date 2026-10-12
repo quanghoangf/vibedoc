@@ -238,6 +238,15 @@ export const en = {
   outdatedDeleted: "deleted",
   fixDocs: "Fix docs",
   fixDocsHint: "Ask the agent to propose the fixes; nothing changes until you accept",
+  // Diagram tools (T514)
+  diagramFullscreen: "Open diagram fullscreen",
+  diagramCopySource: "Copy diagram source",
+  diagramCopied: "Copied the diagram source",
+  diagramCopyFailed: "Couldn't copy the diagram source",
+  diagramViewer: "Diagram",
+  diagramZoomIn: "Zoom in",
+  diagramZoomOut: "Zoom out",
+  diagramFit: "Fit",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -463,4 +472,13 @@ export const vi: Messages<typeof en> = {
   outdatedDeleted: "đã xóa",
   fixDocs: "Sửa tài liệu",
   fixDocsHint: "Nhờ agent đề xuất bản sửa; không có gì thay đổi cho tới khi bạn chấp nhận",
+  // Diagram tools (T514)
+  diagramFullscreen: "Mở sơ đồ toàn màn hình",
+  diagramCopySource: "Sao chép mã nguồn sơ đồ",
+  diagramCopied: "Đã sao chép mã nguồn sơ đồ",
+  diagramCopyFailed: "Không sao chép được mã nguồn sơ đồ",
+  diagramViewer: "Sơ đồ",
+  diagramZoomIn: "Phóng to",
+  diagramZoomOut: "Thu nhỏ",
+  diagramFit: "Vừa khung",
 }

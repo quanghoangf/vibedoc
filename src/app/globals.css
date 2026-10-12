@@ -402,11 +402,20 @@ body {
 .mermaid { margin: 1rem 0; text-align: center; }
 /* Diagrams in the notebook's own ink (R096, theme from src/lib/mermaid-theme.ts): flat, ruled, on the page itself */
 .mermaid svg { max-width: 100%; height: auto; background: transparent !important; }
+.mermaid { position: relative; }
+/* T514: Fullscreen · Copy source, top-right, shown on hover / keyboard focus (always on touch screens) */
+.diagram-tools { position: absolute; top: 0.25rem; right: 0.25rem; display: flex; gap: 2px; padding: 2px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); opacity: 0; transition: opacity 120ms; }
+.mermaid:hover .diagram-tools, .mermaid:focus-within .diagram-tools { opacity: 1; }
+@media (hover: none) { .diagram-tools { opacity: 1; } }
+.diagram-tools button { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 4px; color: var(--color-muted); }
+.diagram-tools button:hover { color: var(--color-txt); background: var(--color-surface2); }
+.diagram-tools button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.diagram-stage svg { width: 100%; height: 100%; max-width: none !important; }
 /* themeVariables.dropShadow covers most diagrams; sequence actors point at the svg's own shadow filter regardless */
-.mermaid svg * { filter: none !important; }
-.mermaid .edgeLabel, .mermaid .edgeLabel rect, .mermaid .labelBkg { background-color: rgb(var(--rgb-bg)) !important; fill: rgb(var(--rgb-bg)) !important; }
+:is(.mermaid, .diagram-stage) svg * { filter: none !important; }
+:is(.mermaid, .diagram-stage) :is(.edgeLabel, .edgeLabel rect, .labelBkg) { background-color: rgb(var(--rgb-bg)) !important; fill: rgb(var(--rgb-bg)) !important; }
 /* the one accent: `class A accent` (or `A:::accent`) in a flowchart marks the node that matters */
-.mermaid .node.accent :is(rect, polygon, circle, path) { stroke: rgb(var(--rgb-accent)) !important; stroke-width: 1.5px !important; }
+:is(.mermaid, .diagram-stage) .node.accent :is(rect, polygon, circle, path) { stroke: rgb(var(--rgb-accent)) !important; stroke-width: 1.5px !important; }
 /* a diagram that won't parse: the CAUTION alert's tones (R089), the error and the source in place */
 .mermaid-error { --alert: var(--color-danger); text-align: left; border-left: 3px solid var(--alert); background: color-mix(in srgb, var(--alert) 8%, transparent); border-radius: 0 8px 8px 0; padding: 0.6rem 1rem; }
 .mermaid-error-message { font-family: var(--font-mono); font-size: 12px; color: var(--alert); margin: 0 0 0.5rem; }
