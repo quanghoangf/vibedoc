@@ -92,10 +92,12 @@ export function pluginInstalled(list: unknown, root: string, plugin = 'vibedoc')
     && (p.scope === 'user' || p.projectPath === root))
 }
 
-/** `claude plugin marketplace list --json` already has the vibedoc marketplace (then its add is skipped). */
-export function hasVibedocMarketplace(list: unknown): boolean {
-  return Array.isArray(list) && list.some((m: { name?: unknown }) => m?.name === 'vibedoc')
+/** `claude plugin marketplace list --json` already has the marketplace `name` (then its add is skipped). */
+export function hasMarketplace(list: unknown, name: string): boolean {
+  return Array.isArray(list) && list.some((m: { name?: unknown }) => m?.name === name)
 }
+
+export const hasVibedocMarketplace = (list: unknown): boolean => hasMarketplace(list, 'vibedoc')
 
 /** The agents the Connect panel offers; Claude Code gets one-click steps, the others a config to paste. */
 export const CONNECT_AGENTS = ['claude-code', 'cursor', 'other'] as const

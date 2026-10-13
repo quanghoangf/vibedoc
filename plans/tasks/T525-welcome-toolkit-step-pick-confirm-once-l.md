@@ -1,9 +1,12 @@
 # T525: Welcome toolkit step: pick, confirm once, live ✓ or error per item
-**Status:** 📋 Ready
+**Status:** 👀 Review
 **Phase:** R098 — Agent toolkit setup
 **Size:** L
 **Depends on:** T524
 **Covers:** S1, S2, S3, S4
+**Owner:** ai:claude-code
+**Due:** 2026-10-20
+**Started:** 2026-10-13
 
 ## Goal
 After Connect your agent, the welcome shows "Pick your toolkit": ranked checkboxes with reasons. One confirm dialog names every plugin to be installed. Then each picked item turns ✓, or shows its real error and a command to copy, and the other picks still install.
@@ -68,9 +71,14 @@ BASE=http://localhost:3081 PW_DIR=. node e2e/first-screen.mjs
 ```
 
 ## Manual tests
-_2026-10-13 — human_
+_2026-10-13 — ai · Spec: `e2e/vibedoc/T525-welcome-toolkit-step-pick-confirm-once-l.spec.ts` · Auto: passed 2026-10-13_
 ### Steps
-- [ ] S1 — WHEN the welcome shows the toolkit step for a project with a web frontend → THEN frontend-related plugins are listed first, each with a one-line reason
-- [ ] S2 — WHEN the user ticks plugins and confirms → THEN only the ticked plugins are installed, and the dialog named each one before anything changed
-- [ ] S3 — WHEN a catalog plugin is already installed → THEN it shows as installed and cannot be ticked again
-- [ ] S4 — WHEN one plugin fails to install → THEN that item shows the real error and a command to copy, and the other picks still install
+- [x] 🤖 Open /start → "Pick your toolkit" lists Frontend design and Anthropic example skills first, each with its reason
+- [x] 🤖 Tick a plugin that is not installed and click Install selected → a dialog names it with its claude plugin install command
+- [x] 🤖 Click Cancel → the dialog closes and the plugin is still not installed
+- [ ] Plugins you already have in Claude Code show "Installed" with a ticked, greyed-out box
+- [ ] Tick a plugin you do not have, Install selected → Install → it turns "Installed", and `claude plugin list` shows it (this really installs it)
+- [ ] With the network off, install one → it shows "Install failed", the real error and the commands to copy (e2e/toolkit.mjs proves this with the fake CLI)
+### Regression risk
+- [ ] /start still offers "Generate roadmap from your docs" / "Plan the first epics" and "Write project docs" above and below the new step
+- [ ] Settings → Connect agent → Install skills still installs the vibedoc plugin

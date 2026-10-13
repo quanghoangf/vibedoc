@@ -11,6 +11,8 @@ const state = fs.existsSync(stateFile) ? JSON.parse(fs.readFileSync(stateFile, "
 const save = () => fs.writeFileSync(stateFile, JSON.stringify(state))
 fs.appendFileSync(path.join(process.cwd(), ".claude-stub.log"), args.join(" ") + "\n")
 const cmd = args.slice(0, 2).join(" ")
+// `plugin marketplace add <repo>` registers the marketplace under the name its marketplace.json declares
+const MARKETPLACE_NAMES = { "quanghoangf/vibedoc": "vibedoc", "anthropics/claude-plugins-official": "claude-plugins-official", "anthropics/skills": "anthropic-agent-skills" }
 
 if (cmd === "mcp add") {
   if (state.mcp) { console.error("MCP server vibedoc already exists in local config"); process.exit(1) }
@@ -26,10 +28,15 @@ if (cmd === "mcp add") {
 } else if (args.join(" ") === "plugin marketplace list --json") {
   console.log(JSON.stringify(state.marketplaces ?? [], null, 2))
 } else if (args.slice(0, 3).join(" ") === "plugin marketplace add") {
-  state.marketplaces = [...(state.marketplaces ?? []), { name: "vibedoc", source: "github", repo: args[3] }]; save()
-  console.log(`Successfully added marketplace: vibedoc`)
+  const name = MARKETPLACE_NAMES[args[3]] ?? args[3].split("/").pop()
+  state.marketplaces = [...(state.marketplaces ?? []), { name, source: "github", repo: args[3] }]; save()
+  console.log(`Successfully added marketplace: ${name}`)
 } else if (cmd === "plugin install") {
-  if (!(state.marketplaces ?? []).some((m) => m.name === "vibedoc")) { console.error(`Plugin "${args[2]}" not found in any marketplace`); process.exit(1) }
+  // "<plugin>@<marketplace>" needs that marketplace; a bare name needs the vibedoc one (R081's step)
+  const mkt = args[2].includes("@") ? args[2].split("@")[1] : "vibedoc"
+  if (!(state.marketplaces ?? []).some((m) => m.name === mkt)) { console.error(`Plugin "${args[2]}" not found in any marketplace`); process.exit(1) }
+  // R098: state.failInstall lists ids whose install fails with a real-looking error
+  if ((state.failInstall ?? []).includes(args[2])) { console.error(`✘ Failed to install plugin "${args[2]}": git clone failed (network unreachable)`); process.exit(1) }
   state.plugins = [...(state.plugins ?? []), { id: args[2], version: "1.16.0", scope: "user", enabled: true }]; save()
   console.log(`✔ Successfully installed plugin: ${args[2]} (scope: user)`)
 } else if (args[0] === "-p") {

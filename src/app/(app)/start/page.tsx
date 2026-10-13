@@ -7,6 +7,7 @@ import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { Button } from "@/components/ui/button"
 import { ConnectSlot } from "@/components/welcome/ConnectSlot"
+import { ToolkitStep } from "@/components/welcome/ToolkitStep"
 import { askAgent } from "@/lib/ask-agent"
 import { welcomeKind } from "@/lib/first-screen"
 
@@ -47,6 +48,7 @@ export default function WelcomePage() {
           </Button>
           <Link href={board} className="text-xs text-muted underline-offset-2 hover:text-txt hover:underline">{t("welcome.skip")}</Link>
           <ConnectSlot />
+          <ToolkitStep />
           <div className="mt-6 flex flex-col items-center gap-1 border-t border-border pt-4">
             <Button asChild variant="outline" size="sm"><Link href={`/setup${q}`}><FileText /> {t("welcome.writeDocs")}</Link></Button>
             <p className="text-xs text-muted">{t("welcome.writeDocsHint")}</p>

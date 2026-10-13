@@ -66,3 +66,10 @@ export const pluginId = (item: ToolkitItem) => `${item.plugin}@${item.marketplac
 export function installCommands(item: ToolkitItem): string[] {
   return [`claude plugin marketplace add ${item.marketplace.repo}`, `claude plugin install ${pluginId(item)}`]
 }
+
+/** The catalog items for a POSTed `ids` list, in catalog order; null when it isn't a non-empty list of known ids. */
+export function pickItems(catalog: ToolkitItem[], ids: unknown): ToolkitItem[] | null {
+  if (!Array.isArray(ids) || ids.length === 0 || ids.some(id => typeof id !== 'string')) return null
+  if (ids.some(id => !catalog.some(i => i.id === id))) return null
+  return catalog.filter(i => ids.includes(i.id))
+}

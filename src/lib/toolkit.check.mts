@@ -57,3 +57,11 @@ assert.equal(pluginInstalled([{ ...entry, scope: 'project', projectPath: '/p' }]
 assert.equal(pluginInstalled([{ ...entry, id: 'frontend-design@fork' }], '/p', pluginId(fd)), false)
 assert.equal(pluginInstalled([entry], '/p'), false, 'default still means vibedoc')
 console.log('installed ok')
+
+const { pickItems } = await import('./toolkit.ts')
+assert.deepEqual(pickItems(TOOLKIT_CATALOG, ['superpowers', 'frontend-design'])?.map(i => i.id), ['frontend-design', 'superpowers'])
+assert.equal(pickItems(TOOLKIT_CATALOG, ['superpowers', 'evil; rm -rf']), null)
+assert.equal(pickItems(TOOLKIT_CATALOG, []), null)
+assert.equal(pickItems(TOOLKIT_CATALOG, 'superpowers'), null)
+assert.equal(pickItems(TOOLKIT_CATALOG, [1]), null)
+console.log('pickItems ok')
