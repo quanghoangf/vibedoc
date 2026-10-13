@@ -2,7 +2,8 @@
  * src/lib/toolkit-catalog.ts (R098)
  * The vetted Claude Code plugins onboarding offers. Pure data: ranked for a project by rankToolkit (toolkit.ts).
  * Ids and marketplaces checked against Claude Code 2.1.296 (`claude plugin marketplace list --json` and each
- * marketplace's .claude-plugin/marketplace.json), 2026-10-13.
+ * marketplace's .claude-plugin/marketplace.json), 2026-10-13; every item installed for real with that version into a
+ * scratch CLAUDE_CONFIG_DIR (T527).
  */
 import type { ToolkitItem } from './toolkit'
 

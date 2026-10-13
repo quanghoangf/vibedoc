@@ -1,9 +1,12 @@
 # T527: Toolkit Done-when end to end, docs, close R098
-**Status:** 📋 Ready
+**Status:** 👀 Review
 **Phase:** R098 — Agent toolkit setup
 **Size:** S
 **Depends on:** T526
 **Covers:** S1, S2, S3, S4, S5
+**Owner:** ai:claude-code
+**Due:** 2026-10-14
+**Started:** 2026-10-13
 
 ## Goal
 Prove the epic's Done-when on a fresh project, document the toolkit step, and close R098.
@@ -39,10 +42,10 @@ BASE=http://localhost:3081 node e2e/toolkit.mjs
 ```
 
 ## Manual tests
-_2026-10-13 — human_
+_2026-10-13 — ai_
 ### Steps
-- [ ] S1 — WHEN the welcome shows the toolkit step for a project with a web frontend → THEN frontend-related plugins are listed first, each with a one-line reason
-- [ ] S2 — WHEN the user ticks plugins and confirms → THEN only the ticked plugins are installed, and the dialog named each one before anything changed
-- [ ] S3 — WHEN a catalog plugin is already installed → THEN it shows as installed and cannot be ticked again
-- [ ] S4 — WHEN one plugin fails to install → THEN that item shows the real error and a command to copy, and the other picks still install
-- [ ] S5 — WHEN the user asks the in-app agent to set up their toolkit → THEN it asks which suggested plugins they want and installs the picks after the same confirm
+- [ ] Open docs/getting-started.md → section 3 has "Pick your toolkit" with the plugin table, and it matches what /start shows
+- [ ] Open the README Quick start → one line points at Pick your toolkit
+- [ ] On a brand-new folder, run `npx vibedoc` → the welcome opens, Pick your toolkit lists plugins that fit, tick 3 → Install selected → Install → all 3 turn Installed without leaving the page
+### Regression risk
+- [ ] The README and getting-started links to Settings → Connect agent still work

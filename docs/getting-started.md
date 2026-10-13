@@ -91,6 +91,25 @@ Add the same server to `.cursor/mcp.json` in the project root:
 
 Check the connection: ask the agent to "list the VibeDoc tasks". It calls `vibedoc_list_tasks` and you see the board come back.
 
+### Pick your toolkit
+
+The welcome screen (the first page VibeDoc opens on a new project) also offers popular Claude Code plugins under **Pick your toolkit**. The ones that fit the project come first, each with one line on why: a web frontend puts the design and browser-testing plugins on top, a `tsconfig.json` adds the TypeScript language server. Tick what you want and click **Install selected**. One dialog lists every plugin and the exact commands; nothing runs until you click **Install**. Then each plugin turns ✓ once `claude plugin list` shows it, or shows the real error and the commands to run yourself. Plugins you already have show as installed.
+
+In an agent chat, ask "set up my toolkit": the agent shows the same list as a card (`vibedoc_propose_toolkit`), you confirm the same dialog, and VibeDoc runs the installs, never the agent.
+
+| Plugin | Why | Listed when |
+|---|---|---|
+| Frontend design | UI work that avoids the generic "AI look" | web frontend |
+| Anthropic example skills | includes webapp-testing: the agent checks your running web app in a real browser | web frontend |
+| Code review | `/code-review`: parallel reviewers, only confident findings | git repo |
+| Commit commands | `/commit`, `/commit-push-pr` and branch cleanup | git repo |
+| Security guidance | warns about risky edits (injection, eval, secrets) as they happen | server code |
+| TypeScript / Python / Go LSP | real go-to-definition and diagnostics for the agent | `tsconfig.json` / `pyproject.toml` or `requirements.txt` / `go.mod` |
+| Feature dev | guided explore → design → build → review workflow | always |
+| Superpowers | skills for TDD, systematic debugging and verify-before-done | always |
+
+Plugins are installed for your user (`claude plugin install`, user scope), so every project gets them. Without `claude` on the PATH, the step shows the commands to copy.
+
 ## 4. Run a first session
 
 Ask the agent to follow this loop. The board updates live while it works.

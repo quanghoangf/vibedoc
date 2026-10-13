@@ -59,6 +59,8 @@ Then add the skills in Claude Code and plan your first epic:
 /vibedoc:roadmap
 ```
 
+On a new project the welcome screen also suggests popular Claude Code plugins that fit it (**Pick your toolkit**) and installs the ones you tick after one confirm.
+
 **Rather not read?** Paste [the install prompt](https://quanghoangf.github.io/vibedoc/docs/ai-install/) into your agent: it starts VibeDoc, connects it, adds the skills and reports back.
 
 ### Try the demo first

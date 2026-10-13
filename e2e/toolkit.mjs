@@ -9,13 +9,16 @@
 //       plugin ticked; closing the dialog installs nothing; Install → the plugin installs and "Toolkit install results:"
 //       goes back as the next chat message. vibedoc_propose_toolkit with an unknown preselect id → a tool error
 //       listing the valid ids
+//   Done when (T527): a fresh web project (no tasks, no roadmap) → `/` opens the welcome → the agent connects (a real
+//       MCP call) → pick 3 plugins → one confirm → 3 ✓, still on /start
 // The server must run with e2e/fixtures/claude-stub first on PATH (a fake `claude` that keeps its state in the cwd).
 // Fails on any browser page error. The fixture is removed in `finally`.
 //
 //   PATH=$PWD/e2e/fixtures/claude-stub:$PATH pnpm exec next dev -p 3081
 //   PW_DIR=<dir with node_modules/playwright> BASE=http://localhost:3081 node e2e/toolkit.mjs
 import assert from "node:assert/strict"
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat, toolTurn } from "./stub-chat.mjs"
 
@@ -144,6 +147,39 @@ try {
   for (let i = 0; i < 50 && calls.length < 2; i++) await chatPage.waitForTimeout(100)
   assert.match(JSON.stringify(calls[1] ?? {}), /Toolkit install results:\\n- typescript-lsp: installed/)
   console.log("ok  S5 the agent's toolkit card installs after the same confirm and sends the results back")
+
+  // Done when: a fresh project, start to 3 ✓ without leaving the welcome
+  const fresh = mkdtempSync(path.join(tmpdir(), "vibedoc-toolkit-"))
+  try {
+    writeFileSync(path.join(fresh, "package.json"), JSON.stringify({ name: "fresh", scripts: { dev: "vite" }, dependencies: { vite: "7.0.0", react: "19.0.0" } }))
+    mkdirSync(path.join(fresh, ".git"))
+    mkdirSync(path.join(fresh, ".vibedoc"))
+    writeFileSync(path.join(fresh, ".vibedoc/feedback.json"), JSON.stringify({ consent: false, sent: [] }))
+    const freshLog = path.join(fresh, ".claude-stub.log")
+    const p3 = await ctx.newPage()
+    p3.on("pageerror", (e) => errors.push(e.message))
+    await stubChat(p3, [], { root: fresh })
+    await p3.goto(`${BASE}/?root=${encodeURIComponent(fresh)}`)
+    await p3.waitForURL(/\/start\b/)
+    await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(fresh)}`, {
+      method: "POST", headers: { "content-type": "application/json", "user-agent": "claude-code/2.1.296 (cli)" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_read_memory", arguments: {} } }),
+    })
+    await p3.getByText("Agent connected").waitFor({ timeout: 15_000 })
+    const step3 = p3.getByRole("region", { name: "Pick your toolkit" })
+    for (const name of [/Frontend design/, /Anthropic example skills/, /Code review/]) await step3.getByRole("checkbox", { name }).check()
+    await step3.getByRole("button", { name: "Install selected" }).click()
+    await p3.getByRole("dialog", { name: "Install these plugins in Claude Code?" }).getByRole("button", { name: "Install", exact: true }).click()
+    for (const id of ["frontend-design", "example-skills", "code-review"]) {
+      await step3.locator(`[data-toolkit-item="${id}"]`).getByText("Installed").waitFor({ timeout: 30_000 })
+    }
+    assert.match(p3.url(), /\/start\b/, "never left the welcome")
+    const freshInstalls = readFileSync(freshLog, "utf8").trim().split("\n").filter((c) => c.startsWith("plugin install"))
+    assert.equal(freshInstalls.length, 3, `one confirm → 3 installs: ${freshInstalls}`)
+    console.log("ok  Done when: fresh project → welcome → agent connected → 3 picks, one confirm → 3 ✓ on /start")
+  } finally {
+    rmSync(fresh, { recursive: true, force: true })
+  }
 
   assert.deepEqual(errors, [], `page errors: ${errors.join("\n")}`)
 } finally {
