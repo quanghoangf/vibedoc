@@ -58,6 +58,7 @@ import { isDemo, isPlayground } from './demo'
 import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './first-run'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
 import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
+import type { ProjectFacts } from './toolkit'
 import { parseUsage, recordRead, recordSearch, summarizeUsage, type DocUsage, type UsageSummary } from './doc-usage'
 import { OPENAPI_GLOB, parseOpenApi, type OpenApiSpec } from './openapi'
 
@@ -3752,6 +3753,23 @@ export async function recordAgentCall(root: string, agent: string, now = new Dat
   await fs.writeFile(tmp, JSON.stringify({ agent, lastCall: now.toISOString() }, null, 2) + '\n', 'utf-8')
   await fs.rename(tmp, file)
   return true
+}
+
+// ─── Agent toolkit setup (R098) ───────────────────────────────────────────────
+
+/** What the toolkit's fit signals read (pure `signalsFrom` in toolkit.ts): the frontend, top-level entries, server dirs, deps. */
+export async function getToolkitFacts(root: string): Promise<ProjectFacts> {
+  const exists = (rel: string) => fs.stat(path.join(root, rel)).then(() => true, () => false)
+  const [frontend, entries, apiDir, pkg] = await Promise.all([
+    detectFrontend(root), fs.readdir(root).catch(() => [] as string[]), exists('src/app/api'),
+    fs.readFile(path.join(root, 'package.json'), 'utf-8').catch(() => null),
+  ])
+  let deps: string[] = []
+  try {
+    const j = pkg ? JSON.parse(pkg) : {}
+    deps = Object.keys({ ...j.dependencies, ...j.devDependencies })
+  } catch { /* an unreadable package.json has no deps to match */ }
+  return { frontend: frontend !== null, paths: apiDir ? [...entries, 'src/app/api'] : entries, deps }
 }
 
 // ─── R093: doc usage signals (.vibedoc/doc-usage.json) ────────────────────────

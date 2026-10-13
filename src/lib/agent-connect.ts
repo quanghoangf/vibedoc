@@ -80,11 +80,15 @@ export const pluginInstallCommands = (): string[] => [
 
 interface PluginEntry { id?: unknown; enabled?: unknown; scope?: unknown; projectPath?: unknown }
 
-/** `claude plugin list --json` has an enabled vibedoc plugin for every project (user scope) or for this one. */
-export function pluginInstalled(list: unknown, root: string): boolean {
+/**
+ * `claude plugin list --json` has the plugin enabled for every project (user scope) or for this one.
+ * `plugin` is an exact `<name>@<marketplace>`, or a bare name that matches it from any marketplace.
+ */
+export function pluginInstalled(list: unknown, root: string, plugin = 'vibedoc'): boolean {
   if (!Array.isArray(list)) return false
+  const match = (id: string) => plugin.includes('@') ? id === plugin : id.startsWith(`${plugin}@`)
   return (list as PluginEntry[]).some(p =>
-    typeof p?.id === 'string' && p.id.startsWith('vibedoc@') && p.enabled === true
+    typeof p?.id === 'string' && match(p.id) && p.enabled === true
     && (p.scope === 'user' || p.projectPath === root))
 }
 
