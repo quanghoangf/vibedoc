@@ -1,3 +1,13 @@
+# [1.22.0](https://github.com/quanghoangf/vibedoc/compare/v1.21.0...v1.22.0) (2026-10-13)
+
+
+### Features
+
+* **toolkit:** plugin catalog, project-fit ranking and installed state at GET /api/toolkit (T524) ([6669bc1](https://github.com/quanghoangf/vibedoc/commit/6669bc15830c49e3439dfb637b51da5205c2e1a3))
+* **toolkit:** ruled list, preselected fits, announced progress and focus return in the toolkit step and card (T528) ([785f13a](https://github.com/quanghoangf/vibedoc/commit/785f13aee26a69ec52ab4c2fe3a9a28de8e9f956))
+* **toolkit:** vibedoc_propose_toolkit and the chat toolkit card (T526) ([d2c85d4](https://github.com/quanghoangf/vibedoc/commit/d2c85d4722db17ca527eb0881406bbf70edd6fd3))
+* **toolkit:** welcome step to pick plugins, confirm once and see each install's result (T525) ([f5903f5](https://github.com/quanghoangf/vibedoc/commit/f5903f534624bd0b720a606e67932da7ba1a5cb3))
+
 # [1.21.0](https://github.com/quanghoangf/vibedoc/compare/v1.20.0...v1.21.0) (2026-10-12)
 
 
