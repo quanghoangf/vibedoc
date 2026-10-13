@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
@@ -10,6 +11,16 @@ import type { ToolkitEntry } from "./ToolkitPicker"
 export function ToolkitConfirmDialog({ items, onConfirm, onClose }: { items: ToolkitEntry[]; onConfirm: () => void; onClose: () => void }) {
   const { activeProject } = useApp()
   const { t } = useT()
+  // Inside the chat modal Radix lets the modal take this Escape too (as TaskRuns): window capture runs before Radix's listener
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      e.stopPropagation()
+      onClose()
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [onClose])
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
       <DialogContent className="max-h-[85svh] max-w-lg space-y-3 overflow-y-auto">

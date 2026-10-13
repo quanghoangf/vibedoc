@@ -601,6 +601,18 @@ export const TOOLS = [
     },
   },
   {
+    name: "vibedoc_propose_toolkit",
+    description:
+      "Show the user a card with the vetted Claude Code plugins that fit this project (best fit first, each with a reason and whether it's installed). The user ticks plugins and confirms; VibeDoc installs them, never you. Use it when the user asks to set up plugins, skills or their toolkit. Returns the ranked list; then end your turn. The outcome arrives as the next user message (`Toolkit install results:` with one `- <id>: installed | failed — <error>` line per plugin).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        preselect: { type: "array", items: { type: "string" }, description: "Catalog ids to tick in advance (from a previous call's list). Unknown ids are refused." },
+        note: { type: "string", description: "One line shown above the list, e.g. why you suggest these" },
+      },
+    },
+  },
+  {
     name: "vibedoc_get_planning_guide",
     description:
       "Load the instructions for planning work from chat. Call this first when the user asks to plan or generate a roadmap (kind \"roadmap\") or to break an epic into tasks (kind \"breakdown\"), then follow it.",

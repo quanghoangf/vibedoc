@@ -65,3 +65,9 @@ assert.equal(pickItems(TOOLKIT_CATALOG, []), null)
 assert.equal(pickItems(TOOLKIT_CATALOG, 'superpowers'), null)
 assert.equal(pickItems(TOOLKIT_CATALOG, [1]), null)
 console.log('pickItems ok')
+
+const { formatToolkitResults } = await import('./toolkit.ts')
+assert.equal(formatToolkitResults([{ id: 'a', ok: true }, { id: 'b', ok: false, stderr: 'boom\nmore' }, { id: 'c', ok: false }]),
+  'Toolkit install results:\n- a: installed\n- b: failed — boom\n- c: failed')
+assert.equal(formatToolkitResults([]), 'Toolkit: nothing was installed.')
+console.log('formatToolkitResults ok')

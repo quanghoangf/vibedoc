@@ -73,3 +73,11 @@ export function pickItems(catalog: ToolkitItem[], ids: unknown): ToolkitItem[] |
   if (ids.some(id => !catalog.some(i => i.id === id))) return null
   return catalog.filter(i => ids.includes(i.id))
 }
+
+/** The chat card's outcome, sent as the user's next message after `vibedoc_propose_toolkit` (R098 S5). */
+export function formatToolkitResults(results: { id: string; ok: boolean; stderr?: string }[]): string {
+  if (results.length === 0) return 'Toolkit: nothing was installed.'
+  const line = (r: { id: string; ok: boolean; stderr?: string }) =>
+    `- ${r.id}: ${r.ok ? 'installed' : `failed${r.stderr?.trim() ? ` — ${r.stderr.trim().split('\n')[0]}` : ''}`}`
+  return ['Toolkit install results:', ...results.map(line)].join('\n')
+}

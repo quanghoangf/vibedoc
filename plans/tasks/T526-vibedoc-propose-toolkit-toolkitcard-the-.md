@@ -1,9 +1,12 @@
 # T526: vibedoc_propose_toolkit + ToolkitCard: the agent asks, the user confirms
-**Status:** 📋 Ready
+**Status:** 👀 Review
 **Phase:** R098 — Agent toolkit setup
 **Size:** M
 **Depends on:** T525
 **Covers:** S5
+**Owner:** ai:claude-code
+**Due:** 2026-10-16
+**Started:** 2026-10-13
 
 ## Goal
 A user can say "set up my toolkit" to the in-app agent. The agent shows a card in chat with the same ranked checkboxes, and the user confirms the same dialog. The installs and the ✓/errors come from VibeDoc, not from the agent's shell.
@@ -44,6 +47,14 @@ BASE=http://localhost:3081 node e2e/toolkit.mjs
 ```
 
 ## Manual tests
-_2026-10-13 — human_
+_2026-10-13 — ai · Spec: `e2e/vibedoc/T526-vibedoc-propose-toolkit-toolkitcard-the-.spec.ts` · Auto: passed 2026-10-13_
 ### Steps
-- [ ] S5 — WHEN the user asks the in-app agent to set up their toolkit → THEN it asks which suggested plugins they want and installs the picks after the same confirm
+- [x] 🤖 Ask the agent to set up the toolkit → a "Pick plugins to install" card shows its note and the ranked plugins
+- [x] 🤖 The plugin the agent preselected (TypeScript LSP) is ticked
+- [x] 🤖 Click Install selected, then press Escape → only the confirm dialog closes; the chat and its card stay
+- [ ] In a real chat, type "set up my toolkit" → the agent calls vibedoc_propose_toolkit and the card appears (no install commands in its reply)
+- [ ] Tick a plugin, Install selected → Install → it turns "Installed" in the card, and the agent's next reply reacts to "Toolkit install results:"
+- [ ] Reload the page → the card shows "Installed: …" / "Failed: …" instead of the checkboxes
+### Regression risk
+- [ ] A planning chat still shows question cards and the plan card, and answering a question still sends the answers
+- [ ] The welcome step "Pick your toolkit" still installs (it now shares the same hook)

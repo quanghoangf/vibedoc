@@ -43,6 +43,7 @@ export interface StatusMessage {
   questions: { answers?: unknown }[]
   proposals: { status: string }[]
   plans: { status: string }[]
+  toolkits?: { results?: unknown }[]
   error?: string
 }
 
@@ -69,7 +70,7 @@ export function chatStatus(chat: Chat<StatusMessage>): ChatStatus {
   if (chat.busy) return "running"
   const last = chat.messages[chat.messages.length - 1]
   // Same rule as the composer hint: only the latest reply's questions block
-  if (last?.questions.some((q) => !q.answers)) return "needs-answer"
+  if (last?.questions.some((q) => !q.answers) || last?.toolkits?.some((k) => !k.results)) return "needs-answer"
   if (pendingReviews(chat)) return "review"
   const lastReply = chat.messages.findLast((m) => m.role === "assistant")
   return lastReply?.error ? "error" : "idle"
@@ -232,7 +233,7 @@ export function fromSaved<M extends StatusMessage>(raw: unknown): Chat<M> | null
   const c = raw as Chat<M> | null
   if (!c || typeof c.id !== "string" || !Array.isArray(c.messages)) return null
   const last = c.messages[c.messages.length - 1]
-  const cut = last?.role === "assistant" && !last.text && !last.error && !last.tools?.length && !last.plans?.length && !last.proposals?.length && !last.questions?.length
+  const cut = last?.role === "assistant" && !last.text && !last.error && !last.tools?.length && !last.plans?.length && !last.proposals?.length && !last.questions?.length && !last.toolkits?.length
   const messages = cut ? [...c.messages.slice(0, -1), { ...last, error: INTERRUPTED }] : c.messages
   const at = c.updatedAt ?? c.createdAt ?? new Date(0).toISOString()
   return { ...c, messages, busy: false, notes: c.notes ?? [], attach: c.attach ?? null, createdAt: c.createdAt ?? at, updatedAt: at }

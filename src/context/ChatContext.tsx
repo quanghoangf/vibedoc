@@ -14,6 +14,9 @@ import { toast } from "@/components/ui/toast"
 import type { Proposal, ProposalStatus } from "@/components/chat/ProposalCard"
 import type { PlanCreated, PlanProposal, PlanStatus } from "@/components/chat/PlanCard"
 import { formatAnswers, isRenderableQuestions, type Question, type QuestionSet } from "@/components/chat/QuestionCard"
+import type { ToolkitProposal } from "@/components/chat/ToolkitCard"
+import type { ToolkitResult } from "@/components/toolkit/ToolkitPicker"
+import { formatToolkitResults } from "@/lib/toolkit"
 import { asRenderablePlan, planTarget } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
 import { ASK_AGENT_EVENT, OPEN_CHAT_EVENT, openAgentChat, type AskAgentDetail } from "@/lib/ask-agent"
@@ -30,6 +33,8 @@ export interface ChatMessage {
   proposals: Proposal[]
   plans: PlanProposal[]
   questions: QuestionSet[]
+  /** R098: `vibedoc_propose_toolkit` cards; missing on chats saved before it */
+  toolkits?: ToolkitProposal[]
   error?: string
 }
 
@@ -65,6 +70,7 @@ interface ChatApi {
   resolveProposal: (chatId: string, id: string, path: string, status: ProposalStatus) => void
   resolvePlan: (chatId: string, p: PlanProposal, status: PlanStatus, created: PlanCreated[], unchecked: string[]) => void
   answerQuestions: (chatId: string, set: QuestionSet, answers: string[]) => void
+  finishToolkit: (chatId: string, set: ToolkitProposal, results: ToolkitResult[]) => void
   /** attachKey → the most urgent chat working on that epic/task */
   agents: Record<string, ItemAgent>
   runningCount: number
@@ -314,17 +320,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const questions: QuestionSet[] = uses
         .filter((b) => b.name.endsWith("vibedoc_ask_questions") && isRenderableQuestions(b.input?.questions))
         .map((b) => ({ id: b.id, questions: b.input.questions as Question[] }))
-      const cards = ["vibedoc_propose_edit", "vibedoc_propose_plan", "vibedoc_ask_questions"]
+      const toolkits: ToolkitProposal[] = uses
+        .filter((b) => b.name.endsWith("vibedoc_propose_toolkit"))
+        .map((b) => ({
+          id: b.id,
+          preselect: Array.isArray(b.input?.preselect) ? (b.input.preselect as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
+          note: typeof b.input?.note === "string" ? b.input.note : undefined,
+        }))
+      const cards = ["vibedoc_propose_edit", "vibedoc_propose_plan", "vibedoc_ask_questions", "vibedoc_propose_toolkit"]
       const tools = uses
         .filter((b) => !cards.some((c) => b.name.endsWith(c)))
         .map((b) => b.name.replace(/^mcp__vibedoc__vibedoc_/, ""))
-      if (tools.length || proposals.length || plans.length || questions.length) {
+      if (tools.length || proposals.length || plans.length || questions.length || toolkits.length) {
         patchLast(chatId, (m) => ({
           ...m,
           tools: [...m.tools, ...tools],
           proposals: [...m.proposals, ...proposals],
           plans: [...m.plans, ...plans],
           questions: [...m.questions, ...questions],
+          toolkits: [...(m.toolkits ?? []), ...toolkits],
         }))
       }
     } else if (ev.type === "user") {
@@ -340,6 +354,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           proposals: m.proposals.filter((p) => !failed.has(p.id)),
           plans: m.plans.filter((p) => !failed.has(p.id)),
           questions: m.questions.filter((q) => !failed.has(q.id)),
+          toolkits: m.toolkits?.filter((k) => !failed.has(k.id)),
         }))
       }
     } else if (ev.type === "result" && ev.is_error) {
@@ -493,11 +508,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     send(chatId, formatAnswers(set.questions, answers))
   }
 
+  function finishToolkit(chatId: string, set: ToolkitProposal, results: ToolkitResult[]) {
+    const summary = formatToolkitResults(results)
+    const busy = chats.find((c) => c.id === chatId)?.busy
+    mapMessages(chatId, (m) => ({
+      ...m,
+      toolkits: m.toolkits?.map((k) => (k.id === set.id ? { ...k, results: results.map((r) => ({ id: r.id, ok: r.ok })) } : k)),
+    }), busy ? summary : undefined)
+    if (!busy) send(chatId, summary)
+  }
+
   const api: ChatApi = {
     chats, loaded, modalId,
     closeModal,
     show, showDefault, showAbout, create, send, stop, dismiss, remove,
-    resolveProposal, resolvePlan, answerQuestions,
+    resolveProposal, resolvePlan, answerQuestions, finishToolkit,
     agents, runningCount, waitingCount, errorCount, queue, now,
     notice, dismissNotice: () => setNotice(null),
   }

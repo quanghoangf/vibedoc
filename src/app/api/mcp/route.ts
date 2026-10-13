@@ -31,6 +31,7 @@ import { endpointDetail, formatEndpoint, formatEndpointList } from "@/lib/openap
 import {
   readProjectImage,
   rootFrom,
+  getToolkitFacts,
   readOpenApi,
   listDocs,
   readDoc,
@@ -105,7 +106,10 @@ import {
 } from "@/lib/core";
 import type { TextEdit } from "@/lib/diff";
 import { agentFromUserAgent } from "@/lib/owner";
-import { CHAT_CALL_HEADER } from "@/lib/agent-connect";
+import { CHAT_CALL_HEADER, pluginInstalled } from "@/lib/agent-connect";
+import { pluginList } from "@/lib/claude-cli";
+import { TOOLKIT_CATALOG } from "@/lib/toolkit-catalog";
+import { pluginId, rankToolkit, signalsFrom } from "@/lib/toolkit";
 import type { StatusDef } from "@/lib/statuses";
 import { planTarget, validatePlan, type Plan } from "@/lib/plan";
 import { isDemo } from "@/lib/demo";
@@ -685,6 +689,19 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       }
       if (errors.length > 0) throw new Error(`Invalid questions:\n- ${errors.join("\n- ")}`);
       return `❓ Shown ${(qs as unknown[]).length} question(s) to the user. End your turn now; their answers arrive in the next message.`;
+    }
+
+    case "vibedoc_propose_toolkit": {
+      // Records nothing: the UI renders the card, installs after the user confirms, and sends the results as the next message.
+      const [facts, plugins] = await Promise.all([getToolkitFacts(root), pluginList(root)]);
+      const ranked = rankToolkit(TOOLKIT_CATALOG, signalsFrom(facts));
+      const pre = args.preselect;
+      if (pre !== undefined) {
+        const bad = Array.isArray(pre) ? pre.filter((id) => typeof id !== "string" || !ranked.some((i) => i.id === id)) : [pre];
+        if (bad.length) throw new Error(`Unknown toolkit ids: ${bad.map(String).join(", ")}. Valid ids: ${ranked.map((i) => i.id).join(", ")}`);
+      }
+      const lines = ranked.map((i) => `- ${i.id} — ${i.reason.en}${i.matched ? ` (fits: ${i.matched})` : ""}${pluginInstalled(plugins.data, root, pluginId(i)) ? " · installed" : ""}`);
+      return `🧩 Shown the toolkit card to the user:\n${lines.join("\n")}\n\nEnd your turn now; the install results arrive in the next message.`;
     }
 
     case "vibedoc_get_planning_guide":

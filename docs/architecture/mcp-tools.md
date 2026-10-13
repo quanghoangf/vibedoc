@@ -718,6 +718,27 @@ Answers:
 
 ---
 
+### `vibedoc_propose_toolkit`
+Show the user a card with the vetted Claude Code plugins that fit the project (R098). The agent never installs anything: the user ticks plugins in the card, confirms the dialog that names every plugin and its commands, and VibeDoc runs `claude plugin marketplace add` / `claude plugin install` (`POST /api/toolkit`, the same as the welcome's "Pick your toolkit" step). After the call, the agent ends its turn.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `preselect` | string[] | — | Catalog ids to tick in advance. An id not in the project's list is refused, and the error lists the valid ids |
+| `note` | string | — | One line shown above the list |
+
+**Returns:** the ranked list (`- <id> — <reason> (fits: <signal>) · installed`) and a reminder to end the turn.
+
+**Results** arrive as the next user message:
+```
+Toolkit install results:
+- frontend-design: installed
+- commit-commands: failed — git clone failed (network unreachable)
+```
+
+**Writes:** nothing. The installs happen in Claude Code's own config (user scope), only after the user confirms.
+
+---
+
 ### `vibedoc_propose_plan`
 Propose a plan for the user to review. The server validates it against the current roadmap and tasks; on errors, the agent fixes the plan and calls again. The chat UI shows the plan as a card with a checkbox per item.
 

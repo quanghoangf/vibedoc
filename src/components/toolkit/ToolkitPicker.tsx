@@ -1,5 +1,6 @@
 "use client"
 
+import { useId } from "react"
 import { Check, TriangleAlert } from "lucide-react"
 import { useT } from "@/context/LanguageContext"
 import { CommandBlock } from "@/components/connect/ConnectAgentPanel"
@@ -38,13 +39,14 @@ export function ToolkitPicker({ items, selected, onToggle, results, cli, disable
   disabled?: boolean
 }) {
   const { t, lang } = useT()
+  const uid = useId() // the welcome step and a chat card can be on screen together
   return (
     <ul className="space-y-2 text-left">
       {items.map((item) => {
         const result = results.get(item.id)
         const installed = item.installed || result?.ok === true
         const failed = result && !result.ok
-        const box = `toolkit-${item.id}`
+        const box = `${uid}-${item.id}`
         return (
           <li key={item.id} className="rounded-lg border border-border p-3 space-y-2" data-toolkit-item={item.id}>
             <div className="flex items-start gap-3">

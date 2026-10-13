@@ -13,6 +13,8 @@ import { useChatText } from "./chat-text"
 import { ProposalCard, type ProposalStatus } from "./ProposalCard"
 import { PlanCard, type PlanCreated, type PlanProposal, type PlanStatus } from "./PlanCard"
 import { QuestionCard, type QuestionSet } from "./QuestionCard"
+import { ToolkitCard, type ToolkitProposal } from "./ToolkitCard"
+import type { ToolkitResult } from "@/components/toolkit/ToolkitPicker"
 import { AttachLabel, StatusMarker, attachHref } from "./StatusMarker"
 
 /**
@@ -99,7 +101,7 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
 const ICON_BTN = "grid size-8 shrink-0 place-items-center rounded-md text-muted transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt"
 
 function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; wide: boolean }) {
-  const { send, resolveProposal, resolvePlan, answerQuestions } = useChats()
+  const { send, resolveProposal, resolvePlan, answerQuestions, finishToolkit } = useChats()
   const scrollRef = useRef<HTMLDivElement>(null)
   const messages = chat.messages
 
@@ -122,6 +124,7 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
             onProposal={(id, path, status) => resolveProposal(chat.id, id, path, status)}
             onPlan={(p, status, created, unchecked) => resolvePlan(chat.id, p, status, created, unchecked)}
             onAnswers={(set, answers) => answerQuestions(chat.id, set, answers)}
+            onToolkit={(set, results) => finishToolkit(chat.id, set, results)}
           />
         ))}
       </div>
@@ -129,13 +132,14 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
   )
 }
 
-function Message({ m, thinking, busy, onProposal, onPlan, onAnswers }: {
+function Message({ m, thinking, busy, onProposal, onPlan, onAnswers, onToolkit }: {
   m: ChatMessage
   thinking: boolean
   busy: boolean
   onProposal: (id: string, path: string, status: ProposalStatus) => void
   onPlan: (p: PlanProposal, status: PlanStatus, created: PlanCreated[], unchecked: string[]) => void
   onAnswers: (set: QuestionSet, answers: string[]) => void
+  onToolkit: (set: ToolkitProposal, results: ToolkitResult[]) => void
 }) {
   const chatText = useChatText()
   if (m.role === "user") {
@@ -166,6 +170,9 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers }: {
         ))}
         {m.questions.map((q) => (
           <QuestionCard key={q.id} set={q} disabled={busy} onSubmit={(answers) => onAnswers(q, answers)} />
+        ))}
+        {m.toolkits?.map((k) => (
+          <ToolkitCard key={k.id} set={k} disabled={busy} onDone={(results) => onToolkit(k, results)} />
         ))}
         {m.text && <div data-user-content><MarkdownRenderer content={m.text} className="text-sm" /></div>}
         {thinking && !m.text && !m.error && <Thinking />}
