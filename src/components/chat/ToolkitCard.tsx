@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Puzzle } from "lucide-react"
 import { useT } from "@/context/LanguageContext"
 import { ToolkitBody } from "@/components/toolkit/ToolkitBody"
@@ -24,7 +24,7 @@ export function ToolkitCard({ set, disabled, onDone }: { set: ToolkitProposal; d
   return (
     <div className="space-y-3 rounded-lg border border-border bg-surface p-3" data-toolkit-card>
       <div className="flex items-center gap-2 text-sm font-medium text-txt">
-        <Puzzle aria-hidden className="size-4 text-accent" />{t("chat.toolkitTitle")}
+        <Puzzle aria-hidden className="size-4 text-accent" />{t("welcome.toolkitTitle")}
       </div>
       {set.note && <p data-user-content className="text-xs text-muted">{set.note}</p>}
       {set.results && !here
@@ -37,14 +37,16 @@ export function ToolkitCard({ set, disabled, onDone }: { set: ToolkitProposal; d
 function Pending({ set, disabled, onDone }: { set: ToolkitProposal; disabled: boolean; onDone: (results: ToolkitResult[]) => void }) {
   const tk = useToolkit(set.preselect)
   const [confirm, setConfirm] = useState(false)
+  const button = useRef<HTMLButtonElement>(null)
+  const close = () => { setConfirm(false); requestAnimationFrame(() => button.current?.focus()) }
   return (
     <>
-      <ToolkitBody tk={tk} onInstall={() => { if (!disabled) setConfirm(true) }} />
+      <ToolkitBody tk={tk} buttonRef={button} onInstall={() => { if (!disabled) setConfirm(true) }} />
       {confirm && (
         <ToolkitConfirmDialog
           items={tk.picked}
-          onConfirm={async () => { setConfirm(false); onDone(await tk.install()) }}
-          onClose={() => setConfirm(false)}
+          onConfirm={async () => { close(); onDone(await tk.install()) }}
+          onClose={close}
         />
       )}
     </>
@@ -57,8 +59,8 @@ function Summary({ results }: { results: { id: string; ok: boolean }[] }) {
   const failed = results.filter((r) => !r.ok).map((r) => r.id)
   return (
     <div className="space-y-1 text-xs" role="status">
-      {ok.length > 0 && <p className="text-teal">{t("chat.toolkitInstalledList", { list: ok.join(", ") })}</p>}
-      {failed.length > 0 && <p className="text-amber-400">{t("chat.toolkitFailedList", { list: failed.join(", ") })}</p>}
+      {ok.length > 0 && <p className="text-teal">{t("chat.toolkitInstalledList")} <span className="font-mono text-[11px]">{ok.join(", ")}</span></p>}
+      {failed.length > 0 && <p className="text-amber">{t("chat.toolkitFailedList")} <span className="font-mono text-[11px]">{failed.join(", ")}</span></p>}
     </div>
   )
 }

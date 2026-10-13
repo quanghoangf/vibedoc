@@ -10,22 +10,25 @@ const POLL_MS = 10_000
 /**
  * R098: GET /api/toolkit (live: SSE `toolkit`, focus, every POLL_MS while something is left) and the confirmed
  * POST. Shared by the welcome step and the chat card. `install` resolves with the per-item results.
+ * `initial`: ids to tick (the agent's preselect), or "fits" = every matched plugin not installed yet, once the list loads.
  */
-export function useToolkit(initial: string[] = []) {
+export function useToolkit(initial: string[] | "fits" = []) {
   const { rootParam } = useApp()
   const [items, setItems] = useState<ToolkitEntry[] | null>(null)
   const [cli, setCli] = useState(true)
   const [failed, setFailed] = useState(false)
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(initial))
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initial === "fits" ? [] : initial))
   const [results, setResults] = useState<Map<string, ToolkitResult>>(new Map())
-  const [running, setRunning] = useState(false)
+  const [installing, setInstalling] = useState<Set<string>>(new Set())
+  const [preselected, setPreselected] = useState(initial !== "fits")
 
   const load = useCallback((signal?: { cancelled: boolean }) => {
     fetch(`/api/toolkit${rootParam}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d) => {
         if (signal?.cancelled) return
-        setItems(Array.isArray(d?.items) ? d.items : [])
+        const list: ToolkitEntry[] = Array.isArray(d?.items) ? d.items : []
+        setItems(list)
         setCli(d?.cli?.available ?? false)
         setFailed(false)
       })
@@ -42,6 +45,12 @@ export function useToolkit(initial: string[] = []) {
     window.addEventListener("vibedoc:sse", onSse)
     return () => { signal.cancelled = true; window.removeEventListener("vibedoc:sse", onSse) }
   }, [load])
+
+  // "fits": tick the recommended set once, on the first list (later polls never re-tick what the user unticked)
+  if (!preselected && items !== null) {
+    setPreselected(true)
+    setSelected(new Set(items.filter((i) => i.matched && !i.installed).map((i) => i.id)))
+  }
 
   const allInstalled = items !== null && items.length > 0 && items.every((i) => i.installed)
   useEffect(() => {
@@ -63,8 +72,8 @@ export function useToolkit(initial: string[] = []) {
   })
 
   async function install(): Promise<ToolkitResult[]> {
-    setRunning(true)
     const ids = picked.map((i) => i.id)
+    setInstalling(new Set(ids))
     let list: ToolkitResult[]
     try {
       const res = await fetch(`/api/toolkit${rootParam}`, {
@@ -79,10 +88,11 @@ export function useToolkit(initial: string[] = []) {
     }
     setResults(new Map(list.map((r) => [r.id, r])))
     setSelected(new Set())
-    setRunning(false)
+    setInstalling(new Set())
     load()
     return list
   }
 
-  return { items, cli, failed, selected, toggle, results, running, picked, allInstalled, install }
+  const running = installing.size > 0
+  return { items, cli, failed, selected, toggle, results, installing, running, picked, allInstalled, install }
 }

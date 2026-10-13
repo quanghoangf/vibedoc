@@ -39,6 +39,16 @@ const post = (body, headers = {}) => fetch(`${BASE}/api/toolkit?root=${encodeURI
   method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body),
 })
 
+// The Install button reads "Install N plugins" once something is ticked, "Install selected" when nothing is
+const INSTALL = { name: /^Install (selected|\d+ plugins?)$/ }
+/** Untick everything the step ticked (the welcome preselects the plugins that fit), then tick exactly `names`. */
+async function pickOnly(region, names) {
+  await region.getByRole("checkbox").first().waitFor() // the list (and its preselect) has loaded
+  const ticked = region.getByRole("checkbox", { checked: true, disabled: false })
+  while (await ticked.count()) await ticked.first().uncheck()
+  for (const name of names) await region.getByRole("checkbox", { name }).check()
+}
+
 const browser = await launchChrome()
 const errors = []
 try {
@@ -57,27 +67,32 @@ try {
   assert.ok(order.includes("typescript-lsp") && !order.includes("pyright-lsp"), `LSP fit: ${order}`)
   const fd = step.locator('[data-toolkit-item="frontend-design"]')
   await fd.getByText('UI work that avoids the generic "AI look"').waitFor()
-  await fd.getByText("Fits: web frontend").waitFor()
-  console.log("ok  S1 frontend plugins first, each with its reason and fit")
+  await fd.getByText("fits · web frontend").waitFor()
+  // the plugins that fit and aren't installed come ticked
+  const ticked = await step.getByRole("checkbox", { checked: true }).evaluateAll((els) => els.map((e) => e.closest("[data-toolkit-item]").getAttribute("data-toolkit-item")))
+  assert.deepEqual(ticked, ["frontend-design", "example-skills", "code-review", "commit-commands", "typescript-lsp"])
+  console.log("ok  S1 frontend plugins first, each with its reason and fit; the fitting ones come ticked")
 
   // S3
-  const sp = step.getByRole("checkbox", { name: /Superpowers/ })
-  assert.ok(await sp.isDisabled() && await sp.isChecked(), "installed plugin is checked and disabled")
-  await step.locator('[data-toolkit-item="superpowers"]').getByText("Installed").waitFor()
+  await step.locator("[data-toolkit-had]").getByText("Already installed: Superpowers").waitFor()
+  assert.equal(await step.getByRole("checkbox", { name: /Superpowers/ }).count(), 0, "an installed plugin has no checkbox to tick")
   console.log("ok  S3 an installed plugin shows Installed and can't be ticked")
 
   // S2: Cancel runs nothing
-  const install = step.getByRole("button", { name: "Install selected" })
+  const install = step.getByRole("button", INSTALL)
+  await pickOnly(step, [])
   assert.ok(await install.isDisabled(), "nothing picked → Install disabled")
-  await step.getByRole("checkbox", { name: /Frontend design/ }).check()
-  await step.getByRole("checkbox", { name: /Anthropic example skills/ }).check()
+  await pickOnly(step, [/Frontend design/, /Anthropic example skills/])
+  await step.getByRole("button", { name: "Install 2 plugins" }).waitFor()
   await install.click()
   const dialog = page.getByRole("dialog", { name: "Install these plugins in Claude Code?" })
   await dialog.getByText("claude plugin install frontend-design@claude-plugins-official").waitFor()
   await dialog.getByText("claude plugin install example-skills@anthropic-agent-skills").waitFor()
   await dialog.getByText("claude plugin marketplace add anthropics/skills").waitFor()
-  await dialog.getByRole("button", { name: "Cancel" }).click()
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent), "Cancel", "the dialog opens on Cancel")
+  await page.keyboard.press("Enter") // Cancel, from the keyboard
   await dialog.waitFor({ state: "hidden" })
+  await page.waitForFunction(() => document.activeElement?.textContent === "Install 2 plugins")
   assert.deepEqual(changes(), [], "Cancel ran no command")
   console.log("ok  S2 the dialog names each plugin and its commands; Cancel runs nothing")
 
@@ -92,6 +107,7 @@ try {
   await failed.getByText("claude plugin install commit-commands@claude-plugins-official").waitFor()
   await fd.getByText("Installed").waitFor()
   await step.locator('[data-toolkit-item="example-skills"]').getByText("Installed").waitFor()
+  await step.getByRole("status").getByText("2 installed · 1 failed").waitFor()
   assert.deepEqual(installedIds(), ["example-skills@anthropic-agent-skills", "frontend-design@claude-plugins-official", "superpowers@claude-plugins-official"])
   const installs = changes().filter((c) => c.startsWith("plugin install"))
   assert.deepEqual(installs, [
@@ -131,15 +147,15 @@ try {
   const lsp = card.getByRole("checkbox", { name: /TypeScript LSP/ })
   await lsp.waitFor()
   assert.ok(await lsp.isChecked(), "preselected plugin is ticked")
-  assert.ok(await card.getByRole("checkbox", { name: /Frontend design/ }).isDisabled(), "installed earlier → disabled")
+  await card.locator("[data-toolkit-had]").getByText(/Frontend design/).waitFor() // installed earlier → folded, no checkbox
   const before = changes().length
-  await card.getByRole("button", { name: "Install selected" }).click()
+  await card.getByRole("button", INSTALL).click()
   const confirmDlg = chatPage.getByRole("dialog", { name: "Install these plugins in Claude Code?" })
   await confirmDlg.getByText("claude plugin install typescript-lsp@claude-plugins-official").waitFor()
   await chatPage.keyboard.press("Escape") // closes only the confirm dialog, not the chat underneath
   await confirmDlg.waitFor({ state: "hidden" })
   assert.equal(changes().length, before, "closing the dialog ran nothing")
-  await card.getByRole("button", { name: "Install selected" }).click()
+  await card.getByRole("button", INSTALL).click()
   await confirmDlg.getByRole("button", { name: "Install", exact: true }).click()
   await card.locator('[data-toolkit-item="typescript-lsp"]').getByText("Installed").waitFor({ timeout: 30_000 })
   assert.ok(installedIds().includes("typescript-lsp@claude-plugins-official"))
@@ -167,8 +183,8 @@ try {
     })
     await p3.getByText("Agent connected").waitFor({ timeout: 15_000 })
     const step3 = p3.getByRole("region", { name: "Pick your toolkit" })
-    for (const name of [/Frontend design/, /Anthropic example skills/, /Code review/]) await step3.getByRole("checkbox", { name }).check()
-    await step3.getByRole("button", { name: "Install selected" }).click()
+    await pickOnly(step3, [/Frontend design/, /Anthropic example skills/, /Code review/])
+    await step3.getByRole("button", { name: "Install 3 plugins" }).click()
     await p3.getByRole("dialog", { name: "Install these plugins in Claude Code?" }).getByRole("button", { name: "Install", exact: true }).click()
     for (const id of ["frontend-design", "example-skills", "code-review"]) {
       await step3.locator(`[data-toolkit-item="${id}"]`).getByText("Installed").waitFor({ timeout: 30_000 })

@@ -261,10 +261,9 @@ export const en = {
   skippedSuffix: ", {n} skipped",
   agentError: "Agent error",
   interrupted: "Interrupted: the page reloaded while the agent was working.",
-  // Toolkit card (R098)
-  toolkitTitle: "Pick plugins to install",
-  toolkitInstalledList: "Installed: {list}",
-  toolkitFailedList: "Failed: {list}",
+  // Toolkit card (R098); its title is welcome.toolkitTitle
+  toolkitInstalledList: "Installed:",
+  toolkitFailedList: "Failed:",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -515,7 +514,6 @@ export const vi: Messages<typeof en> = {
   skippedSuffix: ", bỏ qua {n}",
   agentError: "Agent gặp lỗi",
   interrupted: "Bị ngắt: trang đã tải lại khi agent đang làm.",
-  toolkitTitle: "Chọn plugin để cài",
-  toolkitInstalledList: "Đã cài: {list}",
-  toolkitFailedList: "Cài không được: {list}",
+  toolkitInstalledList: "Đã cài:",
+  toolkitFailedList: "Cài không được:",
 }

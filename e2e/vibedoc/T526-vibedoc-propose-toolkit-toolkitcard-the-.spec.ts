@@ -18,13 +18,13 @@ test('T526 Toolkit card in chat', async ({ page, step, request }) => {
   await page.route('**/api/chat**', (route) => route.fulfill({ contentType: 'application/x-ndjson', body: turn.map((l) => JSON.stringify(l)).join('\n') + '\n' }))
   const card = page.locator('[data-toolkit-card]')
 
-  await step('Ask the agent to set up the toolkit → a "Pick plugins to install" card shows its note and the ranked plugins', async () => {
+  await step('Ask the agent to set up the toolkit → a "Pick your toolkit" card shows its note and the ranked plugins', async () => {
     await page.context().addCookies([{ name: 'vibedoc-lang', value: 'en', url: 'http://localhost:3000' }])
     await page.goto('/start')
     await page.getByRole('button', { name: /Generate roadmap from your docs|Plan the first epics with the agent/ }).click()
-    await expect(card.getByText('Pick plugins to install')).toBeVisible()
+    await expect(card.getByText('Pick your toolkit')).toBeVisible()
     await expect(card.getByText('Probe note from the T526 spec.')).toBeVisible()
-    await expect(card.getByRole('listitem').first()).toContainText('Frontend design')
+    await expect(card.getByText(/Frontend design/)).toBeVisible()
   })
 
   await step('The plugin the agent preselected (TypeScript LSP) is ticked', async () => {
@@ -33,12 +33,12 @@ test('T526 Toolkit card in chat', async ({ page, step, request }) => {
   })
 
   await step('Click Install selected, then press Escape → only the confirm dialog closes; the chat and its card stay', async () => {
-    await card.getByRole('button', { name: 'Install selected' }).click()
+    await card.getByRole('button', { name: /^Install \d+ plugins?$/ }).click()
     const dialog = page.getByRole('dialog', { name: 'Install these plugins in Claude Code?' })
     await expect(dialog).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
-    await expect(card.getByText('Pick plugins to install')).toBeVisible()
+    await expect(card.getByText('Pick your toolkit')).toBeVisible()
   })
 
   for (const id of await chatIds()) {
