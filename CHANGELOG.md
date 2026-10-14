@@ -1,3 +1,10 @@
+## [1.22.1](https://github.com/quanghoangf/vibedoc/compare/v1.22.0...v1.22.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **deps:** pin next to 16.3.6 so the prebuilt .next matches the runtime ([52d99b1](https://github.com/quanghoangf/vibedoc/commit/52d99b1af3a543f499e7e0870bfea3ced7b09099))
+
 # [1.22.0](https://github.com/quanghoangf/vibedoc/compare/v1.21.0...v1.22.0) (2026-10-13)
 
 
