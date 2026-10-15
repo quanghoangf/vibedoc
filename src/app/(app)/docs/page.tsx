@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { useApp } from "@/context/AppContext"
 import { DocsTab } from "@/components/docs/DocsTab"
 import { NewDocModal } from "@/components/docs/NewDocModal"
@@ -8,8 +8,16 @@ import { DocPathDialog, type DocActions } from "@/components/docs/DocActionsMenu
 import { askAgent } from "@/lib/ask-agent"
 import { toast, undoToast } from "@/components/ui/toast"
 import type { DocFile } from "@/types"
+import type { LazyFolder } from "@/lib/doc-scope"
 import type { ApiSpecList } from "@/components/docs/ApiReference"
 import { tNow, useT } from "@/context/LanguageContext"
+
+/** Doc lists (the eager list, opened folders) → one list, unique by path, in path order like the server's. */
+function mergeDocs(lists: unknown[]): DocFile[] {
+  const byPath = new Map<string, DocFile>()
+  for (const list of lists) if (Array.isArray(list)) for (const d of list as DocFile[]) byPath.set(d.path, d)
+  return [...byPath.values()].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+}
 
 async function send(url: string, method: string, body: unknown): Promise<string | null> {
   try {
@@ -25,22 +33,43 @@ export default function DocsPage() {
   const { selectedDoc, setSelectedDoc, rootParam, activeProject, demo } = useApp()
   const { t } = useT()
   const [docs, setDocs] = useState<DocFile[]>([])
+  const [lazyFolders, setLazyFolders] = useState<LazyFolder[]>([])
+  // Folders outside docs/, plans/ and memory/ opened on this visit: every refetch keeps their docs in the list
+  const openedRef = useRef<string[]>([])
   const [docSearch, setDocSearch] = useState("")
   const [newDocOpen, setNewDocOpen] = useState(false)
   const isDirtyRef = useRef(false)
   const [pathDialog, setPathDialog] = useState<{ mode: "rename" | "move"; path: string } | null>(null)
 
+  useEffect(() => { openedRef.current = [] }, [rootParam])
+
   const fetchDocs = useCallback(() => {
     if (!activeProject) return
-    fetch(`/api/docs${rootParam}`)
-      .then((r) => r.json())
-      .then((d) => setDocs(Array.isArray(d) ? d : []))
+    const list = (q: string) => fetch(`/api/docs${rootParam}${q}`).then((r) => r.json())
+    Promise.all([list(""), ...openedRef.current.map((d) => list(`&dir=${encodeURIComponent(d)}`).catch(() => []))])
+      .then((lists) => setDocs(mergeDocs(lists)))
+      .catch(() => {})
+    list("&folders=1")
+      .then((d) => setLazyFolders(Array.isArray(d) ? d : []))
       .catch(() => {})
   }, [activeProject, rootParam])
 
   useEffect(() => {
     fetchDocs()
   }, [fetchDocs])
+
+  // Opening a lazy folder reads its docs (only now) and adds them to the tree
+  const openFolder = useCallback(async (name: string) => {
+    const res = await fetch(`/api/docs${rootParam}&dir=${encodeURIComponent(name)}`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const folderDocs: unknown = await res.json()
+    if (!openedRef.current.includes(name)) openedRef.current = [...openedRef.current, name]
+    setDocs((cur) => mergeDocs([cur, folderDocs]))
+  }, [rootParam])
+  const closedFolders = useMemo(
+    () => lazyFolders.filter((f) => !docs.some((d) => d.path.startsWith(`${f.name}/`))),
+    [lazyFolders, docs],
+  )
 
   // R094: the project's OpenAPI spec → "API reference" row; `?api=` (list or "GET /path") is restored on arrival
   const [apiSpec, setApiSpec] = useState<ApiSpecList | null>(null)
@@ -220,6 +249,8 @@ export default function DocsPage() {
         apiSpec={apiSpec}
         apiOpen={apiOpen}
         onApiOpen={openApi}
+        lazyFolders={closedFolders}
+        onOpenFolder={openFolder}
       />
       <NewDocModal
         open={newDocOpen}

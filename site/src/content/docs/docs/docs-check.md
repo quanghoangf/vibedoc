@@ -13,7 +13,9 @@ npx vibedoc check --root docs-site   # check another folder (default: the curren
 
 ## What it checks
 
-Every `.md` file in the folder, except `node_modules`, `.git` and `.next`.
+The `.md` files at the root of the folder, and every `.md` file under `docs/`, `plans/` and `memory/`. These are the files VibeDoc reads up front.
+
+Files in other folders are not checked. A link to one of them still counts as a working link. The check never reads dependency or build folders, such as `node_modules`, `target` and `dist`. In a git repo, it also never reads files that git ignores.
 
 | Level | Rule | Meaning |
 |---|---|---|

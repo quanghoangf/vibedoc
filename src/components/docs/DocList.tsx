@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { DocFile } from "@/types"
+import type { LazyFolder } from "@/lib/doc-scope"
 import { priorityRank, type Priority } from "@/lib/doc-priority"
 import { DocActionsMenu, type DocActions } from "./DocActionsMenu"
 import { PriorityBadge } from "@/components/shared/PriorityBadge"
@@ -214,6 +215,56 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
   )
 }
 
+// ─── Lazy folders ─────────────────────────────────────────────────────────────
+
+/** Top-level folders outside docs/, plans/ and memory/: named only, read when opened (their docs then join the tree). */
+function LazyFolderRows({ folders, onOpen }: { folders: LazyFolder[]; onOpen: (name: string) => Promise<void> }) {
+  const { t, tn } = useT()
+  const [loading, setLoading] = useState<string | null>(null)
+  const [failed, setFailed] = useState<string | null>(null)
+
+  async function open(name: string) {
+    if (loading) return
+    setLoading(name)
+    setFailed(null)
+    try {
+      await onOpen(name)
+    } catch {
+      setFailed(name)
+    } finally {
+      setLoading(null)
+    }
+  }
+
+  return (
+    <div data-lazy-folders className="mt-2 border-t border-border pt-2">
+      <div className="flex items-baseline gap-1.5 px-2 py-1">
+        <span className="shrink-0 font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">{t("docs.otherFolders")}</span>
+        <span className="truncate text-[10px] text-muted">{t("docs.otherFoldersHint")}</span>
+      </div>
+      {folders.map(f => (
+        <button
+          key={f.name}
+          type="button"
+          data-lazy-folder={f.name}
+          onClick={() => open(f.name)}
+          aria-busy={loading === f.name}
+          aria-label={tn("docs.openFolder", f.count, { name: f.name })}
+          className="w-full flex items-center gap-2 h-7 px-2 rounded-md text-xs font-medium text-muted hover:text-txt hover:bg-surface2 transition-colors"
+        >
+          <ChevronRight className="h-3 w-3 shrink-0" />
+          <Folder className="h-3.5 w-3.5 shrink-0 text-muted" />
+          <span data-user-content className="truncate">{formatName(f.name)}</span>
+          <span className="ml-auto shrink-0 font-mono text-[10px] font-normal tabular-nums">
+            {loading === f.name ? t("docs.folderLoading") : f.count}
+          </span>
+        </button>
+      ))}
+      {failed && <p role="alert" className="px-2 py-1 text-[11px] text-danger">{t("docs.folderLoadFailed", { name: failed })}</p>}
+    </div>
+  )
+}
+
 // ─── DocList ──────────────────────────────────────────────────────────────────
 
 interface DocListProps {
@@ -230,9 +281,12 @@ interface DocListProps {
   collapsed?: boolean
   /** Pinned above the tree while not searching (R094: the API reference row) */
   top?: React.ReactNode
+  /** Folders outside docs/, plans/ and memory/ that aren't loaded yet; opening one loads its docs into `docs` */
+  lazyFolders?: LazyFolder[]
+  onOpenFolder?: (name: string) => Promise<void>
 }
 
-export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, rootParam = "", docActions, className, collapsed: listCollapsed = false, top }: DocListProps) {
+export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, rootParam = "", docActions, className, collapsed: listCollapsed = false, top, lazyFolders = [], onOpenFolder }: DocListProps) {
   const [selectMode, setSelectMode] = useState(false)
   const { t } = useT()
   const filterLabel = (f: PriorityFilter) => (FILTER_LABELS[f].startsWith("docs.") ? t(FILTER_LABELS[f] as MessageKey) : FILTER_LABELS[f])
@@ -551,16 +605,19 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                     <TreeNodeRow key={node.docPath} node={node} depth={0} selectedPath={selectedDocPath} onDocClick={onDocClick} folderPath={node.name} />
                   ))
                 ) : (
-                  tree.map(node => (
-                    <TreeNodeRow
-                      key={node.docPath ?? node.name}
-                      node={node}
-                      depth={0}
-                      selectedPath={selectedDocPath}
-                      onDocClick={onDocClick}
-                      folderPath={node.name}
-                    />
-                  ))
+                  <>
+                    {tree.map(node => (
+                      <TreeNodeRow
+                        key={node.docPath ?? node.name}
+                        node={node}
+                        depth={0}
+                        selectedPath={selectedDocPath}
+                        onDocClick={onDocClick}
+                        folderPath={node.name}
+                      />
+                    ))}
+                    {lazyFolders.length > 0 && onOpenFolder && <LazyFolderRows folders={lazyFolders} onOpen={onOpenFolder} />}
+                  </>
                 )}
               </>
             )}

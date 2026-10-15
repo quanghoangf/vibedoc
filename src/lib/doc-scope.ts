@@ -1,6 +1,7 @@
 // Which .md files VibeDoc looks at. Pure: core.ts and the `vibedoc check` CLI list the files (git or glob) and pass
-// the paths in. Dependency and build folders are never walked: one Rust `target/` (200k files) made every scan take
-// 7 s and stalled every other request behind it.
+// the paths in. Dependency folders are never listed. Build folders are pruned by the glob fallback, and in a git work
+// tree git's ignore rules leave them out. One Rust `target/` (200k files) made every scan take 7 s and stalled every
+// other request behind it.
 
 /** Dependency folders, at any depth: always skipped, even when git tracks them (a vendored Go module). */
 export const DEPENDENCY_DIRS: readonly string[] = [
@@ -30,6 +31,42 @@ export function isSkippedPath(p: string, dirs: readonly string[] = SKIP_DIRS): b
 /** True when any folder on the path starts with a dot (`.claude/skills/x.md`): such files are known, but not docs. */
 export function isHiddenPath(p: string): boolean {
   return p.split('/').slice(0, -1).some((s) => s.startsWith('.'))
+}
+
+/**
+ * VibeDoc's own folders, read up front with the root-level .md files: the doc list, the graph, lint, llms.txt and the
+ * memory graph see only these. Every other top-level folder is lazy: listed by name, its files read when someone opens
+ * it (the docs list, `vibedoc_list_docs { dir }`) or asks (search, a loose doc name).
+ */
+export const EAGER_DIRS: readonly string[] = ['docs', 'plans', 'memory']
+
+/** True for a root-level file or a path under one of EAGER_DIRS. */
+export function isEagerPath(p: string): boolean {
+  const slash = p.indexOf('/')
+  return slash === -1 || EAGER_DIRS.includes(p.slice(0, slash))
+}
+
+/** A folder `?dir=` may load: one top-level name outside EAGER_DIRS, not a dot folder, not a dependency folder. */
+export function isLazyDir(dir: string): boolean {
+  return /^[^/\\]+$/.test(dir) && !dir.startsWith('.') && !EAGER_DIRS.includes(dir) && !DEPENDENCY_DIRS.includes(dir)
+}
+
+/** A lazy folder: its name, how many .md files it holds, and whether any is a project doc (not licence/changelog). */
+export type LazyFolder = { name: string; count: number; hasDocs: boolean }
+
+/**
+ * The lazy folders among listed doc paths, by name. `isProjectDocs` is first-screen's `hasProjectDocs`, passed in
+ * because pure libs never import each other.
+ */
+export function lazyFolders(docs: readonly string[], isProjectDocs: (paths: string[]) => boolean): LazyFolder[] {
+  const byDir = new Map<string, string[]>()
+  for (const p of docs) {
+    if (isEagerPath(p)) continue
+    const dir = p.slice(0, p.indexOf('/'))
+    byDir.set(dir, [...(byDir.get(dir) ?? []), p])
+  }
+  return [...byDir].sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, paths]) => ({ name, count: paths.length, hasDocs: isProjectDocs(paths) }))
 }
 
 export type MarkdownPaths = { docs: string[]; hidden: string[] }

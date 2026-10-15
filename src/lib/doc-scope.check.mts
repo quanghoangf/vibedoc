@@ -1,6 +1,7 @@
 // Self-check for src/lib/doc-scope.ts: `node src/lib/doc-scope.check.mts`
 import assert from "node:assert/strict"
-import { DEPENDENCY_DIRS, fuzzyDocMatch, isHiddenPath, isSkippedPath, parseGitPaths, SKIP_DIRS, SKIP_IGNORE, splitMarkdown } from "./doc-scope.ts"
+import { DEPENDENCY_DIRS, fuzzyDocMatch, isEagerPath, isHiddenPath, isLazyDir, isSkippedPath, lazyFolders, parseGitPaths, SKIP_DIRS, SKIP_IGNORE, splitMarkdown } from "./doc-scope.ts"
+import { hasProjectDocs } from "./first-screen.ts"
 
 // skipped: a dependency / build folder anywhere on the path, never the file name
 assert.equal(isSkippedPath("target/debug/build/x/README.md"), true)
@@ -50,5 +51,28 @@ assert.equal(fuzzyDocMatch(paths, "user-service/API"), "docs/user-service/API.md
 assert.equal(fuzzyDocMatch(paths, "guides"), null) // a folder name alone: * cannot cross into the file name
 assert.equal(fuzzyDocMatch(paths, "nope"), null)
 assert.equal(fuzzyDocMatch(paths, ""), null)
+
+// eager: root files and VibeDoc's own folders; everything else is lazy
+assert.equal(isEagerPath("README.md"), true)
+assert.equal(isEagerPath("docs/guides/setup.md"), true)
+assert.equal(isEagerPath("plans/tasks/T001-x.md"), true)
+assert.equal(isEagerPath("memory/MEMORY.md"), true)
+assert.equal(isEagerPath("crates/net/README.md"), false)
+assert.equal(isEagerPath("docsite/intro.md"), false) // a prefix is not the folder
+
+// a ?dir= request: one plain top-level name outside the eager, dot and dependency folders
+for (const ok of ["crates", "godot", "build", "site"]) assert.equal(isLazyDir(ok), true, ok)
+for (const bad of ["docs", "plans", "memory", ".claude", "node_modules", "vendor", "a/b", "..", ".", "", "a\\b"]) assert.equal(isLazyDir(bad), false, bad)
+
+// lazy folders: by name, with counts; licence/changelog-only folders hold no project docs
+assert.deepEqual(
+  lazyFolders(["README.md", "docs/a.md", "godot/addons/x/README.md", "crates/net/README.md", "crates/net/DESIGN.md", "packages/ui/CHANGELOG.md"], hasProjectDocs),
+  [
+    { name: "crates", count: 2, hasDocs: true },
+    { name: "godot", count: 1, hasDocs: true },
+    { name: "packages", count: 1, hasDocs: false },
+  ],
+)
+assert.deepEqual(lazyFolders(["README.md", "docs/a.md"], hasProjectDocs), [])
 
 console.log("doc-scope.check: ok")

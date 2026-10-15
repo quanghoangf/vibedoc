@@ -98,8 +98,14 @@ export const TOOLS = [
   {
     name: "vibedoc_list_docs",
     description:
-      "List all documentation files grouped by section, with each doc's priority (P0 highest) when set. Use to discover what docs exist.",
-    inputSchema: { type: "object", properties: {}, required: [] },
+      "List the documentation grouped by section, with each doc's priority (P0 highest) when set: the root .md files and docs/, plans/, memory/. Other top-level folders that hold .md files are named at the end with a count; pass `dir` to list one of them. Use to discover what docs exist.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dir: { type: "string", description: "One top-level folder from the 'Other folders' line, e.g. \"crates\". Lists only the .md files in it." },
+      },
+      required: [],
+    },
   },
   {
     name: "vibedoc_set_doc_priority",

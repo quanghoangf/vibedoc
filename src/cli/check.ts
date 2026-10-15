@@ -12,7 +12,7 @@ import { glob } from 'glob'
 import { buildDocGraph, docNode, extractLinks } from '../lib/doc-links'
 import { formatLint } from '../lib/doc-lint'
 import { lintProject } from '../lib/doc-lint-project'
-import { DEPENDENCY_DIRS, parseGitPaths, SKIP_IGNORE, splitMarkdown, type MarkdownPaths } from '../lib/doc-scope'
+import { DEPENDENCY_DIRS, isEagerPath, parseGitPaths, SKIP_IGNORE, splitMarkdown, type MarkdownPaths } from '../lib/doc-scope'
 
 const execFileP = promisify(execFile)
 const git = async (args: string[], cwd: string) => (await execFileP('git', args, { cwd, maxBuffer: 4 * 1024 * 1024 })).stdout
@@ -35,7 +35,7 @@ async function markdownPaths(root: string): Promise<MarkdownPaths> {
   return splitMarkdown([...docs, ...hidden])
 }
 
-const USAGE = 'Usage: vibedoc check [--json] [--root <dir>]\n  Lints every .md file (broken links, frontmatter, specs, …). Exit 1 on any error.'
+const USAGE = 'Usage: vibedoc check [--json] [--root <dir>]\n  Lints the root .md files and docs/, plans/, memory/ (broken links, frontmatter, specs, …). Exit 1 on any error.'
 
 function parseArgs(argv: string[]): { json: boolean; root: string } | string {
   let json = false
@@ -68,9 +68,12 @@ async function run(argv: string[]): Promise<number> {
     console.error(`✗ not a directory: ${root}`)
     return 2
   }
-  const { docs: paths, hidden } = await markdownPaths(root)
+  // core's eager scope: root .md files and docs/, plans/, memory/; the other folders' files are known names only
+  const { docs, hidden } = await markdownPaths(root)
+  const paths = docs.filter(isEagerPath)
   const files = await Promise.all(paths.map(async f => ({ path: f, raw: await readFile(path.join(root, f), 'utf8') })))
-  const graph = buildDocGraph(files.map(f => ({ node: docNode(f.path, f.raw), links: extractLinks(f.raw, f.path) })), hidden)
+  const lazy = docs.filter(p => !isEagerPath(p))
+  const graph = buildDocGraph(files.map(f => ({ node: docNode(f.path, f.raw), links: extractLinks(f.raw, f.path) })), [...hidden, ...lazy])
   const lint = lintProject(files, graph)
   console.log(json ? JSON.stringify(lint, null, 2) : formatLint(lint, Infinity))
   return lint.errors ? 1 : 0
