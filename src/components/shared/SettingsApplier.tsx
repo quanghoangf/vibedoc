@@ -7,7 +7,7 @@ import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings"
 
 export function SettingsApplier() {
   const { rootParam, refresh, setEditorSettings, setAutoRefreshSeconds, autoRefreshSeconds } = useApp()
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const busyRef = useRef(false)
 
   // Load + apply settings whenever the active project changes
   useEffect(() => {
@@ -30,18 +30,16 @@ export function SettingsApplier() {
     return () => { cancelled = true }
   }, [rootParam]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Manage polling interval reactively based on autoRefreshSeconds
+  // Poll every autoRefreshSeconds while the tab is visible. A tick never starts a refresh while the last one still
+  // runs: on a slow project the polls stacked up and every request waited.
   useEffect(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current)
-    if (autoRefreshSeconds > 0) {
-      intervalRef.current = setInterval(refresh, autoRefreshSeconds * 1000)
-    }
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
+    if (autoRefreshSeconds <= 0) return
+    const interval = setInterval(() => {
+      if (document.hidden || busyRef.current) return
+      busyRef.current = true
+      refresh().finally(() => { busyRef.current = false })
+    }, autoRefreshSeconds * 1000)
+    return () => clearInterval(interval)
   }, [autoRefreshSeconds, refresh])
 
   return null
