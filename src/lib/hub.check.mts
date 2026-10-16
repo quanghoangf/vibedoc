@@ -96,3 +96,39 @@ const sw = [
 assert.deepEqual(switcherOrder(sw).map(p => p.id), ['c', 'd', 'a', 'e', 'f'])
 
 console.log('hub.check: ok')
+
+// R101 import: ~ expansion, scan filter, scan results
+{
+  const { expandHome, isScannable, scanResults } = await import('./hub.ts')
+  assert.equal(expandHome(' ~/work ', '/home/me'), '/home/me/work')
+  assert.equal(expandHome('~', '/home/me'), '/home/me')
+  assert.equal(expandHome('/abs/~x', '/home/me'), '/abs/~x')
+  assert.equal(expandHome('~other/x', '/home/me'), '~other/x')
+  assert.ok(isScannable('web') && !isScannable('node_modules') && !isScannable('.cache'))
+  const found = ['/w/b', '/w/a/', '/w/c', '/w/a']
+  assert.deepEqual(scanResults(found, ['/w/c/']), [
+    { root: '/w/a', name: 'a', inHub: false },
+    { root: '/w/b', name: 'b', inHub: false },
+    { root: '/w/c', name: 'c', inHub: true },
+  ])
+  assert.equal(scanResults(Array.from({ length: 300 }, (_, i) => `/w/r${i}`), []).length, 200)
+  assert.equal(scanResults(['/w/a', '/w/b'], [], 1).length, 1)
+}
+
+// T537 clone: URL trust boundary and destination folder
+{
+  const { isCloneUrl, cloneDest } = await import('./hub.ts')
+  for (const ok of ['https://github.com/org/repo.git', 'https://gitlab.com/a/b', 'ssh://git@host.com/org/repo.git', 'git@github.com:org/repo.git', 'git@host.example:repo'])
+    assert.ok(isCloneUrl(ok), ok)
+  for (const bad of ['', '--upload-pack=touch /tmp/x', '-u x', 'ext::sh -c touch% /tmp/x', 'https::foo', 'http://github.com/org/repo', 'file:///tmp/repo.git',
+    'git://host/repo', 'https://github.com/', 'https://host/a b', '/tmp/repo', 'git@host:-oProxyCommand=x', 'https://host/x\ny'])
+    assert.ok(!isCloneUrl(bad), bad)
+  assert.ok(isCloneUrl('file:///tmp/fixture/repo.git', true))
+  assert.ok(!isCloneUrl('file:///', true))
+  assert.equal(cloneDest('/w/', 'https://github.com/org/repo.git'), '/w/repo')
+  assert.equal(cloneDest('/w', 'git@github.com:org/web'), '/w/web')
+  assert.equal(cloneDest('/w', 'git@host:repo.git'), '/w/repo')
+  assert.equal(cloneDest('/w', 'https://host/org/repo/'), '/w/repo')
+  assert.equal(cloneDest('/w', 'https://host/org/..'), null)
+  assert.equal(cloneDest('/w', 'https://host/org/.git'), null)
+}

@@ -1,11 +1,15 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Archive } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Archive, ChevronDown, FolderPlus } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { ProjectRow, type ProjectWithCounts } from "@/components/projects/ProjectRow"
+import { AddProjectDialog, type AddedProject, type AddMode } from "@/components/projects/AddProjectDialog"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast, undoToast } from "@/components/ui/toast"
 import { switcherOrder } from "@/lib/hub"
 
@@ -25,8 +29,10 @@ async function fetchProjects(): Promise<ProjectWithCounts[]> {
 
 /** All projects (R099 T531): every project in the hub, what needs the user there, and pin / rename / archive / remove. */
 export default function ProjectsPage() {
-  const { projects: hubProjects, activeProject, onProjectChange } = useApp()
-  const { t } = useT()
+  const { projects: hubProjects, activeProject, onProjectChange, demo, playground } = useApp()
+  const { t, tn } = useT()
+  const router = useRouter()
+  const [adding, setAdding] = useState<AddMode | null>(null)
   const [list, setList] = useState<ProjectWithCounts[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -82,6 +88,14 @@ export default function ProjectsPage() {
     }
   }
 
+  // R101: the new rows show up with their counts after a reload of the list
+  const added = (projects: AddedProject[]) => {
+    setAdding(null)
+    const n = projects.filter((p) => p.added).length
+    toast(n === 0 && projects.length === 1 ? t("projects.alreadyInHub", { name: projects[0].name }) : tn("projects.added", n))
+    load()
+  }
+
   const active = list ? switcherOrder(list) : []
   const archived = list ? list.filter((p) => p.archived) : []
   const row = (p: ProjectWithCounts) => (
@@ -101,8 +115,22 @@ export default function ProjectsPage() {
     <div className="mx-auto flex w-full max-w-4xl flex-col px-6 py-8">
       <header className="mb-4 border-b border-border pb-5">
         <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">{t("projects.title")}</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">{t("projects.lead")}</p>
+        <div className="mt-2 flex flex-wrap items-start gap-3">
+          <p className="max-w-2xl flex-1 text-sm text-muted">{t("projects.lead")}</p>
+          {!demo && !playground && <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm"><FolderPlus />{t("projects.add")}<ChevronDown className="opacity-70" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onSelect={() => setAdding("path")}>{t("projects.addFromPath")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setAdding("scan")}>{t("projects.addScan")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setAdding("clone")}>{t("projects.addClone")}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>}
+        </div>
       </header>
+      {/* a clone opens through `/`: the welcome for a project with no docs or roadmap, else its board (R082) */}
+      {adding && <AddProjectDialog key={adding} mode={adding} onClose={() => setAdding(null)} onAdded={added} onCloned={(p) => { setAdding(null); router.push(`/?project=${encodeURIComponent(p.id)}`) }} />}
 
       {error && <p role="alert" className="text-sm text-danger">{t("projects.loadError", { error })}</p>}
       {!list && !error && <p className="text-sm text-muted">{t("projects.loading")}</p>}

@@ -37,7 +37,8 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { ATTACHMENTS_DIR, imageError, imageMarkdown, imageMimeOf, isAttachmentFolder, isServableImage, nextImageNumber, sniffImage } from './attachments'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
-import { addProject, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, relocateProject, removeProject, restoreProject, type Hub, type HubProject } from './hub'
+import { cloneRunning, runClone } from './git-clone'
+import { addProject, cloneDest, emptyHub, expandHome, isCloneUrl, isScannable, MAX_SCAN_RESULTS, scanResults, type ScannedRepo, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, relocateProject, removeProject, restoreProject, type Hub, type HubProject } from './hub'
 import { countNeedsYou } from './test-review'
 import { runIdTime } from './test-review'
 import { chatStatus, fromSaved, isWaiting, type StatusMessage } from './chats'
@@ -617,6 +618,77 @@ export async function restoreHubProject(entry: unknown): Promise<void> {
     if (!next) throw new HubError('cannot restore: bad entry, or its id or folder is in the hub again', 409)
     await writeHub(next)
   })
+}
+
+// ─── Import projects (R101) ──────────────────────────────────────────────────
+
+/** A typed folder path → absolute (`~` expanded), or a HubError in words. */
+function importPath(input: unknown): string {
+  if (typeof input !== 'string' || !input.trim()) throw new HubError('give a folder path, e.g. ~/work/web')
+  const p = expandHome(input, os.homedir())
+  if (!path.isAbsolute(p)) throw new HubError(`give an absolute path or one starting with ~: ${input.trim()}`)
+  return path.resolve(p)
+}
+
+async function requireFolder(input: unknown): Promise<string> {
+  const dir = importPath(input)
+  const stat = await fs.stat(dir).catch(() => null)
+  if (!stat) throw new HubError(`no such folder: ${dir}`)
+  if (!stat.isDirectory()) throw new HubError(`not a folder: ${dir}`)
+  return dir
+}
+
+/** Adds folders to the hub (path, scan or clone; the CLI too). All are checked first: one bad path adds nothing. */
+export async function addHubProjects(roots: unknown[]): Promise<{ project: HubProject; added: boolean }[]> {
+  if (!roots.length) throw new HubError('nothing to add')
+  const dirs = await Promise.all(roots.map(requireFolder))
+  await readHub() // the configured root joins first
+  return withHubLock(async () => {
+    let hub = await readHubFile()
+    const out = dirs.map(dir => {
+      const res = addProject(hub, dir)
+      hub = res.hub
+      return { project: res.project, added: res.added }
+    })
+    if (out.some(r => r.added)) await writeHub(hub)
+    return out
+  })
+}
+
+export async function addHubProject(root: unknown): Promise<{ project: HubProject; added: boolean }> {
+  return (await addHubProjects([root]))[0]
+}
+
+/** Scan (T536): repos (a folder with `.git`) up to two levels under `dir`; never into node_modules or dot folders. */
+export async function scanForRepos(input: unknown): Promise<ScannedRepo[]> {
+  const dir = await requireFolder(input)
+  const found: string[] = []
+  const children = async (d: string) =>
+    (await fs.readdir(d, { withFileTypes: true }).catch(() => [])).filter(e => e.isDirectory() && isScannable(e.name)).map(e => path.join(d, e.name))
+  const isRepo = (d: string) => fs.stat(path.join(d, '.git')).then(() => true, () => false) // a worktree's .git is a file
+  for (const child of await children(dir)) {
+    if (found.length >= MAX_SCAN_RESULTS) break
+    if (await isRepo(child)) { found.push(child); continue }
+    for (const grand of await children(child)) if (await isRepo(grand)) found.push(grand)
+  }
+  return scanResults(found, (await readHub()).projects.map(p => p.root))
+}
+
+/** Clone (T537): `git clone <url>` into `<parent>/<repo>`, then add it to the hub. A failure leaves no folder behind. */
+export async function cloneProject(url: unknown, parent: unknown, onProgress: (line: string) => void): Promise<HubProject> {
+  const u = typeof url === 'string' ? url.trim() : ''
+  if (!isCloneUrl(u, process.env.VIBEDOC_E2E === '1')) throw new HubError('give an https://, ssh:// or git@host:path URL')
+  const dir = await requireFolder(parent)
+  const dest = cloneDest(dir, u)
+  if (!dest) throw new HubError(`no folder name in ${u}`)
+  if (await fs.stat(dest).then(() => true, () => false)) throw new HubError(`${dest} already exists`, 409)
+  if (cloneRunning()) throw new HubError('another clone is running', 409)
+  const res = await runClone(u, dest, onProgress)
+  if (!res.ok) {
+    await fs.rm(dest, { recursive: true, force: true })
+    throw new HubError(res.cancelled ? 'clone cancelled' : res.error)
+  }
+  return (await addHubProject(dest)).project
 }
 
 // ─── Docs ─────────────────────────────────────────────────────────────────────

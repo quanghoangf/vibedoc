@@ -1,12 +1,14 @@
 // Projects hub (R099): several projects in one VibeDoc, the project in the URL, last page per project.
 //
-//   VIBEDOC_HOME=<tmp> PORT=3101 pnpm dev:next     # the server, with a throwaway hub
+//   VIBEDOC_HOME=<tmp> VIBEDOC_E2E=1 PORT=3101 pnpm dev:next     # the server, with a throwaway hub (E2E: file:// clones)
 //   VIBEDOC_HOME=<same tmp> BASE=http://localhost:3101 PW_DIR=<dir with playwright> node e2e/projects-hub.mjs
 //
 // Writes only into fresh mktemp fixture projects and the temp hub, never this repo or ~/.vibedoc.
 import assert from "node:assert/strict"
+import { execFileSync } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { launchChrome, makeFixture, registerProject } from "./stub-chat.mjs"
 
@@ -34,6 +36,29 @@ function folderHash(dir) {
 const a = project("Alpha")
 const b = project("Bravo")
 const c = project("Charlie")
+// R101 T536: a folder with 8 repos (one two levels down, 2 already in the hub) plus folders a scan must skip
+const work = mkdtempSync(path.join(os.tmpdir(), "vibedoc-scan-"))
+const repoNames = ["r1", "r2", "r3", "r4", "r5", "group/r7"]
+for (const n of repoNames) mkdirSync(path.join(work, n, ".git"), { recursive: true })
+for (const n of ["node_modules/dep", ".hidden", "plain/deeper/too-deep"]) mkdirSync(path.join(work, n, ".git"), { recursive: true })
+mkdirSync(path.join(work, "r1/plans/tasks"), { recursive: true })
+writeFileSync(path.join(work, "r1/plans/tasks/T001-scan.md"), "# T001: Scanned card\n**Status:** todo\n")
+writeFileSync(path.join(work, "notes.txt"), "a file, not a folder")
+const known = ["known1", "known2"].map((n) => (mkdirSync(path.join(work, n, ".git"), { recursive: true }), registerProject(path.join(work, n))))
+const scannedRootsAll = () => JSON.parse(readFileSync(path.join(process.env.VIBEDOC_HOME, "hub.json"), "utf8")).projects.map((p) => p.root)
+const scannedRoots = () => JSON.parse(readFileSync(path.join(process.env.VIBEDOC_HOME, "hub.json"), "utf8")).projects.filter((p) => p.root.startsWith(work))
+
+// R101 T537: a bare repo to clone (file:// is allowed only with VIBEDOC_E2E=1 on the server) and an empty parent
+const gitSrc = mkdtempSync(path.join(os.tmpdir(), "vibedoc-clone-src-"))
+const git = (cwd, ...args) => execFileSync("git", args, { cwd, stdio: "pipe" })
+mkdirSync(path.join(gitSrc, "work/plans/tasks"), { recursive: true })
+writeFileSync(path.join(gitSrc, "work/plans/tasks/T001-cloned.md"), "# T001: Cloned card\n**Status:** todo\n")
+git(path.join(gitSrc, "work"), "init", "-q")
+git(path.join(gitSrc, "work"), "add", ".")
+git(path.join(gitSrc, "work"), "-c", "user.name=e2e", "-c", "user.email=e2e@example.com", "commit", "-qm", "seed")
+git(gitSrc, "clone", "-q", "--bare", "work", "listly.git")
+const cloneParent = mkdtempSync(path.join(os.tmpdir(), "vibedoc-clone-into-"))
+
 const errors = []
 const browser = await launchChrome()
 try {
@@ -194,14 +219,88 @@ try {
   await page.getByText("Charlie card", { exact: true }).first().waitFor()
   console.log("ok  Locate refuses a file and a taken folder in words, then keeps the id and loads its tasks")
 
+  // T536 (S1): 8 repos, 2 already in the hub → 6 offered, only the ticked 5 are added
+  await page.goto(`${BASE}/projects?project=${a.id}`)
+  await page.getByRole("button", { name: "Add project" }).click()
+  await page.getByRole("menuitem", { name: "Scan a folder" }).click()
+  await page.getByLabel("Folder to scan").fill(work)
+  await page.getByRole("button", { name: "Scan", exact: true }).click()
+  const results = page.locator("[data-scan-results] li")
+  await page.getByText("8 repos found, 6 new").waitFor()
+  assert.equal(await results.count(), 8)
+  for (const k of known) assert.ok(await results.filter({ hasText: k.root }).getByRole("checkbox").isDisabled())
+  assert.equal(await results.filter({ hasText: "In the hub" }).count(), 2)
+  assert.equal(await results.getByText(/node_modules|\.hidden|too-deep/).count(), 0, "skips node_modules, dot folders, depth 3")
+  const tick = ["r1", "r2", "r3", "r4", "group/r7"]
+  for (const n of tick) await results.filter({ hasText: path.join(work, n) }).getByRole("checkbox").check()
+  await page.getByRole("button", { name: "Add 5 projects" }).click()
+  await page.getByText("Added 5 projects").waitFor()
+  const hubScanned = scannedRoots()
+  assert.deepEqual(hubScanned.map((p) => p.root).sort(), [...tick.map((n) => path.join(work, n)), ...known.map((k) => k.root)].sort())
+  const r1 = hubScanned.find((p) => p.root === path.join(work, "r1"))
+  await row(r1).getByText("1 open task").waitFor()
+  await row(hubScanned.find((p) => p.root === path.join(work, "r2"))).getByText("0 open tasks").waitFor()
+  console.log("ok  scan offers new repos, greys the 2 in the hub, adds only the 5 ticked ones with task counts")
+
+  // T536: add by path refuses a missing path and a file in words, adds a folder
+  await page.getByRole("button", { name: "Add project" }).click()
+  await page.getByRole("menuitem", { name: "From a folder path" }).click()
+  const pathField = page.getByLabel("Folder path")
+  await pathField.fill(path.join(work, "nope"))
+  await page.getByRole("button", { name: "Add", exact: true }).click()
+  await page.getByRole("alert").getByText(/no such folder/).waitFor()
+  await pathField.fill(path.join(work, "notes.txt"))
+  await page.getByRole("button", { name: "Add", exact: true }).click()
+  await page.getByRole("alert").getByText(/not a folder/).waitFor()
+  assert.equal(scannedRoots().length, 7, "a refused path adds nothing")
+  await pathField.fill(path.join(work, "r5"))
+  await page.getByRole("button", { name: "Add", exact: true }).click()
+  await page.getByText("Added 1 project").waitFor()
+  await row(scannedRoots().find((p) => p.root === path.join(work, "r5"))).getByText("0 open tasks").waitFor()
+  assert.equal((await fetch(`${BASE}/api/projects/add`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "http://evil.example" }, body: JSON.stringify({ root: work }) })).status, 403)
+  console.log("ok  add by path: missing and file refused in words, a folder is added; cross-origin add → 403")
+
+  // T537: refused URLs never reach git; an unknown repo shows git's error and leaves nothing; a good one opens
+  const hubCount = () => JSON.parse(readFileSync(path.join(process.env.VIBEDOC_HOME, "hub.json"), "utf8")).projects.length
+  const countBefore = hubCount()
+  await page.goto(`${BASE}/projects?project=${a.id}`)
+  await page.getByRole("button", { name: "Add project" }).click()
+  await page.getByRole("menuitem", { name: "Clone from git" }).click()
+  const urlField = page.getByLabel(/^Git URL/)
+  await page.getByLabel("Clone into folder").fill(cloneParent)
+  for (const bad of ["--upload-pack=touch /tmp/vibedoc-pwned", "ext::sh -c touch% /tmp/vibedoc-pwned"]) {
+    await urlField.fill(bad)
+    await page.getByRole("button", { name: "Clone", exact: true }).click()
+    await page.getByRole("alert").getByText(/give an https:\/\/, ssh:\/\/ or git@host:path URL/).waitFor()
+  }
+  assert.deepEqual(readdirSync(cloneParent), [], "a refused URL creates nothing")
+  await urlField.fill(`file://${path.join(gitSrc, "missing.git")}`)
+  await page.getByRole("button", { name: "Clone", exact: true }).click()
+  await page.getByRole("alert").getByText(/fatal: .*missing\.git/).waitFor()
+  assert.deepEqual(readdirSync(cloneParent), [], "a failed clone leaves no half folder")
+  assert.equal(hubCount(), countBefore, "a failed clone adds nothing")
+  await urlField.fill(`file://${path.join(gitSrc, "listly.git")}`)
+  await page.getByRole("button", { name: "Clone", exact: true }).click()
+  const cloned = path.join(cloneParent, "listly")
+  await page.waitForURL((u) => u.searchParams.get("project") === "listly" || /^listly-\d+$/.test(u.searchParams.get("project") ?? ""))
+  assert.ok(existsSync(path.join(cloned, "plans/tasks/T001-cloned.md")))
+  assert.ok(scannedRootsAll().includes(cloned), "the clone is in the hub")
+  await page.goto(`${BASE}/board?project=${new URL(page.url()).searchParams.get("project")}`)
+  await page.getByText("Cloned card", { exact: true }).first().waitFor()
+  const again = await fetch(`${BASE}/api/projects/clone`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: `file://${path.join(gitSrc, "listly.git")}`, parent: cloneParent }) })
+  assert.equal(again.status, 409, "an existing folder is never cloned over")
+  console.log("ok  clone: option/ext:: URLs refused before git, git's error in words with nothing left, a good URL clones and opens")
+
   assert.deepEqual(errors, [], "no page errors")
   console.log("ok  no page errors")
 } finally {
   await browser.close()
   for (const p of [a, b, c]) rmSync(p.root, { recursive: true, force: true })
+  rmSync(work, { recursive: true, force: true })
+  for (const d of [gitSrc, cloneParent]) rmSync(d, { recursive: true, force: true })
   // leave the hub as we found it, so a rerun against the same VIBEDOC_HOME sees only its own fixtures
   const hubFile = path.join(process.env.VIBEDOC_HOME, "hub.json")
   const hub = JSON.parse(readFileSync(hubFile, "utf8"))
-  hub.projects = hub.projects.filter((p) => ![a, b, c].some((x) => x.id === p.id))
+  hub.projects = hub.projects.filter((p) => ![a, b, c].some((x) => x.id === p.id) && !p.root.startsWith(work) && !p.root.startsWith(cloneParent))
   writeFileSync(hubFile, JSON.stringify(hub, null, 2) + "\n")
 }

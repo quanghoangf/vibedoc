@@ -120,3 +120,47 @@ export function switcherOrder<T extends { pinned: boolean; archived: boolean; la
     .sort((a, b) => Number(b.p.pinned) - Number(a.p.pinned) || (b.p.lastOpened ?? '').localeCompare(a.p.lastOpened ?? '') || a.i - b.i)
     .map(x => x.p)
 }
+
+// ─── Import (R101) ────────────────────────────────────────────────────────────
+
+/** `~` / `~/x` → under `home`; anything else as typed (trimmed). */
+export const expandHome = (p: string, home: string): string => {
+  const t = p.trim()
+  return t === '~' ? home : t.startsWith('~/') ? `${home}${t.slice(1)}` : t
+}
+
+/** A folder a scan looks into: never node_modules or a dot folder. */
+export const isScannable = (name: string): boolean => name !== 'node_modules' && !name.startsWith('.')
+
+export const MAX_SCAN_RESULTS = 200
+
+export interface ScannedRepo { root: string; name: string; inHub: boolean }
+
+/** Repo roots a scan found → the dialog's list: sorted by path, deduped, marked when already in the hub, capped. */
+export function scanResults(found: string[], hubRoots: Iterable<string>, cap = MAX_SCAN_RESULTS): ScannedRepo[] {
+  const known = new Set([...hubRoots].map(normalizeRoot))
+  return [...new Set(found.map(normalizeRoot))].sort().slice(0, cap)
+    .map(root => ({ root, name: baseName(root), inHub: known.has(root) }))
+}
+
+/**
+ * Clone (T537) trust boundary: only `https://`, `ssh://` and scp-style `git@host:path`; `file://` only when the caller
+ * allows it (e2e). Refuses option-looking text (`--upload-pack=…`) and transport helpers (`ext::…`) before git runs.
+ */
+export function isCloneUrl(url: string, allowFile = false): boolean {
+  const u = url.trim()
+  if (!u || u.startsWith('-') || u.includes('::') || /[\s\0-\x1f]/.test(u)) return false
+  if (/^[\w.-]+@[\w.-]+:[^/-][^\s]*$/.test(u)) return true // git@github.com:org/repo.git
+  let parsed: URL
+  try { parsed = new URL(u) } catch { return false }
+  if (parsed.protocol === 'file:') return allowFile && parsed.pathname.length > 1
+  return (parsed.protocol === 'https:' || parsed.protocol === 'ssh:') && !!parsed.hostname && parsed.pathname.replace(/\/+$/, '').length > 1
+}
+
+/** Where a clone lands: `<parent>/<repo name without .git>`; null when the URL names no usable folder. */
+export function cloneDest(parent: string, url: string): string | null {
+  const last = url.trim().replace(/[/\\]+$/, '').split(/[/:]/).pop() ?? ''
+  const name = last.replace(/\.git$/, '')
+  if (!name || name === '.' || name === '..' || name.startsWith('-') || /[\\\0]/.test(name)) return null
+  return `${normalizeRoot(parent)}/${name}`
+}
