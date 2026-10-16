@@ -6,7 +6,8 @@
 // Writes only into fresh mktemp fixture projects and the temp hub, never this repo or ~/.vibedoc.
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
-import { existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { launchChrome, makeFixture, registerProject } from "./stub-chat.mjs"
 
@@ -34,6 +35,17 @@ function folderHash(dir) {
 const a = project("Alpha")
 const b = project("Bravo")
 const c = project("Charlie")
+// R101 T536: a folder with 8 repos (one two levels down, 2 already in the hub) plus folders a scan must skip
+const work = mkdtempSync(path.join(os.tmpdir(), "vibedoc-scan-"))
+const repoNames = ["r1", "r2", "r3", "r4", "r5", "group/r7"]
+for (const n of repoNames) mkdirSync(path.join(work, n, ".git"), { recursive: true })
+for (const n of ["node_modules/dep", ".hidden", "plain/deeper/too-deep"]) mkdirSync(path.join(work, n, ".git"), { recursive: true })
+mkdirSync(path.join(work, "r1/plans/tasks"), { recursive: true })
+writeFileSync(path.join(work, "r1/plans/tasks/T001-scan.md"), "# T001: Scanned card\n**Status:** todo\n")
+writeFileSync(path.join(work, "notes.txt"), "a file, not a folder")
+const known = ["known1", "known2"].map((n) => (mkdirSync(path.join(work, n, ".git"), { recursive: true }), registerProject(path.join(work, n))))
+const scannedRoots = () => JSON.parse(readFileSync(path.join(process.env.VIBEDOC_HOME, "hub.json"), "utf8")).projects.filter((p) => p.root.startsWith(work))
+
 const errors = []
 const browser = await launchChrome()
 try {
@@ -194,14 +206,56 @@ try {
   await page.getByText("Charlie card", { exact: true }).first().waitFor()
   console.log("ok  Locate refuses a file and a taken folder in words, then keeps the id and loads its tasks")
 
+  // T536 (S1): 8 repos, 2 already in the hub → 6 offered, only the ticked 5 are added
+  await page.goto(`${BASE}/projects?project=${a.id}`)
+  await page.getByRole("button", { name: "Add project" }).click()
+  await page.getByRole("menuitem", { name: "Scan a folder" }).click()
+  await page.getByLabel("Folder to scan").fill(work)
+  await page.getByRole("button", { name: "Scan", exact: true }).click()
+  const results = page.locator("[data-scan-results] li")
+  await page.getByText("8 repos found, 6 new").waitFor()
+  assert.equal(await results.count(), 8)
+  for (const k of known) assert.ok(await results.filter({ hasText: k.root }).getByRole("checkbox").isDisabled())
+  assert.equal(await results.filter({ hasText: "In the hub" }).count(), 2)
+  assert.equal(await results.getByText(/node_modules|\.hidden|too-deep/).count(), 0, "skips node_modules, dot folders, depth 3")
+  const tick = ["r1", "r2", "r3", "r4", "group/r7"]
+  for (const n of tick) await results.filter({ hasText: path.join(work, n) }).getByRole("checkbox").check()
+  await page.getByRole("button", { name: "Add 5 projects" }).click()
+  await page.getByText("Added 5 projects").waitFor()
+  const hubScanned = scannedRoots()
+  assert.deepEqual(hubScanned.map((p) => p.root).sort(), [...tick.map((n) => path.join(work, n)), ...known.map((k) => k.root)].sort())
+  const r1 = hubScanned.find((p) => p.root === path.join(work, "r1"))
+  await row(r1).getByText("1 open task").waitFor()
+  await row(hubScanned.find((p) => p.root === path.join(work, "r2"))).getByText("0 open tasks").waitFor()
+  console.log("ok  scan offers new repos, greys the 2 in the hub, adds only the 5 ticked ones with task counts")
+
+  // T536: add by path refuses a missing path and a file in words, adds a folder
+  await page.getByRole("button", { name: "Add project" }).click()
+  await page.getByRole("menuitem", { name: "From a folder path" }).click()
+  const pathField = page.getByLabel("Folder path")
+  await pathField.fill(path.join(work, "nope"))
+  await page.getByRole("button", { name: "Add", exact: true }).click()
+  await page.getByRole("alert").getByText(/no such folder/).waitFor()
+  await pathField.fill(path.join(work, "notes.txt"))
+  await page.getByRole("button", { name: "Add", exact: true }).click()
+  await page.getByRole("alert").getByText(/not a folder/).waitFor()
+  assert.equal(scannedRoots().length, 7, "a refused path adds nothing")
+  await pathField.fill(path.join(work, "r5"))
+  await page.getByRole("button", { name: "Add", exact: true }).click()
+  await page.getByText("Added 1 project").waitFor()
+  await row(scannedRoots().find((p) => p.root === path.join(work, "r5"))).getByText("0 open tasks").waitFor()
+  assert.equal((await fetch(`${BASE}/api/projects/add`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "http://evil.example" }, body: JSON.stringify({ root: work }) })).status, 403)
+  console.log("ok  add by path: missing and file refused in words, a folder is added; cross-origin add → 403")
+
   assert.deepEqual(errors, [], "no page errors")
   console.log("ok  no page errors")
 } finally {
   await browser.close()
   for (const p of [a, b, c]) rmSync(p.root, { recursive: true, force: true })
+  rmSync(work, { recursive: true, force: true })
   // leave the hub as we found it, so a rerun against the same VIBEDOC_HOME sees only its own fixtures
   const hubFile = path.join(process.env.VIBEDOC_HOME, "hub.json")
   const hub = JSON.parse(readFileSync(hubFile, "utf8"))
-  hub.projects = hub.projects.filter((p) => ![a, b, c].some((x) => x.id === p.id))
+  hub.projects = hub.projects.filter((p) => ![a, b, c].some((x) => x.id === p.id) && !p.root.startsWith(work))
   writeFileSync(hubFile, JSON.stringify(hub, null, 2) + "\n")
 }

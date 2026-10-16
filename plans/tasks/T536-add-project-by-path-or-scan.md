@@ -1,9 +1,13 @@
 # T536: Add projects by path or by scanning a folder
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R101 — Import projects
 **Size:** M (2–3 hrs)
 **Depends on:** T531
 **Covers:** S1
+**Owner:** ai:claude
+**Due:** 2026-10-19
+**Started:** 2026-10-16
+**Done:** 2026-10-16
 
 ## Goal
 From All projects, the user adds one repo by its path, or scans a folder like `~/work` and ticks which repos to add, so a hub of many repos takes a minute.
@@ -34,12 +38,19 @@ From All projects, the user adds one repo by its path, or scans a folder like `~
 - [ ] Path to a non-directory or a missing path → error in words, nothing added
 - [ ] Added projects show their task counts on All projects
 
-## Manual tests
-- [ ] S1 — WHEN the user scans a folder with 8 repos, 2 already in the hub → THEN 6 are offered, and only the ticked ones are added
-
 ## Verify
 ```bash
 node src/lib/hub.check.mts && node src/lib/i18n.check.mts
 pnpm lint && pnpm build
 BASE=http://localhost:3081 node e2e/projects-hub.mjs
 ```
+
+## Manual tests
+_2026-10-16 — ai · Spec: `e2e/vibedoc/T536-add-project-by-path-or-scan.spec.ts` · Auto: passed 2026-10-16_
+### Steps
+- [x] 🤖 S1 — WHEN the user scans a folder with 8 repos, 2 already in the hub → THEN 6 are offered, and only the ticked ones are added
+- [x] 🤖 Added projects show their task counts on All projects → r1 reads "1 open task"
+- [x] 🤖 Add project → From a folder path with a missing path or a file → the error says so in words, nothing is added
+- [x] 🤖 Add a folder by its path → it shows on All projects
+### Regression risk
+- [x] 🤖 Remove on an added project still drops its row and offers Undo

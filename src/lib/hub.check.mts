@@ -96,3 +96,21 @@ const sw = [
 assert.deepEqual(switcherOrder(sw).map(p => p.id), ['c', 'd', 'a', 'e', 'f'])
 
 console.log('hub.check: ok')
+
+// R101 import: ~ expansion, scan filter, scan results
+{
+  const { expandHome, isScannable, scanResults } = await import('./hub.ts')
+  assert.equal(expandHome(' ~/work ', '/home/me'), '/home/me/work')
+  assert.equal(expandHome('~', '/home/me'), '/home/me')
+  assert.equal(expandHome('/abs/~x', '/home/me'), '/abs/~x')
+  assert.equal(expandHome('~other/x', '/home/me'), '~other/x')
+  assert.ok(isScannable('web') && !isScannable('node_modules') && !isScannable('.cache'))
+  const found = ['/w/b', '/w/a/', '/w/c', '/w/a']
+  assert.deepEqual(scanResults(found, ['/w/c/']), [
+    { root: '/w/a', name: 'a', inHub: false },
+    { root: '/w/b', name: 'b', inHub: false },
+    { root: '/w/c', name: 'c', inHub: true },
+  ])
+  assert.equal(scanResults(Array.from({ length: 300 }, (_, i) => `/w/r${i}`), []).length, 200)
+  assert.equal(scanResults(['/w/a', '/w/b'], [], 1).length, 1)
+}
