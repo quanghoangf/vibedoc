@@ -1,7 +1,7 @@
 // The stable address (R080, R100): one VibeDoc serves every project, its port lives in <home>/port, so every run
 // serves the same URL and an agent connected once stays connected. Plain JS: the bin ships unbuilt.
 // Check: node bin/address.check.mts
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
@@ -141,6 +141,37 @@ export function addressChangedMessage({ oldPort, newPort, root }) {
     '     claude mcp remove vibedoc',
     `     ${connectCommand(newPort, root)}`,
     `     Other agents: point their MCP config at the new URL. VibeDoc keeps ${newPort} from now on.`,
+  ].join('\n')
+}
+
+/** R080's per-project port file: a repo that has one ran its own VibeDoc before the hub (R100). */
+const legacyPortFile = (root) => path.join(root, '.vibedoc', 'port')
+
+/** The port this repo's own VibeDoc used (R080), or null when it never had one. */
+export function legacyPort(root) {
+  try {
+    const n = Number(readFileSync(legacyPortFile(root), 'utf8').trim())
+    return validPort(n) ? n : null
+  } catch {
+    return null
+  }
+}
+
+/** Deletes the legacy port file once its notice was shown, so it shows only once; the repo's other data stays. */
+export function dropLegacyPort(root) {
+  try { rmSync(legacyPortFile(root), { force: true }) } catch {}
+}
+
+/** Told once to a repo that had its own VibeDoc: the address moved to the hub, and how to reconnect the agent. */
+export function migrationMessage({ oldPort, port, root }) {
+  return [
+    '   ℹ VibeDoc now serves all your projects from one address. This project\'s tasks, docs and memory are unchanged.',
+    `     Old MCP URL: ${mcpUrl(oldPort)}`,
+    `     New MCP URL: ${mcpUrl(port, root)}`,
+    '     Reconnect Claude Code (in this project):',
+    '     claude mcp remove vibedoc',
+    `     ${connectCommand(port, root)}`,
+    `     Or use Settings → Connect agent: ${appUrl(port)}/settings?tab=connect&root=${encodeURIComponent(root)}`,
   ].join('\n')
 }
 

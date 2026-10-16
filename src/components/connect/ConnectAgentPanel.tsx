@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { useOrigin } from "@/hooks/use-origin"
-import { agentLabel, claudeMcpAddCommand, claudeMcpRemoveCommand, CONNECT_AGENTS, mcpServersConfig, pluginInstallCommands, type ConnectAgent } from "@/lib/agent-connect"
+import { agentLabel, claudeMcpAddCommand, claudeMcpRemoveCommand, CONNECT_AGENTS, mcpServersConfig, pluginInstallCommands, projectMcpUrl, type ConnectAgent } from "@/lib/agent-connect"
 
 interface McpStatus { connected: boolean; agent: string | null; lastCall: string | null }
 interface SkillsStatus { installed: boolean; missing: boolean; error: string | null }
@@ -20,11 +20,12 @@ const SKILLS_POLL_MS = 10_000
  * Fetches its own status, so the welcome screen (R082) can mount it as is; Settings passes the configured MCP URL.
  */
 export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
-  const { rootParam } = useApp()
+  const { rootParam, activeProject } = useApp()
   const { t } = useT()
   const { timeAgo } = useFormat()
   const origin = useOrigin()
-  const url = mcpUrl || `${origin}/api/mcp`
+  // R100: one VibeDoc serves every project, so the agent connects to this project's URL (?root=)
+  const url = projectMcpUrl(mcpUrl || `${origin}/api/mcp`, activeProject)
   const [mcp, setMcp] = useState<McpStatus | null>(null)
   const [skills, setSkills] = useState<SkillsStatus | null>(null)
   const [agent, setAgent] = useState<ConnectAgent>("claude-code")

@@ -34,7 +34,24 @@ export function shouldRecordCall(prev: AgentConnection | null, agent: string, no
 
 /** The command that adds VibeDoc to Claude Code's MCP servers (local scope: run it in the project folder). */
 export function claudeMcpAddCommand(url: string): string {
-  return `claude mcp add --transport http vibedoc ${url}`
+  // a URL with `?` / `&` is quoted for the shell (zsh reads an unquoted `?` as a glob); the CLI run passes it as one arg
+  return `claude mcp add --transport http vibedoc ${/[?&]/.test(url) ? `'${url}'` : url}`
+}
+
+/**
+ * The project's MCP URL (R100: one VibeDoc serves every project, so each has its own `?root=`). A URL that already
+ * names a root, or no root, is returned as is.
+ */
+export function projectMcpUrl(url: string, root: string | null | undefined): string {
+  if (!root) return url
+  try {
+    const u = new URL(url)
+    if (u.searchParams.has('root')) return url
+    u.searchParams.set('root', root)
+    return u.toString()
+  } catch {
+    return url
+  }
 }
 
 /** Removes the project's (local scope) vibedoc server; the Replace flow runs it before the add. */

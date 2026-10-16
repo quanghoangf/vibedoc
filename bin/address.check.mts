@@ -1,12 +1,12 @@
 // Self-check for the stable address (R080, R100). Run: node bin/address.check.mts
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer as createHttpServer } from 'node:http'
-import { addToHub, addressChangedMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, portFile, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
+import { addToHub, addressChangedMessage, dropLegacyPort, legacyPort, migrationMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, portFile, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
 
 const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-address-'))
 const servers: { close(): unknown }[] = []
@@ -121,6 +121,24 @@ try {
   assert.ok(changed.includes(connectCommand(3334)))
   const changedRoot = addressChangedMessage({ oldPort: 3333, newPort: 3334, root: '/p' })
   assert.ok(changedRoot.includes(mcpUrl(3334, '/p')) && changedRoot.includes(connectCommand(3334, '/p')))
+
+  // Legacy per-project port (R080): read, notice with both commands, dropped once shown (the rest of .vibedoc stays)
+  const old = path.join(root, 'old-repo')
+  assert.equal(legacyPort(old), null)
+  mkdirSync(path.join(old, '.vibedoc'), { recursive: true })
+  writeFileSync(path.join(old, '.vibedoc', 'port'), '3340\n')
+  writeFileSync(path.join(old, '.vibedoc', 'settings.json'), '{}')
+  assert.equal(legacyPort(old), 3340)
+  const notice = migrationMessage({ oldPort: 3340, port: 3333, root: old })
+  assert.ok(notice.includes('http://localhost:3340/api/mcp'))
+  assert.ok(notice.includes(mcpUrl(3333, old)))
+  assert.ok(notice.includes('claude mcp remove vibedoc'))
+  assert.ok(notice.includes(connectCommand(3333, old)))
+  assert.ok(notice.includes('/settings?tab=connect'))
+  dropLegacyPort(old)
+  assert.equal(legacyPort(old), null)
+  assert.ok(existsSync(path.join(old, '.vibedoc', 'settings.json')), 'other .vibedoc files stay')
+  dropLegacyPort(old) // already gone: no throw
 
   // Ready: an app that starts answering after ~500 ms; a child that dies first; nothing answering at all
   const sleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'])

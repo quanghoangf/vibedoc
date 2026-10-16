@@ -1,8 +1,9 @@
 // End-to-end check for the stable address (R080) on one hub (R100): every repo is served by one VibeDoc, each at its
 // own MCP URL, and a restart keeps the URL an agent connected to.
 //   1. Run 1 in repo A's package folder (`--port 3080`): the MCP URL is A's (`?root=`), `tools/list` answers, the port
-//      is saved in <home>/port.
-//   2. Stop, run 2 in A with no `--port`: same printed MCP URL, `tools/list` answers again.
+//      is saved in <home>/port. A had its own VibeDoc (R080 `.vibedoc/port` = 3340): the one-time notice shows both
+//      commands and the legacy file goes; the rest of `.vibedoc/` stays.
+//   2. Stop, run 2 in A with no `--port`: same printed MCP URL, `tools/list` answers again, no notice.
 //   3. `vibedoc` in repo B while run 2 is up: "already running", no second server, B joins /api/projects, the open
 //      target is B, an open SSE stream gets `projects_updated`, A's MCP URL still answers.
 //   4. `vibedoc` outside any repo while it runs: opens All projects. A cross-site POST /api/projects/add → 403.
@@ -13,7 +14,7 @@
 // Spawns the real bin with --no-open from the `.next` build, with its own temp VIBEDOC_HOME (never ~/.vibedoc).
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -30,6 +31,9 @@ const repo = (name) => {
   return dir
 }
 const repoA = repo("repo-a"), repoB = repo("repo-b")
+mkdirSync(path.join(repoA, ".vibedoc"))
+writeFileSync(path.join(repoA, ".vibedoc", "port"), "3340\n")
+writeFileSync(path.join(repoA, ".vibedoc", "settings.json"), "{}\n")
 const loose = path.join(tmp, "loose")
 mkdirSync(loose)
 const children = new Set()
@@ -101,10 +105,17 @@ try {
   await toolsList(urlA)
   await stop(first.child)
   assert.equal(readFileSync(path.join(home, "port"), "utf8").trim(), String(PORT))
-  console.log("✓ run 1 serves", urlA)
+  assert.ok(first.out.includes("Old MCP URL: http://localhost:3340/api/mcp"), "legacy notice")
+  assert.ok(first.out.includes(`New MCP URL: ${urlA}`))
+  assert.ok(first.out.includes("claude mcp remove vibedoc"))
+  assert.ok(first.out.includes("settings?tab=connect"))
+  assert.equal(existsSync(path.join(repoA, ".vibedoc", "port")), false, "legacy port file removed")
+  assert.ok(existsSync(path.join(repoA, ".vibedoc", "settings.json")), "the project's other data stays")
+  console.log("✓ run 1 serves", urlA, "and tells an old setup once what changed")
 
   const second = await run(repoA, [], ready)
   assert.equal(printedMcp(second.out), urlA, "Restart: same MCP URL")
+  assert.ok(!second.out.includes("Old MCP URL"), "the notice shows only once")
   await toolsList(urlA)
   console.log("✓ restart keeps", urlA, "and tools/list still answers")
 

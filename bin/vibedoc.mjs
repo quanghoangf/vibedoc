@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { createRequire } from 'node:module'
-import { addToHub, addressChangedMessage, appUrl, parsePortArg, portFile, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
+import { addToHub, addressChangedMessage, appUrl, dropLegacyPort, legacyPort, migrationMessage, parsePortArg, portFile, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
 import { repoRoot } from './repo-root.mjs'
 import { prepareDemo, sweepDemos } from './demo.mjs'
 
@@ -19,6 +19,15 @@ async function openBrowser(url) {
   } catch {
     console.log(`   Open ${url} in your browser.`)
   }
+}
+
+// R100: a repo that ran its own VibeDoc (R080's .vibedoc/port) is told once that the address moved, then the file goes
+function noticeMigration(port) {
+  if (!PROJECT || demo) return
+  const oldPort = legacyPort(PROJECT)
+  if (oldPort == null) return
+  console.log(`${migrationMessage({ oldPort, port, root: PROJECT })}\n`)
+  dropLegacyPort(PROJECT)
 }
 
 // Parse args
@@ -94,6 +103,7 @@ if (address.running) {
     openPath = `/?project=${encodeURIComponent(added.id)}`
   }
   console.log(`\n✓ VibeDoc is already running\n\n${startupBanner({ root: PROJECT, port: address.running })}\n`)
+  noticeMigration(address.running)
   await openBrowser(`${appUrl(address.running)}${openPath}`)
   process.exit(0)
 }
@@ -159,6 +169,7 @@ const url = `${appUrl(port)}${START_PATH}`
 
 console.log(`\n✓ VibeDoc is ready\n\n${startupBanner({ root: PROJECT, port })}\n`)
 if (address.changedFrom) console.log(`${addressChangedMessage({ oldPort: address.changedFrom, newPort: port, root: PROJECT })}\n`)
+noticeMigration(port)
 await openBrowser(url)
 console.log('   Press Ctrl+C to stop the server.\n')
 
