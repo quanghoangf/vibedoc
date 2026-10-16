@@ -39,6 +39,10 @@ import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSe
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
 import { addProject, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, relocateProject, removeProject, restoreProject, type Hub, type HubProject } from './hub'
 import { countNeedsYou } from './test-review'
+import { runIdTime } from './test-review'
+import { chatStatus, fromSaved, isWaiting, type StatusMessage } from './chats'
+import { isTurnRunning } from './chat-turns'
+import { buildInbox, type InboxItem, type InboxProjectInput } from './inbox'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
@@ -526,6 +530,39 @@ export async function listProjectsWithCounts(): Promise<(Project & { counts: Pro
       return { ...p, counts: null }
     }
   }))
+}
+
+/**
+ * Everything waiting on the user in every hub project (R105), newest first. Derived on each call, nothing stored;
+ * archived / missing projects are skipped, and a project that can't be read is logged and left out.
+ */
+export async function getInbox(opts: { project?: string | null } = {}): Promise<InboxItem[]> {
+  const configured = path.resolve(getConfiguredRoot())
+  const projects = (await discoverProjects()).filter(p => !p.archived && !p.missing && (!opts.project || p.id === opts.project))
+  const inputs = await Promise.all(projects.map(async (p): Promise<InboxProjectInput | null> => {
+    try {
+      const [{ tasks }, chats] = await Promise.all([listTasks(p.root), listChats(p.root)])
+      // a chat turn is keyed by the root string its request used: the hub's root, or the configured root as given
+      const running = (id: string) => isTurnRunning(p.root, id) || (normalizeRoot(configured) === normalizeRoot(p.root) && isTurnRunning(getConfiguredRoot(), id))
+      return {
+        project: p,
+        tasks: tasks.map(t => {
+          const failedRun = (t.lastRun?.status ?? t.manualTests?.autoRun?.result) === 'failed'
+          return {
+            id: t.id, title: t.title, status: t.status, failedRun, needsTest: countNeedsYou([t]) > 0,
+            since: (failedRun && t.lastRun && runIdTime(t.lastRun.runId)) || t.updatedAt,
+          }
+        }),
+        chats: chats.map(raw => fromSaved<StatusMessage>(raw)).filter(c => c !== null).map(c => ({
+          id: c.id, title: c.title, since: c.updatedAt, waiting: isWaiting(chatStatus(c)) && !running(c.id),
+        })),
+      }
+    } catch (e) {
+      console.warn(`[vibedoc] inbox: skipping ${p.root}: ${(e as Error).message}`)
+      return null
+    }
+  }))
+  return buildInbox(inputs.filter(i => i !== null))
 }
 
 /** Display name / pin / archive of a hub project; the folder is never touched. */
