@@ -27,14 +27,15 @@ export interface InboxChatInput {
 }
 
 export interface InboxProjectInput {
-  project: { id: string; name: string; archived?: boolean; missing?: boolean }
+  project: { id: string; name: string; root?: string; archived?: boolean; missing?: boolean }
   tasks: InboxTaskInput[]
   chats: InboxChatInput[]
 }
 
 export interface InboxItem {
   kind: InboxKind
-  project: { id: string; name: string }
+  /** `root` (when known) is where to send actions such as Approve: `?root=<root>` */
+  project: { id: string; name: string; root?: string }
   id: string
   title: string
   since: string | null
@@ -64,13 +65,14 @@ export function sortInbox(items: InboxItem[]): InboxItem[] {
     (b.since ?? "").localeCompare(a.since ?? "") || a.project.id.localeCompare(b.project.id) || a.id.localeCompare(b.id))
 }
 
-/** The inbox from every project's inputs; archived and missing projects are skipped, `project` keeps one. */
-export function buildInbox(inputs: InboxProjectInput[], opts: { project?: string | null } = {}): InboxItem[] {
+/** The inbox from every project's inputs; archived and missing projects are skipped, `project` keeps one, `projects` (a group's members) keeps those. */
+export function buildInbox(inputs: InboxProjectInput[], opts: { project?: string | null; projects?: ReadonlySet<string> | null } = {}): InboxItem[] {
   const items: InboxItem[] = []
   for (const { project, tasks, chats } of inputs) {
     if (project.archived || project.missing) continue
     if (opts.project && project.id !== opts.project) continue
-    const p = { id: project.id, name: project.name }
+    if (opts.projects && !opts.projects.has(project.id)) continue
+    const p = { id: project.id, name: project.name, ...(project.root ? { root: project.root } : {}) }
     for (const t of tasks) {
       const kind = taskKind(t)
       if (kind) items.push({ kind, project: p, id: t.id, title: t.title, since: t.since, href: href(kind, t.id, p.id) })

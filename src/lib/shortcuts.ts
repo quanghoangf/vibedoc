@@ -25,6 +25,7 @@ export const PAGE_SHORTCUTS: readonly PageShortcut[] = [
   { href: "/settings", key: "s", label: "shell.settings" },
   { href: "/chat", key: "g", label: "shell.chats", help: "help.chatsPage" },
   { href: "/projects", key: "h", label: "shell.allProjects" },
+  { href: "/inbox", key: "i", label: "inbox.title" },
 ]
 
 /** Opens the head of the attention queue (needs you, then errors); again on the head walks to the next. */
@@ -213,6 +214,14 @@ export const PAGE_HELP: Readonly<Record<string, PageHelp>> = {
     tips: [
       "help.tipProjectsRemove",
       "help.tipProjectsArchive",
+    ],
+  },
+  "/inbox": {
+    title: "inbox.title",
+    keys: [],
+    tips: [
+      "inbox.tipInboxOpen",
+      "inbox.tipInboxFilters",
     ],
   },
   "/chat": {

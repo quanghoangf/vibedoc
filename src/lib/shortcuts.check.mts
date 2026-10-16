@@ -89,7 +89,7 @@ assert.equal(helpFor('/settings'), null)
 assert.equal(helpFor('/boardx'), null)
 
 // Every text is a message key that exists in English (types catch typos in the app; this catches them here too)
-const areas = Object.fromEntries(await Promise.all(['shell', 'board', 'docs', 'tests', 'help'].map(async (a) => [a, (await import(`../i18n/${a}.ts`)).en])))
+const areas = Object.fromEntries(await Promise.all(['shell', 'board', 'docs', 'tests', 'help', 'inbox'].map(async (a) => [a, (await import(`../i18n/${a}.ts`)).en])))
 const texts = [
   ...PAGE_SHORTCUTS.flatMap((p) => [p.label, p.help]), ...SHORTCUT_SECTIONS.flatMap((s) => [s.title, ...s.rows.map((r) => r.description)]),
   ...Object.values(PAGE_HELP).flatMap((h) => [h.title, ...h.keys.map((k) => k.label), ...h.tips]), ...GLOBAL_HELP_KEYS.map((k) => k.label),

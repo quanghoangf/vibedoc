@@ -570,7 +570,9 @@ export async function listProjectsWithCounts(): Promise<(Project & { counts: Pro
  * Everything waiting on the user in every hub project (R105), newest first. Derived on each call, nothing stored;
  * archived / missing projects are skipped, and a project that can't be read is logged and left out.
  */
-export async function getInbox(opts: { project?: string | null } = {}): Promise<InboxItem[]> {
+export async function getInbox(opts: { project?: string | null; group?: string | null } = {}): Promise<InboxItem[]> {
+  // T547: a group keeps its member repos; an unknown slug keeps nothing
+  const members = opts.group ? new Set((await listGroups()).find(g => g.slug === opts.group)?.members.map(m => m.id) ?? []) : null
   const configured = path.resolve(getConfiguredRoot())
   const projects = (await discoverProjects()).filter(p => !p.archived && !p.missing && (!opts.project || p.id === opts.project))
   const inputs = await Promise.all(projects.map(async (p): Promise<InboxProjectInput | null> => {
@@ -596,7 +598,7 @@ export async function getInbox(opts: { project?: string | null } = {}): Promise<
       return null
     }
   }))
-  return buildInbox(inputs.filter(i => i !== null))
+  return buildInbox(inputs.filter(i => i !== null), { projects: members })
 }
 
 /** Display name / pin / archive of a hub project; the folder is never touched. */

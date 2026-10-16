@@ -41,6 +41,7 @@ const NOT_EMPTY = {
   "/setup": "the project-docs wizard",
   "/getting-started": "VibeDoc's own guide",
   "/start": "the first-run welcome itself",
+  "/inbox": "cross-project: every hub project's waiting items, never empty on a shared server (empty state: e2e/inbox.mjs)",
   "/projects": "the hub always lists the project VibeDoc was started in (all archived = EmptyState, e2e/projects-hub.mjs)",
 }
 
