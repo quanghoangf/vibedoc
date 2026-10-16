@@ -12,6 +12,10 @@
 //   7. Cursor / Other (fresh fixture): paste config with the URL under mcpServers.vibedoc.url, no skills step;
 //      a tools/call from Cursor ticks the MCP step ✓ "Cursor" live.
 //   8. Phone width (390px): no horizontal page scroll on the panel.
+//   9. One connection (R104, ADR-006): with no ?root=, the X-VibeDoc-Root header picks the project (A, B, a sub-folder,
+//      the realpath); ?root= wins over it; a `${PWD}` template, an outside folder or nothing → refused with the list.
+//      Connect all projects asks first, then runs one user-scope `claude mcp add` with the header; every hub project
+//      has its own ✓ row.
 // The server must run with e2e/fixtures/claude-stub first on PATH (a fake `claude` that keeps its state in the cwd).
 // Fails on any browser console error. The fixture is removed in `finally`.
 //
@@ -20,7 +24,7 @@
 //
 // Uses the real /api/mcp and routes (only /api/projects is stubbed); writes only a fresh mktemp fixture.
 import assert from "node:assert/strict"
-import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, realpathSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
@@ -178,6 +182,56 @@ try {
   const overflow = await page2.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   assert.ok(overflow <= 0, `no horizontal scroll at 390px (overflow ${overflow}px)`)
   console.log("✓ phone width has no horizontal scroll")
+
+  // 9. one connection for every project: the header names the folder
+  const bare = async (method, params, headers = {}, query = "") => {
+    const res = await fetch(`${BASE}/api/mcp${query}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": "claude-code/2.1.301 (cli)", ...headers },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+    })
+    return res.json()
+  }
+  const status = async (headers, query) => {
+    const r = await bare("tools/call", { name: "vibedoc_get_status", arguments: {} }, headers, query)
+    return { text: r.result.content[0].text, isError: r.result.isError === true }
+  }
+  const nameOf = (root) => path.basename(root)
+  assert.ok((await status({ "x-vibedoc-root": fx })).text.startsWith(`## ${nameOf(fx)} `), "header A → A")
+  assert.ok((await status({ "x-vibedoc-root": fx2 })).text.startsWith(`## ${nameOf(fx2)} `), "header B → B")
+  mkdirSync(path.join(fx2, "src/deep"), { recursive: true })
+  assert.ok((await status({ "x-vibedoc-root": path.join(fx2, "src/deep") })).text.startsWith(`## ${nameOf(fx2)} `), "a sub-folder → its project")
+  assert.ok((await status({ "x-vibedoc-root": realpathSync(fx2) })).text.startsWith(`## ${nameOf(fx2)} `), "the realpath maps to the stored root")
+  assert.ok((await status({ "x-vibedoc-root": fx2 }, `?root=${encodeURIComponent(fx)}`)).text.startsWith(`## ${nameOf(fx)} `), "?root= wins")
+  const tpl = await status({ "x-vibedoc-root": "${PWD}" })
+  assert.ok(tpl.isError && /not a folder/.test(tpl.text), "the unexpanded template is refused")
+  assert.ok(tpl.text.includes(fx) && tpl.text.includes(fx2), "the refusal lists the hub projects")
+  assert.ok(tpl.text.includes(`cd '${fx2}' && claude mcp add --transport http vibedoc '${mcpOf(fx2)}'`), "with each project's own command")
+  const outside = await status({ "x-vibedoc-root": "/" })
+  assert.ok(outside.isError && /is not inside a VibeDoc project/.test(outside.text), "a folder outside every project is refused")
+  const none = await status({})
+  assert.ok(none.isError && /names no project/.test(none.text), "no root and no header is refused, never defaulted")
+  const tools = await bare("tools/list", {}, { "x-vibedoc-root": fx2 })
+  assert.ok(tools.result.tools.some((t) => t.name === "vibedoc_get_status"), "tools/list answers with the header")
+  console.log("✓ the X-VibeDoc-Root header picks the project (A, B, sub-folder, realpath); ?root= wins; anything else is refused with the list")
+
+  await page.setViewportSize({ width: 1400, height: 900 })
+  await page.reload()
+  const all = page.getByRole("group", { name: "One connection for every project" })
+  const userCmd = `claude mcp add --scope user --transport http vibedoc ${BASE}/api/mcp --header 'X-VibeDoc-Root: \${PWD}'`
+  await all.getByText(userCmd).waitFor()
+  const rows = all.getByRole("list", { name: "Projects" })
+  await rows.getByRole("listitem").filter({ hasText: fx2 }).getByText(/✓ Claude Code/).waitFor()
+  await rows.getByRole("listitem").filter({ hasText: fx }).first().waitFor()
+  const beforeAll = calls().length
+  await all.getByRole("button", { name: "Connect all projects" }).click()
+  const allDialog = page.getByRole("dialog", { name: "Connect Claude Code to every project?" })
+  await allDialog.getByText(userCmd).waitFor()
+  assert.equal(calls().length, beforeAll, "nothing runs before Confirm")
+  await allDialog.getByRole("button", { name: "Run it" }).click()
+  await all.getByText(/to user config/).waitFor()
+  assert.deepEqual(calls().slice(beforeAll), [`mcp add --scope user --transport http vibedoc ${BASE}/api/mcp --header X-VibeDoc-Root: \${PWD}`])
+  console.log("✓ Connect all projects asks first, then runs one user-scope claude mcp add with the ${PWD} header; each project has its own ✓ row")
 
   assert.deepEqual(errors, [], "no console errors")
   console.log("connect-agent: ok")

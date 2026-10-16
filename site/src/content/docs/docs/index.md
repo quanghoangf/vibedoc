@@ -55,7 +55,15 @@ The MCP server is `http://localhost:<port>/api/mcp?root=<project folder>` (HTTP 
 
 Easiest: open **Settings → Connect agent** (`/settings?tab=connect`) in VibeDoc. For Claude Code it adds the MCP server and installs the `/vibedoc:*` skills after you confirm each command; for Cursor or another agent it shows the config to paste. Each step turns ✓ only from evidence: the agent's first VibeDoc tool call, or the plugin found in `claude plugin list`. The commands below do the same by hand.
 
-**Claude Code**
+**Claude Code: one connection for every project.** **Connect all projects** in the same panel runs this once, in any folder:
+
+```bash
+claude mcp add --scope user --transport http vibedoc http://localhost:3333/api/mcp --header 'X-VibeDoc-Root: ${PWD}'
+```
+
+Claude Code fills in `${PWD}` with the folder each session starts in, and VibeDoc answers about the project that folder is in (a sub-folder works). Projects you add to VibeDoc later need nothing more. Keep the single quotes, so your shell doesn't fill in `${PWD}` when you run the command. A session started outside every VibeDoc project gets the project list back, never another project's answers. If you start Claude Code from an IDE or a launcher, `PWD` can be the launcher's folder: connect that project on its own instead (below). A per-project connection always wins over the one for every project.
+
+**Claude Code: this project only**
 
 ```bash
 claude mcp add --transport http vibedoc 'http://localhost:3333/api/mcp?root=%2Fpath%2Fto%2Fproject'

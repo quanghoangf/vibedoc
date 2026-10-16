@@ -124,3 +124,44 @@ export type ConnectAgent = (typeof CONNECT_AGENTS)[number]
 export function mcpServersConfig(url: string): string {
   return JSON.stringify({ mcpServers: { vibedoc: { url } } }, null, 2)
 }
+
+// ─── One connection for every project (R104, ADR-006) ─────────────────────────
+
+/** Carries the agent's folder: Claude Code expands `${PWD}` in a user-scope header on every request. */
+export const ROOT_HEADER = 'x-vibedoc-root'
+
+/** The header's template, single-quoted in the shell command so the user's shell doesn't expand it. */
+export const ROOT_HEADER_VALUE = 'X-VibeDoc-Root: ${PWD}'
+
+/** One user-scope connection for every hub project (ADR-006); the server maps the header to the project. */
+export function userScopeMcpAddCommand(url: string): string {
+  return `claude mcp add --scope user --transport http vibedoc ${/[?&]/.test(url) ? `'${url}'` : url} --header '${ROOT_HEADER_VALUE}'`
+}
+
+/** A header the server may use: an absolute path, never the unexpanded template (`${PWD}` when PWD was unset). */
+export function usableRootHeader(value: string | null | undefined): value is string {
+  return typeof value === 'string' && value.startsWith('/') && !value.includes('${') && !value.includes('\0')
+}
+
+/** The nearest root that is `folder` or contains it (a sub-folder works); `/a/b` never matches `/a/bc`. */
+export function nearestRoot(folder: string, roots: Iterable<string>): string | null {
+  let best: string | null = null
+  for (const r of roots) {
+    const inside = folder === r || folder.startsWith(r.endsWith('/') ? r : `${r}/`)
+    if (inside && (!best || r.length > best.length)) best = r
+  }
+  return best
+}
+
+/** The reply to a tool call VibeDoc can't place in a project: never defaulted to the first one (ADR-006). */
+export function unknownProjectReply(header: string | null, projects: { name: string; root: string }[], mcpUrl: (root: string) => string): string {
+  const why = header === null
+    ? 'This MCP call names no project: no `?root=` in the URL and no `X-VibeDoc-Root` header.'
+    : usableRootHeader(header)
+      ? `\`${header}\` is not inside a VibeDoc project.`
+      : `The \`X-VibeDoc-Root\` header is \`${header}\`, not a folder (was \`PWD\` unset when Claude Code started?).`
+  const list = projects.length
+    ? projects.map(p => `- **${p.name}** · ${p.root}\n  \`cd '${p.root}' && ${claudeMcpAddCommand(mcpUrl(p.root))}\``).join('\n')
+    : '- (none yet: run `npx vibedoc` in a repo, or add it on All projects)'
+  return `${why}\nStart your agent inside one of these projects, or connect it to one project with its command:\n${list}`
+}

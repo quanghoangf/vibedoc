@@ -1,9 +1,12 @@
 # T544: Connect once for all projects
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R104 — One agent connection
 **Size:** M (2–3 hrs)
 **Depends on:** T543, T535
 **Covers:** S1
+**Owner:** ai:claude
+**Due:** 2026-10-19
+**Started:** 2026-10-16
 
 ## Goal
 After one Connect on Settings → Connect agent, a Claude Code session in any hub project talks to its own project, and projects added later are connected without another click.
@@ -38,12 +41,23 @@ After one Connect on Settings → Connect agent, a Claude Code session in any hu
 - [ ] The confirm dialog lists every command before anything runs
 - [ ] `e2e/connect-agent.mjs` and `node src/lib/claude-cli.check.mts` pass
 
-## Manual tests
-- [ ] S1 — WHEN an agent connected once calls a tool from inside repo B → THEN the reply is about repo B, not the first project connected
-
 ## Verify
 ```bash
 node src/lib/agent-connect.check.mts && node src/lib/claude-cli.check.mts
 pnpm lint && pnpm build
 PATH=$PWD/e2e/fixtures/claude-stub:$PATH BASE=http://localhost:3081 node e2e/connect-agent.mjs
 ```
+
+## Manual tests
+_2026-10-16 — ai_
+### Steps
+- [x] S1 — WHEN an agent connected once calls a tool from inside repo B → THEN the reply is about repo B, not the first project connected (ran real Claude Code 2.1 `claude -p` with an inline vibedoc server carrying `X-VibeDoc-Root: ${PWD}`: from repoB → "## repoB — Project Status", from the worktree → "## mp-t544-connect — Project Status")
+- [x] 🤖 MCP call with no ?root= and header = repo A / repo B / a sub-folder of B / B's realpath → answers about that project; ?root= wins over the header (e2e/connect-agent.mjs §9)
+- [x] 🤖 Header `${PWD}` (unexpanded), a folder outside every project, or no header at all → isError reply listing every hub project with its own connect command; never defaulted (e2e §9)
+- [x] 🤖 Settings → Connect agent → "Connect all projects" → dialog shows the exact user-scope command; nothing runs until Run it; then the fake CLI logged one `mcp add --scope user … --header X-VibeDoc-Root: ${PWD}` (e2e §9)
+- [x] 🤖 The "One connection for every project" block lists each hub project with its own ✓ from its .vibedoc/agent-connection.json (e2e §9)
+- [ ] Click "Connect all projects" against a real Claude Code install, then `claude mcp get vibedoc` shows user scope with the header kept as `${PWD}` → start `claude` in two hub repos and ask for vibedoc_get_status in each
+### Regression risk
+- [x] 🤖 Per-project Connect / Replace (local scope), skills install, Cursor/Other paste, phone width (e2e §1–8)
+- [x] 🤖 T545 unknown ?root= folder reply + vibedoc_list_projects (e2e/mcp-projects.mjs)
+- [ ] Any client configured with a bare /api/mcp URL (no ?root=, no header) now gets the project list instead of the configured root's answers

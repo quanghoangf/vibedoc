@@ -14,7 +14,19 @@ const cmd = args.slice(0, 2).join(" ")
 // `plugin marketplace add <repo>` registers the marketplace under the name its marketplace.json declares
 const MARKETPLACE_NAMES = { "quanghoangf/vibedoc": "vibedoc", "anthropics/claude-plugins-official": "claude-plugins-official", "anthropics/skills": "anthropic-agent-skills" }
 
-if (cmd === "mcp add") {
+if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope") + 1] === "user") {
+  // R104: the user-scope server (one for every project); the URL is the arg after the name
+  if (state.mcpUser) { console.error("MCP server vibedoc already exists in user config"); process.exit(1) }
+  const h = args.indexOf("--header")
+  state.mcpUser = { url: args[args.indexOf("vibedoc") + 1], header: h > 0 ? args[h + 1] : null }; save()
+  console.log(`Added HTTP MCP server vibedoc with URL: ${state.mcpUser.url} to user config`)
+  if (state.mcpUser.header) console.log(`Headers: {\n  "${state.mcpUser.header.replace(": ", '": "')}"\n}`)
+  console.log(`File modified: ${process.env.HOME}/.claude.json`)
+} else if (cmd === "mcp remove" && args.slice(-2).join(" ") === "-s user") {
+  if (!state.mcpUser) { console.error("No user-scoped MCP server found with name: vibedoc"); process.exit(1) }
+  delete state.mcpUser; save()
+  console.log("Removed MCP server vibedoc from user config")
+} else if (cmd === "mcp add") {
   if (state.mcp) { console.error("MCP server vibedoc already exists in local config"); process.exit(1) }
   state.mcp = args[args.length - 1]; save()
   console.log(`Added HTTP MCP server vibedoc with URL: ${state.mcp} to local config`)

@@ -7,10 +7,11 @@ import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { useOrigin } from "@/hooks/use-origin"
-import { agentLabel, claudeMcpAddCommand, claudeMcpRemoveCommand, CONNECT_AGENTS, mcpServersConfig, pluginInstallCommands, projectMcpUrl, type ConnectAgent } from "@/lib/agent-connect"
+import { agentLabel, claudeMcpAddCommand, claudeMcpRemoveCommand, CONNECT_AGENTS, mcpServersConfig, pluginInstallCommands, projectMcpUrl, userScopeMcpAddCommand, type ConnectAgent } from "@/lib/agent-connect"
 
 interface McpStatus { connected: boolean; agent: string | null; lastCall: string | null }
 interface SkillsStatus { installed: boolean; missing: boolean; error: string | null }
+interface ProjectConnection extends McpStatus { id: string; name: string; root: string }
 
 /** A plugin installed inside Claude Code never calls VibeDoc: the skills step re-checks this often until it's done. */
 const SKILLS_POLL_MS = 10_000
@@ -28,6 +29,7 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
   const url = projectMcpUrl(mcpUrl || `${origin}/api/mcp`, activeProject)
   const [mcp, setMcp] = useState<McpStatus | null>(null)
   const [skills, setSkills] = useState<SkillsStatus | null>(null)
+  const [projects, setProjects] = useState<ProjectConnection[]>([])
   const [agent, setAgent] = useState<ConnectAgent>("claude-code")
   const claude = agent === "claude-code"
   const [failed, setFailed] = useState(false)
@@ -35,7 +37,7 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
   const load = useCallback((signal?: { cancelled: boolean }) => {
     fetch(`/api/agent-connect${rootParam}`)
       .then(res => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then(d => { if (!signal?.cancelled) { setMcp(d?.mcp ?? null); setSkills(d?.skills ?? null); setFailed(false) } })
+      .then(d => { if (!signal?.cancelled) { setMcp(d?.mcp ?? null); setSkills(d?.skills ?? null); setProjects(Array.isArray(d?.projects) ? d.projects : []); setFailed(false) } })
       .catch(e => {
         console.warn("[vibedoc] could not load the agent connection:", e)
         if (!signal?.cancelled) setFailed(true)
@@ -87,6 +89,8 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
           </button>
         ))}
       </div>
+
+      {claude && <ConnectAllProjects url={hubMcpUrl(mcpUrl || `${origin}/api/mcp`)} projects={projects} />}
 
       <div className="rounded-lg border border-border p-4 space-y-3" role="group" aria-labelledby="connect-step-mcp">
         <div className="flex items-start gap-3">
@@ -146,6 +150,90 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
         )}
       </div>}
     </section>
+  )
+}
+
+/** The hub's MCP URL without a `?root=`: the user-scope server must not pin one project. */
+function hubMcpUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    u.searchParams.delete("root")
+    return u.toString()
+  } catch {
+    return url
+  }
+}
+
+/**
+ * R104 (ADR-006): one user-scope `claude mcp add` with an `X-VibeDoc-Root: ${PWD}` header, so a session in any hub
+ * project, added now or later, reaches its own project. Each project's row is ✓ only from its own tool call.
+ */
+function ConnectAllProjects({ url, projects }: { url: string; projects: ProjectConnection[] }) {
+  const { rootParam } = useApp()
+  const { t } = useT()
+  const { timeAgo } = useFormat()
+  const [confirm, setConfirm] = useState<"add" | "replace" | null>(null)
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<ConnectResult | null>(null)
+  const command = userScopeMcpAddCommand(url)
+
+  const run = async (replace: boolean) => {
+    setConfirm(null)
+    setRunning(true)
+    setResult(await runStep(rootParam, { step: "mcp-all", url, replace }))
+    setRunning(false)
+  }
+
+  return (
+    <div className="rounded-lg border border-border p-4 space-y-3" role="group" aria-labelledby="connect-all-title">
+      <div className="min-w-0">
+        <h3 id="connect-all-title" className="text-sm font-medium text-txt">{t("connect.allTitle")}</h3>
+        <p className="text-xs text-muted">{t("connect.allHint")}</p>
+      </div>
+      <RunButton running={running} onClick={() => setConfirm("add")} label={t("connect.connectAll")} />
+      {result && (
+        <RunResult result={result} existsText={t("connect.allExists")}>
+          {result.exists && (
+            <button type="button" onClick={() => setConfirm("replace")} className="rounded-lg border border-border px-3 py-1 text-sm text-txt hover:bg-surface2">
+              {t("connect.replace")}
+            </button>
+          )}
+        </RunResult>
+      )}
+      <div className="space-y-1">
+        <div className="text-xs text-muted">{t("connect.allRunAnywhere")}</div>
+        <CommandBlock command={command} />
+      </div>
+      {projects.length > 0 && (
+        <ul className="divide-y divide-border rounded-lg border border-border" aria-label={t("connect.allProjects")}>
+          {projects.map(p => (
+            <li key={p.id} className="flex items-start gap-3 px-3 py-2">
+              <StepMark done={p.connected} />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-txt" data-user-content>{p.name}</div>
+                <div className="break-all font-mono text-xs text-muted" data-user-content>{p.root}</div>
+              </div>
+              <div className={cn("shrink-0 text-xs", p.connected ? "text-green-400" : "text-muted")}>
+                {p.connected && p.lastCall
+                  ? t("connect.projectConnected", { agent: agentLabel(p.agent) ?? t("connect.someAgent"), ago: timeAgo(p.lastCall) })
+                  : t("connect.projectWaiting")}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {confirm && (
+        <ConfirmDialog
+          title={confirm === "replace" ? t("connect.confirmAllReplaceTitle") : t("connect.confirmAllTitle")}
+          body={t("connect.confirmAllBody")}
+          note={t("connect.allNote")}
+          commands={confirm === "replace" ? ["claude mcp remove vibedoc -s user", command] : [command]}
+          confirmLabel={confirm === "replace" ? t("connect.confirmReplace") : t("connect.confirm")}
+          onConfirm={() => run(confirm === "replace")}
+          onClose={() => setConfirm(null)}
+        />
+      )}
+    </div>
   )
 }
 
@@ -289,8 +377,8 @@ function RunResult({ result, existsText, children }: { result: ConnectResult; ex
 }
 
 /** Shows the exact commands and where they run; nothing runs until Confirm. */
-function ConfirmDialog({ title, note, commands, confirmLabel, onConfirm, onClose }: {
-  title: string; note: string; commands: string[]; confirmLabel: string; onConfirm: () => void; onClose: () => void
+function ConfirmDialog({ title, body, note, commands, confirmLabel, onConfirm, onClose }: {
+  title: string; body?: string; note: string; commands: string[]; confirmLabel: string; onConfirm: () => void; onClose: () => void
 }) {
   const { activeProject } = useApp()
   const { t } = useT()
@@ -298,7 +386,7 @@ function ConfirmDialog({ title, note, commands, confirmLabel, onConfirm, onClose
     <Dialog open onOpenChange={(v) => { if (!v) onClose() }}>
       <DialogContent className="max-w-lg space-y-3">
         <DialogTitle className="text-sm font-semibold text-txt">{title}</DialogTitle>
-        <DialogDescription className="text-xs text-muted">{t("connect.confirmBody", { root: activeProject })} {note}</DialogDescription>
+        <DialogDescription className="text-xs text-muted">{body ?? t("connect.confirmBody", { root: activeProject })} {note}</DialogDescription>
         {commands.map(c => <CommandBlock key={c} command={c} />)}
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-lg px-3 py-1.5 text-sm text-muted hover:text-txt">

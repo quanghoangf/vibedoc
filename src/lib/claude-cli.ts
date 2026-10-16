@@ -51,3 +51,10 @@ export const pluginList = (root: string) => json(['plugin', 'list', '--json'], r
 export const marketplaceList = (root: string) => json(['plugin', 'marketplace', 'list', '--json'], root)
 export const marketplaceAdd = (root: string, source: string) => run(['plugin', 'marketplace', 'add', source], root)
 export const pluginInstall = (root: string, plugin: string) => run(['plugin', 'install', plugin], root)
+
+// R104 (ADR-006): one user-scope server for every project. No shell, so `${PWD}` is stored as written and Claude Code
+// expands it per session; the cwd doesn't matter for user scope.
+export const mcpAddUserArgs = (url: string) => ['mcp', 'add', '--scope', 'user', '--transport', 'http', 'vibedoc', url, '--header', 'X-VibeDoc-Root: ${PWD}']
+export const mcpRemoveUserArgs = ['mcp', 'remove', 'vibedoc', '-s', 'user']
+export const mcpAddUser = (cwd: string, url: string) => run(mcpAddUserArgs(url), cwd)
+export const mcpRemoveUser = (cwd: string) => run(mcpRemoveUserArgs, cwd)

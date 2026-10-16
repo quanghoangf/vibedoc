@@ -65,6 +65,7 @@ import { isDemo, isPlayground } from './demo'
 import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './first-run'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
 import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
+import { nearestRoot, usableRootHeader } from './agent-connect'
 import type { ProjectFacts } from './toolkit'
 import { parseUsage, recordRead, recordSearch, summarizeUsage, type DocUsage, type UsageSummary } from './doc-usage'
 import { OPENAPI_GLOB, parseOpenApi, type OpenApiSpec } from './openapi'
@@ -228,6 +229,25 @@ export function isMissingRoot(root: string): boolean {
 /** `rootFrom` without the throw, for the proxy. */
 export function isAllowedRoot(override: string): boolean {
   try { rootFrom(override); return true } catch { return false }
+}
+
+/**
+ * R104 (ADR-006): the project an `X-VibeDoc-Root: ${PWD}` header names: the nearest allowed root (the configured
+ * one or a hub project) that contains the folder, both sides realpathed (`/tmp` vs `/private/tmp`). Returns the
+ * root as stored, or null (template text, relative, gone, or outside every project).
+ */
+export async function rootFromFolder(header: string | null): Promise<string | null> {
+  if (!usableRootHeader(header)) return null
+  const folder = await fs.realpath(header).catch(() => null)
+  if (!folder) return null
+  const roots = [normalizeRoot(path.resolve(getConfiguredRoot())), ...hubRoots()]
+  const real = new Map<string, string>()
+  for (const r of roots) {
+    const rr = await fs.realpath(r).catch(() => null)
+    if (rr && !real.has(rr)) real.set(rr, r)
+  }
+  const hit = nearestRoot(folder, real.keys())
+  return hit ? real.get(hit) ?? null : null
 }
 
 // ─── Projects hub (R099) ──────────────────────────────────────────────────────

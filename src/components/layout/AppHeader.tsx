@@ -12,6 +12,7 @@ import { ProjectSwitcher } from "./ProjectSwitcher"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useOrigin } from "@/hooks/use-origin"
+import { projectMcpUrl, userScopeMcpAddCommand } from "@/lib/agent-connect"
 import { cn } from "@/lib/utils"
 import { groupSessions, isLive } from "@/lib/sessions"
 import { useFormat, useT } from "@/context/LanguageContext"
@@ -197,8 +198,11 @@ function AgentStatus({ liveIndicator, activity, now }: { liveIndicator: boolean;
 function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number }) {
   const { t } = useT()
   const f = useFormat()
-  const endpoint = `${useOrigin()}/api/mcp`
-  const command = `claude mcp add --transport http vibedoc ${endpoint}`
+  const { activeProject } = useApp()
+  // R104: the command is the one connection for every project; the bare URL names this project (?root=)
+  const hub = `${useOrigin()}/api/mcp`
+  const endpoint = projectMcpUrl(hub, activeProject)
+  const command = userScopeMcpAddCommand(hub)
   const [copied, setCopied] = useState<string | null>(null)
   const lastCall = activity.filter((e) => e.actor === "ai").reduce<string | null>((t, e) => (!t || e.timestamp > t ? e.timestamp : t), null)
 

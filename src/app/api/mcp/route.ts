@@ -115,6 +115,9 @@ import { pluginId, rankToolkit, signalsFrom } from "@/lib/toolkit";
 import type { StatusDef } from "@/lib/statuses";
 import { planTarget, validatePlan, type Plan } from "@/lib/plan";
 import { isDemo } from "@/lib/demo";
+import { isPlayground } from "@/lib/demo";
+import { ROOT_HEADER, projectMcpUrl, unknownProjectReply } from "@/lib/agent-connect";
+import { readHub, rootFromFolder } from "@/lib/core";
 import { formatFrontend, frontendNotes, frontendStatusLine } from "@/lib/frontend";
 import path from "path";
 import { TEMPLATES } from "@/lib/templates";
@@ -868,6 +871,12 @@ function withProjectStatuses(statuses: StatusDef[]) {
 
 const UNKNOWN_ROOT_REPLY = "This folder isn't in VibeDoc yet. Run `npx vibedoc` here, or add it on All projects.";
 
+/** R104: the project list a call VibeDoc can't place gets, with each project's own connect command. */
+async function unplacedReply(req: NextRequest, folder: string | null) {
+  const projects = (await readHub()).projects.filter((p) => !p.archived);
+  return unknownProjectReply(folder, projects, (root) => projectMcpUrl(`${req.nextUrl.origin}/api/mcp`, root));
+}
+
 export async function POST(req: NextRequest) {
   let body: JsonRpcRequest;
   try {
@@ -890,7 +899,7 @@ export async function POST(req: NextRequest) {
   // tools/list: vibedoc_update_task's status enum follows the project's statuses (R055)
   if (method === "tools/list") {
     const asked = req.nextUrl.searchParams.get("root");
-    const root = rootFrom(asked && isAllowedRoot(asked) ? asked : null);
+    const root = asked && isAllowedRoot(asked) ? rootFrom(asked) : (await rootFromFolder(req.headers.get(ROOT_HEADER))) ?? rootFrom(null);
     return ok(id, { tools: withProjectStatuses((await readProjectSettings(root)).statuses) });
   }
 
@@ -902,8 +911,13 @@ export async function POST(req: NextRequest) {
     // T545: a folder outside the hub gets an answer in words (the proxy lets /api/mcp through); nothing is written
     const asked = req.nextUrl.searchParams.get("root");
     if (asked && !isAllowedRoot(asked)) return ok(id, { content: [{ type: "text", text: UNKNOWN_ROOT_REPLY }] });
+    // R104 (ADR-006): no ?root= → the user-scope connection's X-VibeDoc-Root header; neither → refuse, never default
+    const single = isDemo() || isPlayground();
+    const folder = req.headers.get(ROOT_HEADER);
+    const fromFolder = asked || single ? null : await rootFromFolder(folder);
+    if (!asked && !single && !fromFolder) return ok(id, { content: [{ type: "text", text: await unplacedReply(req, folder) }], isError: true });
     try {
-      const root = rootFrom(req.nextUrl.searchParams.get("root"));
+      const root = fromFolder ?? rootFrom(asked);
       const agent = typeof args.agent === "string" && args.agent.trim() ? args.agent.trim() : agentFromUserAgent(req.headers.get("user-agent"));
       // R081: a tool call is the evidence that an agent is connected (initialize / tools/list are health checks;
       // VibeDoc's own chat marks its calls, since it isn't the user's agent)
