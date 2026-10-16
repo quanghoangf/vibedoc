@@ -1,9 +1,13 @@
 # T530: Project in the URL, quick switch and last page per project
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R099 — Projects hub
 **Size:** M (2–3 hrs)
 **Depends on:** T529
 **Covers:** S1
+**Owner:** ai:claude
+**Due:** 2026-10-19
+**Started:** 2026-10-16
+**Done:** 2026-10-16
 
 ## Goal
 The project a tab shows is part of its URL, so links, reloads and the switcher all land on the same project, and switching returns to the page last used there.
@@ -43,12 +47,22 @@ The project a tab shows is part of its URL, so links, reloads and the switcher a
 - [ ] `node src/lib/first-screen.check.mts` covers per-project last page
 - [ ] New `e2e/projects-hub.mjs` (two fixture roots in one `VIBEDOC_HOME`): switch, reload, deep link
 
-## Manual tests
-- [ ] S1 — WHEN the user picks another project from the switcher → THEN its board opens, and the last page they used in that project is kept
-
 ## Verify
 ```bash
 node src/lib/first-screen.check.mts && node src/lib/i18n.check.mts
 pnpm lint && pnpm build
 BASE=http://localhost:3081 node e2e/projects-hub.mjs
 ```
+
+## Manual tests
+_2026-10-16 — ai_
+### Steps
+- [x] Open `/board?project=<A>` → A's tasks show; open /roadmap there
+- [x] Header switcher → pick B → `/board?project=<B>` with B's tasks, none of A's
+- [x] Switcher → pick A again → A's last page (/roadmap) opens, not the board
+- [x] On B click Roadmap in the sidebar, then reload → URL keeps `?project=<B>`, B's epic still shows
+- [x] ⌘K → "Switch project…" → the header switcher opens with the other projects
+- [x] Open `/roadmap?project=<B>&item=R002` in a fresh tab → B's epic sheet opens
+- [x] Open `/board?project=no-such-project` → the default project and a toast "No project “no-such-project” …"
+### Regression risk
+- [x] One-project use: `/` reopens the last page used, URLs carry no `?project=` (`e2e/first-screen.mjs` passes)

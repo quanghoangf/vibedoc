@@ -133,6 +133,7 @@ export const en = {
   filterProjectsPlaceholder: "Filter projects…",
   noProjectMatches: "No project matches “{query}”",
   noProjects: "No projects found",
+  unknownProject: "No project “{id}” in VibeDoc, showing {name}",
 
   // Shared UI parts (components/ui, React Flow's controls on the roadmap map and the graphs)
   close: "Close",
@@ -276,6 +277,7 @@ export const vi: Messages<typeof en> = {
   filterProjectsPlaceholder: "Lọc dự án…",
   noProjectMatches: "Không có dự án nào khớp “{query}”",
   noProjects: "Không tìm thấy dự án",
+  unknownProject: "VibeDoc không có dự án “{id}”, đang hiện {name}",
 
   close: "Đóng",
   flowControls: "Bảng điều khiển",

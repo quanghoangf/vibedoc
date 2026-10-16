@@ -23,9 +23,9 @@ import { addProject, parseHub } from "../src/lib/hub.ts"
 export async function stubChat(page, events, { root } = {}) {
   const calls = []
   if (root) {
-    registerProject(root)
+    const { id } = registerProject(root) // the hub's id, so per-project state (last page, R099) matches the server's
     await page.route("**/api/projects", (route) =>
-      route.fulfill({ json: [{ id: "fixture", name: "fixture", root, hasVibedoc: true }] }))
+      route.fulfill({ json: [{ id, name: "fixture", root, hasVibedoc: true }] }))
   }
   await page.route("**/api/chat**", (route) => {
     const body = JSON.parse(route.request().postData() ?? "{}")
@@ -56,10 +56,12 @@ export function registerProject(root) {
   const file = path.join(home, "hub.json")
   let text = null
   try { text = readFileSync(file, "utf8") } catch {}
-  const { hub, added } = addProject(parseHub(text), path.resolve(root))
-  if (!added) return
-  writeFileSync(`${file}.e2e.tmp`, JSON.stringify(hub, null, 2) + "\n")
-  renameSync(`${file}.e2e.tmp`, file)
+  const { hub, project, added } = addProject(parseHub(text), path.resolve(root))
+  if (added) {
+    writeFileSync(`${file}.e2e.tmp`, JSON.stringify(hub, null, 2) + "\n")
+    renameSync(`${file}.e2e.tmp`, file)
+  }
+  return project
 }
 
 /** A fresh fixture project: horizon R001 with epic R002, an empty plans/tasks, first-run feedback declined. */

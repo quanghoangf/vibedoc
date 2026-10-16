@@ -1,6 +1,6 @@
 // Self-check for the projects hub. Run: node src/lib/hub.check.mts
 import assert from 'node:assert/strict'
-import { addProject, allocateId, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, removeProject } from './hub.ts'
+import { addProject, switcherOrder, allocateId, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, removeProject } from './hub.ts'
 
 // normalizeRoot / allocateId
 assert.equal(normalizeRoot('/a/b/'), '/a/b')
@@ -66,5 +66,16 @@ const list = [
   { root: '/d', archived: false },
 ]
 assert.deepEqual(orderProjects(list, '/c/').map(p => p.root), ['/c', '/b', '/d', '/a'])
+
+// switcherOrder: archived hidden, pinned first, then newest lastOpened, then hub order
+const sw = [
+  { id: 'a', pinned: false, archived: false, lastOpened: '2026-10-01T00:00:00Z' },
+  { id: 'b', pinned: false, archived: true, lastOpened: '2026-10-09T00:00:00Z' },
+  { id: 'c', pinned: true, archived: false, lastOpened: null },
+  { id: 'd', pinned: false, archived: false, lastOpened: '2026-10-05T00:00:00Z' },
+  { id: 'e', pinned: false, archived: false, lastOpened: null },
+  { id: 'f', pinned: false, archived: false, lastOpened: null },
+]
+assert.deepEqual(switcherOrder(sw).map(p => p.id), ['c', 'd', 'a', 'e', 'f'])
 
 console.log('hub.check: ok')

@@ -37,7 +37,7 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { ATTACHMENTS_DIR, imageError, imageMarkdown, imageMimeOf, isAttachmentFolder, isServableImage, nextImageNumber, sniffImage } from './attachments'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
-import { addProject, emptyHub, normalizeRoot, orderProjects, parseHub, type Hub } from './hub'
+import { addProject, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, type Hub, type HubProject } from './hub'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
@@ -267,7 +267,8 @@ export async function writeHub(hub: Hub): Promise<void> {
 export async function readHub(): Promise<Hub> {
   const hub = await readHubFile()
   const root = normalizeRoot(path.resolve(getConfiguredRoot()))
-  if (hub.projects.some(p => p.root === root)) return hub
+  // the demo and `--demo` playground never write the user's hub (their copy lives in a temp folder)
+  if (hub.projects.some(p => p.root === root) || isDemo() || isPlayground()) return hub
   return withHubLock(async () => {
     const { hub: next, added } = addProject(await readHubFile(), root)
     if (added) await writeHub(next)
@@ -459,6 +460,22 @@ export async function saveFrontendOverride(override: FrontendOverride | null, ro
   await fs.writeFile(tmp, JSON.stringify(settings, null, 2), 'utf8')
   await fs.rename(tmp, file)
   return clean
+}
+
+/** The hub project with this id, or whose root this (absolute) path is. */
+export async function findHubProject(key: string): Promise<HubProject | null> {
+  return projectFor(await readHub(), key.startsWith('/') ? path.resolve(key) : key)
+}
+
+/** Stamps `lastOpened` (R099: the switcher and All projects sort by it). False = unknown id. */
+export async function touchProject(id: string, now = new Date()): Promise<boolean> {
+  if (isDemo() || isPlayground()) return false
+  await readHub() // the configured root joins first
+  return withHubLock(async () => {
+    const next = patchProject(await readHubFile(), id, { lastOpened: now.toISOString() })
+    if (next) await writeHub(next)
+    return !!next
+  })
 }
 
 // ─── Multi-project: the hub's projects ───────────────────────────────────────

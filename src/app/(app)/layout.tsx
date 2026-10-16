@@ -19,7 +19,7 @@ import { HelpLauncher } from "@/components/layout/HelpLauncher"
 import { FirstRunFeedback } from "@/components/layout/FirstRunFeedback"
 import { CHAT_KEY, pageForKey, pageTitle, shouldHandleShortcut } from "@/lib/shortcuts"
 import { useT } from "@/context/LanguageContext"
-import { lastPageCookie } from "@/lib/first-screen"
+import { LAST_PAGE_COOKIE, lastPageCookie } from "@/lib/first-screen"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -38,7 +38,7 @@ const DEMO_BLOCKED = ["/chat", "/settings", "/setup"]
 const skipLink = "sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-1.5 focus:text-xs focus:text-txt focus:ring-2 focus:ring-ring"
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
-  const { loading, summary, projects, activeProject, liveIndicator, onProjectChange, board, openDoc, rootParam, demo } = useApp()
+  const { loading, summary, projects, activeProject, activeProjectId, liveIndicator, onProjectChange, board, openDoc, rootParam, demo } = useApp()
   const router = useRouter()
   const pathname = usePathname()
   const [showHelp, setShowHelp] = useState(false)
@@ -64,11 +64,13 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     if (keyboardRef.current) document.getElementById("main")?.focus({ preventScroll: true })
   }, [pathname, projectName, t])
 
-  // Remember the page for the next `/` (R082); /start and /setup aren't remembered
+  // Remember the page for the next `/` and the next switch to this project (R082, per project R099); /start and /setup aren't remembered
   useEffect(() => {
-    const cookie = lastPageCookie(pathname)
+    if (!activeProjectId) return
+    const current = document.cookie.split("; ").find((c) => c.startsWith(`${LAST_PAGE_COOKIE}=`))?.slice(LAST_PAGE_COOKIE.length + 1)
+    const cookie = lastPageCookie(pathname, current && decodeURIComponent(current), activeProjectId)
     if (cookie) document.cookie = cookie
-  }, [pathname])
+  }, [pathname, activeProjectId])
 
   // Last input was a key (not a pointer)? Decides whether a route change moves focus.
   useEffect(() => {

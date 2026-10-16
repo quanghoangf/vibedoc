@@ -38,7 +38,7 @@ interface AppHeaderProps {
   projects: Project[]
   activeProject: string
   liveIndicator: boolean
-  onProjectChange: (root: string) => void
+  onProjectChange: (id: string) => void
   onToggleChat: () => void
   onOpenSearch: () => void
 }

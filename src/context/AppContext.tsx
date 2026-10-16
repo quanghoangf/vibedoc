@@ -6,19 +6,43 @@ import { toast } from "@/components/ui/toast"
 import { tNow } from "@/context/LanguageContext"
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react"
 import { flushSync } from "react-dom"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import type { Task, TaskBoard, ActivityEvent, Project } from "@/lib/core"
 import type { Summary, SelectedDoc } from "@/types"
 import type { Priority } from "@/lib/doc-priority"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings"
 import { parseManualTests, toggleManualTest, untestedItems } from "@/lib/manual-tests"
+import { LAST_PAGE_COOKIE, lastPageTarget } from "@/lib/first-screen"
+
+/** The URL key naming a tab's project (R099): `?project=<hub id>`. */
+export const PROJECT_PARAM = "project"
+
+/** `href` with `?project=<id>` added, unless `id` is the default project (the configured root, first in /api/projects). */
+export function projectHref(href: string, id: string | undefined, defaultId: string | undefined): string {
+  if (!id || id === defaultId) return href
+  const [path, hash = ""] = href.split("#")
+  const [base, query = ""] = path.split("?")
+  const q = new URLSearchParams(query)
+  q.set(PROJECT_PARAM, id)
+  return `${base}?${q}${hash ? `#${hash}` : ""}`
+}
+
+function readCookie(name: string): string | null {
+  const hit = document.cookie.split("; ").find((c) => c.startsWith(`${name}=`))
+  return hit ? decodeURIComponent(hit.slice(name.length + 1)) : null
+}
 
 /** The SSE link to /api/events. EventSource retries on its own, so "disconnected" means "retrying". */
 export type Connection = "connecting" | "live" | "disconnected"
 
 interface AppContextValue {
   projects: Project[]
+  /** The open project's root (what `?root=` sends to the API) */
   activeProject: string
+  /** The open project's hub id (R099), "" until projects load */
+  activeProjectId: string
+  /** `href` keeping the open project in the URL (`?project=`) when it isn't the default one */
+  withProject: (href: string) => string
   summary: Summary | null
   /** Read-only demo (VIBEDOC_DEMO=1, from /api/summary): hide every write control (R042) */
   demo: boolean
@@ -32,7 +56,8 @@ interface AppContextValue {
   selectedDoc: SelectedDoc | null
   setSelectedDoc: (doc: SelectedDoc | null) => void
   rootParam: string
-  onProjectChange: (root: string) => void
+  /** Opens another hub project by id: its last page there (else /board), with `?project=` in the URL */
+  onProjectChange: (id: string) => void
   refresh: (root?: string) => Promise<void>
   moveTask: (taskId: string, status: string) => Promise<void>
   /** Optimistic owner / due / size edit (R055); rolls back with a toast when the write fails */
@@ -57,6 +82,8 @@ export function useApp(): AppContextValue {
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
+  const search = useSearchParams()
   const [projects, setProjects] = useState<Project[]>([])
   const [activeProject, setActiveProject] = useState<string>("")
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -69,6 +96,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [editorSettings, setEditorSettings] = useState<AppSettings["editor"]>(DEFAULT_SETTINGS.editor)
   const [autoRefreshSeconds, setAutoRefreshSeconds] = useState(0)
   const sseRef = useRef<EventSource | null>(null)
+  const toldUnknownRef = useRef(false) // dev Strict Mode runs the mount effect twice: one toast
 
   // Always a query string, so callers can append `&key=…` even before a project loads ("?&read=x" is valid)
   const rootParam = activeProject ? `?root=${encodeURIComponent(activeProject)}` : "?"
@@ -104,15 +132,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLoading(false)
   }, [activeProject])
 
-  // Load projects on mount
+  const defaultProjectId = projects[0]?.id
+  const activeProjectId = projects.find((p) => p.root === activeProject)?.id ?? ""
+  const withProject = useCallback((href: string) => projectHref(href, activeProjectId, defaultProjectId), [activeProjectId, defaultProjectId])
+
+  const openProject = useCallback((p: Project) => {
+    setActiveProject(p.root)
+    refresh(p.root)
+    // stamps lastOpened (R099); a stubbed or demo project answers 404, nothing to tell the user
+    fetch("/api/projects/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) }).catch(() => {})
+  }, [refresh])
+
+  // Load projects on mount; `?project=<id>` picks one (R099), an unknown id shows the default with a toast
   useEffect(() => {
     fetch("/api/projects")
       .then((r) => r.json())
       .then((p: Project[]) => {
         setProjects(p)
         if (p.length > 0) {
-          setActiveProject(p[0].root)
-          refresh(p[0].root)
+          const asked = new URLSearchParams(window.location.search).get(PROJECT_PARAM)
+          const picked = asked ? p.find((x) => x.id === asked) : undefined
+          if (asked && !picked && !toldUnknownRef.current) {
+            toldUnknownRef.current = true
+            toast(tNow("shell.unknownProject", { id: asked, name: p[0].name }))
+          }
+          openProject(picked ?? p[0])
         } else {
           setLoading(false)
         }
@@ -123,6 +167,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Back / forward between projects: the URL decides
+  useEffect(() => {
+    const onPop = () => {
+      const asked = new URLSearchParams(window.location.search).get(PROJECT_PARAM)
+      const p = projects.find((x) => x.id === asked) ?? projects[0]
+      if (p && p.root !== activeProject) openProject(p)
+    }
+    window.addEventListener("popstate", onPop)
+    return () => window.removeEventListener("popstate", onPop)
+  }, [projects, activeProject, openProject])
+
+  // In-app links drop the query: put `?project=` back after each navigation, so a reload or a copied link stays here
+  useEffect(() => {
+    if (!activeProjectId || activeProjectId === defaultProjectId) return
+    const url = new URL(window.location.href)
+    if (url.searchParams.get(PROJECT_PARAM) === activeProjectId) return
+    url.searchParams.set(PROJECT_PARAM, activeProjectId)
+    window.history.replaceState(window.history.state, "", url)
+  }, [pathname, search, activeProjectId, defaultProjectId])
 
   // SSE for real-time updates
   useEffect(() => {
@@ -139,6 +203,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         window.dispatchEvent(new CustomEvent("vibedoc:sse", { detail: msg }))
         // Saving a chat is this tab's own bookkeeping, not a project change: don't flash "live update"
         if (msg.type === "chat_saved") return
+        // R099: the hub changed (opened, renamed, pinned…): reload the list, not the project
+        if (msg.type === "projects_updated") {
+          fetch("/api/projects").then((r) => r.json()).then((p: Project[]) => { if (Array.isArray(p) && p.length) setProjects(p) }).catch(() => {})
+          return
+        }
         // R061: a Run's steps stream in (no flash); its end leaves a new run on disk, so reload the board's lastRun
         // R064: the same for the suite; each task's result arrives as task_updated, the final state refreshes too
         if (msg.type === "suite_run") {
@@ -266,18 +335,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(docPath)}`)
     const data = await res.json()
     setSelectedDoc(data)
-    router.push(`/docs?doc=${encodeURIComponent(docPath)}${link ? `&link=${encodeURIComponent(link)}` : ""}`)
-  }, [rootParam, router])
+    router.push(withProject(`/docs?doc=${encodeURIComponent(docPath)}${link ? `&link=${encodeURIComponent(link)}` : ""}`))
+  }, [rootParam, router, withProject])
 
-  function onProjectChange(root: string) {
-    setActiveProject(root)
-    refresh(root)
+  function onProjectChange(id: string) {
+    const p = projects.find((x) => x.id === id)
+    if (!p || p.root === activeProject) return
+    setSelectedDoc(null)
+    openProject(p)
+    // its last page there (R082 per project), else the board; the old project's query keys don't apply
+    router.push(projectHref(lastPageTarget(readCookie(LAST_PAGE_COOKIE), p.id), p.id, defaultProjectId))
   }
 
   return (
     <AppContext.Provider value={{
       projects,
       activeProject,
+      activeProjectId,
+      withProject,
       summary,
       demo,
       playground,

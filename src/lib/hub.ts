@@ -97,3 +97,10 @@ export function orderProjects<T extends { root: string; archived: boolean }>(lis
   const rank = (p: T) => p.root === c ? 0 : p.archived ? 2 : 1
   return list.map((p, i) => ({ p, i })).sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i).map(x => x.p)
 }
+
+/** The switcher's list (R099): archived hidden, pinned first, then the most recently opened, then hub order. */
+export function switcherOrder<T extends { pinned: boolean; archived: boolean; lastOpened: string | null }>(list: T[]): T[] {
+  return list.map((p, i) => ({ p, i })).filter(x => !x.p.archived)
+    .sort((a, b) => Number(b.p.pinned) - Number(a.p.pinned) || (b.p.lastOpened ?? '').localeCompare(a.p.lastOpened ?? '') || a.i - b.i)
+    .map(x => x.p)
+}

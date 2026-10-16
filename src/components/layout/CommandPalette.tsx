@@ -13,6 +13,8 @@ import { applyTheme } from "@/lib/applySettings"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings"
 import { groupChats, shellStatus } from "@/lib/chats"
 import { useApp } from "@/context/AppContext"
+import { switcherOrder } from "@/lib/hub"
+import { OPEN_PROJECT_SWITCHER } from "@/components/layout/ProjectSwitcher"
 import { useChats } from "@/context/ChatContext"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { StatusMarker, attachHref } from "@/components/chat/StatusMarker"
@@ -187,10 +189,14 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
       }] : []),
       { id: "theme", group: actionsGroup, ...cmd("help.toggleTheme"), lead: icon(SunMoon), run: () => { toggleTheme(rootParam); onClose() } },
       { id: "help", group: actionsGroup, ...cmd("help.keyboardShortcuts"), lead: icon(Keyboard), kbd: "?", run: onShowHelp },
-      // Project switching only when searched for: there can be many sibling projects
-      ...(q ? projects.filter((p) => p.root !== activeProject) : []).map((p) => ({
-        id: `project-${p.root}`, group: actionsGroup, label: t("help.switchProject", { name: p.name }), match: `Switch project: ${p.name}`, detail: p.root,
-        lead: icon(FolderOpen), run: () => { onProjectChange(p.root); onClose() },
+      ...(projects.length > 1 ? [{
+        id: "switch-project", group: actionsGroup, ...cmd("help.switchProjectMenu"), lead: icon(FolderOpen),
+        run: () => { onClose(); window.dispatchEvent(new Event(OPEN_PROJECT_SWITCHER)) },
+      }] : []),
+      // One row per project only when searched for: the hub can hold many (archived ones stay on All projects)
+      ...(q ? switcherOrder(projects).filter((p) => p.root !== activeProject) : []).map((p) => ({
+        id: `project-${p.id}`, group: actionsGroup, label: t("help.switchProject", { name: p.name }), match: `Switch project: ${p.name}`, detail: p.root,
+        lead: icon(FolderOpen), run: () => { onProjectChange(p.id); onClose() },
       })),
     ]
     out.push(...top(actions, (a) => `${a.label} ${fold(a.label)} ${a.match ?? ""}`))
