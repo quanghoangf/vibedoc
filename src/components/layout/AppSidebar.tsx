@@ -1,6 +1,6 @@
 "use client"
 
-import { LayoutDashboard, BookOpen, Zap, Brain, Settings, FolderTree, Map, FlaskConical, Hexagon, Keyboard, Waypoints } from "lucide-react"
+import { LayoutDashboard, BookOpen, Zap, Brain, Settings, FolderTree, Map, FlaskConical, Hexagon, Keyboard, Waypoints, Folders } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import {
@@ -93,6 +93,7 @@ export function AppSidebar({ board }: AppSidebarProps) {
   const { demo, activeProject } = useApp()
   const { t } = useT()
   const settingsKey = shortcutFor("/settings")
+  const projectsKey = shortcutFor("/projects")
   // Tasks that need you on /manual-tests: a failed run, in review, or checks left on unfinished work (same rule as its tab)
   const testsNeedYou = board ? countNeedsYou(Object.values(board).flat()) : 0
   // Work in flight on the board (the counts that used to sit in a separate "Board" section and the header)
@@ -158,6 +159,15 @@ export function AppSidebar({ board }: AppSidebarProps) {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          {!demo && <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={pathname.startsWith("/projects")} tooltip={{ children: <span className="flex items-center gap-2">{t("shell.allProjects")}<kbd className={kbdClass}>{projectsKey}</kbd></span> }}>
+              <Link href="/projects" aria-keyshortcuts={projectsKey}>
+                <Folders />
+                <span>{t("shell.allProjects")}</span>
+                <kbd aria-hidden className={cn(kbdClass, "ml-auto hidden group-hover/menu-item:inline group-focus-within/menu-item:inline")}>{projectsKey}</kbd>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>}
           <SidebarMenuItem>
             <SidebarMenuButton onClick={openShortcutHelp} aria-keyshortcuts="?" tooltip={t("shell.shortcutsTip")} className="text-muted">
               <Keyboard />

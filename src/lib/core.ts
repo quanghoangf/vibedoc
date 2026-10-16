@@ -37,7 +37,8 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { ATTACHMENTS_DIR, imageError, imageMarkdown, imageMimeOf, isAttachmentFolder, isServableImage, nextImageNumber, sniffImage } from './attachments'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
-import { addProject, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, type Hub, type HubProject } from './hub'
+import { addProject, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, removeProject, restoreProject, type Hub, type HubProject } from './hub'
+import { countNeedsYou } from './test-review'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
@@ -490,6 +491,71 @@ export async function discoverProjects(): Promise<Project[]> {
   const hub = await readHub()
   const projects = hub.projects.map(p => ({ ...p, hasVibedoc: true, missing: false }))
   return orderProjects(projects, path.resolve(root))
+}
+
+export class HubError extends Error {
+  constructor(message: string, public status: 400 | 404 | 409 = 400) {
+    super(message)
+    this.name = 'HubError'
+  }
+}
+
+/** Per project on All projects (T531): open tasks, and what waits on the user (review + Test review's Needs you). */
+export interface ProjectCounts { open: number; needsYou: number }
+
+/** Every hub project with its counts, one call for the page; a project whose tasks can't be read gets null. */
+export async function listProjectsWithCounts(): Promise<(Project & { counts: ProjectCounts | null })[]> {
+  const projects = await discoverProjects()
+  return Promise.all(projects.map(async p => {
+    try {
+      const { tasks } = await listTasks(p.root)
+      const open = tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length
+      const needsYou = tasks.filter(t => t.status === 'review' || countNeedsYou([t]) > 0).length
+      return { ...p, counts: { open, needsYou } }
+    } catch {
+      return { ...p, counts: null }
+    }
+  }))
+}
+
+/** Display name / pin / archive of a hub project; the folder is never touched. */
+export async function updateHubProject(id: string, patch: { name?: unknown; pinned?: unknown; archived?: unknown }): Promise<HubProject> {
+  const clean: { name?: string; pinned?: boolean; archived?: boolean } = {}
+  if (typeof patch.name === 'string') {
+    if (!patch.name.trim()) throw new HubError('name must not be empty')
+    clean.name = patch.name.trim()
+  }
+  if (typeof patch.pinned === 'boolean') clean.pinned = patch.pinned
+  if (typeof patch.archived === 'boolean') clean.archived = patch.archived
+  if (!Object.keys(clean).length) throw new HubError('nothing to change: name, pinned or archived')
+  await readHub()
+  return withHubLock(async () => {
+    const next = patchProject(await readHubFile(), id, clean)
+    if (!next) throw new HubError(`no project "${id}"`, 404)
+    await writeHub(next)
+    return projectFor(next, id) as HubProject
+  })
+}
+
+/** Drops a project from the hub (the entry only: nothing in its folder changes). Returns the entry for Undo. */
+export async function removeHubProject(id: string): Promise<HubProject> {
+  await readHub()
+  return withHubLock(async () => {
+    const { hub, removed } = removeProject(await readHubFile(), id)
+    if (!removed) throw new HubError(`no project "${id}"`, 404)
+    if (removed.root === normalizeRoot(path.resolve(getConfiguredRoot()))) throw new HubError('the project VibeDoc was started in stays in the hub', 409)
+    await writeHub(hub)
+    return removed
+  })
+}
+
+/** Undo of remove: the same entry back, never over an id or root that is taken now. */
+export async function restoreHubProject(entry: unknown): Promise<void> {
+  await withHubLock(async () => {
+    const next = restoreProject(await readHubFile(), entry)
+    if (!next) throw new HubError('cannot restore: bad entry, or its id or folder is in the hub again', 409)
+    await writeHub(next)
+  })
 }
 
 // ─── Docs ─────────────────────────────────────────────────────────────────────

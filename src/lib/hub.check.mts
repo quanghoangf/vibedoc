@@ -1,6 +1,6 @@
 // Self-check for the projects hub. Run: node src/lib/hub.check.mts
 import assert from 'node:assert/strict'
-import { addProject, switcherOrder, allocateId, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, removeProject } from './hub.ts'
+import { addProject, restoreProject, switcherOrder, allocateId, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, removeProject } from './hub.ts'
 
 // normalizeRoot / allocateId
 assert.equal(normalizeRoot('/a/b/'), '/a/b')
@@ -57,6 +57,15 @@ const rem = removeProject(hub, 'web')
 assert.equal(rem.removed?.root, '/w/web')
 assert.deepEqual(rem.hub.projects.map(p => p.id), ['web-2'])
 assert.equal(removeProject(hub, 'nope').hub, hub)
+
+// restoreProject: the same entry back; refused when its id or root is taken, or the entry is junk
+const back = restoreProject(rem.hub, rem.removed)
+assert.deepEqual(back?.projects.map(p => p.id), ['web-2', 'web'])
+assert.equal(back?.projects[1].lastOpened, '2026-10-16T00:00:00Z')
+assert.equal(restoreProject(hub, rem.removed), null)
+assert.equal(restoreProject(rem.hub, { ...rem.removed, id: 'web-2' }), null)
+assert.equal(restoreProject(rem.hub, { root: 'nope' }), null)
+assert.equal(restoreProject(rem.hub, { root: '/z/x' }), null)
 
 // orderProjects: configured first, archived last, else stable
 const list = [

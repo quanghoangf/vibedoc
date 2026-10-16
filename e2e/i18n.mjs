@@ -159,6 +159,12 @@ const PAGES = [
     await page.getByRole("button", { name: "Mọi sự kiện" }).click()
     await page.getByRole("group", { name: "Lọc theo loại" }).waitFor()
   } },
+  // R099 T531: All projects (a row's actions, rename form open)
+  { path: "/projects", name: "all projects", open: async (page) => {
+    await page.locator("[data-project-row]").first().waitFor()
+    await page.getByRole("button", { name: "Đổi tên" }).first().click()
+    await page.getByRole("button", { name: "Lưu", exact: true }).waitFor()
+  } },
   // T221: test review (list, bulk bar, detail with checklist + decision, evidence view, suite)
   { path: "/manual-tests", name: "test review: list + bulk bar", open: async (page) => {
     await page.getByRole("checkbox", { name: "Chọn T003" }).check()

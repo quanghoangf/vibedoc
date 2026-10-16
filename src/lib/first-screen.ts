@@ -34,7 +34,7 @@ export const LAST_PAGE_COOKIE = 'vibedoc-last'
 export const MAX_LAST_PAGES = 20
 
 /** Pages `/` may reopen. Never /start or /setup: a set-up project skips the welcome and the wizard is on request only. */
-const REOPENABLE = ['/board', '/roadmap', '/docs', '/graph', '/chat', '/memory', '/activity', '/manual-tests', '/explorer', '/settings', '/getting-started']
+const REOPENABLE = ['/board', '/roadmap', '/docs', '/graph', '/chat', '/memory', '/activity', '/manual-tests', '/explorer', '/settings', '/getting-started', '/projects']
 
 /** Cookie value → [project id, page] pairs, newest first; unknown pages dropped. */
 export function parseLastPages(cookie: string | undefined | null): [string, string][] {

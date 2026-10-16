@@ -5,7 +5,8 @@
 //
 // Writes only into fresh mktemp fixture projects and the temp hub, never this repo or ~/.vibedoc.
 import assert from "node:assert/strict"
-import { rmSync, writeFileSync } from "node:fs"
+import { createHash } from "node:crypto"
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, registerProject } from "./stub-chat.mjs"
 
@@ -19,8 +20,20 @@ function project(label) {
   return { root, label, ...registerProject(root) }
 }
 
+/** Every file's path and bytes under `dir`: a removed project's folder must not change at all. */
+function folderHash(dir) {
+  const h = createHash("sha256")
+  for (const f of readdirSync(dir, { recursive: true }).map(String).sort()) {
+    const full = path.join(dir, f)
+    h.update(f)
+    try { h.update(readFileSync(full)) } catch {} // a folder
+  }
+  return h.digest("hex")
+}
+
 const a = project("Alpha")
 const b = project("Bravo")
+const c = project("Charlie")
 const errors = []
 const browser = await launchChrome()
 try {
@@ -90,9 +103,66 @@ try {
   assert.equal(r.status, 403)
   console.log("ok  ?root= outside the hub → 403")
 
+  // T531: All projects lists the three with their open tasks; Open switches to one
+  const row = (p) => page.locator(`[data-project-row="${p.id}"]`)
+  await page.goto(`${BASE}/projects?project=${a.id}`)
+  for (const p of [a, b, c]) await row(p).getByText("1 open task").waitFor()
+  await row(c).getByRole("button", { name: `Open ${c.name}` }).click()
+  await page.waitForURL((u) => u.searchParams.get("project") === c.id)
+  await page.getByText("Charlie card", { exact: true }).first().waitFor()
+  console.log("ok  All projects lists three projects with open tasks; Open switches to C")
+
+  // Rename = the switcher label, never the folder
+  const renamed = `Bravo renamed ${b.id}`
+  await page.goto(`${BASE}/projects?project=${c.id}`)
+  await row(b).getByRole("button", { name: "Rename" }).click()
+  await row(b).getByLabel(`Display name of ${b.name}`).fill(renamed)
+  await row(b).getByRole("button", { name: "Save" }).click()
+  await row(b).getByText(renamed).waitFor()
+  await page.locator("header").getByRole("button", { name: c.name }).click()
+  await page.getByRole("menuitem", { name: new RegExp(renamed) }).waitFor()
+  await page.keyboard.press("Escape")
+  assert.ok(existsSync(b.root), "the folder keeps its name")
+  console.log("ok  rename changes the switcher label, not the folder")
+
+  // Pin sorts first; archive leaves the switcher
+  await row(b).getByRole("button", { name: "Pin" }).click()
+  await page.waitForFunction((id) => document.querySelector("[data-project-row]")?.getAttribute("data-project-row") === id, b.id)
+  await row(a).getByRole("button", { name: "Archive" }).click()
+  await page.getByText("Archived (1)").waitFor()
+  await page.reload()
+  await page.getByText("Archived (1)").waitFor()
+  assert.equal(await page.locator("[data-project-row]").first().getAttribute("data-project-row"), b.id)
+  await page.locator("header").getByRole("button", { name: c.name }).click()
+  await page.getByRole("menuitem", { name: new RegExp(renamed) }).waitFor()
+  assert.equal(await page.getByRole("menuitem", { name: new RegExp(a.name) }).count(), 0)
+  await page.keyboard.press("Escape")
+  await page.getByText("Archived (1)").click()
+  await row(a).getByRole("button", { name: "Unarchive" }).click()
+  await row(a).getByRole("button", { name: "Archive" }).waitFor()
+  console.log("ok  pinned sorts first, archived is hidden from the switcher")
+
+  // Remove: row gone, folder byte-for-byte the same, Undo brings it back; the current project can't be removed
+  assert.ok(await row(c).getByRole("button", { name: "Remove" }).isDisabled())
+  const before = folderHash(a.root)
+  await row(a).getByRole("button", { name: "Remove" }).click()
+  await row(a).waitFor({ state: "detached" })
+  await page.getByText(/Removed .* Its files are untouched/).waitFor()
+  assert.equal(folderHash(a.root), before)
+  assert.equal(JSON.parse(readFileSync(path.join(process.env.VIBEDOC_HOME, "hub.json"), "utf8")).projects.some((p) => p.id === a.id), false)
+  await page.getByRole("button", { name: "Undo" }).click()
+  await row(a).getByText("1 open task").waitFor()
+  assert.equal(folderHash(a.root), before)
+  console.log("ok  remove drops the row, the folder is unchanged, Undo restores it; current can't be removed")
+
   assert.deepEqual(errors, [], "no page errors")
   console.log("ok  no page errors")
 } finally {
   await browser.close()
-  for (const p of [a, b]) rmSync(p.root, { recursive: true, force: true })
+  for (const p of [a, b, c]) rmSync(p.root, { recursive: true, force: true })
+  // leave the hub as we found it, so a rerun against the same VIBEDOC_HOME sees only its own fixtures
+  const hubFile = path.join(process.env.VIBEDOC_HOME, "hub.json")
+  const hub = JSON.parse(readFileSync(hubFile, "utf8"))
+  hub.projects = hub.projects.filter((p) => ![a, b, c].some((x) => x.id === p.id))
+  writeFileSync(hubFile, JSON.stringify(hub, null, 2) + "\n")
 }

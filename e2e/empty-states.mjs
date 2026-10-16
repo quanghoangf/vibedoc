@@ -40,6 +40,8 @@ const NOT_EMPTY = {
   "/settings": "the settings form",
   "/setup": "the project-docs wizard",
   "/getting-started": "VibeDoc's own guide",
+  "/start": "the first-run welcome itself",
+  "/projects": "the hub always lists the project VibeDoc was started in (all archived = EmptyState, e2e/projects-hub.mjs)",
 }
 
 // Every (app) route is checked or says why not

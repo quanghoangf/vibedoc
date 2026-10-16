@@ -139,7 +139,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const openProject = useCallback((p: Project) => {
     setActiveProject(p.root)
     refresh(p.root)
-    // stamps lastOpened (R099); a stubbed or demo project answers 404, nothing to tell the user
+    // stamps lastOpened (R099); best effort, nothing to tell the user
     fetch("/api/projects/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) }).catch(() => {})
   }, [refresh])
 

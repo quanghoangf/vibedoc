@@ -76,6 +76,14 @@ export function removeProject(hub: Hub, id: string): { hub: Hub; removed: HubPro
   return { hub: removed ? { ...hub, projects: hub.projects.filter(p => p !== removed) } : hub, removed }
 }
 
+/** Puts a removed entry back as it was (Undo); null when its id or root is taken meanwhile. */
+export function restoreProject(hub: Hub, entry: unknown): Hub | null {
+  const [p] = parseHub(JSON.stringify({ projects: [entry] })).projects
+  if (!p || typeof (entry as { id?: unknown })?.id !== 'string' || p.id !== (entry as { id: string }).id) return null
+  if (hub.projects.some(x => x.id === p.id || x.root === p.root)) return null
+  return { ...hub, projects: [...hub.projects, p] }
+}
+
 /** Changes the given fields of one project; null = unknown id. The id never changes. */
 export function patchProject(hub: Hub, id: string, patch: HubPatch): Hub | null {
   if (!hub.projects.some(p => p.id === id)) return null
