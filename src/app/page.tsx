@@ -11,14 +11,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   const { root: rootArg, project: projectArg } = await searchParams
   const demo = isDemo()
   // R099: `?project=<hub id>` names the project; an unknown id falls back to the configured root (the app toasts)
-  const picked = projectArg && !demo ? await findHubProject(projectArg) : null
+  // R100: the CLI opens `/?root=<abs>` (it can't know the id yet); a hub root maps to `?project=<id>`. Looked up
+  // before rootFrom, whose hub check would refuse a root the hub hasn't added on a cold server.
+  const picked = demo ? null : projectArg ? await findHubProject(projectArg) : rootArg ? await findHubProject(rootArg) : null
   const root = picked?.root ?? rootFrom(rootArg)
   const project = picked ?? (demo ? null : await findHubProject(rootArg ? root : getConfiguredRoot()))
   const [{ tasks }, { items }] = await Promise.all([listTasks(root), listRoadmap(root)])
   const target = firstScreen({ tasks: tasks.length, roadmapItems: items.length, demo })
   const query = new URLSearchParams()
-  if (rootArg) query.set("root", rootArg)
   if (projectArg) query.set("project", projectArg)
+  else if (picked) query.set("project", picked.id)
+  else if (rootArg) query.set("root", rootArg)
   const qs = query.size ? `?${query}` : ""
   // the demo always opens the board (some pages are blocked there)
   const page = target === "start" ? "/start" : demo ? "/board" : lastPageTarget((await cookies()).get(LAST_PAGE_COOKIE)?.value, project?.id ?? "")

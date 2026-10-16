@@ -16,7 +16,7 @@ test('T536 Add projects by path or by scanning a folder', async ({ page, step, r
   writeFileSync(path.join(work, 'notes.txt'), 'a file')
   const added = new Set<string>()
   const remember = async (res: { json: () => Promise<{ projects: { id: string }[] }> }) => (await res.json()).projects.forEach((p) => added.add(p.id))
-  await remember(await request.post('/api/projects/add', { data: { roots: [path.join(work, 'known1'), path.join(work, 'known2')] } }))
+  await remember(await request.post('/api/projects/add', { headers: { 'x-vibedoc-cli': '1' }, data: { roots: [path.join(work, 'known1'), path.join(work, 'known2')] } }))
   page.on('response', async (r) => { if (r.url().endsWith('/api/projects/add') && r.ok()) await remember(r).catch(() => {}) })
   await page.context().addCookies([{ name: 'vibedoc-lang', value: 'en', url: BASE }])
   const results = page.locator('[data-scan-results] li')

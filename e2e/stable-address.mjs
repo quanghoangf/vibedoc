@@ -1,16 +1,20 @@
-// End-to-end check for R080's Done when: stop and restart `vibedoc` in the same project, and the MCP URL an agent
-// connected to keeps working with no reconfiguration.
-//   1. Run 1 (`--port 3080`): read the printed MCP URL, `tools/list` answers.
-//   2. Stop, run 2 with no `--port`: same printed MCP URL (S1), `tools/list` answers again.
-//   3. A second `vibedoc` while run 2 is up: "already running", same URL, no second server.
-//   4. Another program holds the port: run 3 moves, prints the changed MCP URL + reconnect commands (S2).
+// End-to-end check for the stable address (R080) on one hub (R100): every repo is served by one VibeDoc, each at its
+// own MCP URL, and a restart keeps the URL an agent connected to.
+//   1. Run 1 in repo A's package folder (`--port 3080`): the MCP URL is A's (`?root=`), `tools/list` answers, the port
+//      is saved in <home>/port. A had its own VibeDoc (R080 `.vibedoc/port` = 3340): the one-time notice shows both
+//      commands and the legacy file goes; the rest of `.vibedoc/` stays.
+//   2. Stop, run 2 in A with no `--port`: same printed MCP URL, `tools/list` answers again, no notice.
+//   3. `vibedoc` in repo B while run 2 is up: "already running", no second server, B joins /api/projects, the open
+//      target is B, an open SSE stream gets `projects_updated`, A's MCP URL still answers.
+//   4. `vibedoc` outside any repo while it runs: opens All projects. A cross-site POST /api/projects/add → 403.
+//   5. Another program holds the port: run 3 moves, prints the changed MCP URL + reconnect commands.
 //
 //   pnpm build && node e2e/stable-address.mjs      (PORT=3080 by default)
 //
-// Spawns the real bin with --no-open from the `.next` build. Writes only into a fresh mktemp project.
+// Spawns the real bin with --no-open from the `.next` build, with its own temp VIBEDOC_HOME (never ~/.vibedoc).
 import assert from "node:assert/strict"
-import { spawn } from "node:child_process"
-import { mkdtempSync, readFileSync, rmSync } from "node:fs"
+import { execFileSync, spawn } from "node:child_process"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -18,14 +22,30 @@ import { fileURLToPath } from "node:url"
 
 const bin = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "bin", "vibedoc.mjs")
 const PORT = Number(process.env.PORT || 3080)
-const project = mkdtempSync(path.join(tmpdir(), "vibedoc-address-e2e-"))
+const tmp = realpathSync(mkdtempSync(path.join(tmpdir(), "vibedoc-address-e2e-")))
+const home = path.join(tmp, "home")
+const repo = (name) => {
+  const dir = path.join(tmp, name)
+  mkdirSync(path.join(dir, ".git"), { recursive: true })
+  mkdirSync(path.join(dir, "packages", "web"), { recursive: true })
+  return dir
+}
+const repoA = repo("repo-a"), repoB = repo("repo-b")
+mkdirSync(path.join(repoA, ".vibedoc"))
+writeFileSync(path.join(repoA, ".vibedoc", "port"), "3340\n")
+writeFileSync(path.join(repoA, ".vibedoc", "settings.json"), "{}\n")
+const loose = path.join(tmp, "loose")
+mkdirSync(loose)
 const children = new Set()
 let holder = null
+let events = null
 
-/** Runs the bin until `until` matches its output (or it exits); returns { child, out, exited }. */
-function run(args, until) {
+/** Runs the bin in `cwd` until `until` matches its output (or it exits); returns { child, out, exited }. */
+function run(cwd, args, until) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [bin, "--no-open", ...args], { cwd: project })
+    const env = { ...process.env, VIBEDOC_HOME: home }
+    delete env.VIBEDOC_ROOT
+    const child = spawn(process.execPath, [bin, "--no-open", ...args], { cwd, env })
     children.add(child)
     let out = ""
     const timer = setTimeout(() => reject(new Error(`timed out; output:\n${out}`)), 90_000)
@@ -45,6 +65,12 @@ function stop(child) {
 }
 
 const printedMcp = (out) => out.match(/MCP: +(\S+)/)?.[1]
+const openTarget = (out) => out.match(/Open (\S+) in your browser/)?.[1]
+const mcpFor = (port, root) => `http://localhost:${port}/api/mcp?root=${encodeURIComponent(root)}`
+/** Processes listening on this port (Next renames its process title, so count listeners, not `next start`). */
+const servers = (port) => {
+  try { return new Set(execFileSync("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }).trim().split("\n").filter(Boolean)).size } catch { return 0 }
+}
 
 async function toolsList(url) {
   const res = await fetch(url, {
@@ -52,51 +78,96 @@ async function toolsList(url) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
   })
-  assert.equal(res.status, 200)
+  assert.equal(res.status, 200, `tools/list on ${url}`)
   const body = await res.json()
   assert.ok(body.result.tools.length > 0, "tools/list returns tools")
 }
 
+/** Collects the SSE stream's text until stopped. */
+async function listen(port) {
+  const ctrl = new AbortController()
+  const res = await fetch(`http://localhost:${port}/api/events`, { signal: ctrl.signal })
+  const state = { text: "", stop: () => ctrl.abort() }
+  ;(async () => {
+    const decoder = new TextDecoder()
+    try { for await (const chunk of res.body) state.text += decoder.decode(chunk) } catch {}
+  })()
+  return state
+}
+
 try {
   const ready = /Press Ctrl\+C/
+  const urlA = mcpFor(PORT, repoA)
 
-  const first = await run(["--port", String(PORT)], ready)
-  const url = printedMcp(first.out)
-  assert.equal(url, `http://localhost:${PORT}/api/mcp`)
-  assert.ok(first.out.includes(`claude mcp add --transport http vibedoc ${url}`))
-  await toolsList(url)
+  const first = await run(path.join(repoA, "packages", "web"), ["--port", String(PORT)], ready)
+  assert.equal(printedMcp(first.out), urlA, "the package folder resolves to the repo root")
+  assert.ok(first.out.includes(`claude mcp add --transport http vibedoc '${urlA}'`))
+  await toolsList(urlA)
   await stop(first.child)
-  assert.equal(readFileSync(path.join(project, ".vibedoc", "port"), "utf8").trim(), String(PORT))
-  console.log("✓ run 1 serves", url)
+  assert.equal(readFileSync(path.join(home, "port"), "utf8").trim(), String(PORT))
+  assert.ok(first.out.includes("Old MCP URL: http://localhost:3340/api/mcp"), "legacy notice")
+  assert.ok(first.out.includes(`New MCP URL: ${urlA}`))
+  assert.ok(first.out.includes("claude mcp remove vibedoc"))
+  assert.ok(first.out.includes("settings?tab=connect"))
+  assert.equal(existsSync(path.join(repoA, ".vibedoc", "port")), false, "legacy port file removed")
+  assert.ok(existsSync(path.join(repoA, ".vibedoc", "settings.json")), "the project's other data stays")
+  console.log("✓ run 1 serves", urlA, "and tells an old setup once what changed")
 
-  const second = await run([], ready)
-  assert.equal(printedMcp(second.out), url, "S1: same MCP URL after a restart")
-  await toolsList(url)
-  console.log("✓ S1 restart keeps", url, "and tools/list still answers")
+  const second = await run(repoA, [], ready)
+  assert.equal(printedMcp(second.out), urlA, "Restart: same MCP URL")
+  assert.ok(!second.out.includes("Old MCP URL"), "the notice shows only once")
+  await toolsList(urlA)
+  console.log("✓ restart keeps", urlA, "and tools/list still answers")
 
-  const again = await run([], /already running/)
-  if (!again.exited) await new Promise((r) => again.child.once("exit", r))
-  assert.equal(again.child.exitCode, 0)
-  assert.equal(printedMcp(again.out), url)
-  assert.ok(!again.out.includes("Starting VibeDoc"), "no second server")
+  events = await listen(PORT)
+  const b = await run(repoB, [], /in your browser/)
+  if (!b.exited) await new Promise((r) => b.child.once("exit", r))
+  assert.equal(b.child.exitCode, 0, b.out)
+  assert.ok(!b.out.includes("Starting VibeDoc"), "no second server")
+  assert.equal(servers(PORT), 1, "one server process")
+  assert.equal(printedMcp(b.out), mcpFor(PORT, repoB))
+  const projects = await (await fetch(`http://localhost:${PORT}/api/projects`)).json()
+  const idB = projects.find((p) => p.root === repoB)?.id
+  assert.ok(projects.some((p) => p.root === repoA) && idB, "both repos in the hub")
+  assert.equal(openTarget(b.out), `http://localhost:${PORT}/?project=${encodeURIComponent(idB)}`, "browser target is B")
+  for (let i = 0; i < 40 && !events.text.includes("projects_updated"); i++) await new Promise((r) => setTimeout(r, 50))
+  assert.ok(events.text.includes("projects_updated"), "an open tab hears about B")
+  await toolsList(urlA)
+  await toolsList(mcpFor(PORT, repoB))
+  console.log("✓ a second repo opens in the running hub; A's MCP URL unchanged")
+
+  const out = await run(loose, [], /in your browser/)
+  if (!out.exited) await new Promise((r) => out.child.once("exit", r))
+  assert.equal(openTarget(out.out), `http://localhost:${PORT}/projects`)
+  const evil = await fetch(`http://localhost:${PORT}/api/projects/add`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: "http://evil.example", "x-vibedoc-cli": "1" },
+    body: JSON.stringify({ root: loose }),
+  })
+  assert.equal(evil.status, 403, "cross-site add refused")
+  const noHeader = await fetch(`http://localhost:${PORT}/api/projects/add`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ root: loose }) })
+  assert.equal(noHeader.status, 403, "no Origin and no CLI header refused")
+  events.stop()
   await stop(second.child)
-  console.log("✓ a second vibedoc reuses the running one")
+  console.log("✓ outside a repo opens All projects; foreign adds refused")
 
   holder = createServer((_, res) => res.end("not vibedoc"))
   await new Promise((r) => holder.listen(PORT, r))
-  const moved = await run([], ready)
+  const moved = await run(repoA, [], ready)
   const newUrl = printedMcp(moved.out)
-  assert.notEqual(newUrl, url)
+  assert.notEqual(newUrl, urlA)
   assert.ok(moved.out.includes(`Port ${PORT} (this project's usual address) is in use by another program`))
+  assert.equal(newUrl, mcpFor(Number(new URL(newUrl).port), repoA))
   assert.ok(moved.out.includes(`MCP URL changed to ${newUrl}`))
   assert.ok(moved.out.includes("claude mcp remove vibedoc"))
-  assert.ok(moved.out.includes(`claude mcp add --transport http vibedoc ${newUrl}`))
+  assert.ok(moved.out.includes(`claude mcp add --transport http vibedoc '${newUrl}'`))
   await toolsList(newUrl)
   await stop(moved.child)
-  console.log("✓ S2 taken port moves to", newUrl, "and says how to reconnect")
+  console.log("✓ taken port moves to", newUrl, "and says how to reconnect")
 } finally {
+  events?.stop()
   for (const child of children) child.kill("SIGTERM")
   holder?.close()
-  rmSync(project, { recursive: true, force: true })
+  rmSync(tmp, { recursive: true, force: true })
 }
 console.log("stable-address: ok")

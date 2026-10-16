@@ -1,6 +1,6 @@
 // node src/lib/agent-connect.check.mts
 import assert from 'node:assert/strict'
-import { parseConnection, shouldRecordCall, claudeMcpAddCommand, RECORD_EVERY_MS } from './agent-connect.ts'
+import { parseConnection, shouldRecordCall, claudeMcpAddCommand, projectMcpUrl, RECORD_EVERY_MS } from './agent-connect.ts'
 
 assert.equal(parseConnection(null), null)
 assert.equal(parseConnection('not json'), null)
@@ -16,6 +16,7 @@ assert.equal(shouldRecordCall(prev, 'cursor', t0 + 1000), true)
 assert.equal(shouldRecordCall(prev, 'claude', t0 + RECORD_EVERY_MS), true)
 
 assert.equal(claudeMcpAddCommand('http://localhost:3081/api/mcp'), 'claude mcp add --transport http vibedoc http://localhost:3081/api/mcp')
+assert.equal(claudeMcpAddCommand('http://localhost:3081/api/mcp?root=%2Fa'), "claude mcp add --transport http vibedoc 'http://localhost:3081/api/mcp?root=%2Fa'")
 console.log('agent-connect ok')
 
 const { agentLabel } = await import('./agent-connect.ts')
@@ -53,3 +54,10 @@ console.log('pluginInstalled ok')
 const { mcpServersConfig } = await import('./agent-connect.ts')
 assert.deepEqual(JSON.parse(mcpServersConfig('http://localhost:3081/api/mcp')), { mcpServers: { vibedoc: { url: 'http://localhost:3081/api/mcp' } } })
 console.log('mcpServersConfig ok')
+
+// R100: the project's MCP URL carries ?root= (encoded); an existing root or no root leaves the URL alone
+assert.equal(projectMcpUrl('http://localhost:3333/api/mcp', '/Users/me/my repo'), 'http://localhost:3333/api/mcp?root=%2FUsers%2Fme%2Fmy+repo')
+assert.equal(projectMcpUrl('http://localhost:3333/api/mcp?root=%2Fx', '/y'), 'http://localhost:3333/api/mcp?root=%2Fx')
+assert.equal(projectMcpUrl('http://localhost:3333/api/mcp', ''), 'http://localhost:3333/api/mcp')
+assert.equal(projectMcpUrl('not a url', '/y'), 'not a url')
+console.log('projectMcpUrl ok')

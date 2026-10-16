@@ -1,6 +1,6 @@
 # R100: Auto-detect current repo
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 410
 **Tasks:** T533, T534, T535
 

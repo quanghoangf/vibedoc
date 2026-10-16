@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { Page } from '@playwright/test'
+import { registerFixture } from './hub-fixture'
 import { test, expect } from './kit/testing/playwright-fixture'
 
 const BASE = process.env.VIBEDOC_URL ?? 'http://localhost:3000'
@@ -22,6 +23,7 @@ function project(files: Record<string, string>): string {
 async function openProject(page: Page, root: string) {
   await page.unroute('**/api/projects')
   await page.route('**/api/projects', (r) => r.fulfill({ json: [{ id: 'fixture', name: 'fixture', root, hasVibedoc: true }] }))
+  await registerFixture(BASE, root)
   await page.goto(`/?root=${encodeURIComponent(root)}`)
 }
 test.afterAll(() => { for (const d of made) rmSync(d, { recursive: true, force: true }) })
