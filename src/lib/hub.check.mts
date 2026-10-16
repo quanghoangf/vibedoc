@@ -114,3 +114,21 @@ console.log('hub.check: ok')
   assert.equal(scanResults(Array.from({ length: 300 }, (_, i) => `/w/r${i}`), []).length, 200)
   assert.equal(scanResults(['/w/a', '/w/b'], [], 1).length, 1)
 }
+
+// T537 clone: URL trust boundary and destination folder
+{
+  const { isCloneUrl, cloneDest } = await import('./hub.ts')
+  for (const ok of ['https://github.com/org/repo.git', 'https://gitlab.com/a/b', 'ssh://git@host.com/org/repo.git', 'git@github.com:org/repo.git', 'git@host.example:repo'])
+    assert.ok(isCloneUrl(ok), ok)
+  for (const bad of ['', '--upload-pack=touch /tmp/x', '-u x', 'ext::sh -c touch% /tmp/x', 'https::foo', 'http://github.com/org/repo', 'file:///tmp/repo.git',
+    'git://host/repo', 'https://github.com/', 'https://host/a b', '/tmp/repo', 'git@host:-oProxyCommand=x', 'https://host/x\ny'])
+    assert.ok(!isCloneUrl(bad), bad)
+  assert.ok(isCloneUrl('file:///tmp/fixture/repo.git', true))
+  assert.ok(!isCloneUrl('file:///', true))
+  assert.equal(cloneDest('/w/', 'https://github.com/org/repo.git'), '/w/repo')
+  assert.equal(cloneDest('/w', 'git@github.com:org/web'), '/w/web')
+  assert.equal(cloneDest('/w', 'git@host:repo.git'), '/w/repo')
+  assert.equal(cloneDest('/w', 'https://host/org/repo/'), '/w/repo')
+  assert.equal(cloneDest('/w', 'https://host/org/..'), null)
+  assert.equal(cloneDest('/w', 'https://host/org/.git'), null)
+}

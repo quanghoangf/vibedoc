@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Archive, ChevronDown, FolderPlus } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
@@ -28,8 +29,9 @@ async function fetchProjects(): Promise<ProjectWithCounts[]> {
 
 /** All projects (R099 T531): every project in the hub, what needs the user there, and pin / rename / archive / remove. */
 export default function ProjectsPage() {
-  const { projects: hubProjects, activeProject, onProjectChange } = useApp()
+  const { projects: hubProjects, activeProject, onProjectChange, demo, playground } = useApp()
   const { t, tn } = useT()
+  const router = useRouter()
   const [adding, setAdding] = useState<AddMode | null>(null)
   const [list, setList] = useState<ProjectWithCounts[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -115,18 +117,20 @@ export default function ProjectsPage() {
         <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">{t("projects.title")}</h1>
         <div className="mt-2 flex flex-wrap items-start gap-3">
           <p className="max-w-2xl flex-1 text-sm text-muted">{t("projects.lead")}</p>
-          <DropdownMenu>
+          {!demo && !playground && <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm"><FolderPlus />{t("projects.add")}<ChevronDown className="opacity-70" /></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuItem onSelect={() => setAdding("path")}>{t("projects.addFromPath")}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAdding("scan")}>{t("projects.addScan")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setAdding("clone")}>{t("projects.addClone")}</DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu>}
         </div>
       </header>
-      {adding && <AddProjectDialog key={adding} mode={adding} onClose={() => setAdding(null)} onAdded={added} />}
+      {/* a clone opens through `/`: the welcome for a project with no docs or roadmap, else its board (R082) */}
+      {adding && <AddProjectDialog key={adding} mode={adding} onClose={() => setAdding(null)} onAdded={added} onCloned={(p) => { setAdding(null); router.push(`/?project=${encodeURIComponent(p.id)}`) }} />}
 
       {error && <p role="alert" className="text-sm text-danger">{t("projects.loadError", { error })}</p>}
       {!list && !error && <p className="text-sm text-muted">{t("projects.loading")}</p>}

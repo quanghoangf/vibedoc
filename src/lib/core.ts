@@ -37,7 +37,8 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { ATTACHMENTS_DIR, imageError, imageMarkdown, imageMimeOf, isAttachmentFolder, isServableImage, nextImageNumber, sniffImage } from './attachments'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
-import { addProject, emptyHub, expandHome, isScannable, MAX_SCAN_RESULTS, scanResults, type ScannedRepo, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, relocateProject, removeProject, restoreProject, type Hub, type HubProject } from './hub'
+import { cloneRunning, runClone } from './git-clone'
+import { addProject, cloneDest, emptyHub, expandHome, isCloneUrl, isScannable, MAX_SCAN_RESULTS, scanResults, type ScannedRepo, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, relocateProject, removeProject, restoreProject, type Hub, type HubProject } from './hub'
 import { countNeedsYou } from './test-review'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
@@ -634,6 +635,23 @@ export async function scanForRepos(input: unknown): Promise<ScannedRepo[]> {
     for (const grand of await children(child)) if (await isRepo(grand)) found.push(grand)
   }
   return scanResults(found, (await readHub()).projects.map(p => p.root))
+}
+
+/** Clone (T537): `git clone <url>` into `<parent>/<repo>`, then add it to the hub. A failure leaves no folder behind. */
+export async function cloneProject(url: unknown, parent: unknown, onProgress: (line: string) => void): Promise<HubProject> {
+  const u = typeof url === 'string' ? url.trim() : ''
+  if (!isCloneUrl(u, process.env.VIBEDOC_E2E === '1')) throw new HubError('give an https://, ssh:// or git@host:path URL')
+  const dir = await requireFolder(parent)
+  const dest = cloneDest(dir, u)
+  if (!dest) throw new HubError(`no folder name in ${u}`)
+  if (await fs.stat(dest).then(() => true, () => false)) throw new HubError(`${dest} already exists`, 409)
+  if (cloneRunning()) throw new HubError('another clone is running', 409)
+  const res = await runClone(u, dest, onProgress)
+  if (!res.ok) {
+    await fs.rm(dest, { recursive: true, force: true })
+    throw new HubError(res.cancelled ? 'clone cancelled' : res.error)
+  }
+  return (await addHubProject(dest)).project
 }
 
 // ─── Docs ─────────────────────────────────────────────────────────────────────

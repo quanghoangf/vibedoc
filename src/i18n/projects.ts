@@ -68,6 +68,14 @@ export const en = {
   added_other: "Added {n} projects",
   alreadyInHub: "{name} is already in the hub",
   addFailed: "Could not add: {error}",
+  addClone: "Clone from git",
+  cloneTitle: "Clone a repo from git",
+  cloneLead: "Clones into a new folder named after the repo, then opens it. Uses your own git login.",
+  cloneUrl: "Git URL (https://, ssh:// or git@host:path)",
+  cloneParent: "Clone into folder",
+  clone: "Clone",
+  cloning: "Cloning…",
+  cloneFailed: "Could not clone: {error}",
 }
 
 export const vi: Messages<typeof en> = {
@@ -137,4 +145,12 @@ export const vi: Messages<typeof en> = {
   added_other: "Đã thêm {n} dự án",
   alreadyInHub: "{name} đã có trong danh sách",
   addFailed: "Không thêm được: {error}",
+  addClone: "Clone từ git",
+  cloneTitle: "Clone repo từ git",
+  cloneLead: "Clone vào một thư mục mới mang tên repo rồi mở nó. Dùng đăng nhập git của bạn.",
+  cloneUrl: "URL git (https://, ssh:// hoặc git@host:path)",
+  cloneParent: "Clone vào thư mục",
+  clone: "Clone",
+  cloning: "Đang clone…",
+  cloneFailed: "Không clone được: {error}",
 }
