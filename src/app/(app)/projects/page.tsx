@@ -7,7 +7,7 @@ import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { ProjectRow, type ProjectWithCounts } from "@/components/projects/ProjectRow"
-import { AddProjectDialog, type AddedProject, type AddMode } from "@/components/projects/AddProjectDialog"
+import { AddProjectDialog, chooseAndAddFolder, type AddedProject, type AddMode } from "@/components/projects/AddProjectDialog"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { GroupSection } from "@/components/projects/GroupSection"
@@ -69,11 +69,16 @@ function ViewSwitch({ portfolio }: { portfolio: boolean }) {
 }
 
 function ProjectsView() {
-  const portfolio = useSearchParams().get("view") === "portfolio"
+  const searchParams = useSearchParams()
+  const portfolio = searchParams.get("view") === "portfolio"
   const { projects: hubProjects, activeProject, onProjectChange, demo, playground } = useApp()
   const { t, tn } = useT()
   const router = useRouter()
-  const [adding, setAdding] = useState<AddMode | null>(null)
+  // `?add=path|scan|clone` (the switcher's fallback when there is no OS folder picker) opens that dialog
+  const [adding, setAdding] = useState<AddMode | null>(() => {
+    const a = searchParams.get("add")
+    return a === "path" || a === "scan" || a === "clone" ? a : null
+  })
   const [list, setList] = useState<ProjectWithCounts[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -137,6 +142,17 @@ function ProjectsView() {
     load()
   }
 
+  // Finder first (Add project → Choose a folder…); no picker on this machine → the typed-path dialog
+  const choose = async () => {
+    try {
+      const res = await chooseAndAddFolder(t("projects.pickPrompt"), t("projects.pickBusy"))
+      if (res === "unsupported") setAdding("path")
+      else if (res) added(res)
+    } catch (e) {
+      toast(t("projects.addFailed", { error: (e as Error).message }))
+    }
+  }
+
   const active = list ? switcherOrder(list) : []
   const archived = list ? list.filter((p) => p.archived) : []
   const row = (p: ProjectWithCounts) => (
@@ -162,7 +178,8 @@ function ProjectsView() {
             <DropdownMenuTrigger asChild>
               <Button size="sm"><FolderPlus />{t("projects.add")}<ChevronDown className="opacity-70" /></Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onSelect={choose}>{t("projects.addChoose")}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAdding("path")}>{t("projects.addFromPath")}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAdding("scan")}>{t("projects.addScan")}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setAdding("clone")}>{t("projects.addClone")}</DropdownMenuItem>

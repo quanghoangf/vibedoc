@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { FolderOpen } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { useT } from "@/context/LanguageContext"
@@ -17,8 +18,23 @@ async function call<T>(url: string, init?: RequestInit): Promise<T> {
   return data as T
 }
 
-const addRoots = (roots: string[]) =>
+export const addRoots = (roots: string[]) =>
   call<{ projects: AddedProject[] }>("/api/projects/add", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ roots }) })
+
+export type PickResult = { path?: string; cancelled?: true; unsupported?: true; busy?: true }
+
+/** Opens the OS folder picker on this machine (Finder on macOS); `unsupported` → the caller asks for a typed path. */
+export const pickFolder = (prompt: string) =>
+  call<PickResult>("/api/projects/pick-folder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) })
+
+/** Add project → Choose a folder…: Finder, then the hub. `"unsupported"` → open the typed-path dialog; null = cancelled. */
+export async function chooseAndAddFolder(prompt: string, busyMessage: string): Promise<AddedProject[] | "unsupported" | null> {
+  const res = await pickFolder(prompt)
+  if (res.unsupported) return "unsupported"
+  if (res.busy) throw new Error(busyMessage)
+  if (!res.path) return null
+  return (await addRoots([res.path])).projects
+}
 
 const field = "h-9 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 font-mono text-xs text-txt outline-none focus-visible:ring-2 focus-visible:ring-accent"
 
@@ -50,6 +66,20 @@ export function AddProjectDialog({ mode, onClose, onAdded, onCloned }: {
     window.addEventListener("vibedoc:sse", onSse)
     return () => window.removeEventListener("vibedoc:sse", onSse)
   }, [mode])
+
+  const [canBrowse, setCanBrowse] = useState(true)
+  // Browse… fills a path field from the OS picker; no picker on this machine → the button goes away, typing still works
+  const browse = (set: (path: string) => void) => run(async () => {
+    const res = await pickFolder(t("projects.pickPrompt"))
+    if (res.unsupported) setCanBrowse(false)
+    else if (res.busy) throw new Error(t("projects.pickBusy"))
+    else if (res.path) set(res.path)
+  })
+  const browseButton = (set: (path: string) => void) => canBrowse && (
+    <Button type="button" size="sm" variant="secondary" className="h-9" disabled={busy} onClick={() => browse(set)}>
+      <FolderOpen />{t("projects.browse")}
+    </Button>
+  )
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -101,7 +131,10 @@ export function AddProjectDialog({ mode, onClose, onAdded, onCloned }: {
             </label>
             <label className="flex flex-col gap-1 text-xs text-muted">
               {t("projects.cloneParent")}
-              <input value={parent} onChange={(e) => setParent(e.target.value)} placeholder={t("projects.scanPlaceholder")} disabled={busy} className={field} />
+              <span className="flex items-center gap-2">
+                <input value={parent} onChange={(e) => setParent(e.target.value)} placeholder={t("projects.scanPlaceholder")} disabled={busy} className={field} />
+                {browseButton(setParent)}
+              </span>
             </label>
             {error && <p role="alert" className="text-xs text-danger">{t("projects.cloneFailed", { error })}</p>}
             {busy && <p role="status" className="truncate font-mono text-[11px] text-muted">{progress || t("projects.cloning")}</p>}
@@ -141,6 +174,7 @@ export function AddProjectDialog({ mode, onClose, onAdded, onCloned }: {
             aria-invalid={!!error || undefined}
             className={field}
           />
+          {browseButton(setInput)}
           <Button type="submit" size="sm" variant={mode === "path" ? "default" : "secondary"} className="h-9" disabled={busy || !input.trim()}>
             {mode === "path" ? t("projects.addOne") : busy && !repos ? t("projects.scanning") : t("projects.scan")}
           </Button>

@@ -11,7 +11,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/context/AppContext"
 import type { Project } from "@/types"
-import { Check, ChevronsUpDown, Layers } from "lucide-react"
+import { Check, ChevronsUpDown, FolderPlus, Layers } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { chooseAndAddFolder } from "@/components/projects/AddProjectDialog"
+import { toast } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
 import { useT } from "@/context/LanguageContext"
 import { switcherOrder } from "@/lib/hub"
@@ -39,7 +42,8 @@ const FILTER_FROM = 6
 export function ProjectSwitcher({ projects, activeProject, currentName, onSelect }: ProjectSwitcherProps) {
   const { t } = useT()
   // R102: groups sit above the projects; an open group names the switcher and no project is current
-  const { groups, activeGroup, onGroupChange } = useApp()
+  const { groups, activeGroup, onGroupChange, demo, playground } = useApp()
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState("")
   // R099: pinned first, then the most recently opened; archived projects stay on All projects only
@@ -48,6 +52,20 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
   const f = filter.trim().toLowerCase()
   const shown = f ? listed.filter((p) => `${p.name} ${p.root}`.toLowerCase().includes(f)) : listed
   const shownGroups = f ? groups.filter((g) => g.name.toLowerCase().includes(f)) : groups
+
+  // Add project…: Finder, then the hub, then open it; no OS picker on this machine → All projects' typed-path dialog
+  const addProject = async () => {
+    try {
+      const res = await chooseAndAddFolder(t("projects.pickPrompt"), t("projects.pickBusy"))
+      if (res === "unsupported") router.push("/projects?add=path")
+      else if (res?.[0]) {
+        if (!res[0].added) toast(t("projects.alreadyInHub", { name: res[0].name }))
+        onSelect(res[0].id)
+      }
+    } catch (e) {
+      toast(t("projects.addFailed", { error: (e as Error).message }))
+    }
+  }
 
   useEffect(() => {
     const onOpen = () => setOpen(true)
@@ -140,6 +158,15 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
               </DropdownMenuItem>
             )
           })
+        )}
+        {!demo && !playground && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={addProject} className="cursor-pointer text-muted hover:bg-surface2 focus:bg-surface2" data-switcher-add>
+              <FolderPlus aria-hidden className="size-3.5 shrink-0" />
+              {t("shell.addProject")}
+            </DropdownMenuItem>
+          </>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

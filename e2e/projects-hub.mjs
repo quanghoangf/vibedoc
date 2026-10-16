@@ -246,7 +246,7 @@ try {
 
   // T536: add by path refuses a missing path and a file in words, adds a folder
   await page.getByRole("button", { name: "Add project" }).click()
-  await page.getByRole("menuitem", { name: "From a folder path" }).click()
+  await page.getByRole("menuitem", { name: "Type a folder path" }).click()
   const pathField = page.getByLabel("Folder path")
   await pathField.fill(path.join(work, "nope"))
   await page.getByRole("button", { name: "Add", exact: true }).click()
@@ -260,6 +260,20 @@ try {
   await page.getByText("Added 1 project").waitFor()
   await row(scannedRoots().find((p) => p.root === path.join(work, "r5"))).getByText("0 open tasks").waitFor()
   assert.equal((await fetch(`${BASE}/api/projects/add`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "http://evil.example" }, body: JSON.stringify({ root: work }) })).status, 403)
+  // Folder picker: only VibeDoc's own pages may open Finder (never clicked here: it would open a real dialog)
+  assert.equal((await fetch(`${BASE}/api/projects/pick-folder`, { method: "POST" })).status, 403, "no Origin → no dialog")
+  assert.equal((await fetch(`${BASE}/api/projects/pick-folder`, { method: "POST", headers: { Origin: "http://evil.example" } })).status, 403)
+  await page.getByRole("button", { name: "Add project" }).click()
+  await page.getByRole("menuitem", { name: "Choose a folder…" }).waitFor()
+  await page.keyboard.press("Escape")
+  await page.goto(`${BASE}/projects?add=path`)
+  await page.getByLabel("Folder path").waitFor()
+  await page.getByRole("button", { name: "Browse…" }).waitFor()
+  await page.keyboard.press("Escape")
+  await page.evaluate(() => window.dispatchEvent(new Event("vibedoc:open-project-switcher")))
+  await page.locator("[data-switcher-add]").waitFor()
+  await page.keyboard.press("Escape")
+  console.log("ok  Add project offers Choose a folder…, ?add=path opens the dialog with Browse…, the switcher has Add project…; pick-folder refuses foreign callers")
   console.log("ok  add by path: missing and file refused in words, a folder is added; cross-origin add → 403")
 
   // T537: refused URLs never reach git; an unknown repo shows git's error and leaves nothing; a good one opens

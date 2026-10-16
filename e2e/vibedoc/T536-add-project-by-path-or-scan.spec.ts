@@ -45,7 +45,7 @@ test('T536 Add projects by path or by scanning a folder', async ({ page, step, r
 
     await step('Add project → From a folder path with a missing path or a file → the error says so in words, nothing is added', async () => {
       await page.getByRole('button', { name: 'Add project' }).click()
-      await page.getByRole('menuitem', { name: 'From a folder path' }).click()
+      await page.getByRole('menuitem', { name: 'Type a folder path' }).click()
       await page.getByLabel('Folder path').fill(path.join(work, 'nope'))
       await page.getByRole('button', { name: 'Add', exact: true }).click()
       await expect(page.getByRole('alert').getByText(/no such folder/)).toBeVisible()
