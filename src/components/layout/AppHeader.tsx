@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
-import { Bot, Check, Copy, Loader2, MessagesSquare, Plug, Search } from "lucide-react"
+import { Bot, Check, Copy, Inbox, Loader2, MessagesSquare, Plug, Search } from "lucide-react"
 import type { ActivityEvent, Project, Summary } from "@/types"
 import { useApp } from "@/context/AppContext"
 import { DemoBanner } from "@/components/layout/DemoBanner"
@@ -15,6 +15,8 @@ import { useOrigin } from "@/hooks/use-origin"
 import { projectMcpUrl, userScopeMcpAddCommand } from "@/lib/agent-connect"
 import { cn } from "@/lib/utils"
 import { groupSessions, isLive } from "@/lib/sessions"
+import { waitingTitle } from "@/lib/chats"
+import { useInbox } from "@/components/inbox/use-inbox"
 import { useFormat, useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
 
@@ -29,6 +31,7 @@ const PAGE_TITLES: Record<string, MessageKey> = {
   "/settings": "shell.settings",
   "/chat": "shell.chats",
   "/getting-started": "shell.gettingStarted",
+  "/inbox": "inbox.title",
 }
 
 /** The system focus ring (ui/button.tsx) for the hand-rolled header buttons. */
@@ -94,6 +97,8 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
         <kbd className="hidden rounded-sm border border-border px-1 font-mono text-[10px] sm:inline">⌘K</kbd>
         <span className="sr-only sm:hidden">{t("shell.search")}</span>
       </button>
+
+      {!demo && <InboxBadge />}
 
       <ConnectMenu activity={activity} now={now} />
 
@@ -191,6 +196,31 @@ function AgentStatus({ liveIndicator, activity, now }: { liveIndicator: boolean;
       {/* Outside the button: a live region inside a control is re-read as its name */}
       <span aria-live="polite" className="sr-only">{announce}</span>
     </>
+  )
+}
+
+/**
+ * R105 T547: everything waiting on the user in every project; the count is also the tab title's "(n) " prefix.
+ * Pathname is a dep because a navigation can put Next's metadata title back.
+ */
+function InboxBadge() {
+  const { tn, t } = useT()
+  const pathname = usePathname()
+  const n = useInbox().items?.length ?? 0
+  useEffect(() => { document.title = waitingTitle(document.title, n) }, [n, pathname])
+  const label = tn("inbox.badge", n)
+  return (
+    <Link
+      href="/inbox"
+      id="inbox-badge"
+      title={label}
+      aria-label={label}
+      className={cn("flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs text-muted transition-colors hover:border-border2 hover:text-txt md:px-2.5", focusRing)}
+    >
+      <Inbox aria-hidden className="size-3.5" />
+      <span className="max-md:sr-only">{t("inbox.title")}</span>
+      {n > 0 && <span data-inbox-count className="font-mono tabular-nums text-txt">{n}</span>}
+    </Link>
   )
 }
 

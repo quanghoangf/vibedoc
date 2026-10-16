@@ -169,6 +169,12 @@ const PAGES = [
   { path: "/search?q=core", name: "search", open: async (page) => {
     await page.locator("[data-search-project]").first().waitFor()
   } },
+  // R105 T547: inbox (the fixture's T003 waits for review: a row with Approve / Send back)
+  { path: "/inbox", name: "inbox", open: async (page) => {
+    await page.locator("[data-inbox-row]").first().waitFor()
+    await page.getByRole("button", { name: "Trả lại" }).first().click()
+    await page.getByPlaceholder("Cần sửa gì?").first().waitFor()
+  } },
   // T221: test review (list, bulk bar, detail with checklist + decision, evidence view, suite)
   { path: "/manual-tests", name: "test review: list + bulk bar", open: async (page) => {
     await page.getByRole("checkbox", { name: "Chọn T003" }).check()

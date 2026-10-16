@@ -22,7 +22,7 @@ import type { TextEdit } from "@/lib/diff"
 import { ASK_AGENT_EVENT, OPEN_CHAT_EVENT, openAgentChat, type AskAgentDetail } from "@/lib/ask-agent"
 import {
   addChat, attachContext, attachKey, attentionQueue, chatFor, chatStatus, chatTitle, defaultChat, epicOf, fromSaved, INTERRUPTED, isActionableError, isWaiting,
-  itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, toSaved, waitingTitle,
+  itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, toSaved,
   type Attach, type Chat, type ChatStatus, type ItemAgent,
 } from "@/lib/chats"
 
@@ -198,8 +198,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const errorCount = chats.filter((c) => isActionableError(c, now)).length
   const queue = useMemo(() => attentionQueue(chats, now), [chats, now])
 
-  // "(n) VibeDoc" in the browser tab; pathname is a dep because a navigation can put Next's metadata title back
-  useEffect(() => { document.title = waitingTitle(document.title, queue.length) }, [queue.length, pathname])
+  // The tab title's "(n) VibeDoc" counts the whole inbox now (R105 T547): AppHeader's InboxBadge writes it
 
   // Desktop notification when a chat starts waiting while this browser tab is in the background
   useEffect(() => {

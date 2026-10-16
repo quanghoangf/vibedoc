@@ -42,6 +42,11 @@ const withHidden = [
 assert.deepEqual(buildInbox(withHidden).map((i) => i.project.id), ['charlie'])
 assert.deepEqual(buildInbox([{ project: a, tasks: [task('T1', { status: 'review' })], chats: [] }, { project: b, tasks: [task('T2', { status: 'review' })], chats: [] }], { project: 'bravo' }).map((i) => i.id), ['T2'])
 
+// a group's members only; an empty set (unknown group) keeps nothing; root rides along for actions
+assert.deepEqual(buildInbox(withHidden.slice(2), { projects: new Set(['charlie']) }).map((i) => i.id), ['T3'])
+assert.deepEqual(buildInbox(withHidden.slice(2), { projects: new Set() }), [])
+assert.equal(buildInbox([{ project: { ...a, root: '/r/a' }, tasks: [task('T1', { status: 'review' })], chats: [] }])[0].project.root, '/r/a')
+
 // stable ties: same time → project id, then item id
 const tie = sortInbox([
   { kind: 'review', project: b, id: 'T1', title: '', since: T(1), href: '' },
