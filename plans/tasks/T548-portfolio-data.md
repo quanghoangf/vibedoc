@@ -1,9 +1,13 @@
 # T548: Portfolio numbers per project and group
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R106 — Portfolio overview
 **Size:** M (2–3 hrs)
 **Depends on:** T538
 **Covers:** S1
+**Owner:** ai:claude
+**Due:** 2026-10-19
+**Started:** 2026-10-16
+**Done:** 2026-10-16
 
 ## Goal
 One endpoint answers "how is each project doing": epic progress, at-risk and overdue epics, tasks done this week by agents and by people, last activity, sorted by attention needed.
@@ -30,12 +34,17 @@ One endpoint answers "how is each project doing": epic progress, at-risk and ove
 - [ ] Done this week counts `ai` and human separately
 - [ ] `node src/lib/portfolio.check.mts` passes
 
-## Manual tests
-- [ ] S1 — WHEN one project has an at-risk epic and the others don't → THEN that project sorts first with the epic named
-
 ## Verify
 ```bash
 node src/lib/portfolio.check.mts
 pnpm lint && pnpm build
 curl -s localhost:3081/api/portfolio | head
 ```
+
+## Manual tests
+_2026-10-16 — ai_
+### Steps
+- [x] S1 — WHEN one project has an at-risk epic and the others don't → THEN that project sorts first with the epic named (3 fixture projects, Bravo with a blocked task: `GET /api/portfolio` lists Bravo before Alpha/Charlie with "Bravo epic" in atRisk)
+- [x] With a temp hub, `curl /api/portfolio` → JSON rows with epics, atRisk, overdue, blocked, doneThisWeek {ai, human}, lastActivity, attention
+### Regression risk
+- [x] `GET /api/projects?counts=1` and `GET /api/groups` still answer as before

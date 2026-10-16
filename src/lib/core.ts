@@ -45,6 +45,8 @@ import { runIdTime } from './test-review'
 import { chatStatus, fromSaved, isWaiting, type StatusMessage } from './chats'
 import { isTurnRunning } from './chat-turns'
 import { buildInbox, type InboxItem, type InboxProjectInput } from './inbox'
+import { roadmapHealth } from './roadmap-health'
+import { groupRollup, projectStats, type PortfolioRow, type ProjectStats } from './portfolio'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
@@ -842,6 +844,30 @@ export async function deleteGroup(slug: unknown): Promise<ProjectGroup> {
     for (const m of g.members) await setProjectGroup(m.root, g.slug, false)
     return g
   })
+}
+
+// ─── Portfolio (R106) ─────────────────────────────────────────────────────────
+
+/**
+ * How every hub project is doing (T548), most attention first: epic progress, at-risk / overdue epics (`roadmapHealth`),
+ * blocked tasks, tasks done in the last 7 local days by agents and people (activity log), last activity.
+ * Groups are one row with their members nested. Archived / missing projects are skipped; one that can't be read is logged and left out.
+ */
+export async function getPortfolio(now = new Date()): Promise<PortfolioRow[]> {
+  const today = localToday(now)
+  const since = localToday(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6))
+  const projects = (await discoverProjects()).filter(p => !p.archived && !p.missing)
+  const stats = await Promise.all(projects.map(async (p): Promise<ProjectStats | null> => {
+    try {
+      const [{ items }, { tasks }, events] = await Promise.all([listRoadmap(p.root), listTasks(p.root), readActivity(p.root, 2000)])
+      const info = Object.fromEntries(tasks.map(t => [t.id, { status: t.status, due: t.due, covers: t.covers }]))
+      return projectStats({ id: p.id, name: p.name, items, drift: roadmapHealth(items, info, today).drift, tasks, events }, since)
+    } catch (err) {
+      console.error(`[portfolio] skipping ${p.root}:`, err)
+      return null
+    }
+  }))
+  return groupRollup(stats.filter(s => s !== null), await listGroups())
 }
 
 // ─── Docs ─────────────────────────────────────────────────────────────────────

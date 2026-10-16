@@ -1,6 +1,6 @@
 # R106: Portfolio overview
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 470
 **Tasks:** T548, T549
 
