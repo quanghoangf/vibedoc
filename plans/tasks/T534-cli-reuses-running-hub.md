@@ -20,6 +20,7 @@ When VibeDoc is already running, `npx vibedoc` in another repo adds that repo to
 - [ ] `bin/vibedoc.mjs`: running → add → print banner for that project → open → exit 0
 - [ ] `src/app/api/projects/add/route.ts` — new; core `addHubProject(root)` refuses a non-directory; `emitUpdate("projects_updated")` so open tabs show the new project
 - [ ] Update `e2e/stable-address.mjs` to the hub model
+- [ ] Kit specs that build their own `mkdtemp` fixture (`e2e/vibedoc/T270*`–`T272*`, `T290*`–`T294*`) get 403 since T529: register the fixture with `POST /api/projects/add` (header `x-vibedoc-cli: 1`) before the first request, so they pass without writing to the real `~/.vibedoc`
 
 **Out of scope:** adding from the UI (T536).
 
@@ -34,6 +35,7 @@ When VibeDoc is already running, `npx vibedoc` in another repo adds that repo to
 - [ ] An open tab on A shows B in the switcher without a reload (SSE `projects_updated`)
 - [ ] `POST /api/projects/add` from a non-localhost origin → 403
 - [ ] `e2e/stable-address.mjs` passes
+- [ ] The 8 kit specs above pass again against a server with a temp `VIBEDOC_HOME`
 
 ## Manual tests
 - [ ] S2 — WHEN VibeDoc is already running and the user runs `npx vibedoc` in another repo → THEN no second VibeDoc starts and the browser opens that repo in the running one
