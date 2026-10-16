@@ -118,6 +118,8 @@ import { isDemo } from "@/lib/demo";
 import { isPlayground } from "@/lib/demo";
 import { ROOT_HEADER, projectMcpUrl, unknownProjectReply } from "@/lib/agent-connect";
 import { readHub, rootFromFolder } from "@/lib/core";
+import { groupPeers, searchIn } from "@/lib/core";
+import { formatCrossSearch } from "@/lib/cross-search";
 import { formatFrontend, frontendNotes, frontendStatusLine } from "@/lib/frontend";
 import path from "path";
 import { TEMPLATES } from "@/lib/templates";
@@ -339,6 +341,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     }
 
     case "vibedoc_search_docs": {
+      if (args.scope === "group") {
+        // R107: the whole group, read-only; doc usage (R093) stays per project, so nothing is recorded here
+        const peers = await groupPeers(root);
+        if (!peers.length) return "This project is in no group. Add it to one on /projects, or search without scope.";
+        return formatCrossSearch(String(args.query ?? ""), await searchIn(String(args.query ?? ""), peers));
+      }
       const results = await searchDocs(String(args.query), root);
       // R093: record a search that found nothing (and clear it once it finds something); never fails the call
       void noteDocSearch(root, String(args.query ?? ""), results.length > 0)

@@ -57,6 +57,8 @@ import { similarPaths } from './similar-paths'
 import type { LlmsInput } from './llms-txt'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { rankDocs, type SearchResult } from './doc-search'
+import { rankDocsScored } from './doc-search'
+import { mergeResults, rankItems, type CrossGroup, type CrossHit } from './cross-search'
 import type { DocLint } from './doc-lint'
 import { lintProject } from './doc-lint-project'
 import { NAME_STATUS_LOG_ARGS, outdatedRefs, parseNameStatusLog, type LogCommit, type OutdatedRef } from './doc-upkeep'
@@ -836,6 +838,63 @@ export async function listGroupRoadmap(slug: string): Promise<{ items: RoadmapIt
   if (!g) return null
   const lists = await Promise.all(g.members.map(m => listRoadmap(m.root).then(r => r.items.map(i => ({ ...i, project: { id: m.id, name: m.name } })), () => [] as RoadmapItem[])))
   return { items: lists.flat() }
+}
+
+/** One project's search hits (R107): docs (not task/epic/entry files, those come as items), entries, tasks, epics. */
+async function searchProject(query: string, root: string): Promise<CrossHit[]> {
+  const [files, entries, tasks, items] = await Promise.all([
+    readMarkdownFiles(root).catch(() => []),
+    listEntries(root).catch(() => [] as Entry[]),
+    listTasks(root).then(r => r.tasks, () => [] as Task[]),
+    listRoadmap(root).then(r => r.items, () => [] as RoadmapItem[]),
+  ])
+  const docFiles = files.filter(f => !['task', 'epic', 'entry'].includes(f.item.node.kind))
+  const label = new Map(docFiles.map(f => [f.path, f.item.node.label]))
+  const docs: CrossHit[] = rankDocsScored(docFiles.map(f => ({ path: f.path, raw: f.raw })), query, tokenize, 10)
+    .map(r => ({ kind: 'doc', id: null, path: r.file, title: label.get(r.file) ?? r.file, snippet: r.hits[0] ? `L${r.hits[0].line}: ${r.hits[0].text}` : '', score: r.score }))
+  const fileOf = new Map(entries.map(e => [e.id, e.file]))
+  const hits: CrossHit[] = rankEntries(entries, query, { limit: 10 })
+    .map(h => ({ kind: 'entry', id: h.id, path: fileOf.get(h.id) ?? '', title: h.summary, snippet: h.type, score: h.score }))
+  const work = rankItems([
+    ...tasks.map(t => ({ kind: 'task' as const, id: t.id, path: t.file, title: t.title, snippet: t.status })),
+    ...items.filter(i => i.parent !== null).map(i => ({ kind: 'epic' as const, id: i.id, path: i.file, title: i.title, snippet: i.status })),
+  ], query, tokenize)
+  return [...docs, ...hits, ...work]
+}
+
+/**
+ * Search across projects (R107): `all` = every hub project (archived / missing skipped), `group:<slug>` = its
+ * members, `project:<hub id>` = one. Grouped by project, best first (cross-search.ts). Unknown group / project → HubError 404.
+ * ponytail: a stopword-only query finds nothing here (rankDocs' substring fallback isn't merged); add it if users miss it
+ */
+export async function searchAll(query: string, scope: string): Promise<CrossGroup[]> {
+  let projects: { id: string; name: string; root: string }[]
+  if (scope === 'all') projects = (await discoverProjects()).filter(p => !p.archived && !p.missing)
+  else if (scope.startsWith('group:')) projects = (await findGroup(scope.slice(6))).members
+  else if (scope.startsWith('project:')) {
+    const p = (await discoverProjects()).find(x => x.id === scope.slice(8) && !x.missing)
+    if (!p) throw new HubError(`no project "${scope.slice(8)}"`, 404)
+    projects = [p]
+  } else throw new HubError('scope must be all, group:<slug> or project:<id>')
+  return searchIn(query, projects)
+}
+
+/** `searchAll` over the given projects. */
+export async function searchIn(query: string, projects: readonly { id: string; name: string; root: string }[]): Promise<CrossGroup[]> {
+  if (!query.trim()) return []
+  const per = await Promise.all(projects.map(async p => ({ project: { id: p.id, name: p.name }, hits: await searchProject(query, p.root) })))
+  return mergeResults(per)
+}
+
+/** The members of every group `root` is in (deduped, `root`'s own project first); [] when it is in none. */
+export async function groupPeers(root: string): Promise<{ id: string; name: string; root: string }[]> {
+  const own = (r: string) => normalizeRoot(path.resolve(r)) === normalizeRoot(path.resolve(root))
+  const seen = new Map<string, { id: string; name: string; root: string }>()
+  for (const g of await listGroups()) {
+    if (!g.members.some(m => own(m.root))) continue
+    for (const m of g.members) seen.set(m.id, m)
+  }
+  return [...seen.values()].sort((a, b) => Number(own(b.root)) - Number(own(a.root)))
 }
 
 /** Removes the slug from every member's settings (nothing else changes). Returns the group for Undo (create with its slug). */

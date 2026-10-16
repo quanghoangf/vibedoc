@@ -165,6 +165,10 @@ const PAGES = [
     await page.getByRole("button", { name: "Đổi tên" }).first().click()
     await page.getByRole("button", { name: "Lưu", exact: true }).waitFor()
   } },
+  // R107 T551: search across projects, with a result
+  { path: "/search?q=core", name: "search", open: async (page) => {
+    await page.locator("[data-search-project]").first().waitFor()
+  } },
   // T221: test review (list, bulk bar, detail with checklist + decision, evidence view, suite)
   { path: "/manual-tests", name: "test review: list + bulk bar", open: async (page) => {
     await page.getByRole("checkbox", { name: "Chọn T003" }).check()

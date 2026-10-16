@@ -42,6 +42,7 @@ const NOT_EMPTY = {
   "/getting-started": "VibeDoc's own guide",
   "/start": "the first-run welcome itself",
   "/projects": "the hub always lists the project VibeDoc was started in (all archived = EmptyState, e2e/projects-hub.mjs)",
+  "/search": "the search box itself; no query or no match says so in a line (e2e/cross-search.mjs)",
 }
 
 // Every (app) route is checked or says why not
