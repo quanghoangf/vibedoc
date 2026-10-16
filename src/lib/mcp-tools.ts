@@ -123,10 +123,13 @@ export const TOOLS = [
   {
     name: "vibedoc_search_docs",
     description:
-      "Full-text search across all docs. Returns files and line snippets.",
+      "Full-text search across all docs. Returns files and line snippets. With scope \"group\": docs, tasks, epics and memory entries of every project in this project's groups, each line prefixed with its project id, e.g. [api].",
     inputSchema: {
       type: "object",
-      properties: { query: { type: "string", description: "Search term" } },
+      properties: {
+        query: { type: "string", description: "Search term" },
+        scope: { type: "string", enum: ["project", "group"], description: "project (default): this project's docs. group: every project in this project's groups" },
+      },
       required: ["query"],
     },
   },

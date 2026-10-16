@@ -1,6 +1,6 @@
 # R107: Cross-project search
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 480
 **Tasks:** T550, T551
 
