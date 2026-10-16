@@ -1,9 +1,12 @@
 # T549: Portfolio view on All projects
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R106 — Portfolio overview
 **Size:** M (2–3 hrs)
 **Depends on:** T548, T531
 **Covers:** S1
+**Owner:** ai:claude
+**Due:** 2026-10-19
+**Started:** 2026-10-16
 
 ## Goal
 All projects gets a Portfolio view that shows, per project or group, progress, what is at risk and what agents did this week, with one click into the project's roadmap.
@@ -32,12 +35,23 @@ All projects gets a Portfolio view that shows, per project or group, progress, w
 - [ ] Clicking the epic chip opens that epic in its project
 - [ ] Phone width (390px): no horizontal scroll
 
-## Manual tests
-- [ ] S1 — WHEN one project has an at-risk epic and the others don't → THEN that project sorts first with the epic named
-
 ## Verify
 ```bash
 node src/lib/i18n.check.mts
 pnpm lint && pnpm build
 BASE=http://localhost:3081 node e2e/projects-hub.mjs
 ```
+
+## Manual tests
+_2026-10-16 — ai · Spec: `e2e/vibedoc/T549-portfolio-view.spec.ts` · Auto: passed 2026-10-16_
+### Steps
+- [x] 🤖 Open /projects → the List view is selected by default
+- [x] 🤖 S1 — WHEN one project has an at-risk epic and the others don't → THEN that project sorts first with the epic named
+- [x] 🤖 A Portfolio row shows epic progress, blocked tasks and done this week → "0/1 epics", "1 blocked", "🤖 0 · 👤 0 this week"
+- [x] 🤖 At 390px wide → the Portfolio has no horizontal scroll
+- [x] 🤖 Click the at-risk epic chip → that epic opens on its project's roadmap
+- [x] 🤖 Click a project name on the Portfolio → its roadmap opens
+- [ ] Switch to the light theme and Vietnamese → the amber ⚠ chips, red overdue chips and teal progress bar read clearly and every Portfolio label is translated
+- [ ] Put two projects in a group, open Portfolio → one "Group · 2" row; the chevron shows both members nested, and the group name opens the group's roadmap
+### Regression risk
+- [x] All projects List view: rename, pin, archive, remove, locate, add and clone still work (e2e/projects-hub.mjs passed in full)

@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useCallback, useEffect, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Archive, ChevronDown, FolderPlus } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
@@ -11,6 +11,7 @@ import { AddProjectDialog, type AddedProject, type AddMode } from "@/components/
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { GroupSection } from "@/components/projects/GroupSection"
+import { PortfolioView } from "@/components/projects/PortfolioRow"
 import { toast, undoToast } from "@/components/ui/toast"
 import { switcherOrder } from "@/lib/hub"
 
@@ -30,6 +31,45 @@ async function fetchProjects(): Promise<ProjectWithCounts[]> {
 
 /** All projects (R099 T531): every project in the hub, what needs the user there, and pin / rename / archive / remove. */
 export default function ProjectsPage() {
+  return (
+    <Suspense>
+      <ProjectsView />
+    </Suspense>
+  )
+}
+
+/** `?view=portfolio` (R106 T549) shows the Portfolio; anything else is the List. */
+function ViewSwitch({ portfolio }: { portfolio: boolean }) {
+  const { t } = useT()
+  const router = useRouter()
+  const pathname = usePathname()
+  const params = useSearchParams()
+  const go = (view: "list" | "portfolio") => {
+    const q = new URLSearchParams(params.toString())
+    if (view === "portfolio") q.set("view", "portfolio")
+    else q.delete("view")
+    router.replace(q.size ? `${pathname}?${q}` : pathname)
+  }
+  const tab = (view: "list" | "portfolio", on: boolean) => (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={() => go(view)}
+      className={`rounded px-2.5 py-1 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent ${on ? "bg-surface2 text-txt" : "text-muted hover:text-txt"}`}
+    >
+      {t(view === "list" ? "projects.viewList" : "projects.viewPortfolio")}
+    </button>
+  )
+  return (
+    <div role="group" aria-label={t("projects.viewsLabel")} className="mb-4 inline-flex gap-1 self-start rounded-md border border-border p-0.5">
+      {tab("list", !portfolio)}
+      {tab("portfolio", portfolio)}
+    </div>
+  )
+}
+
+function ProjectsView() {
+  const portfolio = useSearchParams().get("view") === "portfolio"
   const { projects: hubProjects, activeProject, onProjectChange, demo, playground } = useApp()
   const { t, tn } = useT()
   const router = useRouter()
@@ -133,6 +173,10 @@ export default function ProjectsPage() {
       {/* a clone opens through `/`: the welcome for a project with no docs or roadmap, else its board (R082) */}
       {adding && <AddProjectDialog key={adding} mode={adding} onClose={() => setAdding(null)} onAdded={added} onCloned={(p) => { setAdding(null); router.push(`/?project=${encodeURIComponent(p.id)}`) }} />}
 
+      <ViewSwitch portfolio={portfolio} />
+      {portfolio && <PortfolioView />}
+
+      {!portfolio && <>
       {error && <p role="alert" className="text-sm text-danger">{t("projects.loadError", { error })}</p>}
       {!list && !error && <p className="text-sm text-muted">{t("projects.loading")}</p>}
 
@@ -151,6 +195,7 @@ export default function ProjectsPage() {
       )}
 
       {list && <GroupSection projects={list} />}
+      </>}
     </div>
   )
 }

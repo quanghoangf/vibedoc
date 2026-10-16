@@ -60,6 +60,8 @@ git(gitSrc, "clone", "-q", "--bare", "work", "listly.git")
 const cloneParent = mkdtempSync(path.join(os.tmpdir(), "vibedoc-clone-into-"))
 
 const errors = []
+/** R106 T549: portfolio fixtures, made inside the run and removed in finally. */
+const pf = []
 const browser = await launchChrome()
 try {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } })
@@ -291,16 +293,59 @@ try {
   assert.equal(again.status, 409, "an existing folder is never cloned over")
   console.log("ok  clone: option/ext:: URLs refused before git, git's error in words with nothing left, a good URL clones and opens")
 
+  // R106 T549: Portfolio view: one at-risk project of three (two of them a group) sorts first and names the epic
+  const pfProject = (label, taskStatus, group) => {
+    const root = makeFixture()
+    writeFileSync(path.join(root, "plans/roadmap/R002-epic.md"), `# R002: ${label} epic\n**Parent:** R001\n**Status:** in-progress\n**Order:** 10\n**Tasks:** T001\n`)
+    writeFileSync(path.join(root, "plans/tasks/T001-card.md"), `# T001: ${label} card\n**Status:** ${taskStatus}\n**Phase:** R002\n`)
+    if (group) writeFileSync(path.join(root, ".vibedoc/settings.json"), JSON.stringify({ groups: ["pf-group"], groupNames: { "pf-group": "Portfolio group" } }))
+    const p = { root, label, ...registerProject(root) }
+    pf.push(p)
+    return p
+  }
+  const risky = pfProject("Delta", "blocked", false)
+  pfProject("Echo", "in-progress", true)
+  pfProject("Foxtrot", "in-progress", true)
+  await page.goto(`${BASE}/projects?project=${a.id}`)
+  assert.equal(await page.getByRole("button", { name: "List", exact: true }).getAttribute("aria-pressed"), "true", "List stays the default view")
+  await page.getByRole("button", { name: "Portfolio", exact: true }).click()
+  await page.waitForURL((u) => u.searchParams.get("view") === "portfolio")
+  const pfRows = page.locator("[data-portfolio] > li")
+  await page.locator(`[data-portfolio-row="${risky.id}"]`).waitFor()
+  const order = await pfRows.evaluateAll((els) => els.map((el) => el.getAttribute("data-portfolio-row")))
+  assert.ok(order.indexOf(risky.id) < order.indexOf("group:pf-group"), `at-risk first: ${order.join(", ")}`)
+  for (const p of [a, b, c]) assert.ok(order.indexOf(risky.id) < order.indexOf(p.id), `at-risk before ${p.id}: ${order.join(", ")}`)
+  const riskyRow = page.locator(`[data-portfolio-row="${risky.id}"]`)
+  await riskyRow.getByRole("button", { name: "R002 Delta epic is at risk: open it" }).waitFor()
+  await riskyRow.getByText("1 blocked").waitFor()
+  await riskyRow.getByText(/🤖 \d+ · 👤 \d+ this week/).waitFor()
+  const groupRow = page.locator('[data-portfolio-row="group:pf-group"]')
+  await groupRow.getByText("Group · 2").waitFor()
+  await groupRow.getByRole("button", { name: "Show the projects in Portfolio group" }).click()
+  await groupRow.locator("[data-portfolio-row]").nth(1).waitFor()
+  assert.equal(await groupRow.locator("[data-portfolio-row]").count(), 2, "the group lists its two members")
+  console.log("ok  Portfolio: the at-risk project sorts first naming its epic; a group sums its members and expands")
+
+  // 390px: no horizontal scroll
+  await page.setViewportSize({ width: 390, height: 844 })
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal scroll at 390px")
+  await page.setViewportSize({ width: 1400, height: 900 })
+  // the chip opens that epic in its own project
+  await riskyRow.getByRole("button", { name: "R002 Delta epic is at risk: open it" }).click()
+  await page.waitForURL((u) => u.pathname === "/roadmap" && u.searchParams.get("project") === risky.id && u.searchParams.get("item") === "R002")
+  await page.getByText("Delta epic").first().waitFor()
+  console.log("ok  Portfolio: no horizontal scroll at 390px; the at-risk chip opens the epic in its project")
+
   assert.deepEqual(errors, [], "no page errors")
   console.log("ok  no page errors")
 } finally {
   await browser.close()
-  for (const p of [a, b, c]) rmSync(p.root, { recursive: true, force: true })
+  for (const p of [a, b, c, ...pf]) rmSync(p.root, { recursive: true, force: true })
   rmSync(work, { recursive: true, force: true })
   for (const d of [gitSrc, cloneParent]) rmSync(d, { recursive: true, force: true })
   // leave the hub as we found it, so a rerun against the same VIBEDOC_HOME sees only its own fixtures
   const hubFile = path.join(process.env.VIBEDOC_HOME, "hub.json")
   const hub = JSON.parse(readFileSync(hubFile, "utf8"))
-  hub.projects = hub.projects.filter((p) => ![a, b, c].some((x) => x.id === p.id) && !p.root.startsWith(work) && !p.root.startsWith(cloneParent))
+  hub.projects = hub.projects.filter((p) => ![a, b, c, ...pf].some((x) => x.id === p.id) && !p.root.startsWith(work) && !p.root.startsWith(cloneParent))
   writeFileSync(hubFile, JSON.stringify(hub, null, 2) + "\n")
 }
