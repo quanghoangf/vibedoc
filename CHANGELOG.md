@@ -1,3 +1,15 @@
+# [1.23.0](https://github.com/quanghoangf/vibedoc/compare/v1.22.1...v1.23.0) (2026-10-16)
+
+
+### Features
+
+* **docs:** read VibeDoc's own folders up front, load other folders on demand ([e94ab36](https://github.com/quanghoangf/vibedoc/commit/e94ab36abf3e7370cd27cd6420003016ff8bcea4))
+
+
+### Performance Improvements
+
+* **docs:** never walk build and dependency folders when listing Markdown ([8dae6f0](https://github.com/quanghoangf/vibedoc/commit/8dae6f04ca4c8e65869e859bbadd9587a98e3ffe))
+
 ## [1.22.1](https://github.com/quanghoangf/vibedoc/compare/v1.22.0...v1.22.1) (2026-10-14)
 
 
