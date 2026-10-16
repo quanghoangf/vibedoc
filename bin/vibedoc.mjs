@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { createRequire } from 'node:module'
-import { addressChangedMessage, appUrl, parsePortArg, portFile, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
+import { addToHub, addressChangedMessage, appUrl, parsePortArg, portFile, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
 import { repoRoot } from './repo-root.mjs'
 import { prepareDemo, sweepDemos } from './demo.mjs'
 
@@ -72,15 +72,29 @@ if (portArg.error) {
   console.error(`\n✗ ${portArg.error}\n`)
   process.exit(1)
 }
-const address = await resolveAddress({ root: PROJECT, explicit: portArg.port, saved: demo ? null : readSavedPort(HOME) })
+const address = await resolveAddress({ explicit: portArg.port, saved: demo ? null : readSavedPort(HOME) })
 if (address.error) {
   console.error(`\n✗ ${address.error}\n`)
   process.exit(1)
 }
+if (address.running && demo) {
+  // the demo's temp copy never joins the user's hub
+  console.error(`\n✗ VibeDoc already runs on port ${address.running}. Run the demo without --port.\n`)
+  process.exit(1)
+}
 if (address.running) {
-  // Already serving this project: don't start a second one on another port
-  console.log(`\n✓ VibeDoc is already running for this project\n\n${startupBanner({ root: PROJECT, port: address.running })}\n`)
-  await openBrowser(`${appUrl(address.running)}${START_PATH}`)
+  // A hub already runs (R100): add this repo to it and open it there, never a second server
+  let openPath = START_PATH
+  if (PROJECT) {
+    const added = await addToHub(address.running, PROJECT)
+    if (added.error) {
+      console.error(`\n✗ VibeDoc runs on ${appUrl(address.running)} but couldn't add ${PROJECT}: ${added.error}\n`)
+      process.exit(1)
+    }
+    openPath = `/?project=${encodeURIComponent(added.id)}`
+  }
+  console.log(`\n✓ VibeDoc is already running\n\n${startupBanner({ root: PROJECT, port: address.running })}\n`)
+  await openBrowser(`${appUrl(address.running)}${openPath}`)
   process.exit(0)
 }
 const port = address.start
@@ -144,7 +158,7 @@ server.on('exit', (code) => process.exit(code ?? 0))
 const url = `${appUrl(port)}${START_PATH}`
 
 console.log(`\n✓ VibeDoc is ready\n\n${startupBanner({ root: PROJECT, port })}\n`)
-if (address.changedFrom) console.log(`${addressChangedMessage({ oldPort: address.changedFrom, newPort: port })}\n`)
+if (address.changedFrom) console.log(`${addressChangedMessage({ oldPort: address.changedFrom, newPort: port, root: PROJECT })}\n`)
 await openBrowser(url)
 console.log('   Press Ctrl+C to stop the server.\n')
 

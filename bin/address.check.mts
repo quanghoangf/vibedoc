@@ -6,7 +6,7 @@ import { createServer } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer as createHttpServer } from 'node:http'
-import { addressChangedMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, portFile, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
+import { addToHub, addressChangedMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, portFile, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
 
 const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-address-'))
 const servers: { close(): unknown }[] = []
@@ -83,23 +83,44 @@ try {
   const emptyHub = base + 13
   await serve(emptyHub, '[]', 'application/json')
   assert.deepEqual(await probeVibedoc(emptyHub), { root: null })
-  assert.deepEqual(await resolveAddress({ root: null, explicit: null, saved: emptyHub }), { running: emptyHub })
-  assert.deepEqual(await resolveAddress({ root, explicit: null, saved: emptyHub }), { start: emptyHub + 1, changedFrom: emptyHub })
+  assert.deepEqual(await resolveAddress({ explicit: null, saved: emptyHub }), { running: emptyHub })
 
-  // Resolve: free saved port → start there; this project's VibeDoc → running; another program → next free + changedFrom
-  assert.deepEqual(await resolveAddress({ root, explicit: null, saved: closed }), { start: closed })
-  assert.deepEqual(await resolveAddress({ root, explicit: null, saved: vd }), { running: vd })
-  assert.deepEqual(await resolveAddress({ root: '/elsewhere', explicit: null, saved: vd }), { start: closed, changedFrom: vd })
-  assert.deepEqual(await resolveAddress({ root, explicit: null, saved: html }), { start: closed, changedFrom: html })
-  assert.match((await resolveAddress({ root, explicit: html, saved: null })).error ?? '', new RegExp(`Port ${html} is in use by another program`))
-  assert.deepEqual(await resolveAddress({ root, explicit: vd, saved: null }), { running: vd })
-  assert.deepEqual(await resolveAddress({ root: null, explicit: null, saved: vd }), { running: vd })
+  // addToHub: POSTs {root} with the CLI header → {id}; an error reply or a closed port → {error}
+  const hubPort = base + 14
+  let seen: { header?: string; body?: string } = {}
+  await new Promise<void>((resolve) => {
+    const s = createHttpServer((req, res) => {
+      let body = ''
+      req.on('data', (d) => { body += d })
+      req.on('end', () => {
+        seen = { header: req.headers['x-vibedoc-cli'] as string, body }
+        const ok = req.url === '/api/projects/add' && JSON.parse(body).root === root
+        res.writeHead(ok ? 200 : 400, { 'content-type': 'application/json' })
+        res.end(JSON.stringify(ok ? { id: 'p1', added: true } : { error: 'not a folder: x' }))
+      })
+    })
+    servers.push(s)
+    s.listen(hubPort, '127.0.0.1', () => resolve())
+  })
+  assert.deepEqual(await addToHub(hubPort, root), { id: 'p1' })
+  assert.equal(seen.header, '1')
+  assert.deepEqual(await addToHub(hubPort, '/nope'), { error: 'not a folder: x' })
+  assert.ok((await addToHub(closed, root)).error)
+
+  // Resolve: free saved port → start there; any VibeDoc hub → running (R100); another program → next free + changedFrom
+  assert.deepEqual(await resolveAddress({ explicit: null, saved: closed }), { start: closed })
+  assert.deepEqual(await resolveAddress({ explicit: null, saved: vd }), { running: vd })
+  assert.deepEqual(await resolveAddress({ explicit: null, saved: html }), { start: closed, changedFrom: html })
+  assert.match((await resolveAddress({ explicit: html, saved: null })).error ?? '', new RegExp(`Port ${html} is in use by another program`))
+  assert.deepEqual(await resolveAddress({ explicit: vd, saved: null }), { running: vd })
 
   const changed = addressChangedMessage({ oldPort: 3333, newPort: 3334 })
   assert.ok(changed.includes('Port 3333'))
   assert.ok(changed.includes('http://localhost:3334/api/mcp'))
   assert.ok(changed.includes('claude mcp remove vibedoc'))
   assert.ok(changed.includes(connectCommand(3334)))
+  const changedRoot = addressChangedMessage({ oldPort: 3333, newPort: 3334, root: '/p' })
+  assert.ok(changedRoot.includes(mcpUrl(3334, '/p')) && changedRoot.includes(connectCommand(3334, '/p')))
 
   // Ready: an app that starts answering after ~500 ms; a child that dies first; nothing answering at all
   const sleeper = () => spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'])

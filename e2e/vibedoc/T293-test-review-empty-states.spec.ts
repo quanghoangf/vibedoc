@@ -3,6 +3,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { registerFixture } from './hub-fixture'
 import { test, expect } from './kit/testing/playwright-fixture'
 
 const BASE = process.env.VIBEDOC_URL ?? 'http://localhost:3000'
@@ -10,6 +11,7 @@ test.use({ baseURL: BASE, vibedocTask: 'T293' })
 
 test('T293 Test review, suite and evidence empty states', async ({ page, step, context }) => {
   const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-t293-'))
+  await registerFixture(BASE, root)
   await page.route('**/api/projects', (route) => route.fulfill({ json: [{ id: 'fx', name: 'fx', root, hasVibedoc: true }] }))
   const empty = page.locator('[data-empty-state]')
   try {

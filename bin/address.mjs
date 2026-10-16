@@ -104,28 +104,42 @@ export async function probeVibedoc(port, timeoutMs = 1500) {
 }
 
 /**
- * Where to serve the project: `{ start: port, changedFrom? }`, `{ running: port }` when this project's VibeDoc already
- * serves it, or `{ error }` when a pinned `--port` is held by another program.
+ * Where to serve: `{ start: port, changedFrom? }`, `{ running: port }` when a VibeDoc hub already answers there (R100:
+ * whatever its projects; the CLI adds this repo to it), or `{ error }` when a pinned `--port` is held by another program.
  */
-export async function resolveAddress({ root, explicit, saved }) {
+export async function resolveAddress({ explicit, saved }) {
   const wanted = explicit ?? saved
   if (wanted == null) return { start: await firstFreePort() }
   if (!(await isPortTaken(wanted))) return { start: wanted }
-  const there = await probeVibedoc(wanted)
-  // not in a repo (root null): any VibeDoc there will do, it only has to show All projects
-  if (there && (root == null || (there.root != null && path.resolve(there.root) === path.resolve(root)))) return { running: wanted }
+  if (await probeVibedoc(wanted)) return { running: wanted }
   if (explicit != null) return { error: `Port ${explicit} is in use by another program. Stop it, or run vibedoc without --port.` }
   return { start: await firstFreePort(wanted + 1), changedFrom: wanted }
 }
 
+/** Adds `root` to the hub on `port` (POST /api/projects/add) → `{ id }`, or `{ error }` (3 s timeout). */
+export async function addToHub(port, root, timeoutMs = 3000) {
+  try {
+    const res = await fetch(`${appUrl(port)}/api/projects/add`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-vibedoc-cli': '1' },
+      body: JSON.stringify({ root }),
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    const body = await res.json().catch(() => ({}))
+    return res.ok && typeof body.id === 'string' ? { id: body.id } : { error: body.error ?? `HTTP ${res.status}` }
+  } catch (e) {
+    return { error: e.message }
+  }
+}
+
 /** Told when the usual port was taken: the new MCP URL and how to reconnect Claude Code. */
-export function addressChangedMessage({ oldPort, newPort }) {
+export function addressChangedMessage({ oldPort, newPort, root }) {
   return [
     `   ⚠ Port ${oldPort} (this project's usual address) is in use by another program.`,
-    `     VibeDoc now runs on ${newPort}, so the MCP URL changed to ${mcpUrl(newPort)}`,
+    `     VibeDoc now runs on ${newPort}, so the MCP URL changed to ${mcpUrl(newPort, root)}`,
     '     Reconnect Claude Code:',
     '     claude mcp remove vibedoc',
-    `     ${connectCommand(newPort)}`,
+    `     ${connectCommand(newPort, root)}`,
     `     Other agents: point their MCP config at the new URL. VibeDoc keeps ${newPort} from now on.`,
   ].join('\n')
 }

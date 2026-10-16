@@ -1,9 +1,12 @@
 # T534: A second `npx vibedoc` opens its repo in the running hub
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R100 — Auto-detect current repo
 **Size:** M (2–3 hrs)
 **Depends on:** T533
 **Covers:** S2
+**Owner:** ai:claude
+**Due:** 2026-10-19
+**Started:** 2026-10-16
 
 ## Goal
 When VibeDoc is already running, `npx vibedoc` in another repo adds that repo to the running hub and opens it there, never starting a second server.
@@ -37,12 +40,21 @@ When VibeDoc is already running, `npx vibedoc` in another repo adds that repo to
 - [ ] `e2e/stable-address.mjs` passes
 - [ ] The 8 kit specs above pass again against a server with a temp `VIBEDOC_HOME`
 
-## Manual tests
-- [ ] S2 — WHEN VibeDoc is already running and the user runs `npx vibedoc` in another repo → THEN no second VibeDoc starts and the browser opens that repo in the running one
-
 ## Verify
 ```bash
 node bin/address.check.mts
 pnpm lint && pnpm build
 node e2e/stable-address.mjs
 ```
+
+## Manual tests
+_2026-10-16 — ai_
+### Steps
+- [x] S2 — WHEN VibeDoc is already running and the user runs `npx vibedoc` in another repo → THEN no second VibeDoc starts and the browser opens that repo in the running one
+- [x] `node e2e/stable-address.mjs` (PORT=3111) → repo B joins the running hub: one listener on the port, both repos in /api/projects, open target `/?project=<B id>`, SSE `projects_updated`, A's MCP URL still answers
+- [x] `POST /api/projects/add` with `Origin: http://evil.example`, or with no Origin and no `x-vibedoc-cli` header → 403
+- [x] The 8 kit specs (T270–T272, T290–T294) pass against `next start` with a temp VIBEDOC_HOME
+- [ ] With a VibeDoc tab open on repo A, run `npx vibedoc` in repo B → the browser opens B, and A's tab shows B in the project switcher without a reload
+### Regression risk
+- [ ] Another program on the usual port: `npx vibedoc` moves to the next free port and prints the ⚠ reconnect block with the project's `?root=` MCP URL
+- [ ] `npx vibedoc --demo` while VibeDoc runs on 3333 → the demo starts on its own free port and the hub doesn't gain the demo copy

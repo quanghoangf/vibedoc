@@ -557,6 +557,19 @@ export async function updateHubProject(id: string, patch: { name?: unknown; pinn
   })
 }
 
+/** Adds a folder to the hub (R100: `npx vibedoc` in a repo while VibeDoc runs); an existing root returns its entry. */
+export async function addHubProject(root: unknown): Promise<{ project: HubProject; added: boolean }> {
+  if (typeof root !== 'string' || !path.isAbsolute(root.trim())) throw new HubError('give the folder\'s absolute path, e.g. /Users/me/code/web')
+  const dir = path.resolve(root.trim())
+  if (!(await isDirectory(dir))) throw new HubError(`not a folder: ${dir}`)
+  await readHub()
+  return withHubLock(async () => {
+    const { hub, project, added } = addProject(await readHubFile(), dir)
+    if (added) await writeHub(hub)
+    return { project, added }
+  })
+}
+
 /** Drops a project from the hub (the entry only: nothing in its folder changes). Returns the entry for Undo. */
 export async function removeHubProject(id: string): Promise<HubProject> {
   await readHub()
