@@ -16,7 +16,9 @@ cd your-project
 npx vibedoc
 ```
 
-VibeDoc prints the app URL, the MCP URL and the command to connect Claude Code in the terminal, then opens your browser on the screen that fits the project: a new project gets a welcome with one first move (plan the roadmap from your docs, or plan the first epics with the agent), and a project that already has tasks or a roadmap opens the board, or the page you used last. The template wizard is optional: **Write project docs** on the welcome opens it. A project keeps the same port on every run (saved in `.vibedoc/port`), so the agent's MCP URL stays the same between restarts. Choose another one with `npx vibedoc --port 4000`.
+VibeDoc prints the app URL, the MCP URL and the command to connect Claude Code in the terminal, then opens your browser on the screen that fits the project: a new project gets a welcome with one first move (plan the roadmap from your docs, or plan the first epics with the agent), and a project that already has tasks or a roadmap opens the board, or the page you used last. The template wizard is optional: **Write project docs** on the welcome opens it. Choose another port with `npx vibedoc --port 4000`.
+
+**One VibeDoc for all your projects.** Run `npx vibedoc` anywhere inside a repo, even in a package folder of a monorepo: VibeDoc walks up to the folder with `.git`, adds that repo to **All projects** the first time, and opens it. Every project is served from the same address, on the same port on every run (saved in `~/.vibedoc/port`), and each one has its own MCP URL (`…/api/mcp?root=<project folder>`), so the agent's URL stays the same between restarts. Run it outside any repo and All projects opens.
 
 To keep a `vibedoc` command instead of `npx`, install it with any channel. Every channel serves the same version; `vibedoc --version` shows yours.
 
@@ -45,18 +47,18 @@ irm https://quanghoangf.github.io/vibedoc/install.ps1 | iex
 
 Uninstalling removes only VibeDoc's Node, package and launcher, never your projects or saved test runs.
 
-VibeDoc reads the folder you start it in. For another folder: `VIBEDOC_ROOT=/path/to/project npx vibedoc`.
+VibeDoc opens the repo you start it in. For another folder: `VIBEDOC_ROOT=/path/to/project npx vibedoc`.
 
 ## 2. Connect your agent
 
-The MCP server is `http://localhost:<port>/api/mcp` (HTTP JSON-RPC). Use the port from the terminal.
+The MCP server is `http://localhost:<port>/api/mcp?root=<project folder>` (HTTP JSON-RPC). Use the MCP URL the terminal prints.
 
 Easiest: open **Settings → Connect agent** (`/settings?tab=connect`) in VibeDoc. For Claude Code it adds the MCP server and installs the `/vibedoc:*` skills after you confirm each command; for Cursor or another agent it shows the config to paste. Each step turns ✓ only from evidence: the agent's first VibeDoc tool call, or the plugin found in `claude plugin list`. The commands below do the same by hand.
 
 **Claude Code**
 
 ```bash
-claude mcp add --transport http vibedoc http://localhost:3333/api/mcp
+claude mcp add --transport http vibedoc 'http://localhost:3333/api/mcp?root=%2Fpath%2Fto%2Fproject'
 ```
 
 **Cursor**: `.cursor/mcp.json` in the project root. **Windsurf**: `~/.codeium/windsurf/mcp_config.json`.
@@ -64,7 +66,7 @@ claude mcp add --transport http vibedoc http://localhost:3333/api/mcp
 ```json
 {
   "mcpServers": {
-    "vibedoc": { "url": "http://localhost:3333/api/mcp" }
+    "vibedoc": { "url": "http://localhost:3333/api/mcp?root=%2Fpath%2Fto%2Fproject" }
   }
 }
 ```

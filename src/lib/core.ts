@@ -269,10 +269,20 @@ export async function writeHub(hub: Hub): Promise<void> {
   hubRootsCache = null
 }
 
-/** The hub, with the configured root added on first read so a single-project user sees no change. */
+/**
+ * The root the hub adds on first read: the CLI's `VIBEDOC_ADD_ROOT` (R100: the repo it ran in, '' outside any repo),
+ * else the configured root, so a single-project user sees no change.
+ */
+function hubAddRoot(): string | null {
+  const add = process.env.VIBEDOC_ADD_ROOT ?? getConfiguredRoot()
+  return add ? normalizeRoot(path.resolve(add)) : null
+}
+
+/** The hub, with `hubAddRoot()` added on first read. */
 export async function readHub(): Promise<Hub> {
   const hub = await readHubFile()
-  const root = normalizeRoot(path.resolve(getConfiguredRoot()))
+  const root = hubAddRoot()
+  if (!root) return hub
   // the demo and `--demo` playground never write the user's hub (their copy lives in a temp folder)
   if (hub.projects.some(p => p.root === root) || isDemo() || isPlayground()) return hub
   return withHubLock(async () => {

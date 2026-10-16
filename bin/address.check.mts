@@ -1,12 +1,12 @@
-// Self-check for the project's stable address (R080). Run: node bin/address.check.mts
+// Self-check for the stable address (R080, R100). Run: node bin/address.check.mts
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer as createHttpServer } from 'node:http'
-import { addressChangedMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, waitUntilReady } from './address.mjs'
+import { addressChangedMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, portFile, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
 
 const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-address-'))
 const servers: { close(): unknown }[] = []
@@ -16,19 +16,27 @@ const hold = (port: number, host?: string) => new Promise<void>((resolve) => {
   s.listen(port, host, () => resolve())
 })
 try {
-  // Save / read round trip; missing or garbage file → null
-  assert.equal(readSavedPort(root), null)
-  assert.equal(savePort(root, 4321), true)
-  assert.equal(readSavedPort(root), 4321)
-  writeFileSync(path.join(root, '.vibedoc', 'port'), 'not a port\n')
-  assert.equal(readSavedPort(root), null)
-  writeFileSync(path.join(root, '.vibedoc', 'port'), '70000\n')
-  assert.equal(readSavedPort(root), null)
-  // A file where the folder should be → can't save, no throw
-  const blocked = mkdtempSync(path.join(tmpdir(), 'vibedoc-address-ro-'))
-  writeFileSync(path.join(blocked, '.vibedoc'), '')
+  // Save / read round trip in the home folder (<home>/port, R100); missing or garbage file → null
+  const home = path.join(root, 'home')
+  assert.equal(readSavedPort(home), null)
+  assert.equal(savePort(home, 4321), true)
+  assert.equal(readSavedPort(home), 4321)
+  assert.equal(portFile(home), path.join(home, 'port'))
+  writeFileSync(portFile(home), 'not a port\n')
+  assert.equal(readSavedPort(home), null)
+  writeFileSync(portFile(home), '70000\n')
+  assert.equal(readSavedPort(home), null)
+  // A file where the home folder should be → can't save, no throw
+  const blocked = path.join(root, 'blocked')
+  writeFileSync(blocked, '')
   assert.equal(savePort(blocked, 4321), false)
-  rmSync(blocked, { recursive: true, force: true })
+  // home = $VIBEDOC_HOME, else ~/.vibedoc (same as core's hubFile)
+  const prevHome = process.env.VIBEDOC_HOME
+  process.env.VIBEDOC_HOME = home
+  assert.equal(vibedocHome(), home)
+  delete process.env.VIBEDOC_HOME
+  assert.equal(vibedocHome(), path.join(homedir(), '.vibedoc'))
+  if (prevHome !== undefined) process.env.VIBEDOC_HOME = prevHome
 
   // --port parsing
   assert.deepEqual(parsePortArg([]), { port: null })
@@ -47,12 +55,17 @@ try {
   assert.equal(await isPortTaken(base + 1), true)
   assert.equal(await firstFreePort(base), base + 2)
 
-  // Banner: app URL, MCP URL, connect command
-  const banner = startupBanner({ root: '/p', port: 3333 })
+  // Banner: app URL, the project's MCP URL (?root=, encoded), the quoted connect command; same text on every run
+  const banner = startupBanner({ root: '/p/my repo', port: 3333 })
   assert.match(banner, /App: +http:\/\/localhost:3333\n/)
-  assert.ok(banner.includes(mcpUrl(3333)))
-  assert.ok(banner.includes('claude mcp add --transport http vibedoc http://localhost:3333/api/mcp'))
+  assert.equal(mcpUrl(3333, '/p/my repo'), 'http://localhost:3333/api/mcp?root=%2Fp%2Fmy%20repo')
+  assert.ok(banner.includes('MCP:     http://localhost:3333/api/mcp?root=%2Fp%2Fmy%20repo'))
+  assert.ok(banner.includes("claude mcp add --transport http vibedoc 'http://localhost:3333/api/mcp?root=%2Fp%2Fmy%20repo'"))
+  assert.equal(banner, startupBanner({ root: '/p/my repo', port: 3333 }))
   assert.equal(connectCommand(3333), 'claude mcp add --transport http vibedoc http://localhost:3333/api/mcp')
+  // Not in a repo: no project, no MCP line, says All projects
+  const loose = startupBanner({ root: null, port: 3333 })
+  assert.ok(loose.includes('All projects') && !loose.includes('/api/mcp'))
 
   // Probe: a VibeDoc answers /api/projects with its root first; HTML or a closed port is "another program"
   const serve = (port: number, body: string, type: string) => new Promise<void>((resolve) => {
@@ -66,6 +79,12 @@ try {
   assert.deepEqual(await probeVibedoc(vd), { root })
   assert.equal(await probeVibedoc(html), null)
   assert.equal(await probeVibedoc(closed), null)
+  // A hub with no projects yet (started outside a repo) still is a VibeDoc
+  const emptyHub = base + 13
+  await serve(emptyHub, '[]', 'application/json')
+  assert.deepEqual(await probeVibedoc(emptyHub), { root: null })
+  assert.deepEqual(await resolveAddress({ root: null, explicit: null, saved: emptyHub }), { running: emptyHub })
+  assert.deepEqual(await resolveAddress({ root, explicit: null, saved: emptyHub }), { start: emptyHub + 1, changedFrom: emptyHub })
 
   // Resolve: free saved port → start there; this project's VibeDoc → running; another program → next free + changedFrom
   assert.deepEqual(await resolveAddress({ root, explicit: null, saved: closed }), { start: closed })
@@ -74,6 +93,7 @@ try {
   assert.deepEqual(await resolveAddress({ root, explicit: null, saved: html }), { start: closed, changedFrom: html })
   assert.match((await resolveAddress({ root, explicit: html, saved: null })).error ?? '', new RegExp(`Port ${html} is in use by another program`))
   assert.deepEqual(await resolveAddress({ root, explicit: vd, saved: null }), { running: vd })
+  assert.deepEqual(await resolveAddress({ root: null, explicit: null, saved: vd }), { running: vd })
 
   const changed = addressChangedMessage({ oldPort: 3333, newPort: 3334 })
   assert.ok(changed.includes('Port 3333'))

@@ -3,7 +3,8 @@ import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { createRequire } from 'node:module'
-import { addressChangedMessage, appUrl, parsePortArg, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, waitUntilReady } from './address.mjs'
+import { addressChangedMessage, appUrl, parsePortArg, portFile, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
+import { repoRoot } from './repo-root.mjs'
 import { prepareDemo, sweepDemos } from './demo.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -53,31 +54,37 @@ const demo = args.includes('--demo') ? prepareDemo() : null
 if (demo) process.on('exit', demo.cleanup) // exit handlers run sync code only: cleanup uses rmSync
 const demoEnv = demo ? { VIBEDOC_PLAYGROUND: '1', VIBEDOC_RUNS_DIR: demo.runsDir } : {}
 
-// The page the browser opens on start: / redirects to the first screen that fits the project (R082); the demo opens its board
-const START_PATH = demo ? '/board' : '/'
+// The project (R100): VIBEDOC_ROOT when set, else the repo the user's cwd is in (captured before spawning Next.js,
+// which runs from projectRoot); null = not in a repo, so the browser opens All projects
+const PROJECT = demo?.root || (process.env.VIBEDOC_ROOT && path.resolve(process.env.VIBEDOC_ROOT)) || repoRoot(process.cwd())
+// The server's configured (default) project; outside a repo the cwd, which the hub doesn't add (VIBEDOC_ADD_ROOT '')
+const VIBEDOC_ROOT = PROJECT || process.cwd()
 
-// Capture the user's cwd before spawning Next.js (which runs from projectRoot)
-const VIBEDOC_ROOT = demo?.root || process.env.VIBEDOC_ROOT || process.cwd()
+// The page the browser opens on start: /?root= maps the project to its hub id and the first screen that fits it
+// (R082, R100); outside a repo All projects; the demo opens its board
+const START_PATH = demo ? '/board' : PROJECT ? `/?root=${encodeURIComponent(PROJECT)}` : '/projects'
 
-// The project's address (R080): --port N, else the saved port, else the first free one from 3333; saved for next time
+// The hub's address (R080, R100): --port N, else the port saved in the VibeDoc home, else the first free one from
+// 3333; saved for next time. The demo never reads or saves it (its copy is throwaway)
+const HOME = vibedocHome()
 const portArg = parsePortArg(args)
 if (portArg.error) {
   console.error(`\n✗ ${portArg.error}\n`)
   process.exit(1)
 }
-const address = await resolveAddress({ root: VIBEDOC_ROOT, explicit: portArg.port, saved: readSavedPort(VIBEDOC_ROOT) })
+const address = await resolveAddress({ root: PROJECT, explicit: portArg.port, saved: demo ? null : readSavedPort(HOME) })
 if (address.error) {
   console.error(`\n✗ ${address.error}\n`)
   process.exit(1)
 }
 if (address.running) {
   // Already serving this project: don't start a second one on another port
-  console.log(`\n✓ VibeDoc is already running for this project\n\n${startupBanner({ root: VIBEDOC_ROOT, port: address.running })}\n`)
+  console.log(`\n✓ VibeDoc is already running for this project\n\n${startupBanner({ root: PROJECT, port: address.running })}\n`)
   await openBrowser(`${appUrl(address.running)}${START_PATH}`)
   process.exit(0)
 }
 const port = address.start
-if (!savePort(VIBEDOC_ROOT, port)) console.log(`   (Couldn't save the port to ${path.join(VIBEDOC_ROOT, '.vibedoc', 'port')}; the next run may use another one.)`)
+if (!demo && !savePort(HOME, port)) console.log(`   (Couldn't save the port to ${portFile(HOME)}; the next run may use another one.)`)
 
 console.log('\n🚀 Starting VibeDoc...\n')
 if (demo) console.log(`   Demo: a sample project in a temporary copy (${VIBEDOC_ROOT}), deleted when you stop VibeDoc\n`)
@@ -88,7 +95,8 @@ const server = spawn(process.execPath, [nextBin, 'start', '-p', String(port)], {
   stdio: ['inherit', 'inherit', 'pipe'],
   cwd: projectRoot,
   // VIBEDOC_PORT: the app's own port, for an in-app Connect panel (R081)
-  env: { ...process.env, VIBEDOC_ROOT, VIBEDOC_PORT: String(port), ...demoEnv }
+  // VIBEDOC_ADD_ROOT: the repo the hub adds on its first read (R100); '' outside a repo, so the cwd isn't added
+  env: { ...process.env, VIBEDOC_ROOT, VIBEDOC_ADD_ROOT: PROJECT || '', VIBEDOC_PORT: String(port), ...demoEnv }
 })
 
 // Handle graceful shutdown
@@ -135,7 +143,7 @@ server.on('exit', (code) => process.exit(code ?? 0))
 
 const url = `${appUrl(port)}${START_PATH}`
 
-console.log(`\n✓ VibeDoc is ready\n\n${startupBanner({ root: VIBEDOC_ROOT, port })}\n`)
+console.log(`\n✓ VibeDoc is ready\n\n${startupBanner({ root: PROJECT, port })}\n`)
 if (address.changedFrom) console.log(`${addressChangedMessage({ oldPort: address.changedFrom, newPort: port })}\n`)
 await openBrowser(url)
 console.log('   Press Ctrl+C to stop the server.\n')
