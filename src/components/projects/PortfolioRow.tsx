@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, ChevronRight, Clock } from "lucide-react"
+import { AlertTriangle, Bot, ChevronRight, Clock, User } from "lucide-react"
 import { groupHref, useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { cn } from "@/lib/utils"
@@ -34,7 +34,7 @@ export function PortfolioView() {
   if (error) return <p role="alert" className="text-sm text-danger">{t("projects.portfolioError", { error })}</p>
   if (!rows) return <p className="text-sm text-muted">{t("projects.loading")}</p>
   return (
-    <ul data-portfolio className="divide-y divide-border">
+    <ul data-portfolio className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
       {rows.map((r) => <PortfolioRow key={r.kind === "group" ? `g:${r.slug}` : r.id} row={r} />)}
     </ul>
   )
@@ -51,7 +51,7 @@ export function PortfolioRow({ row, nested = false }: { row: Row; nested?: boole
   const openEpic = (e: EpicRef) => onProjectChange(e.project, `/roadmap?item=${encodeURIComponent(e.id)}`)
 
   return (
-    <li data-portfolio-row={group ? `group:${group.slug}` : (row as ProjectStats).id} className={cn("py-3", nested && "pl-6")}>
+    <li data-portfolio-row={group ? `group:${group.slug}` : (row as ProjectStats).id} className={cn("px-3 py-3", nested && "pl-9")}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-1 basis-48 items-center gap-1">
           {group && (
@@ -69,7 +69,7 @@ export function PortfolioRow({ row, nested = false }: { row: Row; nested?: boole
             type="button"
             onClick={openRoadmap}
             aria-label={t("projects.portfolioOpenRoadmap", { name: row.name })}
-            className="truncate rounded text-left font-medium text-txt hover:underline focus-visible:ring-2 focus-visible:ring-accent outline-none"
+            className="truncate rounded-sm text-left text-sm font-medium text-txt underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-accent outline-none"
             data-user-content
           >
             {row.name}
@@ -89,7 +89,7 @@ export function PortfolioRow({ row, nested = false }: { row: Row; nested?: boole
         </ul>
       )}
       {group && open && (
-        <ul className="mt-2 divide-y divide-border border-t border-border">
+        <ul className="-mx-3 mt-3 -mb-3 divide-y divide-border border-t border-border bg-bg/40">
           {group.members.map((m) => <PortfolioRow key={m.id} row={m} nested />)}
         </ul>
       )}
@@ -105,7 +105,7 @@ function Stats({ row }: { row: Row }) {
     <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
       <div className="flex items-center gap-2">
         <dt className="sr-only">{t("projects.portfolioProgress")}</dt>
-        <span aria-hidden className="h-1.5 w-20 overflow-hidden rounded-full bg-surface2">
+        <span aria-hidden className="h-1.5 w-24 overflow-hidden rounded-full bg-surface2 ring-1 ring-border2 ring-inset">
           <span className="block h-full rounded-full bg-teal" style={{ width: total ? `${(done / total) * 100}%` : 0 }} />
         </span>
         <dd>{t("projects.portfolioEpics", { done, total })}</dd>
@@ -115,7 +115,11 @@ function Stats({ row }: { row: Row }) {
       )}
       <div title={t("projects.portfolioWeekTitle")}>
         <dt className="sr-only">{t("projects.portfolioWeekTitle")}</dt>
-        <dd data-done-week>{t("projects.portfolioWeek", { ai: row.doneThisWeek.ai, human: row.doneThisWeek.human })}</dd>
+        <dd data-done-week aria-label={t("projects.portfolioWeek", { ai: row.doneThisWeek.ai, human: row.doneThisWeek.human })} className="flex items-center gap-1.5 tabular-nums">
+          <Bot aria-hidden className="size-3.5" /><span className="text-txt">{row.doneThisWeek.ai}</span>
+          <User aria-hidden className="ml-1 size-3.5" /><span className="text-txt">{row.doneThisWeek.human}</span>
+          <span>{t("projects.portfolioWeekShort")}</span>
+        </dd>
       </div>
       <div>
         <dt className="sr-only">{t("projects.portfolioLastLabel")}</dt>

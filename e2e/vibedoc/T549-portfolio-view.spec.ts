@@ -45,11 +45,11 @@ test('T549 Portfolio view on All projects', async ({ page, step, request }) => {
       expect(rows.indexOf(lima)).toBeLessThan(rows.indexOf(mike))
     })
 
-    await step('A Portfolio row shows epic progress, blocked tasks and done this week → "0/1 epics", "1 blocked", "🤖 0 · 👤 0 this week"', async () => {
+    await step('A Portfolio row shows epic progress, blocked tasks and done this week → "0/1 epics", "1 blocked", "0 by agents · 0 by you this week"', async () => {
       const row = page.locator(`[data-portfolio-row="${lima}"]`)
       await expect(row.getByText('0/1 epics')).toBeVisible()
       await expect(row.getByText('1 blocked')).toBeVisible()
-      await expect(row.getByText('🤖 0 · 👤 0 this week')).toBeVisible()
+      await expect(row.getByLabel('0 by agents · 0 by you this week')).toBeVisible()
     })
 
     await step('At 390px wide → the Portfolio has no horizontal scroll', async () => {

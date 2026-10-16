@@ -132,6 +132,11 @@ try {
 
   // T531: All projects lists the three with their open tasks; Open switches to one
   const row = (p) => page.locator(`[data-project-row="${p.id}"]`)
+  // Pin / Rename / Archive / Remove live in each row's ⋯ menu
+  const act = async (p, name) => {
+    await row(p).getByRole("button", { name: /^More actions for / }).click()
+    await page.getByRole("menuitem", { name: new RegExp(`^${name}`) }).click()
+  }
   await page.goto(`${BASE}/projects?project=${a.id}`)
   for (const p of [a, b, c]) await row(p).getByText("1 open task").waitFor()
   await row(c).getByRole("button", { name: `Open ${c.name}` }).click()
@@ -142,7 +147,7 @@ try {
   // Rename = the switcher label, never the folder
   const renamed = `Bravo renamed ${b.id}`
   await page.goto(`${BASE}/projects?project=${c.id}`)
-  await row(b).getByRole("button", { name: "Rename" }).click()
+  await act(b, "Rename")
   await row(b).getByLabel(`Display name of ${b.name}`).fill(renamed)
   await row(b).getByRole("button", { name: "Save" }).click()
   await row(b).getByText(renamed).waitFor()
@@ -153,9 +158,9 @@ try {
   console.log("ok  rename changes the switcher label, not the folder")
 
   // Pin sorts first; archive leaves the switcher
-  await row(b).getByRole("button", { name: "Pin" }).click()
+  await act(b, "Pin")
   await page.waitForFunction((id) => document.querySelector("[data-project-row]")?.getAttribute("data-project-row") === id, b.id)
-  await row(a).getByRole("button", { name: "Archive" }).click()
+  await act(a, "Archive")
   await page.getByText("Archived (1)").waitFor()
   await page.reload()
   await page.getByText("Archived (1)").waitFor()
@@ -165,14 +170,18 @@ try {
   assert.equal(await page.getByRole("menuitem", { name: new RegExp(a.name) }).count(), 0)
   await page.keyboard.press("Escape")
   await page.getByText("Archived (1)").click()
-  await row(a).getByRole("button", { name: "Unarchive" }).click()
-  await row(a).getByRole("button", { name: "Archive" }).waitFor()
+  await act(a, "Unarchive")
+  await row(a).getByRole("button", { name: /^More actions for / }).click()
+  await page.getByRole("menuitem", { name: /^Archive/ }).waitFor()
+  await page.keyboard.press("Escape")
   console.log("ok  pinned sorts first, archived is hidden from the switcher")
 
   // Remove: row gone, folder byte-for-byte the same, Undo brings it back; the current project can't be removed
-  assert.ok(await row(c).getByRole("button", { name: "Remove" }).isDisabled())
+  await row(c).getByRole("button", { name: /^More actions for / }).click()
+  assert.equal(await page.getByRole("menuitem", { name: /^Remove/ }).getAttribute("aria-disabled"), "true", "the current project can't be removed")
+  await page.keyboard.press("Escape")
   const before = folderHash(a.root)
-  await row(a).getByRole("button", { name: "Remove" }).click()
+  await act(a, "Remove")
   await row(a).waitFor({ state: "detached" })
   await page.getByText(/Removed .* Its files are untouched/).waitFor()
   assert.equal(folderHash(a.root), before)
@@ -332,7 +341,7 @@ try {
   const riskyRow = page.locator(`[data-portfolio-row="${risky.id}"]`)
   await riskyRow.getByRole("button", { name: "R002 Delta epic is at risk: open it" }).waitFor()
   await riskyRow.getByText("1 blocked").waitFor()
-  await riskyRow.getByText(/🤖 \d+ · 👤 \d+ this week/).waitFor()
+  await riskyRow.getByLabel(/\d+ by agents · \d+ by you this week/).waitFor()
   const groupRow = page.locator('[data-portfolio-row="group:pf-group"]')
   await groupRow.getByText("Group · 2").waitFor()
   await groupRow.getByRole("button", { name: "Show the projects in Portfolio group" }).click()

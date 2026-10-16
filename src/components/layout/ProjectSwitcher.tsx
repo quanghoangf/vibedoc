@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useApp } from "@/context/AppContext"
 import type { Project } from "@/types"
-import { Check, ChevronsUpDown, FolderPlus, Layers } from "lucide-react"
+import { Check, ChevronsUpDown, FolderPlus, Layers, LayoutList } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { chooseAndAddFolder } from "@/components/projects/AddProjectDialog"
 import { toast } from "@/components/ui/toast"
@@ -165,6 +165,10 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
             <DropdownMenuItem onSelect={addProject} className="cursor-pointer text-muted hover:bg-surface2 focus:bg-surface2" data-switcher-add>
               <FolderPlus aria-hidden className="size-3.5 shrink-0" />
               {t("shell.addProject")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => router.push("/projects")} className="cursor-pointer text-muted hover:bg-surface2 focus:bg-surface2" data-switcher-manage>
+              <LayoutList aria-hidden className="size-3.5 shrink-0" />
+              {t("shell.allProjects")}
             </DropdownMenuItem>
           </>
         )}

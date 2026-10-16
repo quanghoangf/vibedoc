@@ -2,11 +2,11 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Archive, ChevronDown, FolderPlus } from "lucide-react"
+import { Archive, ChevronDown, ChevronRight, FolderOpen, FolderPlus, GitBranch, ScanSearch, TextCursorInput } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { EmptyState } from "@/components/shared/EmptyState"
-import { ProjectRow, type ProjectWithCounts } from "@/components/projects/ProjectRow"
+import { PROJECT_GRID, ProjectRow, type ProjectWithCounts } from "@/components/projects/ProjectRow"
 import { AddProjectDialog, chooseAndAddFolder, type AddedProject, type AddMode } from "@/components/projects/AddProjectDialog"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -55,13 +55,13 @@ function ViewSwitch({ portfolio }: { portfolio: boolean }) {
       type="button"
       aria-pressed={on}
       onClick={() => go(view)}
-      className={`rounded px-2.5 py-1 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent ${on ? "bg-surface2 text-txt" : "text-muted hover:text-txt"}`}
+      className={`h-7 rounded-[5px] px-3 text-xs font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-accent ${on ? "bg-bg text-txt shadow-[0_1px_2px_rgb(0_0_0/0.18)] ring-1 ring-border2" : "text-muted hover:text-txt"}`}
     >
       {t(view === "list" ? "projects.viewList" : "projects.viewPortfolio")}
     </button>
   )
   return (
-    <div role="group" aria-label={t("projects.viewsLabel")} className="mb-4 inline-flex gap-1 self-start rounded-md border border-border p-0.5">
+    <div role="group" aria-label={t("projects.viewsLabel")} className="inline-flex gap-0.5 rounded-md bg-surface2 p-0.5">
       {tab("list", !portfolio)}
       {tab("portfolio", portfolio)}
     </div>
@@ -168,29 +168,46 @@ function ProjectsView() {
     />
   )
 
+  const summary = list
+    ? [tn("projects.countProjects", active.length), archived.length > 0 && t("projects.countArchived", { n: archived.length })].filter(Boolean).join(" · ")
+    : null
+
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col px-6 py-8">
-      <header className="mb-4 border-b border-border pb-5">
-        <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">{t("projects.title")}</h1>
-        <div className="mt-2 flex flex-wrap items-start gap-3">
-          <p className="max-w-2xl flex-1 text-sm text-muted">{t("projects.lead")}</p>
-          {!demo && !playground && <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm"><FolderPlus />{t("projects.add")}<ChevronDown className="opacity-70" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onSelect={choose}>{t("projects.addChoose")}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setAdding("path")}>{t("projects.addFromPath")}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setAdding("scan")}>{t("projects.addScan")}</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setAdding("clone")}>{t("projects.addClone")}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>}
+    <div className="mx-auto flex w-full max-w-5xl flex-col px-4 py-8 sm:px-6">
+      <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0">
+          <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">{t("projects.title")}</h1>
+          <p className="mt-1.5 max-w-xl text-sm text-muted">{t("projects.lead")}</p>
         </div>
+        {!demo && !playground && <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="sm" className="h-9"><FolderPlus />{t("projects.add")}<ChevronDown className="opacity-70" /></Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-72 p-1">
+            {([
+              ["choose", FolderOpen, "projects.addChoose", "projects.addChooseHint"],
+              ["path", TextCursorInput, "projects.addFromPath", "projects.addFromPathHint"],
+              ["scan", ScanSearch, "projects.addScan", "projects.addScanHint"],
+              ["clone", GitBranch, "projects.addClone", "projects.addCloneHint"],
+            ] as const).map(([mode, Icon, label, hint]) => (
+              <DropdownMenuItem key={mode} onSelect={() => (mode === "choose" ? choose() : setAdding(mode))} className="items-start gap-3 py-2">
+                <Icon className="mt-0.5 text-muted" />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-sm text-txt">{t(label)}</span>
+                  <span className="text-xs text-muted">{t(hint)}</span>
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>}
       </header>
       {/* a clone opens through `/`: the welcome for a project with no docs or roadmap, else its board (R082) */}
       {adding && <AddProjectDialog key={adding} mode={adding} onClose={() => setAdding(null)} onAdded={added} onCloned={(p) => { setAdding(null); router.push(`/?project=${encodeURIComponent(p.id)}`) }} />}
 
-      <ViewSwitch portfolio={portfolio} />
+      <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-3">
+        <ViewSwitch portfolio={portfolio} />
+        {!portfolio && summary && <p className="text-xs text-muted tabular-nums">{summary}</p>}
+      </div>
       {portfolio && <PortfolioView />}
 
       {!portfolio && <>
@@ -200,14 +217,26 @@ function ProjectsView() {
       {list && active.length === 0 && (
         <EmptyState icon={<Archive className="size-6" />} message={t("projects.allArchived")} lead={t("projects.allArchivedLead")} />
       )}
-      {active.length > 0 && <ul className="divide-y divide-border">{active.map(row)}</ul>}
+      {active.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-border bg-surface">
+          <div aria-hidden className={`hidden border-b border-border px-3 py-2 font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase ${PROJECT_GRID}`}>
+            <span>{t("projects.colProject")}</span>
+            <span className="text-right">{t("projects.colOpen")}</span>
+            <span className="text-right">{t("projects.colNeeds")}</span>
+            <span className="text-right">{t("projects.colOpened")}</span>
+            <span />
+          </div>
+          <ul className="divide-y divide-border">{active.map(row)}</ul>
+        </div>
+      )}
 
       {archived.length > 0 && (
-        <details className="mt-6 group">
-          <summary className="cursor-pointer select-none text-sm text-muted hover:text-txt" aria-label={t("projects.showArchived")}>
+        <details className="group mt-4">
+          <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-sm text-sm text-muted outline-none select-none hover:text-txt focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-details-marker]:hidden" aria-label={t("projects.showArchived")}>
+            <ChevronRight aria-hidden className="size-3.5 transition-transform duration-150 group-open:rotate-90" />
             {t("projects.archived", { n: archived.length })}
           </summary>
-          <ul className="mt-2 divide-y divide-border opacity-80">{archived.map(row)}</ul>
+          <ul className="mt-2 divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface/60 opacity-80">{archived.map(row)}</ul>
         </details>
       )}
 

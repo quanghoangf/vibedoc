@@ -13,7 +13,7 @@ All projects gets a Portfolio view that shows, per project or group, progress, w
 
 ## Context
 - Epic: `plans/roadmap/R106-portfolio-overview.md`
-- `/projects?view=portfolio` (List stays the default view). Row: name, progress bar (epics done/total), at-risk/overdue chips naming epics, done this week `🤖 n · 👤 m`, last activity (local time via `useFormat()`).
+- `/projects?view=portfolio` (List stays the default view). Row: name, progress bar (epics done/total), at-risk/overdue chips naming epics, done this week (agent and human icons, labelled "n by agents · m by you this week"), last activity (local time via `useFormat()`).
 - Click → `/roadmap?project=<id>` (or `?item=` from an at-risk chip).
 - Visual language: DESIGN.md tokens; at-risk uses the roadmap's existing ⚠ treatment.
 - Rule: i18n `src/i18n/projects.ts`.
@@ -47,7 +47,7 @@ _2026-10-16 — ai · Spec: `e2e/vibedoc/T549-portfolio-view.spec.ts` · Auto: p
 ### Steps
 - [x] 🤖 Open /projects → the List view is selected by default
 - [x] 🤖 S1 — WHEN one project has an at-risk epic and the others don't → THEN that project sorts first with the epic named
-- [x] 🤖 A Portfolio row shows epic progress, blocked tasks and done this week → "0/1 epics", "1 blocked", "🤖 0 · 👤 0 this week"
+- [x] 🤖 A Portfolio row shows epic progress, blocked tasks and done this week → "0/1 epics", "1 blocked", "0 by agents · 0 by you this week"
 - [x] 🤖 At 390px wide → the Portfolio has no horizontal scroll
 - [x] 🤖 Click the at-risk epic chip → that epic opens on its project's roadmap
 - [x] 🤖 Click a project name on the Portfolio → its roadmap opens

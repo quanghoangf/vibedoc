@@ -1,8 +1,9 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Pencil, Plus, Trash2, X } from "lucide-react"
+import { Layers, MoreHorizontal, Pencil, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast, undoToast } from "@/components/ui/toast"
 import { useT } from "@/context/LanguageContext"
 import type { ProjectGroup } from "@/lib/groups"
@@ -25,7 +26,6 @@ async function fetchGroups(): Promise<ProjectGroup[]> {
 }
 
 const input = "h-8 rounded-md border border-border bg-bg px-2 text-sm text-txt outline-none focus-visible:ring-2 focus-visible:ring-accent"
-const iconButton = "size-8 text-muted hover:text-txt"
 
 /** Groups on All projects (R102 T538): repos that make one product. Membership is saved in each member repo. */
 export function GroupSection({ projects }: { projects: Project[] }) {
@@ -65,11 +65,11 @@ export function GroupSection({ projects }: { projects: Project[] }) {
   const usable = projects.filter((p) => !p.archived && !p.missing)
 
   return (
-    <section aria-labelledby="groups-heading" className="mt-10">
-      <div className="mb-2 flex items-center justify-between gap-4 border-b border-border pb-3">
-        <div>
-          <h2 id="groups-heading" className="text-base font-semibold text-txt">{t("projects.groups")}</h2>
-          <p className="mt-1 text-sm text-muted">{t("projects.groupsLead")}</p>
+    <section aria-labelledby="groups-heading" className="mt-12">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+        <div className="min-w-0">
+          <h2 id="groups-heading" className="text-[1.1rem] leading-snug font-semibold text-txt">{t("projects.groups")}</h2>
+          <p className="mt-1 max-w-xl text-sm text-muted">{t("projects.groupsLead")}</p>
         </div>
         {!creating && usable.length > 0 && (
           <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => setCreating(true)}><Plus />{t("projects.newGroup")}</Button>
@@ -87,9 +87,11 @@ export function GroupSection({ projects }: { projects: Project[] }) {
         />
       )}
 
-      {groups && groups.length === 0 && !creating && <p className="py-3 text-sm text-muted">{t("projects.noGroups")}</p>}
+      {groups && groups.length === 0 && !creating && (
+        <p className="rounded-lg border border-dashed border-border2 px-4 py-5 text-sm text-muted">{t("projects.noGroups")}</p>
+      )}
       {groups && groups.length > 0 && (
-        <ul className="divide-y divide-border">
+        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
           {groups.map((g) => (
             <GroupRow
               key={g.slug}
@@ -115,12 +117,12 @@ function NewGroupForm({ projects, onCreate, onCancel }: { projects: Project[]; o
   return (
     <form
       aria-label={t("projects.newGroup")}
-      className="mb-4 flex flex-col gap-3 rounded-md border border-border p-3"
+      className="mb-4 flex flex-col gap-4 rounded-lg border border-border bg-surface p-4"
       onSubmit={(e) => { e.preventDefault(); if (ready) onCreate(name.trim(), picked) }}
     >
       <label className="flex flex-col gap-1 text-xs text-muted">
         {t("projects.groupName")}
-        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder={t("projects.groupNamePlaceholder")} className={`${input} w-64`} data-user-content />
+        <input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder={t("projects.groupNamePlaceholder")} className={`${input} w-full max-w-64`} data-user-content />
       </label>
       <fieldset className="flex flex-wrap gap-x-4 gap-y-1">
         <legend className="mb-1 text-xs text-muted">{t("projects.groupMembers")}</legend>
@@ -137,7 +139,7 @@ function NewGroupForm({ projects, onCreate, onCancel }: { projects: Project[]; o
         ))}
       </fieldset>
       <div className="flex items-center gap-2">
-        <Button type="submit" size="sm" variant="secondary" className="h-8" disabled={!ready}>{t("projects.createGroup")}</Button>
+        <Button type="submit" size="sm" className="h-8" disabled={!ready}>{t("projects.createGroup")}</Button>
         <Button type="button" size="sm" variant="ghost" className="h-8" onClick={onCancel}>{t("projects.cancel")}</Button>
       </div>
     </form>
@@ -164,8 +166,11 @@ function GroupRow({ group: g, candidates, onRename, onAdd, onRemoveMember, onDel
     if (name && name !== g.name) onRename(name)
   }
   return (
-    <li data-group-row={g.slug} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-      <div className="min-w-0 flex-1 basis-64">
+    <li data-group-row={g.slug} className="flex items-start gap-3 px-3 py-3">
+      <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-md border border-border2 bg-surface2 text-muted">
+        <Layers className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
         {editing ? (
           <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); save() }}>
             <input
@@ -174,25 +179,28 @@ function GroupRow({ group: g, candidates, onRename, onAdd, onRemoveMember, onDel
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setEditing(false); setDraft(g.name) } }}
               aria-label={t("projects.groupRenameLabel", { name: g.name })}
-              className={`${input} w-56`}
+              className={`${input} w-full max-w-56 min-w-0`}
               data-user-content
             />
             <Button type="submit" size="sm" variant="secondary" className="h-8">{t("projects.save")}</Button>
             <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => { setEditing(false); setDraft(g.name) }}>{t("projects.cancel")}</Button>
           </form>
         ) : (
-          <span className="font-medium text-txt" data-user-content>{g.name}</span>
+          <div className="flex h-8 items-center gap-2">
+            <span className="truncate text-sm font-medium text-txt" data-user-content>{g.name}</span>
+            <span className="shrink-0 font-mono text-[11px] text-muted tabular-nums">{g.members.length}</span>
+          </div>
         )}
-        <ul aria-label={t("projects.membersOf", { name: g.name })} className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <ul aria-label={t("projects.membersOf", { name: g.name })} className="mt-1 flex flex-wrap items-center gap-1.5">
           {g.members.map((m) => (
-            <li key={m.id} className="flex items-center gap-0.5 rounded-sm bg-surface2 py-0.5 pr-0.5 pl-2 text-xs text-txt">
+            <li key={m.id} className="flex h-6 items-center gap-0.5 rounded-md border border-border2 bg-surface2 pr-0.5 pl-2 text-xs text-txt">
               <span data-user-content>{m.name}</span>
               <button
                 type="button"
                 onClick={() => onRemoveMember(m.id)}
                 aria-label={t("projects.removeMember", { project: m.name, name: g.name })}
                 title={t("projects.removeMember", { project: m.name, name: g.name })}
-                className="grid size-5 place-items-center rounded-sm text-muted hover:text-txt focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+                className="grid size-5 place-items-center rounded-sm text-muted transition-colors duration-150 hover:bg-bg hover:text-txt focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
               >
                 <X className="size-3" />
               </button>
@@ -200,27 +208,42 @@ function GroupRow({ group: g, candidates, onRename, onAdd, onRemoveMember, onDel
           ))}
           {candidates.length > 0 && (
             <li>
-              <select
-                value=""
-                onChange={(e) => { if (e.target.value) onAdd(e.target.value) }}
-                aria-label={t("projects.addMember", { name: g.name })}
-                className="h-6 rounded-sm border border-border bg-bg px-1 text-xs text-muted outline-none focus-visible:ring-2 focus-visible:ring-accent"
-              >
-                <option value="">{t("projects.addMemberOption")}</option>
-                {candidates.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t("projects.addMember", { name: g.name })}
+                    className="flex h-6 items-center gap-1 rounded-md border border-dashed border-border2 px-2 text-xs text-muted transition-colors duration-150 hover:border-accent/50 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none"
+                  >
+                    <Plus className="size-3" />{t("projects.addMemberShort")}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                  {candidates.map((p) => (
+                    <DropdownMenuItem key={p.id} onSelect={() => onAdd(p.id)}><span className="truncate" data-user-content>{p.name}</span></DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </li>
           )}
         </ul>
       </div>
-      <div role="group" aria-label={t("projects.actionsFor", { name: g.name })} className="flex items-center gap-1">
-        <Button size="icon" variant="ghost" className={iconButton} title={t("projects.rename")} aria-label={t("projects.groupRename", { name: g.name })} onClick={() => { setDraft(g.name); setEditing(true) }}>
-          <Pencil />
-        </Button>
-        <Button size="icon" variant="ghost" className={`${iconButton} hover:text-danger`} title={t("projects.groupDelete")} aria-label={t("projects.groupDeleteLabel", { name: g.name })} onClick={onDelete}>
-          <Trash2 />
-        </Button>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="icon" variant="ghost" className="size-8 shrink-0 text-muted hover:text-txt" aria-label={t("projects.moreFor", { name: g.name })} title={t("projects.more")}>
+            <MoreHorizontal />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onSelect={() => { setDraft(g.name); setEditing(true) }} aria-label={t("projects.groupRename", { name: g.name })}>
+            <Pencil />{t("projects.rename")}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onDelete} aria-label={t("projects.groupDeleteLabel", { name: g.name })} className="text-danger focus:text-danger">
+            <Trash2 />{t("projects.groupDelete")}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </li>
   )
 }

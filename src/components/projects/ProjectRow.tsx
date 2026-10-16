@@ -1,8 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Archive, ArchiveRestore, FolderSearch, Pencil, Pin, PinOff, Trash2 } from "lucide-react"
+import { Archive, ArchiveRestore, ArrowRight, FolderSearch, MoreHorizontal, Pencil, Pin, PinOff, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useFormat, useT } from "@/context/LanguageContext"
 import type { Project } from "@/types"
@@ -22,9 +23,49 @@ interface ProjectRowProps {
   onLocate: (root: string) => Promise<string | null>
 }
 
-const iconButton = "size-8 text-muted hover:text-txt"
+/**
+ * One grid for the header and every row, so the numbers line up in columns. Below `md` a row stacks: identity,
+ * then the numbers on one line, with the actions beside the name.
+ */
+export const PROJECT_GRID = "md:grid md:grid-cols-[minmax(0,1fr)_5.5rem_6rem_8.5rem_7.5rem] md:items-center md:gap-x-4"
 
-/** One project on All projects (T531): name, path, last opened, counts, and its actions. */
+/** Two letters for the project tile: "payments-api" → "PA", "vibedoc" → "VI". */
+export function initials(name: string): string {
+  const words = name.split(/[\s\-_./]+/).filter(Boolean)
+  const letters = words.length > 1 ? words[0][0] + words[1][0] : (words[0] ?? "?").slice(0, 2)
+  return letters.toUpperCase()
+}
+
+export function ProjectTile({ name, current, className }: { name: string; current?: boolean; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid size-8 shrink-0 place-items-center rounded-md border font-mono text-[11px] font-medium",
+        current ? "border-accent/40 bg-accent/12 text-accent" : "border-border2 bg-surface2 text-muted",
+        className,
+      )}
+    >
+      {initials(name)}
+    </span>
+  )
+}
+
+/** A long absolute path keeps its tail ("…/work/payments-api"): the end names the project, the start is noise. */
+export function TailPath({ path, className }: { path: string; className?: string }) {
+  return (
+    <span
+      title={path}
+      // rtl clips from the start; the LRM keeps "/" and punctuation in path order
+      className={cn("block truncate font-mono text-[11px] text-muted [direction:rtl] text-left", className)}
+      data-user-content
+    >
+      {"‎" + path}
+    </span>
+  )
+}
+
+/** One project on All projects (T531): who it is, what is open, what needs you, when it was opened, its actions. */
 export function ProjectRow({ project: p, current, started, onOpen, onPatch, onRemove, onLocate }: ProjectRowProps) {
   const { t, tn } = useT()
   const f = useFormat()
@@ -46,12 +87,21 @@ export function ProjectRow({ project: p, current, started, onOpen, onPatch, onRe
     if (name && name !== p.name) onPatch({ name })
   }
   const removeBlocked = current ? t("projects.removeCurrent") : started ? t("projects.removeStarted") : null
+  const openable = !current && !p.missing
+  const needs = p.counts?.needsYou ?? 0
 
   return (
-    <li data-project-row={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-      <div className="min-w-0 flex-1 basis-64">
-        <div className="flex items-center gap-2">
-          {p.pinned && <Pin aria-label={t("projects.pinned")} className="size-3.5 shrink-0 text-accent" />}
+    <li
+      data-project-row={p.id}
+      className={cn(
+        "group/row relative flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-3 transition-colors duration-150 hover:bg-surface2/50",
+        PROJECT_GRID,
+        current && "bg-accent/[0.04]",
+      )}
+    >
+      <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
+        <ProjectTile name={p.name} current={current} className={cn(p.missing && "opacity-50")} />
+        <div className="min-w-0 flex-1">
           {editing ? (
             <form className="flex items-center gap-2" onSubmit={(e) => { e.preventDefault(); save() }}>
               <input
@@ -60,76 +110,128 @@ export function ProjectRow({ project: p, current, started, onOpen, onPatch, onRe
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setEditing(false); setDraft(p.name) } }}
                 aria-label={t("projects.renameLabel", { name: p.name })}
-                className="h-8 w-56 rounded-md border border-border bg-bg px-2 text-sm text-txt outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                className="h-8 w-full max-w-64 min-w-0 rounded-md border border-border bg-bg px-2 text-sm text-txt outline-none focus-visible:ring-2 focus-visible:ring-accent"
                 data-user-content
               />
               <Button type="submit" size="sm" variant="secondary" className="h-8">{t("projects.save")}</Button>
               <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => { setEditing(false); setDraft(p.name) }}>{t("projects.cancel")}</Button>
             </form>
           ) : (
-            <span className="truncate font-medium text-txt" data-user-content>{p.name}</span>
+            <div className="flex min-w-0 items-center gap-1.5">
+              {openable ? (
+                // The name opens the project; the stretched hit area covers the row, the actions sit above it
+                <button
+                  type="button"
+                  onClick={onOpen}
+                  className="min-w-0 truncate rounded-sm text-left text-sm font-medium text-txt outline-none after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-accent"
+                  data-user-content
+                >
+                  {p.name}
+                </button>
+              ) : (
+                <span className={cn("min-w-0 truncate text-sm font-medium", p.missing ? "text-muted" : "text-txt")} data-user-content>{p.name}</span>
+              )}
+              {p.pinned && <Pin aria-label={t("projects.pinned")} className="size-3 shrink-0 text-muted" />}
+              {current && <span className="shrink-0 rounded-sm bg-accent/15 px-1.5 py-px text-[11px] font-medium text-accent">{t("projects.current")}</span>}
+              {p.missing && <span data-missing className="shrink-0 rounded-sm bg-danger/15 px-1.5 py-px text-[11px] font-medium text-danger">{t("projects.missing")}</span>}
+            </div>
           )}
-          {current && <span className="rounded-sm bg-surface2 px-1.5 py-0.5 text-[11px] text-muted">{t("projects.current")}</span>}
-          {p.missing && <span data-missing className="rounded-sm bg-danger/15 px-1.5 py-0.5 text-[11px] font-medium text-danger">{t("projects.missing")}</span>}
+          <TailPath path={p.root} className={cn("mt-0.5", p.missing && "line-through")} />
+          {p.missing && !locating && <p className="mt-1 text-xs text-muted">{t("projects.missingHint")}</p>}
+          {locating && (
+            <form className="relative z-10 mt-2 flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); locate() }}>
+              <input
+                autoFocus
+                value={where}
+                onChange={(e) => setWhere(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setLocating(false); setLocateError(null) } }}
+                placeholder={t("projects.locatePlaceholder")}
+                aria-label={t("projects.locateLabel", { name: p.name })}
+                aria-invalid={!!locateError || undefined}
+                aria-describedby={locateError ? `locate-error-${p.id}` : undefined}
+                className="h-8 min-w-0 flex-1 basis-60 rounded-md border border-border bg-bg px-2 font-mono text-xs text-txt outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              />
+              <Button type="submit" size="sm" variant="secondary" className="h-8" disabled={!where.trim()}>{t("projects.locate")}</Button>
+              <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => { setLocating(false); setLocateError(null) }}>{t("projects.cancel")}</Button>
+              {locateError && <p id={`locate-error-${p.id}`} role="alert" className="basis-full text-xs text-danger">{t("projects.locateFailed", { name: p.name, error: locateError })}</p>}
+            </form>
+          )}
         </div>
-        <div className={cn("mt-0.5 truncate font-mono text-[11px] text-muted", p.missing && "line-through")} title={p.root} data-user-content>{p.root}</div>
-        {p.missing && !locating && <p className="mt-1 text-xs text-muted">{t("projects.missingHint")}</p>}
-        {locating && (
-          <form className="mt-2 flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); locate() }}>
-            <input
-              autoFocus
-              value={where}
-              onChange={(e) => setWhere(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setLocating(false); setLocateError(null) } }}
-              placeholder={t("projects.locatePlaceholder")}
-              aria-label={t("projects.locateLabel", { name: p.name })}
-              aria-invalid={!!locateError || undefined}
-              aria-describedby={locateError ? `locate-error-${p.id}` : undefined}
-              className="h-8 min-w-0 flex-1 basis-72 rounded-md border border-border bg-bg px-2 font-mono text-xs text-txt outline-none focus-visible:ring-2 focus-visible:ring-accent"
-            />
-            <Button type="submit" size="sm" variant="secondary" className="h-8" disabled={!where.trim()}>{t("projects.locate")}</Button>
-            <Button type="button" size="sm" variant="ghost" className="h-8" onClick={() => { setLocating(false); setLocateError(null) }}>{t("projects.cancel")}</Button>
-            {locateError && <p id={`locate-error-${p.id}`} role="alert" className="basis-full text-xs text-danger">{t("projects.locateFailed", { name: p.name, error: locateError })}</p>}
-          </form>
-        )}
       </div>
 
-      <dl className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
-        <div><dt className="sr-only">{t("projects.neverOpened")}</dt><dd>{p.lastOpened ? t("projects.openedAgo", { when: f.timeAgo(p.lastOpened) }) : t("projects.neverOpened")}</dd></div>
+      {/* Numbers: their own line below md, three columns from md */}
+      <dl className="order-last flex basis-full flex-wrap gap-x-4 gap-y-1 pl-11 text-xs text-muted md:order-none md:contents md:pl-0">
         {p.counts ? (
           <>
-            <div><dt className="sr-only">{tn("projects.openTasks", 2)}</dt><dd>{tn("projects.openTasks", p.counts.open)}</dd></div>
-            <div>
+            <div className="md:text-right">
+              <dt className="sr-only">{tn("projects.openTasks", 2)}</dt>
+              <dd className="tabular-nums"><span className="text-txt md:text-sm">{p.counts.open}</span><span className="md:sr-only"> {t("projects.colOpen").toLowerCase()}</span></dd>
+            </div>
+            <div className="md:text-right">
               <dt className="sr-only">{tn("projects.needsYou", 2)}</dt>
-              <dd className={cn(p.counts.needsYou > 0 && "font-medium text-amber")}>{tn("projects.needsYou", p.counts.needsYou)}</dd>
+              <dd>
+                {needs > 0 ? (
+                  <span className="inline-flex items-center rounded-sm bg-amber/15 px-1.5 py-px font-medium tabular-nums text-amber"><span className="md:hidden">{tn("projects.needsYou", needs)}</span><span className="hidden md:inline"><span aria-hidden>{needs}</span><span className="sr-only">{tn("projects.needsYou", needs)}</span></span></span>
+                ) : (
+                  <span className="tabular-nums"><span aria-hidden className="hidden md:inline">—</span><span className="md:sr-only">{tn("projects.needsYou", 0)}</span></span>
+                )}
+              </dd>
             </div>
           </>
         ) : (
-          <div><dt className="sr-only">{t("projects.countsUnknown")}</dt><dd>{t("projects.countsUnknown")}</dd></div>
+          <div className="md:col-span-2 md:text-right"><dt className="sr-only">{t("projects.countsUnknown")}</dt><dd>{t("projects.countsUnknown")}</dd></div>
         )}
+        <div className="md:text-right">
+          <dt className="sr-only">{t("projects.colOpened")}</dt>
+          <dd>{p.lastOpened ? t("projects.openedAgo", { when: f.timeAgo(p.lastOpened) }) : t("projects.neverOpened")}</dd>
+        </div>
       </dl>
 
-      <div role="group" aria-label={t("projects.actionsFor", { name: p.name })} className="flex items-center gap-1">
+      <div role="group" aria-label={t("projects.actionsFor", { name: p.name })} className="relative z-10 flex items-center justify-end gap-1">
         {p.missing ? (
           !locating && <Button size="sm" variant="outline" className="h-8" onClick={() => setLocating(true)}><FolderSearch />{t("projects.locate")}</Button>
-        ) : !current && (
-          <Button size="sm" variant="outline" className="h-8" onClick={onOpen} aria-label={t("projects.openLabel", { name: p.name })}>{t("projects.open")}</Button>
-        )}
-        <Button size="icon" variant="ghost" className={iconButton} title={p.pinned ? t("projects.unpin") : t("projects.pin")} aria-label={p.pinned ? t("projects.unpin") : t("projects.pin")} aria-pressed={p.pinned} onClick={() => onPatch({ pinned: !p.pinned })}>
-          {p.pinned ? <PinOff /> : <Pin />}
-        </Button>
-        <Button size="icon" variant="ghost" className={iconButton} title={t("projects.rename")} aria-label={t("projects.rename")} onClick={() => { setDraft(p.name); setEditing(true) }}>
-          <Pencil />
-        </Button>
-        <Button size="icon" variant="ghost" className={iconButton} title={p.archived ? t("projects.unarchive") : t("projects.archive")} aria-label={p.archived ? t("projects.unarchive") : t("projects.archive")} onClick={() => onPatch({ archived: !p.archived })}>
-          {p.archived ? <ArchiveRestore /> : <Archive />}
-        </Button>
-        {/* a disabled button gets no pointer events, so the reason sits on its wrapper */}
-        <span title={removeBlocked ?? t("projects.remove")}>
-          <Button size="icon" variant="ghost" className={cn(iconButton, "hover:text-danger")} aria-label={t("projects.remove")} aria-description={removeBlocked ?? undefined} disabled={!!removeBlocked} onClick={onRemove}>
-            <Trash2 />
+        ) : openable && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-muted group-hover/row:text-txt"
+            onClick={onOpen}
+            aria-label={t("projects.openLabel", { name: p.name })}
+          >
+            {t("projects.open")}<ArrowRight className="transition-transform duration-150 group-hover/row:translate-x-0.5" />
           </Button>
-        </span>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="ghost" className="size-8 text-muted hover:text-txt" aria-label={t("projects.moreFor", { name: p.name })} title={t("projects.more")}>
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onSelect={() => onPatch({ pinned: !p.pinned })}>
+              {p.pinned ? <PinOff /> : <Pin />}{p.pinned ? t("projects.unpin") : t("projects.pin")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => { setDraft(p.name); setEditing(true) }}>
+              <Pencil />{t("projects.rename")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onPatch({ archived: !p.archived })}>
+              {p.archived ? <ArchiveRestore /> : <Archive />}{p.archived ? t("projects.unarchive") : t("projects.archive")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={!!removeBlocked}
+              onSelect={onRemove}
+              title={removeBlocked ?? undefined}
+              className="text-danger focus:text-danger"
+            >
+              <Trash2 />
+              <span className="flex flex-col">
+                {t("projects.remove")}
+                {removeBlocked && <span className="text-[11px] text-muted">{removeBlocked}</span>}
+              </span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </li>
   )
