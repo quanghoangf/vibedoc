@@ -25,6 +25,7 @@ class EventBus {
 const globalForBus = globalThis as unknown as { vibedocBus?: EventBus }
 export const bus = globalForBus.vibedocBus ?? (globalForBus.vibedocBus = new EventBus())
 
+// ponytail: one bus for every project (R099), events carry no root, so a tab also refreshes on other projects' events; harmless, add a root to the payload if refreshes get costly.
 export function emitUpdate(type: string, payload: unknown) {
   bus.emit({ type, payload, ts: new Date().toISOString() })
 }

@@ -15,7 +15,7 @@ import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { launchChrome } from "./stub-chat.mjs"
+import { launchChrome, registerProject } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 
@@ -56,6 +56,8 @@ const withEpic = mkdtempSync(path.join(tmpdir(), "vibedoc-empty-"))
 mkdirSync(path.join(withEpic, "plans/roadmap"), { recursive: true })
 writeFileSync(path.join(withEpic, "plans/roadmap/R001-now.md"), "# R001: Now\n**Status:** planned\n**Order:** 10\n**Tasks:** —\n")
 writeFileSync(path.join(withEpic, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** —\n")
+registerProject(empty)
+registerProject(withEpic)
 
 async function open(root, lang, width = 1400) {
   const ctx = await browser.newContext({ viewport: { width, height: 900 } })

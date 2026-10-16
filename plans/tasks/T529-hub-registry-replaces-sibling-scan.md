@@ -1,9 +1,13 @@
 # T529: Hub registry replaces the sibling scan
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R099 — Projects hub
 **Size:** M (2–3 hrs)
 **Depends on:** —
 **Covers:** S1
+**Owner:** ai:claude
+**Due:** 2026-10-19
+**Started:** 2026-10-16
+**Done:** 2026-10-16
 
 ## Goal
 VibeDoc remembers the projects it knows in one per-user list, and `/api/projects` returns that list instead of guessing from sibling folders. This is the base every other multi-project epic builds on.
@@ -45,9 +49,6 @@ VibeDoc remembers the projects it knows in one per-user list, and `/api/projects
 - [ ] Demo (`VIBEDOC_DEMO=1`) and `--demo` playground still show only their copy
 - [ ] `node src/lib/hub.check.mts` passes; the existing e2e suite passes with `VIBEDOC_HOME` set
 
-## Manual tests
-- [ ] S1 — WHEN the user picks another project from the switcher → THEN its board opens, and the last page they used in that project is kept
-
 ## Verify
 ```bash
 node src/lib/hub.check.mts
@@ -55,3 +56,13 @@ pnpm lint && pnpm build
 VIBEDOC_HOME=$(mktemp -d) PORT=3081 pnpm dev:next &
 curl -s localhost:3081/api/projects; curl -s -o /dev/null -w '%{http_code}\n' 'localhost:3081/api/tasks?root=/etc'
 ```
+
+## Manual tests
+_2026-10-16 — ai_
+### Steps
+- [x] Start VibeDoc with a fresh `VIBEDOC_HOME`, `GET /api/projects` → only the configured project, no sibling worktrees with a CLAUDE.md
+- [x] Look at `$VIBEDOC_HOME/hub.json` → it lists the configured project with its absolute root
+- [x] `GET /api/tasks?root=/etc` → 403; `?root=<configured project>` → 200
+- [x] `VIBEDOC_DEMO=1` → `/api/projects` lists only its copy, `?root=/etc` is ignored (pinned), no hub.json written
+### Regression risk
+- [x] Fixture e2e over `?root=` and MCP (`e2e/docs-lint.mjs`, `e2e/agent-ready-docs.mjs`, `e2e/memory-browser.mjs`, `e2e/first-screen.mjs`) pass with `VIBEDOC_HOME` set

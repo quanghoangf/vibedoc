@@ -5,7 +5,7 @@
  */
 
 import fs from 'fs/promises'
-import { createReadStream } from 'fs'
+import { createReadStream, readFileSync, statSync } from 'fs'
 import { createHash } from 'crypto'
 import { Readable } from 'stream'
 import path from 'path'
@@ -37,6 +37,7 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { ATTACHMENTS_DIR, imageError, imageMarkdown, imageMimeOf, isAttachmentFolder, isServableImage, nextImageNumber, sniffImage } from './attachments'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
+import { addProject, emptyHub, normalizeRoot, orderProjects, parseHub, type Hub } from './hub'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
@@ -159,6 +160,11 @@ export interface Project {
   name: string
   root: string
   hasVibedoc: boolean
+  pinned: boolean
+  archived: boolean
+  lastOpened: string | null
+  /** The folder is gone or not a directory (derived on read, T532) */
+  missing: boolean
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -187,9 +193,86 @@ export function getConfiguredRoot(): string {
   return process.env.VIBEDOC_ROOT || process.cwd()
 }
 
-/** The project root for a request's `?root=` override. The read-only demo pins the configured root, so visitors can't read other host folders. */
+/** A `?root=` that isn't a project in the hub (R099): routes answer 403. */
+export class ProjectAccessError extends Error {
+  status = 403 as const
+  constructor() {
+    super('not a VibeDoc project')
+    this.name = 'ProjectAccessError'
+  }
+}
+
+/**
+ * The project root for a request's `?root=` override: only the configured root or a hub project (R099),
+ * anything else throws ProjectAccessError (`src/proxy.ts` answers 403 before a route runs).
+ * The demo and `--demo` playground pin the configured root, so visitors can't read other host folders.
+ */
 export function rootFrom(override?: string | null): string {
-  return (!isDemo() && !isPlayground() && override) || getConfiguredRoot()
+  if (isDemo() || isPlayground() || !override) return getConfiguredRoot()
+  const r = normalizeRoot(path.resolve(override))
+  if (r === normalizeRoot(path.resolve(getConfiguredRoot())) || hubRoots().has(r)) return override
+  throw new ProjectAccessError()
+}
+
+/** `rootFrom` without the throw, for the proxy. */
+export function isAllowedRoot(override: string): boolean {
+  try { rootFrom(override); return true } catch { return false }
+}
+
+// ─── Projects hub (R099) ──────────────────────────────────────────────────────
+
+/** `<home>/hub.json`, home = `$VIBEDOC_HOME` or `~/.vibedoc` (the installer's folder). Machine-local: absolute roots. */
+export function hubFile(): string {
+  return path.join(process.env.VIBEDOC_HOME || path.join(os.homedir(), '.vibedoc'), 'hub.json')
+}
+
+// rootFrom is sync and called per request, so the hub's roots are cached by the file's mtime: a write from
+// anywhere (another module instance, an e2e registering its fixture) is seen on the next request.
+let hubRootsCache: { file: string; mtimeMs: number; roots: Set<string> } | null = null
+function hubRoots(): Set<string> {
+  const file = hubFile()
+  let mtimeMs = -1
+  try { mtimeMs = statSync(file).mtimeMs } catch {}
+  if (hubRootsCache?.file === file && hubRootsCache.mtimeMs === mtimeMs) return hubRootsCache.roots
+  let text = ''
+  try { text = readFileSync(file, 'utf8') } catch {}
+  const roots = new Set(parseHub(text).projects.map(p => p.root))
+  hubRootsCache = { file, mtimeMs, roots }
+  return roots
+}
+
+// ponytail: in-process mutex like withEntryLock; two VibeDoc processes sharing one home could still race.
+let hubLock: Promise<unknown> = Promise.resolve()
+export function withHubLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = hubLock.then(fn, fn)
+  hubLock = run.catch(() => {})
+  return run
+}
+
+async function readHubFile(): Promise<Hub> {
+  try { return parseHub(await fs.readFile(hubFile(), 'utf8')) } catch { return emptyHub() }
+}
+
+/** Writes hub.json atomically. Call inside withHubLock. */
+export async function writeHub(hub: Hub): Promise<void> {
+  const file = hubFile()
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  const tmp = `${file}.${process.pid}.tmp`
+  await fs.writeFile(tmp, JSON.stringify(hub, null, 2) + '\n', 'utf8')
+  await fs.rename(tmp, file)
+  hubRootsCache = null
+}
+
+/** The hub, with the configured root added on first read so a single-project user sees no change. */
+export async function readHub(): Promise<Hub> {
+  const hub = await readHubFile()
+  const root = normalizeRoot(path.resolve(getConfiguredRoot()))
+  if (hub.projects.some(p => p.root === root)) return hub
+  return withHubLock(async () => {
+    const { hub: next, added } = addProject(await readHubFile(), root)
+    if (added) await writeHub(next)
+    return next
+  })
 }
 
 // ─── Frontend app (R057) ──────────────────────────────────────────────────────
@@ -378,39 +461,18 @@ export async function saveFrontendOverride(override: FrontendOverride | null, ro
   return clean
 }
 
-// ─── Multi-project: scan parent directories ───────────────────────────────────
+// ─── Multi-project: the hub's projects ───────────────────────────────────────
 
-export async function discoverProjects(searchBase?: string): Promise<Project[]> {
-  const base = searchBase || path.dirname(getConfiguredRoot())
-  const projects: Project[] = []
-
-  if (!isDemo() && !isPlayground()) try {
-    const entries = await fs.readdir(base, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const dir = path.join(base, entry.name)
-      let hasVibedoc = false
-      for (const marker of ['CLAUDE.md', 'AGENTS.md', 'docs/architecture', '.vibedoc']) {
-        try { await fs.access(path.join(dir, marker)); hasVibedoc = true; break } catch {}
-      }
-      if (hasVibedoc) {
-        projects.push({ id: entry.name, name: entry.name, root: dir, hasVibedoc: true })
-      }
-    }
-  } catch {}
-
-  // Always ensure configured root is first
+/** Every project in the hub (R099): the configured root first, archived last. Demo / playground: only their copy. */
+export async function discoverProjects(): Promise<Project[]> {
   const root = getConfiguredRoot()
-  const name = path.basename(root)
-  const existingIdx = projects.findIndex(p => p.root === root)
-  if (existingIdx > 0) {
-    const [existing] = projects.splice(existingIdx, 1)
-    projects.unshift(existing)
-  } else if (existingIdx === -1) {
-    projects.unshift({ id: name, name, root, hasVibedoc: true })
+  if (isDemo() || isPlayground()) {
+    const name = path.basename(root)
+    return [{ id: name, name, root, hasVibedoc: true, pinned: false, archived: false, lastOpened: null, missing: false }]
   }
-
-  return projects
+  const hub = await readHub()
+  const projects = hub.projects.map(p => ({ ...p, hasVibedoc: true, missing: false }))
+  return orderProjects(projects, path.resolve(root))
 }
 
 // ─── Docs ─────────────────────────────────────────────────────────────────────

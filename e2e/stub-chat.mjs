@@ -6,11 +6,12 @@
 // PW_DIR there. Uses the system Chrome. Needs the dev server on BASE (default http://localhost:3000).
 // Writes only into a fresh mktemp fixture project, never this repo.
 import { createRequire } from "node:module"
-import { mkdtempSync, mkdirSync, readdirSync, writeFileSync } from "node:fs"
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import assert from "node:assert/strict"
 import { pathToFileURL } from "node:url"
+import { addProject, parseHub } from "../src/lib/hub.ts"
 
 /**
  * Stub the chat backend for `page`:
@@ -22,6 +23,7 @@ import { pathToFileURL } from "node:url"
 export async function stubChat(page, events, { root } = {}) {
   const calls = []
   if (root) {
+    registerProject(root)
     await page.route("**/api/projects", (route) =>
       route.fulfill({ json: [{ id: "fixture", name: "fixture", root, hasVibedoc: true }] }))
   }
@@ -43,6 +45,23 @@ export function toolTurn(id, tool, input, text = "") {
   ]
 }
 
+/**
+ * R099: the server only serves `?root=` for projects in its hub, so a fixture joins `$VIBEDOC_HOME/hub.json`.
+ * Start the server and the script with the same temp VIBEDOC_HOME; never the real ~/.vibedoc.
+ */
+export function registerProject(root) {
+  const home = process.env.VIBEDOC_HOME
+  if (!home) throw new Error("Set VIBEDOC_HOME to the temp dir the server was started with (R099 hub)")
+  mkdirSync(home, { recursive: true })
+  const file = path.join(home, "hub.json")
+  let text = null
+  try { text = readFileSync(file, "utf8") } catch {}
+  const { hub, added } = addProject(parseHub(text), path.resolve(root))
+  if (!added) return
+  writeFileSync(`${file}.e2e.tmp`, JSON.stringify(hub, null, 2) + "\n")
+  renameSync(`${file}.e2e.tmp`, file)
+}
+
 /** A fresh fixture project: horizon R001 with epic R002, an empty plans/tasks, first-run feedback declined. */
 export function makeFixture() {
   const fx = mkdtempSync(path.join(tmpdir(), "vibedoc-e2e-"))
@@ -53,6 +72,7 @@ export function makeFixture() {
   // R086: answered, so scripts don't meet the first-run feedback card (delete it to see the card)
   mkdirSync(path.join(fx, ".vibedoc"), { recursive: true })
   writeFileSync(path.join(fx, ".vibedoc/feedback.json"), JSON.stringify({ consent: false, sent: [] }))
+  registerProject(fx)
   return fx
 }
 
