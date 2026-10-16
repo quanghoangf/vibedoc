@@ -13,6 +13,7 @@ After one Connect on Settings → Connect agent, a Claude Code session in any hu
 - Chosen mechanism: **set by T543's ADR** (read it first). Do not build before it exists.
   - Go (header / initialize carries the folder): `/api/mcp` resolves the root from that value through the hub (`projectFor` in `src/lib/hub.ts`, nearest hub root that contains the folder, so a sub-folder works); the Connect panel runs one user-scope `claude mcp add`.
   - No-go (fallback): "Connect all projects" runs the local-scope `claude mcp add … ?root=<abs>` (`src/lib/claude-cli.ts`, cwd = that root) for every hub project without one, and `addHubProject` does it for new projects after the user turned "Connect new projects automatically" on (stored in `hub.json`, it acts outside the project so it needs the user's yes, like R081).
+- Decided (ADR-006, `docs/architecture/decisions/ADR-006-one-agent-connection.md`): **Go**. One user-scope `claude mcp add --scope user --transport http vibedoc <hub>/api/mcp --header 'X-VibeDoc-Root: ${PWD}'`. `/api/mcp` uses `?root=` first, then the header only when it is an absolute path with no `${`, realpathed and mapped by `projectFor`. Anything else is refused with the project list and is never defaulted. Stale `PWD` is the known ceiling. `roots/list` is the upgrade path.
 - Existing per-project connections keep working either way (`?root=` stays honoured).
 - Connect panel shows one row per project with ✓ evidence (`.vibedoc/agent-connection.json`, R081) for each.
 
