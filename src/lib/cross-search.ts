@@ -63,3 +63,12 @@ export function formatCrossSearch(query: string, groups: readonly CrossGroup[]):
   }
   return lines.join('\n')
 }
+
+/** The page a result opens in its own project (T551); the caller adds `?project=`. */
+export function hitHref(r: Pick<CrossHit, 'kind' | 'id' | 'path'>): string {
+  const id = encodeURIComponent(r.id ?? '')
+  if (r.kind === 'task') return `/board?task=${id}`
+  if (r.kind === 'epic') return `/roadmap?item=${id}`
+  if (r.kind === 'entry') return `/memory?entry=${id}`
+  return `/docs?doc=${encodeURIComponent(r.path)}`
+}

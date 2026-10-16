@@ -1,6 +1,6 @@
 // Self-check for cross-project search. Run: node src/lib/cross-search.check.mts
 import assert from 'node:assert/strict'
-import { formatCrossSearch, mergeResults, rankItems, type CrossHit } from './cross-search.ts'
+import { formatCrossSearch, hitHref, mergeResults, rankItems, type CrossHit } from './cross-search.ts'
 import { tokenize } from './recall.ts'
 
 const web = { id: 'web', name: 'Web' }
@@ -43,5 +43,11 @@ assert.match(text, /^🔍 "rate limit" — 1 result\(s\) in 1 project\(s\)/)
 assert.match(text, /^\[api\] doc \*\*Rate limit\*\* — docs\/decisions\/rate-limit\.md$/m)
 assert.match(text, /^\[api\] {3}L3: we rate limit$/m)
 assert.equal(formatCrossSearch('x', []), 'No results for "x" in this project\'s groups')
+
+// deep links per kind
+assert.equal(hitHref({ kind: 'doc', id: null, path: 'docs/a b.md' }), '/docs?doc=docs%2Fa%20b.md')
+assert.equal(hitHref({ kind: 'task', id: 'T001', path: 'x' }), '/board?task=T001')
+assert.equal(hitHref({ kind: 'epic', id: 'R002', path: 'x' }), '/roadmap?item=R002')
+assert.equal(hitHref({ kind: 'entry', id: 'E001', path: 'x' }), '/memory?entry=E001')
 
 console.log('cross-search: ok')

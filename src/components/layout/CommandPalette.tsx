@@ -27,6 +27,9 @@ import { useChatText } from "@/components/chat/chat-text"
 import type { MessageKey } from "@/i18n"
 import { en as shellEn } from "@/i18n/shell"
 import { en as helpEn } from "@/i18n/help"
+import { en as searchEn } from "@/i18n/search"
+import { KIND_ICON, fetchSearch, useOpenResult } from "@/components/search/search-results"
+import type { CrossResult } from "@/lib/cross-search"
 
 const PAGES: { href: string; label: MessageKey; icon: LucideIcon }[] = [
   { href: "/chat", label: "shell.chats", icon: Bot },
@@ -38,11 +41,14 @@ const PAGES: { href: string; label: MessageKey; icon: LucideIcon }[] = [
   { href: "/manual-tests", label: "shell.manualTests", icon: FlaskConical },
   { href: "/explorer", label: "shell.explorer", icon: FolderTree },
   { href: "/settings", label: "shell.settings", icon: Settings },
+  { href: "/search", label: "search.title", icon: Search },
 ]
 // Vietnamese typed without tone marks ("bang" → Bảng) still matches
 const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d")
-const EN: Record<string, string> = { ...Object.fromEntries(Object.entries(shellEn).map(([k, v]) => [`shell.${k}`, v])), ...Object.fromEntries(Object.entries(helpEn).map(([k, v]) => [`help.${k}`, v])) }
+const EN: Record<string, string> = { ...Object.fromEntries(Object.entries(shellEn).map(([k, v]) => [`shell.${k}`, v])), ...Object.fromEntries(Object.entries(helpEn).map(([k, v]) => [`help.${k}`, v])), "search.title": searchEn.title }
 const PER_GROUP = 6
+/** R107: rows under "In other projects" */
+const OTHER_PROJECTS_MAX = 5
 
 interface Row {
   id: string
@@ -59,6 +65,7 @@ interface Row {
 }
 
 type DocSearch = { query: string; status: "done" | "error"; files: string[] }
+type OtherSearch = { query: string; results: CrossResult[] }
 
 interface CommandPaletteProps {
   open: boolean
@@ -76,12 +83,14 @@ const icon = (Icon: LucideIcon) => <Icon className="size-3.5 shrink-0 text-muted
 export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen, onShowHelp, rootParam }: CommandPaletteProps) {
   const router = useRouter()
   const pathname = usePathname()
-  const { board, projects, activeProject, onProjectChange, demo } = useApp()
+  const { board, projects, activeProject, activeProjectId, onProjectChange, demo } = useApp()
   const { chats, queue, now, show, create } = useChats()
   const [query, setQuery] = useState("")
   const [activeIndex, setActiveIndex] = useState(0)
   const [docs, setDocs] = useState<DocSearch | null>(null)
   const [epics, setEpics] = useState<RoadmapItem[]>([])
+  const [others, setOthers] = useState<OtherSearch | null>(null)
+  const openResult = useOpenResult()
   const listRef = useRef<HTMLDivElement>(null)
   const current = useCurrentItemCommands()
   const { t } = useT()
@@ -121,6 +130,20 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
     }, 300)
     return () => clearTimeout(t)
   }, [q, rootParam])
+
+  // R107: the other hub projects' docs, tasks, epics and entries, after this project's results
+  const multiProject = projects.length > 1
+  useEffect(() => {
+    if (q.length < 2 || !multiProject) return
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => {
+      fetchSearch(q, "all", ctrl.signal).then(
+        (groups) => setOthers({ query: q, results: groups.filter((g) => g.project.id !== activeProjectId).flatMap((g) => g.results) }),
+        (e: Error) => { if (e.name !== "AbortError") console.warn("[vibedoc] cross-project search failed:", e) },
+      )
+    }, 200)
+    return () => { clearTimeout(timer); ctrl.abort() }
+  }, [q, multiProject, activeProjectId])
 
   const rows = useMemo(() => {
     const go = (href: string) => () => { router.push(href); onClose() }
@@ -213,8 +236,18 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
         })
       }
     }
+    if (q.length >= 2 && others?.query === q && others.results.length) {
+      const group = t("search.inOtherProjects")
+      for (const r of others.results.slice(0, OTHER_PROJECTS_MAX)) {
+        out.push({
+          id: `other-${r.project.id}-${r.kind}-${r.path}`, group, label: r.title, code: r.id ?? undefined, detail: r.project.name,
+          lead: icon(KIND_ICON[r.kind]), run: () => { onClose(); openResult(r) },
+        })
+      }
+      out.push({ id: "search-all", group, label: t("search.searchAll", { query: q }), lead: icon(Search), run: go(`/search?q=${encodeURIComponent(q)}`) })
+    }
     return out
-  }, [q, current, chats, queue, now, board, epics, projects, activeProject, docs, router, onClose, show, create, onNewDoc, onQuickOpen, onShowHelp, onOpenDoc, onProjectChange, rootParam, pathname, demo, t, chatText])
+  }, [q, current, chats, queue, now, board, epics, projects, activeProject, docs, others, openResult, router, onClose, show, create, onNewDoc, onQuickOpen, onShowHelp, onOpenDoc, onProjectChange, rootParam, pathname, demo, t, chatText])
 
   const active = Math.max(0, Math.min(activeIndex, rows.length - 1))
   // Runs of one group, each rendered as an ARIA group named by its heading

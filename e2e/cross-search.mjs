@@ -8,7 +8,7 @@
 import assert from "node:assert/strict"
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { makeFixture, registerProject } from "./stub-chat.mjs"
+import { launchChrome, makeFixture, registerProject } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 
@@ -44,7 +44,8 @@ const api = project("Api", {
   "memory/entries/E001-limits.md": "# E001: Limits live in the gateway\n**Type:** decision\n**Updated:** 2026-10-01\n\nThe rate limit is set in the gateway config.\n",
 }, true)
 const other = project("Other", { "docs/rate.md": "# Rate limit notes\n\nOutside the group.\n" })
-const pages = []
+const browser = await launchChrome()
+const errors = []
 try {
   // ── T550: GET /api/search ────────────────────────────────────────────────────
   const all = await json(`/api/search?q=${encodeURIComponent("rate limit")}&scope=all`)
@@ -88,9 +89,39 @@ try {
   assert.match(await mcp(other.root, { query: "rate", scope: "group" }), /in no group/)
   console.log("ok  without scope: today's output, this project only; no group → says so")
 
-  // T551's UI checks go here
+  // ── T551: ⌘K "In other projects" and /search ─────────────────────────────────
+  const page = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage()
+  page.on("pageerror", (e) => errors.push(e.message))
+  await page.goto(`${BASE}/board?project=${web.id}`)
+  await page.locator("[data-sidebar]").first().waitFor()
+  await page.keyboard.press("ControlOrMeta+k")
+  const palette = page.getByRole("dialog")
+  await palette.getByRole("combobox").fill("rate limit")
+  const others = palette.getByRole("group", { name: "In other projects" })
+  const decisionRow = others.getByRole("option", { name: /Rate limit decision/ })
+  await decisionRow.waitFor()
+  assert.ok((await others.getByRole("option").count()) <= 6, "max 5 results + Search all")
+  for (let i = 0; i < 40 && (await decisionRow.getAttribute("aria-selected")) !== "true"; i++) await page.keyboard.press("ArrowDown")
+  assert.equal(await decisionRow.getAttribute("aria-selected"), "true")
+  await page.keyboard.press("Enter")
+  await page.waitForURL((u) => u.pathname === "/docs" && u.searchParams.get("project") === api.id && u.searchParams.get("doc") === "docs/decisions/rate-limit.md")
+  await page.getByRole("heading", { name: "Rate limit decision" }).first().waitFor()
+  console.log("ok  ⌘K in web: api's doc under In other projects; Enter opens it in api")
+
+  await page.goto(`${BASE}/search?q=${encodeURIComponent("rate limit")}&scope=group:shop&project=${web.id}`)
+  await page.locator(`[data-search-project="${api.id}"]`).waitFor()
+  assert.deepEqual(await page.locator("[data-search-project]").evaluateAll((els) => els.map((e) => e.getAttribute("data-search-project"))), [api.id])
+  await page.getByRole("combobox", { name: "Where to search" }).selectOption("all")
+  await page.locator(`[data-search-project="${other.id}"]`).waitFor()
+  console.log("ok  /search: scope group lists only the group's projects; All projects adds the rest")
+
+  await page.getByRole("searchbox", { name: "Search every project" }).fill("throttle")
+  await page.getByRole("button", { name: /Throttle login attempts/ }).click()
+  await page.waitForURL((u) => u.pathname === "/board" && u.searchParams.get("task") === "T001" && u.searchParams.get("project") === api.id)
+  console.log("ok  a task result opens the board's task panel in its project")
+  assert.deepEqual(errors, [])
 } finally {
-  for (const p of pages) await p.close().catch(() => {})
+  await browser.close()
   for (const p of [web, api, other]) rmSync(p.root, { recursive: true, force: true })
 }
 console.log("cross-search: ok")
