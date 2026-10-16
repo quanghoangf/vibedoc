@@ -163,6 +163,13 @@ export const en = {
   skipToContent: "Skip to content",
   demoBlockedLead: "Not available in the read-only demo. Install VibeDoc with",
   demoBlockedEnd: "to use it.",
+  // Project groups (R102, T539)
+  unknownGroup: "No group “{id}” in VibeDoc, showing {name}",
+  switcherGroups: "Groups",
+  switcherProjects: "Projects",
+  pickProjectTitle: "Pick a project",
+  pickProjectLead: "{name} is a group. This page works on one project at a time: open it in one of the group's repos.",
+  openInProject: "Open in {name}",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -307,4 +314,11 @@ export const vi: Messages<typeof en> = {
   skipToContent: "Tới nội dung",
   demoBlockedLead: "Không dùng được trong bản demo chỉ đọc. Cài VibeDoc bằng",
   demoBlockedEnd: "để dùng.",
+  // Project groups (R102, T539)
+  unknownGroup: "VibeDoc không có nhóm “{id}”, đang hiện {name}",
+  switcherGroups: "Nhóm",
+  switcherProjects: "Dự án",
+  pickProjectTitle: "Chọn một dự án",
+  pickProjectLead: "{name} là một nhóm. Trang này làm việc trên từng dự án: hãy mở nó trong một repo của nhóm.",
+  openInProject: "Mở trong {name}",
 }

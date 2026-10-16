@@ -10,6 +10,7 @@ import { ProjectRow, type ProjectWithCounts } from "@/components/projects/Projec
 import { AddProjectDialog, type AddedProject, type AddMode } from "@/components/projects/AddProjectDialog"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { GroupSection } from "@/components/projects/GroupSection"
 import { toast, undoToast } from "@/components/ui/toast"
 import { switcherOrder } from "@/lib/hub"
 
@@ -148,6 +149,8 @@ export default function ProjectsPage() {
           <ul className="mt-2 divide-y divide-border opacity-80">{archived.map(row)}</ul>
         </details>
       )}
+
+      {list && <GroupSection projects={list} />}
     </div>
   )
 }

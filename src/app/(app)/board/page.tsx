@@ -18,7 +18,7 @@ export default function BoardPage() {
 }
 
 function BoardPageInner() {
-  const { board, moveTask, refresh, rootParam } = useApp()
+  const { board, moveTask, refresh, rootParam, onProjectChange } = useApp()
   const router = useRouter()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // ?task=T055 (links from a chat) opens that task; adjusted during render so a new link re-opens it
@@ -26,7 +26,7 @@ function BoardPageInner() {
   const [seenTaskParam, setSeenTaskParam] = useState<string | null>(null)
   if (board && taskParam !== seenTaskParam) {
     setSeenTaskParam(taskParam)
-    if (taskParam && Object.values(board).flat().some((t) => t.id === taskParam)) setSelectedId(taskParam)
+    if (taskParam && Object.values(board).flat().some((t) => t.id === taskParam && !t.project)) setSelectedId(taskParam)
   }
   const [newTaskOpen, setNewTaskOpen] = useState(false)
   // Drop only ?task=: the rest of the query is the live board view
@@ -50,7 +50,8 @@ function BoardPageInner() {
       <BoardTab
         tasks={tasks}
         onMoveTask={moveTask}
-        onOpenTask={(t: Task) => setSelectedId(t.id)}
+        // R102: a group board's task opens in its own project, where the panel's every action writes to the right repo
+        onOpenTask={(t: Task) => (t.project ? onProjectChange(t.project.id, `/board?task=${encodeURIComponent(t.id)}`) : setSelectedId(t.id))}
         onNewTask={() => setNewTaskOpen(true)}
       />
       <TaskDetailPanel

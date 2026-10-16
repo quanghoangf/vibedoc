@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { detectRoadmapSource, listRoadmap } from '@/lib/core'
+import { detectRoadmapSource, listGroupRoadmap, listRoadmap } from '@/lib/core'
 import { errorResponse, rootOf } from './_shared'
 
 export async function GET(req: NextRequest) {
+  // R102: `?group=<slug>` = every member repo's epics, each tagged with its project (read-only)
+  const group = req.nextUrl.searchParams.get('group')
+  if (group) {
+    const data = await listGroupRoadmap(group)
+    return data ? NextResponse.json(data) : NextResponse.json({ error: `no group "${group}"` }, { status: 404 })
+  }
   try {
     const root = rootOf(req)
     const data = await listRoadmap(root)

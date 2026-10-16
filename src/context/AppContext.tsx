@@ -13,9 +13,24 @@ import type { Priority } from "@/lib/doc-priority"
 import { DEFAULT_SETTINGS, type AppSettings } from "@/lib/settings"
 import { parseManualTests, toggleManualTest, untestedItems } from "@/lib/manual-tests"
 import { LAST_PAGE_COOKIE, lastPageTarget } from "@/lib/first-screen"
+import { taskKey } from "@/lib/board-views"
+import type { ProjectGroup } from "@/lib/groups"
 
 /** The URL key naming a tab's project (R099): `?project=<hub id>`. */
 export const PROJECT_PARAM = "project"
+
+/** The URL key naming an open project group (R102): `?group=<slug>`; the board shows every member's tasks. */
+export const GROUP_PARAM = "group"
+
+/** `href` with `?group=<slug>` (and no `?project=`). */
+export function groupHref(href: string, slug: string): string {
+  const [path, hash = ""] = href.split("#")
+  const [base, query = ""] = path.split("?")
+  const q = new URLSearchParams(query)
+  q.delete(PROJECT_PARAM)
+  q.set(GROUP_PARAM, slug)
+  return `${base}?${q}${hash ? `#${hash}` : ""}`
+}
 
 /** `href` with `?project=<id>` added, unless `id` is the default project (the configured root, first in /api/projects). */
 export function projectHref(href: string, id: string | undefined, defaultId: string | undefined): string {
@@ -56,8 +71,14 @@ interface AppContextValue {
   selectedDoc: SelectedDoc | null
   setSelectedDoc: (doc: SelectedDoc | null) => void
   rootParam: string
-  /** Opens another hub project by id: its last page there (else /board), with `?project=` in the URL */
-  onProjectChange: (id: string) => void
+  /** Opens a hub project by id: `href` there, else its last page (else /board), with `?project=` in the URL; leaves a group */
+  onProjectChange: (id: string, href?: string) => void
+  /** Every project group the hub's projects form (R102) */
+  groups: ProjectGroup[]
+  /** The open group (`?group=`): the board shows every member's tasks; null = one project */
+  activeGroup: ProjectGroup | null
+  /** Opens a group's board */
+  onGroupChange: (slug: string) => void
   refresh: (root?: string) => Promise<void>
   moveTask: (taskId: string, status: string) => Promise<void>
   /** Optimistic owner / due / size edit (R055); rolls back with a toast when the write fails */
@@ -97,6 +118,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [autoRefreshSeconds, setAutoRefreshSeconds] = useState(0)
   const sseRef = useRef<EventSource | null>(null)
   const toldUnknownRef = useRef(false) // dev Strict Mode runs the mount effect twice: one toast
+  // R102: the open group's slug; a ref too, so refresh() right after a switch already reads the new one
+  const [groups, setGroups] = useState<ProjectGroup[]>([])
+  const [groupSlug, setGroupSlugState] = useState<string | null>(null)
+  const groupRef = useRef<string | null>(null)
+  const setGroupSlug = useCallback((slug: string | null) => { groupRef.current = slug; setGroupSlugState(slug) }, [])
+  const activeGroup = (groupSlug && groups.find((g) => g.slug === groupSlug)) || null
 
   // Always a query string, so callers can append `&key=…` even before a project loads ("?&read=x" is valid)
   const rootParam = activeProject ? `?root=${encodeURIComponent(activeProject)}` : "?"
@@ -108,7 +135,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     try {
       const [sumRes, boardRes, actRes, settingsRes] = await Promise.all([
         fetch(`/api/summary${rp}`).then((r) => r.json()),
-        fetch(`/api/tasks${rp}`).then((r) => r.json()),
+        fetch(groupRef.current ? `/api/tasks?${GROUP_PARAM}=${encodeURIComponent(groupRef.current)}` : `/api/tasks${rp}`).then((r) => r.json()),
         fetch(`/api/activity${rp}&limit=30`).then((r) => r.json()),
         fetch(`/api/settings${rp}&type=settings`).then((r) => (r.ok ? r.json() : null)).catch(() => null),
       ])
@@ -134,7 +161,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const defaultProjectId = projects[0]?.id
   const activeProjectId = projects.find((p) => p.root === activeProject)?.id ?? ""
-  const withProject = useCallback((href: string) => projectHref(href, activeProjectId, defaultProjectId), [activeProjectId, defaultProjectId])
+  const withProject = useCallback((href: string) => (groupSlug ? groupHref(href, groupSlug) : projectHref(href, activeProjectId, defaultProjectId)), [groupSlug, activeProjectId, defaultProjectId])
 
   const openProject = useCallback((p: Project) => {
     setActiveProject(p.root)
@@ -143,12 +170,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     fetch("/api/projects/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id }) }).catch(() => {})
   }, [refresh])
 
-  // Load projects on mount; `?project=<id>` picks one (R099), an unknown id shows the default with a toast
+  // Load projects on mount; `?project=<id>` picks one (R099), an unknown id shows the default with a toast.
+  // `?group=<slug>` (R102) opens that group's board; an unknown slug shows the default project with a toast.
   useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((p: Project[]) => {
+    Promise.all([fetch("/api/projects").then((r) => r.json()), fetch("/api/groups").then((r) => r.json()).catch(() => [])])
+      .then(([p, g]: [Project[], ProjectGroup[]]) => {
         setProjects(p)
+        const gs = Array.isArray(g) ? g : []
+        setGroups(gs)
+        const askedGroup = new URLSearchParams(window.location.search).get(GROUP_PARAM)
+        if (askedGroup && gs.some((x) => x.slug === askedGroup)) setGroupSlug(askedGroup)
+        else if (askedGroup && !toldUnknownRef.current && p.length > 0) {
+          toldUnknownRef.current = true
+          toast(tNow("shell.unknownGroup", { id: askedGroup, name: p[0].name }))
+        }
         if (p.length > 0) {
           const asked = new URLSearchParams(window.location.search).get(PROJECT_PARAM)
           const picked = asked ? p.find((x) => x.id === asked) : undefined
@@ -171,22 +206,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Back / forward between projects: the URL decides
   useEffect(() => {
     const onPop = () => {
-      const asked = new URLSearchParams(window.location.search).get(PROJECT_PARAM)
+      const params = new URLSearchParams(window.location.search)
+      const asked = params.get(PROJECT_PARAM)
+      const g = params.get(GROUP_PARAM)
+      const nextGroup = g && groups.some((x) => x.slug === g) ? g : null
+      const groupChanged = nextGroup !== groupRef.current
+      setGroupSlug(nextGroup)
       const p = projects.find((x) => x.id === asked) ?? projects[0]
       if (p && p.root !== activeProject) openProject(p)
+      else if (groupChanged) refresh()
     }
     window.addEventListener("popstate", onPop)
     return () => window.removeEventListener("popstate", onPop)
-  }, [projects, activeProject, openProject])
+  }, [projects, groups, activeProject, openProject, refresh, setGroupSlug])
 
   // In-app links drop the query: put `?project=` back after each navigation, so a reload or a copied link stays here
   useEffect(() => {
+    if (groupSlug) {
+      const url = new URL(window.location.href)
+      if (url.searchParams.get(GROUP_PARAM) === groupSlug) return
+      window.history.replaceState(window.history.state, "", groupHref(`${url.pathname}${url.search}${url.hash}`, groupSlug))
+      return
+    }
     if (!activeProjectId || activeProjectId === defaultProjectId) return
     const url = new URL(window.location.href)
     if (url.searchParams.get(PROJECT_PARAM) === activeProjectId) return
     url.searchParams.set(PROJECT_PARAM, activeProjectId)
     window.history.replaceState(window.history.state, "", url)
-  }, [pathname, search, activeProjectId, defaultProjectId])
+  }, [pathname, search, activeProjectId, defaultProjectId, groupSlug])
 
   // SSE for real-time updates
   useEffect(() => {
@@ -206,6 +253,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // R099: the hub changed (opened, renamed, pinned…): reload the list, not the project
         if (msg.type === "projects_updated") {
           fetch("/api/projects").then((r) => r.json()).then((p: Project[]) => { if (Array.isArray(p) && p.length) setProjects(p) }).catch(() => {})
+          // R102: a group's members or name may have changed too; an open group's board follows
+          fetch("/api/groups").then((r) => r.json()).then((g: ProjectGroup[]) => { if (Array.isArray(g)) setGroups(g) }).catch(() => {})
+          if (groupRef.current) refresh()
           return
         }
         // R061: a Run's steps stream in (no flash); its end leaves a new run on disk, so reload the board's lastRun
@@ -237,18 +287,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const demo = summary?.demo === true
   const playground = summary?.playground === true
 
+  // R102: on a group board a task is named by its key (`api:T001`); a write goes to its own repo with its plain id
+  const writeTarget = useCallback((key: string) => {
+    const task = board ? Object.values(board).flat().find((t) => taskKey(t) === key) : undefined
+    const root = task?.project ? projects.find((p) => p.id === task.project?.id)?.root : undefined
+    return { id: task?.id ?? key, rp: root ? `?root=${encodeURIComponent(root)}` : rootParam }
+  }, [board, projects, rootParam])
+
   const moveTask = useCallback(async (taskId: string, status: string) => {
-    if (demo) return // read-only demo: the card must not move and snap back
+    if (demo) return
+    const target = writeTarget(taskId) // read-only demo: the card must not move and snap back
     // Optimistic update: move card in UI immediately, animated via View Transitions when supported
     const apply = () => setBoard(prev => {
       if (!prev) return prev
       let movedTask: Task | undefined
       const next = structuredClone(prev) as TaskBoard
       for (const col of Object.keys(next) as (keyof TaskBoard)[]) {
-        const idx = next[col].findIndex(t => t.id === taskId)
+        const idx = next[col].findIndex(t => taskKey(t) === taskId)
         if (idx !== -1) {
           movedTask = { ...next[col][idx] }
-          next[col] = next[col].filter(t => t.id !== taskId)
+          next[col] = next[col].filter(t => taskKey(t) !== taskId)
         }
       }
       // A custom status lands in its category's bucket, remembering the custom id
@@ -268,49 +326,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await fetch(`/api/tasks${rootParam}`, {
+      const res = await fetch(`/api/tasks${target.rp}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskId, status, actor: "human" }),
+        body: JSON.stringify({ taskId: target.id, status, actor: "human" }),
       })
-      if (!res.ok) toast(tNow("help.couldNotMove", { id: taskId, error: String((await res.json().catch(() => null))?.error ?? res.status) }))
+      if (!res.ok) toast(tNow("help.couldNotMove", { id: target.id, error: String((await res.json().catch(() => null))?.error ?? res.status) }))
     } catch {
-      toast(tNow("help.couldNotMoveOffline", { id: taskId }))
+      toast(tNow("help.couldNotMoveOffline", { id: target.id }))
     }
     refresh() // real state (also reverts a failed move)
-  }, [demo, rootParam, refresh])
+  }, [demo, writeTarget, refresh])
 
   const updateTaskFields = useCallback(async (taskId: string, patch: { owner?: string | null; due?: string | null; size?: string; priority?: Priority | null }) => {
     if (demo) return
+    const target = writeTarget(taskId)
     setBoard((prev) => {
       if (!prev) return prev
       const next = { ...prev }
       for (const col of Object.keys(next) as (keyof TaskBoard)[]) {
-        next[col] = next[col].map((t) => (t.id === taskId ? { ...t, ...patch, size: patch.size ?? t.size } : t))
+        next[col] = next[col].map((t) => (taskKey(t) === taskId ? { ...t, ...patch, size: patch.size ?? t.size } : t))
       }
       return next
     })
     try {
-      const res = await fetch(`/api/tasks/update${rootParam}`, {
+      const res = await fetch(`/api/tasks/update${target.rp}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: taskId, patch }),
+        body: JSON.stringify({ id: target.id, patch }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`)
     } catch (e) {
-      toast(tNow("help.couldNotUpdate", { id: taskId, error: (e as Error).message }))
+      toast(tNow("help.couldNotUpdate", { id: target.id, error: (e as Error).message }))
       refresh() // roll back to the files
     }
-  }, [demo, rootParam, refresh])
+  }, [demo, writeTarget, refresh])
 
   const tickManualTest = useCallback(async (taskId: string, index: number, checked: boolean) => {
     if (demo) return
+    const target = writeTarget(taskId)
     setBoard((prev) => {
       if (!prev) return prev
       const next = { ...prev }
       for (const col of Object.keys(next) as (keyof TaskBoard)[]) {
         next[col] = next[col].map((t) => {
-          if (t.id !== taskId || !t.raw || !t.manualTests) return t
+          if (taskKey(t) !== taskId || !t.raw || !t.manualTests) return t
           const raw = toggleManualTest(t.raw, index, checked)
           const tests = parseManualTests(raw)
           return tests ? { ...t, raw, manualTests: { ...t.manualTests, done: tests.done, untested: untestedItems(tests).length } } : t
@@ -319,17 +379,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return next
     })
     try {
-      const res = await fetch(`/api/tasks/manual-tests${rootParam}`, {
+      const res = await fetch(`/api/tasks/manual-tests${target.rp}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: taskId, index, checked }),
+        body: JSON.stringify({ id: target.id, index, checked }),
       })
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `HTTP ${res.status}`)
     } catch (e) {
-      toast(tNow("tests.tickError", { id: taskId, error: (e as Error).message }))
+      toast(tNow("tests.tickError", { id: target.id, error: (e as Error).message }))
       refresh() // roll back to the files
     }
-  }, [demo, rootParam, refresh])
+  }, [demo, writeTarget, refresh])
 
   const openDoc = useCallback(async (docPath: string, link?: string) => {
     const res = await fetch(`/api/docs${rootParam}&read=${encodeURIComponent(docPath)}`)
@@ -338,13 +398,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     router.push(withProject(`/docs?doc=${encodeURIComponent(docPath)}${link ? `&link=${encodeURIComponent(link)}` : ""}`))
   }, [rootParam, router, withProject])
 
-  function onProjectChange(id: string) {
+  function onProjectChange(id: string, href?: string) {
     const p = projects.find((x) => x.id === id)
-    if (!p || p.missing || p.root === activeProject) return
+    const leavingGroup = groupRef.current !== null
+    if (!p || p.missing || (p.root === activeProject && !leavingGroup && !href)) return
+    setGroupSlug(null)
     setSelectedDoc(null)
-    openProject(p)
-    // its last page there (R082 per project), else the board; the old project's query keys don't apply
-    router.push(projectHref(lastPageTarget(readCookie(LAST_PAGE_COOKIE), p.id), p.id, defaultProjectId))
+    if (p.root !== activeProject) openProject(p)
+    else refresh() // same project, but the board was a group's
+    // `href`, else its last page there (R082 per project), else the board; the old project's query keys don't apply
+    router.push(projectHref(href ?? lastPageTarget(readCookie(LAST_PAGE_COOKIE), p.id), p.id, defaultProjectId))
+  }
+
+  function onGroupChange(slug: string) {
+    if (!groups.some((g) => g.slug === slug)) return
+    setGroupSlug(slug)
+    refresh()
+    router.push(groupHref("/board", slug))
   }
 
   return (
@@ -365,6 +435,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSelectedDoc,
       rootParam,
       onProjectChange,
+      groups,
+      activeGroup,
+      onGroupChange,
       refresh,
       moveTask,
       updateTaskFields,

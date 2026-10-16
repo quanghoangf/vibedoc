@@ -7,12 +7,13 @@ import type { ActivityEvent, Task, TaskStatus } from "./core"
 export type ViewKind = "board" | "table" | "epic" | "timeline"
 
 /** Filterable task properties. `ready` = todo with every dependency done; `agent` = a chat working on the task. */
-export type FilterProp = "status" | "epic" | "size" | "due" | "deps" | "tests" | "agent" | "ready" | "owner"
+export type FilterProp = "status" | "epic" | "size" | "due" | "deps" | "tests" | "agent" | "ready" | "owner" | "repo"
 
 /**
  * One filter rule. Ops by prop:
  * - status / epic / size: "is" | "is-not" with `value` = a list (any-of). Epic values are IDs like "R043" ("none" = no epic).
  * - owner: "is" | "is-not" with values "human" | "ai" (any agent) | "none".
+ * - repo: "is" | "is-not" with project ids (group board, R102); a task outside a group is "none".
  * - due: "before" | "after" with `value[0]` = "YYYY-MM-DD"; "is-set" | "not-set" ignore value.
  * - deps / tests / agent / ready: "is-set" | "not-set" (deps: has dependencies; tests: has a manual test report;
  *   agent: a chat is running / needs you / has a plan to review on the task; ready: see FilterProp).
@@ -26,7 +27,7 @@ export interface FilterRule {
 export type SortProp = "status" | "id" | "epic" | "size" | "due" | "title"
 export interface SortRule { prop: SortProp; dir: "asc" | "desc" }
 
-export type GroupBy = "status" | "epic" | "size" | "owner" | "none"
+export type GroupBy = "status" | "epic" | "size" | "owner" | "repo" | "none"
 /** Table / Board columns and card lines that can be hidden. */
 export type PropertyKey = "status" | "epic" | "size" | "due" | "deps" | "tests" | "agent" | "owner"
 export type TimelineScale = "active" | "day" | "week"
@@ -39,7 +40,7 @@ export interface ViewState {
   /** Board: the columns are always status, `group` is ignored; Table / By epic / Timeline: sections. */
   group: GroupBy
   /** Board only: swimlanes inside the status columns ("none" = no lanes). */
-  subGroup: "epic" | "size" | "none"
+  subGroup: "epic" | "size" | "repo" | "none"
   /** Free text over ID + title, case-insensitive. */
   q: string
   /** Visible properties (Table columns, Board card lines). */
@@ -132,6 +133,15 @@ function deps(t: Task): string[] {
 /** The status a task shows under: its custom status, else its category (statuses.ts `displayStatus`, inlined). */
 const displayOf = (t: Task): string => t.customStatus ?? t.status
 
+/**
+ * A task's identity on the board: its id, or `<project id>:<id>` on a group board (R102), where two repos can
+ * both have a T001. Use it for React keys, drag data, selection and lookups; show and send `task.id`.
+ */
+export const taskKey = (t: Pick<Task, "id" | "project">): string => (t.project ? `${t.project.id}:${t.id}` : t.id)
+
+/** The key of dependency `id` of `t`: dependencies resolve inside the task's own repo. */
+const depKey = (t: Task, id: string): string => (t.project ? `${t.project.id}:${id}` : id)
+
 /** "human" | "ai" | "none" (same rule as owner.ts `ownerKind`; inlined so node can run this file). */
 function ownerKindOf(t: Task): "human" | "ai" | "none" {
   return t.owner === "human" ? "human" : t.owner?.startsWith("ai:") ? "ai" : "none"
@@ -148,7 +158,7 @@ export function sizeOf(task: Task): string | null {
 }
 
 export function isReady(task: Task, byId: Map<string, Task>): boolean {
-  return task.status === "todo" && deps(task).every((d) => byId.get(d)?.status === "done")
+  return task.status === "todo" && deps(task).every((d) => byId.get(depKey(task, d))?.status === "done")
 }
 
 // ─── Filter + sort ────────────────────────────────────────────────────────────
@@ -170,6 +180,7 @@ function matches(t: Task, r: FilterRule, ctx: ViewContext, byId: Map<string, Tas
     case "agent": return flag(ctx.agentTasks.has(t.id))
     case "ready": return flag(isReady(t, byId))
     case "owner": return oneOf(ownerKindOf(t))
+    case "repo": return oneOf(t.project?.id ?? "none")
   }
 }
 
@@ -192,7 +203,7 @@ function compare(a: Task, b: Task, prop: SortProp): number {
 }
 
 export function applyView(tasks: Task[], state: ViewState, ctx: ViewContext): Task[] {
-  const byId = new Map(tasks.map((t) => [t.id, t]))
+  const byId = new Map(tasks.map((t) => [taskKey(t), t]))
   const showCancelled = state.filters.some((r) => r.prop === "status" && r.op === "is" && r.value.includes("cancelled"))
   const q = state.q.trim().toLowerCase()
   return tasks
@@ -205,7 +216,7 @@ export function applyView(tasks: Task[], state: ViewState, ctx: ViewContext): Ta
         // nulls stay last for due / epic / size in either direction
         if (c) return s.dir === "desc" && !nullLast(a, b, s.prop) ? -c : c
       }
-      return cmpId(a.id, b.id)
+      return cmpId(a.id, b.id) || cmpId(taskKey(a), taskKey(b))
     })
 }
 
@@ -222,8 +233,11 @@ export function groupTasks(tasks: Task[], by: GroupBy, statuses?: { id: string; 
   if (!tasks.length) return []
   if (by === "none") return [{ key: "all", label: "All tasks", epicId: null, tasks }]
   const buckets = new Map<string, Task[]>()
+  // epic ids are per repo too: on a group board R002 of web and R002 of api are two buckets
+  const epicKey = (t: Task) => { const e = epicOf(t.phase).id; return e && t.project ? `${t.project.id}:${e}` : e ?? "none" }
   const keyOf = (t: Task) =>
-    by === "status" ? displayOf(t) : by === "size" ? sizeOf(t) ?? "none" : by === "owner" ? t.owner ?? "none" : epicOf(t.phase).id ?? "none"
+    by === "status" ? displayOf(t) : by === "size" ? sizeOf(t) ?? "none" : by === "owner" ? t.owner ?? "none"
+      : by === "repo" ? t.project?.id ?? "none" : epicKey(t)
   for (const t of tasks) {
     const k = keyOf(t)
     const list = buckets.get(k)
@@ -236,6 +250,11 @@ export function groupTasks(tasks: Task[], by: GroupBy, statuses?: { id: string; 
     return statuses.filter((d) => buckets.has(d.id)).map((d) => group(d.id, d.label))
   }
   if (by === "size") return [...SIZES, "none"].filter((s) => buckets.has(s)).map((s) => group(s, s === "none" ? "No size" : s))
+  if (by === "repo") {
+    const name = (k: string) => buckets.get(k)?.[0]?.project?.name ?? k
+    return [...buckets.keys()].filter((k) => k !== "none").sort((x, y) => name(x).localeCompare(name(y)) || x.localeCompare(y))
+      .map((k) => group(k, name(k))).concat(buckets.has("none") ? [group("none", "No repo")] : [])
+  }
   if (by === "owner") {
     // human, then each agent by name, then unowned
     const agents = [...buckets.keys()].filter((k) => k.startsWith("ai:")).sort()
@@ -252,8 +271,11 @@ export function groupTasks(tasks: Task[], by: GroupBy, statuses?: { id: string; 
     return cmpId(y, x)
   })
   const out = keys.map((k) => {
-    const title = (buckets.get(k) ?? []).map((t) => epicOf(t.phase).title).find(Boolean)
-    return group(k, title || k, k)
+    const list = buckets.get(k) ?? []
+    const title = list.map((t) => epicOf(t.phase).title).find(Boolean)
+    const id = epicOf(list[0]?.phase ?? "").id ?? k
+    const repo = list[0]?.project?.name
+    return group(k, repo ? `${repo} · ${title || id}` : title || k, id)
   })
   if (buckets.has("none")) out.push(group("none", "No epic"))
   return out
@@ -264,26 +286,26 @@ export function groupTasks(tasks: Task[], by: GroupBy, statuses?: { id: string; 
 const MAX_DEPTH = 4
 
 export function depOutline(tasks: Task[]): { task: Task; depth: number; alsoAfter: string[] }[] {
-  const inList = new Set(tasks.map((t) => t.id))
+  const inList = new Set(tasks.map(taskKey))
   const parent = new Map<string, string>()
   for (const t of tasks) {
-    const p = deps(t).find((d) => d !== t.id && inList.has(d))
-    if (p) parent.set(t.id, p)
+    const p = deps(t).find((d) => d !== t.id && inList.has(depKey(t, d)))
+    if (p) parent.set(taskKey(t), depKey(t, p))
   }
   const children = new Map<string, Task[]>()
   for (const t of tasks) {
-    const p = parent.get(t.id)
+    const p = parent.get(taskKey(t))
     if (p) children.set(p, [...(children.get(p) ?? []), t])
   }
   const out: { task: Task; depth: number; alsoAfter: string[] }[] = []
   const seen = new Set<string>()
   const visit = (t: Task, depth: number, under: string | null) => {
-    if (seen.has(t.id)) return
-    seen.add(t.id)
+    if (seen.has(taskKey(t))) return
+    seen.add(taskKey(t))
     out.push({ task: t, depth: Math.min(depth, MAX_DEPTH), alsoAfter: deps(t).filter((d) => d !== under && d !== t.id) })
-    for (const c of children.get(t.id) ?? []) visit(c, depth + 1, t.id)
+    for (const c of children.get(taskKey(t)) ?? []) visit(c, depth + 1, t.id)
   }
-  for (const t of tasks) if (!parent.has(t.id)) visit(t, 0, null)
+  for (const t of tasks) if (!parent.has(taskKey(t))) visit(t, 0, null)
   // cycle members never reach a root: surface each as a root in input order
   for (const t of tasks) visit(t, 0, null)
   return out
@@ -336,11 +358,11 @@ export function foldAxis(bars: TimelineBar[], gapMs: number): AxisSegment[] {
 
 // ─── URL state ────────────────────────────────────────────────────────────────
 
-const FILTER_PROPS: FilterProp[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "ready", "owner"]
+const FILTER_PROPS: FilterProp[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "ready", "owner", "repo"]
 const FILTER_OPS: FilterRule["op"][] = ["is", "is-not", "before", "after", "is-set", "not-set"]
 const SORT_PROPS: SortProp[] = ["status", "id", "epic", "size", "due", "title"]
-const GROUPS: GroupBy[] = ["status", "epic", "size", "owner", "none"]
-const SUBGROUPS: ViewState["subGroup"][] = ["epic", "size", "none"]
+const GROUPS: GroupBy[] = ["status", "epic", "size", "owner", "repo", "none"]
+const SUBGROUPS: ViewState["subGroup"][] = ["epic", "size", "repo", "none"]
 const SCALES: TimelineScale[] = ["active", "day", "week"]
 
 const pick = <T extends string>(allowed: readonly T[], v: string | null, fallback: T): T =>
