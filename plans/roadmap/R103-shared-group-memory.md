@@ -1,6 +1,6 @@
 # R103: Shared group memory
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 440
 **Tasks:** T541, T542
 

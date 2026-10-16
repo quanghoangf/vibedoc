@@ -7,24 +7,28 @@ import { Input } from "@/components/ui/input"
 import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
-import { ENTRY_TYPES, validateEntryInput, type Entry, type EntryType } from "@/lib/entries"
+import { ENTRY_TYPES, validateEntryInput, type Entry, type EntryScope, type EntryType } from "@/lib/entries"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { useEntryTypeLabel } from "./entry-type"
+import type { ListedEntry } from "./EntryList"
 
 type Draft = { type: EntryType; summary: string; body: string }
 
 /**
  * One knowledge entry: read view with Edit, or the edit form. `entry` null = a new entry (form only).
  * R053 adds its panels (Related, History) under the body via `children`.
+ * Another repo's group entry (R103, `entry.project`) is saved in that repo under its own id; `onSaved` gets it back
+ * with the listed id and project. `grouped` shows the scope switch.
  */
-export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, children }: {
-  entry: Entry | null
+export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, children, grouped = false }: {
+  entry: ListedEntry | null
   rootParam: string
-  onSaved: (entry: Entry) => void
-  onDelete: (entry: Entry) => void
+  onSaved: (entry: ListedEntry) => void
+  onDelete: (entry: ListedEntry) => void
   onClose: () => void
   children?: ReactNode
+  grouped?: boolean
 }) {
   const { demo } = useApp()
   const { t } = useT()
@@ -37,28 +41,51 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
   const startEdit = () => { setDraft(toDraft(entry)); setError(null); setEditing(true) }
   const cancel = () => { if (entry) { setEditing(false); setError(null) } else onClose() }
 
+  // R103: where the entry lives; a shared entry from another repo is written there with its own id
+  const ownId = entry?.project ? entry.id.slice(entry.id.indexOf(":") + 1) : entry?.id
+  const ownRoot = entry?.project ? `?root=${encodeURIComponent(entry.project.root)}` : rootParam
+
+  const post = async (fields: Draft & { scope?: EntryScope }) => {
+    const res = await fetch(`/api/memory/entries/save${ownRoot}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...(entry ? { id: ownId } : {}), ...fields }),
+    })
+    const data = (await res.json().catch(() => ({}))) as { entry?: Entry; error?: string }
+    if (!res.ok || !data.entry) throw new Error(data.error ?? t("memory.saveFailed", { status: res.status }))
+    return entry?.project ? { ...data.entry, id: entry.id, project: entry.project } : data.entry
+  }
+
   const save = async () => {
     // same rules as the server, so a bad summary never costs a request
-    const invalid = validateEntryInput({ ...draft, id: entry?.id })
+    const invalid = validateEntryInput({ ...draft, id: ownId })
     if (invalid) { setError(invalid); return }
     setSaving(true)
     setError(null)
     try {
-      const res = await fetch(`/api/memory/entries/save${rootParam}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...(entry ? { id: entry.id } : {}), ...draft }),
-      })
-      const data = (await res.json().catch(() => ({}))) as { entry?: Entry; error?: string }
-      if (!res.ok || !data.entry) throw new Error(data.error ?? t("memory.saveFailed", { status: res.status }))
+      const saved = await post(draft)
       setEditing(false)
-      onSaved(data.entry)
+      onSaved(saved)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSaving(false)
     }
   }
+
+  const toggleScope = async () => {
+    if (!entry) return
+    setSaving(true)
+    setError(null)
+    try {
+      onSaved(await post({ ...toDraft(entry), scope: entry.scope === "group" ? "project" : "group" }))
+    } catch (e) {
+      setError(t("memory.scopeFailed", { error: e instanceof Error ? e.message : String(e) }))
+    } finally {
+      setSaving(false)
+    }
+  }
+  const showScope = grouped || !!entry?.project
 
   // ⌫ / Delete deletes the open entry, unless the user is typing somewhere
   useEffect(() => {
@@ -144,6 +171,11 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
         menu={
           <span className="flex items-center gap-1">
             {!demo && <>
+            {showScope && (
+              <Button variant="ghost" size="sm" onClick={() => void toggleScope()} disabled={saving} className="h-7 px-2 text-xs">
+                {entry.scope === "group" ? t("memory.keepInProject") : t("memory.shareWithGroup")}
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={startEdit} className="h-7 px-2 text-xs">
               <Pencil className="size-3.5" /> {t("board.edit")}
             </Button>
@@ -157,12 +189,15 @@ export function EntryDetail({ entry, rootParam, onSaved, onDelete, onClose, chil
         title={<span data-user-content>{entry.summary}</span>}
         properties={[
           { label: t("memory.type"), id: "type", value: typeLabel(entry.type) },
+          ...(showScope ? [{ label: t("memory.scope"), id: "scope", value: entry.scope === "group" ? t("memory.scopeGroupValue") : t("memory.scopeProjectValue") }] : []),
+          ...(entry.project ? [{ label: t("memory.project"), id: "project", value: <span data-user-content>{entry.project.name}</span> }] : []),
           { label: t("memory.updated"), id: "updated", value: entry.updatedAt || null },
           { label: t("memory.changedBy"), id: "by", value: entry.by ? <OwnerChip owner={entry.by} className="text-xs text-txt" /> : null },
           { label: t("memory.file"), id: "file", value: <span className="truncate font-mono text-[11px] text-muted">{entry.file}</span> },
         ]}
       />
       <div className="p-5">
+        {error && <p role="alert" className="mb-3 text-xs text-danger">{error}</p>}
         {entry.body ? <MarkdownRenderer content={entry.body} /> : <p className="text-sm text-muted">{t("memory.noDetails")}</p>}
         {children}
       </div>

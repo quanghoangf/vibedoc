@@ -1,9 +1,13 @@
 # T541: Group-scoped entries reach every project in the group
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R103 — Shared group memory
 **Size:** L (half a day)
 **Depends on:** T538
 **Covers:** S1, S2, S3
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-16
+**Done:** 2026-10-16
 
 ## Goal
 An agent saves a knowledge entry with group scope in one repo, and agents in the other repos of that group see it at session start, in recall and in a task's related memory, marked as shared.
@@ -38,14 +42,20 @@ An agent saves a knowledge entry with group scope in one repo, and agents in the
 - [ ] `vibedoc_recall` in `web` finds the shared entry; `vibedoc_get_entries { ids: ["api:E003"] }` returns its body
 - [ ] `node src/lib/entries.check.mts`, `node src/lib/recall.check.mts` pass
 
-## Manual tests
-- [ ] S1 — WHEN an agent saves an entry with group scope in project A → THEN the next session in project B of the same group lists it, marked shared
-- [ ] S2 — WHEN an entry has project scope → THEN it never appears in other projects of the group
-- [ ] S3 — WHEN a project is in no group → THEN memory works exactly as today
-
 ## Verify
 ```bash
 node src/lib/entries.check.mts && node src/lib/recall.check.mts
 pnpm lint && pnpm build
 BASE=http://localhost:3081 node e2e/group-memory.mjs
 ```
+
+## Manual tests
+_2026-10-16 — ai_
+### Steps
+- [x] S1 — WHEN an agent saves an entry with group scope in project A → THEN the next session in project B of the same group lists it, marked shared
+- [x] S2 — WHEN an entry has project scope → THEN it never appears in other projects of the group
+- [x] S3 — WHEN a project is in no group → THEN memory works exactly as today
+- [x] In web, vibedoc_get_entries { ids: ["api:E002"] } → the shared entry's body; a project-scope id (api:E001) → "Not found"
+- [x] vibedoc_save_entry { scope: "group" } in a project in no group → refused with "in no group"
+### Regression risk
+- [x] /memory: search → edit → save → delete → Undo still work (e2e/memory-browser.mjs)

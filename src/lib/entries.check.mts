@@ -76,4 +76,17 @@ assert.equal(replaceEntryRefs('See E011, E11 and `E0011`.', ['E011'], 'E004'), '
 assert.equal(replaceEntryRefs('XE011 E011a E0110 E012', ['E011'], 'E004'), 'XE011 E011a E0110 E012')
 assert.equal(replaceEntryRefs('E011 then E012', ['e11', 'E12'], 'E004'), 'E004 then E004')
 
+// R103: **Scope:** group round-trips; no line = project scope, and a scope-less file formats byte-for-byte as before
+const shared = { ...e, by: 'ai:claude', scope: 'group' as const }
+const sharedRaw = formatEntry(shared)
+assert.match(sharedRaw, /^\*\*Scope:\*\* group$/m)
+assert.deepEqual(parseEntry(sharedRaw, 'f'), { ...shared, file: 'f' })
+assert.equal(formatEntry(parseEntry(sharedRaw, 'f')!), sharedRaw)
+assert.equal('scope' in (parseEntry(raw, 'f') ?? {}), false)
+assert.equal('scope' in (parseEntry(raw.replace('**Updated:**', '**Scope:** project\n**Updated:**'), 'f') ?? {}), false)
+assert.equal(formatEntry(parseEntry(byAi, 'f')!), byAi)
+assert.equal(validateEntryInput({ type: 'gotcha', summary: 'S', scope: 'group' }), null)
+assert.equal(validateEntryInput({ type: 'gotcha', summary: 'S', scope: 'project' }), null)
+assert.match(validateEntryInput({ type: 'gotcha', summary: 'S', scope: 'team' as never }) ?? '', /Invalid scope "team"/)
+
 console.log('entries: ok')

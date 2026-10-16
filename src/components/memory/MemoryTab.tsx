@@ -1,7 +1,7 @@
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { EmptyState } from "@/components/shared/EmptyState"
 import type { Entry } from "@/lib/entries"
-import { EntryList } from "./EntryList"
+import { EntryList, type ListedEntry } from "./EntryList"
 import { EntryDetail } from "./EntryDetail"
 import { EntryRelated } from "./EntryRelated"
 import { EntryHistory } from "./EntryHistory"
@@ -19,8 +19,10 @@ import { useT } from "@/context/LanguageContext"
 
 interface MemoryTabProps {
   memory: { content: string; exists: boolean } | null
-  /** null while loading */
-  entries: Entry[] | null
+  /** null while loading; R103: plus the group's shared entries (each with its `project`) */
+  entries: ListedEntry[] | null
+  /** The project is in a group (R103): scope filter + switch */
+  grouped?: boolean
   rootParam: string
   /** The open entry id (from ?entry=), or null */
   selectedId: string | null
@@ -29,8 +31,8 @@ interface MemoryTabProps {
   onOpen: (id: string) => void
   onNew: () => void
   onClose: () => void
-  onSaved: (entry: Entry) => void
-  onDelete: (entry: Entry) => void
+  onSaved: (entry: ListedEntry) => void
+  onDelete: (entry: ListedEntry) => void
   view: "list" | "graph"
   onView: (view: "list" | "graph") => void
   /** Health flags incl. dismissed ones (null while loading) */
@@ -84,8 +86,10 @@ function CopySnippet() {
   )
 }
 
-export function MemoryTab({ memory, entries, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved, onDelete, view, onView, flags, cleanup, onCleanup, onDismiss, onMerge, onDeleteStale, versions, history, versionId, onHistory, onRestore }: MemoryTabProps) {
+export function MemoryTab({ memory, entries, grouped = false, rootParam, selectedId, creating, onOpen, onNew, onClose, onSaved, onDelete, view, onView, flags, cleanup, onCleanup, onDismiss, onMerge, onDeleteStale, versions, history, versionId, onHistory, onRestore }: MemoryTabProps) {
   const selected = selectedId ? entries?.find((e) => e.id === selectedId) : undefined
+  // the graph, related links, history and cleanup read this repo only (R103)
+  const own: Entry[] | null = entries?.filter((e) => !e.project) ?? null
   const open = flags?.filter((f) => !f.dismissed) ?? []
   const warn = open.some((f) => f.severity === "warn")
   // Cleanup only dismisses, merges and deletes: none of it in the read-only demo (R042)
@@ -132,16 +136,16 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
         </div>
       </div>
       {entries && view === "graph" ? (
-        <MemoryGraph entries={entries} selectedId={selectedId} onOpenEntry={onOpen} />
+        <MemoryGraph entries={own ?? []} selectedId={selectedId} onOpenEntry={onOpen} />
       ) : entries ? (
-        <EntryList entries={entries} selectedId={selectedId} onOpen={onOpen} onNew={onNew} />
+        <EntryList entries={entries} selectedId={selectedId} onOpen={onOpen} onNew={onNew} grouped={grouped} />
       ) : (
         <p className="text-sm text-muted">{t("memory.loadingEntries")}</p>
       )}
       {creating || selected ? (
         <div className="min-w-0 lg:sticky lg:top-6">
-          <EntryDetail key={creating ? "new" : selected?.id} entry={creating ? null : selected ?? null} rootParam={rootParam} onSaved={onSaved} onDelete={onDelete} onClose={onClose}>
-            {selected && !creating && (
+          <EntryDetail key={creating ? "new" : selected?.id} entry={creating ? null : selected ?? null} rootParam={rootParam} onSaved={onSaved} onDelete={onDelete} onClose={onClose} grouped={grouped}>
+            {selected && !creating && !selected.project && (
               <>
                 <EntryRelated entryId={selected.id} onOpenEntry={onOpen} />
                 <EntryHistory entryId={selected.id} />
@@ -151,7 +155,7 @@ export function MemoryTab({ memory, entries, rootParam, selectedId, creating, on
         </div>
       ) : cleanup && !demo ? (
         <div className="min-w-0 lg:sticky lg:top-6">
-          <CleanupPanel flags={flags} entries={entries} onDismiss={onDismiss} onMerge={onMerge} onDelete={onDeleteStale} onOpenEntry={onOpen} onClose={() => onCleanup(false)} />
+          <CleanupPanel flags={flags} entries={own} onDismiss={onDismiss} onMerge={onMerge} onDelete={onDeleteStale} onOpenEntry={onOpen} onClose={() => onCleanup(false)} />
         </div>
       ) : selectedId && entries ? (
         <div role="alert" className="min-w-0 rounded-xl border border-dashed border-border p-5 text-sm text-muted">

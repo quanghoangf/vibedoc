@@ -387,6 +387,7 @@ export const TOOLS = [
         type: { type: "string", enum: [...ENTRY_TYPES] },
         summary: { type: "string", description: "One line, at most 120 characters" },
         body: { type: "string", description: "Details and the why (markdown)" },
+        scope: { type: "string", enum: ["project", "group"], description: "group = shared with every project in this project's groups (their sessions and recall list it as shared); project = this repo only. Default: project on create, unchanged on update. Refused when the project is in no group." },
       },
       required: ["type", "summary"],
     },

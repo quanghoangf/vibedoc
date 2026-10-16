@@ -178,4 +178,29 @@ assert.deepEqual(fids({ query: 'database', type: 'gotcha' }), [])
 assert.deepEqual(fids({ query: 'kubernetes' }), [])
 assert.deepEqual(filterEntries([], { query: 'sse' }), [])
 
+// R103: another repo's group entry ranks with the same scores and is labelled shared; own lines are unchanged
+const own: RecallEntry = { id: 'E001', type: 'convention', summary: 'Money is integer cents', body: '', updatedAt: '2026-10-01' }
+const foreign: RecallEntry = { ...own, id: 'api:E003', shared: 'api' }
+const [ownHit, foreignHit] = rankEntries([own, foreign], 'money cents')
+assert.equal(ownHit.score, foreignHit.score)
+assert.equal(formatCompactLine(ownHit), 'E001 · convention · Money is integer cents (~6 tok)')
+assert.equal(formatCompactLine(foreignHit), 'api:E003 (shared · api) · convention · Money is integer cents (~6 tok)')
+assert.equal('shared' in ownHit, false)
+assert.deepEqual(indexHits([foreign]).map(formatCompactLine), ['api:E003 (shared · api) · convention · Money is integer cents (~6 tok)'])
+assert.match(formatRelated(rankEntries([foreign], 'money cents')), /api:E003 \(shared · api\)/)
+// shared lines count toward the session budget like any other line
+const sharedIndex = [...indexHits([own]), ...indexHits([foreign])]
+assert.equal(fitToBudget('# H', sharedIndex, 2000).shown, 2)
+const cut = fitToBudget('# H', sharedIndex, fitToBudget('# H', sharedIndex, 2000).tokens - 1)
+assert.equal(cut.shown, 1) // own first, the shared line is the one cut
+assert.match(cut.text, /^E001 · /m)
+assert.doesNotMatch(cut.text, /shared/)
+
+// R103: the Memory tab's scope chip
+const scoped = [{ ...own, id: 'E001' }, { ...own, id: 'E002', scope: 'group' }, { ...foreign, scope: 'group' }]
+assert.deepEqual(filterEntries(scoped, { scope: 'shared' }).map(e => e.id).sort(), ['E002', 'api:E003'])
+assert.deepEqual(filterEntries(scoped, { scope: 'project' }).map(e => e.id), ['E001'])
+assert.equal(filterEntries(scoped, { scope: null }).length, 3)
+assert.deepEqual(filterEntries(scoped, { query: 'money', scope: 'project' }).map(e => e.id), ['E001'])
+
 console.log('recall: ok')

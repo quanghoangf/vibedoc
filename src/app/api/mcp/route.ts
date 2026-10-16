@@ -566,10 +566,10 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
     case "vibedoc_save_entry": {
       // only the declared fields: agents never set **Source:** by hand (R052)
-      const { id, type, summary, body } = args as unknown as EntryInput;
-      const entry = await saveEntry({ id, type, summary, body }, root, "ai", agent);
+      const { id, type, summary, body, scope } = args as unknown as EntryInput;
+      const entry = await saveEntry({ id, type, summary, body, scope }, root, "ai", agent);
       emitUpdate("memory_updated", { root, entryId: entry.id });
-      return `🧠 Saved **${entry.id}** · ${entry.type} · ${entry.summary}\n${entry.file}`;
+      return `🧠 Saved **${entry.id}** · ${entry.type} · ${entry.summary}${entry.scope === "group" ? " · shared with the group" : ""}\n${entry.file}`;
     }
 
     case "vibedoc_import_memory": {
@@ -620,10 +620,13 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       if (ids.length > MAX_ENTRY_IDS) throw new Error(`Too many ids (${ids.length}); fetch at most ${MAX_ENTRY_IDS} per call and split the rest`);
       const [{ found, missing }, graph] = await Promise.all([getEntriesByIds(ids, root), getMemoryGraph(root)]);
       // R051: a full-body fetch is what counts as "recalled" (not recall lists or the session index)
-      if (await markEntriesRecalled(found.map((e) => e.id), root)) emitUpdate("memory_updated", { root });
+      // R103: another repo's group entry (`api:E003`) is not this project's: no recall stamp, no links from this graph
+      const own = found.filter((e) => !("project" in e));
+      if (await markEntriesRecalled(own.map((e) => e.id), root)) emitUpdate("memory_updated", { root });
       const blocks = found.map((e) => {
-        const links = formatEntryLinks(graph, e.id);
-        return `## ${e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.source ? `\nSource: ${e.source}` : ""}${e.body ? `\n\n${e.body}` : ""}` +
+        const shared = "project" in e ? e.project.id : "";
+        const links = shared ? [] : formatEntryLinks(graph, e.id);
+        return `## ${shared ? `${shared}:${e.id} (shared · ${shared})` : e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.source ? `\nSource: ${e.source}` : ""}${e.body ? `\n\n${e.body}` : ""}` +
           (links.length ? `\n\n${links.join("\n")}` : "");
       });
       if (missing.length) blocks.push(`Not found: ${missing.join(", ")}`);
