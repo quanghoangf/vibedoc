@@ -40,6 +40,7 @@ import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenari
 import { cloneRunning, runClone } from './git-clone'
 import { addProject, cloneDest, emptyHub, expandHome, isCloneUrl, isScannable, MAX_SCAN_RESULTS, scanResults, type ScannedRepo, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, relocateProject, removeProject, restoreProject, type Hub, type HubProject } from './hub'
 import { groupSlug, groupsOf, withMembership, type ProjectGroup } from './groups'
+import { slugsOf } from './groups'
 import { countNeedsYou } from './test-review'
 import { runIdTime } from './test-review'
 import { chatStatus, fromSaved, isWaiting, type StatusMessage } from './chats'
@@ -2160,6 +2161,9 @@ export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human'
   const error = validateEntryInput(input)
   if (error) return Promise.reject(new Error(error))
   return withEntryLock(async () => {
+    if (input.scope === 'group' && !(await projectGroupSlugs(root)).length) {
+      throw new Error('This project is in no group, so an entry can\'t have group scope. Add the project to a group on /projects first.')
+    }
     const entries = await listEntries(root)
     let id: string
     let previous: Entry | undefined
@@ -2175,6 +2179,8 @@ export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human'
       id, type: input.type as EntryType, summary, body: (input.body ?? '').trim(),
       updatedAt: localToday(), by: actor === 'human' ? 'human' : parseOwner(`ai:${agent || 'agent'}`) ?? 'ai:agent',
       source: (typeof input.source === 'string' && input.source.trim()) || previous?.source,
+      // R103: no scope given keeps the old one; 'project' drops the line
+      scope: (input.scope ?? previous?.scope) === 'group' ? 'group' : undefined,
       file: path.join(ENTRIES_DIR, `${id}-${entrySlug(summary)}.md`),
     }
     await fs.mkdir(path.join(root, ENTRIES_DIR), { recursive: true })
@@ -2258,13 +2264,20 @@ export async function exportEntries(root: string, actor: 'ai' | 'human'): Promis
   return { count: entries.length, files: plans.map(p => ({ file: p.file, changed: p.after !== p.before })) }
 }
 
-/** Entries in the order of `ids` (any case / padding), plus the ids that matched nothing. */
-export async function getEntriesByIds(ids: string[], root: string): Promise<{ found: Entry[]; missing: string[] }> {
-  const byId = new Map((await listEntries(root)).map(e => [e.id, e]))
-  const found: Entry[] = []
+/**
+ * Entries in the order of `ids` (any case / padding), plus the ids that matched nothing. `<project>:E003` is another
+ * repo's group entry (R103): found only when it is shared with this project, as a GroupEntry.
+ */
+export async function getEntriesByIds(ids: string[], root: string): Promise<{ found: (Entry | GroupEntry)[]; missing: string[] }> {
+  const byId = new Map<string, Entry | GroupEntry>((await listEntries(root)).map(e => [e.id, e]))
+  if (ids.some(id => String(id).includes(':'))) {
+    for (const e of await groupEntries(root)) byId.set(`${e.project.id}:${e.id}`, e)
+  }
+  const found: (Entry | GroupEntry)[] = []
   const missing: string[] = []
   for (const raw of ids) {
-    const entry = byId.get(normalizeEntryId(String(raw)) ?? '')
+    const [project, id] = String(raw).includes(':') ? String(raw).split(':', 2) : ['', String(raw)]
+    const entry = byId.get(`${project ? `${project.trim()}:` : ''}${normalizeEntryId(id) ?? ''}`)
     if (entry) found.push(entry)
     else missing.push(String(raw))
   }
@@ -2320,14 +2333,57 @@ export async function sessionStartMemory(root: string): Promise<string> {
   // R051: warnings sit directly under the handoff, so the budget never cuts them
   const warnings = memory.exists ? formatHealthWarnings(await getMemoryHealth(root)) : ''
   const handoff = warnings ? `${memory.content.trimEnd()}\n\n${warnings}\n` : memory.content
-  return fitToBudget(handoff, indexHits(entries), sessionBudgetTokens, episode).text
+  // R103: own entries first, then the group's shared ones; both count toward the budget
+  const shared = (await groupEntries(root)).map(sharedRecallEntry)
+  return fitToBudget(handoff, [...indexHits(entries), ...indexHits(shared)], sessionBudgetTokens, episode).text
 }
 
 /** The "## Related memory" block for a task (up to `limit` strong keyword matches), or '' (R048). */
 export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>, root: string, limit = 3): Promise<string> {
   // rank everything so the score filter in formatRelated sees all candidates before the limit
-  const entries = await listEntries(root)
+  const entries = await recallPool(root)
   return formatRelated(rankEntries(entries, taskQuery(task), { limit: entries.length }), limit)
+}
+
+// ─── Shared group memory (R103) ──────────────────────────────────────────────
+// No new storage: an entry stays in its own repo and `**Scope:** group` shares it with every repo of its groups.
+
+export type GroupEntry = Entry & { project: { id: string; name: string; root: string } }
+
+/** The slugs of the groups this project is in (its own .vibedoc/settings.json); unreadable settings → []. */
+export async function projectGroupSlugs(root: string): Promise<string[]> {
+  return slugsOf(await readSettingsObject(root).then(s => s.groups, () => null))
+}
+
+/**
+ * The group-scoped entries of every other hub project sharing a group with this one. A project in no group returns []
+ * before the hub is read, so its memory stays exactly as before R103. A member that can't be read is skipped.
+ */
+export async function groupEntries(root: string): Promise<GroupEntry[]> {
+  const slugs = await projectGroupSlugs(root)
+  if (!slugs.length) return []
+  const real = (p: string) => fs.realpath(p).catch(() => path.resolve(p))
+  const self = await real(root)
+  const members = new Map<string, ProjectGroup['members'][number]>()
+  for (const g of await listGroups()) {
+    if (!slugs.includes(g.slug)) continue
+    for (const m of g.members) members.set(m.id, m)
+  }
+  const lists = await Promise.all([...members.values()].map(async m => {
+    if (await real(m.root) === self) return []
+    const entries = await listEntries(m.root).catch(() => [] as Entry[])
+    return entries.filter(e => e.scope === 'group').map(e => ({ ...e, project: { id: m.id, name: m.name, root: m.root } }))
+  }))
+  return lists.flat()
+}
+
+/** A foreign group entry for recall: id `<project id>:E003`, labelled shared with the project id. */
+const sharedRecallEntry = (e: GroupEntry): RecallEntry => ({ ...e, id: `${e.project.id}:${e.id}`, shared: e.project.id })
+
+/** This project's entries plus the group's shared ones: what recall and related memory rank. */
+async function recallPool(root: string): Promise<RecallEntry[]> {
+  const [own, shared] = await Promise.all([listEntries(root), groupEntries(root)])
+  return [...own, ...shared.map(sharedRecallEntry)]
 }
 
 // ─── OpenAPI spec (R094) ──────────────────────────────────────────────────────
@@ -2668,7 +2724,7 @@ export async function getReleaseNotesDraft(root: string): Promise<ReleaseNotesDr
 
 /** Keyword recall over the entries: compact hits, no bodies (R048). */
 export async function recallEntries(query: string, opts: { type?: string; limit?: number }, root: string): Promise<RecallHit[]> {
-  return rankEntries(await listEntries(root), query, opts)
+  return rankEntries(await recallPool(root), query, opts)
 }
 
 /** Removes the file for good; git keeps its history. Throws on an unknown id. */

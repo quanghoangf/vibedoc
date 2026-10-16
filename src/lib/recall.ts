@@ -1,8 +1,11 @@
 // Pure keyword recall over knowledge entries (R048, no fs). Self-check: node src/lib/recall.check.mts
 // Index first, bodies on request: agents get compact lines here and fetch bodies with vibedoc_get_entries.
 
-export type RecallEntry = { id: string; type: string; summary: string; body: string; updatedAt: string }
-export type RecallHit = { id: string; type: string; summary: string; tokens: number; score: number }
+// shared = the owning project's hub id for another repo's group entry (R103); its id is then "<project>:E003"
+export type RecallEntry = { id: string; type: string; summary: string; body: string; updatedAt: string; shared?: string }
+export type RecallHit = { id: string; type: string; summary: string; tokens: number; score: number; shared?: string }
+
+const sharedOf = (e: RecallEntry) => (e.shared ? { shared: e.shared } : {})
 
 const STOPWORDS = new Set(('a an and are as at be but by can do does for from how i if in into is it its of on or ' +
   'our so that the their then there these this to use used using was we what when where which who why will with you your').split(' '))
@@ -36,22 +39,22 @@ export function rankEntries(entries: RecallEntry[], query: string, opts: { type?
       if (body.has(t)) score += 1
     }
     if (score > 0) {
-      hits.push({ id: e.id, type: e.type, summary: e.summary, tokens: estimateTokens(`${e.summary}\n${e.body}`), score, updatedAt: e.updatedAt })
+      hits.push({ id: e.id, type: e.type, summary: e.summary, tokens: estimateTokens(`${e.summary}\n${e.body}`), score, updatedAt: e.updatedAt, ...sharedOf(e) })
     }
   }
   hits.sort((a, b) => b.score - a.score || b.updatedAt.localeCompare(a.updatedAt))
   return hits.slice(0, opts.limit ?? 10).map(({ updatedAt: _, ...h }) => h)
 }
 
-/** "E012 · convention · Only core.ts touches fs (~120 tok)" */
+/** "E012 · convention · Only core.ts touches fs (~120 tok)"; another repo's group entry: "api:E003 (shared · api) · …" */
 export function formatCompactLine(h: RecallHit): string {
-  return `${h.id} · ${h.type} · ${h.summary} (~${h.tokens} tok)`
+  return `${h.id}${h.shared ? ` (shared · ${h.shared})` : ''} · ${h.type} · ${h.summary} (~${h.tokens} tok)`
 }
 
 /** Every entry as a compact hit, newest first: the session-start index order. */
 export function indexHits(entries: RecallEntry[]): RecallHit[] {
   return [...entries].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id, 'en', { numeric: true }))
-    .map(e => ({ id: e.id, type: e.type, summary: e.summary, tokens: estimateTokens(`${e.summary}\n${e.body}`), score: 0 }))
+    .map(e => ({ id: e.id, type: e.type, summary: e.summary, tokens: estimateTokens(`${e.summary}\n${e.body}`), score: 0, ...sharedOf(e) }))
 }
 
 export const DEFAULT_SESSION_BUDGET = 2000
