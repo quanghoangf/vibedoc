@@ -2,17 +2,20 @@
 //
 //   export VIBEDOC_HOME=$(mktemp -d)
 //   PORT=3131 pnpm dev:next                                    # the server, with a throwaway hub
-//   BASE=http://localhost:3131 node e2e/group-memory.mjs
+//   BASE=http://localhost:3131 PW_DIR=<dir with node_modules/playwright> node e2e/group-memory.mjs
+//
+// T541 = MCP: session start, recall, related memory, get_entries, save_entry scope. T542 = the Memory tab: scope chips,
+// the owning project on shared rows, an edit that lands in the owner repo, the scope switch.
 //
 // Writes only into fresh mktemp fixture projects and the temp hub, never this repo or ~/.vibedoc.
 // S3 compares a project in no group with e2e/fixtures/group-memory/solo-read-memory.txt, captured before R103
 // (WRITE_SNAPSHOT=1 rewrites it: only do that on purpose).
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { registerProject } from "./stub-chat.mjs"
+import { launchChrome, registerProject, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const SNAPSHOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures/group-memory/solo-read-memory.txt")
@@ -109,5 +112,64 @@ await mcp(api, "vibedoc_save_entry", { id: "E002", type: "convention", summary: 
 assert.doesNotMatch(readFileSync(path.join(api.root, "memory/entries/E002-money-is-integer-cents-everywhere.md"), "utf8"), /Scope/)
 assert.match((await mcp(web, "vibedoc_recall", { query: "money cents" })).text, /^No entries match/)
 console.log("ok  scope: project removes the **Scope:** line and web no longer finds it")
+
+// ── T542: the Memory tab in web
+const moneyFile = (slugPart) => path.join(api.root, "memory/entries", `E002-${slugPart}.md`)
+await mcp(api, "vibedoc_save_entry", { id: "E002", type: "convention", summary: "Money is integer cents everywhere", body: "Never floats on the wire.", scope: "group" })
+const errors = []
+const browser = await launchChrome()
+try {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+  page.on("pageerror", (e) => errors.push(e.message))
+  page.on("console", (m) => { if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text()) })
+  const list = page.locator('section[aria-label="Knowledge entries"]')
+  const scopeChips = page.getByRole("group", { name: "Filter by scope" })
+
+  // a project in no group: no scope chips
+  await stubChat(page, [], { root: solo.root })
+  await page.goto(`${BASE}/memory`)
+  await list.getByText("Retry flaky uploads once").waitFor()
+  assert.equal(await scopeChips.count(), 0)
+  console.log("ok  T542 a project in no group: /memory has no scope filter")
+
+  await page.unrouteAll({ behavior: "ignoreErrors" })
+  await stubChat(page, [], { root: web.root })
+  await page.goto(`${BASE}/memory`)
+  await scopeChips.waitFor()
+  await scopeChips.getByRole("button", { name: /^Shared/ }).click()
+  const row = list.getByRole("button", { name: /Money is integer cents everywhere/ })
+  await row.waitFor()
+  assert.equal(await row.locator(`[data-shared-from="${A}"]`).innerText(), "api")
+  assert.equal(await list.getByText("Local build cache lives in tmp").count(), 0)
+  console.log("ok  T542 web's Shared chip lists api's group entry labelled api; api's project entry is absent")
+
+  await row.click()
+  await page.waitForURL(new RegExp(`entry=${A}%3AE002|entry=${A}:E002`))
+  const detail = page.locator(`section[aria-label="${A}:E002"]`)
+  await detail.getByText("Shared with the group").waitFor()
+  await detail.getByRole("button", { name: "Edit" }).click()
+  await page.getByLabel("Summary (one line)").fill("Money is integer cents on every wire")
+  await page.getByRole("button", { name: "Save" }).click()
+  await detail.getByText("Money is integer cents on every wire").first().waitFor()
+  assert.ok(!existsSync(moneyFile("money-is-integer-cents-everywhere")))
+  const edited = readFileSync(moneyFile("money-is-integer-cents-on-every-wire"), "utf8")
+  assert.match(edited, /^# E002: Money is integer cents on every wire$/m)
+  assert.match(edited, /^\*\*Scope:\*\* group$/m)
+  assert.match(edited, /^\*\*By:\*\* human$/m)
+  assert.equal(readdirSync(path.join(web.root, "memory/entries")).length, 0)
+  console.log("ok  T542 editing the shared entry in web rewrites api's file, scope kept; nothing written in web")
+
+  await detail.getByRole("button", { name: "Keep in this project" }).click()
+  await detail.waitFor({ state: "detached" })
+  await page.reload()
+  await list.getByText("Money is integer cents on every wire").waitFor({ state: "detached" })
+  assert.doesNotMatch(readFileSync(moneyFile("money-is-integer-cents-on-every-wire"), "utf8"), /Scope/)
+  assert.match((await mcp(web, "vibedoc_recall", { query: "money cents" })).text, /^No entries match/)
+  console.log("ok  T542 Keep in this project rewrites api's **Scope:** line; web no longer lists it")
+  assert.deepEqual(errors, [])
+  console.log("ok  no console errors")
+} finally {
+  await browser.close()
+}
 
 console.log("\nall group-memory checks passed")

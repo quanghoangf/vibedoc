@@ -119,9 +119,11 @@ export function formatRelated(hits: RecallHit[], limit = 3): string {
 /**
  * The Memory tab list (R047). No searchable words → the entries of `type`, newest first (session-start order).
  * Otherwise ranked like vibedoc_recall, so the UI and agents agree on the first hit. Returns the full entries.
+ * `scope` (R103): 'shared' = group-scoped entries (this repo's and the group's), 'project' = the rest.
  */
-export function filterEntries<T extends RecallEntry>(entries: T[], opts: { query?: string; type?: string | null }): T[] {
-  const pool = opts.type ? entries.filter(e => e.type === opts.type) : entries
+export function filterEntries<T extends RecallEntry & { scope?: string }>(entries: T[], opts: { query?: string; type?: string | null; scope?: 'project' | 'shared' | null }): T[] {
+  const inScope = (e: T) => !opts.scope || (opts.scope === 'shared') === (e.scope === 'group')
+  const pool = entries.filter(e => (!opts.type || e.type === opts.type) && inScope(e))
   const byId = new Map(pool.map(e => [e.id, e]))
   const query = opts.query ?? ''
   const hits = tokenize(query).length ? rankEntries(pool, query, { limit: pool.length }) : indexHits(pool)

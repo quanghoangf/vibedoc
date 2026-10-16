@@ -23,3 +23,5 @@ An entry has a scope. By default it belongs to its project. Save it with `scope:
 3. `vibedoc_recall` in `web` finds it, and so does a task's related memory. Fetch its body with `vibedoc_get_entries { ids: ["api:E002"] }`: the part before the colon is the owning project's id.
 
 Entries with project scope never leave their repo. Saving with `scope: "project"` turns a shared entry back into a private one. A project in no group refuses `scope: "group"`, and its memory works exactly as before. The handoff, `MEMORY.md`, always stays per project.
+
+On `/memory`, a project in a group gets a scope filter (**All · This project · Shared**). A shared row from another repo shows that repo's name. Editing it or deleting it changes the file in that repo. **Share with group** and **Keep in this project** switch an entry's scope.

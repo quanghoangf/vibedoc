@@ -6,6 +6,7 @@ import { useApp } from "@/context/AppContext"
 import { MemoryTab } from "@/components/memory/MemoryTab"
 import { toast, undoToast } from "@/components/ui/toast"
 import type { Entry } from "@/lib/entries"
+import type { ListedEntry } from "@/components/memory/EntryList"
 import type { CleanupFlag, MemoryVersion } from "@/lib/core"
 import type { MergeInput } from "@/components/memory/MergeDialog"
 import { tNow } from "@/context/LanguageContext"
@@ -28,7 +29,8 @@ function MemoryPageInner() {
   const cleanup = params.get("cleanup") === "1"
   const history = params.get("history") === "1"
   const versionId = history ? params.get("version") : null
-  const [entries, setEntries] = useState<Entry[] | null>(null)
+  const [entries, setEntries] = useState<ListedEntry[] | null>(null)
+  const [grouped, setGrouped] = useState(false)
   const [creating, setCreating] = useState(false)
   const [flags, setFlags] = useState<CleanupFlag[] | null>(null)
   const [versions, setVersions] = useState<MemoryVersion[] | null>(null)
@@ -37,10 +39,16 @@ function MemoryPageInner() {
     let live = true
     fetch(`/api/memory/entries${rootParam}`)
       .then((r) => r.json())
-      .then((d: { entries?: Entry[] }) => { if (live) setEntries(d.entries ?? []) })
+      .then((d: { entries?: Entry[]; shared?: (Entry & Required<Pick<ListedEntry, "project">>)[]; grouped?: boolean }) => {
+        if (!live) return
+        // R103: another repo's group entry is listed as `<project id>:E003`, so ids stay unique and deep links work
+        const shared = (d.shared ?? []).map((e) => ({ ...e, id: `${e.project.id}:${e.id}` }))
+        setEntries([...(d.entries ?? []), ...shared])
+        setGrouped(d.grouped ?? false)
+      })
       .catch((e) => {
         console.warn("Loading memory entries failed", e)
-        if (live) setEntries([])
+        if (live) { setEntries([]); setGrouped(false) }
       })
     return () => { live = false }
   }, [rootParam])
@@ -110,28 +118,31 @@ function MemoryPageInner() {
     go(id, view)
   }, [go, view])
 
-  const post = useCallback(async (url: string, body: object) => {
-    const res = await fetch(`${url}${rootParam}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+  const post = useCallback(async (url: string, body: object, rp = rootParam) => {
+    const res = await fetch(`${url}${rp}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.error ?? tNow("board.requestFailed", { status: res.status }))
     return data
   }, [rootParam])
 
   // No confirm: delete now, offer Undo (restores the same file), like tasks and docs
-  const remove = useCallback(async (entry: Entry) => {
+  const remove = useCallback(async (entry: ListedEntry) => {
+    // R103: a shared entry is deleted (and restored) in its own repo
+    const rp = entry.project ? `?root=${encodeURIComponent(entry.project.root)}` : rootParam
+    const ownId = entry.project ? entry.id.slice(entry.id.indexOf(":") + 1) : entry.id
     try {
-      const { file, raw } = await post("/api/memory/entries/delete", { id: entry.id })
+      const { file, raw } = await post("/api/memory/entries/delete", { id: ownId }, rp)
       setEntries((list) => (list ?? []).filter((e) => e.id !== entry.id))
       select(null)
       undoToast(tNow("memory.deletedId", { id: entry.id }), async () => {
-        await post("/api/memory/entries/restore", { file, raw })
+        await post("/api/memory/entries/restore", { file, raw }, rp)
         load()
         select(entry.id)
       })
     } catch (e) {
       toast(tNow("memory.deleteFailed", { error: e instanceof Error ? e.message : String(e) }))
     }
-  }, [post, select, load])
+  }, [post, select, load, rootParam])
 
   // From the Cleanup panel: same delete + Undo, but the panel stays open
   const removeStale = useCallback(async (id: string) => {
@@ -188,6 +199,7 @@ function MemoryPageInner() {
     <MemoryTab
       memory={summary?.memory ?? null}
       entries={entries}
+      grouped={grouped}
       rootParam={rootParam}
       selectedId={creating ? null : selectedId}
       creating={creating}
@@ -210,8 +222,10 @@ function MemoryPageInner() {
       onRestore={restoreVersion}
       onSaved={(entry) => {
         // show the saved text now; the SSE refetch confirms it
-        setEntries((list) => [...(list ?? []).filter((e) => e.id !== entry.id), entry])
-        select(entry.id)
+        // R103: another repo's entry made project-only is no longer this project's to see
+        const gone = !!entry.project && entry.scope !== "group"
+        setEntries((list) => [...(list ?? []).filter((e) => e.id !== entry.id), ...(gone ? [] : [entry])])
+        select(gone ? null : entry.id)
       }}
     />
   )

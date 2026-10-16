@@ -11,19 +11,33 @@ import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { useEntryTypeLabel } from "./entry-type"
 
-/** Knowledge entries (R046) with search (ranked like vibedoc_recall) and a type filter. */
-export function EntryList({ entries, selectedId, onOpen, onNew }: {
-  entries: Entry[]
+/**
+ * An entry on the Memory tab. Another repo's group entry (R103) carries its `project` and the id `<project id>:E003`;
+ * its own id is the part after the colon.
+ */
+export type ListedEntry = Entry & { project?: { id: string; name: string; root: string } }
+
+type Scope = "project" | "shared"
+
+/**
+ * Knowledge entries (R046) with search (ranked like vibedoc_recall) and a type filter; a project in a group (R103)
+ * also gets a scope filter.
+ */
+export function EntryList({ entries, selectedId, onOpen, onNew, grouped = false }: {
+  entries: ListedEntry[]
   selectedId?: string | null
   onOpen: (id: string) => void
   onNew: () => void
+  grouped?: boolean
 }) {
   const { demo } = useApp()
   const { t } = useT()
   const typeLabel = useEntryTypeLabel()
   const [query, setQuery] = useState("")
   const [type, setType] = useState<EntryType | null>(null)
-  const shown = useMemo(() => filterEntries(entries, { query, type }), [entries, query, type])
+  const [scope, setScope] = useState<Scope | null>(null)
+  const shown = useMemo(() => filterEntries(entries, { query, type, scope: grouped ? scope : null }), [entries, query, type, scope, grouped])
+  const sharedCount = useMemo(() => entries.filter((e) => e.scope === "group").length, [entries])
   const counts = useMemo(() => {
     const c: Record<string, number> = {}
     for (const e of entries) c[e.type] = (c[e.type] ?? 0) + 1
@@ -31,21 +45,23 @@ export function EntryList({ entries, selectedId, onOpen, onNew }: {
   }, [entries])
   const searching = tokenize(query).length > 0
 
-  const chip = (value: EntryType | null, label: string, count: number) => (
+  const chipButton = (pressed: boolean, onClick: () => void, label: string, count: number) => (
     <button
       key={label}
       type="button"
-      aria-pressed={type === value}
-      onClick={() => setType(value)}
+      aria-pressed={pressed}
+      onClick={onClick}
       className={cn(
         "h-6 rounded-[5px] border border-transparent px-2 text-xs font-medium text-muted outline-none transition-colors",
         "hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent",
-        type === value && "border-border2 bg-surface2 text-txt",
+        pressed && "border-border2 bg-surface2 text-txt",
       )}
     >
       {label} <span className="font-mono text-[10px] opacity-70">{count}</span>
     </button>
   )
+  const chip = (value: EntryType | null, label: string, count: number) => chipButton(type === value, () => setType(value), label, count)
+  const scopeChip = (value: Scope | null, label: string, count: number) => chipButton(scope === value, () => setScope(value), label, count)
 
   return (
     <section aria-label={t("memory.knowledgeEntries")} className="flex min-w-0 flex-col gap-3">
@@ -78,6 +94,14 @@ export function EntryList({ entries, selectedId, onOpen, onNew }: {
         {ENTRY_TYPES.map((type) => chip(type, typeLabel(type), counts[type] ?? 0))}
       </div>
 
+      {grouped && (
+        <div role="group" aria-label={t("memory.filterByScope")} className="flex flex-wrap gap-1">
+          {scopeChip(null, t("memory.all"), entries.length)}
+          {scopeChip("project", t("memory.scopeThisProject"), entries.length - sharedCount)}
+          {scopeChip("shared", t("memory.scopeShared"), sharedCount)}
+        </div>
+      )}
+
       {entries.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
           {t("memory.noEntriesLead")} <code className="font-mono text-xs">vibedoc_save_entry</code>.
@@ -103,6 +127,11 @@ export function EntryList({ entries, selectedId, onOpen, onNew }: {
                   <span>{e.id}</span>
                   <span>·</span>
                   <span>{typeLabel(e.type)}</span>
+                  {e.scope === "group" && (
+                    <span data-shared-from={e.project?.id ?? ""} className="rounded-[4px] border border-border px-1 font-sans text-[10px]">
+                      {e.project ? <span data-user-content>{e.project.name}</span> : t("memory.scopeShared")}
+                    </span>
+                  )}
                   <span className="ml-auto flex items-center gap-2">
                     <OwnerChip owner={e.by} className="font-sans" />
                     {e.updatedAt}

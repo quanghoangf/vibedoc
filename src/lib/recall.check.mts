@@ -196,4 +196,11 @@ assert.equal(cut.shown, 1) // own first, the shared line is the one cut
 assert.match(cut.text, /^E001 · /m)
 assert.doesNotMatch(cut.text, /shared/)
 
+// R103: the Memory tab's scope chip
+const scoped = [{ ...own, id: 'E001' }, { ...own, id: 'E002', scope: 'group' }, { ...foreign, scope: 'group' }]
+assert.deepEqual(filterEntries(scoped, { scope: 'shared' }).map(e => e.id).sort(), ['E002', 'api:E003'])
+assert.deepEqual(filterEntries(scoped, { scope: 'project' }).map(e => e.id), ['E001'])
+assert.equal(filterEntries(scoped, { scope: null }).length, 3)
+assert.deepEqual(filterEntries(scoped, { query: 'money', scope: 'project' }).map(e => e.id), ['E001'])
+
 console.log('recall: ok')
