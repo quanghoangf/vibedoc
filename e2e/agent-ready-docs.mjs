@@ -173,6 +173,8 @@ try {
     const [popup] = await Promise.all([page.waitForEvent("popup"), page.getByRole("menuitem", { name: "View as Markdown" }).click()])
     assert.equal(popup.url(), agentLink)
     await popup.close()
+    // the popup hid the page mid close-animation: wait for the ⋯ menu to leave, or it still holds focus and takes the Esc below
+    await page.getByRole("menu").waitFor({ state: "detached" })
     console.log("ok  S4: Copy agent link / View as Markdown use the /md/ URL an agent fetches")
 
     await page.keyboard.press("ControlOrMeta+k")

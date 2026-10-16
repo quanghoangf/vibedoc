@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import type { DocFile, SelectedDoc } from "@/types"
+import type { LazyFolder } from "@/lib/doc-scope"
 import { DocList } from "./DocList"
 import { DocViewer } from "./DocViewer"
 import type { DocActions } from "./DocActionsMenu"
@@ -29,9 +30,12 @@ interface DocsTabProps {
   apiSpec?: ApiSpecList | null
   apiOpen?: string | null
   onApiOpen?: (key: string | null) => void
+  /** Folders outside docs/, plans/ and memory/ not opened yet, and how to open one */
+  lazyFolders?: LazyFolder[]
+  onOpenFolder?: (name: string) => Promise<void>
 }
 
-export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSelect, onDirtyChange, onNewDocClick, onDocDeleted, onDocRenamed, rootParam, docActions, apiSpec, apiOpen, onApiOpen }: DocsTabProps) {
+export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSelect, onDirtyChange, onNewDocClick, onDocDeleted, onDocRenamed, rootParam, docActions, apiSpec, apiOpen, onApiOpen, lazyFolders = [], onOpenFolder }: DocsTabProps) {
   const [liveContent, setLiveContent] = useState(selectedDoc?.content ?? "")
   useEffect(() => { setLiveContent(selectedDoc?.content ?? "") }, [selectedDoc?.path])
   const [listCollapsed, setListCollapsed] = useState(lastListCollapsed)
@@ -49,7 +53,7 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
   // With no doc open the list is the page, so it never hides
   const hideList = listCollapsed && (!!selectedDoc || showApi)
   // An empty project: on phones the viewer's empty state (what fills Docs, New doc) is the page, not an empty list
-  const noDocs = !selectedDoc && !showApi && !apiSpec?.path && docs.length === 0 && !docSearch.trim()
+  const noDocs = !selectedDoc && !showApi && !apiSpec?.path && docs.length === 0 && lazyFolders.length === 0 && !docSearch.trim()
 
   return (
     // A fixed height (the header is 3rem), so the list and the doc each scroll in their own pane, never the page
@@ -66,6 +70,8 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
         onNewDocClick={onNewDocClick}
         rootParam={rootParam}
         docActions={docActions}
+        lazyFolders={lazyFolders}
+        onOpenFolder={onOpenFolder}
       />
       <div className={cn("flex-1 min-w-0 overflow-y-auto", !selectedDoc && !showApi && !noDocs && "max-md:hidden")}>
         {showApi && apiSpec && apiOpen && onApiOpen ? (

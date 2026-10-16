@@ -19,9 +19,14 @@ export default function WelcomePage() {
 
   useEffect(() => {
     if (!activeProject) return
-    fetch(`/api/docs${rootParam}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((docs: { path?: string }[]) => setKind(welcomeKind(Array.isArray(docs) ? docs.map((d) => d?.path ?? "") : [])))
+    const json = (q: string) => fetch(`/api/docs${rootParam}${q}`).then((r) => (r.ok ? r.json() : []))
+    // the root .md files and docs/, plus any other folder (names only) that holds a project doc
+    Promise.all([json(""), json("&folders=1")])
+      .then(([docs, folders]: [{ path?: string }[], { hasDocs?: boolean }[]]) => {
+        const paths = Array.isArray(docs) ? docs.map((d) => d?.path ?? "") : []
+        const elsewhere = Array.isArray(folders) && folders.some((f) => f?.hasDocs)
+        setKind(elsewhere ? "docs" : welcomeKind(paths))
+      })
       .catch((e) => {
         console.error("[vibedoc] welcome: could not list docs:", e)
         setKind("empty")

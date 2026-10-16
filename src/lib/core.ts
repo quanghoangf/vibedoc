@@ -61,6 +61,8 @@ import { parseConnection, shouldRecordCall, type AgentConnection } from './agent
 import type { ProjectFacts } from './toolkit'
 import { parseUsage, recordRead, recordSearch, summarizeUsage, type DocUsage, type UsageSummary } from './doc-usage'
 import { OPENAPI_GLOB, parseOpenApi, type OpenApiSpec } from './openapi'
+import { DEPENDENCY_DIRS, fuzzyDocMatch, isEagerPath, isLazyDir, lazyFolders, parseGitPaths, SKIP_IGNORE, splitMarkdown, type LazyFolder, type MarkdownPaths } from './doc-scope'
+import { hasProjectDocs } from './first-screen'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -415,20 +417,84 @@ export async function discoverProjects(searchBase?: string): Promise<Project[]> 
 
 // ─── Docs ─────────────────────────────────────────────────────────────────────
 
-export async function listDocs(root: string): Promise<DocFile[]> {
-  const files = await glob('**/*.md', {
-    cwd: root,
-    ignore: ['node_modules/**', '.git/**', '.next/**'],
-    nodir: true,
-  })
+/**
+ * git's .md files when `root` is a work tree that git doesn't ignore: tracked + untracked, minus ignored and deleted.
+ * Null without git, outside a repo, or when root sits in an ignored folder (git lists nothing there: a test fixture or
+ * demo copy inside a repo), so the caller globs instead.
+ */
+async function gitMarkdownPaths(root: string): Promise<string[] | null> {
+  try {
+    if ((await git(['rev-parse', '--is-inside-work-tree'], root)).trim() !== 'true') return null
+  } catch {
+    return null
+  }
+  // exit 0 = root is ignored; exit 1 (not ignored) throws, so carry on
+  if (await git(['check-ignore', '-q', '.'], root).then(() => true, () => false)) return null
+  try {
+    const [listed, deleted] = await Promise.all([
+      git(['ls-files', '-z', '-co', '--exclude-standard', '--', '*.md'], root),
+      git(['ls-files', '-z', '-d', '--', '*.md'], root),
+    ])
+    return parseGitPaths(listed, deleted)
+  } catch {
+    return null
+  }
+}
 
+async function scanMarkdownPaths(root: string): Promise<MarkdownPaths> {
+  const listed = await gitMarkdownPaths(root)
+  if (listed) return splitMarkdown(listed, DEPENDENCY_DIRS)
+  const [docs, hidden] = await Promise.all([
+    glob('**/*.md', { cwd: root, ignore: SKIP_IGNORE, nodir: true, posix: true }),
+    glob('.*/**/*.md', { cwd: root, dot: true, ignore: SKIP_IGNORE, nodir: true, posix: true }),
+  ])
+  return splitMarkdown([...docs, ...hidden])
+}
+
+// One listing per root while it runs: the sidebar alone asks three times at once. No TTL, because agents write
+// files directly and a list right after a create must see the new file.
+const markdownListings: Map<string, Promise<MarkdownPaths>> = (() => {
+  const g = globalThis as { __vibedocMarkdownListings?: Map<string, Promise<MarkdownPaths>> }
+  return (g.__vibedocMarkdownListings ??= new Map())
+})()
+
+/**
+ * Every .md path of the project, names only (no reads), sorted: `docs` outside dot folders, `hidden` inside them.
+ * Never walks SKIP_DIRS (node_modules, target, dist, …); in a git work tree, git-ignored files are left out too.
+ */
+export function listMarkdownPaths(root: string): Promise<MarkdownPaths> {
+  const key = path.resolve(root)
+  const running = markdownListings.get(key)
+  if (running) return running
+  const listing = scanMarkdownPaths(root).finally(() => markdownListings.delete(key))
+  markdownListings.set(key, listing)
+  return listing
+}
+
+function docFiles(root: string, files: string[]): Promise<DocFile[]> {
   // ponytail: reads every doc for its frontmatter; read only the head of each file if lists get slow
-  return Promise.all(files.sort().map(async f => ({
+  return Promise.all(files.map(async f => ({
     path: f,
     section: inferSection(f),
     name: path.basename(f, '.md'),
     priority: docPriority(await fs.readFile(path.join(root, f), 'utf8').catch(() => '')),
   })))
+}
+
+/** The docs VibeDoc reads up front: root-level .md files and docs/, plans/, memory/ (`isEagerPath`). */
+export async function listDocs(root: string): Promise<DocFile[]> {
+  return docFiles(root, (await listMarkdownPaths(root)).docs.filter(isEagerPath))
+}
+
+/** One lazy folder's docs, read when someone opens it. Refuses (error starting "Refused") anything but a lazy folder name. */
+export async function listDocsIn(root: string, dir: string): Promise<DocFile[]> {
+  if (!isLazyDir(dir)) throw new Error(`Refused: "${dir}" is not a top-level folder outside docs/, plans/ and memory/`)
+  return docFiles(root, (await listMarkdownPaths(root)).docs.filter(p => p.startsWith(`${dir}/`)))
+}
+
+/** The other top-level folders that hold .md files, by name, with counts. Names only: nothing in them is read. */
+export async function listLazyFolders(root: string): Promise<LazyFolder[]> {
+  return lazyFolders((await listMarkdownPaths(root)).docs, hasProjectDocs)
 }
 
 /** Sets (value) or removes (null) frontmatter properties of a doc; the rest of the file is untouched. */
@@ -477,19 +543,9 @@ export async function readDoc(query: string, root: string): Promise<{ path: stri
     } catch {}
   }
 
-  // Glob fallback
-  for (const pattern of [`**/${query}.md`, `**/${query}*.md`, `**/*${query}*.md`]) {
-    const matches = await glob(pattern, {
-      cwd: root,
-      ignore: ['node_modules/**', '.git/**', '.next/**'],
-      nodir: true,
-      nocase: true,
-    })
-    if (matches.length > 0) {
-      const content = await fs.readFile(path.join(root, matches[0]), 'utf8')
-      return { path: matches[0], content }
-    }
-  }
+  // Loose name: by file name over the listed docs
+  const match = fuzzyDocMatch((await listMarkdownPaths(root)).docs, query)
+  if (match) return { path: match, content: await fs.readFile(path.join(root, match), 'utf8') }
 
   throw new Error(`Doc not found: "${query}"`)
 }
@@ -517,7 +573,8 @@ export async function readDocExact(docPath: string, root: string): Promise<{ pat
 
 /** R087: up to 5 doc paths that look like `query`, for a "did you mean" on a miss. */
 export async function suggestDocs(query: string, root: string): Promise<string[]> {
-  return similarPaths(query, (await listDocs(root)).map(d => d.path), tokenize)
+  // a miss is a question: lazy folders count too (names only)
+  return similarPaths(query, (await listMarkdownPaths(root)).docs, tokenize)
 }
 
 export async function writeDoc(docPath: string, content: string, root: string): Promise<void> {
@@ -590,7 +647,8 @@ export async function createDoc(docPath: string, content: string, root: string, 
 
 /** Ranked doc search (R088): title > heading > body over the cached .md files (`readMarkdownFiles`). */
 export async function searchDocs(query: string, root: string): Promise<SearchResult[]> {
-  const files = await readMarkdownFiles(root)
+  // a search is a question, so it reads the lazy folders too
+  const files = await readMarkdownFiles(root, 'all')
   return rankDocs(files.map(f => ({ path: f.path, raw: f.raw })), query, tokenize)
 }
 
@@ -1903,9 +1961,9 @@ export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>
 
 export type OpenApiFile = { path: string; spec: OpenApiSpec } | { path: string; error: string }
 
-/** The project's OpenAPI 3.x spec: the shallowest `openapi.(yaml|yml|json)` outside node_modules and dot-folders. Null when none. */
+/** The project's OpenAPI 3.x spec: the shallowest `openapi.(yaml|yml|json)` outside SKIP_DIRS and dot-folders. Null when none. */
 export async function readOpenApi(root: string): Promise<OpenApiFile | null> {
-  const files = (await glob(OPENAPI_GLOB, { cwd: root, nodir: true, ignore: ['**/node_modules/**', '**/{dist,build,.next,out}/**'], posix: true }))
+  const files = (await glob(OPENAPI_GLOB, { cwd: root, nodir: true, ignore: SKIP_IGNORE, posix: true }))
     .sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b))
   const rel = files[0]
   if (!rel) return null
@@ -2585,8 +2643,10 @@ export async function logSessionStart(root: string, actor: 'ai' | 'human' = 'ai'
  * with `file`. Same files and graph as /graph, both from the mtime cache, so repeated calls re-read nothing.
  */
 export async function getDocLint(root: string, file?: string): Promise<DocLint> {
-  const [files, graph] = await Promise.all([readMarkdownFiles(root), getDocGraph(root)])
   const one = file?.replace(/\\/g, '/').replace(/^\.?\//, '')
+  // the eager docs; asking about one file in a lazy folder reads them all, so that file has a graph to be linted in
+  const scope: DocScope = one && !isEagerPath(one) ? 'all' : 'eager'
+  const [files, graph] = await Promise.all([readMarkdownFiles(root, scope), getDocGraph(root, scope)])
   const outdated = await docOutdatedRefs(root, files.filter(f => DOC_KINDS.has(f.item.node.kind) && (!one || f.path === one)))
   return lintProject(files, graph, file, outdated)
 }
@@ -2879,7 +2939,7 @@ export async function getMemoryGraph(root: string): Promise<MemoryGraph> {
 /** Every non-entry .md the memory graph scans (tasks, roadmap, ADRs, docs, MEMORY.md), with its text. */
 async function memoryGraphFiles(root: string): Promise<GraphItem[]> {
   // ponytail: reads every .md on each call; cache by mtime (as getDocGraph does) if big repos make it slow
-  const files = await glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**', 'memory/entries/**'], nodir: true })
+  const files = (await listMarkdownPaths(root)).docs.filter(f => isEagerPath(f) && !f.startsWith('memory/entries/'))
   const others = await Promise.all(files.map(async (f): Promise<GraphItem | null> => {
     try {
       const raw = await fs.readFile(path.join(root, f), 'utf8')
@@ -2903,13 +2963,17 @@ const docGraphCache: Map<string, CachedMd> = (() => {
   return g.__vibedocDocGraphCache.map
 })()
 
+/** `eager`: root .md files and docs/, plans/, memory/ (lists, graph, lint). `all`: the lazy folders too (search, asks). */
+export type DocScope = 'eager' | 'all'
+
 /**
- * Every .md of the project (outside node_modules / .git / .next) with its text and graph item, sorted by path.
+ * The project's .md files (`listMarkdownPaths` docs, narrowed to `scope`) with text and graph item, sorted by path.
  * Shared by the doc graph, search and lint (R056, R088): only files whose mtime changed since the last call are re-read.
  */
-export async function readMarkdownFiles(root: string): Promise<{ path: string; raw: string; item: DocItem }[]> {
-  const files = (await glob('**/*.md', { cwd: root, ignore: ['node_modules/**', '.git/**', '.next/**'], nodir: true }))
-    .map(f => f.replace(/\\/g, '/')).sort()
+export async function readMarkdownFiles(root: string, scope: DocScope = 'eager', also: readonly string[] = []): Promise<{ path: string; raw: string; item: DocItem }[]> {
+  const { docs } = await listMarkdownPaths(root)
+  // `also`: listed docs outside the scope to read anyway (a lazy doc someone just opened)
+  const files = scope === 'all' ? docs : docs.filter(p => isEagerPath(p) || also.includes(p))
   const keyOf = (f: string) => `${root}\u0000${f}`
   let reread = 0
   const out = await Promise.all(files.map(async (f) => {
@@ -2929,19 +2993,23 @@ export async function readMarkdownFiles(root: string): Promise<{ path: string; r
       return null
     }
   }))
-  const live = new Set(files.map(keyOf))
+  // prune against every listed doc, so an eager read never drops what a search cached from the lazy folders
+  const live = new Set(docs.map(keyOf))
   for (const key of docGraphCache.keys()) if (key.startsWith(`${root}\u0000`) && !live.has(key)) docGraphCache.delete(key)
   if (reread) console.log(`doc files: read ${reread} of ${files.length} files`)
   return out.filter((o): o is { path: string; raw: string; item: DocItem } => !!o)
 }
 
-/** Resolved links between every .md file (R056), over the mtime-cached `readMarkdownFiles`. */
-export async function getDocGraph(root: string): Promise<DocGraph> {
-  const items = (await readMarkdownFiles(root)).map(f => f.item)
-  // .md files in dot folders (.claude/skills, .impeccable): not graph nodes, but a mention of one isn't stale
-  const hidden = (await glob('.*/**/*.md', { cwd: root, dot: true, ignore: ['.git/**', '.next/**', '**/node_modules/**'], nodir: true }))
-    .map(f => f.replace(/\\/g, '/'))
-  return buildDocGraph(items, hidden)
+/**
+ * Resolved links between the `scope` .md files (R056), over the mtime-cached `readMarkdownFiles`. `also`: lazy docs
+ * to make nodes anyway (the one a user or agent opened), so their own links resolve and the eager docs' links show.
+ */
+export async function getDocGraph(root: string, scope: DocScope = 'eager', also: readonly string[] = []): Promise<DocGraph> {
+  const [files, { docs, hidden }] = await Promise.all([readMarkdownFiles(root, scope, also), listMarkdownPaths(root)])
+  // Known but not nodes, so a link to one is neither broken nor stale: .md files in dot folders (.claude/skills),
+  // and the lazy folders' files (names only, nothing read)
+  const lazy = scope === 'all' ? [] : docs.filter(p => !isEagerPath(p) && !also.includes(p))
+  return buildDocGraph(files.map(f => f.item), [...hidden, ...lazy])
 }
 
 // ─── Status summary ───────────────────────────────────────────────────────────

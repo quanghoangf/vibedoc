@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listDocs, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, rootFrom, enrichDescription, noteDocEdit, docLastEdit, setDocProperties, readGettingStarted } from '@/lib/core'
+import { listDocs, listDocsIn, listLazyFolders, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, rootFrom, enrichDescription, noteDocEdit, docLastEdit, setDocProperties, readGettingStarted } from '@/lib/core'
 import { PROPERTY_KEY, parsePriority } from '@/lib/doc-priority'
 import { emitUpdate } from '@/lib/events'
 import { isDemo, demoForbidden } from '@/lib/demo'
@@ -20,6 +20,16 @@ export async function GET(req: NextRequest) {
   if (query) {
     const results = await searchDocs(query, root)
     return NextResponse.json({ results })
+  }
+  // The other top-level folders (names + counts only), and one of them opened: read only when someone clicks it
+  if (req.nextUrl.searchParams.get('folders') === '1') return NextResponse.json(await listLazyFolders(root))
+  const dir = req.nextUrl.searchParams.get('dir')
+  if (dir !== null) {
+    try {
+      return NextResponse.json(await listDocsIn(root, dir))
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 400 })
+    }
   }
   const docs = await listDocs(root)
   return NextResponse.json(docs)

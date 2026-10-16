@@ -23,6 +23,7 @@ import { parseScenarios, scenarioStatus, type ScenarioTask } from "@/lib/scenari
 import { parseManualTests } from "@/lib/manual-tests";
 import { formatEntryLinks } from "@/lib/memory-graph";
 import { docLinks, formatRelatedFiles } from "@/lib/doc-links";
+import { isEagerPath } from "@/lib/doc-scope";
 import { epicGraph, formatEpicMap, formatTaskDeps } from "@/lib/item-diagrams";
 import { formatLint } from "@/lib/doc-lint";
 import { formatAgentHeader, forAgent } from "@/lib/audience";
@@ -34,6 +35,8 @@ import {
   getToolkitFacts,
   readOpenApi,
   listDocs,
+  listDocsIn,
+  listLazyFolders,
   readDoc,
   suggestDocs,
   searchDocs,
@@ -293,7 +296,8 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       void noteDocRead(root, docPath)
         .then(() => emitUpdate("doc_usage_updated", { path: docPath }))
         .catch((e) => console.warn("[vibedoc] could not record the doc read:", e));
-      const [graph, settings, lastEdit] = await Promise.all([getDocGraph(root), readProjectSettings(root), docLastEdit(root, docPath)]);
+      // a doc read from a lazy folder joins the graph, so its footer lists its links
+      const [graph, settings, lastEdit] = await Promise.all([getDocGraph(root, "eager", isEagerPath(docPath) ? [] : [docPath]), readProjectSettings(root), docLastEdit(root, docPath)]);
       const links = docLinks(graph, docPath);
       const related = formatRelatedFiles(links);
       // R087: one line of context first, unless `docs.agentHeader: false`
@@ -304,7 +308,9 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     }
 
     case "vibedoc_list_docs": {
-      const docs = await listDocs(root);
+      const dir = typeof args.dir === "string" && args.dir.trim() ? args.dir.trim().replace(/\/+$/, "") : null;
+      const [docs, others] = await Promise.all([dir ? listDocsIn(root, dir) : listDocs(root), dir ? [] : listLazyFolders(root)]);
+      if (dir && !docs.length) return `No .md files in ${dir}/.`;
       const sections: Record<string, string[]> = {};
       for (const d of docs) {
         if (!sections[d.section]) sections[d.section] = [];
@@ -315,6 +321,9 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
         lines.push(`**${s}** (${files.length})`);
         files.forEach((f) => lines.push(`  ${f}`));
         lines.push("");
+      }
+      if (others.length) {
+        lines.push(`Other folders, not read until asked (call again with dir to list one): ${others.map((f) => `${f.name}/ (${f.count})`).join(", ")}`);
       }
       return lines.join("\n");
     }

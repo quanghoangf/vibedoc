@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDocGraph, listRoadmap } from '@/lib/core'
 import { docLinks, type LinkRow } from '@/lib/doc-links'
+import { isEagerPath } from '@/lib/doc-scope'
 import { errorResponse, rootOf } from '../../roadmap/_shared'
 
 /**
@@ -12,7 +13,8 @@ export async function GET(req: NextRequest) {
     const p = req.nextUrl.searchParams.get('path')
     if (!p) return NextResponse.json({ error: 'Missing "path"' }, { status: 400 })
     const root = rootOf(req)
-    const [graph, { items }] = await Promise.all([getDocGraph(root), listRoadmap(root)])
+    // a doc opened from a lazy folder joins the graph for this answer
+    const [graph, { items }] = await Promise.all([getDocGraph(root, 'eager', isEagerPath(p) ? [] : [p]), listRoadmap(root)])
     const links = docLinks(graph, p)
     if (!links) return NextResponse.json({ error: `Unknown file "${p}"` }, { status: 404 })
     const epics = new Map(items.map((r) => [r.file, r.status === 'planned' ? 'todo' : r.status]))
