@@ -1,3 +1,33 @@
+# [1.24.0](https://github.com/quanghoangf/vibedoc/compare/v1.23.0...v1.24.0) (2026-10-16)
+
+
+### Features
+
+* **cli:** a second vibedoc adds its repo to the running hub and opens it there (T534) ([254f3e1](https://github.com/quanghoangf/vibedoc/commit/254f3e17ea50f20660eb958c4021932eca9520c6))
+* **cli:** find the repo from the cwd and serve it from one hub port (T533) ([7ece803](https://github.com/quanghoangf/vibedoc/commit/7ece803cac36f2e0687e00061f9350619c6fd238))
+* **cli:** tell a per-project setup once that its address moved, and connect agents to the project's URL (T535) ([8fb1060](https://github.com/quanghoangf/vibedoc/commit/8fb1060007875b8ac1fef999e95e70f7401b43de))
+* **connect:** one user-scope connection finds each project from an X-VibeDoc-Root header (T544) ([1704721](https://github.com/quanghoangf/vibedoc/commit/1704721c08d8da8a3ec8922eca976db699a10d90))
+* **inbox:** /inbox page with filters, whole-inbox header badge and inline approve, group filter on GET /api/inbox (T547) ([20468a9](https://github.com/quanghoangf/vibedoc/commit/20468a9d5bca0595f2a93955343afe3640227aa0))
+* **inbox:** cross-project inbox data at /api/inbox (T546) ([27a2d84](https://github.com/quanghoangf/vibedoc/commit/27a2d84d60717cf3aa47b2106015cea61073483c))
+* **mcp:** vibedoc_list_projects and an add-it reply for unknown folders (T545) ([c2efb7a](https://github.com/quanghoangf/vibedoc/commit/c2efb7a164ddecdf1fe0529bb3604c7aae6e9b3d))
+* **memory:** group-scoped entries reach every project in the group (T541) ([f9645b4](https://github.com/quanghoangf/vibedoc/commit/f9645b401583281aa51487cf96eae0a6cd5bf875))
+* **memory:** shared group entries on the Memory tab, scope filter and switch (T542) ([b3c59bc](https://github.com/quanghoangf/vibedoc/commit/b3c59bc01b8f9a572511820395fd440fde844beb))
+* **projects:** add projects by path or by scanning a folder (T536) ([7fe7c7b](https://github.com/quanghoangf/vibedoc/commit/7fe7c7b8875c41c05a530e3aaee7d4c625e010bb))
+* **projects:** All projects page with pin, rename, archive and remove (T531) ([341e418](https://github.com/quanghoangf/vibedoc/commit/341e418d748b7dd250a919a799a38c4852c6a373))
+* **projects:** choose a project folder in Finder, Add project in the switcher ([8c71edc](https://github.com/quanghoangf/vibedoc/commit/8c71edc15e1f9432f11e40af572886e04ef5bc4f))
+* **projects:** clone a project from a git URL (T537) ([b3bdffe](https://github.com/quanghoangf/vibedoc/commit/b3bdffe20d143e8164118cfc1311a5ce8975d8fd))
+* **projects:** group board with every member's tasks, tagged and filterable by repo (T539) ([383cb4b](https://github.com/quanghoangf/vibedoc/commit/383cb4be2821565b6789b48df033adf42780e9d3))
+* **projects:** group roadmap, every member's epics on one Timeline by repo (T540) ([216e7e2](https://github.com/quanghoangf/vibedoc/commit/216e7e2df1801d1f9105b4f756e5add4ed8d1ab6))
+* **projects:** hub registry replaces the sibling scan, unknown ?root= refused (T529) ([757cd53](https://github.com/quanghoangf/vibedoc/commit/757cd539ac14c6ad500285bc8f73606d516372aa))
+* **projects:** missing project folder shows Missing with Locate or Remove (T532) ([8a2fb0a](https://github.com/quanghoangf/vibedoc/commit/8a2fb0a6044d60e4e2e35b7ef214743bce4a0ac1))
+* **projects:** portfolio numbers per project and group, at-risk first (T548) ([8f1f1ee](https://github.com/quanghoangf/vibedoc/commit/8f1f1ee26ce9c27cd8652f3251c2601d7a4d9b63))
+* **projects:** Portfolio view on All projects, at-risk projects first (T549) ([f3f765f](https://github.com/quanghoangf/vibedoc/commit/f3f765fae4674100fdf9316de92345c9fd8f922f))
+* **projects:** project groups saved in each repo's settings, managed on All projects (T538) ([f465a98](https://github.com/quanghoangf/vibedoc/commit/f465a9837803f21c10a01ec111572a7cb21eeb49))
+* **projects:** project in the URL, quick switch and last page per project (T530) ([5bf4175](https://github.com/quanghoangf/vibedoc/commit/5bf4175dd52a498b3c4ba4d1abfb7d37e06fc9dc))
+* **projects:** redesign All projects as one table with a row menu ([f21286b](https://github.com/quanghoangf/vibedoc/commit/f21286be77ed4ad4eb2d85e8a2a3dcfaca39a6c7))
+* **search:** search all projects from ⌘K and a /search page (T551) ([c24289d](https://github.com/quanghoangf/vibedoc/commit/c24289d3a136f6b164752a4bfeaa5cdff212d64a))
+* **search:** search docs, tasks, epics and entries across projects or a group (T550) ([82079e9](https://github.com/quanghoangf/vibedoc/commit/82079e92df34686b053e79c62d5bef723090fe18))
+
 # [1.23.0](https://github.com/quanghoangf/vibedoc/compare/v1.22.1...v1.23.0) (2026-10-16)
 
 
