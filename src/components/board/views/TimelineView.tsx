@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import type { ActivityEvent, Task } from "@/types"
 import {
-  depOutline, foldAxis, timelineBars,
+  depOutline, foldAxis, taskKey, timelineBars,
   type AxisSegment, type TimelineBar, type TimelineScale, type ViewState,
 } from "@/lib/board-views"
 import { useLang, useT } from "@/context/LanguageContext"
@@ -324,7 +324,7 @@ export default function TimelineView({ tasks, state, agentTasks, onOpenTask, eve
                     const due = dueMs(task.due)
                     const dueX = due == null ? null : xAt(segs, due)
                     return (
-                      <div key={task.id}>
+                      <div key={taskKey(task)}>
                         <button
                           type="button"
                           title={`${label} — ${task.title}`}
@@ -355,7 +355,7 @@ export default function TimelineView({ tasks, state, agentTasks, onOpenTask, eve
                     const top = LANE_PAD + (worked.length + i) * ROW_H
                     return (
                       <button
-                        key={task.id}
+                        key={taskKey(task)}
                         type="button"
                         onClick={() => onOpenTask(task)}
                         title={t("board.plannedTitle", { id: task.id, title: task.title })}

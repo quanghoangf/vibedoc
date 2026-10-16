@@ -21,7 +21,7 @@ import { AgentDot } from "@/components/chat/AgentMark"
 import { latestReview, summarizeMarks } from "@/lib/review"
 import { blockingCount } from "@/lib/verification"
 import { verifyTask } from "@/lib/ask-agent"
-import { epicOf, sizeOf, type PropertyKey } from "@/lib/board-views"
+import { epicOf, sizeOf, taskKey, type PropertyKey } from "@/lib/board-views"
 import { useT } from "@/context/LanguageContext"
 
 const ALL_PROPERTIES: PropertyKey[] = ["status", "epic", "size", "due", "deps", "tests", "agent", "owner"]
@@ -69,12 +69,13 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
       onClick={(e) => { if (onSelect && (e.shiftKey || e.metaKey || e.ctrlKey)) onSelect(); else onOpen() }}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen() } }}
       onDragStart={(e) => {
-        e.dataTransfer.setData("taskId", task.id)
+        e.dataTransfer.setData("taskId", taskKey(task))
         e.dataTransfer.effectAllowed = "move"
         setIsDragging(true)
       }}
       onDragEnd={() => setIsDragging(false)}
-      style={{ viewTransitionName: `task-${task.file.replace(/[^a-zA-Z0-9_-]/g, "_")}` }}
+      // unique per page: on a group board two repos can both have plans/tasks/T001-x.md (R102)
+      style={{ viewTransitionName: `task-${taskKey(task).replace(/[^a-zA-Z0-9_-]/g, "_")}-${task.file.replace(/[^a-zA-Z0-9_-]/g, "_")}` }}
       className={cn(
         "group cursor-pointer rounded-lg border border-border bg-surface px-3 py-2.5 text-left outline-hidden",
         "transition-[border-color,background-color,opacity,box-shadow] duration-(--duration-fast)",
@@ -85,6 +86,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
     >
       <div className="flex items-center gap-1.5 font-mono text-[11px] text-muted">
         <span>{task.id}</span>
+        {task.project && <span data-repo-tag={task.project.id} className="max-w-28 truncate rounded-sm bg-surface2 px-1 font-sans text-[10px] text-txt" title={t("board.repoOf", { name: task.project.name })} data-user-content>{task.project.name}</span>}
         {show("agent") && <AgentDot attach={{ kind: "task", id: task.id }} />}
         {show("owner") && task.owner && (
           <TaskOwnerField task={task}><OwnerChip owner={task.owner} className="text-[10px] [&_svg]:size-3" /></TaskOwnerField>
@@ -92,8 +94,9 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
         <span className="flex-1" />
         {show("due") && task.due && !done && <TaskDueField task={task}><span title={t("board.due")}>{task.due.slice(5)}</span></TaskDueField>}
         {size && <TaskSizeField task={task}><span title={task.size} className="rounded-sm bg-surface2 px-1 text-[10px]">{size}</span></TaskSizeField>}
-        {task.status === "review" && !demo && !playground && <CardVerify taskId={task.id} />}
-        {!demo && <CardMenu task={task} onOpen={onOpen} />}
+        {/* R102: on a group board these act on the default project, so they wait for the task's own project */}
+        {task.status === "review" && !demo && !playground && !task.project && <CardVerify taskId={task.id} />}
+        {!demo && !task.project && <CardMenu task={task} onOpen={onOpen} />}
       </div>
 
       <p className={cn("mt-1 line-clamp-2 text-[13px] font-medium leading-snug", done ? "text-muted" : "text-txt")}>{task.title}</p>
@@ -181,7 +184,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
               {tests.autoRun?.result === "failed" && <span className="size-1.5 rounded-full bg-danger" aria-label={t("board.lastAutoRunFailed")} />}
             </Link>
           )}
-          {tests?.spec && !demo && !playground && <CardRun taskId={task.id} />}
+          {tests?.spec && !demo && !playground && !task.project && <CardRun taskId={task.id} />}
           <QuickReviewButton task={task} />
         </div>
       )}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { ArrowDown, ArrowUp, ArrowUpDown, Bookmark, ChevronDown, ListFilter, Plus, Rows3, Search, SlidersHorizontal, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { FilterProp, FilterRule, GroupBy, PropertyKey, SortProp, SortRule, ViewState } from "@/lib/board-views"
@@ -23,7 +23,13 @@ const FILTER_PROPS: { prop: FilterProp; label: MessageKey }[] = [
   { prop: "due", label: "board.due" }, { prop: "deps", label: "board.dependsOn" }, { prop: "tests", label: "board.tests" },
   { prop: "agent", label: "board.agent" }, { prop: "ready", label: "board.ready" }, { prop: "owner", label: "board.owner" },
 ]
-const PROP_LABEL = Object.fromEntries(FILTER_PROPS.map(p => [p.prop, p.label])) as Record<FilterProp, MessageKey>
+// R102: offered only on a group board, where tasks carry their repo
+const REPO_PROP: { prop: FilterProp; label: MessageKey } = { prop: "repo", label: "board.repo" }
+const PROP_LABEL = Object.fromEntries([...FILTER_PROPS, REPO_PROP].map(p => [p.prop, p.label])) as Record<FilterProp, MessageKey>
+
+type RepoOption = { id: string; name: string }
+/** The group's member repos (empty outside a group): the repo filter's options and how its chip names them. */
+const ReposContext = createContext<RepoOption[]>([])
 
 /** Ops offered per prop, with how each reads after the prop name. */
 const OPS: Record<FilterProp, Partial<Record<Op, MessageKey>>> = {
@@ -36,8 +42,9 @@ const OPS: Record<FilterProp, Partial<Record<Op, MessageKey>>> = {
   agent: { "is-set": "board.opActive", "not-set": "board.opNotActive" },
   ready: { "is-set": "board.opYes", "not-set": "board.opNo" },
   owner: { is: "board.opIs", "is-not": "board.opIsNot" },
+  repo: { is: "board.opIs", "is-not": "board.opIsNot" },
 }
-const LIST_PROPS: FilterProp[] = ["status", "epic", "size", "owner"]
+const LIST_PROPS: FilterProp[] = ["status", "epic", "size", "owner", "repo"]
 const OWNER_LABEL: Record<string, MessageKey> = { human: "board.human", ai: "board.aiAgent", none: "board.noOwner" }
 const SIZES = ["XS", "S", "M", "L", "XL"]
 
@@ -48,6 +55,7 @@ const SORT_PROPS: { prop: SortProp; label: MessageKey }[] = [
 const GROUPS: { value: GroupBy; label: MessageKey }[] = [
   { value: "status", label: "board.status" }, { value: "epic", label: "board.epic" }, { value: "size", label: "board.size" }, { value: "owner", label: "board.owner" }, { value: "none", label: "board.none" },
 ]
+const REPO_GROUP = { value: "repo" as const, label: "board.repo" as MessageKey }
 const LANES: { value: ViewState["subGroup"]; label: MessageKey }[] = [
   { value: "epic", label: "board.epic" }, { value: "size", label: "board.size" }, { value: "none", label: "board.none" },
 ]
@@ -63,8 +71,9 @@ function localToday(): string {
 
 type EpicOption = { id: string; title: string; open?: boolean }
 
-function newRule(prop: FilterProp, epics: EpicOption[]): FilterRule {
+function newRule(prop: FilterProp, epics: EpicOption[], repos: RepoOption[] = []): FilterRule {
   switch (prop) {
+    case "repo": return { prop, op: "is", value: [repos[0]?.id ?? "none"] }
     case "status": return { prop, op: "is-not", value: ["done"] }
     case "epic": return { prop, op: "is", value: [(epics.find(e => e.open) ?? epics[0])?.id ?? "none"] }
     case "size": return { prop, op: "is", value: ["M"] }
@@ -182,10 +191,12 @@ export interface ViewToolbarProps {
   filterOpen: boolean
   /** "f" key opens it. */
   onFilterOpenChange: (open: boolean) => void
+  /** R102: the group's member repos; adds the Repo filter, group-by and swimlanes. Omitted outside a group. */
+  repos?: RepoOption[]
 }
 
 export function ViewToolbar({
-  state, onChange, epics, dirty, activeIsBuiltIn, onSave, onSaveAs, onReset, searchInputId, filterOpen, onFilterOpenChange,
+  state, onChange, epics, dirty, activeIsBuiltIn, onSave, onSaveAs, onReset, searchInputId, filterOpen, onFilterOpenChange, repos = [],
 }: ViewToolbarProps) {
   const [sortOpen, setSortOpen] = useState(false)
   const { t } = useT()
@@ -208,12 +219,14 @@ export function ViewToolbar({
   }
   const timeline = state.kind === "timeline"
   const board = state.kind === "board"
-  const groups = timeline ? GROUPS.filter(g => g.value === "epic" || g.value === "none") : GROUPS
+  const groups = timeline ? GROUPS.filter(g => g.value === "epic" || g.value === "none") : repos.length ? [REPO_GROUP, ...GROUPS] : GROUPS
+  const lanes = repos.length ? [REPO_GROUP, ...LANES] : LANES
   const groupLabel = t(GROUPS.find(g => g.value === state.group)?.label ?? "board.none")
   const laneLabel = t(LANES.find(l => l.value === state.subGroup)?.label ?? "board.none")
   const mobileBtn = "max-sm:h-9 max-sm:flex-1 max-sm:justify-center max-sm:border-border"
 
   return (
+    <ReposContext.Provider value={repos}>
     <div className="flex flex-col gap-2.5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-1">
         <label className="flex h-8 w-full items-center gap-2 rounded-md border border-border bg-bg px-2.5 text-[13px] text-muted focus-within:border-accent sm:w-65 max-sm:h-9">
@@ -282,7 +295,7 @@ export function ViewToolbar({
                 <>
                   <DropdownMenuLabel className="text-xs text-muted">{t("board.swimlanes")}</DropdownMenuLabel>
                   <DropdownMenuRadioGroup value={state.subGroup} onValueChange={v => set({ subGroup: v as ViewState["subGroup"] })}>
-                    {LANES.map(l => <DropdownMenuRadioItem key={l.value} value={l.value}>{t(l.label)}</DropdownMenuRadioItem>)}
+                    {lanes.map(l => <DropdownMenuRadioItem key={l.value} value={l.value}>{t(l.label)}</DropdownMenuRadioItem>)}
                   </DropdownMenuRadioGroup>
                 </>
               ) : (
@@ -334,6 +347,7 @@ export function ViewToolbar({
         )}
       </div>
     </div>
+    </ReposContext.Provider>
   )
 }
 
@@ -341,7 +355,8 @@ export function ViewToolbar({
 
 type T = (key: MessageKey) => string
 
-function valueText(rule: FilterRule, label: (key: string) => string, t: T): { text: string; mono: boolean } {
+function valueText(rule: FilterRule, label: (key: string) => string, t: T, repos: RepoOption[]): { text: string; mono: boolean } {
+  if (rule.prop === "repo") return { text: rule.value.map(v => repos.find(r => r.id === v)?.name ?? v).join(", "), mono: false }
   if (rule.prop === "status") return { text: rule.value.map(label).join(", "), mono: false }
   if (rule.prop === "epic") return { text: rule.value.map(v => (v === "none" ? t("board.noEpic") : v)).join(", "), mono: !rule.value.includes("none") }
   if (rule.prop === "owner") return { text: rule.value.map(v => (OWNER_LABEL[v] ? t(OWNER_LABEL[v]) : v)).join(", "), mono: false }
@@ -357,7 +372,7 @@ function opText(rule: FilterRule, t: T): string {
 function FilterChip({ rule, onRemove }: { rule: FilterRule; onRemove: () => void }) {
   const { t } = useT()
   const hasValue = !(rule.op === "is-set" || rule.op === "not-set")
-  const v = valueText(rule, useStatusLabel(), t)
+  const v = valueText(rule, useStatusLabel(), t, useContext(ReposContext))
   const text = `${t(PROP_LABEL[rule.prop])} ${opText(rule, t)}${hasValue ? ` ${v.text}` : ""}`
   return (
     <span className="inline-flex h-6.5 max-w-full items-center gap-1.5 rounded-sm border border-border2 bg-surface pl-2.25 pr-1 text-xs text-txt">
@@ -421,6 +436,8 @@ function FilterBuilder({ filters, epics, onChange }: { filters: FilterRule[]; ep
   const update = (i: number, rule: FilterRule) => onChange(filters.map((r, j) => (j === i ? rule : r)))
   const labelId = useId()
   const { t } = useT()
+  const repos = useContext(ReposContext)
+  const props = repos.length ? [...FILTER_PROPS, REPO_PROP] : FILTER_PROPS
   return (
     <div>
       <p id={labelId} className="mb-2.5 ml-0.5 text-xs font-semibold">{t("board.showTasksWhere")}</p>
@@ -435,17 +452,17 @@ function FilterBuilder({ filters, epics, onChange }: { filters: FilterRule[]; ep
               <select
                 aria-label={t("board.ruleProperty", { n })}
                 value={rule.prop}
-                onChange={e => update(i, newRule(e.target.value as FilterProp, epics))}
+                onChange={e => update(i, newRule(e.target.value as FilterProp, epics, repos))}
                 className={cn(sel, "w-32.5 sm:w-auto")}
               >
-                {FILTER_PROPS.map(p => <option key={p.prop} value={p.prop}>{t(p.label)}</option>)}
+                {props.map(p => <option key={p.prop} value={p.prop}>{t(p.label)}</option>)}
               </select>
               <select
                 aria-label={t("board.ruleCondition", { n })}
                 value={rule.op}
                 onChange={e => {
                   const op = e.target.value as Op
-                  const value = op === "is-set" || op === "not-set" ? [] : rule.value.length ? rule.value : newRule(rule.prop, epics).value
+                  const value = op === "is-set" || op === "not-set" ? [] : rule.value.length ? rule.value : newRule(rule.prop, epics, repos).value
                   update(i, { ...rule, op, value })
                 }}
                 className={cn(sel, "w-27.5 sm:w-auto")}
@@ -496,8 +513,11 @@ function MultiSelect({ rule, n, epics, onChange }: { rule: FilterRule; n: number
   const defs = useStatusDefs()
   const label = useStatusLabel()
   const { t } = useT()
+  const repos = useContext(ReposContext)
   const options: { value: string; node: ReactNode }[] =
-    rule.prop === "status"
+    rule.prop === "repo"
+      ? repos.map(r => ({ value: r.id, node: <span className="truncate" data-user-content>{r.name}</span> }))
+      : rule.prop === "status"
       ? defs.map(d => ({ value: d.id, node: <><StatusIcon status={d.id} />{label(d.id)}</> }))
       : rule.prop === "epic"
         ? [
@@ -511,6 +531,7 @@ function MultiSelect({ rule, n, epics, onChange }: { rule: FilterRule; n: number
   const summary =
     !first ? <span className="text-muted">{t("board.choose")}</span>
     : rule.prop === "status" ? <><StatusIcon status={first} /><span className="truncate">{label(first)}</span></>
+    : rule.prop === "repo" ? <span className="truncate" data-user-content>{repos.find(r => r.id === first)?.name ?? first}</span>
     : rule.prop === "owner" ? <span className="truncate">{OWNER_LABEL[first] ? t(OWNER_LABEL[first]) : first}</span>
     : rule.prop === "epic" && first !== "none" ? <><span className="font-mono text-[11px] text-muted">{first}</span><span className="truncate">{epics.find(e => e.id === first)?.title ?? ""}</span></>
     : <span className={cn("truncate", rule.prop === "size" && "font-mono")}>{first === "none" ? t("board.noEpic") : first}</span>

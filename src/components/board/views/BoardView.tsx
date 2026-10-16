@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Task, TaskStatus } from "@/types"
-import { type PropertyKey, type TaskGroup, type ViewState } from "@/lib/board-views"
+import { taskKey, type PropertyKey, type TaskGroup, type ViewState } from "@/lib/board-views"
 import { StatusIcon, useStatusLabel } from "@/components/shared/StatusIcon"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
@@ -79,7 +79,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
   const properties: PropertyKey[] = state.subGroup === "epic" ? state.properties.filter((p) => p !== "epic") : state.properties
   const card = (t: Task) => (
     <TaskCard
-      key={t.id}
+      key={taskKey(t)}
       task={t}
       properties={properties}
       onOpen={() => onOpenTask(t)}
@@ -92,7 +92,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
   const doneLanes = lanes?.filter((l) => l.tasks.every(isDone)) ?? []
   const hiddenDoneLanes = showAllDoneLanes ? 0 : Math.max(0, doneLanes.length - DONE_LANES)
   const shownLanes = [...openLanes, ...doneLanes.slice(0, doneLanes.length - hiddenDoneLanes)]
-  const lanesDone = state.subGroup === "epic" ? t("board.moreEpicsDone") : t("board.moreSizesDone")
+  const lanesDone = state.subGroup === "epic" ? t("board.moreEpicsDone") : state.subGroup === "repo" ? t("board.moreReposDone") : t("board.moreSizesDone")
   // Done cards always sit in the Done column: it widens when opened, or when you open a finished lane to see its cards
   const doneWide = doneOpen || doneLanes.some((l) => laneOpen[l.key])
   const toggleDone = () => {
@@ -174,7 +174,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
                     {lane.epicId && <span className="font-mono text-[11px] text-muted">{lane.epicId}</span>}
                     <span className="min-w-0 truncate text-[13px] font-semibold text-txt">{lane.label}</span>
                     <span className="flex w-30 shrink-0 gap-0.5" aria-hidden>
-                      {lane.tasks.map((t) => <span key={t.id} className={cn("h-1 flex-1 rounded-full", MARK[t.status])} />)}
+                      {lane.tasks.map((t) => <span key={taskKey(t)} className={cn("h-1 flex-1 rounded-full", MARK[t.status])} />)}
                     </span>
                     <span className="font-mono text-[11px] text-muted tabular-nums" aria-label={t("board.doneOfTotal", { done: doneCount, total: lane.tasks.length })}>
                       <span className="text-txt">{doneCount}</span>/{lane.tasks.length}
@@ -279,7 +279,7 @@ function ColumnSummary({ tasks, noun, compact, dragging, onOpenTask }: { tasks: 
       <span className="flex flex-wrap gap-x-1.5 font-mono">
         {newest.map((t) => (
           <button
-            key={t.id}
+            key={taskKey(t)}
             type="button"
             onClick={() => onOpenTask(t)}
             title={t.title}

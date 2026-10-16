@@ -20,6 +20,9 @@ import { FirstRunFeedback } from "@/components/layout/FirstRunFeedback"
 import { CHAT_KEY, pageForKey, pageTitle, shouldHandleShortcut } from "@/lib/shortcuts"
 import { useT } from "@/context/LanguageContext"
 import { LAST_PAGE_COOKIE, lastPageCookie } from "@/lib/first-screen"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { Button } from "@/components/ui/button"
+import { Layers } from "lucide-react"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -32,13 +35,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   )
 }
 
+/** Pages that show a whole project group (R102); the rest ask which member to open */
+const GROUP_PAGES = ["/board", "/projects"]
+
 /** Pages that only write or spawn agents: the read-only demo (R042) shows a note instead */
 const DEMO_BLOCKED = ["/chat", "/settings", "/setup"]
 
 const skipLink = "sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-1.5 focus:text-xs focus:text-txt focus:ring-2 focus:ring-ring"
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
-  const { loading, summary, projects, activeProject, activeProjectId, liveIndicator, onProjectChange, board, openDoc, rootParam, demo } = useApp()
+  const { loading, summary, projects, activeProject, activeProjectId, liveIndicator, onProjectChange, board, openDoc, rootParam, demo, activeGroup } = useApp()
   const router = useRouter()
   const pathname = usePathname()
   const [showHelp, setShowHelp] = useState(false)
@@ -146,6 +152,24 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         <main id="main" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto outline-none">
           {demo && DEMO_BLOCKED.some((p) => pathname.startsWith(p)) ? (
             <p className="p-8 text-sm text-muted">{t("shell.demoBlockedLead")} <code className="font-mono text-txt">npx vibedoc</code> {t("shell.demoBlockedEnd")}</p>
+          ) : activeGroup && !GROUP_PAGES.some((p) => pathname.startsWith(p)) ? (
+            <div className="p-8">
+              <EmptyState
+                bordered
+                icon={<Layers className="size-7" />}
+                message={t("shell.pickProjectTitle")}
+                lead={t("shell.pickProjectLead", { name: activeGroup.name })}
+                action={
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {activeGroup.members.map((m) => (
+                      <Button key={m.id} variant="outline" size="sm" onClick={() => onProjectChange(m.id, pathname)}>
+                        {t("shell.openInProject", { name: m.name })}
+                      </Button>
+                    ))}
+                  </div>
+                }
+              />
+            </div>
           ) : children}
         </main>
         {!demo && <ChatModal />}

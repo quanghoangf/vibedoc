@@ -5,10 +5,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useApp } from "@/context/AppContext"
 import type { Project } from "@/types"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, Layers } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useT } from "@/context/LanguageContext"
 import { switcherOrder } from "@/lib/hub"
@@ -35,6 +38,8 @@ const FILTER_FROM = 6
 
 export function ProjectSwitcher({ projects, activeProject, currentName, onSelect }: ProjectSwitcherProps) {
   const { t } = useT()
+  // R102: groups sit above the projects; an open group names the switcher and no project is current
+  const { groups, activeGroup, onGroupChange } = useApp()
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState("")
   // R099: pinned first, then the most recently opened; archived projects stay on All projects only
@@ -42,6 +47,7 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
   const filterable = listed.length >= FILTER_FROM
   const f = filter.trim().toLowerCase()
   const shown = f ? listed.filter((p) => `${p.name} ${p.root}`.toLowerCase().includes(f)) : listed
+  const shownGroups = f ? groups.filter((g) => g.name.toLowerCase().includes(f)) : groups
 
   useEffect(() => {
     const onOpen = () => setOpen(true)
@@ -53,7 +59,8 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
     <DropdownMenu open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFilter("") }}>
       <DropdownMenuTrigger asChild>
         <button className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted transition-colors hover:bg-surface2 hover:text-txt focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg">
-          <span className="max-w-[160px] truncate">{currentName || t("shell.selectProject")}</span>
+          {activeGroup && <Layers aria-hidden className="size-3.5 shrink-0" />}
+          <span className="max-w-[160px] truncate">{activeGroup?.name || currentName || t("shell.selectProject")}</span>
           <ChevronsUpDown className="size-3.5 shrink-0 opacity-60" />
         </button>
       </DropdownMenuTrigger>
@@ -85,11 +92,36 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
             className="mb-1 h-8 w-full border-b border-border bg-transparent px-2 text-sm text-txt outline-none placeholder:text-muted"
           />
         )}
+        {shownGroups.length > 0 && (
+          <>
+            <DropdownMenuLabel className="text-xs text-muted">{t("shell.switcherGroups")}</DropdownMenuLabel>
+            {shownGroups.map((g) => {
+              const active = g.slug === activeGroup?.slug
+              return (
+                <DropdownMenuItem
+                  key={`group:${g.slug}`}
+                  onClick={() => onGroupChange(g.slug)}
+                  aria-current={active || undefined}
+                  className={cn("cursor-pointer hover:bg-surface2 focus:bg-surface2", active && "text-accent")}
+                >
+                  <Layers aria-hidden className="size-3.5 shrink-0 text-muted" />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium" data-user-content>{g.name}</div>
+                    <div className="truncate text-[11px] text-muted" data-user-content>{g.members.map((m) => m.name).join(", ")}</div>
+                  </div>
+                  <Check aria-hidden className={cn("size-3.5 shrink-0", !active && "invisible")} />
+                </DropdownMenuItem>
+              )
+            })}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs text-muted">{t("shell.switcherProjects")}</DropdownMenuLabel>
+          </>
+        )}
         {shown.length === 0 ? (
           <div className="px-3 py-2 text-sm text-muted">{listed.length ? t("shell.noProjectMatches", { query: filter.trim() }) : t("shell.noProjects")}</div>
         ) : (
           shown.map((p) => {
-            const active = p.root === activeProject
+            const active = !activeGroup && p.root === activeProject
             return (
               <DropdownMenuItem
                 key={p.root}

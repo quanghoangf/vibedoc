@@ -106,6 +106,60 @@ try {
   assert.equal(settingsOf(web).groupNames.shop, "Shop app")
   console.log("ok  S2: delete removes the slug from both, projects + tasks unchanged; Undo restores it")
 
+  // ── T539: the group board ───────────────────────────────────────────────────
+  const card = (p, n) => page.getByRole("button", { name: `T00${n} ${p.label} card ${n}`, exact: true }).filter({ visible: true })
+  await page.goto(`${BASE}/board?group=shop`)
+  for (let n = 1; n <= 5; n++) await card(web, n).waitFor()
+  for (let n = 1; n <= 3; n++) await card(apiP, n).waitFor()
+  for (let n = 1; n <= 5; n++) assert.equal(await card(web, n).locator(`[data-repo-tag="${web.id}"]`).count(), 1, `web T00${n} tagged`)
+  for (let n = 1; n <= 3; n++) assert.equal(await card(apiP, n).locator(`[data-repo-tag="${apiP.id}"]`).count(), 1, `api T00${n} tagged`)
+  await page.locator("header").getByRole("button", { name: "Shop app" }).waitFor()
+  console.log("ok  S1: /board?group=shop shows all 8 open tasks (5 web + 3 api), each tagged; both T001s, no key clash")
+
+  const chips = page.getByRole("group", { name: "Show one repo" })
+  await chips.getByRole("button", { name: new RegExp(`^${apiP.name}`) }).click()
+  await card(web, 1).waitFor({ state: "detached" })
+  for (let n = 1; n <= 3; n++) await card(apiP, n).waitFor()
+  assert.equal(await page.getByRole("button", { name: /^T00\d Web card/ }).filter({ visible: true }).count(), 0)
+  assert.equal(new URL(page.url()).searchParams.get("group"), "shop")
+  await chips.getByRole("button", { name: "All repos" }).click()
+  await card(web, 5).waitFor()
+  console.log("ok  one click on the api chip shows only api's 3; All repos brings web back")
+
+  // Moving api's T001 to done writes api's file only
+  const webBefore = tasksHash(web)
+  const apiT001 = path.join(apiP.root, "plans/tasks/T001-card.md")
+  await card(apiP, 1).dragTo(page.locator('[data-column-header="done"]'))
+  for (let i = 0; i < 50 && !readFileSync(apiT001, "utf8").includes("✅ Done"); i++) await page.waitForTimeout(100)
+  assert.match(readFileSync(apiT001, "utf8"), /\*\*Status:\*\* ✅ Done/)
+  assert.equal(tasksHash(web), webBefore, "web's task files unchanged")
+  await card(web, 1).waitFor()
+  console.log("ok  dragging api's T001 to Done writes only api's task file; web's T001 stays")
+
+  // Pages without group support ask for a project; the switcher lists the group above the projects
+  await page.getByRole("link", { name: /^Docs/ }).first().click()
+  await page.getByText("Pick a project").waitFor()
+  await page.getByRole("button", { name: `Open in ${web.name}` }).click()
+  await page.waitForURL((u) => u.pathname === "/docs" && u.searchParams.get("project") === web.id && !u.searchParams.has("group"))
+  await page.locator("header").getByRole("button", { name: web.name }).click()
+  await page.getByRole("menuitem", { name: /Shop app/ }).click()
+  await page.waitForURL((u) => u.pathname === "/board" && u.searchParams.get("group") === "shop")
+  await card(apiP, 2).waitFor()
+  console.log("ok  other pages ask to pick a member; the switcher opens the group's board")
+
+  // Clicking a group card opens it in its own project
+  await card(apiP, 2).click()
+  await page.waitForURL((u) => u.searchParams.get("project") === apiP.id && u.searchParams.get("task") === "T002")
+  await page.getByRole("dialog").or(page.locator("[data-task-panel]")).first().waitFor().catch(() => {})
+  await page.getByText("Api card 2").first().waitFor()
+  console.log("ok  a group card opens in its own project")
+
+  // Unknown group: default project + toast
+  await page.goto(`${BASE}/board?group=no-such-group`)
+  await page.getByText(/No group “no-such-group”/).waitFor()
+  assert.equal((await fetch(`${BASE}/api/tasks?group=no-such-group`)).status, 404)
+  console.log("ok  unknown ?group= shows the default project and a toast; the API answers 404")
+
   assert.deepEqual(errors, [], "no page errors")
   console.log("ok  no page errors")
 } finally {

@@ -100,6 +100,8 @@ export interface Task {
   verification: Verification | null
   file: string
   raw?: string
+  /** The repo this task lives in, set only on a group board (R102 T539); ids are unique per repo only */
+  project?: { id: string; name: string }
 }
 
 /** `failed`: the run's first failed step (feeds the /manual-tests decision bar and its send-back note). */
@@ -669,6 +671,20 @@ export async function setGroupMembers(slug: unknown, add: unknown, remove: unkno
     for (const p of removing) await setProjectGroup(p.root, g.slug, false)
     return (await listGroups()).find(x => x.slug === g.slug) ?? null
   })
+}
+
+/**
+ * A group's board (T539): every member repo's tasks, each tagged `project: {id, name}`, in one `listTasks` shape.
+ * A member whose tasks can't be read is skipped. Null = no such group.
+ */
+export async function listGroupTasks(slug: string): Promise<{ tasks: Task[]; board: TaskBoard } | null> {
+  const g = (await listGroups()).find(x => x.slug === slug)
+  if (!g) return null
+  const lists = await Promise.all(g.members.map(m => listTasks(m.root).then(r => r.tasks.map(t => ({ ...t, project: { id: m.id, name: m.name } })), () => [] as Task[])))
+  const tasks = lists.flat()
+  const board: TaskBoard = { todo: [], 'in-progress': [], review: [], blocked: [], paused: [], done: [], cancelled: [] }
+  for (const t of tasks) board[(board[t.status] ? t.status : 'todo') as TaskStatus].push(t)
+  return { tasks, board }
 }
 
 /** Removes the slug from every member's settings (nothing else changes). Returns the group for Undo (create with its slug). */

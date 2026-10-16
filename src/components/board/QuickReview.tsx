@@ -9,6 +9,7 @@ import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { parseManualTests, type ManualTestItem } from "@/lib/manual-tests"
 import { testReviewHref } from "@/lib/test-review"
+import { taskKey } from "@/lib/board-views"
 import { ReviewActions } from "./TaskDetailPanel"
 import { StepText, Tick } from "@/components/manual-tests/TestDetail"
 import type { Task } from "@/types"
@@ -29,7 +30,8 @@ export function QuickReviewButton({ task, className }: { task: Task; className?:
   const ref = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [anchor, setAnchor] = useState<CSSProperties | undefined>()
-  if (task.status !== "review" || demo) return null
+  // R102: a group board's card reviews in its own project (the panel there), not here
+  if (task.status !== "review" || demo || task.project) return null
 
   function onOpenChange(next: boolean) {
     if (next) setAnchor(anchorStyle(ref.current))
@@ -110,7 +112,7 @@ function QuickReview({ task, onDecided }: { task: Task; onDecided: () => void })
         <label className={cn("-mx-2 flex items-start gap-2.5 rounded-md px-2 py-1.5", !readOnly && "cursor-pointer hover:bg-surface2")}>
           {readOnly
             ? <Bot className="mt-0.5 size-4 shrink-0 text-teal" aria-label={t("tests.provenByRun")} />
-            : <Tick checked={checked} onChange={(c) => void tickManualTest(task.id, item.index, c)} />}
+            : <Tick checked={checked} onChange={(c) => void tickManualTest(taskKey(task), item.index, c)} />}
           {item.auto && !readOnly && <Bot className="mt-0.5 size-3.5 shrink-0 text-muted" aria-label={t("tests.automated")} />}
           <StepText text={item.text} checked={checked} />
         </label>

@@ -9,7 +9,7 @@ import type { MessageKey } from "@/i18n"
 import { localToday } from "@/lib/roadmap-health"
 import { QuickReviewButton } from "../QuickReview"
 import { TaskDueField, TaskOwnerField, TaskSizeField, TaskStatusField } from "../TaskFields"
-import { epicOf, type PropertyKey, type SortProp, type SortRule, type TaskGroup, type ViewState } from "@/lib/board-views"
+import { epicOf, taskKey, type PropertyKey, type SortProp, type SortRule, type TaskGroup, type ViewState } from "@/lib/board-views"
 import type { Task, TaskStatus } from "@/types"
 
 interface ViewProps {
@@ -181,7 +181,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
     const done = task.status === "done" || task.status === "cancelled"
     return (
       <tr
-        key={task.id}
+        key={taskKey(task)}
         onClick={(e: MouseEvent) => {
           // The title button handles its own click (and Enter); this covers the rest of the row.
           if ((e.target as HTMLElement).closest("button")) return
@@ -203,6 +203,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
             title={task.title}
             className={cn("block w-full truncate rounded-sm px-1.5 py-1 text-left font-medium", done ? "text-muted" : "text-txt", ring)}
           >
+            {task.project && <span data-repo-tag={task.project.id} className="mr-1.5 inline-block max-w-24 truncate rounded-sm bg-surface2 px-1 align-bottom text-[10px] font-normal text-txt" data-user-content>{task.project.name}</span>}
             {task.title}
           </button>
         </td>

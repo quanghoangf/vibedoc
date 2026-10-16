@@ -376,6 +376,12 @@ export const en = {
   // Dependency diagram (R097, T520)
   depDiagram: "Dependencies",
   depDiagramOpen: "Open {title}",
+  // Group board (R102, T539)
+  repo: "Repo",
+  repoOf: "In the {name} repo",
+  repoFilter: "Show one repo",
+  allRepos: "All repos",
+  moreReposDone: "more repos, all done",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -737,4 +743,10 @@ export const vi: Messages<typeof en> = {
   // Dependency diagram (R097, T520)
   depDiagram: "Phụ thuộc",
   depDiagramOpen: "Mở {title}",
+  // Group board (R102, T539)
+  repo: "Repo",
+  repoOf: "Thuộc repo {name}",
+  repoFilter: "Chỉ hiện một repo",
+  allRepos: "Mọi repo",
+  moreReposDone: "repo nữa, đều xong",
 }
