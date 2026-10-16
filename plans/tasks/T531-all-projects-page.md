@@ -1,9 +1,13 @@
 # T531: All projects page: pin, rename, archive, remove
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R099 — Projects hub
 **Size:** M (2–3 hrs)
 **Depends on:** T530
 **Covers:** S1, S3
+**Owner:** ai:claude
+**Due:** 2026-10-19
+**Started:** 2026-10-16
+**Done:** 2026-10-16
 
 ## Goal
 `/projects` lists every project in the hub with what needs the user, and lets them pin, rename, archive or remove a project without touching its files.
@@ -39,10 +43,6 @@
 - [ ] Pinned rows sort first; archived rows are hidden from the switcher
 - [ ] `node src/lib/i18n.check.mts`, `e2e/i18n.mjs`, `e2e/empty-states.mjs` pass
 
-## Manual tests
-- [ ] S1 — WHEN the user picks another project from the switcher → THEN its board opens, and the last page they used in that project is kept
-- [ ] S3 — WHEN the user removes a project from the hub → THEN it leaves the list and nothing in its folder changes
-
 ## Verify
 ```bash
 node src/lib/i18n.check.mts
@@ -50,3 +50,16 @@ pnpm lint && pnpm build
 BASE=http://localhost:3081 node e2e/projects-hub.mjs
 BASE=http://localhost:3081 PW_DIR=. node e2e/i18n.mjs
 ```
+
+## Manual tests
+_2026-10-16 — ai_
+### Steps
+- [x] Sidebar footer → All projects (key `h`) → three fixture projects listed, each "1 open task"
+- [x] Click Open on another project → its board opens with `?project=` in the URL
+- [x] Rename a project, Save → the row and the header switcher show the new name; the folder keeps its name
+- [x] Pin a project → it moves to the top; Archive one → "Archived (1)" group, gone from the switcher; Unarchive brings it back
+- [x] Remove a project → row gone, its folder byte-for-byte unchanged, toast "Removed … Its files are untouched."; Undo → row back
+- [x] The current project's Remove button is disabled
+- [x] The row layout reads well at 1400px and 390px (checked on screenshots: actions wrap under the counts on a phone)
+### Regression risk
+- [x] Every (app) page still has no English text in Vietnamese (`e2e/i18n.mjs`) and empty states pass (`e2e/empty-states.mjs`)

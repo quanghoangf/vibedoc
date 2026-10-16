@@ -38,7 +38,7 @@ interface AppHeaderProps {
   projects: Project[]
   activeProject: string
   liveIndicator: boolean
-  onProjectChange: (root: string) => void
+  onProjectChange: (id: string) => void
   onToggleChat: () => void
   onOpenSearch: () => void
 }
@@ -60,7 +60,7 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
 
       {/* Below sm the project name truncates so the page name stays */}
       <nav aria-label={t("shell.location")} className="flex min-w-0 items-center gap-1.5 text-sm [&_button]:min-w-0 max-sm:[&_button>span]:max-w-20">
-        <ProjectSwitcher projects={projects} activeProject={activeProject} currentName={summary?.name || ""} onSelect={onProjectChange} />
+        <ProjectSwitcher projects={projects} activeProject={activeProject} currentName={projects.find((p) => p.root === activeProject)?.name || summary?.name || ""} onSelect={onProjectChange} />
         {title && (
           <>
             <span className="text-muted" aria-hidden>/</span>

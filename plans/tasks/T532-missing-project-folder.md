@@ -1,9 +1,13 @@
 # T532: Missing project folder: Locate or Remove
-**Status:** 📋 Todo
+**Status:** ✅ Done
 **Phase:** R099 — Projects hub
 **Size:** S (~1 hr)
 **Depends on:** T531
 **Covers:** S2
+**Owner:** ai:claude
+**Due:** 2026-10-17
+**Started:** 2026-10-16
+**Done:** 2026-10-16
 
 ## Goal
 A project whose folder was moved or deleted shows as missing and can be pointed at its new place, while every other project keeps working.
@@ -34,12 +38,20 @@ A project whose folder was moved or deleted shows as missing and can be pointed 
 - [ ] Locate with the new path → row back to normal, same id, its tasks load
 - [ ] Locate with a file path or a taken root → error in words, nothing saved
 
-## Manual tests
-- [ ] S2 — WHEN a project's folder was moved or deleted → THEN All projects marks it missing and offers Locate or Remove, and the other projects still work
-
 ## Verify
 ```bash
 node src/lib/hub.check.mts
 pnpm lint && pnpm build
 BASE=http://localhost:3081 node e2e/projects-hub.mjs
 ```
+
+## Manual tests
+_2026-10-16 — ai_
+### Steps
+- [x] Rename a hub project's folder on disk, open All projects → its row shows a red "Missing" chip, the path struck through and a Locate button
+- [x] Open the header switcher → that project is disabled and reads "folder missing"; other projects still open
+- [x] `GET /api/tasks?root=<old path>` → 404 "project folder not found", not 500
+- [x] Locate with a file path → "not a folder: …" under the field; with another project's folder → "another project already uses …"; the hub entry is unchanged
+- [x] Locate with the new folder → row back to normal, same id, "1 open task"; its board loads
+### Regression risk
+- [x] Other projects keep working while one is missing; Remove still works on a missing row (same button as T531)

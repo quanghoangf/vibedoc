@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,10 @@ import type { Project } from "@/types"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useT } from "@/context/LanguageContext"
+import { switcherOrder } from "@/lib/hub"
+
+/** ⌘K "Switch project…" opens the switcher with this window event. */
+export const OPEN_PROJECT_SWITCHER = "vibedoc:open-project-switcher"
 
 /** Keep the meaningful tail of a path: /Users/me/work/vibedoc → …/work/vibedoc */
 function shortPath(root: string): string {
@@ -22,7 +26,8 @@ interface ProjectSwitcherProps {
   projects: Project[]
   activeProject: string
   currentName: string
-  onSelect: (root: string) => void
+  /** The picked project's hub id */
+  onSelect: (id: string) => void
 }
 
 /** Above this many projects the menu gets a filter field. */
@@ -32,9 +37,17 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
   const { t } = useT()
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState("")
-  const filterable = projects.length >= FILTER_FROM
+  // R099: pinned first, then the most recently opened; archived projects stay on All projects only
+  const listed = switcherOrder(projects)
+  const filterable = listed.length >= FILTER_FROM
   const f = filter.trim().toLowerCase()
-  const shown = f ? projects.filter((p) => `${p.name} ${p.root}`.toLowerCase().includes(f)) : projects
+  const shown = f ? listed.filter((p) => `${p.name} ${p.root}`.toLowerCase().includes(f)) : listed
+
+  useEffect(() => {
+    const onOpen = () => setOpen(true)
+    window.addEventListener(OPEN_PROJECT_SWITCHER, onOpen)
+    return () => window.removeEventListener(OPEN_PROJECT_SWITCHER, onOpen)
+  }, [])
 
   return (
     <DropdownMenu open={open} onOpenChange={(v) => { setOpen(v); if (!v) setFilter("") }}>
@@ -59,8 +72,8 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
               if (e.key === "ArrowDown") {
                 e.preventDefault()
                 e.currentTarget.parentElement?.querySelector<HTMLElement>("[role=menuitem]")?.focus()
-              } else if (e.key === "Enter" && shown[0]) {
-                onSelect(shown[0].root)
+              } else if (e.key === "Enter" && shown[0] && !shown[0].missing) {
+                onSelect(shown[0].id)
                 setOpen(false)
                 setFilter("")
               } else if (e.key.length === 1) {
@@ -73,21 +86,23 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
           />
         )}
         {shown.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-muted">{projects.length ? t("shell.noProjectMatches", { query: filter.trim() }) : t("shell.noProjects")}</div>
+          <div className="px-3 py-2 text-sm text-muted">{listed.length ? t("shell.noProjectMatches", { query: filter.trim() }) : t("shell.noProjects")}</div>
         ) : (
           shown.map((p) => {
             const active = p.root === activeProject
             return (
               <DropdownMenuItem
                 key={p.root}
-                onClick={() => onSelect(p.root)}
+                onClick={() => onSelect(p.id)}
+                // T532: a moved or deleted folder can't be opened; All projects offers Locate
+                disabled={p.missing}
                 title={p.root}
                 aria-current={active || undefined}
                 className={cn("cursor-pointer hover:bg-surface2 focus:bg-surface2", active && "text-accent")}
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{p.name}</div>
-                  <div className="truncate font-mono text-[11px] text-muted">{shortPath(p.root)}</div>
+                  <div className="truncate font-mono text-[11px] text-muted">{p.missing ? t("shell.projectMissing") : shortPath(p.root)}</div>
                 </div>
                 <Check aria-hidden className={cn("size-3.5 shrink-0", !active && "invisible")} />
               </DropdownMenuItem>
