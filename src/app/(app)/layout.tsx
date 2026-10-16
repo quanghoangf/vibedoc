@@ -36,7 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 }
 
 /** Pages that show a whole project group (R102); the rest ask which member to open */
-const GROUP_PAGES = ["/board", "/projects"]
+const GROUP_PAGES = ["/board", "/roadmap", "/projects"]
 
 /** Pages that only write or spawn agents: the read-only demo (R042) shows a note instead */
 const DEMO_BLOCKED = ["/chat", "/settings", "/setup"]

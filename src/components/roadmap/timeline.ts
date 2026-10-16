@@ -21,9 +21,12 @@ export interface Timeline {
   undated: RoadmapItem[]
 }
 
-/** `monthName` labels the axis in the UI language (useFormat().month). */
-export function buildTimeline(items: RoadmapItem[], today: string, monthName: (m: number) => string): Timeline {
-  const dues = items.map((i) => i.due).filter((d): d is string => !!d)
+/**
+ * `monthName` labels the axis in the UI language (useFormat().month). `axisDates` widen the axis only (no markers):
+ * a group roadmap (R102) passes every repo's due dates, so each repo's timeline shares one month axis.
+ */
+export function buildTimeline(items: RoadmapItem[], today: string, monthName: (m: number) => string, axisDates: string[] = []): Timeline {
+  const dues = [...items.map((i) => i.due), ...axisDates].filter((d): d is string => !!d)
   const first = ymd([today, ...dues].sort()[0])
   const last = ymd([today, ...dues].sort().at(-1) ?? today)
 

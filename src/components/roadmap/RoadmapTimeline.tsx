@@ -7,25 +7,48 @@ import type { RoadmapProgress } from "@/lib/roadmap-health"
 import { StatusDot } from "./RoadmapNodes"
 import { AgentDot } from "@/components/chat/AgentMark"
 import { LANE_ROW_H, buildTimeline } from "./timeline"
+import { AlertTriangle } from "lucide-react"
 import { useFormat, useT } from "@/context/LanguageContext"
 
 const LANE_LABEL_W = 200
 const HEADER_H = 36
 
+/** One repo's block on a group roadmap (R102): its items, health from its own tasks, and its at-risk epics. */
+export interface TimelineSection {
+  id: string
+  name: string
+  items: RoadmapItem[]
+  progressById: Record<string, RoadmapProgress>
+  atRisk: Set<string>
+}
+
 interface RoadmapTimelineProps {
   items: RoadmapItem[]
   today: string
-  onSelect: (id: string) => void
+  /** `section`: the repo the item lives in, on a group roadmap */
+  onSelect: (id: string, section?: string) => void
   onItemContextMenu?: (id: string, e: React.MouseEvent) => void
   progressById: Record<string, RoadmapProgress>
+  /** R102: one block of lanes per repo under its header, on one shared month axis (`items` / `progressById` unused) */
+  sections?: TimelineSection[]
 }
 
-export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, progressById }: RoadmapTimelineProps) {
-  // same chapter numbers as the map: real horizons by order
-  const chapters = new Map(items.filter((i) => i.parent === null).sort((a, b) => a.order - b.order).map((h, i) => [h.id, i + 1]))
+export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, progressById, sections }: RoadmapTimelineProps) {
   const f = useFormat()
-  const { t } = useT()
-  const tl = useMemo(() => buildTimeline(items, today, f.month), [items, today, f.month])
+  const { t, tn } = useT()
+  // Ids repeat across repos (R001 in each), so every repo builds its own lanes; the axis spans every repo's dates
+  const blocks = useMemo(() => {
+    const list: TimelineSection[] = sections ?? [{ id: "", name: "", items, progressById, atRisk: new Set() }]
+    const axis = list.flatMap((b) => b.items.map((i) => i.due)).filter((d): d is string => !!d)
+    return list.map((b) => ({
+      ...b,
+      tl: buildTimeline(b.items, today, f.month, axis),
+      // same chapter numbers as the map: real horizons by order
+      chapters: new Map(b.items.filter((i) => i.parent === null).sort((a, c) => a.order - c.order).map((h, i) => [h.id, i + 1])),
+    }))
+  }, [sections, items, progressById, today, f.month])
+  const tl = blocks[0]?.tl ?? buildTimeline([], today, f.month)
+  const group = !!sections
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // open with today about a third from the left
@@ -34,7 +57,8 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
     if (el) el.scrollLeft = Math.max(0, tl.todayX - (el.clientWidth - LANE_LABEL_W) / 3)
   }, [tl.todayX])
 
-  const hasDates = tl.lanes.some((l) => l.markers.length > 0)
+  const hasDates = blocks.some((b) => b.tl.lanes.some((l) => l.markers.length > 0))
+  const undated = blocks.flatMap((b) => b.tl.undated.map((item) => ({ item, block: b })))
 
   return (
     <div className="flex flex-1 min-h-0 flex-col">
@@ -68,15 +92,25 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
             </div>
           </div>
 
-          {tl.lanes.map((lane) => (
+          {blocks.map((b) => (
+          <section key={b.id || "project"} aria-label={group ? b.name : undefined} data-timeline-repo={group ? b.id : undefined}>
+          {group && (
+            <div className="relative z-10 border-b border-border bg-bg py-2" style={{ width: LANE_LABEL_W + tl.width }}>
+              <div className="sticky left-0 flex w-max items-baseline gap-2 px-3">
+                <h2 className="truncate text-sm font-semibold text-txt" data-user-content>{b.name}</h2>
+                <span className="font-mono text-[11px] text-muted">{tn("roadmap.repoEpics", b.items.filter((i) => i.parent !== null).length)}</span>
+              </div>
+            </div>
+          )}
+          {b.tl.lanes.map((lane) => (
             <div key={lane.item.id} className="relative flex border-b border-border">
-              <LaneLabel item={lane.item} chapter={chapters.get(lane.item.id)} progress={progressById[lane.item.id]} onSelect={onSelect} onContextMenu={onItemContextMenu} />
+              <LaneLabel item={lane.item} chapter={b.chapters.get(lane.item.id)} progress={b.progressById[lane.item.id]} onSelect={(id) => onSelect(id, b.id || undefined)} onContextMenu={onItemContextMenu} />
               <div className="relative" style={{ width: tl.width, height: lane.rows * LANE_ROW_H + 12 }}>
                 {lane.markers.map((mk) => (
                   <button
                     key={mk.item.id}
                     type="button"
-                    onClick={() => onSelect(mk.item.id)}
+                    onClick={() => onSelect(mk.item.id, b.id || undefined)}
                     onContextMenu={(e) => onItemContextMenu?.(mk.item.id, e)}
                     title={t(mk.state === "overdue" ? "roadmap.markerOverdue" : "roadmap.markerDue", { id: mk.item.id, title: mk.item.title, date: f.day(mk.item.due as string) })}
                     className="group absolute flex items-center gap-1.5"
@@ -107,7 +141,9 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
                         <span className={cn("truncate text-xs", mk.item.status === "done" ? "text-muted" : "text-txt", mk.horizon && "font-semibold")}>
                           {mk.item.title}
                         </span>
-                        <AgentDot attach={{ kind: "epic", id: mk.item.id }} />
+                        {b.atRisk.has(mk.item.id) && <AlertTriangle data-at-risk className="size-3 shrink-0 text-amber" aria-label={t("roadmap.atRiskMark")} />}
+                        {/* chats are per project: a group roadmap doesn't show them */}
+                        {!group && <AgentDot attach={{ kind: "epic", id: mk.item.id }} />}
                       </span>
                       <span
                         className={cn(
@@ -123,6 +159,8 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
               </div>
             </div>
           ))}
+          </section>
+          ))}
 
           {!hasDates && (
             <p className="px-6 py-8 text-sm text-muted" style={{ marginLeft: LANE_LABEL_W }}>
@@ -132,21 +170,22 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
         </div>
       </div>
 
-      {tl.undated.length > 0 && (
+      {undated.length > 0 && (
         <div className="max-h-28 shrink-0 overflow-y-auto border-t border-border bg-surface px-4 py-2">
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">{t("roadmap.noDueDate", { n: tl.undated.length })}</p>
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-widest text-muted">{t("roadmap.noDueDate", { n: undated.length })}</p>
           <div className="flex flex-wrap gap-1.5">
-            {tl.undated.map((i) => (
+            {undated.map(({ item: i, block }) => (
               <button
-                key={i.id}
+                key={`${block.id}:${i.id}`}
                 type="button"
-                onClick={() => onSelect(i.id)}
+                onClick={() => onSelect(i.id, block.id || undefined)}
                 onContextMenu={(e) => onItemContextMenu?.(i.id, e)}
                 className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-muted hover:border-accent hover:text-txt"
               >
                 <StatusDot status={i.status} />
+                {group && <span className="text-[10px] text-muted" data-user-content>{block.name} ·</span>}
                 {i.title}
-                <AgentDot attach={{ kind: "epic", id: i.id }} />
+                {!group && <AgentDot attach={{ kind: "epic", id: i.id }} />}
               </button>
             ))}
           </div>

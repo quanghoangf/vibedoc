@@ -154,6 +154,50 @@ try {
   await page.getByText("Api card 2").first().waitFor()
   console.log("ok  a group card opens in its own project")
 
+  // ── T540: the group roadmap ─────────────────────────────────────────────────
+  const day = (n) => { const d = new Date(Date.now() + n * 864e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` }
+  const epic = (p, id, title, due, tasks = "—") =>
+    writeFileSync(path.join(p.root, `plans/roadmap/${id}-e.md`), `# ${id}: ${title}\n**Parent:** R001\n**Status:** planned\n**Order:** ${id.slice(1)}\n**Due:** ${due}\n**Tasks:** ${tasks}\n`)
+  rmSync(path.join(web.root, "plans/roadmap/R002-epic.md")); rmSync(path.join(apiP.root, "plans/roadmap/R002-epic.md"))
+  epic(web, "R002", "Web epic", day(40)); epic(web, "R003", "Web second", day(3), "T005")
+  epic(apiP, "R002", "Api epic", day(30)); epic(apiP, "R003", "Api second", day(3), "T002"); epic(apiP, "R004", "Api third", day(90))
+  // web T005 in progress → web R003 is not at risk; api R003 (due in 3 days, T002 not started) is
+  await api(`/api/tasks?root=${encodeURIComponent(web.root)}`, { taskId: "T005", status: "in-progress", actor: "human" })
+  await page.goto(`${BASE}/roadmap?group=shop`)
+  const lane = (p) => page.locator(`[data-timeline-repo="${p.id}"]`)
+  await lane(web).getByRole("heading", { name: web.name }).waitFor()
+  await lane(apiP).getByRole("heading", { name: apiP.name }).waitFor()
+  for (const [p, titles] of [[web, ["Web epic", "Web second"]], [apiP, ["Api epic", "Api second", "Api third"]]]) {
+    for (const title of titles) await lane(p).getByRole("button", { name: title }).waitFor()
+  }
+  assert.equal(await lane(web).getByRole("button", { name: /Api/ }).count(), 0, "web's block holds only web's epics")
+  assert.ok(await page.getByRole("button", { name: "Map", exact: true }).isDisabled(), "Map is per project")
+  assert.equal(await page.locator('[title^="The map is per project"]').getByRole("button", { name: "Map", exact: true }).count(), 1, "Map's tooltip says why")
+  console.log("ok  /roadmap?group=shop: 5 epics on one Timeline under two repo headers; Map disabled")
+
+  // At-risk marks match each repo's own roadmap (MCP vibedoc_get_roadmap tags at-risk epics)
+  const atRisk = async (p) => {
+    const res = await fetch(`${BASE}/api/mcp?root=${encodeURIComponent(p.root)}`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_get_roadmap", arguments: {} } }) })
+    const text = (await res.json()).result.content[0].text
+    return ["R002", "R003", "R004"].filter((id) => text.split("\n").some((l) => l.includes(id) && l.includes("at risk")))
+  }
+  const shownRisk = async (p) => {
+    const out = []
+    for (const b of await lane(p).getByRole("button").all()) if (await b.locator("[data-at-risk]").count()) out.push((await b.getAttribute("title")) ?? "")
+    return out.map((title) => title.match(/R\d+/)?.[0]).filter(Boolean).sort()
+  }
+  await lane(apiP).locator("[data-at-risk]").first().waitFor()
+  assert.deepEqual(await shownRisk(apiP), await atRisk(apiP))
+  assert.deepEqual(await shownRisk(web), await atRisk(web))
+  assert.deepEqual(await shownRisk(apiP), ["R003"])
+  console.log("ok  at-risk marks match each repo's own roadmap (api R003 only)")
+
+  await lane(apiP).getByRole("button", { name: "Api second" }).click()
+  await page.waitForURL((u) => u.pathname === "/roadmap" && u.searchParams.get("project") === apiP.id && u.searchParams.get("item") === "R003")
+  await page.getByText("Api second").first().waitFor()
+  console.log("ok  clicking an epic opens it in its own project")
+
   // Unknown group: default project + toast
   await page.goto(`${BASE}/board?group=no-such-group`)
   await page.getByText(/No group “no-such-group”/).waitFor()

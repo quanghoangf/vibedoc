@@ -687,6 +687,14 @@ export async function listGroupTasks(slug: string): Promise<{ tasks: Task[]; boa
   return { tasks, board }
 }
 
+/** A group's roadmap (T540): every member repo's items, each tagged `project`; read-only. Null = no such group. */
+export async function listGroupRoadmap(slug: string): Promise<{ items: RoadmapItem[] } | null> {
+  const g = (await listGroups()).find(x => x.slug === slug)
+  if (!g) return null
+  const lists = await Promise.all(g.members.map(m => listRoadmap(m.root).then(r => r.items.map(i => ({ ...i, project: { id: m.id, name: m.name } })), () => [] as RoadmapItem[])))
+  return { items: lists.flat() }
+}
+
 /** Removes the slug from every member's settings (nothing else changes). Returns the group for Undo (create with its slug). */
 export async function deleteGroup(slug: unknown): Promise<ProjectGroup> {
   return withGroupsLock(async () => {
@@ -3325,6 +3333,7 @@ export interface RoadmapItem {
   specChanges: { capability: string; ops: { op: string; name: string }[] }[] // the body's ## Spec changes, targets only (R069)
   body: string          // markdown after the metadata block
   file: string          // path relative to root
+  project?: { id: string; name: string } // the repo it lives in, set only on a group roadmap (R102 T540)
 }
 
 export type RoadmapLayout = Record<string, { x: number; y: number }>
