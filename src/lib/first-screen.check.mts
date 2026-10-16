@@ -1,6 +1,6 @@
 // node src/lib/first-screen.check.mts
 import assert from 'node:assert/strict'
-import { firstScreen, hasProjectDocs, lastPageCookie, lastPageTarget, welcomeKind } from './first-screen.ts'
+import { MAX_LAST_PAGES, firstScreen, hasProjectDocs, lastPageCookie, lastPageTarget, parseLastPages, welcomeKind } from './first-screen.ts'
 
 assert.equal(hasProjectDocs([]), false)
 assert.equal(hasProjectDocs(['LICENSE.md', 'CHANGELOG.md', 'CONTRIBUTING.md']), false)
@@ -30,4 +30,16 @@ assert.match(lastPageCookie('/docs/some/doc') ?? '', /^vibedoc-last=\/docs;/)
 assert.equal(lastPageCookie('/start'), null)
 assert.equal(lastPageCookie('/setup'), null)
 assert.equal(lastPageCookie('/'), null)
+// R099: one last page per project
+const two = (lastPageCookie('/roadmap', 'web:/docs|/memory', 'api') ?? '').match(/^vibedoc-last=([^;]*)/)?.[1]
+assert.equal(two, 'api:/roadmap|web:/docs|/memory')
+assert.equal(lastPageTarget(two, 'api'), '/roadmap')
+assert.equal(lastPageTarget(two, 'web'), '/docs')
+assert.equal(lastPageTarget(two, 'other'), '/board')
+assert.equal(lastPageTarget(two), '/memory')
+const again = (lastPageCookie('/graph', two, 'web') ?? '').match(/^vibedoc-last=([^;]*)/)?.[1]
+assert.equal(again, 'web:/graph|api:/roadmap|/memory')
+assert.deepEqual(parseLastPages('a:/board|a:/docs|b:/start|c:https://x|/board'), [['a', '/board'], ['', '/board']])
+const many = Array.from({ length: 30 }, (_, i) => `p${i}:/board`).join('|')
+assert.equal(parseLastPages((lastPageCookie('/docs', many, 'new') ?? '').match(/^vibedoc-last=([^;]*)/)?.[1]).length, MAX_LAST_PAGES)
 console.log('first-screen ok')

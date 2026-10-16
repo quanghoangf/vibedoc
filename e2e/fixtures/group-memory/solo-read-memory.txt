@@ -1,0 +1,12 @@
+# Project Memory
+
+## Current state
+The solo repo.
+
+## Handoff for next session
+Nothing open.
+
+## Knowledge entries (2)
+E001 · convention · API errors use the error envelope (~23 tok)
+E002 · gotcha · Retry flaky uploads once (~19 tok)
+Save new facts with vibedoc_save_entry; fetch bodies with vibedoc_get_entries.

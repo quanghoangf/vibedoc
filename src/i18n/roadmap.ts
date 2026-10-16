@@ -225,6 +225,12 @@ export const en = {
   // Epic map (R097, T521)
   diagram: "Map of tasks and scenarios",
   showDiagram: "Show the map ({n} tasks)",
+  // Group roadmap (R102, T540)
+  repoEpics_one: "{n} epic",
+  repoEpics_other: "{n} epics",
+  atRiskMark: "At risk",
+  mapPerProject: "The map is per project: open a repo of the group to see its map",
+  groupTimelineLead: "Every repo of {name} on one timeline. Click an epic to open it in its own project.",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -441,4 +447,10 @@ export const vi: Messages<typeof en> = {
   // Epic map (R097, T521)
   diagram: "Sơ đồ task và kịch bản",
   showDiagram: "Hiện sơ đồ ({n} task)",
+  // Group roadmap (R102, T540)
+  repoEpics_one: "{n} epic",
+  repoEpics_other: "{n} epic",
+  atRiskMark: "Có rủi ro",
+  mapPerProject: "Bản đồ là theo từng dự án: mở một repo của nhóm để xem bản đồ của nó",
+  groupTimelineLead: "Mọi repo của {name} trên một dòng thời gian. Bấm một epic để mở nó trong dự án của nó.",
 }

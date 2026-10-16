@@ -39,7 +39,8 @@ export interface StepContext {
  */
 export function stepAction(id: FirstWeekStepId, ctx: StepContext): StepAction {
   switch (id) {
-    case "agent": return { href: "/settings", command: `claude mcp add --transport http vibedoc ${ctx.origin}/api/mcp` }
+    // R104 (ADR-006): one user-scope connection for every project; single quotes keep ${PWD} for Claude Code to fill in
+    case "agent": return { href: "/settings", command: `claude mcp add --scope user --transport http vibedoc ${ctx.origin}/api/mcp --header 'X-VibeDoc-Root: \${PWD}'` }
     case "roadmap": return { href: "/roadmap", command: "/vibedoc:roadmap" }
     case "breakdown": return { command: ctx.epicToBreakDown ? `/vibedoc:breakdown ${ctx.epicToBreakDown}` : "/vibedoc:breakdown" }
     case "taskDone": return { command: ctx.epicToWork ? `/vibedoc:work ${ctx.epicToWork}` : "/vibedoc:work" }

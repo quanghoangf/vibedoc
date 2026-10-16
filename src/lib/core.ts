@@ -5,7 +5,7 @@
  */
 
 import fs from 'fs/promises'
-import { createReadStream } from 'fs'
+import { createReadStream, readFileSync, statSync } from 'fs'
 import { createHash } from 'crypto'
 import { Readable } from 'stream'
 import path from 'path'
@@ -37,6 +37,17 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { ATTACHMENTS_DIR, imageError, imageMarkdown, imageMimeOf, isAttachmentFolder, isServableImage, nextImageNumber, sniffImage } from './attachments'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
+import { cloneRunning, runClone } from './git-clone'
+import { addProject, cloneDest, emptyHub, expandHome, isCloneUrl, isScannable, MAX_SCAN_RESULTS, scanResults, type ScannedRepo, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, relocateProject, removeProject, restoreProject, type Hub, type HubProject } from './hub'
+import { groupSlug, groupsOf, withMembership, type ProjectGroup } from './groups'
+import { slugsOf } from './groups'
+import { countNeedsYou } from './test-review'
+import { runIdTime } from './test-review'
+import { chatStatus, fromSaved, isWaiting, type StatusMessage } from './chats'
+import { isTurnRunning } from './chat-turns'
+import { buildInbox, type InboxItem, type InboxProjectInput } from './inbox'
+import { roadmapHealth } from './roadmap-health'
+import { groupRollup, projectStats, type PortfolioRow, type ProjectStats } from './portfolio'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
@@ -46,6 +57,8 @@ import { similarPaths } from './similar-paths'
 import type { LlmsInput } from './llms-txt'
 import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { rankDocs, type SearchResult } from './doc-search'
+import { rankDocsScored } from './doc-search'
+import { mergeResults, rankItems, type CrossGroup, type CrossHit } from './cross-search'
 import type { DocLint } from './doc-lint'
 import { lintProject } from './doc-lint-project'
 import { NAME_STATUS_LOG_ARGS, outdatedRefs, parseNameStatusLog, type LogCommit, type OutdatedRef } from './doc-upkeep'
@@ -58,6 +71,7 @@ import { isDemo, isPlayground } from './demo'
 import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './first-run'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
 import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
+import { nearestRoot, usableRootHeader } from './agent-connect'
 import type { ProjectFacts } from './toolkit'
 import { parseUsage, recordRead, recordSearch, summarizeUsage, type DocUsage, type UsageSummary } from './doc-usage'
 import { OPENAPI_GLOB, parseOpenApi, type OpenApiSpec } from './openapi'
@@ -99,6 +113,8 @@ export interface Task {
   verification: Verification | null
   file: string
   raw?: string
+  /** The repo this task lives in, set only on a group board (R102 T539); ids are unique per repo only */
+  project?: { id: string; name: string }
 }
 
 /** `failed`: the run's first failed step (feeds the /manual-tests decision bar and its send-back note). */
@@ -161,6 +177,11 @@ export interface Project {
   name: string
   root: string
   hasVibedoc: boolean
+  pinned: boolean
+  archived: boolean
+  lastOpened: string | null
+  /** The folder is gone or not a directory (derived on read, T532) */
+  missing: boolean
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -189,9 +210,121 @@ export function getConfiguredRoot(): string {
   return process.env.VIBEDOC_ROOT || process.cwd()
 }
 
-/** The project root for a request's `?root=` override. The read-only demo pins the configured root, so visitors can't read other host folders. */
+/** A `?root=` that isn't a project in the hub (R099): routes answer 403. */
+export class ProjectAccessError extends Error {
+  status = 403 as const
+  constructor() {
+    super('not a VibeDoc project')
+    this.name = 'ProjectAccessError'
+  }
+}
+
+/**
+ * The project root for a request's `?root=` override: only the configured root or a hub project (R099),
+ * anything else throws ProjectAccessError (`src/proxy.ts` answers 403 before a route runs).
+ * The demo and `--demo` playground pin the configured root, so visitors can't read other host folders.
+ */
 export function rootFrom(override?: string | null): string {
-  return (!isDemo() && !isPlayground() && override) || getConfiguredRoot()
+  if (isDemo() || isPlayground() || !override) return getConfiguredRoot()
+  const r = normalizeRoot(path.resolve(override))
+  if (r === normalizeRoot(path.resolve(getConfiguredRoot())) || hubRoots().has(r)) return override
+  throw new ProjectAccessError()
+}
+
+/** A hub root whose folder is gone or isn't a directory (T532): requests answer 404, never 500. */
+export function isMissingRoot(root: string): boolean {
+  try { return !statSync(root).isDirectory() } catch { return true }
+}
+
+/** `rootFrom` without the throw, for the proxy. */
+export function isAllowedRoot(override: string): boolean {
+  try { rootFrom(override); return true } catch { return false }
+}
+
+/**
+ * R104 (ADR-006): the project an `X-VibeDoc-Root: ${PWD}` header names: the nearest allowed root (the configured
+ * one or a hub project) that contains the folder, both sides realpathed (`/tmp` vs `/private/tmp`). Returns the
+ * root as stored, or null (template text, relative, gone, or outside every project).
+ */
+export async function rootFromFolder(header: string | null): Promise<string | null> {
+  if (!usableRootHeader(header)) return null
+  const folder = await fs.realpath(header).catch(() => null)
+  if (!folder) return null
+  const roots = [normalizeRoot(path.resolve(getConfiguredRoot())), ...hubRoots()]
+  const real = new Map<string, string>()
+  for (const r of roots) {
+    const rr = await fs.realpath(r).catch(() => null)
+    if (rr && !real.has(rr)) real.set(rr, r)
+  }
+  const hit = nearestRoot(folder, real.keys())
+  return hit ? real.get(hit) ?? null : null
+}
+
+// ─── Projects hub (R099) ──────────────────────────────────────────────────────
+
+/** `<home>/hub.json`, home = `$VIBEDOC_HOME` or `~/.vibedoc` (the installer's folder). Machine-local: absolute roots. */
+export function hubFile(): string {
+  return path.join(process.env.VIBEDOC_HOME || path.join(os.homedir(), '.vibedoc'), 'hub.json')
+}
+
+// rootFrom is sync and called per request, so the hub's roots are cached by the file's mtime: a write from
+// anywhere (another module instance, an e2e registering its fixture) is seen on the next request.
+let hubRootsCache: { file: string; mtimeMs: number; roots: Set<string> } | null = null
+function hubRoots(): Set<string> {
+  const file = hubFile()
+  let mtimeMs = -1
+  try { mtimeMs = statSync(file).mtimeMs } catch {}
+  if (hubRootsCache?.file === file && hubRootsCache.mtimeMs === mtimeMs) return hubRootsCache.roots
+  let text = ''
+  try { text = readFileSync(file, 'utf8') } catch {}
+  const roots = new Set(parseHub(text).projects.map(p => p.root))
+  hubRootsCache = { file, mtimeMs, roots }
+  return roots
+}
+
+// ponytail: in-process mutex like withEntryLock; two VibeDoc processes sharing one home could still race.
+let hubLock: Promise<unknown> = Promise.resolve()
+export function withHubLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = hubLock.then(fn, fn)
+  hubLock = run.catch(() => {})
+  return run
+}
+
+async function readHubFile(): Promise<Hub> {
+  try { return parseHub(await fs.readFile(hubFile(), 'utf8')) } catch { return emptyHub() }
+}
+
+/** Writes hub.json atomically. Call inside withHubLock. */
+export async function writeHub(hub: Hub): Promise<void> {
+  const file = hubFile()
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  const tmp = `${file}.${process.pid}.tmp`
+  await fs.writeFile(tmp, JSON.stringify(hub, null, 2) + '\n', 'utf8')
+  await fs.rename(tmp, file)
+  hubRootsCache = null
+}
+
+/**
+ * The root the hub adds on first read: the CLI's `VIBEDOC_ADD_ROOT` (R100: the repo it ran in, '' outside any repo),
+ * else the configured root, so a single-project user sees no change.
+ */
+function hubAddRoot(): string | null {
+  const add = process.env.VIBEDOC_ADD_ROOT ?? getConfiguredRoot()
+  return add ? normalizeRoot(path.resolve(add)) : null
+}
+
+/** The hub, with `hubAddRoot()` added on first read. */
+export async function readHub(): Promise<Hub> {
+  const hub = await readHubFile()
+  const root = hubAddRoot()
+  if (!root) return hub
+  // the demo and `--demo` playground never write the user's hub (their copy lives in a temp folder)
+  if (hub.projects.some(p => p.root === root) || isDemo() || isPlayground()) return hub
+  return withHubLock(async () => {
+    const { hub: next, added } = addProject(await readHubFile(), root)
+    if (added) await writeHub(next)
+    return next
+  })
 }
 
 // ─── Frontend app (R057) ──────────────────────────────────────────────────────
@@ -380,39 +513,425 @@ export async function saveFrontendOverride(override: FrontendOverride | null, ro
   return clean
 }
 
-// ─── Multi-project: scan parent directories ───────────────────────────────────
+/** The hub project with this id, or whose root this (absolute) path is. */
+export async function findHubProject(key: string): Promise<HubProject | null> {
+  return projectFor(await readHub(), key.startsWith('/') ? path.resolve(key) : key)
+}
 
-export async function discoverProjects(searchBase?: string): Promise<Project[]> {
-  const base = searchBase || path.dirname(getConfiguredRoot())
-  const projects: Project[] = []
+/** Stamps `lastOpened` (R099: the switcher and All projects sort by it). False = unknown id. */
+export async function touchProject(id: string, now = new Date()): Promise<boolean> {
+  if (isDemo() || isPlayground()) return false
+  await readHub() // the configured root joins first
+  return withHubLock(async () => {
+    const next = patchProject(await readHubFile(), id, { lastOpened: now.toISOString() })
+    if (next) await writeHub(next)
+    return !!next
+  })
+}
 
-  if (!isDemo() && !isPlayground()) try {
-    const entries = await fs.readdir(base, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      const dir = path.join(base, entry.name)
-      let hasVibedoc = false
-      for (const marker of ['CLAUDE.md', 'AGENTS.md', 'docs/architecture', '.vibedoc']) {
-        try { await fs.access(path.join(dir, marker)); hasVibedoc = true; break } catch {}
-      }
-      if (hasVibedoc) {
-        projects.push({ id: entry.name, name: entry.name, root: dir, hasVibedoc: true })
-      }
-    }
-  } catch {}
+// ─── Multi-project: the hub's projects ───────────────────────────────────────
 
-  // Always ensure configured root is first
+async function isDirectory(dir: string): Promise<boolean> {
+  try { return (await fs.stat(dir)).isDirectory() } catch { return false }
+}
+
+/** Every project in the hub (R099): the configured root first, archived last. Demo / playground: only their copy. */
+export async function discoverProjects(): Promise<Project[]> {
   const root = getConfiguredRoot()
-  const name = path.basename(root)
-  const existingIdx = projects.findIndex(p => p.root === root)
-  if (existingIdx > 0) {
-    const [existing] = projects.splice(existingIdx, 1)
-    projects.unshift(existing)
-  } else if (existingIdx === -1) {
-    projects.unshift({ id: name, name, root, hasVibedoc: true })
+  if (isDemo() || isPlayground()) {
+    const name = path.basename(root)
+    return [{ id: name, name, root, hasVibedoc: true, pinned: false, archived: false, lastOpened: null, missing: false }]
   }
+  const hub = await readHub()
+  const projects = await Promise.all(hub.projects.map(async p => ({ ...p, hasVibedoc: true, missing: !(await isDirectory(p.root)) })))
+  return orderProjects(projects, path.resolve(root))
+}
 
-  return projects
+export class HubError extends Error {
+  constructor(message: string, public status: 400 | 404 | 409 = 400) {
+    super(message)
+    this.name = 'HubError'
+  }
+}
+
+/** Per project on All projects (T531): open tasks, and what waits on the user (review + Test review's Needs you). */
+export interface ProjectCounts { open: number; needsYou: number }
+
+/** Every hub project with its counts, one call for the page; a project whose tasks can't be read gets null. */
+export async function listProjectsWithCounts(): Promise<(Project & { counts: ProjectCounts | null })[]> {
+  const projects = await discoverProjects()
+  return Promise.all(projects.map(async p => {
+    if (p.missing) return { ...p, counts: null }
+    try {
+      const { tasks } = await listTasks(p.root)
+      const open = tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length
+      const needsYou = tasks.filter(t => t.status === 'review' || countNeedsYou([t]) > 0).length
+      return { ...p, counts: { open, needsYou } }
+    } catch {
+      return { ...p, counts: null }
+    }
+  }))
+}
+
+/**
+ * Everything waiting on the user in every hub project (R105), newest first. Derived on each call, nothing stored;
+ * archived / missing projects are skipped, and a project that can't be read is logged and left out.
+ */
+export async function getInbox(opts: { project?: string | null; group?: string | null } = {}): Promise<InboxItem[]> {
+  // T547: a group keeps its member repos; an unknown slug keeps nothing
+  const members = opts.group ? new Set((await listGroups()).find(g => g.slug === opts.group)?.members.map(m => m.id) ?? []) : null
+  const configured = path.resolve(getConfiguredRoot())
+  const projects = (await discoverProjects()).filter(p => !p.archived && !p.missing && (!opts.project || p.id === opts.project))
+  const inputs = await Promise.all(projects.map(async (p): Promise<InboxProjectInput | null> => {
+    try {
+      const [{ tasks }, chats] = await Promise.all([listTasks(p.root), listChats(p.root)])
+      // a chat turn is keyed by the root string its request used: the hub's root, or the configured root as given
+      const running = (id: string) => isTurnRunning(p.root, id) || (normalizeRoot(configured) === normalizeRoot(p.root) && isTurnRunning(getConfiguredRoot(), id))
+      return {
+        project: p,
+        tasks: tasks.map(t => {
+          const failedRun = (t.lastRun?.status ?? t.manualTests?.autoRun?.result) === 'failed'
+          return {
+            id: t.id, title: t.title, status: t.status, failedRun, needsTest: countNeedsYou([t]) > 0,
+            since: (failedRun && t.lastRun && runIdTime(t.lastRun.runId)) || t.updatedAt,
+          }
+        }),
+        chats: chats.map(raw => fromSaved<StatusMessage>(raw)).filter(c => c !== null).map(c => ({
+          id: c.id, title: c.title, since: c.updatedAt, waiting: isWaiting(chatStatus(c)) && !running(c.id),
+        })),
+      }
+    } catch (e) {
+      console.warn(`[vibedoc] inbox: skipping ${p.root}: ${(e as Error).message}`)
+      return null
+    }
+  }))
+  return buildInbox(inputs.filter(i => i !== null), { projects: members })
+}
+
+/** Display name / pin / archive of a hub project; the folder is never touched. */
+export async function updateHubProject(id: string, patch: { name?: unknown; pinned?: unknown; archived?: unknown }): Promise<HubProject> {
+  const clean: { name?: string; pinned?: boolean; archived?: boolean } = {}
+  if (typeof patch.name === 'string') {
+    if (!patch.name.trim()) throw new HubError('name must not be empty')
+    clean.name = patch.name.trim()
+  }
+  if (typeof patch.pinned === 'boolean') clean.pinned = patch.pinned
+  if (typeof patch.archived === 'boolean') clean.archived = patch.archived
+  if (!Object.keys(clean).length) throw new HubError('nothing to change: name, pinned or archived')
+  await readHub()
+  return withHubLock(async () => {
+    const next = patchProject(await readHubFile(), id, clean)
+    if (!next) throw new HubError(`no project "${id}"`, 404)
+    await writeHub(next)
+    return projectFor(next, id) as HubProject
+  })
+}
+
+/** Drops a project from the hub (the entry only: nothing in its folder changes). Returns the entry for Undo. */
+export async function removeHubProject(id: string): Promise<HubProject> {
+  await readHub()
+  return withHubLock(async () => {
+    const { hub, removed } = removeProject(await readHubFile(), id)
+    if (!removed) throw new HubError(`no project "${id}"`, 404)
+    if (removed.root === normalizeRoot(path.resolve(getConfiguredRoot()))) throw new HubError('the project VibeDoc was started in stays in the hub', 409)
+    await writeHub(hub)
+    return removed
+  })
+}
+
+/** Locate (T532): the project's folder moved; point the same id at its new absolute path. */
+export async function locateHubProject(id: string, root: unknown): Promise<HubProject> {
+  if (typeof root !== 'string' || !path.isAbsolute(root.trim())) throw new HubError('give the folder\'s absolute path, e.g. /Users/me/code/web')
+  const dir = path.resolve(root.trim())
+  if (!(await isDirectory(dir))) throw new HubError(`not a folder: ${dir}`)
+  await readHub()
+  return withHubLock(async () => {
+    const res = relocateProject(await readHubFile(), id, dir)
+    if ('error' in res) throw res.error === 'unknown' ? new HubError(`no project "${id}"`, 404) : new HubError(`another project already uses ${dir}`, 409)
+    await writeHub(res.hub)
+    return projectFor(res.hub, id) as HubProject
+  })
+}
+
+/** Undo of remove: the same entry back, never over an id or root that is taken now. */
+export async function restoreHubProject(entry: unknown): Promise<void> {
+  await withHubLock(async () => {
+    const next = restoreProject(await readHubFile(), entry)
+    if (!next) throw new HubError('cannot restore: bad entry, or its id or folder is in the hub again', 409)
+    await writeHub(next)
+  })
+}
+
+// ─── Import projects (R101) ──────────────────────────────────────────────────
+
+/** A typed folder path → absolute (`~` expanded), or a HubError in words. */
+function importPath(input: unknown): string {
+  if (typeof input !== 'string' || !input.trim()) throw new HubError('give a folder path, e.g. ~/work/web')
+  const p = expandHome(input, os.homedir())
+  if (!path.isAbsolute(p)) throw new HubError(`give an absolute path or one starting with ~: ${input.trim()}`)
+  return path.resolve(p)
+}
+
+async function requireFolder(input: unknown): Promise<string> {
+  const dir = importPath(input)
+  const stat = await fs.stat(dir).catch(() => null)
+  if (!stat) throw new HubError(`no such folder: ${dir}`)
+  if (!stat.isDirectory()) throw new HubError(`not a folder: ${dir}`)
+  return dir
+}
+
+/** Adds folders to the hub (path, scan or clone; the CLI too). All are checked first: one bad path adds nothing. */
+export async function addHubProjects(roots: unknown[]): Promise<{ project: HubProject; added: boolean }[]> {
+  if (!roots.length) throw new HubError('nothing to add')
+  const dirs = await Promise.all(roots.map(requireFolder))
+  await readHub() // the configured root joins first
+  return withHubLock(async () => {
+    let hub = await readHubFile()
+    const out = dirs.map(dir => {
+      const res = addProject(hub, dir)
+      hub = res.hub
+      return { project: res.project, added: res.added }
+    })
+    if (out.some(r => r.added)) await writeHub(hub)
+    return out
+  })
+}
+
+/** One folder (R100: `npx vibedoc` in a repo while VibeDoc runs); an existing root returns its entry. */
+export async function addHubProject(root: unknown): Promise<{ project: HubProject; added: boolean }> {
+  return (await addHubProjects([root]))[0]
+}
+
+/** Scan (T536): repos (a folder with `.git`) up to two levels under `dir`; never into node_modules or dot folders. */
+export async function scanForRepos(input: unknown): Promise<ScannedRepo[]> {
+  const dir = await requireFolder(input)
+  const found: string[] = []
+  const children = async (d: string) =>
+    (await fs.readdir(d, { withFileTypes: true }).catch(() => [])).filter(e => e.isDirectory() && isScannable(e.name)).map(e => path.join(d, e.name))
+  const isRepo = (d: string) => fs.stat(path.join(d, '.git')).then(() => true, () => false) // a worktree's .git is a file
+  for (const child of await children(dir)) {
+    if (found.length >= MAX_SCAN_RESULTS) break
+    if (await isRepo(child)) { found.push(child); continue }
+    for (const grand of await children(child)) if (await isRepo(grand)) found.push(grand)
+  }
+  return scanResults(found, (await readHub()).projects.map(p => p.root))
+}
+
+/** Clone (T537): `git clone <url>` into `<parent>/<repo>`, then add it to the hub. A failure leaves no folder behind. */
+export async function cloneProject(url: unknown, parent: unknown, onProgress: (line: string) => void): Promise<HubProject> {
+  const u = typeof url === 'string' ? url.trim() : ''
+  if (!isCloneUrl(u, process.env.VIBEDOC_E2E === '1')) throw new HubError('give an https://, ssh:// or git@host:path URL')
+  const dir = await requireFolder(parent)
+  const dest = cloneDest(dir, u)
+  if (!dest) throw new HubError(`no folder name in ${u}`)
+  if (await fs.stat(dest).then(() => true, () => false)) throw new HubError(`${dest} already exists`, 409)
+  if (cloneRunning()) throw new HubError('another clone is running', 409)
+  const res = await runClone(u, dest, onProgress)
+  if (!res.ok) {
+    await fs.rm(dest, { recursive: true, force: true })
+    throw new HubError(res.cancelled ? 'clone cancelled' : res.error)
+  }
+  return (await addHubProject(dest)).project
+}
+
+// ─── Project groups (R102) ────────────────────────────────────────────────────
+// Membership lives only in each member repo's .vibedoc/settings.json (`groups`, `groupNames`; pure in groups.ts).
+
+let groupsLock: Promise<unknown> = Promise.resolve()
+function withGroupsLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = groupsLock.then(fn, fn)
+  groupsLock = run.catch(() => {})
+  return run
+}
+
+/** Every group the hub's projects form (missing folders and unreadable settings are skipped, never a 500). */
+export async function listGroups(): Promise<ProjectGroup[]> {
+  const projects = (await discoverProjects()).filter(p => !p.missing)
+  const rows = await Promise.all(projects.map(async p => {
+    try {
+      const s = await readSettingsObject(p.root)
+      const mtime = await fs.stat(path.join(p.root, SETTINGS_FILE)).then(st => st.mtimeMs, () => 0)
+      return { id: p.id, name: p.name, root: p.root, groups: s.groups, groupNames: s.groupNames, mtime }
+    } catch {
+      return null
+    }
+  }))
+  return groupsOf(rows.filter(r => r !== null))
+}
+
+/** Joins (name given → also names it there) or leaves `slug` in one repo's settings; every other key is kept. */
+export async function setProjectGroup(root: string, slug: string, member: boolean, name?: string): Promise<void> {
+  const file = path.join(root, SETTINGS_FILE)
+  const before = await readSettingsObject(root)
+  const next = withMembership(before, slug, member, name)
+  if (JSON.stringify(next) === JSON.stringify(before)) return
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  const tmp = `${file}.tmp`
+  await fs.writeFile(tmp, JSON.stringify(next, null, 2), 'utf8')
+  await fs.rename(tmp, file)
+}
+
+async function hubMembers(ids: unknown): Promise<HubProject[]> {
+  if (!Array.isArray(ids) || !ids.length) throw new HubError('pick at least one project')
+  const hub = await readHub()
+  return ids.map(id => {
+    const p = typeof id === 'string' ? projectFor(hub, id) : null
+    if (!p) throw new HubError(`no project "${String(id)}"`, 404)
+    return p
+  })
+}
+
+async function findGroup(slug: unknown): Promise<ProjectGroup> {
+  const g = (await listGroups()).find(x => x.slug === slug)
+  if (!g) throw new HubError(`no group "${String(slug)}"`, 404)
+  return g
+}
+
+/** New group: its slug + name written into each member's settings. `slug` is only passed by Undo of delete. */
+export async function createGroup(name: unknown, memberIds: unknown, slug?: unknown): Promise<ProjectGroup> {
+  if (typeof name !== 'string' || !name.trim()) throw new HubError('name must not be empty')
+  const s = typeof slug === 'string' ? slug : groupSlug(name)
+  if (!s || groupSlug(s) !== s) throw new HubError('the name needs a letter or a digit')
+  const members = await hubMembers(memberIds)
+  return withGroupsLock(async () => {
+    if ((await listGroups()).some(g => g.slug === s)) throw new HubError(`a group "${s}" already exists`, 409)
+    for (const p of members) await setProjectGroup(p.root, s, true, name.trim())
+    return findGroup(s)
+  })
+}
+
+/** New display name, written into every member (the slug stays). */
+export async function renameGroup(slug: unknown, name: unknown): Promise<ProjectGroup> {
+  if (typeof name !== 'string' || !name.trim()) throw new HubError('name must not be empty')
+  return withGroupsLock(async () => {
+    const g = await findGroup(slug)
+    for (const m of g.members) await setProjectGroup(m.root, g.slug, true, name.trim())
+    return findGroup(g.slug)
+  })
+}
+
+/** Adds / removes members; an added repo gets the group's current name. Removing the last member ends the group. */
+export async function setGroupMembers(slug: unknown, add: unknown, remove: unknown): Promise<ProjectGroup | null> {
+  return withGroupsLock(async () => {
+    const g = await findGroup(slug)
+    const adding = Array.isArray(add) && add.length ? await hubMembers(add) : []
+    const removing = Array.isArray(remove) && remove.length ? await hubMembers(remove) : []
+    for (const p of adding) await setProjectGroup(p.root, g.slug, true, g.name)
+    for (const p of removing) await setProjectGroup(p.root, g.slug, false)
+    return (await listGroups()).find(x => x.slug === g.slug) ?? null
+  })
+}
+
+/**
+ * A group's board (T539): every member repo's tasks, each tagged `project: {id, name}`, in one `listTasks` shape.
+ * A member whose tasks can't be read is skipped. Null = no such group.
+ */
+export async function listGroupTasks(slug: string): Promise<{ tasks: Task[]; board: TaskBoard } | null> {
+  const g = (await listGroups()).find(x => x.slug === slug)
+  if (!g) return null
+  const lists = await Promise.all(g.members.map(m => listTasks(m.root).then(r => r.tasks.map(t => ({ ...t, project: { id: m.id, name: m.name } })), () => [] as Task[])))
+  const tasks = lists.flat()
+  const board: TaskBoard = { todo: [], 'in-progress': [], review: [], blocked: [], paused: [], done: [], cancelled: [] }
+  for (const t of tasks) board[(board[t.status] ? t.status : 'todo') as TaskStatus].push(t)
+  return { tasks, board }
+}
+
+/** A group's roadmap (T540): every member repo's items, each tagged `project`; read-only. Null = no such group. */
+export async function listGroupRoadmap(slug: string): Promise<{ items: RoadmapItem[] } | null> {
+  const g = (await listGroups()).find(x => x.slug === slug)
+  if (!g) return null
+  const lists = await Promise.all(g.members.map(m => listRoadmap(m.root).then(r => r.items.map(i => ({ ...i, project: { id: m.id, name: m.name } })), () => [] as RoadmapItem[])))
+  return { items: lists.flat() }
+}
+
+/** One project's search hits (R107): docs (not task/epic/entry files, those come as items), entries, tasks, epics. */
+async function searchProject(query: string, root: string): Promise<CrossHit[]> {
+  const [files, entries, tasks, items] = await Promise.all([
+    readMarkdownFiles(root).catch(() => []),
+    listEntries(root).catch(() => [] as Entry[]),
+    listTasks(root).then(r => r.tasks, () => [] as Task[]),
+    listRoadmap(root).then(r => r.items, () => [] as RoadmapItem[]),
+  ])
+  const docFiles = files.filter(f => !['task', 'epic', 'entry'].includes(f.item.node.kind))
+  const label = new Map(docFiles.map(f => [f.path, f.item.node.label]))
+  const docs: CrossHit[] = rankDocsScored(docFiles.map(f => ({ path: f.path, raw: f.raw })), query, tokenize, 10)
+    .map(r => ({ kind: 'doc', id: null, path: r.file, title: label.get(r.file) ?? r.file, snippet: r.hits[0] ? `L${r.hits[0].line}: ${r.hits[0].text}` : '', score: r.score }))
+  const fileOf = new Map(entries.map(e => [e.id, e.file]))
+  const hits: CrossHit[] = rankEntries(entries, query, { limit: 10 })
+    .map(h => ({ kind: 'entry', id: h.id, path: fileOf.get(h.id) ?? '', title: h.summary, snippet: h.type, score: h.score }))
+  const work = rankItems([
+    ...tasks.map(t => ({ kind: 'task' as const, id: t.id, path: t.file, title: t.title, snippet: t.status })),
+    ...items.filter(i => i.parent !== null).map(i => ({ kind: 'epic' as const, id: i.id, path: i.file, title: i.title, snippet: i.status })),
+  ], query, tokenize)
+  return [...docs, ...hits, ...work]
+}
+
+/**
+ * Search across projects (R107): `all` = every hub project (archived / missing skipped), `group:<slug>` = its
+ * members, `project:<hub id>` = one. Grouped by project, best first (cross-search.ts). Unknown group / project → HubError 404.
+ * ponytail: a stopword-only query finds nothing here (rankDocs' substring fallback isn't merged); add it if users miss it
+ */
+export async function searchAll(query: string, scope: string): Promise<CrossGroup[]> {
+  let projects: { id: string; name: string; root: string }[]
+  if (scope === 'all') projects = (await discoverProjects()).filter(p => !p.archived && !p.missing)
+  else if (scope.startsWith('group:')) projects = (await findGroup(scope.slice(6))).members
+  else if (scope.startsWith('project:')) {
+    const p = (await discoverProjects()).find(x => x.id === scope.slice(8) && !x.missing)
+    if (!p) throw new HubError(`no project "${scope.slice(8)}"`, 404)
+    projects = [p]
+  } else throw new HubError('scope must be all, group:<slug> or project:<id>')
+  return searchIn(query, projects)
+}
+
+/** `searchAll` over the given projects. */
+export async function searchIn(query: string, projects: readonly { id: string; name: string; root: string }[]): Promise<CrossGroup[]> {
+  if (!query.trim()) return []
+  const per = await Promise.all(projects.map(async p => ({ project: { id: p.id, name: p.name }, hits: await searchProject(query, p.root) })))
+  return mergeResults(per)
+}
+
+/** The members of every group `root` is in (deduped, `root`'s own project first); [] when it is in none. */
+export async function groupPeers(root: string): Promise<{ id: string; name: string; root: string }[]> {
+  const own = (r: string) => normalizeRoot(path.resolve(r)) === normalizeRoot(path.resolve(root))
+  const seen = new Map<string, { id: string; name: string; root: string }>()
+  for (const g of await listGroups()) {
+    if (!g.members.some(m => own(m.root))) continue
+    for (const m of g.members) seen.set(m.id, m)
+  }
+  return [...seen.values()].sort((a, b) => Number(own(b.root)) - Number(own(a.root)))
+}
+
+/** Removes the slug from every member's settings (nothing else changes). Returns the group for Undo (create with its slug). */
+export async function deleteGroup(slug: unknown): Promise<ProjectGroup> {
+  return withGroupsLock(async () => {
+    const g = await findGroup(slug)
+    for (const m of g.members) await setProjectGroup(m.root, g.slug, false)
+    return g
+  })
+}
+
+// ─── Portfolio (R106) ─────────────────────────────────────────────────────────
+
+/**
+ * How every hub project is doing (T548), most attention first: epic progress, at-risk / overdue epics (`roadmapHealth`),
+ * blocked tasks, tasks done in the last 7 local days by agents and people (activity log), last activity.
+ * Groups are one row with their members nested. Archived / missing projects are skipped; one that can't be read is logged and left out.
+ */
+export async function getPortfolio(now = new Date()): Promise<PortfolioRow[]> {
+  const today = localToday(now)
+  const since = localToday(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6))
+  const projects = (await discoverProjects()).filter(p => !p.archived && !p.missing)
+  const stats = await Promise.all(projects.map(async (p): Promise<ProjectStats | null> => {
+    try {
+      const [{ items }, { tasks }, events] = await Promise.all([listRoadmap(p.root), listTasks(p.root), readActivity(p.root, 2000)])
+      const info = Object.fromEntries(tasks.map(t => [t.id, { status: t.status, due: t.due, covers: t.covers }]))
+      return projectStats({ id: p.id, name: p.name, items, drift: roadmapHealth(items, info, today).drift, tasks, events }, since)
+    } catch (err) {
+      console.error(`[portfolio] skipping ${p.root}:`, err)
+      return null
+    }
+  }))
+  return groupRollup(stats.filter(s => s !== null), await listGroups())
 }
 
 // ─── Docs ─────────────────────────────────────────────────────────────────────
@@ -1787,6 +2306,9 @@ export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human'
   const error = validateEntryInput(input)
   if (error) return Promise.reject(new Error(error))
   return withEntryLock(async () => {
+    if (input.scope === 'group' && !(await projectGroupSlugs(root)).length) {
+      throw new Error('This project is in no group, so an entry can\'t have group scope. Add the project to a group on /projects first.')
+    }
     const entries = await listEntries(root)
     let id: string
     let previous: Entry | undefined
@@ -1802,6 +2324,8 @@ export function saveEntry(input: EntryInput, root: string, actor: 'ai' | 'human'
       id, type: input.type as EntryType, summary, body: (input.body ?? '').trim(),
       updatedAt: localToday(), by: actor === 'human' ? 'human' : parseOwner(`ai:${agent || 'agent'}`) ?? 'ai:agent',
       source: (typeof input.source === 'string' && input.source.trim()) || previous?.source,
+      // R103: no scope given keeps the old one; 'project' drops the line
+      scope: (input.scope ?? previous?.scope) === 'group' ? 'group' : undefined,
       file: path.join(ENTRIES_DIR, `${id}-${entrySlug(summary)}.md`),
     }
     await fs.mkdir(path.join(root, ENTRIES_DIR), { recursive: true })
@@ -1885,13 +2409,20 @@ export async function exportEntries(root: string, actor: 'ai' | 'human'): Promis
   return { count: entries.length, files: plans.map(p => ({ file: p.file, changed: p.after !== p.before })) }
 }
 
-/** Entries in the order of `ids` (any case / padding), plus the ids that matched nothing. */
-export async function getEntriesByIds(ids: string[], root: string): Promise<{ found: Entry[]; missing: string[] }> {
-  const byId = new Map((await listEntries(root)).map(e => [e.id, e]))
-  const found: Entry[] = []
+/**
+ * Entries in the order of `ids` (any case / padding), plus the ids that matched nothing. `<project>:E003` is another
+ * repo's group entry (R103): found only when it is shared with this project, as a GroupEntry.
+ */
+export async function getEntriesByIds(ids: string[], root: string): Promise<{ found: (Entry | GroupEntry)[]; missing: string[] }> {
+  const byId = new Map<string, Entry | GroupEntry>((await listEntries(root)).map(e => [e.id, e]))
+  if (ids.some(id => String(id).includes(':'))) {
+    for (const e of await groupEntries(root)) byId.set(`${e.project.id}:${e.id}`, e)
+  }
+  const found: (Entry | GroupEntry)[] = []
   const missing: string[] = []
   for (const raw of ids) {
-    const entry = byId.get(normalizeEntryId(String(raw)) ?? '')
+    const [project, id] = String(raw).includes(':') ? String(raw).split(':', 2) : ['', String(raw)]
+    const entry = byId.get(`${project ? `${project.trim()}:` : ''}${normalizeEntryId(id) ?? ''}`)
     if (entry) found.push(entry)
     else missing.push(String(raw))
   }
@@ -1947,14 +2478,57 @@ export async function sessionStartMemory(root: string): Promise<string> {
   // R051: warnings sit directly under the handoff, so the budget never cuts them
   const warnings = memory.exists ? formatHealthWarnings(await getMemoryHealth(root)) : ''
   const handoff = warnings ? `${memory.content.trimEnd()}\n\n${warnings}\n` : memory.content
-  return fitToBudget(handoff, indexHits(entries), sessionBudgetTokens, episode).text
+  // R103: own entries first, then the group's shared ones; both count toward the budget
+  const shared = (await groupEntries(root)).map(sharedRecallEntry)
+  return fitToBudget(handoff, [...indexHits(entries), ...indexHits(shared)], sessionBudgetTokens, episode).text
 }
 
 /** The "## Related memory" block for a task (up to `limit` strong keyword matches), or '' (R048). */
 export async function relatedEntries(task: Pick<Task, 'title' | 'phase' | 'raw'>, root: string, limit = 3): Promise<string> {
   // rank everything so the score filter in formatRelated sees all candidates before the limit
-  const entries = await listEntries(root)
+  const entries = await recallPool(root)
   return formatRelated(rankEntries(entries, taskQuery(task), { limit: entries.length }), limit)
+}
+
+// ─── Shared group memory (R103) ──────────────────────────────────────────────
+// No new storage: an entry stays in its own repo and `**Scope:** group` shares it with every repo of its groups.
+
+export type GroupEntry = Entry & { project: { id: string; name: string; root: string } }
+
+/** The slugs of the groups this project is in (its own .vibedoc/settings.json); unreadable settings → []. */
+export async function projectGroupSlugs(root: string): Promise<string[]> {
+  return slugsOf(await readSettingsObject(root).then(s => s.groups, () => null))
+}
+
+/**
+ * The group-scoped entries of every other hub project sharing a group with this one. A project in no group returns []
+ * before the hub is read, so its memory stays exactly as before R103. A member that can't be read is skipped.
+ */
+export async function groupEntries(root: string): Promise<GroupEntry[]> {
+  const slugs = await projectGroupSlugs(root)
+  if (!slugs.length) return []
+  const real = (p: string) => fs.realpath(p).catch(() => path.resolve(p))
+  const self = await real(root)
+  const members = new Map<string, ProjectGroup['members'][number]>()
+  for (const g of await listGroups()) {
+    if (!slugs.includes(g.slug)) continue
+    for (const m of g.members) members.set(m.id, m)
+  }
+  const lists = await Promise.all([...members.values()].map(async m => {
+    if (await real(m.root) === self) return []
+    const entries = await listEntries(m.root).catch(() => [] as Entry[])
+    return entries.filter(e => e.scope === 'group').map(e => ({ ...e, project: { id: m.id, name: m.name, root: m.root } }))
+  }))
+  return lists.flat()
+}
+
+/** A foreign group entry for recall: id `<project id>:E003`, labelled shared with the project id. */
+const sharedRecallEntry = (e: GroupEntry): RecallEntry => ({ ...e, id: `${e.project.id}:${e.id}`, shared: e.project.id })
+
+/** This project's entries plus the group's shared ones: what recall and related memory rank. */
+async function recallPool(root: string): Promise<RecallEntry[]> {
+  const [own, shared] = await Promise.all([listEntries(root), groupEntries(root)])
+  return [...own, ...shared.map(sharedRecallEntry)]
 }
 
 // ─── OpenAPI spec (R094) ──────────────────────────────────────────────────────
@@ -2295,7 +2869,7 @@ export async function getReleaseNotesDraft(root: string): Promise<ReleaseNotesDr
 
 /** Keyword recall over the entries: compact hits, no bodies (R048). */
 export async function recallEntries(query: string, opts: { type?: string; limit?: number }, root: string): Promise<RecallHit[]> {
-  return rankEntries(await listEntries(root), query, opts)
+  return rankEntries(await recallPool(root), query, opts)
 }
 
 /** Removes the file for good; git keeps its history. Throws on an unknown id. */
@@ -3110,6 +3684,7 @@ export interface RoadmapItem {
   specChanges: { capability: string; ops: { op: string; name: string }[] }[] // the body's ## Spec changes, targets only (R069)
   body: string          // markdown after the metadata block
   file: string          // path relative to root
+  project?: { id: string; name: string } // the repo it lives in, set only on a group roadmap (R102 T540)
 }
 
 export type RoadmapLayout = Record<string, { x: number; y: number }>

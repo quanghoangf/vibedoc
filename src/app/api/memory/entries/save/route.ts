@@ -10,12 +10,14 @@ export async function POST(req: NextRequest) {
   if (isDemo()) return demoForbidden()
   try {
     const body = await jsonBody(req)
-    const input = { id: body.id ?? undefined, type: body.type, summary: body.summary, body: body.body ?? '' } as EntryInput
+    // R103: no scope = keep the entry's scope (the edit form never sends one; the scope switch does)
+    const input = { id: body.id ?? undefined, type: body.type, summary: body.summary, body: body.body ?? '', ...(body.scope !== undefined ? { scope: body.scope } : {}) } as EntryInput
     // validation errors are the user's to fix → 400, not 500
     const invalid = validateEntryInput(input)
     if (invalid) throw new RoadmapError(invalid)
     const root = rootOf(req)
     const entry = await saveEntry(input, root, 'human').catch((e: unknown) => {
+      if (e instanceof Error && /in no group/.test(e.message)) throw new RoadmapError(e.message)
       throw e instanceof Error && /not found/.test(e.message) ? new RoadmapError(e.message, 404) : e
     })
     emitUpdate('memory_updated', { root, entryId: entry.id })

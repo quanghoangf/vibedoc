@@ -1,6 +1,6 @@
 // node src/lib/agent-connect.check.mts
 import assert from 'node:assert/strict'
-import { parseConnection, shouldRecordCall, claudeMcpAddCommand, RECORD_EVERY_MS } from './agent-connect.ts'
+import { parseConnection, shouldRecordCall, claudeMcpAddCommand, projectMcpUrl, RECORD_EVERY_MS } from './agent-connect.ts'
 
 assert.equal(parseConnection(null), null)
 assert.equal(parseConnection('not json'), null)
@@ -16,6 +16,7 @@ assert.equal(shouldRecordCall(prev, 'cursor', t0 + 1000), true)
 assert.equal(shouldRecordCall(prev, 'claude', t0 + RECORD_EVERY_MS), true)
 
 assert.equal(claudeMcpAddCommand('http://localhost:3081/api/mcp'), 'claude mcp add --transport http vibedoc http://localhost:3081/api/mcp')
+assert.equal(claudeMcpAddCommand('http://localhost:3081/api/mcp?root=%2Fa'), "claude mcp add --transport http vibedoc 'http://localhost:3081/api/mcp?root=%2Fa'")
 console.log('agent-connect ok')
 
 const { agentLabel } = await import('./agent-connect.ts')
@@ -53,3 +54,35 @@ console.log('pluginInstalled ok')
 const { mcpServersConfig } = await import('./agent-connect.ts')
 assert.deepEqual(JSON.parse(mcpServersConfig('http://localhost:3081/api/mcp')), { mcpServers: { vibedoc: { url: 'http://localhost:3081/api/mcp' } } })
 console.log('mcpServersConfig ok')
+
+// R100: the project's MCP URL carries ?root= (encoded); an existing root or no root leaves the URL alone
+assert.equal(projectMcpUrl('http://localhost:3333/api/mcp', '/Users/me/my repo'), 'http://localhost:3333/api/mcp?root=%2FUsers%2Fme%2Fmy+repo')
+assert.equal(projectMcpUrl('http://localhost:3333/api/mcp?root=%2Fx', '/y'), 'http://localhost:3333/api/mcp?root=%2Fx')
+assert.equal(projectMcpUrl('http://localhost:3333/api/mcp', ''), 'http://localhost:3333/api/mcp')
+assert.equal(projectMcpUrl('not a url', '/y'), 'not a url')
+console.log('projectMcpUrl ok')
+
+// R104 (ADR-006): one user-scope connection, the header picks the project
+const { userScopeMcpAddCommand, usableRootHeader, nearestRoot, unknownProjectReply } = await import('./agent-connect.ts')
+assert.equal(userScopeMcpAddCommand('http://localhost:3333/api/mcp'), "claude mcp add --scope user --transport http vibedoc http://localhost:3333/api/mcp --header 'X-VibeDoc-Root: ${PWD}'")
+assert.equal(usableRootHeader('/Users/me/a'), true)
+assert.equal(usableRootHeader('${PWD}'), false)
+assert.equal(usableRootHeader('/x/${PWD}'), false)
+assert.equal(usableRootHeader('relative/a'), false)
+assert.equal(usableRootHeader(''), false)
+assert.equal(usableRootHeader(null), false)
+const roots = ['/r/a', '/r/b', '/r/a/nested']
+assert.equal(nearestRoot('/r/a', roots), '/r/a')
+assert.equal(nearestRoot('/r/a/src/x', roots), '/r/a')
+assert.equal(nearestRoot('/r/a/nested/sub', roots), '/r/a/nested', 'nearest wins')
+assert.equal(nearestRoot('/r/ab', roots), null, 'a prefix that is not a folder boundary')
+assert.equal(nearestRoot('/elsewhere', roots), null)
+assert.equal(nearestRoot('/any', ['/']), '/')
+const projects = [{ name: 'a', root: '/r/a' }, { name: 'b', root: '/r/b' }]
+const reply = unknownProjectReply('${PWD}', projects, (r) => `http://h/api/mcp?root=${encodeURIComponent(r)}`)
+assert.match(reply, /not a folder/)
+assert.match(reply, /\*\*a\*\* · \/r\/a/)
+assert.match(reply, /cd '\/r\/b' && claude mcp add --transport http vibedoc 'http:\/\/h\/api\/mcp\?root=%2Fr%2Fb'/)
+assert.match(unknownProjectReply('/elsewhere', projects, (r) => r), /`\/elsewhere` is not inside a VibeDoc project/)
+assert.match(unknownProjectReply(null, [], (r) => r), /no `\?root=`[\s\S]*none yet/)
+console.log('one connection ok')

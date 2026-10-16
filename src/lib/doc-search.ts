@@ -10,8 +10,14 @@ const SNIPPET = 120
 
 /** Per unique query token: +3 in the title (H1, else the file name), +2 in any heading, +1 in the body. Score 0 dropped; ties → path. */
 export function rankDocs(files: readonly SearchFile[], query: string, tokenize: (s: string) => string[], limit = 20): SearchResult[] {
+  if (!tokenize(query).length) return substringSearch(files, query, limit)
+  return rankDocsScored(files, query, tokenize, limit).map(({ score: _, ...r }) => r)
+}
+
+/** `rankDocs` with each file's score kept (cross-project search merges on it, R107); a stopword-only query → []. */
+export function rankDocsScored(files: readonly SearchFile[], query: string, tokenize: (s: string) => string[], limit = 20): (SearchResult & { score: number })[] {
   const q = [...new Set(tokenize(query))]
-  if (!q.length) return substringSearch(files, query, limit)
+  if (!q.length) return []
   const scored: (SearchResult & { score: number })[] = []
   for (const f of files) {
     const lines = f.raw.split('\n')
@@ -42,7 +48,7 @@ export function rankDocs(files: readonly SearchFile[], query: string, tokenize: 
     scored.push({ file: f.path, hits: hits.slice(0, MAX_HITS), totalHits: hits.length, score })
   }
   scored.sort((a, b) => b.score - a.score || b.totalHits - a.totalHits || a.file.localeCompare(b.file))
-  return scored.slice(0, limit).map(({ score: _, ...r }) => r)
+  return scored.slice(0, limit)
 }
 
 /** The old line-substring match, for a query that is only stopwords ("a", "the"). */

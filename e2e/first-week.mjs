@@ -62,7 +62,7 @@ try {
 
   // S2: the next step is open with the exact command, one click to copy
   const action = fw.getByTestId("first-week-action")
-  const mcpAdd = `claude mcp add --transport http vibedoc ${BASE}/api/mcp`
+  const mcpAdd = `claude mcp add --scope user --transport http vibedoc ${BASE}/api/mcp --header 'X-VibeDoc-Root: \${PWD}'`
   await action.getByText(mcpAdd, { exact: true }).waitFor()
   assert.equal(await action.count(), 1, "only one step open")
   assert.equal(await row("agent").getByRole("button", { expanded: true }).count(), 1)

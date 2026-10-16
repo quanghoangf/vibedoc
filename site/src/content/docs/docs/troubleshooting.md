@@ -9,6 +9,7 @@ description: Fixes for the problems people hit first.
 - The port changed since you connected. A project keeps its port between runs (saved in `.vibedoc/port`); it only moves when another program holds it, and then the terminal says so and prints the new MCP URL. Reconnect Claude Code with `claude mcp remove vibedoc`, then the `claude mcp add …` command VibeDoc printed. To choose the port yourself: `npx vibedoc --port 4000`.
 - Running `vibedoc` again while it already runs for this project doesn't start a second copy: it prints the same URLs and opens the browser.
 - Claude Code: `claude mcp list` shows whether `vibedoc` is connected. Restart the session after adding it.
+- Claude Code answers "This MCP call names no project": the session started outside every VibeDoc project, or `PWD` wasn't set. Start `claude` inside the project folder, or connect that project on its own with the command in the reply.
 
 ### The board is empty
 

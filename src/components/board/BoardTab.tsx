@@ -50,8 +50,11 @@ function customized(v: SavedView): boolean {
 }
 
 export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabProps) {
-  const { rootParam, demo } = useApp()
+  const { rootParam, demo, activeGroup } = useApp()
   const { agents } = useChats()
+  // R102: a group's board shows every member repo; writes beyond a move happen in the task's own project
+  const repos = useMemo(() => activeGroup?.members.map((m) => ({ id: m.id, name: m.name })) ?? [], [activeGroup])
+  const inGroup = repos.length > 0
   const { t } = useT()
   const params = useSearchParams()
   const [views, setViews] = useState<SavedView[]>(DEFAULT_VIEWS)
@@ -197,13 +200,13 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
       if (e.key === "v") select(ids[(ids.indexOf(activeId) + 1) % ids.length])
       else if (n >= 1 && n <= 4) select(BUILT_IN[n - 1])
       else if (e.key === "f") setFilterOpen(true)
-      else if (e.key === "n" && !demo) onNewTask()
+      else if (e.key === "n" && !demo && !inGroup) onNewTask()
       else return
       e.preventDefault()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [order, activeId, select, onNewTask, demo])
+  }, [order, activeId, select, onNewTask, demo, inGroup])
 
   // Only tasks still on screen count as selected (a filter or a delete drops the rest)
   const selected = useMemo(() => new Set(shown.map((t) => t.id).filter((id) => picked.has(id))), [shown, picked])
@@ -224,7 +227,12 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
   }, [selected.size, clearSelection])
 
   const count = (...s: Task["status"][]) => tasks.filter((t) => s.includes(t.status)).length
-  const viewProps = { tasks: shown, allTasks: tasks, state, agentTasks, onOpenTask, selected, onToggleSelect: demo ? undefined : toggleSelect }
+  const viewProps = { tasks: shown, allTasks: tasks, state, agentTasks, onOpenTask, selected, onToggleSelect: demo || inGroup ? undefined : toggleSelect }
+  // One click filters the group board to one repo (the epic's Done when); "All repos" clears it
+  const repoRule = state.filters.find((r) => r.prop === "repo" && r.op === "is")
+  const onlyRepo = repoRule?.value.length === 1 ? repoRule.value[0] : null
+  const pickRepo = (id: string | null) =>
+    setState({ ...state, filters: [...state.filters.filter((r) => r.prop !== "repo"), ...(id ? [{ prop: "repo" as const, op: "is" as const, value: [id] }] : [])] })
 
   return (
     <div className="flex min-w-0 flex-col">
@@ -239,7 +247,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
             </span>
           </p>
         </div>
-        {!demo && <button
+        {!demo && !inGroup && <button
           type="button"
           onClick={onNewTask}
           className="inline-flex h-8.5 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md bg-accent px-3 text-[13px] font-medium text-accent-fg transition-colors duration-(--duration-fast) ease-out-soft hover:bg-accent/90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
@@ -267,7 +275,24 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
           searchInputId={SEARCH_ID}
           filterOpen={filterOpen}
           onFilterOpenChange={setFilterOpen}
+          repos={inGroup ? repos : undefined}
         />
+        {inGroup && (
+          <div role="group" aria-label={t("board.repoFilter")} className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            {[{ id: null, name: t("board.allRepos") }, ...repos].map((r) => (
+              <button
+                key={r.id ?? "all"}
+                type="button"
+                aria-pressed={onlyRepo === r.id}
+                onClick={() => pickRepo(r.id)}
+                className="h-6.5 rounded-full border border-border px-2.5 text-xs text-muted transition-colors hover:border-border2 hover:text-txt focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent aria-pressed:border-accent aria-pressed:bg-accent/10 aria-pressed:text-txt"
+              >
+                <span data-user-content={r.id ? true : undefined}>{r.name}</span>
+                {r.id && <span className="ml-1.5 font-mono tabular-nums text-muted">{tasks.filter((x) => x.project?.id === r.id && x.status !== "done" && x.status !== "cancelled").length}</span>}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div data-board-view={state.kind} className="[view-transition-name:board-view-body]">
@@ -280,7 +305,8 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
           {state.kind === "board" && <BoardView {...viewProps} onMoveTask={onMoveTask} />}
           {state.kind === "table" && <TableView {...viewProps} onSort={(sorts) => setState({ ...state, sorts })} />}
           {timeline && (
-            <TimelineView {...viewProps} events={events} loading={eventsLoading} onScale={(scale) => setState({ ...state, scale })} />
+            // ponytail: bars match events by bare task id from one repo's log, so a group's timeline shows no bars; tag events per repo if wanted
+            <TimelineView {...viewProps} events={inGroup ? [] : events} loading={eventsLoading} onScale={(scale) => setState({ ...state, scale })} />
           )}
         </div>
       )}

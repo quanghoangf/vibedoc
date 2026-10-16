@@ -5,7 +5,7 @@ import { Bot, ChevronRight, Play } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { QuickReviewButton } from "../QuickReview"
 import type { Task, TaskStatus } from "@/types"
-import { depOutline, isReady, sizeOf, type TaskGroup, type ViewState } from "@/lib/board-views"
+import { depOutline, isReady, sizeOf, taskKey, type TaskGroup, type ViewState } from "@/lib/board-views"
 import { STATUS_META, StatusIcon, useCategoryLabel } from "@/components/shared/StatusIcon"
 import { useTaskGroups } from "./useTaskGroups"
 import { useT } from "@/context/LanguageContext"
@@ -51,7 +51,7 @@ export function EpicView({ tasks, allTasks, agentTasks, onOpenTask }: ViewProps)
 
   const { t } = useT()
   const groupTasks = useTaskGroups()
-  const taskMap = useMemo(() => new Map(allTasks.map(t => [t.id, t])), [allTasks])
+  const taskMap = useMemo(() => new Map(allTasks.map(t => [taskKey(t), t])), [allTasks])
   const groups = useMemo(() => groupTasks(tasks, "epic"), [tasks, groupTasks])
 
   // vibedoc_next_task order: epic order, then ID.
@@ -62,11 +62,11 @@ export function EpicView({ tasks, allTasks, agentTasks, onOpenTask }: ViewProps)
     for (const g of groups) {
       const sorted = [...g.tasks].sort(byId)
       const r = sorted.filter(t => isReady(t, taskMap))
-      if (r[0]) firstReady.add(r[0].id)
+      if (r[0]) firstReady.add(taskKey(r[0]))
       ready.push(...r)
       for (const t of sorted) {
         if (t.status !== "todo" && t.status !== "blocked") continue
-        const open = depIds(t).filter(id => taskMap.get(id)?.status !== "done")
+        const open = depIds(t).filter(id => taskMap.get(taskKey({ id, project: t.project }))?.status !== "done")
         if (open.length === 1) waiting.push({ task: t, on: open[0] })
       }
     }
@@ -140,7 +140,7 @@ export function EpicView({ tasks, allTasks, agentTasks, onOpenTask }: ViewProps)
         {upNext.length === 0 && <p className="text-xs text-muted">{t("board.nothingReady")}</p>}
         {upNext.map(({ task, on }) => (
           <button
-            key={task.id}
+            key={taskKey(task)}
             type="button"
             onClick={() => onOpenTask(task)}
             className={cn(
@@ -237,7 +237,7 @@ function EpicSection({
 
       <div className="flex gap-[3px] px-0.5" aria-hidden>
         {marks.map(t => (
-          <span key={t.id} className={cn("h-[5px] flex-1 rounded-full", MARK_BG[t.status])} />
+          <span key={taskKey(t)} className={cn("h-[5px] flex-1 rounded-full", MARK_BG[t.status])} />
         ))}
       </div>
 
@@ -246,7 +246,7 @@ function EpicSection({
           const done = task.status === "done"
           const size = sizeOf(task)
           return (
-            <li key={task.id} className="flex items-center">
+            <li key={taskKey(task)} className="flex items-center">
               <button
                 type="button"
                 onClick={() => onOpenTask(task)}
@@ -273,7 +273,7 @@ function EpicSection({
                     {t("board.alsoAfter", { ids: alsoAfter.join(", ") })}
                   </span>
                 )}
-                {firstReady.has(task.id) && (
+                {firstReady.has(taskKey(task)) && (
                   <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-sm border border-accent px-[7px] text-[11px] text-txt">
                     <Play className="size-2.5 text-accent" aria-hidden />
                     {t("board.readyNext")}

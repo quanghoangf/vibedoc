@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import type { ActivityEvent, Task } from './core'
 import {
-  DEFAULT_VIEWS, applyView, defaultView, depOutline, epicOf, foldAxis, fromParams, groupTasks, isDirty, isReady, sizeOf, timelineBars, toParams,
+  DEFAULT_VIEWS, applyView, defaultView, depOutline, epicOf, foldAxis, fromParams, groupTasks, isDirty, isReady, sizeOf, taskKey, timelineBars, toParams,
   type ViewState,
 } from './board-views.ts'
 
@@ -159,6 +159,46 @@ assert.deepEqual(fromParams(new URLSearchParams('view=nope&g=bad&sc=year&f=zzz:i
   const order = [{ id: 'todo', label: 'Backlog' }, { id: 'qa', label: 'QA' }, { id: 'review', label: 'Review' }]
   assert.deepEqual(groupTasks(ts, 'status', order).map((g) => [g.key, g.label]), [['todo', 'Backlog'], ['qa', 'QA'], ['review', 'Review']])
   assert.deepEqual(groupTasks([task('T2', { status: 'review' })], 'status').map((g) => g.key), ['review'], 'no custom statuses: as before')
+}
+
+// R102 group board: tasks carry their repo; ids (and epic ids) repeat across repos
+{
+  const web = { id: 'web', name: 'Web' }, api = { id: 'api', name: 'Api' }
+  const ts = [
+    ...[1, 2, 3, 4, 5].map((n) => task(`T00${n}`, { project: web, phase: 'R002 — Web epic' })),
+    task('T001', { project: api, phase: 'R002 — Api epic' }),
+    task('T002', { project: api, phase: 'R002 — Api epic', dependsOn: 'T001' }),
+    task('T003', { project: api, status: 'done', phase: 'R002 — Api epic' }),
+    task('T009', { project: api, dependsOn: 'T003' }),
+  ]
+  assert.equal(taskKey(task('T1')), 'T1', 'no repo: the key is the id')
+  assert.equal(taskKey(ts[5]), 'api:T001')
+  assert.equal(new Set(ts.map(taskKey)).size, ts.length, 'both T001s keep their own key')
+  const shown = applyView(ts, view(), ctx)
+  assert.equal(shown.length, 9, 'all tasks of both repos show')
+  assert.deepEqual(shown.filter((t) => t.id === 'T001').map((t) => t.project?.id).sort(), ['api', 'web'])
+  // repo filter
+  const onlyApi = applyView(ts, view({ filters: [{ prop: 'repo', op: 'is', value: ['api'] }] }), ctx)
+  assert.deepEqual(onlyApi.map(taskKey), ['api:T001', 'api:T002', 'api:T003', 'api:T009'])
+  assert.equal(applyView(ts, view({ filters: [{ prop: 'repo', op: 'is-not', value: ['api'] }] }), ctx).length, 5)
+  assert.equal(applyView([task('T1')], view({ filters: [{ prop: 'repo', op: 'is', value: ['none'] }] }), ctx).length, 1)
+  // deps resolve inside the task's own repo: api T009 waits on api T003 (done), not web T003 (todo)
+  const ready = applyView(ts, view({ filters: [{ prop: 'ready', op: 'is-set', value: [] }] }), ctx)
+  assert.ok(ready.some((t) => taskKey(t) === 'api:T009'))
+  assert.ok(!ready.some((t) => taskKey(t) === 'api:T002'), 'api T002 waits on api T001 (todo)')
+  // group by repo, by epic (one bucket per repo's R002)
+  assert.deepEqual(groupTasks(ts, 'repo').map((g) => [g.key, g.label, g.tasks.length]), [['api', 'Api', 4], ['web', 'Web', 5]])
+  assert.deepEqual(groupTasks(ts, 'epic').map((g) => [g.key, g.label, g.epicId]).sort(), [
+    ['api:R002', 'Api · Api epic', 'R002'], ['none', 'No epic', null], ['web:R002', 'Web · Web epic', 'R002'],
+  ].sort())
+  // the dependency outline nests within a repo, never across
+  const outline = depOutline(ts)
+  assert.equal(outline.length, ts.length)
+  assert.equal(outline.find((o) => taskKey(o.task) === 'api:T002')?.depth, 1)
+  assert.equal(outline.find((o) => taskKey(o.task) === 'web:T002')?.depth, 0)
+  // URL codec keeps the repo filter / lanes / sections
+  const st = view({ group: 'repo', subGroup: 'repo', filters: [{ prop: 'repo', op: 'is', value: ['api'] }] })
+  assert.deepEqual(fromParams(toParams(st)), st)
 }
 
 console.log('board-views: ok')

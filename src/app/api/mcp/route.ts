@@ -32,6 +32,8 @@ import { endpointDetail, formatEndpoint, formatEndpointList } from "@/lib/openap
 import {
   readProjectImage,
   rootFrom,
+  isAllowedRoot,
+  listProjectsWithCounts,
   getToolkitFacts,
   readOpenApi,
   listDocs,
@@ -116,6 +118,11 @@ import { pluginId, rankToolkit, signalsFrom } from "@/lib/toolkit";
 import type { StatusDef } from "@/lib/statuses";
 import { planTarget, validatePlan, type Plan } from "@/lib/plan";
 import { isDemo } from "@/lib/demo";
+import { isPlayground } from "@/lib/demo";
+import { ROOT_HEADER, projectMcpUrl, unknownProjectReply } from "@/lib/agent-connect";
+import { readHub, rootFromFolder } from "@/lib/core";
+import { groupPeers, searchIn } from "@/lib/core";
+import { formatCrossSearch } from "@/lib/cross-search";
 import { formatFrontend, frontendNotes, frontendStatusLine } from "@/lib/frontend";
 import path from "path";
 import { TEMPLATES } from "@/lib/templates";
@@ -196,6 +203,20 @@ async function roadmapHint(root: string, taskId: string): Promise<string> {
 async function handleTool(name: string, args: Record<string, unknown>, root: string, agent = "agent") {
 
   switch (name) {
+    case "vibedoc_list_projects": {
+      const projects = await listProjectsWithCounts();
+      const here = path.resolve(root);
+      const lines = projects.map((p) => {
+        const tags = [
+          p.counts ? `${p.counts.open} open tasks` : null,
+          p.archived ? "archived" : null,
+          p.missing ? "missing folder" : null,
+          path.resolve(p.root) === here ? "this one" : null,
+        ].filter(Boolean);
+        return `- **${p.name}** (\`${p.id}\`) · ${p.root}${tags.length ? ` · ${tags.join(" · ")}` : ""}`;
+      });
+      return `## Projects (${projects.length})\n${lines.join("\n")}`;
+    }
     case "vibedoc_get_status": {
       const [s, frontend] = await Promise.all([getProjectSummary(root), detectFrontend(root)]);
       const b = s.tasks.board;
@@ -329,6 +350,12 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
     }
 
     case "vibedoc_search_docs": {
+      if (args.scope === "group") {
+        // R107: the whole group, read-only; doc usage (R093) stays per project, so nothing is recorded here
+        const peers = await groupPeers(root);
+        if (!peers.length) return "This project is in no group. Add it to one on /projects, or search without scope.";
+        return formatCrossSearch(String(args.query ?? ""), await searchIn(String(args.query ?? ""), peers));
+      }
       const results = await searchDocs(String(args.query), root);
       // R093: record a search that found nothing (and clear it once it finds something); never fails the call
       void noteDocSearch(root, String(args.query ?? ""), results.length > 0)
@@ -556,10 +583,10 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
 
     case "vibedoc_save_entry": {
       // only the declared fields: agents never set **Source:** by hand (R052)
-      const { id, type, summary, body } = args as unknown as EntryInput;
-      const entry = await saveEntry({ id, type, summary, body }, root, "ai", agent);
+      const { id, type, summary, body, scope } = args as unknown as EntryInput;
+      const entry = await saveEntry({ id, type, summary, body, scope }, root, "ai", agent);
       emitUpdate("memory_updated", { root, entryId: entry.id });
-      return `🧠 Saved **${entry.id}** · ${entry.type} · ${entry.summary}\n${entry.file}`;
+      return `🧠 Saved **${entry.id}** · ${entry.type} · ${entry.summary}${entry.scope === "group" ? " · shared with the group" : ""}\n${entry.file}`;
     }
 
     case "vibedoc_import_memory": {
@@ -610,10 +637,13 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       if (ids.length > MAX_ENTRY_IDS) throw new Error(`Too many ids (${ids.length}); fetch at most ${MAX_ENTRY_IDS} per call and split the rest`);
       const [{ found, missing }, graph] = await Promise.all([getEntriesByIds(ids, root), getMemoryGraph(root)]);
       // R051: a full-body fetch is what counts as "recalled" (not recall lists or the session index)
-      if (await markEntriesRecalled(found.map((e) => e.id), root)) emitUpdate("memory_updated", { root });
+      // R103: another repo's group entry (`api:E003`) is not this project's: no recall stamp, no links from this graph
+      const own = found.filter((e) => !("project" in e));
+      if (await markEntriesRecalled(own.map((e) => e.id), root)) emitUpdate("memory_updated", { root });
       const blocks = found.map((e) => {
-        const links = formatEntryLinks(graph, e.id);
-        return `## ${e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.source ? `\nSource: ${e.source}` : ""}${e.body ? `\n\n${e.body}` : ""}` +
+        const shared = "project" in e ? e.project.id : "";
+        const links = shared ? [] : formatEntryLinks(graph, e.id);
+        return `## ${shared ? `${shared}:${e.id} (shared · ${shared})` : e.id} · ${e.type} · ${e.summary}\nupdated ${e.updatedAt}${e.source ? `\nSource: ${e.source}` : ""}${e.body ? `\n\n${e.body}` : ""}` +
           (links.length ? `\n\n${links.join("\n")}` : "");
       });
       if (missing.length) blocks.push(`Not found: ${missing.join(", ")}`);
@@ -859,6 +889,14 @@ function withProjectStatuses(statuses: StatusDef[]) {
   });
 }
 
+const UNKNOWN_ROOT_REPLY = "This folder isn't in VibeDoc yet. Run `npx vibedoc` here, or add it on All projects.";
+
+/** R104: the project list a call VibeDoc can't place gets, with each project's own connect command. */
+async function unplacedReply(req: NextRequest, folder: string | null) {
+  const projects = (await readHub()).projects.filter((p) => !p.archived);
+  return unknownProjectReply(folder, projects, (root) => projectMcpUrl(`${req.nextUrl.origin}/api/mcp`, root));
+}
+
 export async function POST(req: NextRequest) {
   let body: JsonRpcRequest;
   try {
@@ -880,7 +918,8 @@ export async function POST(req: NextRequest) {
 
   // tools/list: vibedoc_update_task's status enum follows the project's statuses (R055)
   if (method === "tools/list") {
-    const root = rootFrom(req.nextUrl.searchParams.get("root"));
+    const asked = req.nextUrl.searchParams.get("root");
+    const root = asked && isAllowedRoot(asked) ? rootFrom(asked) : (await rootFromFolder(req.headers.get(ROOT_HEADER))) ?? rootFrom(null);
     return ok(id, { tools: withProjectStatuses((await readProjectSettings(root)).statuses) });
   }
 
@@ -889,8 +928,16 @@ export async function POST(req: NextRequest) {
     const name = (params?.name as string) || "";
     const args = (params?.arguments as Record<string, unknown>) || {};
     if (isDemo() && !allowedInDemo(name, args)) return err(id, -32000, "read-only demo");
+    // T545: a folder outside the hub gets an answer in words (the proxy lets /api/mcp through); nothing is written
+    const asked = req.nextUrl.searchParams.get("root");
+    if (asked && !isAllowedRoot(asked)) return ok(id, { content: [{ type: "text", text: UNKNOWN_ROOT_REPLY }] });
+    // R104 (ADR-006): no ?root= → the user-scope connection's X-VibeDoc-Root header; neither → refuse, never default
+    const single = isDemo() || isPlayground();
+    const folder = req.headers.get(ROOT_HEADER);
+    const fromFolder = asked || single ? null : await rootFromFolder(folder);
+    if (!asked && !single && !fromFolder) return ok(id, { content: [{ type: "text", text: await unplacedReply(req, folder) }], isError: true });
     try {
-      const root = rootFrom(req.nextUrl.searchParams.get("root"));
+      const root = fromFolder ?? rootFrom(asked);
       const agent = typeof args.agent === "string" && args.agent.trim() ? args.agent.trim() : agentFromUserAgent(req.headers.get("user-agent"));
       // R081: a tool call is the evidence that an agent is connected (initialize / tools/list are health checks;
       // VibeDoc's own chat marks its calls, since it isn't the user's agent)

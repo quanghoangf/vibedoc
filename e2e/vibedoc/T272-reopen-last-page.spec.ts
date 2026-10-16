@@ -3,6 +3,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { registerFixture } from './hub-fixture'
 import { test, expect } from './kit/testing/playwright-fixture'
 
 const BASE = process.env.VIBEDOC_URL ?? 'http://localhost:3000'
@@ -14,9 +15,12 @@ writeFileSync(path.join(root, 'plans/tasks/T001-x.md'), '# T001: First\n**Status
 const q = `?root=${encodeURIComponent(root)}`
 test.afterAll(() => rmSync(root, { recursive: true, force: true }))
 
+let projectId = ''
+test.beforeAll(async () => { projectId = await registerFixture(BASE, root) })
+
 test('T272 Reopen the last page used', async ({ page, step }) => {
   await page.context().addCookies([{ name: 'vibedoc-lang', value: 'en', url: BASE }])
-  await page.route('**/api/projects', (r) => r.fulfill({ json: [{ id: 'fixture', name: 'fixture', root, hasVibedoc: true }] }))
+  await page.route('**/api/projects', (r) => r.fulfill({ json: [{ id: projectId, name: 'fixture', root, hasVibedoc: true }] }))
 
   await step('Open VibeDoc on a set-up project for the first time → the board opens', async () => {
     await page.goto(`/${q}`)

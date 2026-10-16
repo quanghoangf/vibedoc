@@ -15,6 +15,12 @@ export const TOOLS = [
     inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
+    name: "vibedoc_list_projects",
+    description:
+      "Every project VibeDoc knows (the projects hub): id, name, root folder and open tasks, marked archived / missing / this one. Read-only: other tools keep acting on the project this connection points at.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
     name: "vibedoc_get_frontend",
     description:
       "The project's web frontend app (R057): dir, framework, start command, URL, whether it was detected or set in Settings, Playwright and auth state. Call before writing or running browser tests.",
@@ -123,10 +129,13 @@ export const TOOLS = [
   {
     name: "vibedoc_search_docs",
     description:
-      "Full-text search across all docs. Returns files and line snippets.",
+      "Full-text search across all docs. Returns files and line snippets. With scope \"group\": docs, tasks, epics and memory entries of every project in this project's groups, each line prefixed with its project id, e.g. [api].",
     inputSchema: {
       type: "object",
-      properties: { query: { type: "string", description: "Search term" } },
+      properties: {
+        query: { type: "string", description: "Search term" },
+        scope: { type: "string", enum: ["project", "group"], description: "project (default): this project's docs. group: every project in this project's groups" },
+      },
       required: ["query"],
     },
   },
@@ -387,6 +396,7 @@ export const TOOLS = [
         type: { type: "string", enum: [...ENTRY_TYPES] },
         summary: { type: "string", description: "One line, at most 120 characters" },
         body: { type: "string", description: "Details and the why (markdown)" },
+        scope: { type: "string", enum: ["project", "group"], description: "group = shared with every project in this project's groups (their sessions and recall list it as shared); project = this repo only. Default: project on create, unchanged on update. Refused when the project is in no group." },
       },
       required: ["type", "summary"],
     },

@@ -21,7 +21,7 @@ assert.equal(all.next, null)
 
 // stepAction: real ids and this server's MCP URL
 const ctx = { origin: "http://localhost:3084", epicToBreakDown: "R002", epicToWork: "R005" }
-assert.deepEqual(stepAction("agent", ctx), { href: "/settings", command: "claude mcp add --transport http vibedoc http://localhost:3084/api/mcp" })
+assert.deepEqual(stepAction("agent", ctx), { href: "/settings", command: "claude mcp add --scope user --transport http vibedoc http://localhost:3084/api/mcp --header 'X-VibeDoc-Root: ${PWD}'" })
 assert.equal(stepAction("breakdown", ctx).command, "/vibedoc:breakdown R002")
 assert.equal(stepAction("taskDone", ctx).command, "/vibedoc:work R005")
 assert.equal(stepAction("breakdown", { ...ctx, epicToBreakDown: null }).command, "/vibedoc:breakdown")

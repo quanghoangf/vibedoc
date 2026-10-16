@@ -1,0 +1,60 @@
+# T534: A second `npx vibedoc` opens its repo in the running hub
+**Status:** 👀 Review
+**Phase:** R100 — Auto-detect current repo
+**Size:** M (2–3 hrs)
+**Depends on:** T533
+**Covers:** S2
+**Owner:** ai:claude
+**Due:** 2026-10-19
+**Started:** 2026-10-16
+
+## Goal
+When VibeDoc is already running, `npx vibedoc` in another repo adds that repo to the running hub and opens it there, never starting a second server.
+
+## Context
+- Epic: `plans/roadmap/R100-auto-detect-current-repo.md` — builds spec ADDED `Open the current repo` (scenario "Already running")
+- Today `resolveAddress` / `probeVibedoc` (`bin/address.mjs`) treat "running" as "running for this root" (`/api/projects` `[0].root`). Now "running" = a VibeDoc hub answers on the home port, whatever its projects.
+- Decision: the CLI calls `POST /api/projects/add {root}` on the hub (same-origin check skipped only for `localhost` callers with header `x-vibedoc-cli: 1`; keep it local-only). The route goes through core like every write. Reply `{id}` → open `/?project=<id>`.
+- A port taken by another program → next free port, saved, ⚠ block (R080 behaviour kept).
+- Pinned `--port N` that a hub already uses → reuse it; taken by something else → exit 1 (unchanged).
+
+## Scope
+- [ ] `bin/address.mjs`: `resolveAddress` returns `{running: port}` for any hub; `addToHub(port, root)` (fetch, 3 s timeout)
+- [ ] `bin/vibedoc.mjs`: running → add → print banner for that project → open → exit 0
+- [ ] `src/app/api/projects/add/route.ts` — new; core `addHubProject(root)` refuses a non-directory; `emitUpdate("projects_updated")` so open tabs show the new project
+- [ ] Update `e2e/stable-address.mjs` to the hub model
+- [ ] Kit specs that build their own `mkdtemp` fixture (`e2e/vibedoc/T270*`–`T272*`, `T290*`–`T294*`) get 403 since T529: register the fixture with `POST /api/projects/add` (header `x-vibedoc-cli: 1`) before the first request, so they pass without writing to the real `~/.vibedoc`
+
+**Out of scope:** adding from the UI (T536).
+
+## Files
+- `bin/address.mjs` (+ check), `bin/vibedoc.mjs`
+- `src/app/api/projects/add/route.ts` — new
+- `src/lib/core.ts`
+- `e2e/stable-address.mjs`
+
+## Acceptance criteria
+- [ ] `vibedoc` in repo A, then in repo B: one server process (e2e counts `next start` children), both projects in `/api/projects`, browser target is B (epic Done when)
+- [ ] An open tab on A shows B in the switcher without a reload (SSE `projects_updated`)
+- [ ] `POST /api/projects/add` from a non-localhost origin → 403
+- [ ] `e2e/stable-address.mjs` passes
+- [ ] The 8 kit specs above pass again against a server with a temp `VIBEDOC_HOME`
+
+## Verify
+```bash
+node bin/address.check.mts
+pnpm lint && pnpm build
+node e2e/stable-address.mjs
+```
+
+## Manual tests
+_2026-10-16 — ai_
+### Steps
+- [x] S2 — WHEN VibeDoc is already running and the user runs `npx vibedoc` in another repo → THEN no second VibeDoc starts and the browser opens that repo in the running one
+- [x] `node e2e/stable-address.mjs` (PORT=3111) → repo B joins the running hub: one listener on the port, both repos in /api/projects, open target `/?project=<B id>`, SSE `projects_updated`, A's MCP URL still answers
+- [x] `POST /api/projects/add` with `Origin: http://evil.example`, or with no Origin and no `x-vibedoc-cli` header → 403
+- [x] The 8 kit specs (T270–T272, T290–T294) pass against `next start` with a temp VIBEDOC_HOME
+- [ ] With a VibeDoc tab open on repo A, run `npx vibedoc` in repo B → the browser opens B, and A's tab shows B in the project switcher without a reload
+### Regression risk
+- [ ] Another program on the usual port: `npx vibedoc` moves to the next free port and prints the ⚠ reconnect block with the project's `?root=` MCP URL
+- [ ] `npx vibedoc --demo` while VibeDoc runs on 3333 → the demo starts on its own free port and the hub doesn't gain the demo copy

@@ -7,10 +7,14 @@ export type EntryType = typeof ENTRY_TYPES[number]
 /**
  * updatedAt = the `**Updated:**` date (YYYY-MM-DD); by = `**By:**` who saved it last ("human" | "ai:<agent>",
  * null in files from before R047); source = `**Source:**` where it came from ("claude-code:<name>", R052), omitted when
- * native; file = path relative to root.
+ * native; scope = `**Scope:** group` shares it with every project in the project's groups (R103), omitted = this
+ * project only; file = path relative to root.
  */
-export type Entry = { id: string; type: EntryType; summary: string; body: string; updatedAt: string; by: string | null; source?: string; file: string }
-export type EntryInput = { id?: string; type: string; summary: string; body?: string; source?: string }
+export type Entry = { id: string; type: EntryType; summary: string; body: string; updatedAt: string; by: string | null; source?: string; scope?: 'group'; file: string }
+export type EntryInput = { id?: string; type: string; summary: string; body?: string; source?: string; scope?: EntryScope }
+
+export const ENTRY_SCOPES = ['project', 'group'] as const
+export type EntryScope = typeof ENTRY_SCOPES[number]
 
 export const SUMMARY_MAX = 120
 
@@ -50,11 +54,11 @@ export function parseEntry(raw: string, file: string): Entry | null {
   }
   const type = meta.type ?? ''
   if (!isEntryType(type)) return null
-  return { id, type, summary: h1[2], body: lines.slice(i).join('\n').trim(), updatedAt: meta.updated ?? '', by: meta.by || null, ...(meta.source ? { source: meta.source } : {}), file }
+  return { id, type, summary: h1[2], body: lines.slice(i).join('\n').trim(), updatedAt: meta.updated ?? '', by: meta.by || null, ...(meta.source ? { source: meta.source } : {}), ...(meta.scope === 'group' ? { scope: 'group' as const } : {}), file }
 }
 
 export function formatEntry(e: Omit<Entry, 'file'>): string {
-  const head = `# ${e.id}: ${e.summary}\n**Type:** ${e.type}\n**Updated:** ${e.updatedAt}\n${e.source ? `**Source:** ${e.source}\n` : ''}${e.by ? `**By:** ${e.by}\n` : ''}`
+  const head = `# ${e.id}: ${e.summary}\n**Type:** ${e.type}\n**Updated:** ${e.updatedAt}\n${e.source ? `**Source:** ${e.source}\n` : ''}${e.scope === 'group' ? '**Scope:** group\n' : ''}${e.by ? `**By:** ${e.by}\n` : ''}`
   return e.body.trim() ? `${head}\n${e.body.trim()}\n` : head
 }
 
@@ -67,6 +71,7 @@ export function validateEntryInput(i: EntryInput): string | null {
   if (/\n/.test(summary)) return 'summary must be one line'
   if (summary.length > SUMMARY_MAX) return `summary is ${summary.length} characters; keep it to ${SUMMARY_MAX}`
   if (i.body !== undefined && typeof i.body !== 'string') return 'body must be a string'
+  if (i.scope !== undefined && !(ENTRY_SCOPES as readonly unknown[]).includes(i.scope)) return `Invalid scope "${i.scope}": use one of ${ENTRY_SCOPES.join(', ')}`
   return null
 }
 

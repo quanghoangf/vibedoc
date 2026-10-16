@@ -61,6 +61,18 @@ export const en = {
   file: "File",
   noDetails: "No details.",
 
+  // Shared group memory (R103)
+  filterByScope: "Filter by scope",
+  scopeThisProject: "This project",
+  scopeShared: "Shared",
+  scope: "Scope",
+  scopeProjectValue: "This project only",
+  scopeGroupValue: "Shared with the group",
+  shareWithGroup: "Share with group",
+  keepInProject: "Keep in this project",
+  project: "Project",
+  scopeFailed: "Couldn't change the scope: {error}",
+
   // Entry history + related
   loadingHistory: "Loading history…",
   needsGit: "History needs git: this project is not a git repository.",
@@ -257,6 +269,17 @@ export const vi: Messages<typeof en> = {
   changedBy: "Người sửa",
   file: "Tệp",
   noDetails: "Không có chi tiết.",
+
+  filterByScope: "Lọc theo phạm vi",
+  scopeThisProject: "Dự án này",
+  scopeShared: "Dùng chung",
+  scope: "Phạm vi",
+  scopeProjectValue: "Chỉ dự án này",
+  scopeGroupValue: "Dùng chung với nhóm",
+  shareWithGroup: "Chia sẻ với nhóm",
+  keepInProject: "Giữ trong dự án này",
+  project: "Dự án",
+  scopeFailed: "Không đổi được phạm vi: {error}",
 
   loadingHistory: "Đang tải lịch sử…",
   needsGit: "Lịch sử cần git: dự án này không phải là repo git.",

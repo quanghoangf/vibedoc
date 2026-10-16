@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
-import { Bot, Check, Copy, Loader2, MessagesSquare, Plug, Search } from "lucide-react"
+import { Bot, Check, Copy, Inbox, Loader2, MessagesSquare, Plug, Search } from "lucide-react"
 import type { ActivityEvent, Project, Summary } from "@/types"
 import { useApp } from "@/context/AppContext"
 import { DemoBanner } from "@/components/layout/DemoBanner"
@@ -12,8 +12,11 @@ import { ProjectSwitcher } from "./ProjectSwitcher"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useOrigin } from "@/hooks/use-origin"
+import { projectMcpUrl, userScopeMcpAddCommand } from "@/lib/agent-connect"
 import { cn } from "@/lib/utils"
 import { groupSessions, isLive } from "@/lib/sessions"
+import { waitingTitle } from "@/lib/chats"
+import { useInbox } from "@/components/inbox/use-inbox"
 import { useFormat, useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
 
@@ -28,6 +31,7 @@ const PAGE_TITLES: Record<string, MessageKey> = {
   "/settings": "shell.settings",
   "/chat": "shell.chats",
   "/getting-started": "shell.gettingStarted",
+  "/inbox": "inbox.title",
 }
 
 /** The system focus ring (ui/button.tsx) for the hand-rolled header buttons. */
@@ -38,7 +42,7 @@ interface AppHeaderProps {
   projects: Project[]
   activeProject: string
   liveIndicator: boolean
-  onProjectChange: (root: string) => void
+  onProjectChange: (id: string) => void
   onToggleChat: () => void
   onOpenSearch: () => void
 }
@@ -60,7 +64,7 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
 
       {/* Below sm the project name truncates so the page name stays */}
       <nav aria-label={t("shell.location")} className="flex min-w-0 items-center gap-1.5 text-sm [&_button]:min-w-0 max-sm:[&_button>span]:max-w-20">
-        <ProjectSwitcher projects={projects} activeProject={activeProject} currentName={summary?.name || ""} onSelect={onProjectChange} />
+        <ProjectSwitcher projects={projects} activeProject={activeProject} currentName={projects.find((p) => p.root === activeProject)?.name || summary?.name || ""} onSelect={onProjectChange} />
         {title && (
           <>
             <span className="text-muted" aria-hidden>/</span>
@@ -93,6 +97,8 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
         <kbd className="hidden rounded-sm border border-border px-1 font-mono text-[10px] sm:inline">⌘K</kbd>
         <span className="sr-only sm:hidden">{t("shell.search")}</span>
       </button>
+
+      {!demo && <InboxBadge />}
 
       <ConnectMenu activity={activity} now={now} />
 
@@ -193,12 +199,40 @@ function AgentStatus({ liveIndicator, activity, now }: { liveIndicator: boolean;
   )
 }
 
+/**
+ * R105 T547: everything waiting on the user in every project; the count is also the tab title's "(n) " prefix.
+ * Pathname is a dep because a navigation can put Next's metadata title back.
+ */
+function InboxBadge() {
+  const { tn, t } = useT()
+  const pathname = usePathname()
+  const n = useInbox().items?.length ?? 0
+  useEffect(() => { document.title = waitingTitle(document.title, n) }, [n, pathname])
+  const label = tn("inbox.badge", n)
+  return (
+    <Link
+      href="/inbox"
+      id="inbox-badge"
+      title={label}
+      aria-label={label}
+      className={cn("flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs text-muted transition-colors hover:border-border2 hover:text-txt md:px-2.5", focusRing)}
+    >
+      <Inbox aria-hidden className="size-3.5" />
+      <span className="max-md:sr-only">{t("inbox.title")}</span>
+      {n > 0 && <span data-inbox-count className="font-mono tabular-nums text-txt">{n}</span>}
+    </Link>
+  )
+}
+
 /** The MCP endpoint an agent connects to, the `claude mcp add` line, and when an agent last called in. */
 function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number }) {
   const { t } = useT()
   const f = useFormat()
-  const endpoint = `${useOrigin()}/api/mcp`
-  const command = `claude mcp add --transport http vibedoc ${endpoint}`
+  const { activeProject } = useApp()
+  // R104: the command is the one connection for every project; the bare URL names this project (?root=)
+  const hub = `${useOrigin()}/api/mcp`
+  const endpoint = projectMcpUrl(hub, activeProject)
+  const command = userScopeMcpAddCommand(hub)
   const [copied, setCopied] = useState<string | null>(null)
   const lastCall = activity.filter((e) => e.actor === "ai").reduce<string | null>((t, e) => (!t || e.timestamp > t ? e.timestamp : t), null)
 

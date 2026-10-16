@@ -1,0 +1,136 @@
+"use client"
+
+import { Suspense, useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { Search } from "lucide-react"
+import { useApp } from "@/context/AppContext"
+import { useT } from "@/context/LanguageContext"
+import { KIND_ICON, KIND_LABEL, fetchSearch, useOpenResult } from "@/components/search/search-results"
+import type { CrossGroup } from "@/lib/cross-search"
+
+type Result = { key: string; status: "done"; groups: CrossGroup[] } | { key: string; status: "error"; error: string }
+
+/** /search?q=&scope= (R107 T551): docs, tasks, epics and entries across projects, grouped by project. */
+export default function SearchPage() {
+  return (
+    <Suspense>
+      <SearchView />
+    </Suspense>
+  )
+}
+
+function SearchView() {
+  const params = useSearchParams()
+  const { activeProjectId, groups } = useApp()
+  const { t, tn } = useT()
+  const open = useOpenResult()
+  const [query, setQuery] = useState(() => params.get("q") ?? "")
+  const [scope, setScope] = useState(() => params.get("scope") || "all")
+  const [result, setResult] = useState<Result | null>(null)
+  const q = query.trim()
+  // "project:" before projects load would 404: wait for the id
+  const effectiveScope = scope === "project" ? (activeProjectId ? `project:${activeProjectId}` : "") : scope
+  const key = `${effectiveScope}\0${q}`
+
+  // the URL is the state, so a reload or a copied link keeps the search
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (q) url.searchParams.set("q", q)
+    else url.searchParams.delete("q")
+    if (scope !== "all") url.searchParams.set("scope", scope)
+    else url.searchParams.delete("scope")
+    window.history.replaceState(window.history.state, "", url)
+  }, [q, scope])
+
+  useEffect(() => {
+    if (!q || !effectiveScope) return
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => {
+      fetchSearch(q, effectiveScope, ctrl.signal).then(
+        (groups) => setResult({ key, status: "done", groups }),
+        (e: Error) => { if (e.name !== "AbortError") setResult({ key, status: "error", error: e.message }) },
+      )
+    }, 200)
+    return () => { clearTimeout(timer); ctrl.abort() }
+  }, [q, effectiveScope, key])
+
+  const current = result?.key === key ? result : null
+  const count = current?.status === "done" ? current.groups.reduce((n, g) => n + g.results.length, 0) : 0
+
+  return (
+    <div className="mx-auto flex w-full max-w-4xl flex-col px-4 py-8 sm:px-6">
+      <header className="mb-4 border-b border-border pb-5">
+        <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">{t("search.title")}</h1>
+        <p className="mt-2 max-w-2xl text-sm text-muted">{t("search.lead")}</p>
+      </header>
+
+      <div className="mb-5 flex flex-col gap-2 sm:flex-row">
+        <label className="relative flex min-w-0 flex-1 items-center">
+          <Search className="pointer-events-none absolute left-2.5 size-4 text-muted" aria-hidden />
+          <input
+            autoFocus
+            type="search"
+            aria-label={t("search.inputLabel")}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("search.placeholder")}
+            className="h-9 w-full min-w-0 rounded-md border border-border bg-bg pl-8 pr-2 text-sm text-txt placeholder:text-muted hover:border-border2 focus-visible:outline-2 focus-visible:outline-accent"
+          />
+        </label>
+        <select
+          aria-label={t("search.scopeLabel")}
+          value={scope}
+          onChange={(e) => setScope(e.target.value)}
+          className="h-9 min-w-0 rounded-md border border-border bg-bg px-2 text-sm text-txt hover:border-border2 focus-visible:outline-2 focus-visible:outline-accent sm:w-56"
+        >
+          <option value="all">{t("search.scopeAll")}</option>
+          {groups.map((g) => <option key={g.slug} value={`group:${g.slug}`}>{t("search.scopeGroup", { name: g.name })}</option>)}
+          <option value="project">{t("search.scopeProject")}</option>
+        </select>
+      </div>
+
+      <div aria-live="polite">
+        {!q && <p className="text-sm text-muted">{t("search.typeToSearch")}</p>}
+        {q && !current && <p className="text-sm text-muted">{t("search.searching")}</p>}
+        {current?.status === "error" && <p role="alert" className="text-sm text-danger">{t("search.failed", { error: current.error })}</p>}
+        {current?.status === "done" && count === 0 && <p className="text-sm text-muted">{t("search.nothing", { query: q })}</p>}
+        {current?.status === "done" && count > 0 && <p className="mb-3 text-xs text-muted">{tn("search.results", count)}</p>}
+      </div>
+
+      {current?.status === "done" && current.groups.map((g) => (
+        <section key={g.project.id} data-search-project={g.project.id} aria-labelledby={`search-p-${g.project.id}`} className="mb-6">
+          <h2 id={`search-p-${g.project.id}`} className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-txt">
+            <span data-user-content>{g.project.name}</span>
+            {g.project.id === activeProjectId && <span className="rounded-sm bg-surface2 px-1.5 py-px text-[10px] font-normal text-muted">{t("search.current")}</span>}
+          </h2>
+          <ul className="divide-y divide-border rounded-lg border border-border">
+            {g.results.map((r) => {
+              const Icon = KIND_ICON[r.kind]
+              return (
+                <li key={`${r.kind}:${r.path}:${r.id ?? ""}`}>
+                  <button
+                    type="button"
+                    onClick={() => open(r)}
+                    className="flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent"
+                  >
+                    <Icon className="mt-0.5 size-3.5 shrink-0 text-muted" aria-label={t(KIND_LABEL[r.kind])} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline gap-2">
+                        {r.id && <span className="shrink-0 font-mono text-[11px] text-muted">{r.id}</span>}
+                        <span data-user-content className="truncate text-[13px] text-txt">{r.title}</span>
+                      </span>
+                      {r.kind === "doc"
+                        ? <span data-user-content className="block truncate text-[11px] text-muted">{r.path}</span>
+                        : <span className="block truncate text-[11px] text-muted">{t(KIND_LABEL[r.kind])}</span>}
+                      {r.kind === "doc" && r.snippet && <span data-user-content className="block truncate text-[11px] text-muted">{r.snippet}</span>}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  )
+}
