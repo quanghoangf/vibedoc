@@ -1,10 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { isAllowedRoot } from '@/lib/core'
+import { isAllowedRoot, isMissingRoot, rootFrom } from '@/lib/core'
 
 export function proxy(req: NextRequest) {
   // R099: a `?root=` must be the configured root or a hub project; every route reads it through rootFrom()
   const root = req.nextUrl.searchParams.get('root')
   if (root && !isAllowedRoot(root)) return NextResponse.json({ error: 'not a VibeDoc project' }, { status: 403 })
+  // T532: a hub project whose folder moved or was deleted fails cleanly, not with a 500 deep in a route (the demo resolves to its copy)
+  if (root && isMissingRoot(rootFrom(root))) return NextResponse.json({ error: 'project folder not found' }, { status: 404 })
   if (req.nextUrl.pathname === '/docs') return docAsMarkdown(req)
   return NextResponse.next()
 }

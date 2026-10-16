@@ -194,7 +194,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
         run: () => { onClose(); window.dispatchEvent(new Event(OPEN_PROJECT_SWITCHER)) },
       }] : []),
       // One row per project only when searched for: the hub can hold many (archived ones stay on All projects)
-      ...(q ? switcherOrder(projects).filter((p) => p.root !== activeProject) : []).map((p) => ({
+      ...(q ? switcherOrder(projects).filter((p) => p.root !== activeProject && !p.missing) : []).map((p) => ({
         id: `project-${p.id}`, group: actionsGroup, label: t("help.switchProject", { name: p.name }), match: `Switch project: ${p.name}`, detail: p.root,
         lead: icon(FolderOpen), run: () => { onProjectChange(p.id); onClose() },
       })),

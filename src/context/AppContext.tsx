@@ -152,11 +152,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (p.length > 0) {
           const asked = new URLSearchParams(window.location.search).get(PROJECT_PARAM)
           const picked = asked ? p.find((x) => x.id === asked) : undefined
-          if (asked && !picked && !toldUnknownRef.current) {
+          if (asked && (!picked || picked.missing) && !toldUnknownRef.current) {
             toldUnknownRef.current = true
-            toast(tNow("shell.unknownProject", { id: asked, name: p[0].name }))
+            toast(tNow(picked ? "shell.projectMissingToast" : "shell.unknownProject", { id: asked, name: p[0].name }))
           }
-          openProject(picked ?? p[0])
+          openProject(picked && !picked.missing ? picked : p[0])
         } else {
           setLoading(false)
         }
@@ -340,7 +340,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   function onProjectChange(id: string) {
     const p = projects.find((x) => x.id === id)
-    if (!p || p.root === activeProject) return
+    if (!p || p.missing || p.root === activeProject) return
     setSelectedDoc(null)
     openProject(p)
     // its last page there (R082 per project), else the board; the old project's query keys don't apply

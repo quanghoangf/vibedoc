@@ -72,7 +72,7 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
               if (e.key === "ArrowDown") {
                 e.preventDefault()
                 e.currentTarget.parentElement?.querySelector<HTMLElement>("[role=menuitem]")?.focus()
-              } else if (e.key === "Enter" && shown[0]) {
+              } else if (e.key === "Enter" && shown[0] && !shown[0].missing) {
                 onSelect(shown[0].id)
                 setOpen(false)
                 setFilter("")
@@ -94,13 +94,15 @@ export function ProjectSwitcher({ projects, activeProject, currentName, onSelect
               <DropdownMenuItem
                 key={p.root}
                 onClick={() => onSelect(p.id)}
+                // T532: a moved or deleted folder can't be opened; All projects offers Locate
+                disabled={p.missing}
                 title={p.root}
                 aria-current={active || undefined}
                 className={cn("cursor-pointer hover:bg-surface2 focus:bg-surface2", active && "text-accent")}
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{p.name}</div>
-                  <div className="truncate font-mono text-[11px] text-muted">{shortPath(p.root)}</div>
+                  <div className="truncate font-mono text-[11px] text-muted">{p.missing ? t("shell.projectMissing") : shortPath(p.root)}</div>
                 </div>
                 <Check aria-hidden className={cn("size-3.5 shrink-0", !active && "invisible")} />
               </DropdownMenuItem>

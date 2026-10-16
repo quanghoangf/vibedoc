@@ -37,7 +37,7 @@ import { docPriority, parsePriority, setDocProperty, type Priority } from './doc
 import { ATTACHMENTS_DIR, imageError, imageMarkdown, imageMimeOf, isAttachmentFolder, isServableImage, nextImageNumber, sniffImage } from './attachments'
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
-import { addProject, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, removeProject, restoreProject, type Hub, type HubProject } from './hub'
+import { addProject, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, relocateProject, removeProject, restoreProject, type Hub, type HubProject } from './hub'
 import { countNeedsYou } from './test-review'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
@@ -213,6 +213,11 @@ export function rootFrom(override?: string | null): string {
   const r = normalizeRoot(path.resolve(override))
   if (r === normalizeRoot(path.resolve(getConfiguredRoot())) || hubRoots().has(r)) return override
   throw new ProjectAccessError()
+}
+
+/** A hub root whose folder is gone or isn't a directory (T532): requests answer 404, never 500. */
+export function isMissingRoot(root: string): boolean {
+  try { return !statSync(root).isDirectory() } catch { return true }
 }
 
 /** `rootFrom` without the throw, for the proxy. */
@@ -481,6 +486,10 @@ export async function touchProject(id: string, now = new Date()): Promise<boolea
 
 // ─── Multi-project: the hub's projects ───────────────────────────────────────
 
+async function isDirectory(dir: string): Promise<boolean> {
+  try { return (await fs.stat(dir)).isDirectory() } catch { return false }
+}
+
 /** Every project in the hub (R099): the configured root first, archived last. Demo / playground: only their copy. */
 export async function discoverProjects(): Promise<Project[]> {
   const root = getConfiguredRoot()
@@ -489,7 +498,7 @@ export async function discoverProjects(): Promise<Project[]> {
     return [{ id: name, name, root, hasVibedoc: true, pinned: false, archived: false, lastOpened: null, missing: false }]
   }
   const hub = await readHub()
-  const projects = hub.projects.map(p => ({ ...p, hasVibedoc: true, missing: false }))
+  const projects = await Promise.all(hub.projects.map(async p => ({ ...p, hasVibedoc: true, missing: !(await isDirectory(p.root)) })))
   return orderProjects(projects, path.resolve(root))
 }
 
@@ -507,6 +516,7 @@ export interface ProjectCounts { open: number; needsYou: number }
 export async function listProjectsWithCounts(): Promise<(Project & { counts: ProjectCounts | null })[]> {
   const projects = await discoverProjects()
   return Promise.all(projects.map(async p => {
+    if (p.missing) return { ...p, counts: null }
     try {
       const { tasks } = await listTasks(p.root)
       const open = tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length
@@ -546,6 +556,20 @@ export async function removeHubProject(id: string): Promise<HubProject> {
     if (removed.root === normalizeRoot(path.resolve(getConfiguredRoot()))) throw new HubError('the project VibeDoc was started in stays in the hub', 409)
     await writeHub(hub)
     return removed
+  })
+}
+
+/** Locate (T532): the project's folder moved; point the same id at its new absolute path. */
+export async function locateHubProject(id: string, root: unknown): Promise<HubProject> {
+  if (typeof root !== 'string' || !path.isAbsolute(root.trim())) throw new HubError('give the folder\'s absolute path, e.g. /Users/me/code/web')
+  const dir = path.resolve(root.trim())
+  if (!(await isDirectory(dir))) throw new HubError(`not a folder: ${dir}`)
+  await readHub()
+  return withHubLock(async () => {
+    const res = relocateProject(await readHubFile(), id, dir)
+    if ('error' in res) throw res.error === 'unknown' ? new HubError(`no project "${id}"`, 404) : new HubError(`another project already uses ${dir}`, 409)
+    await writeHub(res.hub)
+    return projectFor(res.hub, id) as HubProject
   })
 }
 

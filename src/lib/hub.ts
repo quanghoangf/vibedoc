@@ -84,6 +84,14 @@ export function restoreProject(hub: Hub, entry: unknown): Hub | null {
   return { ...hub, projects: [...hub.projects, p] }
 }
 
+/** Points a project at its folder's new place (Locate, T532); the id stays, so links and its last page survive. */
+export function relocateProject(hub: Hub, id: string, root: string): { hub: Hub } | { error: 'unknown' | 'taken' } {
+  const r = normalizeRoot(root)
+  if (!hub.projects.some(p => p.id === id)) return { error: 'unknown' }
+  if (hub.projects.some(p => p.root === r && p.id !== id)) return { error: 'taken' }
+  return { hub: patchProject(hub, id, { root: r }) as Hub }
+}
+
 /** Changes the given fields of one project; null = unknown id. The id never changes. */
 export function patchProject(hub: Hub, id: string, patch: HubPatch): Hub | null {
   if (!hub.projects.some(p => p.id === id)) return null

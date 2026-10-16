@@ -71,6 +71,17 @@ export default function ProjectsPage() {
     }
   }
 
+  // T532: the error comes back in words to the row; nothing is saved on a refusal
+  const locate = async (p: ProjectWithCounts, root: string): Promise<string | null> => {
+    try {
+      await post("/api/projects/locate", { id: p.id, root })
+      await load()
+      return null
+    } catch (e) {
+      return (e as Error).message
+    }
+  }
+
   const active = list ? switcherOrder(list) : []
   const archived = list ? list.filter((p) => p.archived) : []
   const row = (p: ProjectWithCounts) => (
@@ -82,6 +93,7 @@ export default function ProjectsPage() {
       onOpen={() => onProjectChange(p.id)}
       onPatch={(change) => patch(p, change)}
       onRemove={() => remove(p)}
+      onLocate={(root) => locate(p, root)}
     />
   )
 

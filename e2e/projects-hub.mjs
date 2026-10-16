@@ -6,7 +6,7 @@
 // Writes only into fresh mktemp fixture projects and the temp hub, never this repo or ~/.vibedoc.
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { launchChrome, makeFixture, registerProject } from "./stub-chat.mjs"
 
@@ -154,6 +154,45 @@ try {
   await row(a).getByText("1 open task").waitFor()
   assert.equal(folderHash(a.root), before)
   console.log("ok  remove drops the row, the folder is unchanged, Undo restores it; current can't be removed")
+
+  // T532: C's folder moves → Missing, the others still work; Locate refuses a file and a taken folder, then takes the new one
+  const hubOf = () => readFileSync(path.join(process.env.VIBEDOC_HOME, "hub.json"), "utf8")
+  const oldC = c.root
+  c.root = `${oldC}-moved`
+  renameSync(oldC, c.root)
+  await page.goto(`${BASE}/projects?project=${a.id}`)
+  await row(c).getByText("Missing", { exact: true }).waitFor()
+  assert.equal((await fetch(`${BASE}/api/tasks?root=${encodeURIComponent(oldC)}`)).status, 404)
+  await page.locator("header").getByRole("button", { name: a.name }).click()
+  assert.ok(await page.getByRole("menuitem", { name: new RegExp(c.name) }).isDisabled())
+  await page.keyboard.press("Escape")
+  await row(b).getByRole("button", { name: /^Open / }).click()
+  await page.waitForURL((u) => u.pathname === "/roadmap" && u.searchParams.get("project") === b.id) // B's last page
+  await page.getByText("Bravo epic").first().waitFor()
+  console.log("ok  a moved folder shows Missing (404 on its ?root=, disabled in the switcher); B still opens")
+
+  await page.goto(`${BASE}/projects?project=${a.id}`)
+  const entryC = () => JSON.stringify(JSON.parse(hubOf()).projects.find((p) => p.id === c.id))
+  const before532 = entryC()
+  await row(c).getByRole("button", { name: "Locate" }).click()
+  const where = row(c).getByLabel(`New folder of ${c.name}`)
+  await where.fill(path.join(c.root, "plans/tasks/T001-card.md"))
+  await row(c).getByRole("button", { name: "Locate", exact: true }).click()
+  await row(c).getByRole("alert").getByText(/not a folder/).waitFor()
+  await where.fill(a.root)
+  await row(c).getByRole("button", { name: "Locate", exact: true }).click()
+  await row(c).getByRole("alert").getByText(/another project already uses/).waitFor()
+  assert.equal(entryC(), before532, "a refused Locate saves nothing")
+  await where.fill(c.root)
+  await row(c).getByRole("button", { name: "Locate", exact: true }).click()
+  await row(c).getByText("1 open task").waitFor()
+  assert.equal(await row(c).getByText("Missing", { exact: true }).count(), 0)
+  assert.equal(JSON.parse(hubOf()).projects.find((p) => p.id === c.id)?.root, c.root)
+  await row(c).getByRole("button", { name: `Open ${c.name}` }).click()
+  await page.waitForURL((u) => u.searchParams.get("project") === c.id)
+  await page.getByRole("link", { name: /^Board/ }).first().click()
+  await page.getByText("Charlie card", { exact: true }).first().waitFor()
+  console.log("ok  Locate refuses a file and a taken folder in words, then keeps the id and loads its tasks")
 
   assert.deepEqual(errors, [], "no page errors")
   console.log("ok  no page errors")

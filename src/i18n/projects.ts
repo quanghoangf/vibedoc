@@ -35,6 +35,12 @@ export const en = {
   allArchived: "Every project is archived",
   allArchivedLead: "Archived projects stay out of the switcher. Unarchive one to work on it again.",
   showArchived: "Show archived projects",
+  missing: "Missing",
+  missingHint: "This folder was moved or deleted. Locate it, or remove the project from VibeDoc.",
+  locate: "Locate",
+  locateLabel: "New folder of {name}",
+  locatePlaceholder: "/absolute/path/to/the/folder",
+  locateFailed: "Could not locate {name}: {error}",
 }
 
 export const vi: Messages<typeof en> = {
@@ -71,4 +77,10 @@ export const vi: Messages<typeof en> = {
   allArchived: "Mọi dự án đều đã lưu trữ",
   allArchivedLead: "Dự án đã lưu trữ không hiện trong bộ chuyển dự án. Bỏ lưu trữ một dự án để làm tiếp.",
   showArchived: "Hiện dự án đã lưu trữ",
+  missing: "Mất thư mục",
+  missingHint: "Thư mục này đã bị chuyển hoặc xóa. Hãy tìm lại nó, hoặc gỡ dự án khỏi VibeDoc.",
+  locate: "Tìm lại",
+  locateLabel: "Thư mục mới của {name}",
+  locatePlaceholder: "/đường/dẫn/tuyệt/đối/tới/thư/mục",
+  locateFailed: "Không tìm lại được {name}: {error}",
 }

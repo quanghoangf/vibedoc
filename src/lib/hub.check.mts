@@ -1,6 +1,6 @@
 // Self-check for the projects hub. Run: node src/lib/hub.check.mts
 import assert from 'node:assert/strict'
-import { addProject, restoreProject, switcherOrder, allocateId, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, removeProject } from './hub.ts'
+import { addProject, relocateProject, restoreProject, switcherOrder, allocateId, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, removeProject } from './hub.ts'
 
 // normalizeRoot / allocateId
 assert.equal(normalizeRoot('/a/b/'), '/a/b')
@@ -66,6 +66,14 @@ assert.equal(restoreProject(hub, rem.removed), null)
 assert.equal(restoreProject(rem.hub, { ...rem.removed, id: 'web-2' }), null)
 assert.equal(restoreProject(rem.hub, { root: 'nope' }), null)
 assert.equal(restoreProject(rem.hub, { root: '/z/x' }), null)
+
+// relocateProject: same id, new root; refused for an unknown id or a root another entry has
+const moved = relocateProject(hub, 'web', '/new/place/')
+assert.ok('hub' in moved)
+assert.deepEqual('hub' in moved && projectFor(moved.hub, 'web')?.root, '/new/place')
+assert.deepEqual(relocateProject(hub, 'web', '/other/web'), { error: 'taken' })
+assert.deepEqual(relocateProject(hub, 'nope', '/x'), { error: 'unknown' })
+assert.ok('hub' in relocateProject(hub, 'web', '/w/web'))
 
 // orderProjects: configured first, archived last, else stable
 const list = [
