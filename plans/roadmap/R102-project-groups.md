@@ -1,6 +1,6 @@
 # R102: Project groups
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 430
 **Tasks:** T538, T539, T540
 

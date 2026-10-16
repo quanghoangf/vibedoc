@@ -38,6 +38,7 @@ import { ATTACHMENTS_DIR, imageError, imageMarkdown, imageMimeOf, isAttachmentFo
 import { DEFAULT_SESSION_BUDGET, RELATED_MIN_SCORE, fitToBudget, formatEpisodeSection, formatRelated, indexHits, rankEntries, taskQuery, tokenize, type RecallEntry, type RecallHit } from './recall'
 import { parseCovers, parseScenarios, seedSteps, type Scenario } from './scenarios'
 import { addProject, emptyHub, normalizeRoot, orderProjects, parseHub, patchProject, projectFor, relocateProject, removeProject, restoreProject, type Hub, type HubProject } from './hub'
+import { groupSlug, groupsOf, withMembership, type ProjectGroup } from './groups'
 import { countNeedsYou } from './test-review'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
@@ -579,6 +580,103 @@ export async function restoreHubProject(entry: unknown): Promise<void> {
     const next = restoreProject(await readHubFile(), entry)
     if (!next) throw new HubError('cannot restore: bad entry, or its id or folder is in the hub again', 409)
     await writeHub(next)
+  })
+}
+
+// ─── Project groups (R102) ────────────────────────────────────────────────────
+// Membership lives only in each member repo's .vibedoc/settings.json (`groups`, `groupNames`; pure in groups.ts).
+
+let groupsLock: Promise<unknown> = Promise.resolve()
+function withGroupsLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = groupsLock.then(fn, fn)
+  groupsLock = run.catch(() => {})
+  return run
+}
+
+/** Every group the hub's projects form (missing folders and unreadable settings are skipped, never a 500). */
+export async function listGroups(): Promise<ProjectGroup[]> {
+  const projects = (await discoverProjects()).filter(p => !p.missing)
+  const rows = await Promise.all(projects.map(async p => {
+    try {
+      const s = await readSettingsObject(p.root)
+      const mtime = await fs.stat(path.join(p.root, SETTINGS_FILE)).then(st => st.mtimeMs, () => 0)
+      return { id: p.id, name: p.name, root: p.root, groups: s.groups, groupNames: s.groupNames, mtime }
+    } catch {
+      return null
+    }
+  }))
+  return groupsOf(rows.filter(r => r !== null))
+}
+
+/** Joins (name given → also names it there) or leaves `slug` in one repo's settings; every other key is kept. */
+export async function setProjectGroup(root: string, slug: string, member: boolean, name?: string): Promise<void> {
+  const file = path.join(root, SETTINGS_FILE)
+  const before = await readSettingsObject(root)
+  const next = withMembership(before, slug, member, name)
+  if (JSON.stringify(next) === JSON.stringify(before)) return
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  const tmp = `${file}.tmp`
+  await fs.writeFile(tmp, JSON.stringify(next, null, 2), 'utf8')
+  await fs.rename(tmp, file)
+}
+
+async function hubMembers(ids: unknown): Promise<HubProject[]> {
+  if (!Array.isArray(ids) || !ids.length) throw new HubError('pick at least one project')
+  const hub = await readHub()
+  return ids.map(id => {
+    const p = typeof id === 'string' ? projectFor(hub, id) : null
+    if (!p) throw new HubError(`no project "${String(id)}"`, 404)
+    return p
+  })
+}
+
+async function findGroup(slug: unknown): Promise<ProjectGroup> {
+  const g = (await listGroups()).find(x => x.slug === slug)
+  if (!g) throw new HubError(`no group "${String(slug)}"`, 404)
+  return g
+}
+
+/** New group: its slug + name written into each member's settings. `slug` is only passed by Undo of delete. */
+export async function createGroup(name: unknown, memberIds: unknown, slug?: unknown): Promise<ProjectGroup> {
+  if (typeof name !== 'string' || !name.trim()) throw new HubError('name must not be empty')
+  const s = typeof slug === 'string' ? slug : groupSlug(name)
+  if (!s || groupSlug(s) !== s) throw new HubError('the name needs a letter or a digit')
+  const members = await hubMembers(memberIds)
+  return withGroupsLock(async () => {
+    if ((await listGroups()).some(g => g.slug === s)) throw new HubError(`a group "${s}" already exists`, 409)
+    for (const p of members) await setProjectGroup(p.root, s, true, name.trim())
+    return findGroup(s)
+  })
+}
+
+/** New display name, written into every member (the slug stays). */
+export async function renameGroup(slug: unknown, name: unknown): Promise<ProjectGroup> {
+  if (typeof name !== 'string' || !name.trim()) throw new HubError('name must not be empty')
+  return withGroupsLock(async () => {
+    const g = await findGroup(slug)
+    for (const m of g.members) await setProjectGroup(m.root, g.slug, true, name.trim())
+    return findGroup(g.slug)
+  })
+}
+
+/** Adds / removes members; an added repo gets the group's current name. Removing the last member ends the group. */
+export async function setGroupMembers(slug: unknown, add: unknown, remove: unknown): Promise<ProjectGroup | null> {
+  return withGroupsLock(async () => {
+    const g = await findGroup(slug)
+    const adding = Array.isArray(add) && add.length ? await hubMembers(add) : []
+    const removing = Array.isArray(remove) && remove.length ? await hubMembers(remove) : []
+    for (const p of adding) await setProjectGroup(p.root, g.slug, true, g.name)
+    for (const p of removing) await setProjectGroup(p.root, g.slug, false)
+    return (await listGroups()).find(x => x.slug === g.slug) ?? null
+  })
+}
+
+/** Removes the slug from every member's settings (nothing else changes). Returns the group for Undo (create with its slug). */
+export async function deleteGroup(slug: unknown): Promise<ProjectGroup> {
+  return withGroupsLock(async () => {
+    const g = await findGroup(slug)
+    for (const m of g.members) await setProjectGroup(m.root, g.slug, false)
+    return g
   })
 }
 

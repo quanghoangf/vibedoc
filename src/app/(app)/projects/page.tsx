@@ -6,6 +6,7 @@ import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { ProjectRow, type ProjectWithCounts } from "@/components/projects/ProjectRow"
+import { GroupSection } from "@/components/projects/GroupSection"
 import { toast, undoToast } from "@/components/ui/toast"
 import { switcherOrder } from "@/lib/hub"
 
@@ -120,6 +121,8 @@ export default function ProjectsPage() {
           <ul className="mt-2 divide-y divide-border opacity-80">{archived.map(row)}</ul>
         </details>
       )}
+
+      {list && <GroupSection projects={list} />}
     </div>
   )
 }
