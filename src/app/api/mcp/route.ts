@@ -31,6 +31,8 @@ import { endpointDetail, formatEndpoint, formatEndpointList } from "@/lib/openap
 import {
   readProjectImage,
   rootFrom,
+  isAllowedRoot,
+  listProjectsWithCounts,
   getToolkitFacts,
   readOpenApi,
   listDocs,
@@ -193,6 +195,20 @@ async function roadmapHint(root: string, taskId: string): Promise<string> {
 async function handleTool(name: string, args: Record<string, unknown>, root: string, agent = "agent") {
 
   switch (name) {
+    case "vibedoc_list_projects": {
+      const projects = await listProjectsWithCounts();
+      const here = path.resolve(root);
+      const lines = projects.map((p) => {
+        const tags = [
+          p.counts ? `${p.counts.open} open tasks` : null,
+          p.archived ? "archived" : null,
+          p.missing ? "missing folder" : null,
+          path.resolve(p.root) === here ? "this one" : null,
+        ].filter(Boolean);
+        return `- **${p.name}** (\`${p.id}\`) · ${p.root}${tags.length ? ` · ${tags.join(" · ")}` : ""}`;
+      });
+      return `## Projects (${projects.length})\n${lines.join("\n")}`;
+    }
     case "vibedoc_get_status": {
       const [s, frontend] = await Promise.all([getProjectSummary(root), detectFrontend(root)]);
       const b = s.tasks.board;
@@ -850,6 +866,8 @@ function withProjectStatuses(statuses: StatusDef[]) {
   });
 }
 
+const UNKNOWN_ROOT_REPLY = "This folder isn't in VibeDoc yet. Run `npx vibedoc` here, or add it on All projects.";
+
 export async function POST(req: NextRequest) {
   let body: JsonRpcRequest;
   try {
@@ -871,7 +889,8 @@ export async function POST(req: NextRequest) {
 
   // tools/list: vibedoc_update_task's status enum follows the project's statuses (R055)
   if (method === "tools/list") {
-    const root = rootFrom(req.nextUrl.searchParams.get("root"));
+    const asked = req.nextUrl.searchParams.get("root");
+    const root = rootFrom(asked && isAllowedRoot(asked) ? asked : null);
     return ok(id, { tools: withProjectStatuses((await readProjectSettings(root)).statuses) });
   }
 
@@ -880,6 +899,9 @@ export async function POST(req: NextRequest) {
     const name = (params?.name as string) || "";
     const args = (params?.arguments as Record<string, unknown>) || {};
     if (isDemo() && !allowedInDemo(name, args)) return err(id, -32000, "read-only demo");
+    // T545: a folder outside the hub gets an answer in words (the proxy lets /api/mcp through); nothing is written
+    const asked = req.nextUrl.searchParams.get("root");
+    if (asked && !isAllowedRoot(asked)) return ok(id, { content: [{ type: "text", text: UNKNOWN_ROOT_REPLY }] });
     try {
       const root = rootFrom(req.nextUrl.searchParams.get("root"));
       const agent = typeof args.agent === "string" && args.agent.trim() ? args.agent.trim() : agentFromUserAgent(req.headers.get("user-agent"));

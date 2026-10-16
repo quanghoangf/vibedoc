@@ -15,6 +15,12 @@ export const TOOLS = [
     inputSchema: { type: "object", properties: {}, required: [] },
   },
   {
+    name: "vibedoc_list_projects",
+    description:
+      "Every project VibeDoc knows (the projects hub): id, name, root folder and open tasks, marked archived / missing / this one. Read-only: other tools keep acting on the project this connection points at.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
     name: "vibedoc_get_frontend",
     description:
       "The project's web frontend app (R057): dir, framework, start command, URL, whether it was detected or set in Settings, Playwright and auth state. Call before writing or running browser tests.",
