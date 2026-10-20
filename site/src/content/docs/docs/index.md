@@ -45,6 +45,8 @@ irm https://quanghoangf.github.io/vibedoc/install.ps1 | iex
 & ([scriptblock]::Create((irm https://quanghoangf.github.io/vibedoc/install.ps1))) -Uninstall
 ```
 
+The one-line installer (macOS, Linux) also asks whether to keep VibeDoc running in the background and start it when you log in (default no). Yes turns on [start at login](#start-at-login) and starts VibeDoc right away; `VIBEDOC_BACKGROUND=1` or `=0` answers for scripts, and with nobody at the keyboard the answer is no. `--update` keeps that choice (it stops VibeDoc, replaces it and starts it again), and `--uninstall` stops VibeDoc and removes the login item first.
+
 Uninstalling removes only VibeDoc's Node, package and launcher, never your projects or saved test runs.
 
 VibeDoc opens the repo you start it in. For another folder: `VIBEDOC_ROOT=/path/to/project npx vibedoc`.

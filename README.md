@@ -84,7 +84,7 @@ Opens a sample project (a roadmap in progress, tasks in every status, agent chat
 | No Node (macOS, Linux) | `curl -fsSL https://quanghoangf.github.io/vibedoc/install.sh \| sh` | same with `sh -s -- --update` | same with `sh -s -- --uninstall` |
 | No Node (Windows) | `irm https://quanghoangf.github.io/vibedoc/install.ps1 \| iex` | run it again | [see the docs](https://quanghoangf.github.io/vibedoc/docs/) |
 
-Every channel serves the same version. Check with `vibedoc --version`. Needs Node.js 20.9+ (Homebrew and the one-line installer bring their own).
+The one-line installer asks whether to keep VibeDoc running in the background and start it at login (`VIBEDOC_BACKGROUND=1|0` answers for scripts). Every channel serves the same version. Check with `vibedoc --version`. Needs Node.js 20.9+ (Homebrew and the one-line installer bring their own).
 
 ## How it works
 

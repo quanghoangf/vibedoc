@@ -26,6 +26,8 @@ To keep a `vibedoc` command instead of `npx`, install it once with any of these 
 | No Node (macOS, Linux) | `curl -fsSL https://quanghoangf.github.io/vibedoc/install.sh \| sh` | same with `sh -s -- --update` | same with `sh -s -- --uninstall` |
 | No Node (Windows) | `irm https://quanghoangf.github.io/vibedoc/install.ps1 \| iex` | run it again | [see the docs](https://quanghoangf.github.io/vibedoc/docs/) |
 
+The one-line installer (macOS, Linux) also asks whether to keep VibeDoc running in the background and start it when you log in (default no). Yes turns on [start at login](#start-at-login) and starts VibeDoc right away; `VIBEDOC_BACKGROUND=1` or `=0` answers for scripts, and with nobody at the keyboard the answer is no. `--update` keeps that choice (it stops VibeDoc, replaces it and starts it again), and `--uninstall` stops VibeDoc and removes the login item first.
+
 Then run `vibedoc` in your project. `vibedoc --version` shows which version you have; every channel serves the same one.
 
 ### Run in the background

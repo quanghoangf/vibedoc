@@ -9,8 +9,10 @@
 # installs the vibedoc npm package into ~/.vibedoc/lib with that Node, and writes the launcher
 # ~/.vibedoc/bin/vibedoc. It asks before adding that folder to your PATH, and never asks for sudo.
 #
+# Then it asks whether to keep VibeDoc running in the background and start it at login (default no).
+#
 # Environment: VIBEDOC_HOME (default ~/.vibedoc), VIBEDOC_VERSION (default latest),
-# VIBEDOC_NO_MODIFY_PATH=1 (never touch shell files).
+# VIBEDOC_NO_MODIFY_PATH=1 (never touch shell files), VIBEDOC_BACKGROUND=1|0 (answer the background question).
 set -eu
 
 NODE_LINE="latest-v22.x" # Node 22 LTS; VibeDoc needs 20.9 or newer
@@ -22,7 +24,7 @@ for arg in "$@"; do
   case "$arg" in
     --update) MODE=update ;;
     --uninstall) MODE=uninstall ;;
-    -h|--help) echo "usage: install.sh [--update | --uninstall]  (env: VIBEDOC_HOME, VIBEDOC_VERSION, VIBEDOC_NO_MODIFY_PATH=1)"; exit 0 ;;
+    -h|--help) echo "usage: install.sh [--update | --uninstall]  (env: VIBEDOC_HOME, VIBEDOC_VERSION, VIBEDOC_NO_MODIFY_PATH=1, VIBEDOC_BACKGROUND=1|0)"; exit 0 ;;
     *) echo "vibedoc install: unknown option $arg (use --update or --uninstall)" >&2; exit 2 ;;
   esac
 done
@@ -49,7 +51,19 @@ path_line() {
   esac
 }
 
+# The installed VibeDoc, and whether it has `login` / `start` / `stop` (R109, R110): an older one would start
+# its server on an unknown command, so it is never asked
+launcher="$HOME_DIR/bin/vibedoc"
+has_login() { [ -x "$launcher" ] && [ -f "$HOME_DIR/lib/lib/node_modules/vibedoc/bin/login.mjs" ]; }
+login_on() { has_login && "$launcher" login status 2>/dev/null | grep -q '^Start at login: on'; }
+# from the VibeDoc home (not the user's cwd), so the hub doesn't add whatever repo the installer ran in
+start_bg() { (cd "$HOME_DIR" && "$launcher" start --no-open); }
+
 if [ "$MODE" = uninstall ]; then
+  if has_login; then
+    "$launcher" stop >/dev/null 2>&1 || say "Warning: 'vibedoc stop' failed; stop VibeDoc yourself if it still runs."
+    "$launcher" login off >/dev/null 2>&1 || say "Warning: 'vibedoc login off' failed; remove the login item yourself (see the docs)."
+  fi
   rm -rf "$HOME_DIR/node" "$HOME_DIR/lib" "$HOME_DIR/bin"
   say "Removed VibeDoc from $HOME_DIR (your projects and saved test runs are untouched)."
   rc="$(rc_file)"
@@ -106,9 +120,16 @@ mkdir -p "$tmp/node"
 tar -xzf "$tmp/$file" -C "$tmp/node" --strip-components 1
 
 # VibeDoc, installed with that Node into a staging folder, then swapped in
-say "Installing vibedoc@$VERSION…"
+say "Installing vibedoc@${VERSION}…"
 PATH="$tmp/node/bin:$PATH" "$tmp/node/bin/npm" install --global --prefix "$tmp/lib" --no-fund --no-audit --no-update-notifier --loglevel=error "vibedoc@$VERSION" \
   || fail "npm install vibedoc@$VERSION failed"
+
+# --update with start at login on: stop the running VibeDoc before its files go, start the new one after
+restart=
+if [ "$MODE" = update ] && login_on; then
+  restart=1
+  "$launcher" stop >/dev/null 2>&1 || say "Warning: 'vibedoc stop' failed; the old VibeDoc may still be running."
+fi
 
 mkdir -p "$HOME_DIR"
 rm -rf "$HOME_DIR/node" "$HOME_DIR/lib"
@@ -126,6 +147,29 @@ chmod +x "$HOME_DIR/bin/vibedoc"
 
 installed="$("$HOME_DIR/bin/vibedoc" --version)" || fail "installed, but 'vibedoc --version' failed"
 if [ "$MODE" = update ]; then say "Updated VibeDoc to $installed."; else say "Installed VibeDoc $installed in $HOME_DIR."; fi
+
+# Background (R110): on update the earlier choice stands (the login item points at the same launcher); on install
+# VIBEDOC_BACKGROUND answers, else the person at the keyboard, else no
+if [ -n "$restart" ]; then
+  start_bg || say "Warning: VibeDoc didn't start again; run: $launcher start"
+elif [ "$MODE" = install ] && has_login; then
+  background="${VIBEDOC_BACKGROUND:-}"
+  if [ -z "$background" ] && { : </dev/tty; } 2>/dev/null; then
+    printf 'Keep VibeDoc running in the background and start it when you log in? [y/N] ' >/dev/tty
+    read -r background </dev/tty || background=n
+  fi
+  case "$background" in
+    1|y|Y|yes|YES)
+      if "$launcher" login on >/dev/null; then
+        start_bg || say "Warning: VibeDoc didn't start; run: $launcher start"
+        say "VibeDoc starts in the background when you log in. Turn that off with: vibedoc login off"
+      else
+        say "Warning: couldn't turn on start at login; run: $launcher login on"
+      fi
+      ;;
+    *) say "Not running VibeDoc in the background. Turn it on later with: vibedoc login on" ;;
+  esac
+fi
 
 # PATH: only with a yes from the person at the keyboard
 case ":$PATH:" in
