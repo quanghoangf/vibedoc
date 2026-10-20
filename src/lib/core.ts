@@ -14,6 +14,7 @@ import { glob } from 'glob'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { applyEdits, type TextEdit } from './diff'
+import { mergeNotes, type Chat } from './chats'
 import { META_LINE, parseMetaBlock } from './meta-block'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 import { pickNextTask, type QueueResult } from './work-queue'
@@ -4369,15 +4370,49 @@ export async function listChats(root: string): Promise<unknown[]> {
   return chats.filter(c => c !== null)
 }
 
-export async function saveChat(chat: unknown, root: string): Promise<void> {
-  const id = (chat as { id?: unknown } | null)?.id
-  if (typeof id !== 'string') throw new Error('chat.id is required')
-  const file = chatFile(id, root)
+// T562: every write of one chat file goes through its lock (the browser, worker loops and orchestrator notes all write
+// them). ponytail: in-process, on globalThis so every route bundle shares it; a second VibeDoc process could still race.
+const chatLocks: Map<string, Promise<unknown>> = ((globalThis as { __vibedocChatLocks?: Map<string, Promise<unknown>> }).__vibedocChatLocks ??= new Map())
+function withChatLock<T>(file: string, fn: () => Promise<T>): Promise<T> {
+  const run = (chatLocks.get(file) ?? Promise.resolve()).then(fn, fn)
+  const tail = run.catch(() => {})
+  chatLocks.set(file, tail)
+  void tail.then(() => { if (chatLocks.get(file) === tail) chatLocks.delete(file) })
+  return run
+}
+
+async function readChatFile(file: string): Promise<Chat | null> {
+  const raw = await fs.readFile(file, 'utf-8').catch(() => null)
+  return raw == null ? null : JSON.parse(raw) as Chat
+}
+
+async function writeChatFile(file: string, chat: unknown): Promise<void> {
   await fs.mkdir(path.dirname(file), { recursive: true })
   // Write-then-rename so a crash mid-write never leaves half a JSON file
   const tmp = `${file}.tmp`
   await fs.writeFile(tmp, JSON.stringify(chat), 'utf-8')
   await fs.rename(tmp, file)
+}
+
+/** Saves a chat; server notes the saver's copy hasn't seen yet are kept (`mergeNotes`). */
+export async function saveChat(chat: unknown, root: string): Promise<void> {
+  const id = (chat as { id?: unknown } | null)?.id
+  if (typeof id !== 'string') throw new Error('chat.id is required')
+  const file = chatFile(id, root)
+  await withChatLock(file, async () => {
+    const disk = await readChatFile(file).catch(() => null)
+    await writeChatFile(file, mergeNotes(disk, chat as Chat))
+  })
+}
+
+/** Read-modify-write of one chat under its lock: `fn` gets the latest file (null when none) and returns what to write. */
+export async function updateChat<C extends Chat>(id: string, root: string, fn: (chat: C | null) => C): Promise<C> {
+  const file = chatFile(id, root)
+  return withChatLock(file, async () => {
+    const next = fn(await readChatFile(file) as C | null)
+    await writeChatFile(file, next)
+    return next
+  })
 }
 
 /** One saved chat, unparsed beyond JSON, or null when there is none. */
@@ -4545,7 +4580,8 @@ export async function getRunContext(root: string, live: Set<string>): Promise<Ru
 }
 
 export async function deleteChat(id: string, root: string): Promise<void> {
-  await fs.rm(chatFile(id, root), { force: true })
+  const file = chatFile(id, root)
+  await withChatLock(file, () => fs.rm(file, { force: true }))
 }
 
 // ─── Episodes ─────────────────────────────────────────────────────────────────

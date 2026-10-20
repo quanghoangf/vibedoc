@@ -3,8 +3,8 @@
  * POST /api/workers/answer (T558, resume). Not a route: Next only serves route.ts.
  */
 import path from 'path'
-import { appendWorkerLog, claimNextTask, claimTask, getChat, getTask, listChats, openWorkerLog, readProjectSettings, readWorkerLog, readWorkerStates, saveChat, sendBackTask, writeWorkerState, type WorkerSettings } from '@/lib/core'
-import { addChat, ORCHESTRATOR_ID, ORCHESTRATOR_TITLE, type Chat } from '@/lib/chats'
+import { appendWorkerLog, claimNextTask, claimTask, getTask, listChats, openWorkerLog, readProjectSettings, readWorkerLog, readWorkerStates, saveChat, sendBackTask, updateChat, writeWorkerState, type WorkerSettings } from '@/lib/core'
+import { addChat, appendNote, ORCHESTRATOR_ID, ORCHESTRATOR_TITLE, type Chat } from '@/lib/chats'
 import { emitUpdate } from '@/lib/events'
 import { workerArgs, workerEnv } from '@/lib/worker-args'
 import { formatFindingsNote } from '@/lib/verification'
@@ -83,17 +83,11 @@ export const saveWorkerChat = (root: string) => async (c: WorkerChat) => {
   emitUpdate('chat_saved', { id: c.id })
 }
 
-/** Notes kept for the orchestrator's next turn; older ones drop off while nobody asks it anything. */
-const MAX_ORCHESTRATOR_NOTES = 20
-
 /**
- * T562: a worker stopped → a note in the orchestrator chat (created if it isn't saved yet), and `orchestrator_note`
- * so an open page adds it to its copy too: the browser saves that chat, and would otherwise write the note away.
+ * T562: a worker stopped → a note in the orchestrator chat (created if it isn't saved yet), appended to the latest file
+ * under its lock, and `orchestrator_note` so an open page adds it to its copy too (a save of an older copy keeps it).
  */
-// ponytail: a browser save racing this write (same instant) can drop one note; give notes their own file if that bites
 export async function noteOrchestrator(root: string, note: string) {
-  const chat = (await getChat(ORCHESTRATOR_ID, root) as Chat | null) ?? addChat([], ORCHESTRATOR_ID, { title: ORCHESTRATOR_TITLE })[0]
-  chat.notes = [...(chat.notes ?? []), note].slice(-MAX_ORCHESTRATOR_NOTES)
-  await saveChat(chat, root)
-  emitUpdate('orchestrator_note', { id: ORCHESTRATOR_ID, note })
+  const chat = await updateChat<Chat>(ORCHESTRATOR_ID, root, (c) => appendNote(c ?? addChat([], ORCHESTRATOR_ID, { title: ORCHESTRATOR_TITLE })[0], note))
+  emitUpdate('orchestrator_note', { id: ORCHESTRATOR_ID, note, seq: chat.noteSeq })
 }

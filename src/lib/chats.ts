@@ -13,6 +13,8 @@ export interface Chat<M = unknown> {
   busy: boolean
   /** Accept/reject outcomes the agent hasn't heard about yet; sent with this chat's next message */
   notes: string[]
+  /** T562: how many notes the server ever appended (`appendNote`); a save keeps the ones its copy hasn't seen */
+  noteSeq?: number
   attach: Attach | null
   createdAt: string
   updatedAt: string
@@ -92,6 +94,24 @@ export function addChat<M>(chats: Chat<M>[], id: string, opts: { title?: string;
   const now = opts.now ?? new Date().toISOString()
   const title = opts.title ?? (opts.attach ? attachTitle(opts.attach) : "New chat")
   return [...chats, { id, title, messages: [], sessionId: null, busy: false, notes: [], attach: opts.attach ?? null, createdAt: now, updatedAt: now }]
+}
+
+/** Notes kept for the orchestrator's next turn; older ones drop off while nobody asks it anything. */
+export const MAX_NOTES = 20
+
+/** T562: the server adds a note (e.g. a worker stopped); `noteSeq` counts it so a browser save can't drop it. */
+export function appendNote<C extends Chat<unknown>>(c: C, note: string): C {
+  return { ...c, notes: [...(c.notes ?? []), note].slice(-MAX_NOTES), noteSeq: (c.noteSeq ?? 0) + 1 }
+}
+
+/**
+ * T562: a save of `next` over the file's `disk` copy. The saver's notes win (a sent turn clears them), except the
+ * server notes it hasn't seen: those are the newest `disk.noteSeq - next.noteSeq` of the file's notes, kept on the end.
+ */
+export function mergeNotes<C extends Chat<unknown>>(disk: C | null, next: C): C {
+  const unseen = Math.min((disk?.noteSeq ?? 0) - (next.noteSeq ?? 0), disk?.notes?.length ?? 0)
+  if (!disk || unseen <= 0) return next
+  return { ...next, notes: [...(next.notes ?? []), ...disk.notes.slice(-unseen)].slice(-MAX_NOTES), noteSeq: disk.noteSeq }
 }
 
 /** A missing id (e.g. a closed chat whose stream is still unwinding) is a no-op. */
