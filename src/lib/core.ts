@@ -69,7 +69,8 @@ import { renderEntriesBlock, upsertManagedBlock } from './entries-export'
 import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport, type ClaudeMemoryCandidate, type ImportPlan } from './claude-memory'
 import { isDemo, isPlayground } from './demo'
 import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './first-run'
-import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PlaywrightStatus } from './frontend'
+import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, LOCKFILES, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PackageManager, type PlaywrightStatus } from './frontend'
+import { ownWorktrees, parseWorktreeList, projectSlug, worktreeDir, type Worktree } from './worktrees'
 import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
 import { nearestRoot, usableRootHeader } from './agent-connect'
 import type { ProjectFacts } from './toolkit'
@@ -262,9 +263,14 @@ export async function rootFromFolder(header: string | null): Promise<string | nu
 
 // ─── Projects hub (R099) ──────────────────────────────────────────────────────
 
-/** `<home>/hub.json`, home = `$VIBEDOC_HOME` or `~/.vibedoc` (the installer's folder). Machine-local: absolute roots. */
+/** `$VIBEDOC_HOME` or `~/.vibedoc` (the installer's folder): hub.json, the hub's port, agent worktrees. */
+export function vibedocHome(): string {
+  return process.env.VIBEDOC_HOME || path.join(os.homedir(), '.vibedoc')
+}
+
+/** `<home>/hub.json`. Machine-local: absolute roots. */
 export function hubFile(): string {
-  return path.join(process.env.VIBEDOC_HOME || path.join(os.homedir(), '.vibedoc'), 'hub.json')
+  return path.join(vibedocHome(), 'hub.json')
 }
 
 // rootFrom is sync and called per request, so the hub's roots are cached by the file's mtime: a write from
@@ -2829,6 +2835,100 @@ export async function getFileAtCommit(relPath: string, sha: string, root: string
   // commit.path is relative to the repo top level, which may be above root
   const top = (await git(['rev-parse', '--show-toplevel'], root)).trim()
   return git(['show', `${commit.sha}:${commit.path}`], top)
+}
+
+// ─── Agent worktrees (R108, ADR-007) ──────────────────────────────────────────
+
+const INSTALL_TIMEOUT_MS = 10 * 60_000
+const INSTALL_TAIL_LINES = 30
+
+/** Frozen installs: a worktree uses the lockfile its branch has. pnpm shares its store, so this is cheap (~10 s warm). */
+const INSTALL_ARGS: Record<PackageManager, string[]> = {
+  pnpm: ['install', '--frozen-lockfile', '--prefer-offline'],
+  yarn: ['install', '--frozen-lockfile'],
+  bun: ['install', '--frozen-lockfile'],
+  npm: ['ci', '--prefer-offline'],
+}
+
+/** git's message without the "Command failed: git …" line. */
+function gitError(e: unknown): string {
+  const err = e as { stderr?: string; message?: string }
+  return (err.stderr || err.message || String(e)).trim().split('\n').filter(l => !l.startsWith('Command failed')).join('\n')
+}
+
+/** Home and its realpath: git reports the worktree path it resolved (`/tmp` → `/private/tmp` on macOS). */
+async function worktreeHomes(): Promise<string[]> {
+  const home = vibedocHome()
+  return [home, await fs.realpath(home).catch(() => home)]
+}
+
+/**
+ * `git worktree add <home>/worktrees/<project>/<branch-slug> -b <branch> <base>`. The user's checkout is untouched.
+ * Refuses (409) a branch or folder that already exists, so nothing is overwritten.
+ */
+export async function createWorktree(root: string, opts: { branch: string; base?: string }): Promise<{ dir: string; branch: string; base: string }> {
+  const branch = opts.branch.trim()
+  const base = (opts.base ?? 'HEAD').trim()
+  if (!branch || branch.startsWith('-') || !base || base.startsWith('-')) throw new RoadmapError('A branch name and a base are required')
+  try {
+    await git(['check-ref-format', '--branch', branch], root)
+  } catch {
+    throw new RoadmapError(`"${branch}" is not a valid branch name`)
+  }
+  if (await git(['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`], root).then(() => true, () => false)) {
+    throw new RoadmapError(`Branch ${branch} already exists`, 409)
+  }
+  const dir = worktreeDir(vibedocHome(), projectSlug(root), branch)
+  if (await fs.stat(dir).then(() => true, () => false)) throw new RoadmapError(`Folder ${dir} already exists`, 409)
+  await fs.mkdir(path.dirname(dir), { recursive: true })
+  try {
+    await git(['worktree', 'add', dir, '-b', branch, base], root)
+  } catch (e) {
+    throw new RoadmapError(`git worktree add failed: ${gitError(e)}`)
+  }
+  return { dir, branch, base }
+}
+
+export type InstallResult = { ok: boolean; manager: PackageManager | null; output: string }
+
+/** Installs dependencies with the lockfile's package manager. No package.json = nothing to do. `output` = the tail on failure. */
+export async function installWorktreeDeps(dir: string): Promise<InstallResult> {
+  if (!(await fs.stat(path.join(dir, 'package.json')).then(() => true, () => false))) return { ok: true, manager: null, output: '' }
+  const names = await fs.readdir(dir)
+  const manager = LOCKFILES.find(([file]) => names.includes(file))?.[1] ?? null
+  if (!manager) return { ok: false, manager: null, output: 'No lockfile: a worktree only gets a frozen install' }
+  try {
+    await execFileP(manager, INSTALL_ARGS[manager], { cwd: dir, timeout: INSTALL_TIMEOUT_MS, maxBuffer: 32 * 1024 * 1024 })
+    return { ok: true, manager, output: '' }
+  } catch (e) {
+    const err = e as NodeJS.ErrnoException & { stdout?: string; stderr?: string; killed?: boolean }
+    const text = err.code === 'ENOENT' ? `${manager} is not installed (not found on PATH)`
+      : err.killed ? `${manager} install timed out after ${INSTALL_TIMEOUT_MS / 60_000} minutes`
+      : `${err.stdout ?? ''}\n${err.stderr ?? ''}`.trim() || String(err.message)
+    console.warn(`dependency install failed in ${dir}`)
+    return { ok: false, manager, output: text.split('\n').slice(-INSTALL_TAIL_LINES).join('\n') }
+  }
+}
+
+/** The project's worktrees that VibeDoc made (under `<home>/worktrees/`); the user's own worktrees are left out. */
+export async function listWorktrees(root: string): Promise<Worktree[]> {
+  return ownWorktrees(parseWorktreeList(await git(['worktree', 'list', '--porcelain'], root)), await worktreeHomes())
+}
+
+/** Removes one of VibeDoc's worktrees (the branch stays). Refuses (409) uncommitted changes unless `force`. */
+export async function removeWorktree(root: string, dir: string, opts: { force?: boolean } = {}): Promise<void> {
+  const target = await fs.realpath(dir).catch(() => path.resolve(dir))
+  const own = await listWorktrees(root)
+  const wt = own.find(w => w.path === dir || w.path === target)
+  if (!wt) throw new RoadmapError(`${dir} is not one of VibeDoc's worktrees for this project`, 404)
+  if (!opts.force && (await git(['status', '--porcelain'], wt.path)).trim()) {
+    throw new RoadmapError(`${wt.path} has uncommitted changes`, 409)
+  }
+  try {
+    await git(['worktree', 'remove', ...(opts.force ? ['--force'] : []), wt.path], root)
+  } catch (e) {
+    throw new RoadmapError(`git worktree remove failed: ${gitError(e)}`, 409)
+  }
 }
 
 // ─── Release notes from done work (R091) ──────────────────────────────────────
