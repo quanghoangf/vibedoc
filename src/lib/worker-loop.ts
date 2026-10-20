@@ -32,3 +32,9 @@ export function nextStep(worker: Pick<Worker, 'phase'>, claim: QueueResult | nul
   const why = claim.waiting.map(w => w.reason).join('; ')
   return claim.needsHuman ? { kind: 'wait-user', reason: why } : { kind: 'ended', reason: `Nothing ready: ${why}` }
 }
+
+/** T558: the turn an answer resumes (that task's session): the last one, when the worker waits because it left its task unfinished. */
+export function resumableTurn(worker: Pick<Worker, 'phase' | 'turns'>): WorkerTurn | null {
+  const last = worker.turns[worker.turns.length - 1]
+  return worker.phase === 'wait-user' && last?.sessionId && nextStep({ phase: 'running' }, null, last).kind === 'wait-user' ? last : null
+}

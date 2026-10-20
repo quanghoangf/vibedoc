@@ -55,4 +55,12 @@ const tie = sortInbox([
 ])
 assert.deepEqual(tie.map((i) => `${i.project.id}/${i.id}`), ['alpha/T1', 'alpha/T2', 'bravo/T1'])
 
+// T558: a waiting worker's row names its branch and task
+const workers = buildInbox([{ project: a, tasks: [], chats: [
+  chat('c-w1', { title: 'Worker R108', worker: { branch: 'vibedoc/R108', taskId: 'T558' } }),
+  chat('c-w2', { title: 'Worker R109', worker: { branch: 'vibedoc/R109', taskId: null }, since: T(1) }),
+] }])
+assert.deepEqual(workers.map((i) => i.title), ['Worker · vibedoc/R109', 'Worker · vibedoc/R108 · T558'])
+assert.equal(workers[1].href, '/chat?id=c-w1&project=alpha')
+
 console.log('inbox: ok')

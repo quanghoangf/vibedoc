@@ -4,18 +4,21 @@
  * fresh session with cwd = the worktree, repeat until the epic is finished or needs the user. Process handling only,
  * no fs: the route passes core calls in. State lives on globalThis (like test-runner.ts), one loop per worker.
  * Each task turn streams through chat-turns.ts under the worker's chat id, so the chat page follows it.
+ * T558: a turn that asks (vibedoc_ask_questions) and exits with the task in-progress waits on the user; the answer
+ * resumes that task's session (cwd = the worktree again) and the loop goes on.
  */
 import { spawn, type ChildProcess } from 'child_process'
 import type { Chat, Worker, WorkerTurn } from './chats'
 import type { QueueResult } from './work-queue'
-import { nextStep } from './worker-loop'
+import { nextStep, resumableTurn } from './worker-loop'
 import { beginTurn } from './chat-turns'
 import { killGroup } from './test-runner'
 import { stopFrontend } from './frontend-server'
 import { workerPort } from './worktrees'
 
 /** The chat message shape ChatContext renders (one user line per task, then the agent's last reply). */
-type Message = { role: 'user' | 'assistant'; text: string; tools: string[]; proposals: unknown[]; plans: unknown[]; questions: unknown[]; error?: string }
+type QuestionSet = { id: string; questions: unknown[]; answers?: string[] }
+type Message = { role: 'user' | 'assistant'; text: string; tools: string[]; proposals: unknown[]; plans: unknown[]; questions: QuestionSet[]; error?: string }
 export type WorkerChat = Chat<Message> & { worker: Worker }
 
 export interface WorkerDeps {
@@ -23,8 +26,8 @@ export interface WorkerDeps {
   claim: () => Promise<QueueResult>
   /** The task's status in the main checkout after a turn */
   taskStatus: (taskId: string) => Promise<string>
-  /** The argv of one task turn (worker-args.ts) */
-  args: (taskId: string) => string[]
+  /** The argv of one task turn (worker-args.ts); `resume` answers a question in that task's session */
+  args: (taskId: string, resume?: { sessionId: string; message: string }) => string[]
   /** Persist the chat and tell the browser (worker_updated) */
   save: (chat: WorkerChat) => Promise<void>
 }
@@ -49,10 +52,10 @@ export function workerForEpic(root: string, epic: string): string | null {
   return null
 }
 
-/** Holds the epic before the worktree exists, so two quick POSTs never both start; false = taken. */
-export function reserveWorker(root: string, id: string, epic: string): boolean {
+/** Holds the epic before the worktree exists, so two quick POSTs never both start; false = taken. `port`: a resumed worker keeps its own. */
+export function reserveWorker(root: string, id: string, epic: string, port?: number): boolean {
   if (workerForEpic(root, epic)) return false
-  runs.set(keyOf(root, id), { epic: epic.toUpperCase(), child: null, cancelled: false })
+  runs.set(keyOf(root, id), { epic: epic.toUpperCase(), child: null, cancelled: false, ...(port && { port }) })
   return true
 }
 
@@ -82,12 +85,17 @@ export function cancelWorker(root: string, id: string): boolean {
   return true
 }
 
+/** T558: what the user answers a waiting worker with; `questionId` + `answers` fill that question card. */
+export interface WorkerAnswer { message: string; questionId?: string; answers?: string[] }
+
 /** One task turn: resolves with its result (the task's status, `error` or `stopped`). */
-function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, deps: WorkerDeps): Promise<string> {
+function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, deps: WorkerDeps, resume?: string): Promise<string> {
   const env = { ...process.env }
   delete env.ANTHROPIC_API_KEY // the CLI falls back to the user's login, like the chat
   return new Promise((resolve) => {
-    const child = spawn('claude', deps.args(turn.taskId), {
+    const args = resume && turn.sessionId ? deps.args(turn.taskId, { sessionId: turn.sessionId, message: resume }) : deps.args(turn.taskId)
+    // a resume too: cwd = the worktree is the only thing that keeps it out of the user's checkout (spike run D)
+    const child = spawn('claude', args, {
       cwd: chat.worker.dir, env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
     })
     run.child = child
@@ -96,6 +104,7 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
     let stderr = ''
     let reply = ''
     let failed = ''
+    const questions: QuestionSet[] = []
     child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf8')
       stream.push(text)
@@ -104,8 +113,18 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
       for (const line of lines) {
         try {
           const ev = JSON.parse(line)
-          if (!turn.sessionId && typeof ev?.session_id === 'string') turn.sessionId = ev.session_id
+          if (typeof ev?.session_id === 'string') turn.sessionId = ev.session_id
           if (ev?.type === 'result' && typeof ev.result === 'string') reply = ev.result
+          // T558: the card the chat draws (ChatContext keeps the same shape), saved so the inbox counts it with no tab open
+          if (ev?.type === 'assistant') {
+            for (const b of ev.message?.content ?? []) {
+              if (b?.type === 'tool_use' && String(b.name).endsWith('vibedoc_ask_questions') && Array.isArray(b.input?.questions)) questions.push({ id: b.id, questions: b.input.questions })
+            }
+          } else if (ev?.type === 'user') {
+            for (const b of ev.message?.content ?? []) {
+              if (b?.type === 'tool_result' && b.is_error) questions.splice(0, questions.length, ...questions.filter(q => q.id !== b.tool_use_id))
+            }
+          }
         } catch {
           // a partial or non-JSON line: the stream still has it
         }
@@ -122,14 +141,17 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
       if (failed || (code !== 0 && !run.cancelled)) stream.push(JSON.stringify({ type: 'error', message: failed || stderr.trim() || `claude exited with code ${code}` }) + '\n')
       stream.end()
       const result = run.cancelled ? 'stopped' : failed || code !== 0 ? 'error' : await deps.taskStatus(turn.taskId).catch(() => 'error')
-      chat.messages.push(message('assistant', reply, result === 'error' ? (failed || stderr.trim() || `claude exited with code ${code}`) : undefined))
+      chat.messages.push({ ...message('assistant', reply, result === 'error' ? (failed || stderr.trim() || `claude exited with code ${code}`) : undefined), questions })
       resolve(result)
     })
   })
 }
 
-/** Runs the loop in the background; the caller reserved the epic. Never throws: a failure ends the worker. */
-export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps): void {
+/**
+ * Runs the loop in the background; the caller reserved the epic. Never throws: a failure ends the worker.
+ * `answer` (T558): first resume the waiting task's session with it (resumableTurn), then go on as usual.
+ */
+export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, answer?: WorkerAnswer): void {
   const run = runs.get(keyOf(root, chat.id))
   if (!run) throw new Error(`worker ${chat.id} was not reserved`)
   const save = (patch: Partial<Worker>) => {
@@ -138,9 +160,29 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps): v
     chat.busy = chat.worker.phase === 'running'
     return deps.save(chat).catch(e => console.warn(`[vibedoc] worker ${chat.id} not saved: ${(e as Error).message}`))
   }
+  // One turn: spawn first (synchronously, so the turn is registered before any await): the page follows it as soon as
+  // `worker_updated` names it, and the answer route returns once it exists
+  const runOne = async (turn: WorkerTurn, line: string, resume?: string) => {
+    chat.messages.push(message('user', line))
+    const ended = runTurn(root, chat, run, turn, deps, resume)
+    await save({ phase: 'running', reason: undefined, turns: [...chat.worker.turns, turn] })
+    turn.result = await ended
+    turn.endedAt = new Date().toISOString()
+    await save({}) // `turn` is in chat.worker.turns: its result and session are saved with it
+    return turn
+  }
+  const fresh = (taskId: string, sessionId: string | null = null): WorkerTurn =>
+    ({ taskId, sessionId, startedAt: new Date().toISOString(), endedAt: null, result: null })
   void (async () => {
     let last: WorkerTurn | null = null
     try {
+      const waiting = answer && resumableTurn(chat.worker)
+      if (answer && waiting) {
+        if (answer.questionId && answer.answers) {
+          for (const m of chat.messages) m.questions = m.questions.map(q => (q.id === answer.questionId ? { ...q, answers: answer.answers } : q))
+        }
+        last = await runOne(fresh(waiting.taskId, waiting.sessionId), answer.message, answer.message)
+      }
       for (;;) {
         const phase = run.cancelled ? 'stopped' : chat.worker.phase
         let step = nextStep({ phase }, null, last)
@@ -151,15 +193,7 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps): v
           await save({ phase: end, reason: step.kind === 'claim' ? undefined : step.reason })
           return
         }
-        const turn: WorkerTurn = { taskId: step.taskId, sessionId: null, startedAt: new Date().toISOString(), endedAt: null, result: null }
-        chat.messages.push(message('user', `/vibedoc:work ${step.taskId}`))
-        // spawn first: the page follows the turn as soon as `worker_updated` names it, so it must be registered by then
-        const ended = runTurn(root, chat, run, turn, deps)
-        await save({ phase: 'running', turns: [...chat.worker.turns, turn] })
-        turn.result = await ended
-        turn.endedAt = new Date().toISOString()
-        last = turn
-        await save({}) // `turn` is in chat.worker.turns: its result and session are saved with it
+        last = await runOne(fresh(step.taskId), `/vibedoc:work ${step.taskId}`)
       }
     } catch (e) {
       console.warn(`[vibedoc] worker ${chat.id} failed: ${(e as Error).message}`)

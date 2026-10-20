@@ -605,7 +605,10 @@ export async function getInbox(opts: { project?: string | null; group?: string |
           }
         }),
         chats: chats.map(raw => fromSaved<StatusMessage>(raw)).filter(c => c !== null).map(c => ({
-          id: c.id, title: c.title, since: c.updatedAt, waiting: isWaiting(chatStatus(c)) && !running(c.id),
+          id: c.id, title: c.title, since: c.updatedAt,
+          // T558: a worker that stopped mid-task waits on the user even without a question card
+          waiting: (isWaiting(chatStatus(c)) || c.worker?.phase === 'wait-user') && !running(c.id),
+          ...(c.worker && { worker: { branch: c.worker.branch, taskId: c.worker.turns[c.worker.turns.length - 1]?.taskId ?? null } }),
         })),
       }
     } catch (e) {
@@ -4319,11 +4322,15 @@ export async function saveChat(chat: unknown, root: string): Promise<void> {
   await fs.rename(tmp, file)
 }
 
+/** One saved chat, unparsed beyond JSON, or null when there is none. */
+export async function getChat(id: string, root: string): Promise<unknown | null> {
+  const raw = await fs.readFile(chatFile(id, root), 'utf-8').catch(() => null)
+  return raw == null ? null : JSON.parse(raw) as unknown
+}
+
 /** R108: a saved worker chat's worker, or null (no such chat, or a plain chat). */
 export async function getWorker(id: string, root: string): Promise<Worker | null> {
-  const raw = await fs.readFile(chatFile(id, root), 'utf-8').catch(() => null)
-  if (raw == null) return null
-  return (JSON.parse(raw) as { worker?: Worker }).worker ?? null
+  return ((await getChat(id, root)) as { worker?: Worker } | null)?.worker ?? null
 }
 
 /** T559: ports held by this project's workers whose worktree still exists; removing the worktree frees its port. */

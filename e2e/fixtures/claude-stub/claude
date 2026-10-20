@@ -54,13 +54,24 @@ if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope"
 } else if (args[0] === "-p" && args.includes("--plugin-dir")) {
   // R108 worker task turn (e2e/worker-run.mjs): cwd = the worktree. After CLAUDE_STUB_WORKER_MS (default 2s, long
   // enough to cancel mid-task) write <task>.txt, commit only that file, then mark the task done over the MCP URL.
-  const taskId = args[1].match(/\bT\d{3,}\b/)[0]
+  // T558 (e2e/worker-ask.mjs): a task listed in the worktree's .claude-stub-ask asks instead (vibedoc_ask_questions)
+  // and exits 0 with the task still in-progress; `--resume stub-worker-<task>` (the answer) then does the task.
+  const resume = args.includes("--resume") ? args[args.indexOf("--resume") + 1] : null
+  const taskId = (resume ?? args[1]).match(/\bT\d{3,}\b/)[0]
   const { url, headers } = JSON.parse(args[args.indexOf("--mcp-config") + 1]).mcpServers.vibedoc
   const sid = `stub-worker-${taskId}`
   const out = (o) => process.stdout.write(JSON.stringify(o) + "\n")
   out({ type: "system", subtype: "init", session_id: sid })
   process.on("SIGTERM", () => process.exit(143))
-  setTimeout(async () => {
+  const asks = fs.existsSync(".claude-stub-ask") ? fs.readFileSync(".claude-stub-ask", "utf8").split(/\s+/) : []
+  const asking = !resume && asks.includes(taskId)
+  if (asking) {
+    const questions = [{ question: `Which storage should ${taskId} use?`, header: "Storage", multiSelect: false, options: [{ label: "Files", description: "Plain files" }, { label: "SQLite", description: "One db file" }] }]
+    out({ type: "assistant", session_id: sid, message: { content: [{ type: "tool_use", id: `ask-${taskId}`, name: "mcp__vibedoc__vibedoc_ask_questions", input: { questions } }] } })
+    out({ type: "user", session_id: sid, message: { content: [{ type: "tool_result", tool_use_id: `ask-${taskId}`, content: "Shown to the user" }] } })
+    out({ type: "result", session_id: sid, is_error: false, result: `I need a decision on ${taskId} before I go on.` })
+  }
+  if (!asking) setTimeout(async () => {
     const { execFileSync } = require("node:child_process")
     fs.writeFileSync(`${taskId}.txt`, `${taskId} was here\n`)
     execFileSync("git", ["add", `${taskId}.txt`])

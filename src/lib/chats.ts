@@ -166,7 +166,7 @@ export function epicOf(message: string): string | null {
 
 /** The chat to resume for `a`: the most recently updated one attached to it. */
 export function chatFor<C extends Chat>(chats: C[], a: Attach): C | undefined {
-  // R108: a worker shows on its epic (itemAgents) but is not the item's conversation: it takes no messages yet
+  // R108: a worker shows on its epic (itemAgents) but is not the item's conversation: it only takes answers while it waits (T558)
   return chats.filter((c) => !c.worker && sameAttach(c.attach, a)).sort((x, y) => y.updatedAt.localeCompare(x.updatedAt))[0]
 }
 

@@ -2,7 +2,8 @@
  * src/lib/worker-args.ts (R108 T554)
  * The `claude -p` argv of one worker task turn (ADR-007 decisions 8–9 and § Spike). Pure: the route spawns it with
  * cwd = the worktree. Unlike the chat (/api/chat), a worker writes code: built-in tools, the project's settings and
- * VibeDoc's plugin, never `--resume` (each task starts a fresh session).
+ * VibeDoc's plugin. Each task starts a fresh session; `--resume` only answers a worker's question (T558), and the
+ * caller must spawn it with cwd = the worktree again (spike run D: resume finds the session from any folder).
  */
 
 /** Sent by a worker's `claude -p`: its tool calls are not the user's agent connecting (like the chat's header). */
@@ -27,6 +28,9 @@ You are a VibeDoc worker in a git worktree. Do task ${taskId} only, then stop: n
 Commit only the code and docs you changed here. VibeDoc owns plans/tasks/*, plans/roadmap/*, memory/MEMORY.md and .vibedoc*: never stage or edit them (the board lives in another checkout; use the vibedoc_* tools instead). Never push.`
 }
 
+/** T558: `-p` has no AskUserQuestion, so the worker asks through VibeDoc's card and waits on the user. */
+export const WORKER_SYSTEM_PROMPT = 'To ask the user, call vibedoc_ask_questions and end your turn; the answer arrives as the next message. Never guess on a decision the task leaves open.'
+
 export interface WorkerArgsInput {
   taskId: string
   /** The main checkout: task status lands where the board reads it (ADR-007 decision 8) */
@@ -38,12 +42,15 @@ export interface WorkerArgsInput {
   pluginDir: string
   allowed?: string[]
   denied?: string[]
+  /** T558: answer the worker's question in that task's session instead of starting a fresh one */
+  resume?: { sessionId: string; message: string }
 }
 
-export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, denied = WORKER_DENIED }: WorkerArgsInput): string[] {
+export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, denied = WORKER_DENIED, resume }: WorkerArgsInput): string[] {
   const url = `${mcpOrigin}/api/mcp?root=${encodeURIComponent(mainRoot)}`
   return [
-    '-p', workerPrompt(taskId),
+    ...(resume ? ['-p', resume.message, '--resume', resume.sessionId] : ['-p', workerPrompt(taskId)]),
+    '--append-system-prompt', WORKER_SYSTEM_PROMPT,
     '--output-format', 'stream-json', '--verbose',
     '--mcp-config', JSON.stringify({ mcpServers: { vibedoc: { type: 'http', url, headers: { [WORKER_CALL_HEADER]: workerId } } } }),
     '--strict-mcp-config',

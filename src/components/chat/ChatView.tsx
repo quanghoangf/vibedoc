@@ -95,7 +95,7 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
           <button onClick={dismissNotice} aria-label={t("chat.dismiss")} className="leading-none text-muted hover:text-txt">×</button>
         </div>
       )}
-      {chat.worker
+      {chat.worker && chat.worker.phase !== "wait-user"
         ? <p role="note" className="shrink-0 px-5 pb-4 pt-1 text-xs text-muted">{t("workers.workerNoComposer")}</p>
         : <Composer key={chat.id} chat={chat} wide={variant === "page"} />}
     </section>
@@ -119,7 +119,7 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
     <div ref={scrollRef} hidden={hidden} role="log" aria-live="polite" className="min-h-0 flex-1 overflow-y-auto">
       <div className={cn("mx-auto flex flex-col gap-5 px-5 py-6 text-sm", wide ? "max-w-3xl" : "max-w-none")}>
         {messages.length === 0 && !chat.worker && <EmptyChat chat={chat} onPick={(s) => send(chat.id, s)} />}
-        {messages.map((m, i) => (chat.worker && m.role === "user" ? <TaskDivider key={i} text={m.text} /> : (
+        {messages.map((m, i) => (chat.worker && m.role === "user" && m.text.startsWith("/vibedoc:work ") ? <TaskDivider key={i} text={m.text} /> : (
           <Message
             key={i}
             m={m}

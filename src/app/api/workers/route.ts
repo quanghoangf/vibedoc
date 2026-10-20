@@ -4,16 +4,14 @@
  * (.vibedoc/chats/<id>.json with `worker`) and starts the task-by-task loop (src/lib/worker-runs.ts). Each task turn
  * streams through GET /api/conversations/turn?id=<id>; every step emits `worker_updated`. One worker per epic (409).
  */
-import path from 'path'
 import { NextRequest, NextResponse } from 'next/server'
-import { claimNextTask, createWorktree, detectFrontend, getRoadmapItem, getTask, installWorktreeDeps, rootFrom, saveChat, workerPortsInUse, RoadmapError } from '@/lib/core'
-import { emitUpdate } from '@/lib/events'
+import { createWorktree, detectFrontend, getRoadmapItem, installWorktreeDeps, rootFrom, workerPortsInUse, RoadmapError } from '@/lib/core'
 import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 import { refuseCrossSite } from '@/lib/same-origin'
 import { newChatId, type Attach } from '@/lib/chats'
 import { defaultBranch, WORKER_PORT_OFFSET } from '@/lib/worktrees'
-import { workerArgs } from '@/lib/worker-args'
 import { claimWorkerPort, releaseWorker, reserveWorker, startWorker, type WorkerChat } from '@/lib/worker-runs'
+import { saveWorkerChat, workerDeps } from './deps'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -48,11 +46,7 @@ export async function POST(req: NextRequest) {
       attach: { kind: 'epic', id: epicId }, createdAt: now, updatedAt: now,
       worker: { ...wt, target: { kind: 'epic', id: epicId }, phase: 'starting', turns: [], ...(port && { port }) },
     }
-    const save = async (c: WorkerChat) => {
-      await saveChat(c, root)
-      emitUpdate('worker_updated', { id: c.id, phase: c.worker.phase, worker: c.worker })
-      emitUpdate('chat_saved', { id: c.id })
-    }
+    const save = saveWorkerChat(root)
     await save(chat)
     const install = await installWorktreeDeps(wt.dir)
     if (!install.ok) {
@@ -63,22 +57,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: chat.worker.reason, id, ...wt }, { status: 500 })
     }
     chat.worker.phase = 'running'
-    const owner = `worker-${id}`
-    const origin = req.nextUrl.origin
-    startWorker(root, chat, {
-      claim: async () => {
-        const { result, task, previousStatus } = await claimNextTask(epicId, root, owner)
-        if (task) emitUpdate('task_updated', { taskId: task.id, status: task.status, previousStatus, task })
-        return result
-      },
-      taskStatus: async (taskId) => (await getTask(taskId, root)).status,
-      args: (taskId) => workerArgs({
-        taskId, mainRoot: root, mcpOrigin: origin, workerId: id,
-        // VibeDoc's own plugin, read from the package like readPlanningSkill()
-        pluginDir: path.join(process.cwd(), 'plugin'),
-      }),
-      save,
-    })
+    startWorker(root, chat, workerDeps(root, chat, req.nextUrl.origin))
     return NextResponse.json({ id, ...wt })
   } catch (e) {
     releaseWorker(root, id)

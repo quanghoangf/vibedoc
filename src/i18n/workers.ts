@@ -27,7 +27,7 @@ export const en = {
   phaseStopped: "Stopped",
   phaseFailed: "Failed",
   taskDivider: "Task {id}",
-  workerNoComposer: "A worker takes no messages yet. Stop it from the header.",
+  workerNoComposer: "A worker takes messages only while it waits on you. Stop it from the header.",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -56,5 +56,5 @@ export const vi: Messages<typeof en> = {
   phaseStopped: "Đã dừng",
   phaseFailed: "Thất bại",
   taskDivider: "Task {id}",
-  workerNoComposer: "Worker chưa nhận tin nhắn. Dừng nó ở thanh trên cùng.",
+  workerNoComposer: "Worker chỉ nhận tin nhắn khi đang chờ bạn. Dừng nó ở thanh trên cùng.",
 }

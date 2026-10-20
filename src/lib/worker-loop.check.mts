@@ -1,6 +1,6 @@
 // Self-check for worker-loop. Run: node src/lib/worker-loop.check.mts
 import assert from 'node:assert/strict'
-import { nextStep } from './worker-loop.ts'
+import { nextStep, resumableTurn } from './worker-loop.ts'
 
 const running = { phase: 'running' as const }
 const turn = (result: string | null) => ({ taskId: 'T1', sessionId: 's', startedAt: 'a', endedAt: 'b', result })
@@ -24,5 +24,13 @@ assert.deepEqual(nextStep(running, { kind: 'finished' }, null), { kind: 'ended',
 const w = { taskId: 'T3', reason: 'T3 is blocked', why: 'blocked' as const }
 assert.deepEqual(nextStep(running, { kind: 'waiting', waiting: [w], needsHuman: true }, null), { kind: 'wait-user', reason: 'T3 is blocked' })
 assert.equal(nextStep(running, { kind: 'waiting', waiting: [w], needsHuman: false }, null).kind, 'ended')
+
+// T558: an answer resumes the waiting task's session, only while the worker waits on that task
+const asked = turn('in-progress')
+assert.equal(resumableTurn({ phase: 'wait-user', turns: [turn('done'), asked] }), asked)
+assert.equal(resumableTurn({ phase: 'running', turns: [asked] }), null)
+assert.equal(resumableTurn({ phase: 'wait-user', turns: [turn('done')] }), null, 'waiting on the queue (a blocked task), not on a turn')
+assert.equal(resumableTurn({ phase: 'wait-user', turns: [{ ...asked, sessionId: null }] }), null, 'no session to resume')
+assert.equal(resumableTurn({ phase: 'wait-user', turns: [] }), null)
 
 console.log('worker-loop: ok')

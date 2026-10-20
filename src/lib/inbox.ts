@@ -24,6 +24,8 @@ export interface InboxChatInput {
   /** `isWaiting(chatStatus(...))` and no live turn running */
   waiting: boolean
   since: string | null
+  /** R108 T558: a worker chat, labelled "Worker · <branch> · <task>" */
+  worker?: { branch: string; taskId: string | null }
 }
 
 export interface InboxProjectInput {
@@ -59,6 +61,11 @@ function href(kind: InboxKind, id: string, projectId: string): string {
   return `/board?task=${q}&${p}`
 }
 
+/** A worker row names its branch and task, so two workers' rows tell apart; a plain chat keeps its title. */
+export function chatLabel(c: InboxChatInput): string {
+  return c.worker ? ["Worker", c.worker.branch, ...(c.worker.taskId ? [c.worker.taskId] : [])].join(" · ") : c.title
+}
+
 /** Newest first; unknown times last; ties by project id, then item id, so the order is stable. */
 export function sortInbox(items: InboxItem[]): InboxItem[] {
   return [...items].sort((a, b) =>
@@ -78,7 +85,7 @@ export function buildInbox(inputs: InboxProjectInput[], opts: { project?: string
       if (kind) items.push({ kind, project: p, id: t.id, title: t.title, since: t.since, href: href(kind, t.id, p.id) })
     }
     for (const c of chats) {
-      if (c.waiting) items.push({ kind: "chat-waiting", project: p, id: c.id, title: c.title, since: c.since, href: href("chat-waiting", c.id, p.id) })
+      if (c.waiting) items.push({ kind: "chat-waiting", project: p, id: c.id, title: chatLabel(c), since: c.since, href: href("chat-waiting", c.id, p.id) })
     }
   }
   return sortInbox(items)

@@ -1,6 +1,6 @@
 // Self-check for worker-args. Run: node src/lib/worker-args.check.mts
 import assert from 'node:assert/strict'
-import { WORKER_CALL_HEADER, workerArgs } from './worker-args.ts'
+import { WORKER_CALL_HEADER, WORKER_SYSTEM_PROMPT, workerArgs } from './worker-args.ts'
 
 const args = workerArgs({ taskId: 'T554', mainRoot: '/repo main', mcpOrigin: 'http://localhost:3333', workerId: 'c-abc', pluginDir: '/vibedoc/plugin' })
 const after = (flag: string) => args[args.indexOf(flag) + 1]
@@ -30,6 +30,15 @@ assert.ok(args.slice(args.indexOf('--disallowedTools')).includes('Bash(gh *)'))
 assert.ok(!args.includes('bypassPermissions'))
 const allowed = args.slice(args.indexOf('--allowedTools') + 1, args.indexOf('--disallowedTools'))
 assert.ok(allowed.includes('mcp__vibedoc__*') && !allowed.some(a => a.startsWith('Bash(git push')))
+
+// T558: the ask rule on every turn
+assert.equal(after('--append-system-prompt'), WORKER_SYSTEM_PROMPT)
+assert.match(WORKER_SYSTEM_PROMPT, /vibedoc_ask_questions and end your turn/)
+
+// T558: an answer resumes that task's session with the answer as the prompt; every other flag stays
+const resumed = workerArgs({ taskId: 'T554', mainRoot: '/repo main', mcpOrigin: 'http://localhost:3333', workerId: 'c-abc', pluginDir: '/vibedoc/plugin', resume: { sessionId: 's-1', message: 'Answers:\n- Scope: A' } })
+assert.deepEqual(resumed.slice(0, 4), ['-p', 'Answers:\n- Scope: A', '--resume', 's-1'])
+assert.deepEqual(resumed.slice(4), args.slice(2))
 
 // custom lists replace the defaults
 const custom = workerArgs({ taskId: 'T1', mainRoot: '/r', mcpOrigin: 'http://h', workerId: 'w', pluginDir: '/p', allowed: ['Read'], denied: ['Bash(rm *)'] })

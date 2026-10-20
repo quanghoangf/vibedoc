@@ -406,7 +406,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const message = text.trim()
     const chat = chats.find((c) => c.id === chatId)
     if (playground) return void toast(tNow("chat.playgroundNoAgents")) // `vibedoc --demo` (R085)
-    if (!message || chat?.busy || chat?.worker || demo) return
+    if (!message || chat?.busy || demo) return
+    if (chat?.worker) return answerWorker(chatId, message)
     // Ask once, from this click/Enter (browsers want a user gesture), so waiting chats can notify later
     if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission().catch(() => {})
     const first = !chat?.messages.length
@@ -436,6 +437,28 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ message: outgoing, sessionId: chat?.sessionId ?? null, docPath, conversationId: chatId }),
       signal,
     }))
+  }
+
+  // R108 T558: a worker waiting on the user takes the answer on the server, which resumes that task's session and then
+  // goes on with the loop; the server owns the chat file, so nothing is marked dirty here. Never /api/chat.
+  async function answerWorker(chatId: string, message: string, card?: { questionId: string; answers: string[] }) {
+    setChats((cs) => patchChat(cs, chatId, (c) => ({
+      ...c, busy: true, dismissed: false, updatedAt: new Date().toISOString(),
+      messages: [...c.messages, blank("user", message), blank("assistant")],
+    })))
+    let resumed = false
+    await follow(chatId, async (signal) => {
+      const res = await fetch(`/api/workers/answer${rootParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: chatId, message, ...card }),
+        signal,
+      })
+      resumed = res.ok
+      return res.ok ? fetch(`/api/conversations/turn${rootParam}&id=${encodeURIComponent(chatId)}`, { signal }) : res
+    }, true)
+    // refused (e.g. no longer waiting): no worker_updated will clear busy
+    if (!resumed) setChats((cs) => patchChat(cs, chatId, (c) => ({ ...c, busy: false })))
   }
 
   // Reads one turn's NDJSON into chat `chatId` (a new turn, or one picked back up after a reload), then saves it
@@ -539,11 +562,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }
 
   function answerQuestions(chatId: string, set: QuestionSet, answers: string[]) {
-    if (chats.find((c) => c.id === chatId)?.busy) return
+    const chat = chats.find((c) => c.id === chatId)
+    if (chat?.busy) return
     mapMessages(chatId, (m) => ({
       ...m,
       questions: m.questions.map((q) => (q.id === set.id ? { ...q, answers } : q)),
     }))
+    if (chat?.worker) return void answerWorker(chatId, formatAnswers(set.questions, answers), { questionId: set.id, answers })
     send(chatId, formatAnswers(set.questions, answers))
   }
 
