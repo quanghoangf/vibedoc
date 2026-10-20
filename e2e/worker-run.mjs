@@ -10,6 +10,10 @@
 //   T561: GET /api/workers/propose → "existing" for R002's idle worker, "new" for an epic without one, nothing created;
 //      MCP vibedoc_propose_run new on R002 → refused naming the worker; vibedoc_list_workers shows phase, commits ahead and
 //      (section 3) the current task; POST mode "existing" with a new task on R002 → the same worker and worktree claim it.
+//   T560: a task target. Loose T014 → propose "new" on vibedoc/T014 → POST → one stub call naming T014, the worker ends
+//      "Task finished"; T015 in R002 (idle worker) → propose "existing" with that worker, Accept → it claims T015 next.
+//      Browser: board task panel ⋯ → Work with agent on T013 (R009, no worker) → card on vibedoc/T013 → Start → one
+//      call naming T013, the worker ends, R009's other task T016 is never claimed (S1).
 //   4. Browser (T555): epic sheet → Work with agent → run card → Start → the worker chat opens with branch, folder and the
 //      current task, streams the reply, starts a divider per task; the board card moves without a reload; a reload
 //      mid-task re-attaches to the running turn. Fails on any browser console error.
@@ -65,9 +69,12 @@ writeFileSync(path.join(fx, "plans/roadmap/R005-limit.md"), "# R005: Limit\n**Pa
 writeFileSync(path.join(fx, "plans/roadmap/R006-turns.md"), "# R006: Turns\n**Parent:** R001\n**Status:** planned\n**Order:** 50\n**Tasks:** T008, T009\n")
 writeFileSync(path.join(fx, "plans/roadmap/R007-time.md"), "# R007: Time\n**Parent:** R001\n**Status:** planned\n**Order:** 60\n**Tasks:** T010\n")
 writeFileSync(path.join(fx, "plans/roadmap/R008-usage.md"), "# R008: Usage\n**Parent:** R001\n**Status:** planned\n**Order:** 70\n**Tasks:** T011\n")
+// T560: R009 T013 + T016 (the browser starts T013 alone); T014 is loose (in no epic)
+writeFileSync(path.join(fx, "plans/roadmap/R009-single.md"), "# R009: Single\n**Parent:** R001\n**Status:** planned\n**Order:** 80\n**Tasks:** T013, T016\n")
 writeFileSync(path.join(fx, ".claude-stub-outcomes"), JSON.stringify({ T008: "max-turns", T010: "hang", T011: "usage-limit" }))
 task("T001", "R002"); task("T002", "R002"); task("T003", "R003"); task("T004", "R003", "T003"); task("T005", "R004"); task("T006", "R004", "T005"); task("T007", "R005")
 task("T008", "R006"); task("T009", "R006", "T008"); task("T010", "R007"); task("T011", "R008")
+task("T013", "R009"); task("T016", "R009"); task("T014", "Loose")
 const stubEnv = ["CLAUDE_STUB_WORKER_MS"]
 const settings = (workers) => writeFileSync(path.join(fx, ".vibedoc/settings.json"), JSON.stringify({ workers: { env: stubEnv, verify: false, ...workers } })) // T568's review gate: e2e/worker-verify.mjs
 settings({})
@@ -177,6 +184,33 @@ try {
   assert.deepEqual(git(["log", "--format=%s", "main..vibedoc/R002"]).trim().split("\n"), ["feat: T012", "feat: T002", "feat: T001"])
   console.log("ok  Accept on an existing worker → it claims T012 in its worktree, no new worktree (S7)")
 
+  // T560: one task. A loose task → its own worktree, one turn, then the worker ends
+  const proposeTask = async (id) => (await fetch(`${BASE}/api/workers/propose${q}&kind=task&id=${id}`)).json()
+  const loose = await proposeTask("T014")
+  assert.deepEqual([loose.proposal.mode, loose.proposal.branch, loose.errors], ["new", "vibedoc/T014", []])
+  const one = await (await post("/api/workers", { target: { kind: "task", id: "T014" } })).json()
+  assert.equal(one.branch, "vibedoc/T014", JSON.stringify(one))
+  dirs.push(one.dir)
+  await until(() => savedChat(one.id).worker.phase === "ended", "the task worker ended")
+  assert.deepEqual(savedChat(one.id).worker.turns.map((t) => [t.taskId, t.result]), [["T014", "done"]])
+  assert.equal(savedChat(one.id).worker.reason, "Task finished")
+  const oneCalls = readFileSync(path.join(one.dir, ".claude-stub.log"), "utf8").split(/^(?=-p )/m)
+  assert.equal(oneCalls.length, 1)
+  assert.match(oneCalls[0], /^-p \/vibedoc:work T014\b/)
+  assert.deepEqual(git(["log", "--format=%s", "main..vibedoc/T014"]).trim().split("\n"), ["feat: T014"])
+  console.log("ok  a loose task → new worktree on vibedoc/T014, one stub call naming T014, the worker ends (S1)")
+  // a task whose epic has an idle worker → that worker, which claims it next
+  task("T015", "R002")
+  writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** T001, T002, T012, T015\n")
+  const toEpicWorker = await proposeTask("T015")
+  assert.deepEqual([toEpicWorker.proposal.mode, toEpicWorker.proposal.workerId, toEpicWorker.proposal.branch, toEpicWorker.errors], ["existing", w.id, "vibedoc/R002", []])
+  const sent = await post("/api/workers", { target: { kind: "task", id: "T015" }, mode: "existing", workerId: w.id })
+  assert.equal(sent.status, 200, JSON.stringify(await sent.clone().json()))
+  await until(() => savedChat(w.id).worker.phase === "ended" && savedChat(w.id).worker.turns.length === 4, "the epic worker ran T015")
+  assert.deepEqual(savedChat(w.id).worker.turns.at(-1).taskId, "T015")
+  assert.equal(status("T015"), "done")
+  console.log("ok  a task in R002 → the card proposes R002's idle worker; Accept → it claims T015 next")
+
   // a settings allowlist that allows push, one worker at a time, GITHUB_TOKEN passed on
   settings({ allowedTools: ["Read", "Bash(git push*)"], maxRunning: 1, env: [...stubEnv, "GITHUB_TOKEN"] })
 
@@ -274,6 +308,24 @@ try {
     assert.equal(await card2.getByRole("button", { name: "Send to worker" }).isEnabled(), true)
     await card2.getByRole("button", { name: "Cancel" }).click()
     console.log("ok  Work with agent on R002 → the card proposes its idle worker at once (S7, S8)")
+
+    // T560: the board task panel's ⋯ → Work with agent on one task
+    await page.goto(`${BASE}/board?task=T013`)
+    const panel = page.getByRole("dialog")
+    await panel.getByRole("button", { name: "Actions for T013" }).click()
+    await page.getByRole("menuitem", { name: "Work with agent" }).click()
+    const card3 = page.getByRole("form", { name: "Work on T013 with an agent" })
+    await card3.getByText("New worktree").waitFor()
+    assert.equal(await card3.getByLabel("Branch").inputValue(), "vibedoc/T013")
+    await card3.getByRole("button", { name: "Start worker" }).click()
+    await page.getByRole("dialog").locator("[data-worker-strip]").getByText("vibedoc/T013").waitFor()
+    const taskChat = () => readdirSync(path.join(fx, ".vibedoc/chats")).map((f) => savedChat(f.replace(/\.json$/, ""))).find((c) => c.worker?.target.id === "T013")
+    await until(() => taskChat()?.worker.phase === "ended", "the T013 worker ended", STUB_MS + 20000)
+    dirs.push(taskChat().worker.dir)
+    assert.deepEqual(taskChat().worker.turns.map((t) => [t.taskId, t.result]), [["T013", "done"]])
+    assert.equal(readFileSync(path.join(taskChat().worker.dir, ".claude-stub.log"), "utf8").split(/^(?=-p )/m).length, 1)
+    assert.equal(status("T016"), "todo", "the epic's other task is not claimed")
+    console.log("ok  task panel → Work with agent → card on vibedoc/T013 → Start → one call naming T013, the worker ends (S1)")
 
     await page.goto(`${BASE}/settings?tab=workers`)
     await page.getByText(/It is not a sandbox/).waitFor()

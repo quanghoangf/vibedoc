@@ -3,7 +3,7 @@
  * POST /api/workers/answer (T558, resume). Not a route: Next only serves route.ts.
  */
 import path from 'path'
-import { claimNextTask, getChat, getTask, listChats, readProjectSettings, saveChat, sendBackTask, type WorkerSettings } from '@/lib/core'
+import { claimNextTask, claimTask, getChat, getTask, listChats, readProjectSettings, saveChat, sendBackTask, type WorkerSettings } from '@/lib/core'
 import { addChat, ORCHESTRATOR_ID, ORCHESTRATOR_TITLE, type Chat } from '@/lib/chats'
 import { emitUpdate } from '@/lib/events'
 import { workerArgs, workerEnv } from '@/lib/worker-args'
@@ -11,11 +11,16 @@ import { formatFindingsNote } from '@/lib/verification'
 import { reserveWorker, startWorker, type WorkerChat, type WorkerDeps } from '@/lib/worker-runs'
 
 export function workerDeps(root: string, chat: WorkerChat, origin: string, workers: WorkerSettings): WorkerDeps {
-  const epicId = chat.worker.target.id
+  const { target } = chat.worker
   const owner = `worker-${chat.id}`
   return {
+    // T560: a task worker claims its task only; an epic worker sent a task (`nextTask`) claims that one first
     claim: async () => {
-      const { result, task, previousStatus } = await claimNextTask(epicId, root, owner)
+      const first = target.kind === 'task' ? target.id : chat.worker.nextTask
+      chat.worker.nextTask = undefined
+      let claimed = first ? await claimTask(first, root, owner) : await claimNextTask(target.id, root, owner)
+      if (first && target.kind === 'epic' && claimed.result.kind !== 'ready') claimed = await claimNextTask(target.id, root, owner)
+      const { result, task, previousStatus } = claimed
       if (task) emitUpdate('task_updated', { taskId: task.id, status: task.status, previousStatus, task })
       return result
     },

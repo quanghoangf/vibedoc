@@ -1,6 +1,6 @@
 // Self-check for run-proposal. Run: node src/lib/run-proposal.check.mts
 import assert from 'node:assert/strict'
-import { formatProposal, formatWorkers, freeBranch, routeRun, validateRunProposal, type RunContext, type WorkerInfo } from './run-proposal.ts'
+import { epicOf, formatProposal, formatWorkers, freeBranch, routeRun, validateRunProposal, type RunContext, type WorkerInfo } from './run-proposal.ts'
 
 const epic = (id: string) => ({ kind: 'epic' as const, id })
 const worker = (o: Partial<WorkerInfo> = {}): WorkerInfo => ({
@@ -47,7 +47,36 @@ assert.equal(routeRun(epic('R2'), ctx({ workers: [worker({ running: true }), wor
 assert.match(errs('R9', ctx())[0], /Epic R9 not found/)
 assert.match(errs('R1', ctx())[0], /horizon/)
 assert.match(errs('R4', ctx())[0], /R4 is done/)
-assert.match(validateRunProposal(routeRun({ kind: 'task', id: 'T1' }, ctx()), ctx())[0], /Only an epic/)
+
+// T560: a task target. R2 lists T1, T2; T9 is loose
+const task = (id: string) => ({ kind: 'task' as const, id })
+const tctx = (o: Partial<RunContext> = {}) => ctx({
+  roadmap: [{ id: 'R1', parent: null, status: 'in-progress', tasks: ['T1'] }, { id: 'R2', parent: 'R1', status: 'in-progress', tasks: ['T1', 'T2'] }],
+  tasks: [{ id: 'T1', status: 'todo', owner: null }, { id: 'T2', status: 'in-progress', owner: 'ai:worker-c-1' }, { id: 'T3', status: 'done', owner: null }, { id: 'T9', status: 'todo', owner: null }],
+  ...o,
+})
+assert.equal(epicOf(task('T1'), tctx()), 'R2', 'the epic, never the horizon')
+assert.equal(epicOf(task('T9'), tctx()), null)
+// no worker → a new worktree on vibedoc/T1, loose or not
+const tNew = routeRun(task('T1'), tctx())
+assert.deepEqual([tNew.mode, tNew.branch], ['new', 'vibedoc/T1'])
+assert.deepEqual(validateRunProposal(tNew, tctx()), [])
+assert.equal(routeRun(task('T9'), tctx()).branch, 'vibedoc/T9')
+// its epic has an idle worker → that worker (it claims T1 next)
+const tIdle = tctx({ workers: [worker()] })
+const tExisting = routeRun(task('T1'), tIdle)
+assert.deepEqual([tExisting.mode, tExisting.workerId, tExisting.branch], ['existing', 'c-1', 'vibedoc/R2'])
+assert.deepEqual(validateRunProposal(tExisting, tIdle), [])
+assert.match(validateRunProposal(routeRun(task('T1'), tIdle, { mode: 'new' }), tIdle)[0], /R2 already has worker c-1/)
+// a loose task's own worker
+const looseW = tctx({ workers: [worker({ id: 'c-7', target: task('T9'), branch: 'vibedoc/T9' })] })
+assert.equal(routeRun(task('T9'), looseW).workerId, 'c-7')
+assert.equal(routeRun(task('T9'), tIdle).mode, 'new', "another epic's worker is not a loose task's")
+// refusals: unknown, finished, someone else's in-progress (the worker's own is fine)
+assert.match(validateRunProposal(routeRun(task('T8'), tctx()), tctx())[0], /Task T8 not found/)
+assert.match(validateRunProposal(routeRun(task('T3'), tctx()), tctx())[0], /T3 is done/)
+assert.match(validateRunProposal(routeRun(task('T2'), tctx(), { mode: 'new' }), tctx())[0], /T2 is in progress \(ai:worker-c-1\)/)
+assert.deepEqual(validateRunProposal(routeRun(task('T2'), tIdle), tIdle), [])
 // new while the epic has a worker: names it
 const dup = errs('R2', idle, { mode: 'new' })
 assert.equal(dup.length, 1)

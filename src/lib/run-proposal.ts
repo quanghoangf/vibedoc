@@ -24,7 +24,10 @@ export interface WorkerInfo {
 }
 
 export interface RunContext {
-  roadmap: { id: string; parent: string | null; status: string }[]
+  /** `tasks`: the epic's **Tasks:** ids (T560: a task's epic) */
+  roadmap: { id: string; parent: string | null; status: string; tasks?: string[] }[]
+  /** T560: every task's status and owner, for a task target */
+  tasks?: { id: string; status: string; owner: string | null }[]
   workers: WorkerInfo[]
   branches: string[]
   maxRunning: number
@@ -67,12 +70,27 @@ export function freeBranch(epic: string, branches: string[]): string {
   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`
 }
 
-/** What a run on `target` would do: send it to the epic's worker, else a new worktree. `want` overrides (MCP, Accept). */
+/** T560: the epic a task is listed in, else null (a loose task). An epic target is its own epic. */
+export function epicOf(target: Attach, ctx: Pick<RunContext, 'roadmap'>): string | null {
+  if (target.kind === 'epic') return target.id
+  return ctx.roadmap.find(i => i.parent && i.tasks?.includes(target.id))?.id ?? null
+}
+
+/** A loose task's own worker (its target is the task). */
+const taskWorker = (id: string, workers: WorkerInfo[]) =>
+  workers.filter(w => w.target.kind === 'task' && w.target.id === id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null
+
+/**
+ * What a run on `target` would do: send it to the epic's worker, else a new worktree. `want` overrides (MCP, Accept).
+ * T560: a task inside an epic with a worker goes to that worker (it claims the task next); else a new worktree on
+ * `vibedoc/T123` whose loop runs that task only.
+ */
 export function routeRun(target: Attach, ctx: RunContext, want: RunRequest = {}): RunProposal {
   const tools = { allowedTools: ctx.allowedTools, denied: ctx.denied, ...(ctx.budget && { budget: ctx.budget }) }
+  const epic = epicOf(target, ctx)
   const existing = want.mode === 'new' ? null
     : want.workerId ? ctx.workers.find(w => w.id === want.workerId) ?? null
-    : workerFor(target.id, ctx.workers)
+    : (epic && workerFor(epic, ctx.workers)) || (target.kind === 'task' ? taskWorker(target.id, ctx.workers) : null)
   if (want.mode !== 'new' && (want.mode === 'existing' || want.workerId || existing)) {
     return {
       target, mode: 'existing', workerId: existing?.id ?? want.workerId, branch: existing?.branch ?? '', base: existing?.base ?? '',
@@ -85,17 +103,27 @@ export function routeRun(target: Attach, ctx: RunContext, want: RunRequest = {})
 /** Why the proposal can't run now; empty = Accept may go. Messages are for the user and the agent (English). */
 export function validateRunProposal(p: RunProposal, ctx: RunContext): string[] {
   const id = p.target.id
-  if (p.target.kind !== 'epic') return [`Only an epic gets a worker for now; ${id} is a ${p.target.kind}`]
-  const epic = ctx.roadmap.find(i => i.id === id)
-  if (!epic) return [`Epic ${id} not found`]
-  if (!epic.parent) return [`${id} is a horizon; pass an epic id`]
-  if (epic.status === 'done') return [`${id} is done: nothing left for a worker`]
+  // the worker that owns this run's files: the epic's (one per epic, ADR-007 decision 6), or a loose task's own
+  let owner = id
+  if (p.target.kind === 'task') {
+    const task = ctx.tasks?.find(t => t.id === id)
+    if (!task) return [`Task ${id} not found`]
+    if (task.status === 'done' || task.status === 'cancelled' || task.status === 'review') return [`${id} is ${task.status}: nothing left for a worker`]
+    const mine = p.mode === 'existing' && task.owner === `ai:worker-${p.workerId}`
+    if (task.status === 'in-progress' && !mine) return [`${id} is in progress${task.owner ? ` (${task.owner})` : ''}`]
+    owner = epicOf(p.target, ctx) ?? id
+  } else {
+    const epic = ctx.roadmap.find(i => i.id === id)
+    if (!epic) return [`Epic ${id} not found`]
+    if (!epic.parent) return [`${id} is a horizon; pass an epic id`]
+    if (epic.status === 'done') return [`${id} is done: nothing left for a worker`]
+  }
   const errors: string[] = []
   const running = ctx.workers.filter(w => w.running).length
   const overLimit = `The limit of ${ctx.maxRunning} running workers is reached (Settings → Workers). Stop one, or wait.`
   if (p.mode === 'new') {
-    const w = workerFor(id, ctx.workers)
-    if (w) errors.push(`${id} already has worker ${w.id} on ${w.branch} (${w.running ? 'running' : w.phase}): send the run to it (mode "existing", workerId "${w.id}")`)
+    const w = workerFor(owner, ctx.workers) ?? (p.target.kind === 'task' ? taskWorker(id, ctx.workers) : null)
+    if (w) errors.push(`${owner} already has worker ${w.id} on ${w.branch} (${w.running ? 'running' : w.phase}): send the run to it (mode "existing", workerId "${w.id}")`)
     if (!p.branch.trim()) errors.push('A branch name is required')
     else if (ctx.branches.includes(p.branch.trim())) errors.push(`Branch ${p.branch.trim()} already exists`)
     if (!p.base.trim()) errors.push('A base is required')
@@ -104,8 +132,8 @@ export function validateRunProposal(p: RunProposal, ctx: RunContext): string[] {
   }
   const w = ctx.workers.find(x => x.id === p.workerId)
   if (!w) return [`No worker ${p.workerId ?? '(none given)'} with a worktree in this project`]
-  if (w.target.kind !== p.target.kind || w.target.id !== id) return [`Worker ${w.id} works on ${w.target.id}, not ${id}`]
-  if (w.running) return [`Worker ${w.id} is already running on ${id}${w.currentTask ? ` (${w.currentTask})` : ''}`]
+  if (w.target.id !== owner) return [`Worker ${w.id} works on ${w.target.id}, not ${id}`]
+  if (w.running) return [`Worker ${w.id} is already running on ${w.target.id}${w.currentTask ? ` (${w.currentTask})` : ''}`]
   if (running >= ctx.maxRunning) errors.push(overLimit)
   return errors
 }

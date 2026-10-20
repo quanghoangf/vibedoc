@@ -60,6 +60,8 @@ export interface Worker {
   port?: number
   /** T567: while `paused`, when it tries again (saved, so a restart picks it up) */
   retryAt?: string
+  /** T560: an epic worker sent one of its tasks claims that task next (once), then its epic's queue */
+  nextTask?: string
 }
 
 /**

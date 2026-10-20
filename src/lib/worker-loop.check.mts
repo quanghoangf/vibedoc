@@ -1,6 +1,6 @@
 // Self-check for worker-loop. Run: node src/lib/worker-loop.check.mts
 import assert from 'node:assert/strict'
-import { nextStep, orchestratorNote, pauseStep, resumableTurn, retryDelayMs } from './worker-loop.ts'
+import { nextStep, orchestratorNote, pauseStep, resumableTurn, retryDelayMs, taskClaim } from './worker-loop.ts'
 
 const running = { phase: 'running' as const }
 const turn = (result: string | null) => ({ taskId: 'T1', sessionId: 's', startedAt: 'a', endedAt: 'b', result })
@@ -21,6 +21,17 @@ assert.equal(nextStep({ phase: 'stopped' }, { kind: 'ready', taskId: 'T2' }, tur
 // the claim's result
 assert.deepEqual(nextStep(running, { kind: 'ready', taskId: 'T2' }, turn('done')), { kind: 'run-task', taskId: 'T2' })
 assert.deepEqual(nextStep(running, { kind: 'finished' }, null), { kind: 'ended', reason: 'Epic finished' })
+assert.deepEqual(nextStep({ ...running, target: { kind: 'task', id: 'T1' } }, { kind: 'finished' }, turn('done')), { kind: 'ended', reason: 'Task finished' })
+
+// T560: one task's claim: todo claims, the worker's own in-progress reruns, done/review ends, else waits on the user
+const tk = (status: string, owner: string | null = null) => ({ id: 'T1', status, owner })
+assert.equal(taskClaim(tk('todo'), 'worker-c-1'), 'claim')
+assert.deepEqual(taskClaim(tk('in-progress', 'ai:worker-c-1'), 'worker-c-1'), { kind: 'ready', taskId: 'T1' })
+for (const s of ['done', 'review', 'cancelled']) assert.deepEqual(taskClaim(tk(s), 'worker-c-1'), { kind: 'finished' })
+const other = taskClaim(tk('in-progress', 'ai:claude'), 'worker-c-1')
+assert.ok(other !== 'claim' && other.kind === 'waiting' && other.needsHuman && /T1 is in progress \(ai:claude\)/.test(other.waiting[0].reason))
+assert.equal(nextStep(running, taskClaim(tk('blocked'), 'worker-c-1') as never, null).kind, 'wait-user')
+assert.equal((taskClaim(null, 'worker-c-1') as { kind: string }).kind, 'waiting')
 const w = { taskId: 'T3', reason: 'T3 is blocked', why: 'blocked' as const }
 assert.deepEqual(nextStep(running, { kind: 'waiting', waiting: [w], needsHuman: true }, null), { kind: 'wait-user', reason: 'T3 is blocked' })
 assert.equal(nextStep(running, { kind: 'waiting', waiting: [w], needsHuman: false }, null).kind, 'ended')

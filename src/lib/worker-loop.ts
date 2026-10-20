@@ -41,7 +41,8 @@ function gateStep(last: WorkerTurn, turns: WorkerTurn[]): WorkerStep | null {
   return !fixed && sessionId ? { kind: 'fix', taskId: last.taskId, sessionId } : { kind: 'send-back', taskId: last.taskId }
 }
 
-export function nextStep(worker: Pick<Worker, 'phase'>, claim: QueueResult | null, lastTurn: WorkerTurn | null, gate?: { verify: boolean; turns: WorkerTurn[] }): WorkerStep {
+/** `worker.target` (T560): a task worker's loop claims that task only, so `finished` = the task is finished. */
+export function nextStep(worker: Pick<Worker, 'phase'> & Partial<Pick<Worker, 'target'>>, claim: QueueResult | null, lastTurn: WorkerTurn | null, gate?: { verify: boolean; turns: WorkerTurn[] }): WorkerStep {
   if (worker.phase === 'stopped') return { kind: 'ended', reason: 'Stopped' }
   const g = lastTurn && gate?.verify ? gateStep(lastTurn, gate.turns) : null
   if (g) return g
@@ -57,7 +58,7 @@ export function nextStep(worker: Pick<Worker, 'phase'>, claim: QueueResult | nul
   }
   if (!claim) return { kind: 'claim' }
   if (claim.kind === 'ready') return { kind: 'run-task', taskId: claim.taskId }
-  if (claim.kind === 'finished') return { kind: 'ended', reason: 'Epic finished' }
+  if (claim.kind === 'finished') return { kind: 'ended', reason: worker.target?.kind === 'task' ? 'Task finished' : 'Epic finished' }
   const why = claim.waiting.map(w => w.reason).join('; ')
   return claim.needsHuman ? { kind: 'wait-user', reason: why } : { kind: 'ended', reason: `Nothing ready: ${why}` }
 }
@@ -101,6 +102,20 @@ export function retryDelayMs(n: number): number {
  * window is nearly spent) pauses before the next claim. Read from the saved worker, so a restart resumes the same pause.
  * T568: `kind` = the limited turn was a verify or fix turn: after the pause the gate decides again from the turn before.
  */
+/**
+ * T560: the claim for one task (a task worker, or the task an epic worker was sent): todo → claim it; in-progress and
+ * ours → run it again (a restart); finished → `finished`; anything else waits on the user. `Depends on` is not checked:
+ * the user picked this task.
+ */
+export function taskClaim(task: { id: string; status: string; owner: string | null } | null, owner: string): QueueResult | 'claim' {
+  if (!task) return { kind: 'waiting', waiting: [], needsHuman: true }
+  if (task.status === 'todo') return 'claim'
+  if (task.status === 'in-progress' && task.owner === `ai:${owner}`) return { kind: 'ready', taskId: task.id }
+  if (FINISHED.has(task.status)) return { kind: 'finished' }
+  const reason = task.status === 'in-progress' ? `${task.id} is in progress (${task.owner ?? 'claimed'})` : `${task.id} is ${task.status}`
+  return { kind: 'waiting', waiting: [{ taskId: task.id, reason, why: task.status === 'in-progress' ? 'in-progress' : task.status === 'paused' ? 'paused' : 'blocked' }], needsHuman: true }
+}
+
 export function pauseStep(worker: Pick<Worker, 'turns' | 'retryAt'>): { taskId: string | null; retryAt: string; kind?: WorkerTurn['kind'] } | null {
   const last = worker.turns[worker.turns.length - 1]
   if (last?.result === 'usage-limit') {

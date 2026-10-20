@@ -17,6 +17,7 @@ import { applyEdits, type TextEdit } from './diff'
 import { META_LINE, parseMetaBlock } from './meta-block'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 import { pickNextTask, type QueueResult } from './work-queue'
+import { taskClaim } from './worker-loop'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
 import { parseManualTests, setAllManualTests, setManualTests, setManualTestsChecked, setManualTestsMeta, toggleManualTest, untestedItems, type AutoRun, type ManualTestsMeta } from './manual-tests'
@@ -1940,6 +1941,19 @@ export function claimNextTask(
     if (result.kind !== 'ready') return { result }
     const { task, previousStatus } = await updateTaskStatus(result.taskId, 'in-progress', root, 'ai', { actor: 'ai', agent })
     return { result, task, previousStatus }
+  })
+}
+
+/** T560: claim one given task for a worker (`taskClaim` decides): todo → in-progress, owned by `agent`. */
+export function claimTask(
+  taskId: string, root: string, agent: string
+): Promise<{ result: QueueResult; task?: Task; previousStatus?: TaskStatus }> {
+  return withTaskClaimLock(async () => {
+    const found = await getTask(taskId, root).catch(() => null)
+    const claim = taskClaim(found, agent)
+    if (claim !== 'claim') return { result: claim }
+    const { task, previousStatus } = await updateTaskStatus(taskId, 'in-progress', root, 'ai', { actor: 'ai', agent })
+    return { result: { kind: 'ready', taskId: task.id }, task, previousStatus }
   })
 }
 
@@ -4399,13 +4413,14 @@ export async function listWorkers(root: string): Promise<WorkerInfo[]> {
 
 /** T561: the run card's context. `live` = ids of workers running in this server (liveWorkerIds in worker-runs.ts). */
 export async function getRunContext(root: string, live: Set<string>): Promise<RunContext> {
-  const [{ items }, workers, branches, { workers: settings }] = await Promise.all([
+  const [{ items }, workers, branches, { workers: settings }, { tasks }] = await Promise.all([
     listRoadmap(root), listWorkers(root),
     git(['for-each-ref', '--format=%(refname:short)', 'refs/heads/'], root).then(s => s.split('\n').filter(Boolean), () => [] as string[]),
-    readProjectSettings(root),
+    readProjectSettings(root), listTasks(root),
   ])
   return {
-    roadmap: items.map(i => ({ id: i.id, parent: i.parent, status: i.status })),
+    roadmap: items.map(i => ({ id: i.id, parent: i.parent, status: i.status, tasks: i.tasks })),
+    tasks: tasks.map(t => ({ id: t.id, status: t.status, owner: t.owner })),
     workers: workers.map(w => ({ ...w, running: live.has(w.id) })),
     branches, maxRunning: settings.maxRunning, allowedTools: settings.allowedTools, denied: WORKER_DENIED,
     budget: { maxTurns: settings.maxTurnsPerTask, timeoutMin: settings.taskTimeoutMin },

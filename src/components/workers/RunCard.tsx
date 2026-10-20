@@ -1,10 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Bot, GitBranch } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { useT } from "@/context/LanguageContext"
+import { useApp } from "@/context/AppContext"
+import { useChats } from "@/context/ChatContext"
+import type { Attach } from "@/lib/chats"
 import type { RunProposal } from "@/lib/run-proposal"
 
 export interface RunValues { branch: string; base: string }
@@ -91,4 +94,65 @@ export function RunCardDialog({ target, proposal, errors, open, onOpenChange, bu
       </DialogContent>
     </Dialog>
   )
+}
+
+/**
+ * "Work with agent" on an epic or a task (T560): `open()` asks the server for the run card (GET /api/workers/propose),
+ * Accept posts it (POST /api/workers) and opens the worker's chat. `dialog` goes in the tree once.
+ */
+export function useRunCard(target: Attach, onStarted?: () => void): { open: () => void; dialog: ReactNode } {
+  const { t } = useT()
+  const { rootParam } = useApp()
+  const { show } = useChats()
+  const [state, setState] = useState<"closed" | "open" | "starting">("closed")
+  const [error, setError] = useState<string | null>(null)
+  // T561: the server routes the run (new worktree, or the epic's worker); nothing exists until Accept
+  const [proposal, setProposal] = useState<{ proposal: RunProposal; errors: string[] } | null>(null)
+  const open = async () => {
+    setError(null)
+    setProposal(null)
+    setState("open")
+    try {
+      const res = await fetch(`/api/workers/propose${rootParam}&kind=${target.kind}&id=${encodeURIComponent(target.id)}`)
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.proposal) throw new Error(data?.error ?? t("board.requestFailed", { status: res.status }))
+      setProposal(data)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }
+  const accept = async (v: RunValues) => {
+    setState("starting")
+    setError(null)
+    try {
+      const res = await fetch(`/api/workers${rootParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target, mode: proposal?.proposal.mode, workerId: proposal?.proposal.workerId, branch: v.branch, base: v.base }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.id) throw new Error(data?.error ?? t("board.requestFailed", { status: res.status }))
+      setState("closed")
+      onStarted?.()
+      show(data.id)
+    } catch (e) {
+      setError((e as Error).message)
+      setState("open")
+    }
+  }
+  return {
+    open: () => { void open() },
+    dialog: (
+      <RunCardDialog
+        target={target.id}
+        proposal={proposal?.proposal ?? null}
+        errors={proposal?.errors}
+        open={state !== "closed"}
+        onOpenChange={(o) => setState(o ? "open" : "closed")}
+        busy={state === "starting"}
+        error={error}
+        onAccept={accept}
+      />
+    ),
+  }
 }

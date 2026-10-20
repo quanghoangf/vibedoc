@@ -273,8 +273,9 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, an
         }
         const phase = run.cancelled ? 'stopped' : chat.worker.phase
         const gate = { verify: deps.verify, turns: chat.worker.turns }
-        let step = nextStep({ phase }, null, last, gate)
-        if (step.kind === 'claim') step = nextStep({ phase }, await deps.claim(), last, gate)
+        const { target } = chat.worker
+        let step = nextStep({ phase, target }, null, last, gate)
+        if (step.kind === 'claim') step = nextStep({ phase, target }, await deps.claim(), last, gate)
         if (run.cancelled) step = nextStep({ phase: 'stopped' }, null, null)
         if (step.kind === 'verify') { last = await runOne(fresh(step.taskId, null, 'verify'), verifyPrompt(step.taskId)); continue }
         if (step.kind === 'fix') {
