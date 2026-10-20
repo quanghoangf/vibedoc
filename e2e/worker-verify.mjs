@@ -9,7 +9,7 @@
 //
 // The server must run with e2e/fixtures/claude-stub first on PATH and the same VIBEDOC_HOME as this script:
 //   PATH=$PWD/e2e/fixtures/claude-stub:$PATH VIBEDOC_HOME=$H PORT=3082 pnpm exec next start -p 3082   (after pnpm build)
-//   VIBEDOC_HOME=$H BASE=http://localhost:3082 node e2e/worker-verify.mjs
+//   VIBEDOC_HOME=$H BASE=http://localhost:3082 PW_DIR=<dir with node_modules/playwright> node e2e/worker-verify.mjs
 // Writes only a fresh mktemp fixture and its worktrees under $VIBEDOC_HOME/worktrees (removed at the end).
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
