@@ -18,8 +18,8 @@ export interface RunProposal {
   base: string
   allowed: string[]
   denied: string[]
-  /** Not built yet (T567): undefined shows "No limit yet" */
-  budget?: string
+  /** Each task's budget (T567, from GET /api/workers); undefined while unknown shows "No limit yet" */
+  budget?: { maxTurns: number; timeoutMin: number }
 }
 
 export interface RunValues { branch: string; base: string }
@@ -66,7 +66,7 @@ export function RunCard({ proposal, busy, error, onAccept, onCancel }: {
         <dt className="text-muted">{t("workers.denied")}</dt>
         <dd className="flex flex-wrap gap-1">{proposal.denied.map((a) => <code key={a} className="rounded-sm border border-danger/30 px-1 font-mono text-[10px] text-danger">{a}</code>)}</dd>
         <dt className="text-muted">{t("workers.budget")}</dt>
-        <dd className="text-txt">{proposal.budget ?? t("workers.noBudget")}</dd>
+        <dd className="text-txt">{proposal.budget ? t("workers.budgetValue", { turns: proposal.budget.maxTurns, min: proposal.budget.timeoutMin }) : t("workers.noBudget")}</dd>
       </dl>
       {error && <p role="alert" className="whitespace-pre-wrap text-xs text-danger">{t("workers.startFailed", { error })}</p>}
       <div className="flex justify-end gap-2">
@@ -97,14 +97,14 @@ export function RunCardDialog({ proposal, open, onOpenChange, busy, error, onAcc
       .then((r) => (r.ok ? r.json() : null))
       .catch((e) => { console.warn("[vibedoc] could not read worker settings:", e); return null })
       // unreadable: the defaults, which is what the server falls back to as well
-      .then((w: WorkerTools | null) => setTools(w ?? { allowed: proposal.allowed, denied: proposal.denied, maxRunning: 0, env: [] }))
+      .then((w: WorkerTools | null) => setTools(w ?? { allowed: proposal.allowed, denied: proposal.denied, maxRunning: 0, env: [], maxTurnsPerTask: 0, taskTimeoutMin: 0 }))
   }, [open, rootParam, proposal.allowed, proposal.denied])
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!busy) onOpenChange(o) }}>
       <DialogContent className="max-w-lg bg-surface border-border text-txt">
         <DialogTitle className="text-sm font-semibold text-txt">{t("workers.runCardTitle", { id: proposal.target.id })}</DialogTitle>
         <DialogDescription className="text-xs text-muted">{t("workers.runCardLead")}</DialogDescription>
-        {open && tools && <RunCard proposal={{ ...proposal, allowed: tools.allowed, denied: tools.denied }} busy={busy} error={error} onAccept={onAccept} onCancel={() => onOpenChange(false)} />}
+        {open && tools && <RunCard proposal={{ ...proposal, allowed: tools.allowed, denied: tools.denied, ...(tools.maxTurnsPerTask > 0 && { budget: { maxTurns: tools.maxTurnsPerTask, timeoutMin: tools.taskTimeoutMin } }) }} busy={busy} error={error} onAccept={onAccept} onCancel={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
   )

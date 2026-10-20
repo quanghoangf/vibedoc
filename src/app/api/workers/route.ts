@@ -4,7 +4,8 @@
  * (.vibedoc/chats/<id>.json with `worker`) and starts the task-by-task loop (src/lib/worker-runs.ts). Each task turn
  * streams through GET /api/conversations/turn?id=<id>; every step emits `worker_updated`. One worker per epic (409),
  * at most `workers.maxRunning` per project (409, T557).
- * GET /api/workers → {allowed, denied, maxRunning, env}: what a worker will run with (the run card and Settings → Workers).
+ * GET /api/workers → {allowed, denied, maxRunning, env, maxTurnsPerTask, taskTimeoutMin}: what a worker will run with
+ * (the run card and Settings → Workers; T567 adds each task's budget).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createWorktree, detectFrontend, getRoadmapItem, installWorktreeDeps, readProjectSettings, rootFrom, workerPortsInUse, RoadmapError } from '@/lib/core'
@@ -21,7 +22,7 @@ export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
   const { workers } = await readProjectSettings(rootFrom(req.nextUrl.searchParams.get('root')))
-  return NextResponse.json({ allowed: workers.allowedTools, denied: WORKER_DENIED, maxRunning: workers.maxRunning, env: workers.env })
+  return NextResponse.json({ allowed: workers.allowedTools, denied: WORKER_DENIED, maxRunning: workers.maxRunning, env: workers.env, maxTurnsPerTask: workers.maxTurnsPerTask, taskTimeoutMin: workers.taskTimeoutMin })
 }
 
 export async function POST(req: NextRequest) {

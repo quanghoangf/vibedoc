@@ -1,6 +1,6 @@
 // Self-check for worker-loop. Run: node src/lib/worker-loop.check.mts
 import assert from 'node:assert/strict'
-import { nextStep, resumableTurn } from './worker-loop.ts'
+import { nextStep, pauseStep, resumableTurn, retryDelayMs } from './worker-loop.ts'
 
 const running = { phase: 'running' as const }
 const turn = (result: string | null) => ({ taskId: 'T1', sessionId: 's', startedAt: 'a', endedAt: 'b', result })
@@ -32,5 +32,24 @@ assert.equal(resumableTurn({ phase: 'running', turns: [asked] }), null)
 assert.equal(resumableTurn({ phase: 'wait-user', turns: [turn('done')] }), null, 'waiting on the queue (a blocked task), not on a turn')
 assert.equal(resumableTurn({ phase: 'wait-user', turns: [{ ...asked, sessionId: null }] }), null, 'no session to resume')
 assert.equal(resumableTurn({ phase: 'wait-user', turns: [] }), null)
+
+// T567: over budget waits on the user with the reason, never claims, and an answer resumes that session
+const over = { ...turn('over-turns'), note: 'Turn budget reached (60)' }
+assert.deepEqual(nextStep(running, { kind: 'ready', taskId: 'T2' }, over), { kind: 'wait-user', reason: 'T1: Turn budget reached (60)' })
+assert.deepEqual(nextStep(running, null, { ...turn('over-time'), note: 'Took longer than 30 min' }), { kind: 'wait-user', reason: 'T1: Took longer than 30 min' })
+assert.equal(resumableTurn({ phase: 'wait-user', turns: [over] }), over)
+
+// T567: a usage limit pauses: until the message's time, else 1, 5, 15, 30 min after the turn ended (n in a row)
+assert.deepEqual([1, 2, 3, 4, 9].map(retryDelayMs), [1, 5, 15, 30, 30].map(m => m * 60_000))
+const limit = (endedAt: string, retryAt?: string) => ({ ...turn('usage-limit'), endedAt, ...(retryAt && { retryAt }) })
+assert.deepEqual(pauseStep({ turns: [turn('done'), limit('2026-10-20T10:00:00.000Z', '2026-10-20T15:00:00.000Z')] }), { taskId: 'T1', retryAt: '2026-10-20T15:00:00.000Z' })
+assert.deepEqual(pauseStep({ turns: [limit('2026-10-20T10:00:00.000Z')] }), { taskId: 'T1', retryAt: '2026-10-20T10:01:00.000Z' })
+assert.deepEqual(pauseStep({ turns: [limit('a'), limit('b'), limit('2026-10-20T10:00:00.000Z')] }), { taskId: 'T1', retryAt: '2026-10-20T10:15:00.000Z' })
+// a finished task with a nearly spent window: pause before the next claim (no task to rerun)
+assert.deepEqual(pauseStep({ turns: [turn('done')], retryAt: '2026-10-20T15:00:00.000Z' }), { taskId: null, retryAt: '2026-10-20T15:00:00.000Z' })
+assert.equal(pauseStep({ turns: [turn('done')] }), null)
+assert.equal(pauseStep({ turns: [] }), null)
+// paused is not waiting on the user: no composer
+assert.equal(resumableTurn({ phase: 'paused', turns: [limit('x')] }), null)
 
 console.log('worker-loop: ok')

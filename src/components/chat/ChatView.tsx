@@ -8,7 +8,7 @@ import { useChats, type ChatMessage, type ChatTab } from "@/context/ChatContext"
 import { useT } from "@/context/LanguageContext"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
-import { chatStatus, suggestions } from "@/lib/chats"
+import { chatStatus, suggestions, type WorkerTurn } from "@/lib/chats"
 import { resumableTurn } from "@/lib/worker-loop"
 import type { RefusedCall } from "@/lib/worker-state"
 import { useChatText } from "./chat-text"
@@ -18,7 +18,7 @@ import { QuestionCard, type QuestionSet } from "./QuestionCard"
 import { ToolkitCard, type ToolkitProposal } from "./ToolkitCard"
 import type { ToolkitResult } from "@/components/toolkit/ToolkitPicker"
 import { AttachLabel, StatusMarker, attachHref } from "./StatusMarker"
-import { WorkerStrip } from "@/components/workers/WorkerStrip"
+import { WorkerStrip, useUsageText } from "@/components/workers/WorkerStrip"
 
 /**
  * One conversation. The chat modal and the /chat page both render this, so they are the same chat UI.
@@ -66,7 +66,8 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
             <AttachLabel attach={chat.attach} />
           </button>
         )}
-        {chat.busy && (
+        {/* T567: a paused worker (usage limit) has no turn running but can still be stopped */}
+        {(chat.busy || chat.worker?.phase === "paused") && (
           <button type="button" onClick={() => stop(chat.id)} title={t("chat.stopAgent")} className={ICON_BTN}>
             <Square className="size-3.5 fill-current" />
             <span className="sr-only">{t("chat.stop")}</span>
@@ -122,7 +123,7 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
     <div ref={scrollRef} hidden={hidden} role="log" aria-live="polite" className="min-h-0 flex-1 overflow-y-auto">
       <div className={cn("mx-auto flex flex-col gap-5 px-5 py-6 text-sm", wide ? "max-w-3xl" : "max-w-none")}>
         {messages.length === 0 && !chat.worker && <EmptyChat chat={chat} onPick={(s) => send(chat.id, s)} />}
-        {messages.map((m, i) => (chat.worker && m.role === "user" && m.text.startsWith("/vibedoc:work ") ? <TaskDivider key={i} text={m.text} /> : (
+        {messages.map((m, i) => (chat.worker && m.role === "user" && m.text.startsWith("/vibedoc:work ") ? <TaskDivider key={i} text={m.text} turns={chat.worker.turns} /> : (
           <Message
             key={i}
             m={m}
@@ -139,14 +140,16 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
   )
 }
 
-/** A worker chat's user line is the `/vibedoc:work <task>` that started a task turn: one divider per task. */
-function TaskDivider({ text }: { text: string }) {
+/** A worker chat's user line is the `/vibedoc:work <task>` that started a task turn: one divider per task, with its usage (T567). */
+function TaskDivider({ text, turns }: { text: string; turns: WorkerTurn[] }) {
   const { t } = useT()
   const id = /\bT\d+\b/.exec(text)?.[0] ?? text
+  const usage = useUsageText()(turns.filter((x) => x.taskId === id))
   return (
     <div role="separator" aria-label={t("workers.taskDivider", { id })} className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-wide text-muted animate-fade-in">
       <span className="h-px flex-1 bg-border" aria-hidden />
       {t("workers.taskDivider", { id })}
+      {usage && <span data-task-usage className="normal-case tracking-normal">{usage}</span>}
       <span className="h-px flex-1 bg-border" aria-hidden />
     </div>
   )

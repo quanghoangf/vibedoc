@@ -41,3 +41,76 @@ export function refusedCalls(lines: (string | unknown)[]): RefusedCall[] {
   }
   return [...refused.values()]
 }
+
+/** T567: one task's budget (`workers.maxTurnsPerTask`, `workers.taskTimeoutMin`). */
+export interface TurnBudget { maxTurns: number; timeoutMin: number }
+
+/** `rate_limit_event.rate_limit_info` (ADR-007 § Spike). `resetsAt` is epoch seconds. */
+export interface RateLimitInfo { status?: string; resetsAt?: number; unifiedWindows?: Record<string, { utilization?: number } | undefined> }
+
+/** How a task turn's process ended, before the loop reads the task's status. */
+export type TurnOutcome =
+  | { kind: 'done' }
+  | { kind: 'over-turns' }
+  | { kind: 'over-time' }
+  | { kind: 'usage-limit'; retryAt: string | null }
+  | { kind: 'error' }
+
+type ResultEvent = { subtype?: string; terminal_reason?: string; is_error?: boolean; result?: unknown; errors?: unknown }
+
+/** A limit message (the rejected shape was never observed, ADR-007: match by text) */
+const LIMIT_TEXT = /usage limit|rate limit|limit reached|\b429\b/i
+
+/** Pause before the next claim at or above this share of a usage window (spike: no rejected status was seen) */
+export const USAGE_PAUSE_AT = 0.95
+
+const resetIso = (resetsAt: number | undefined, nowMs: number): string | null =>
+  typeof resetsAt === 'number' && resetsAt * 1000 > nowMs ? new Date(resetsAt * 1000).toISOString() : null
+
+/**
+ * How a turn ended (ADR-007 § Spike): `error_max_turns` (exit 1) = over its turn budget; killed by the timeout =
+ * over time; a failure whose text names a limit, or a rate limit status other than allowed = a usage limit, retried
+ * at the time the message gives (`…|<epoch>`, else `resetsAt`); a clean exit = done (the loop reads the task status).
+ */
+export function turnOutcome(result: ResultEvent | null, exit: { code: number | null; stderr?: string; timedOut?: boolean }, elapsedMs: number, budget: TurnBudget, rateLimit?: RateLimitInfo | null, nowMs = Date.now()): TurnOutcome {
+  if (result?.subtype === 'error_max_turns' || result?.terminal_reason === 'max_turns') return { kind: 'over-turns' }
+  if (exit.timedOut || (exit.code !== 0 && !result && elapsedMs >= budget.timeoutMin * 60_000)) return { kind: 'over-time' }
+  if (exit.code === 0 && !result?.is_error) return { kind: 'done' }
+  const text = [result?.result, ...(Array.isArray(result?.errors) ? result.errors : []), exit.stderr].filter(x => typeof x === 'string').join('\n')
+  const rejected = rateLimit?.status !== undefined && !rateLimit.status.startsWith('allowed')
+  if (LIMIT_TEXT.test(text) || rejected) {
+    const epoch = /\|(\d{10})\b/.exec(text)?.[1]
+    return { kind: 'usage-limit', retryAt: resetIso(epoch ? Number(epoch) : undefined, nowMs) ?? resetIso(rateLimit?.resetsAt, nowMs) }
+  }
+  return { kind: 'error' }
+}
+
+/** A finished turn whose usage window is nearly spent: pause until it resets before claiming the next task. */
+export function rateLimitPause(info: RateLimitInfo | null | undefined, nowMs = Date.now()): string | null {
+  if (!info) return null
+  const used = Math.max(0, ...Object.values(info.unifiedWindows ?? {}).map(w => w?.utilization ?? 0))
+  const rejected = info.status !== undefined && !info.status.startsWith('allowed')
+  return rejected || used >= USAGE_PAUSE_AT ? resetIso(info.resetsAt, nowMs) : null
+}
+
+/** What one turn cost, from its `result` event (the numbers the spike read). */
+export interface TurnUsage { turns: number; durationMs: number; costUsd: number; tokens: number }
+
+export function turnUsage(result: Record<string, unknown> | null): TurnUsage | null {
+  if (!result) return null
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+  const u = (result.usage ?? {}) as Record<string, unknown>
+  return {
+    turns: num(result.num_turns),
+    durationMs: num(result.duration_ms),
+    costUsd: num(result.total_cost_usd),
+    tokens: num(u.input_tokens) + num(u.output_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens),
+  }
+}
+
+/** Sum of the turns' usage (the worker strip's total, or one task's turns). */
+export function sumUsage(list: (TurnUsage | null | undefined)[]): TurnUsage {
+  const total: TurnUsage = { turns: 0, durationMs: 0, costUsd: 0, tokens: 0 }
+  for (const u of list) if (u) { total.turns += u.turns; total.durationMs += u.durationMs; total.costUsd += u.costUsd; total.tokens += u.tokens }
+  return total
+}

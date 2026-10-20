@@ -6,16 +6,19 @@
  * Each task turn streams through chat-turns.ts under the worker's chat id, so the chat page follows it.
  * T558: a turn that asks (vibedoc_ask_questions) and exits with the task in-progress waits on the user; the answer
  * resumes that task's session (cwd = the worktree again) and the loop goes on.
+ * T567: each turn has a budget (`--max-turns`, a timeout that kills the group): over it, the worker waits on the user,
+ * whose answer resumes the session with the budget again. A usage limit pauses the worker (phase `paused`, `retryAt`
+ * saved) and reruns the task after it; a paused worker stays in `runs`, so it counts toward `workers.maxRunning`.
  */
 import { spawn, type ChildProcess } from 'child_process'
 import type { Chat, Worker, WorkerTurn } from './chats'
 import type { QueueResult } from './work-queue'
-import { nextStep, resumableTurn } from './worker-loop'
+import { nextStep, pauseStep, resumableTurn } from './worker-loop'
 import { beginTurn } from './chat-turns'
 import { killGroup } from './test-runner'
 import { stopFrontend } from './frontend-server'
 import { workerPort } from './worktrees'
-import { refusedCalls, type RefusedCall } from './worker-state'
+import { rateLimitPause, refusedCalls, turnOutcome, turnUsage, type RateLimitInfo, type RefusedCall, type TurnBudget } from './worker-state'
 
 /** The chat message shape ChatContext renders (one user line per task, then the agent's last reply). */
 type QuestionSet = { id: string; questions: unknown[]; answers?: string[] }
@@ -33,9 +36,12 @@ export interface WorkerDeps {
   env: Record<string, string>
   /** Persist the chat and tell the browser (worker_updated) */
   save: (chat: WorkerChat) => Promise<void>
+  /** T567: `workers.maxTurnsPerTask` (also in `args`) and `workers.taskTimeoutMin` */
+  budget: TurnBudget
 }
 
-type Run = { epic: string; child: ChildProcess | null; cancelled: boolean; port?: number }
+/** `wake`: ends a pause early (cancel) */
+type Run = { epic: string; child: ChildProcess | null; cancelled: boolean; port?: number; wake?: () => void }
 const g = globalThis as unknown as { vibedocWorkers?: Map<string, Run>; vibedocWorkersExitHook?: boolean }
 const runs = g.vibedocWorkers ?? (g.vibedocWorkers = new Map())
 
@@ -91,14 +97,18 @@ export function cancelWorker(root: string, id: string): boolean {
   if (!run) return false
   run.cancelled = true
   killGroup(run.child)
+  run.wake?.()
   return true
 }
 
 /** T558: what the user answers a waiting worker with; `questionId` + `answers` fill that question card. */
 export interface WorkerAnswer { message: string; questionId?: string; answers?: string[] }
 
-/** One task turn: resolves with its result (the task's status, `error` or `stopped`). */
-function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, deps: WorkerDeps, resume?: string): Promise<string> {
+/**
+ * One task turn: resolves with its result (the task's status, `error`, `stopped`, `over-turns`, `over-time` or
+ * `usage-limit`) and, for a finished one, when to pause before the next claim (its usage window is nearly spent).
+ */
+function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, deps: WorkerDeps, resume?: string): Promise<{ result: string; pauseUntil: string | null }> {
   return new Promise((resolve) => {
     const args = resume && turn.sessionId ? deps.args(turn.taskId, { sessionId: turn.sessionId, message: resume }) : deps.args(turn.taskId)
     // a resume too: cwd = the worktree is the only thing that keeps it out of the user's checkout (spike run D)
@@ -113,6 +123,11 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
     let failed = ''
     const questions: QuestionSet[] = []
     const events: unknown[] = [] // the ones refusedCalls reads
+    let resultEvent: Record<string, unknown> | null = null
+    let rateLimit: RateLimitInfo | null = null
+    const started = Date.now()
+    let timedOut = false
+    const timer = setTimeout(() => { timedOut = true; killGroup(child) }, deps.budget.timeoutMin * 60_000)
     child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf8')
       stream.push(text)
@@ -123,6 +138,8 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
           const ev = JSON.parse(line)
           if (typeof ev?.session_id === 'string') turn.sessionId = ev.session_id
           if (ev?.type === 'result' && typeof ev.result === 'string') reply = ev.result
+          if (ev?.type === 'result') resultEvent = ev
+          if (ev?.type === 'rate_limit_event' && ev.rate_limit_info) rateLimit = ev.rate_limit_info
           if (ev?.type === 'assistant' || ev?.type === 'system' || ev?.type === 'result') events.push(ev)
           // T558: the card the chat draws (ChatContext keeps the same shape), saved so the inbox counts it with no tab open
           if (ev?.type === 'assistant') {
@@ -144,15 +161,23 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
       failed = e.code === 'ENOENT' ? 'Claude Code CLI not found on PATH. Install it and run `claude` once to log in.' : e.message
     })
     child.on('close', async (code) => {
+      clearTimeout(timer)
       // T559: sweep what the task left in its group, e.g. the dev server it started for its spec
       killGroup(child)
       run.child = null
-      if (failed || (code !== 0 && !run.cancelled)) stream.push(JSON.stringify({ type: 'error', message: failed || stderr.trim() || `claude exited with code ${code}` }) + '\n')
+      const outcome = failed ? { kind: 'error' as const } : turnOutcome(resultEvent, { code, stderr, timedOut }, Date.now() - started, deps.budget, rateLimit)
+      const usage = turnUsage(resultEvent)
+      if (usage) turn.usage = usage
+      if (outcome.kind === 'over-turns') turn.note = `Turn budget reached (${deps.budget.maxTurns})`
+      if (outcome.kind === 'over-time') turn.note = `Took longer than ${deps.budget.timeoutMin} min`
+      if (outcome.kind === 'usage-limit' && outcome.retryAt) turn.retryAt = outcome.retryAt
+      const error = outcome.kind === 'done' ? undefined : turn.note || failed || stderr.trim() || reply || `claude exited with code ${code}`
+      if (error && !run.cancelled) stream.push(JSON.stringify({ type: 'error', message: error }) + '\n')
       stream.end()
-      const result = run.cancelled ? 'stopped' : failed || code !== 0 ? 'error' : await deps.taskStatus(turn.taskId).catch(() => 'error')
+      const result = run.cancelled ? 'stopped' : outcome.kind !== 'done' ? outcome.kind : await deps.taskStatus(turn.taskId).catch(() => 'error')
       const refused = refusedCalls(events)
-      chat.messages.push({ ...message('assistant', reply, result === 'error' ? (failed || stderr.trim() || `claude exited with code ${code}`) : undefined), questions, ...(refused.length && { refused }) })
-      resolve(result)
+      chat.messages.push({ ...message('assistant', reply, run.cancelled ? undefined : error), questions, ...(refused.length && { refused }) })
+      resolve({ result, pauseUntil: outcome.kind === 'done' ? rateLimitPause(rateLimit) : null })
     })
   })
 }
@@ -175,11 +200,22 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, an
   const runOne = async (turn: WorkerTurn, line: string, resume?: string) => {
     chat.messages.push(message('user', line))
     const ended = runTurn(root, chat, run, turn, deps, resume)
-    await save({ phase: 'running', reason: undefined, turns: [...chat.worker.turns, turn] })
-    turn.result = await ended
+    await save({ phase: 'running', reason: undefined, retryAt: undefined, turns: [...chat.worker.turns, turn] })
+    const { result, pauseUntil } = await ended
+    turn.result = result
     turn.endedAt = new Date().toISOString()
-    await save({}) // `turn` is in chat.worker.turns: its result and session are saved with it
+    // `turn` is in chat.worker.turns: its result and session are saved with it
+    await save(pauseUntil ? { retryAt: pauseUntil } : {})
     return turn
+  }
+  // T567: a usage limit (or a nearly spent window) waits here; Stop wakes it
+  const pause = async (until: string) => {
+    await save({ phase: 'paused', retryAt: until, reason: `Usage limit: tries again at ${until}` })
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, Math.max(0, Date.parse(until) - Date.now()))
+      run.wake = () => { clearTimeout(timer); resolve() }
+    })
+    run.wake = undefined
   }
   const fresh = (taskId: string, sessionId: string | null = null): WorkerTurn =>
     ({ taskId, sessionId, startedAt: new Date().toISOString(), endedAt: null, result: null })
@@ -194,6 +230,15 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, an
         last = await runOne(fresh(waiting.taskId, waiting.sessionId), answer.message, answer.message)
       }
       for (;;) {
+        const paused = !run.cancelled && pauseStep(chat.worker)
+        if (paused) {
+          await pause(paused.retryAt)
+          if (!run.cancelled) {
+            await save({ retryAt: undefined })
+            // the limit stopped this task mid-way: run it again in a fresh session (it is still in-progress and ours)
+            if (paused.taskId) { last = await runOne(fresh(paused.taskId), `/vibedoc:work ${paused.taskId}`); continue }
+          }
+        }
         const phase = run.cancelled ? 'stopped' : chat.worker.phase
         let step = nextStep({ phase }, null, last)
         if (step.kind === 'claim') step = nextStep({ phase }, await deps.claim(), last)

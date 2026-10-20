@@ -21,7 +21,8 @@ export function nextStep(worker: Pick<Worker, 'phase'>, claim: QueueResult | nul
     const r = lastTurn.result
     return {
       kind: 'wait-user',
-      reason: r === 'error' ? `${lastTurn.taskId}: the agent exited with an error`
+      reason: lastTurn.note ? `${lastTurn.taskId}: ${lastTurn.note}`
+        : r === 'error' ? `${lastTurn.taskId}: the agent exited with an error`
         : r === 'in-progress' ? `${lastTurn.taskId}: the agent stopped before the task was done`
         : `${lastTurn.taskId} is ${r ?? 'still running'}`,
     }
@@ -37,4 +38,25 @@ export function nextStep(worker: Pick<Worker, 'phase'>, claim: QueueResult | nul
 export function resumableTurn(worker: Pick<Worker, 'phase' | 'turns'>): WorkerTurn | null {
   const last = worker.turns[worker.turns.length - 1]
   return worker.phase === 'wait-user' && last?.sessionId && nextStep({ phase: 'running' }, null, last).kind === 'wait-user' ? last : null
+}
+
+/** T567: no reset time in the message: retry after 1, 5, 15, then every 30 min (`n` = usage-limit turns in a row). */
+export function retryDelayMs(n: number): number {
+  return [1, 5, 15, 30][Math.min(Math.max(n, 1), 4) - 1] * 60_000
+}
+
+/**
+ * T567: whether the worker pauses before its next step, and until when. A usage-limit turn reruns its task after the
+ * pause (fresh session, like every task: ADR-007 decision 1); `retryAt` on the worker alone (a finished task whose usage
+ * window is nearly spent) pauses before the next claim. Read from the saved worker, so a restart resumes the same pause.
+ */
+export function pauseStep(worker: Pick<Worker, 'turns' | 'retryAt'>): { taskId: string | null; retryAt: string } | null {
+  const last = worker.turns[worker.turns.length - 1]
+  if (last?.result === 'usage-limit') {
+    let n = 0
+    for (let i = worker.turns.length - 1; i >= 0 && worker.turns[i].result === 'usage-limit'; i--) n++
+    const retryAt = last.retryAt ?? new Date(Date.parse(last.endedAt ?? last.startedAt) + retryDelayMs(n)).toISOString()
+    return { taskId: last.taskId, retryAt }
+  }
+  return worker.retryAt ? { taskId: null, retryAt: worker.retryAt } : null
 }
