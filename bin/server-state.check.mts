@@ -1,10 +1,10 @@
 // Self-check for the background state file and log (R109). Run: node bin/server-state.check.mts
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { closeSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { closeSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { acquireStartLock, formatStatus, formatUptime, isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, serverStateFile, startLockFile, tildePath, writeServerState } from './server-state.mjs'
+import { acquireStartLock, formatStatus, formatStopped, formatUptime, isAlive, killTree, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, serverStateFile, startLockFile, tildePath, workerTurnPids, writeServerState } from './server-state.mjs'
 
 const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-server-state-'))
 try {
@@ -105,6 +105,49 @@ try {
   assert.equal(formatUptime((2 * 24 + 4) * 3600_000 + 5 * 60_000), '2 d 4 h')
   assert.equal(tildePath('/Users/me', '/Users/me'), '~')
   assert.equal(tildePath('/Users/meow/x', '/Users/me'), '/Users/meow/x', 'only the home folder itself')
+
+  // formatStopped: names the workers' epics once each, plural or not; nothing stopped → no lines
+  assert.deepEqual(formatStopped({ workers: [{ id: 'a', epic: 'R108' }, { id: 'b', epic: 'R109' }], testRuns: 0, frontends: 0 }), [
+    'Stopped 2 agent runs (R108, R109). They show as Interrupted with Resume next time.',
+  ])
+  assert.deepEqual(formatStopped({ workers: [{ id: 'a', epic: 'R108' }], testRuns: 1, frontends: 2 }), [
+    'Stopped 1 agent run (R108). It shows as Interrupted with Resume next time.',
+    'Stopped 1 test run.',
+    'Stopped 2 dev servers VibeDoc started.',
+  ])
+  assert.deepEqual(formatStopped({ workers: [] }), [])
+  assert.deepEqual(formatStopped(), [])
+
+  // killTree: a parent and the detached grandchild it started are both gone; one that ignores SIGTERM gets SIGKILL
+  const tree = spawn(process.execPath, ['-e', `
+    const c = require('child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { detached: true, stdio: 'ignore' })
+    console.log(c.pid); setInterval(() => {}, 1000)`], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] })
+  const grandchild = Number(await new Promise<string>((resolve) => tree.stdout.once('data', (d) => resolve(String(d)))))
+  assert.ok(isAlive(tree.pid as number) && isAlive(grandchild))
+  if (process.platform === 'win32') {
+    assert.equal(await killTree(tree.pid as number), true)
+  } else {
+    assert.equal(await killTree(tree.pid as number, { graceMs: 2000 }), true)
+    assert.equal(isAlive(grandchild), false, 'the grandchild is gone too')
+    const stubborn = spawn(process.execPath, ['-e', `process.on('SIGTERM', () => {}); console.log('ready'); setInterval(() => {}, 1000)`], { detached: true, stdio: ['ignore', 'pipe', 'ignore'] })
+    await new Promise((resolve) => stubborn.stdout.once('data', resolve))
+    const t0 = Date.now()
+    assert.equal(await killTree(stubborn.pid as number, { graceMs: 300 }), true, 'SIGKILL after the grace')
+    assert.ok(Date.now() - t0 < 3000)
+  }
+  assert.equal(await killTree(dead), true, 'a dead pid: nothing to do')
+
+  // workerTurnPids: live turns without endedAt from every project's .vibedoc-workers
+  const wHome = path.join(root, 'w-home')
+  const wDir = path.join(wHome, 'worktrees', 'proj-1', '.vibedoc-workers')
+  mkdirSync(wDir, { recursive: true })
+  writeFileSync(path.join(wDir, 'live.json'), JSON.stringify({ id: 'live', pid: process.pid, taskId: 'T001' }))
+  writeFileSync(path.join(wDir, 'ended.json'), JSON.stringify({ id: 'ended', pid: process.pid, taskId: 'T002', endedAt: '2026-10-20T00:00:00Z' }))
+  writeFileSync(path.join(wDir, 'dead.json'), JSON.stringify({ id: 'dead', pid: dead, taskId: 'T003' }))
+  writeFileSync(path.join(wDir, 'bad.json'), '{nope')
+  writeFileSync(path.join(wDir, 'live.ndjson'), '')
+  assert.deepEqual(workerTurnPids(wHome), [{ id: 'live', taskId: 'T001', pid: process.pid }])
+  assert.deepEqual(workerTurnPids(path.join(root, 'nowhere')), [])
 } finally {
   rmSync(root, { recursive: true, force: true })
 }

@@ -61,6 +61,8 @@ It prints `✓ VibeDoc is running in the background at http://localhost:<port>` 
 
 `vibedoc status` says whether VibeDoc runs and where: `● VibeDoc is running at http://localhost:3333`, since when, and the log file. A plain `vibedoc` shows as running in the foreground. Otherwise it prints `○ VibeDoc is not running`, with the last error when the server stopped on one. It exits 0 when VibeDoc runs and 3 when it doesn't, and `--json` prints the state for scripts.
 
+`vibedoc stop` stops the background VibeDoc and everything it started: agent workers, test runs and the dev servers it launched for them. It doesn't ask first. It names the agent runs it stopped (`Stopped 2 agent runs (R108, R109). They show as Interrupted with Resume next time.`): after the next `vibedoc start`, each one waits on its chat with **Resume**, which continues the task where it stopped. It ends with `✓ VibeDoc stopped`, and `status` then says not running. With nothing running it says so and exits 0. A VibeDoc running in the foreground isn't stopped: press Ctrl+C in its terminal.
+
 ## 2. Connect your agent
 
 The MCP server is `http://localhost:<port>/api/mcp?root=<project folder>` (HTTP JSON-RPC). Use the MCP URL the terminal prints.

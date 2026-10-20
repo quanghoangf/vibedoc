@@ -8,14 +8,18 @@
 //      server.json says stopped with lastError.
 //   S3: `vibedoc status` exits 3 with nothing running (also a dead supervisorPid), 0 with the address, since when and
 //      the log after start, "in the foreground" for plain vibedoc, the last error after a failed start; --json too.
+//   5. S4: `vibedoc stop` with nothing running exits 0, with a foreground VibeDoc 1. After start + an agent worker (the
+//      slow claude stub), stop names the worker, and the supervisor, server and stub are gone, the port free, status
+//      exits 3; the next start shows the worker Interrupted. /api/server/shutdown refuses without the CLI header or
+//      from another origin. With the server SIGSTOPped, stop still ends everything within 15 s (the sweep).
 //
-//   pnpm build && node e2e/background-mode.mjs      (PORT=3090 by default)
+//   pnpm build && PATH=$PWD/e2e/fixtures/claude-stub:$PATH node e2e/background-mode.mjs      (PORT=3090 by default)
 //
 // Spawns the real bin with --no-open from the `.next` build, with its own temp VIBEDOC_HOME (never ~/.vibedoc).
 // Later tasks (status, stop, crash restart) extend it.
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -31,6 +35,7 @@ const repo = (name) => {
 }
 const repoA = repo("repo-a"), repoB = repo("repo-b")
 const children = new Set()
+const stubPids = new Set()
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const state = (h = home) => { try { return JSON.parse(readFileSync(path.join(h, "server.json"), "utf8")) } catch { return null } }
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
@@ -67,7 +72,7 @@ async function until(what, check, ms = 15_000) {
   assert.fail(`timed out waiting for ${what}`)
 }
 
-/** Stops the background VibeDoc the way T571's `stop` will: SIGTERM to the supervisor, which stops the app. */
+/** Stops the background VibeDoc without `vibedoc stop` (checked on its own in 5): SIGTERM to the supervisor. */
 async function stopBackground(h = home) {
   const s = state(h)
   if (s?.supervisorPid && alive(s.supervisorPid)) process.kill(s.supervisorPid, "SIGTERM")
@@ -84,6 +89,10 @@ try {
   assert.equal(none.code, 3, none.out)
   assert.ok(none.out.includes("○ VibeDoc is not running") && none.out.includes("Start it with: vibedoc start"), none.out)
   console.log("✓ status with nothing running exits 3")
+  const stopNone = await runToExit(repoA, ["stop", "--port", String(PORT)])
+  assert.equal(stopNone.code, 0, stopNone.out)
+  assert.ok(stopNone.out.includes("○ VibeDoc is not running"), stopNone.out)
+  console.log("✓ stop with nothing running exits 0 and says not running")
 
   // 1. S1: start hands the terminal back, the app keeps answering
   const first = await runToExit(repoA, ["start", "--port", String(PORT)])
@@ -158,6 +167,10 @@ try {
   assert.ok(fgStatus.out.includes(`● VibeDoc is running in the foreground at ${url} (not started with \`vibedoc start\`)`), fgStatus.out)
   const fgJson = JSON.parse((await runToExit(repoB, ["status", "--json"])).out)
   assert.deepEqual([fgJson.running, fgJson.mode, fgJson.port], [true, "foreground", PORT])
+  const fgStop = await runToExit(repoB, ["stop"])
+  assert.equal(fgStop.code, 1, fgStop.out)
+  assert.ok(fgStop.out.includes(`running in the foreground at ${url}: press Ctrl+C in its terminal`), fgStop.out)
+  assert.equal(fg.exitCode, null, "stop leaves a foreground VibeDoc alone")
   fg.kill("SIGINT")
   await until("the foreground to exit", () => fg.exitCode !== null)
   await until("the port to free after Ctrl+C", async () => (await answers(PORT)) === 0)
@@ -197,10 +210,93 @@ try {
   const failJson = JSON.parse((await runToExit(repoA, ["status", "--json"])).out)
   assert.deepEqual([failJson.running, failJson.mode, failJson.state], [false, null, "stopped"])
   console.log("✓ status after a failed start shows the last error")
+
+  // 5. S4: stop ends VibeDoc and the agent workers it started; the worker comes back Interrupted with Resume
+  const workRepo = path.join(tmp, "work-repo")
+  mkdirSync(path.join(workRepo, "plans/roadmap"), { recursive: true })
+  mkdirSync(path.join(workRepo, "plans/tasks"), { recursive: true })
+  mkdirSync(path.join(workRepo, ".vibedoc"), { recursive: true })
+  writeFileSync(path.join(workRepo, ".vibedoc/feedback.json"), JSON.stringify({ consent: false, sent: [] }))
+  writeFileSync(path.join(workRepo, ".vibedoc/settings.json"), JSON.stringify({ workers: { env: ["CLAUDE_STUB_WORKER_MS"], verify: false } }))
+  writeFileSync(path.join(workRepo, "plans/roadmap/R001-now.md"), "# R001: Now\n**Status:** planned\n**Order:** 10\n**Tasks:** —\n")
+  for (const [epicId, taskId] of [["R002", "T001"], ["R003", "T002"]]) {
+    writeFileSync(path.join(workRepo, `plans/roadmap/${epicId}-epic.md`), `# ${epicId}: Epic ${epicId}\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** ${taskId}\n`)
+    writeFileSync(path.join(workRepo, `plans/tasks/${taskId}-task.md`), `# ${taskId}: Task ${taskId}\n**Status:** todo\n**Phase:** ${epicId}\n\n## Goal\nWrite ${taskId}.txt\n`)
+  }
+  const git = (...a) => execFileSync("git", a, { cwd: workRepo, encoding: "utf8" })
+  git("init", "-q", "-b", "main")
+  git("add", "-A")
+  git("-c", "user.name=e2e", "-c", "user.email=e2e@example.com", "commit", "-q", "-m", "init")
+  const stubPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "claude-stub")
+  const workEnv = { PATH: `${stubPath}${path.delimiter}${process.env.PATH}`, CLAUDE_STUB_WORKER_MS: "120000" }
+  const q = `?root=${encodeURIComponent(workRepo)}`
+  const workerProc = (id) => {
+    const dir = path.join(home, "worktrees")
+    for (const p of readdirSync(dir)) {
+      try { return JSON.parse(readFileSync(path.join(dir, p, ".vibedoc-workers", `${id}.json`), "utf8")) } catch {}
+    }
+    return null
+  }
+  const workerChat = (id) => JSON.parse(readFileSync(path.join(workRepo, ".vibedoc/chats", `${id}.json`), "utf8"))
+  async function startWorker(epicId, taskId) {
+    const res = await fetch(`${url}/api/workers${q}`, { method: "POST", headers: { "content-type": "application/json", origin: url }, body: JSON.stringify({ target: { kind: "epic", id: epicId } }) })
+    const w = await res.json()
+    assert.equal(res.status, 200, JSON.stringify(w))
+    await until(`${taskId}'s stub to run`, () => workerProc(w.id)?.taskId === taskId && alive(workerProc(w.id).pid), 60_000)
+    stubPids.add(workerProc(w.id).pid)
+    return { id: w.id, pid: workerProc(w.id).pid }
+  }
+
+  const s5 = await runToExit(workRepo, ["start"], { extraEnv: workEnv })
+  assert.equal(s5.code, 0, s5.out)
+  // only the CLI on this machine may ask for a shutdown
+  const shutdown = (headers) => fetch(`${url}/api/server/shutdown`, { method: "POST", headers }).then((r) => r.status)
+  assert.equal(await shutdown({}), 403, "no header → 403")
+  assert.equal(await shutdown({ "x-vibedoc-cli": "1", origin: "http://evil.example" }), 403, "another origin → 403")
+  assert.equal(await shutdown({ origin: url }), 403, "the app's own origin without the header → 403")
+  console.log("✓ /api/server/shutdown refuses without the CLI header or from another origin (403)")
+
+  const w1 = await startWorker("R002", "T001")
+  const s5state = state()
+  const stop = await runToExit(repoA, ["stop"])
+  assert.equal(stop.code, 0, stop.out)
+  assert.ok(stop.out.includes("Stopped 1 agent run (R002). It shows as Interrupted with Resume next time."), stop.out)
+  assert.ok(stop.out.includes("✓ VibeDoc stopped"), stop.out)
+  for (const [pid, what] of [[s5state.supervisorPid, "supervisor"], [s5state.serverPid, "server"], [w1.pid, "worker stub"]]) assert.equal(alive(pid), false, `the ${what} is gone`)
+  assert.equal(await answers(PORT), 0, "nothing answers")
+  if (process.platform !== "win32") assert.equal(listeners(PORT), 0, "the port is free")
+  assert.equal(state().state, "stopped")
+  assert.equal((await runToExit(repoA, ["status"])).code, 3, "status: not running")
+  console.log(`✓ stop ends the supervisor, the server and the worker's turn in ${stop.ms} ms; status exits 3`)
+
+  // after the next start the worker shows as Interrupted with Resume (T556 adopts the dead turn)
+  assert.equal((await runToExit(workRepo, ["start"], { extraEnv: workEnv })).code, 0)
+  await fetch(`${url}/api/conversations${q}`)
+  await until("the worker to be interrupted", () => workerChat(w1.id).worker.phase === "wait-user", 15_000)
+  const t1 = workerChat(w1.id).worker.turns[0]
+  assert.deepEqual([t1.taskId, t1.result], ["T001", "interrupted"])
+  console.log("✓ after the next start the stopped worker is Interrupted (waits for Resume)")
+
+  // a hung server (SIGSTOP): stop still ends everything through the sweep, within 15 s
+  const w2 = await startWorker("R003", "T002")
+  const hung = state()
+  if (process.platform !== "win32") {
+    process.kill(hung.serverPid, "SIGSTOP")
+    const hungStop = await runToExit(repoA, ["stop"], { timeoutMs: 30_000 })
+    assert.equal(hungStop.code, 0, hungStop.out)
+    assert.ok(hungStop.ms < 15_000, `within 15 s (took ${hungStop.ms} ms)`)
+    assert.ok(hungStop.out.includes("did not answer within 5 s"), hungStop.out)
+    assert.ok(hungStop.out.includes("Stopped 1 agent run (T002)"), hungStop.out)
+    for (const [pid, what] of [[hung.supervisorPid, "supervisor"], [hung.serverPid, "server"], [w2.pid, "worker stub"]]) assert.equal(alive(pid), false, `the ${what} is gone`)
+    assert.equal(listeners(PORT), 0, "the port is free")
+    console.log(`✓ a hung server: stop sweeps the supervisor tree and the worker turn in ${hungStop.ms} ms`)
+  } else {
+    assert.equal((await runToExit(repoA, ["stop"])).code, 0)
+  }
 } finally {
   for (const child of children) child.kill("SIGTERM")
   const s = state()
-  for (const pid of [s?.supervisorPid, s?.serverPid]) if (pid && alive(pid)) process.kill(pid, "SIGKILL")
+  for (const pid of [s?.supervisorPid, s?.serverPid, ...stubPids]) if (pid && alive(pid)) process.kill(pid, "SIGKILL")
   rmSync(tmp, { recursive: true, force: true })
 }
 console.log("background-mode: ok")

@@ -161,6 +161,13 @@ export function stopFrontend(root: string): boolean {
   return true
 }
 
+/** T571 (`vibedoc stop`): stops every server VibeDoc started (projects and worker worktrees) → how many. */
+export function stopAllStartedByUs(): number {
+  let n = 0
+  for (const root of [...servers.keys()]) if (stopFrontend(root)) n++
+  return n
+}
+
 /** What Settings shows: our own server's state, else whether something answers at the URL. */
 export async function frontendServerStatus(root: string, url: string): Promise<ServerStatus> {
   const entry = servers.get(root)

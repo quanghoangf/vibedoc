@@ -4,7 +4,8 @@
 // Shape: { supervisorPid, serverPid, port, startedAt, log, state: "starting"|"running"|"crashed"|"stopped",
 //          restarts: [], lastError: null }
 // Check: node bin/server-state.check.mts
-import { closeSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -50,7 +51,104 @@ export function isAlive(pid) {
   }
 }
 
-export const startLockFile = (home) => path.join(home, 'server.lock')
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** Every process below `pid` (children, theirs, ...), from one `ps` snapshot; [] when ps fails. POSIX only. */
+function descendants(pid) {
+  let out
+  try {
+    out = execFileSync('ps', ['-A', '-o', 'pid=,ppid='], { encoding: 'utf8' })
+  } catch {
+    return []
+  }
+  const kids = new Map()
+  for (const line of out.split('\n')) {
+    const [p, pp] = line.trim().split(/\s+/).map(Number)
+    if (!p) continue
+    if (!kids.has(pp)) kids.set(pp, [])
+    kids.get(pp).push(p)
+  }
+  const all = []
+  for (const stack = [pid]; stack.length;) {
+    for (const c of kids.get(stack.pop()) ?? []) {
+      all.push(c)
+      stack.push(c)
+    }
+  }
+  return all
+}
+
+/**
+ * Ends `pid` and everything it started (T571). POSIX: the tree is listed first (a child whose parent dies moves to
+ * init), then each process and the group it leads (detached children lead their own) gets SIGTERM + SIGCONT (a
+ * stopped process acts on it), and whatever still lives after `graceMs` SIGKILL. Windows: `taskkill /T /F`.
+ * Resolves true once all of them are gone.
+ */
+export async function killTree(pid, { graceMs = 5000 } = {}) {
+  if (!isAlive(pid)) return true
+  if (process.platform === 'win32') {
+    try { execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' }) } catch {}
+    for (const end = Date.now() + graceMs; isAlive(pid) && Date.now() < end;) await sleep(100)
+    return !isAlive(pid)
+  }
+  const pids = [pid, ...descendants(pid)].filter((p) => p !== process.pid)
+  const signal = (sig) => {
+    for (const p of pids) {
+      for (const target of [-p, p]) try { process.kill(target, sig) } catch {}
+    }
+  }
+  signal('SIGTERM')
+  signal('SIGCONT')
+  for (const end = Date.now() + graceMs; pids.some(isAlive) && Date.now() < end;) await sleep(100)
+  if (pids.some(isAlive)) {
+    signal('SIGKILL')
+    for (const end = Date.now() + 2000; pids.some(isAlive) && Date.now() < end;) await sleep(50)
+  }
+  return !pids.some(isAlive)
+}
+
+/**
+ * Agent worker turns still running per their state files (`<home>/worktrees/<project>/.vibedoc-workers/<id>.json`,
+ * R108 T556): `[{ id, taskId, pid }]` with no `endedAt` and a live pid. `vibedoc stop`'s sweep when the server
+ * doesn't answer.
+ */
+export function workerTurnPids(home) {
+  const found = []
+  const root = path.join(home, 'worktrees')
+  let projects = []
+  try { projects = readdirSync(root) } catch {}
+  for (const project of projects) {
+    const dir = path.join(root, project, '.vibedoc-workers')
+    let files = []
+    try { files = readdirSync(dir).filter((f) => f.endsWith('.json')) } catch {}
+    for (const f of files) {
+      try {
+        const s = JSON.parse(readFileSync(path.join(dir, f), 'utf8'))
+        if (!s.endedAt && isAlive(s.pid)) found.push({ id: s.id ?? f.slice(0, -5), taskId: s.taskId ?? null, pid: s.pid })
+      } catch {}
+    }
+  }
+  return found
+}
+
+const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+/**
+ * What `vibedoc stop` stopped besides VibeDoc itself: `{ workers: [{ id, epic }], testRuns, frontends }` (the
+ * server's reply, or the sweep's) → lines; none = [].
+ */
+export function formatStopped({ workers = [], testRuns = 0, frontends = 0 } = {}) {
+  const lines = []
+  if (workers.length) {
+    const names = [...new Set(workers.map((w) => w.epic || w.id))].join(', ')
+    lines.push(`Stopped ${plural(workers.length, 'agent run')} (${names}). ${workers.length === 1 ? 'It shows' : 'They show'} as Interrupted with Resume next time.`)
+  }
+  if (testRuns) lines.push(`Stopped ${plural(testRuns, 'test run')}.`)
+  if (frontends) lines.push(`Stopped ${plural(frontends, 'dev server')} VibeDoc started.`)
+  return lines
+}
+
+export const startLockFile =(home) => path.join(home, 'server.lock')
 
 /**
  * Claims the right to start VibeDoc: creates `<home>/server.lock` exclusively (O_EXCL) with this pid. While another

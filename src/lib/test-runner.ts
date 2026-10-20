@@ -188,3 +188,10 @@ export function cancelRun(root: string): boolean {
   killGroup(entry.child, 'SIGKILL')
   return true
 }
+
+/** T571 (`vibedoc stop`): stops every project's run or suite → how many were running. */
+export function stopAllRuns(): number {
+  let n = 0
+  for (const root of runs.keys()) if (cancelRun(root)) n++
+  return n
+}

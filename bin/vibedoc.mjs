@@ -4,10 +4,10 @@ import { closeSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { createRequire } from 'node:module'
-import { FIRST_PORT, addToHub, addressChangedMessage, appUrl, dropLegacyPort, legacyPort, migrationMessage, parsePortArg, portFile, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
+import { FIRST_PORT, addToHub, addressChangedMessage, appUrl, dropLegacyPort, isPortTaken, legacyPort, migrationMessage, parsePortArg, portFile, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
 import { repoRoot } from './repo-root.mjs'
 import { prepareDemo, sweepDemos } from './demo.mjs'
-import { acquireStartLock, formatStatus, isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, writeServerState } from './server-state.mjs'
+import { acquireStartLock, formatStatus, formatStopped, isAlive, killTree, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, workerTurnPids, writeServerState } from './server-state.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
@@ -141,6 +141,58 @@ if (args[0] === 'status') {
     console.log(formatStatus(state, { mode, port }).join('\n'))
   }
   await exitFlushed(mode ? 0 : 3)
+}
+
+// `vibedoc stop` (R109 T571): stops the background VibeDoc and what it started (agent workers, test runs, dev
+// servers). Asks the server first, then ends the supervisor's process tree; a server that doesn't answer within 5 s
+// gets the worker turns from their state files killed directly. Exit 0 stopped or not running, 1 foreground / failed
+if (args[0] === 'stop') {
+  const home = vibedocHome()
+  const portArg = parsePortArg(args)
+  if (portArg.error) {
+    console.error(`\n✗ ${portArg.error}\n`)
+    process.exit(1)
+  }
+  const state = readServerState(home)
+  if (!state || !isAlive(state.supervisorPid)) {
+    const fgPort = portArg.port ?? readSavedPort(home) ?? FIRST_PORT
+    if (await probeVibedoc(fgPort)) {
+      console.error(`\n● VibeDoc is running in the foreground at ${appUrl(fgPort)}: press Ctrl+C in its terminal\n`)
+      await exitFlushed(1)
+    }
+    console.log('○ VibeDoc is not running')
+    await exitFlushed(0)
+  }
+  console.log(`\n⏳ Stopping VibeDoc at ${appUrl(state.port)}...`)
+  let stopped = null
+  try {
+    const res = await fetch(`http://127.0.0.1:${state.port}/api/server/shutdown`, {
+      method: 'POST', headers: { 'x-vibedoc-cli': '1' }, signal: AbortSignal.timeout(5000),
+    })
+    if (res.ok) stopped = await res.json()
+  } catch {}
+  // stopped first, so the supervisor doesn't restart the app it is about to lose
+  writeServerState(home, { state: 'stopped' })
+  const kills = [killTree(state.supervisorPid)]
+  if (!stopped) {
+    // the server didn't answer: end the worker turns it would have stopped (they outlive it on purpose, T556)
+    const turns = workerTurnPids(home)
+    kills.push(...turns.map((t) => killTree(t.pid)))
+    stopped = { workers: turns.map((t) => ({ id: t.id, epic: t.taskId })) }
+    console.log('   The server did not answer within 5 s; stopping its processes directly.')
+  }
+  await Promise.all(kills)
+  const free = async () => ![state.supervisorPid, state.serverPid].some(isAlive) && !(await isPortTaken(state.port))
+  let gone = await free()
+  for (const end = Date.now() + 10_000; !gone && Date.now() < end; gone = await free()) await new Promise((r) => setTimeout(r, 200))
+  writeServerState(home, { state: 'stopped', serverPid: null })
+  for (const line of formatStopped(stopped)) console.log(`   ${line}`)
+  if (!gone) {
+    console.error(`\n✗ VibeDoc did not stop within 10 seconds (supervisor ${state.supervisorPid}, server ${state.serverPid})\n`)
+    await exitFlushed(1)
+  }
+  console.log('\n✓ VibeDoc stopped\n')
+  await exitFlushed(0)
 }
 
 // `vibedoc start` (R109): the same startup, but the server runs under a detached supervisor and the terminal is given

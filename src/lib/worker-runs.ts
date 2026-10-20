@@ -62,8 +62,11 @@ export interface WorkerDeps {
  * No exit hook kills them: a task's process outlives the server (T556), and the next server adopts it.
  */
 type Run = { epic: string; child: ChildProcess | null; pid: number | null; cancelled: boolean; port?: number; wake?: () => void }
-const g = globalThis as unknown as { vibedocWorkers?: Map<string, Run> }
+const g = globalThis as unknown as { vibedocWorkers?: Map<string, Run>; vibedocWorkersHalted?: boolean }
 const runs = g.vibedocWorkers ?? (g.vibedocWorkers = new Map())
+/** T571: `vibedoc stop` halted every loop; they write nothing more, so the next server finds them interrupted */
+const halted = () => !!g.vibedocWorkersHalted
+const frozen = () => new Promise<never>(() => {})
 
 const keyOf = (root: string, id: string) => `${root}\u0000${id}`
 const message = (role: Message['role'], text: string, error?: string): Message =>
@@ -125,6 +128,30 @@ export function cancelWorker(root: string, id: string): boolean {
   killPid(run.pid)
   run.wake?.()
   return true
+}
+
+/** A worker `stopAllWorkers` stopped; `epic` = its target id (an epic, or a task for a task worker). */
+export type StoppedWorker = { id: string; epic: string }
+
+/**
+ * T571 (`vibedoc stop`): halts every worker loop in this server (they save nothing more) and kills each running turn's
+ * process group: the loops' own, plus `orphans`, turns of workers no loop adopted yet (from their state files). SIGTERM,
+ * then SIGKILL whatever still runs after `graceMs`. Their chats keep phase running with no `endedAt` in the state
+ * file, so the next server adopts them as Interrupted with Resume (T556). Returns the workers it stopped.
+ */
+export async function stopAllWorkers(orphans: (StoppedWorker & { pid: number })[] = [], graceMs = 2500): Promise<StoppedWorker[]> {
+  g.vibedocWorkersHalted = true
+  const targets = new Map<string, StoppedWorker & { pid: number }>()
+  for (const [k, r] of runs) {
+    const id = k.slice(k.indexOf('\u0000') + 1)
+    if (r.pid && isAlive(r.pid)) targets.set(id, { id, epic: r.epic, pid: r.pid })
+  }
+  for (const o of orphans) if (!targets.has(o.id) && isAlive(o.pid)) targets.set(o.id, o)
+  const list = [...targets.values()]
+  for (const t of list) killPid(t.pid)
+  for (const end = Date.now() + graceMs; list.some(t => isAlive(t.pid)) && Date.now() < end;) await new Promise(r => setTimeout(r, 100))
+  for (const t of list) if (isAlive(t.pid)) killPid(t.pid, 'SIGKILL')
+  return list.map(({ id, epic }) => ({ id, epic }))
 }
 
 /** T558: what the user answers a waiting worker with; `questionId` + `answers` fill that question card. */
@@ -252,6 +279,7 @@ async function watchTurn(chat: WorkerChat, run: Run, turn: WorkerTurn, deps: Wor
   }
   await drain().catch(() => {})
   clearTimeout(timer)
+  if (halted()) await frozen() // T571: stopped with VibeDoc: no endedAt, no reply, so the next server finds it interrupted
   // T559: sweep what the task left in its group, e.g. the dev server it started for its spec
   killPid(proc.pid)
   run.child = null
@@ -311,6 +339,7 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, an
   }
   // One turn: spawn (and write its state file) first: the page follows its log as soon as `worker_updated` names it
   const runOne = async (turn: WorkerTurn, line: string, resume?: string) => {
+    if (halted()) await frozen() // T571: VibeDoc is stopping: no new turn
     chat.messages.push(message('user', line))
     const { ended } = await spawnTurn(chat, run, turn, deps, resume)
     if (run.cancelled) killPid(run.pid) // Stop came while it spawned

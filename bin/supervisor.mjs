@@ -7,7 +7,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { appUrl, waitUntilReady } from './address.mjs'
-import { serverLogFile, writeServerState } from './server-state.mjs'
+import { readServerState, serverLogFile, writeServerState } from './server-state.mjs'
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const HOME = process.env.VIBEDOC_HOME
@@ -49,16 +49,20 @@ function stop(state, lastError, code) {
 
 server.on('error', (err) => stop('stopped', `couldn't start the app: ${err.message}`, 1))
 
-for (const signal of ['SIGTERM', 'SIGINT']) {
-  process.on(signal, () => {
-    if (stopping) return
-    stopping = true
-    log(`${signal}: stopping the app`)
-    if (server.exitCode !== null) stop('stopped', null, 0)
-    server.once('exit', () => stop('stopped', null, 0))
-    server.kill('SIGTERM')
-  })
+// `vibedoc stop` (T571): SIGTERM, or on Windows (no signals) `state: "stopped"` in server.json for this supervisor
+function stopApp(why) {
+  if (stopping) return
+  stopping = true
+  log(`${why}: stopping the app`)
+  if (server.exitCode !== null || server.signalCode !== null) stop('stopped', null, 0)
+  server.once('exit', () => stop('stopped', null, 0))
+  server.kill('SIGTERM')
 }
+for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => stopApp(signal))
+setInterval(() => {
+  const s = readServerState(HOME)
+  if (s?.state === 'stopped' && s.supervisorPid === process.pid) stopApp('vibedoc stop')
+}, 1000).unref()
 
 const ready = await waitUntilReady({ port, child: server })
 if (ready === 'timeout') {
