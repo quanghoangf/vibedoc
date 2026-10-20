@@ -1,7 +1,7 @@
 // Self-check: agent worktree paths and `git worktree list --porcelain` parsing. Run: node src/lib/worktrees.check.mts
 import assert from 'node:assert/strict'
 import path from 'node:path'
-import { branchSlug, defaultBranch, ownWorktrees, parseWorktreeList, projectSlug, worktreeDir } from './worktrees.ts'
+import { branchSlug, defaultBranch, ownWorktrees, parseWorktreeList, projectSlug, workerPort, worktreeDir } from './worktrees.ts'
 
 // Slugs: `/`, spaces, case
 assert.equal(branchSlug('vibedoc/R108'), 'vibedoc-r108')
@@ -44,4 +44,11 @@ assert.deepEqual(ownWorktrees(list, home).map(w => w.branch ?? 'detached'), ['vi
 assert.equal(ownWorktrees(list, ['/private/home', home]).length, 3)
 assert.equal(ownWorktrees([{ ...list[0], path: `${home}/worktrees-other/x` }], home).length, 0, 'prefix is a folder, not a string')
 
+
+// Worker ports: first free from the base, holes reused (a removed worktree frees its port)
+assert.equal(workerPort(3100, []), 3100)
+assert.equal(workerPort(3100, [3100, 3101]), 3102)
+assert.equal(workerPort(3100, [3101, 3100, 3103]), 3102)
+assert.equal(workerPort(3100, new Set([3099, 3200])), 3100)
+assert.throws(() => workerPort(65535, [65535]), /No free worker port/)
 console.log('worktrees: ok')

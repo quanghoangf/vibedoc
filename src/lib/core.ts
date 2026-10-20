@@ -43,8 +43,9 @@ import { groupSlug, groupsOf, withMembership, type ProjectGroup } from './groups
 import { slugsOf } from './groups'
 import { countNeedsYou } from './test-review'
 import { runIdTime } from './test-review'
-import { chatStatus, fromSaved, isWaiting, type StatusMessage } from './chats'
+import { chatStatus, fromSaved, isWaiting, type StatusMessage, type Worker } from './chats'
 import { isTurnRunning } from './chat-turns'
+import { stopFrontend } from './frontend-server'
 import { buildInbox, type InboxItem, type InboxProjectInput } from './inbox'
 import { roadmapHealth } from './roadmap-health'
 import { groupRollup, projectStats, type PortfolioRow, type ProjectStats } from './portfolio'
@@ -340,11 +341,12 @@ const SETTINGS_FILE = path.join('.vibedoc', 'settings.json')
 /**
  * The project's web frontend (pure detection in frontend.ts): the best workspace package in a monorepo,
  * else the root package.json; `.vibedoc/settings.json` `frontend` overrides win (T139). Null when there is none.
+ * A worker's worktree (T559) passes the main checkout as `settingsRoot`: its settings live there, not in the worktree.
  */
-export async function detectFrontend(root: string): Promise<FrontendApp | null> {
+export async function detectFrontend(root: string, settingsRoot = root): Promise<FrontendApp | null> {
   const read = (rel: string) => fs.readFile(path.join(root, rel), 'utf8').catch(() => null)
   const [packageJson, pnpmWorkspace, files, override] = await Promise.all([
-    read('package.json'), read('pnpm-workspace.yaml'), fs.readdir(root).catch(() => [] as string[]), readFrontendOverride(root),
+    read('package.json'), read('pnpm-workspace.yaml'), fs.readdir(root).catch(() => [] as string[]), readFrontendOverride(settingsRoot),
   ])
   const dirs = new Set<string>()
   for (const pattern of workspacePatterns(packageJson, pnpmWorkspace)) {
@@ -2924,6 +2926,8 @@ export async function removeWorktree(root: string, dir: string, opts: { force?: 
   if (!opts.force && (await git(['status', '--porcelain'], wt.path)).trim()) {
     throw new RoadmapError(`${wt.path} has uncommitted changes`, 409)
   }
+  // T559: a dev server VibeDoc started for this worktree goes with it
+  stopFrontend(wt.path)
   try {
     await git(['worktree', 'remove', ...(opts.force ? ['--force'] : []), wt.path], root)
   } catch (e) {
@@ -4313,6 +4317,23 @@ export async function saveChat(chat: unknown, root: string): Promise<void> {
   const tmp = `${file}.tmp`
   await fs.writeFile(tmp, JSON.stringify(chat), 'utf-8')
   await fs.rename(tmp, file)
+}
+
+/** R108: a saved worker chat's worker, or null (no such chat, or a plain chat). */
+export async function getWorker(id: string, root: string): Promise<Worker | null> {
+  const raw = await fs.readFile(chatFile(id, root), 'utf-8').catch(() => null)
+  if (raw == null) return null
+  return (JSON.parse(raw) as { worker?: Worker }).worker ?? null
+}
+
+/** T559: ports held by this project's workers whose worktree still exists; removing the worktree frees its port. */
+export async function workerPortsInUse(root: string): Promise<number[]> {
+  const ports: number[] = []
+  for (const c of await listChats(root)) {
+    const w = (c as { worker?: Worker }).worker
+    if (typeof w?.port === 'number' && await fs.stat(w.dir).then(() => true, () => false)) ports.push(w.port)
+  }
+  return ports
 }
 
 export async function deleteChat(id: string, root: string): Promise<void> {

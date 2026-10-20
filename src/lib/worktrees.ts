@@ -74,3 +74,14 @@ export function ownWorktrees(list: Worktree[], home: string | string[]): Worktre
   const roots = (Array.isArray(home) ? home : [home]).map(h => path.resolve(worktreesRoot(h)) + path.sep)
   return list.filter(w => roots.some(r => path.resolve(w.path).startsWith(r)))
 }
+
+/** ADR-007 decision 12: a worker's dev server sits this far above the project's frontend port. */
+export const WORKER_PORT_OFFSET = 100
+
+// ponytail: only ports VibeDoc handed out count as used, not whatever else listens on the machine; probe if that bites
+/** The first port from `base` up that no other worker (or VibeDoc itself) holds, so two workers never share an app. */
+export function workerPort(base: number, used: Iterable<number>): number {
+  const taken = new Set(used)
+  for (let p = base; p <= 65535; p++) if (!taken.has(p)) return p
+  throw new Error(`No free worker port from ${base}`)
+}

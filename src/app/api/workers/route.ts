@@ -6,14 +6,14 @@
  */
 import path from 'path'
 import { NextRequest, NextResponse } from 'next/server'
-import { claimNextTask, createWorktree, getRoadmapItem, getTask, installWorktreeDeps, rootFrom, saveChat, RoadmapError } from '@/lib/core'
+import { claimNextTask, createWorktree, detectFrontend, getRoadmapItem, getTask, installWorktreeDeps, rootFrom, saveChat, workerPortsInUse, RoadmapError } from '@/lib/core'
 import { emitUpdate } from '@/lib/events'
 import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 import { refuseCrossSite } from '@/lib/same-origin'
 import { newChatId, type Attach } from '@/lib/chats'
-import { defaultBranch } from '@/lib/worktrees'
+import { defaultBranch, WORKER_PORT_OFFSET } from '@/lib/worktrees'
 import { workerArgs } from '@/lib/worker-args'
-import { releaseWorker, reserveWorker, startWorker, type WorkerChat } from '@/lib/worker-runs'
+import { claimWorkerPort, releaseWorker, reserveWorker, startWorker, type WorkerChat } from '@/lib/worker-runs'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -38,11 +38,15 @@ export async function POST(req: NextRequest) {
       branch: typeof body?.branch === 'string' && body.branch.trim() ? body.branch : defaultBranch(epicId),
       base: typeof body?.base === 'string' && body.base.trim() ? body.base : undefined,
     })
+    // T559: its own dev server port above the project's frontend port, so a UI spec tests this branch
+    const [app, saved] = await Promise.all([detectFrontend(root), workerPortsInUse(root)])
+    const appPort = app && URL.canParse(app.url) ? Number(new URL(app.url).port) : 0
+    const port = appPort ? claimWorkerPort(root, id, appPort + WORKER_PORT_OFFSET, saved) : undefined
     const now = new Date().toISOString()
     const chat: WorkerChat = {
       id, title: `Worker ${epicId}`, messages: [], sessionId: null, busy: true, notes: [],
       attach: { kind: 'epic', id: epicId }, createdAt: now, updatedAt: now,
-      worker: { ...wt, target: { kind: 'epic', id: epicId }, phase: 'starting', turns: [] },
+      worker: { ...wt, target: { kind: 'epic', id: epicId }, phase: 'starting', turns: [], ...(port && { port }) },
     }
     const save = async (c: WorkerChat) => {
       await saveChat(c, root)

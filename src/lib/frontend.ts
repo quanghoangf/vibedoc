@@ -90,6 +90,22 @@ export function frontendNotes(app: FrontendApp, vibedocPort: number, isVibedocRe
   return notes
 }
 
+/**
+ * R108 T559: the app as a worker runs it, on its own port. `PORT=` covers Next / CRA / plain servers; `--port` covers
+ * the CLIs that ignore PORT (Vite, Astro, …) and beats a port hardcoded in the script. npm needs `--` to pass it on.
+ */
+// ponytail: POSIX env prefix; a Windows worker would need `set PORT=… &&` or cross-env
+export function workerApp(app: FrontendApp, port: number): FrontendApp {
+  const url = URL.canParse(app.url) ? new URL(app.url) : new URL('http://localhost')
+  url.port = String(port)
+  const flag = app.framework === 'cra' || app.framework === 'unknown' ? '' : app.packageManager === 'npm' ? ` -- --port ${port}` : ` --port ${port}`
+  return {
+    ...app,
+    url: url.origin,
+    startCommand: app.startCommand ? `PORT=${port} ${app.startCommand}${flag}` : '',
+  }
+}
+
 // ─── Monorepos + override (T139) ─────────────────────────────────────────────
 
 /**

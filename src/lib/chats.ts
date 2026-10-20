@@ -37,6 +37,8 @@ export interface Worker {
   /** Why it waits, ended or failed, in English (the UI words it from the phase) */
   reason?: string
   turns: WorkerTurn[]
+  /** T559: the worktree app's own dev server port (ADR-007 decision 12); none when the project has no frontend */
+  port?: number
 }
 
 export function newChatId(now: number, salt = Math.random()): string {

@@ -11,6 +11,8 @@ import type { QueueResult } from './work-queue'
 import { nextStep } from './worker-loop'
 import { beginTurn } from './chat-turns'
 import { killGroup } from './test-runner'
+import { stopFrontend } from './frontend-server'
+import { workerPort } from './worktrees'
 
 /** The chat message shape ChatContext renders (one user line per task, then the agent's last reply). */
 type Message = { role: 'user' | 'assistant'; text: string; tools: string[]; proposals: unknown[]; plans: unknown[]; questions: unknown[]; error?: string }
@@ -27,7 +29,7 @@ export interface WorkerDeps {
   save: (chat: WorkerChat) => Promise<void>
 }
 
-type Run = { epic: string; child: ChildProcess | null; cancelled: boolean }
+type Run = { epic: string; child: ChildProcess | null; cancelled: boolean; port?: number }
 const g = globalThis as unknown as { vibedocWorkers?: Map<string, Run>; vibedocWorkersExitHook?: boolean }
 const runs = g.vibedocWorkers ?? (g.vibedocWorkers = new Map())
 
@@ -52,6 +54,18 @@ export function reserveWorker(root: string, id: string, epic: string): boolean {
   if (workerForEpic(root, epic)) return false
   runs.set(keyOf(root, id), { epic: epic.toUpperCase(), child: null, cancelled: false })
   return true
+}
+
+/**
+ * T559: the reserved worker's dev server port. Sync, so two POSTs that awaited `saved` side by side still get two ports:
+ * `saved` = ports of the project's saved workers whose worktree exists, plus every running worker's (any project).
+ */
+export function claimWorkerPort(root: string, id: string, base: number, saved: number[]): number {
+  const run = runs.get(keyOf(root, id))
+  if (!run) throw new Error(`worker ${id} was not reserved`)
+  const vibedoc = Number(process.env.PORT) || 3000
+  run.port = workerPort(base, [...saved, vibedoc, ...[...runs.values()].flatMap(r => r.port ?? [])])
+  return run.port
 }
 
 export function releaseWorker(root: string, id: string): void {
@@ -101,6 +115,8 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
       failed = e.code === 'ENOENT' ? 'Claude Code CLI not found on PATH. Install it and run `claude` once to log in.' : e.message
     })
     child.on('close', async (code) => {
+      // T559: sweep what the task left in its group, e.g. the dev server it started for its spec
+      killGroup(child)
       run.child = null
       if (failed || (code !== 0 && !run.cancelled)) stream.push(JSON.stringify({ type: 'error', message: failed || stderr.trim() || `claude exited with code ${code}` }) + '\n')
       stream.end()
@@ -146,6 +162,7 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps): v
       console.warn(`[vibedoc] worker ${chat.id} failed: ${(e as Error).message}`)
       await save({ phase: 'failed', reason: (e as Error).message })
     } finally {
+      stopFrontend(chat.worker.dir) // a server VibeDoc started for this worktree (keyed by its dir) ends with the run
       runs.delete(keyOf(root, chat.id))
     }
   })()

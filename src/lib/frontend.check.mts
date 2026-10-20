@@ -1,7 +1,7 @@
 // Self-check: frontend app detection on fixture dirs. Run: node src/lib/frontend.check.mts
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { playwrightTestDir, applyOverride, cleanOverride, smokeNotes, loginUnavailable, loginUrl, formatSteps, hasChromium, playwrightInstallSteps, playwrightStatus, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns } from './frontend.ts'
+import { playwrightTestDir, applyOverride, cleanOverride, smokeNotes, loginUnavailable, loginUrl, formatSteps, hasChromium, playwrightInstallSteps, playwrightStatus, detectFrontendApp, detectFrontendProject, formatFrontend, frontendNotes, frontendStatusLine, packageScore, portFromScript, workspacePatterns, workerApp } from './frontend.ts'
 
 // Same reads as core.detectFrontend(): root package.json + which files sit next to it.
 const fixture = (name: string) => {
@@ -171,3 +171,19 @@ assert.equal(playwrightTestDir('export default { testDir: path.join(__dirname, "
 assert.equal(playwrightTestDir("export default { testDir: '../outside' }"), 'e2e')
 assert.equal(playwrightTestDir('export default { use: { baseURL: "x" } }'), 'e2e')
 console.log('ok playwrightTestDir')
+
+// R108 T559: a worker's app on its own port
+{
+  const vite = detectFrontendApp('.', JSON.stringify({ devDependencies: { vite: '5' }, scripts: { dev: 'vite' } }), ['pnpm-lock.yaml'])!
+  const w = workerApp(vite, 5273)
+  assert.equal(w.url, 'http://localhost:5273')
+  assert.equal(w.startCommand, 'PORT=5273 pnpm run dev --port 5273')
+  assert.equal(vite.url, 'http://localhost:5173', 'the project app is untouched')
+  const next = detectFrontendApp('.', JSON.stringify({ dependencies: { next: '16' }, scripts: { dev: 'next dev -p 3000' } }), ['package-lock.json'])!
+  assert.equal(workerApp(next, 3100).startCommand, 'PORT=3100 npm run dev -- --port 3100')
+  const custom = { ...next, framework: 'unknown' as const, startCommand: 'node server.mjs', url: 'http://127.0.0.1:4000/app' }
+  assert.equal(workerApp(custom, 4100).startCommand, 'PORT=4100 node server.mjs')
+  assert.equal(workerApp(custom, 4100).url, 'http://127.0.0.1:4100')
+  assert.equal(workerApp({ ...custom, startCommand: '', url: '' }, 4100).startCommand, '')
+}
+console.log('ok workerApp')

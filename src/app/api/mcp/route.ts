@@ -73,6 +73,7 @@ import {
   writeRunEpisode,
   getEvidence,
   ensureFixtureKit,
+  getWorker,
   recordRunResult,
   recallEntries,
   relatedEntries,
@@ -124,7 +125,7 @@ import { ROOT_HEADER, projectMcpUrl, unknownProjectReply } from "@/lib/agent-con
 import { readHub, rootFromFolder } from "@/lib/core";
 import { groupPeers, searchIn } from "@/lib/core";
 import { formatCrossSearch } from "@/lib/cross-search";
-import { formatFrontend, frontendNotes, frontendStatusLine } from "@/lib/frontend";
+import { formatFrontend, frontendNotes, frontendStatusLine, workerApp } from "@/lib/frontend";
 import path from "path";
 import { TEMPLATES } from "@/lib/templates";
 import { emitUpdate } from "@/lib/events";
@@ -198,6 +199,21 @@ async function roadmapHint(root: string, taskId: string): Promise<string> {
   return "\n\n🗺️ Roadmap out of sync:\n" + hits
     .map((d) => `- ${d.message} → vibedoc_update_roadmap_item { "id": "${d.id}", "status": "${d.suggestedStatus}" }`)
     .join("\n");
+}
+
+/** `vibedoc_get_frontend` for a worker (T559): the app inside its worktree, on the worker's port; the kit goes there too. */
+async function workerFrontend(root: string, workerId: string): Promise<string> {
+  const w = await getWorker(workerId, root).catch(() => null);
+  if (!w) return "No worker " + workerId + " in this project: keep the report manual (no spec).";
+  const app = await detectFrontend(w.dir, root);
+  if (!app || !w.port) return formatFrontend(null, []) + (app ? "\nThis worker has no port of its own (started before the app was set up): keep the report manual (no spec)." : "");
+  const [playwright, auth] = await Promise.all([detectPlaywright(w.dir, app), frontendAuthStatus(root)]);
+  const kit = playwright.installed && !isDemo() ? await ensureFixtureKit(w.dir, app) : null;
+  const shown = { ...workerApp(app, w.port), dir: path.join(w.dir, app.dir) };
+  return formatFrontend(shown, [], playwright, auth) +
+    `\n**Worktree:** \`${w.dir}\` (branch ${w.branch}): start the app from **Dir** with the start command above, never reuse the user's app on ${app.url}` +
+    (auth.saved ? `\n**Session file:** \`${path.join(root, ".vibedoc", "auth", "storage-state.json")}\` (absolute: the worktree has no copy)` : "") +
+    (kit ? `\n**Test kit:** \`${path.join(w.dir, kit.dir)}\` — specs in its parent folder import \`{ test, expect } from '${kit.importPath}'\` and use \`step()\`` : "");
 }
 
 /** `agent` is who is calling (args.agent, else the MCP client from its User-Agent); starting a task makes it the owner. */
@@ -948,9 +964,9 @@ export async function POST(req: NextRequest) {
           .then((wrote) => { if (wrote) emitUpdate("agent_connected", { root, agent }); })
           .catch((e) => console.warn("[vibedoc] could not record the agent call:", e));
       }
-      // R108: a worker's worktree has no dev server of its own yet (T559), so its report stays manual
+      // R108 T559: a worker's specs run against its worktree's own app on its own port, never the user's checkout
       if (worker && name === "vibedoc_get_frontend") {
-        return ok(id, { content: [{ type: "text", text: "No frontend for a worktree yet: keep the report manual (no spec)." }] });
+        return ok(id, { content: [{ type: "text", text: await workerFrontend(root, worker) }] });
       }
       // T512: the one tool that answers with an image, not text
       if (name === "vibedoc_get_attachment") {
