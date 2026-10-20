@@ -2937,7 +2937,9 @@ export async function createWorktree(root: string, opts: { branch: string; base?
   } catch (e) {
     throw new RoadmapError(`git worktree add failed: ${gitError(e)}`)
   }
-  return { dir, branch, base }
+  // T564: the run card's default base HEAD is stored as the branch it means, so Merge / Open PR target that branch
+  const current = base === 'HEAD' ? (await git(['branch', '--show-current'], root).catch(() => '')).trim() : ''
+  return { dir, branch, base: current || base }
 }
 
 export type InstallResult = { ok: boolean; manager: PackageManager | null; output: string }

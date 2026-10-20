@@ -55,7 +55,7 @@ const mainHead = git(["rev-parse", "HEAD"]).trim()
 let dir = null
 try {
   // 1. the run ends; its diff
-  const res = await post("/api/workers", { target: { kind: "epic", id: "R002" }, base: "main" })
+  const res = await post("/api/workers", { target: { kind: "epic", id: "R002" } })
   const w = await res.json()
   assert.equal(res.status, 200, JSON.stringify(w))
   dir = w.dir
