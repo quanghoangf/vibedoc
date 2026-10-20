@@ -8,7 +8,10 @@
 # installs the vibedoc npm package into %USERPROFILE%\.vibedoc\lib with that Node, and writes the launcher
 # %USERPROFILE%\.vibedoc\bin\vibedoc.cmd. It asks before adding that folder to your user PATH; no admin rights.
 #
-# Environment: VIBEDOC_HOME, VIBEDOC_VERSION (default latest), VIBEDOC_NO_MODIFY_PATH=1.
+# Then it asks whether to keep VibeDoc running in the background and start it at login (default no).
+#
+# Environment: VIBEDOC_HOME, VIBEDOC_VERSION (default latest), VIBEDOC_NO_MODIFY_PATH=1,
+# VIBEDOC_BACKGROUND=1|0 (answer the background question).
 param([switch]$Update, [switch]$Uninstall)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue' # Invoke-WebRequest is much faster without the progress bar
@@ -23,7 +26,21 @@ function Fail($msg) { Write-Host "vibedoc install: $msg" -ForegroundColor Red; e
 function Get-UserPath { [Environment]::GetEnvironmentVariable('Path', 'User') }
 function Test-OnPath($dir) { (Get-UserPath) -split ';' | Where-Object { $_.TrimEnd('\') -ieq $dir.TrimEnd('\') } }
 
+# The installed VibeDoc, and whether it has `login` / `start` / `stop` (R109, R110): an older one would start its
+# server on an unknown command, so it is never asked
+$Launcher = Join-Path $BinDir 'vibedoc.cmd'
+function Test-HasLogin { (Test-Path $Launcher) -and (Test-Path (Join-Path $HomeDir 'lib\node_modules\vibedoc\bin\login.mjs')) }
+function Test-LoginOn { (Test-HasLogin) -and ((& $Launcher login status 2>$null) -match '^Start at login: on') }
+# Runs the launcher; $true when it exited 0 (its output only on failure)
+function Invoke-Vibedoc { $out = & $Launcher @args 2>&1; if ($LASTEXITCODE -ne 0) { $out | Write-Host }; $LASTEXITCODE -eq 0 }
+# from the VibeDoc home (not the user's cwd), so the hub doesn't add whatever repo the installer ran in
+function Start-Background { Push-Location $HomeDir; try { & $Launcher start --no-open; $LASTEXITCODE -eq 0 } finally { Pop-Location } }
+
 if ($Uninstall) {
+  if (Test-HasLogin) {
+    if (-not (Invoke-Vibedoc stop)) { Write-Host "Warning: 'vibedoc stop' failed; stop VibeDoc yourself if it still runs." -ForegroundColor Yellow }
+    if (-not (Invoke-Vibedoc login off)) { Write-Host "Warning: 'vibedoc login off' failed; remove the VibeDoc value under HKCU\Software\Microsoft\Windows\CurrentVersion\Run yourself." -ForegroundColor Yellow }
+  }
   foreach ($d in 'node', 'lib', 'bin') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $HomeDir $d) }
   Write-Host "Removed VibeDoc from $HomeDir (your projects and saved test runs are untouched)."
   if (Test-OnPath $BinDir) {
@@ -62,6 +79,10 @@ try {
   & (Join-Path $node 'npm.cmd') install --global --prefix (Join-Path $tmp 'lib') --no-fund --no-audit --no-update-notifier --loglevel=error "vibedoc@$Version"
   if ($LASTEXITCODE -ne 0) { Fail "npm install vibedoc@$Version failed" }
 
+  # -Update with start at login on: stop the running VibeDoc before its files go (Windows locks them), start after
+  $restart = $Update -and (Test-LoginOn)
+  if ($restart -and -not (Invoke-Vibedoc stop)) { Write-Host "Warning: 'vibedoc stop' failed; the old VibeDoc may still be running." -ForegroundColor Yellow }
+
   New-Item -ItemType Directory -Force -Path $HomeDir | Out-Null
   foreach ($d in 'node', 'lib') { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $HomeDir $d) }
   Move-Item $node (Join-Path $HomeDir 'node')
@@ -82,6 +103,27 @@ Set-Content -Path (Join-Path $BinDir 'vibedoc.cmd') -Value $launcher -Encoding A
 $installed = & (Join-Path $BinDir 'vibedoc.cmd') --version
 if ($LASTEXITCODE -ne 0) { Fail "installed, but 'vibedoc --version' failed" }
 if ($Update) { Write-Host "Updated VibeDoc to $installed." } else { Write-Host "Installed VibeDoc $installed in $HomeDir." }
+
+# Background (R110): on update the earlier choice stands (the Run value points at the same launcher); on install
+# VIBEDOC_BACKGROUND answers, else the person at the keyboard, else no
+if ($restart) {
+  if (-not (Start-Background)) { Write-Host "Warning: VibeDoc didn't start again; run: $Launcher start" -ForegroundColor Yellow }
+} elseif (-not $Update -and (Test-HasLogin)) {
+  $background = $env:VIBEDOC_BACKGROUND
+  if (-not $background -and [Environment]::UserInteractive -and -not [Console]::IsInputRedirected) {
+    $background = Read-Host 'Keep VibeDoc running in the background and start it when you log in? [y/N]'
+  }
+  if ($background -match '^(1|y|yes)$') {
+    if (Invoke-Vibedoc login on) {
+      if (-not (Start-Background)) { Write-Host "Warning: VibeDoc didn't start; run: $Launcher start" -ForegroundColor Yellow }
+      Write-Host 'VibeDoc starts in the background when you log in. Turn that off with: vibedoc login off'
+    } else {
+      Write-Host "Warning: couldn't turn on start at login; run: $Launcher login on" -ForegroundColor Yellow
+    }
+  } else {
+    Write-Host 'Not running VibeDoc in the background. Turn it on later with: vibedoc login on'
+  }
+}
 
 # PATH: only with a yes from the person at the keyboard
 if (Test-OnPath $BinDir) { Write-Host 'Open a new terminal, then run: vibedoc'; exit 0 }
