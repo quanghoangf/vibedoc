@@ -342,6 +342,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("vibedoc:sse", onSse)
   }, [demo])
 
+  // Another client (a browser tab, the desktop app, R111) saved or deleted a chat: add the chats this one doesn't have,
+  // take a newer server copy of one it isn't running or about to save, drop a deleted one it isn't running. Workers
+  // are left to `worker_updated`; this client's own saves come back no newer than its copy.
+  useEffect(() => {
+    function onSse(e: Event) {
+      const msg = (e as CustomEvent<{ type: string; payload?: { id?: string; deleted?: boolean } }>).detail
+      if (msg?.type !== "chat_saved" || !msg.payload?.id || demo) return
+      const mine = (id: string) => abortsRef.current.has(id) || dirtyRef.current.has(id)
+      fetch(`/api/conversations${rootParam}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: { chats?: unknown[] } | null) => {
+          if (!d?.chats) return
+          const saved = new Map(d.chats.map((c) => fromSaved<ChatMessage>(c)).filter((c): c is ChatTab => !!c).map((c) => [c.id, c]))
+          const gone = msg.payload?.deleted ? msg.payload.id : null
+          setChats((cs) => {
+            const kept = cs
+              .filter((c) => c.id !== gone || mine(c.id))
+              .map((c) => {
+                const s = saved.get(c.id)
+                return s && !mine(c.id) && !c.worker && s.updatedAt > c.updatedAt ? s : c
+              })
+            const added = [...saved.values()].filter((c) => !c.worker && !cs.some((x) => x.id === c.id))
+            return added.length || kept.length !== cs.length || kept.some((c, i) => c !== cs[i]) ? [...kept, ...added] : cs
+          })
+        })
+        .catch(() => {})
+    }
+    window.addEventListener("vibedoc:sse", onSse)
+    return () => window.removeEventListener("vibedoc:sse", onSse)
+  }, [demo, rootParam])
+
   // T562: a worker stopped; the server saved a note for the orchestrator's next turn. Keep it in this copy too (its
   // `seq`: a save of this copy keeps the server notes it hasn't seen, and a note already loaded isn't added twice).
   // Not marked dirty: the file has it already.

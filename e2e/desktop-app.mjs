@@ -8,6 +8,8 @@
 //   4. S3: nothing runs on the home's port: the app starts its own VibeDoc (starting screen, then the board, the menu
 //      says "started by this app"); quitting stops it: nothing listens and no `next start` is left.
 //   5. A start that fails (VIBEDOC_HOME is a file) shows the reason and Try again.
+//   6. S1: the app (its own VibeDoc) and a Chrome tab on one fixture project: a move in the app and a rename in the tab
+//      show on the other side within 1 s (SSE), and a chat started in the app (stubbed agent) shows in the tab's /chat.
 //
 //   pnpm build && pnpm --dir desktop install && node e2e/desktop-app.mjs      (PORT=3085 by default)
 //
@@ -19,6 +21,7 @@ import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { makeFixture, stubChat } from "./stub-chat.mjs"
 
 const repoDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..")
 const desktopDir = path.join(repoDir, "desktop")
@@ -170,6 +173,55 @@ try {
   await app3.close()
   apps.delete(app3)
   console.log("✓ a failed start shows the reason and Try again")
+  // 6. S1 (Done when): the app (its own VibeDoc, the S3 path) and a browser tab on the same project stay in sync
+  const home3 = path.join(tmp, "home3")
+  mkdirSync(home3)
+  writeFileSync(path.join(home3, "port"), `${PORT + 2}\n`)
+  process.env.VIBEDOC_HOME = home3 // makeFixture / stubChat register the fixture in this hub
+  const fx = makeFixture()
+  writeFileSync(path.join(fx, "plans/tasks/T001-sync-me.md"), "# T001: Sync me\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n**Size:** S\n\n## Goal\nMove me.\n")
+  const app4 = await launch(home3, path.join(tmp, "user-data-4"))
+  const win4 = await app4.firstWindow()
+  await waitFor(async () => win4.url().startsWith(`http://localhost:${PORT + 2}/`), "the app's VibeDoc", 90_000)
+  const reply = [
+    { type: "stream_event", session_id: "s1", event: { type: "content_block_delta", delta: { type: "text_delta", text: "Hello from the stub agent" } } },
+    { type: "result", is_error: false, session_id: "s1" },
+  ]
+  await stubChat(win4, reply, { root: fx })
+  const browser = await desktopRequire("playwright").chromium.launch({ channel: "chrome" })
+  try {
+    const tab = await browser.newPage({ viewport: { width: 1400, height: 900 } })
+    await stubChat(tab, reply, { root: fx })
+    const base = `http://localhost:${PORT + 2}`
+    await Promise.all([win4.goto(`${base}/board`), tab.goto(`${base}/board`)])
+    const card = (page, column, title) => page.locator(`[data-column="${column}"]`).getByText(title, { exact: true })
+    await card(win4, "todo", "Sync me").waitFor({ timeout: 30_000 })
+    await card(tab, "todo", "Sync me").waitFor({ timeout: 30_000 })
+    const post = (page, url, body) => page.evaluate(async ([url, body]) => (await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })).status, [url, body])
+
+    // the app moves the task (the board's own POST /api/tasks) → the tab shows it in its new column within 1 s
+    assert.equal(await post(win4, `/api/tasks?root=${encodeURIComponent(fx)}`, { taskId: "T001", status: "in-progress" }), 200)
+    await card(tab, "in-progress", "Sync me").waitFor({ timeout: 1000 })
+    // the tab renames it (the panel's POST /api/tasks/update) → the app shows the new title within 1 s
+    assert.equal(await post(tab, `/api/tasks/update?root=${encodeURIComponent(fx)}`, { id: "T001", patch: { title: "Synced both ways" } }), 200)
+    await card(win4, "in-progress", "Synced both ways").waitFor({ timeout: 1000 })
+    console.log("✓ S1: a move in the app and a rename in the tab each show on the other side within 1 s")
+
+    // a chat started in the app (stubbed agent) shows in the tab's /chat list
+    await tab.goto(`${base}/chat`)
+    await win4.keyboard.press("c")
+    const box = win4.getByPlaceholder(/Ask the agent/)
+    await box.fill("sync check from the app")
+    await box.press("Enter")
+    await win4.getByText("Hello from the stub agent").waitFor({ timeout: 15_000 })
+    await tab.getByText("sync check from the app").first().waitFor({ timeout: 10_000 })
+    console.log("✓ S1: a chat started in the app shows in the browser's /chat list")
+  } finally {
+    await browser.close()
+  }
+  await app4.close()
+  apps.delete(app4)
+  rmSync(fx, { recursive: true, force: true })
   console.log("desktop-app e2e: ok")
 } finally {
   for (const app of apps) await app.close().catch(() => {})
