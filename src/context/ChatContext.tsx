@@ -15,6 +15,7 @@ import type { Proposal, ProposalStatus } from "@/components/chat/ProposalCard"
 import type { PlanCreated, PlanProposal, PlanStatus } from "@/components/chat/PlanCard"
 import { formatAnswers, isRenderableQuestions, type Question, type QuestionSet } from "@/components/chat/QuestionCard"
 import type { ToolkitProposal } from "@/components/chat/ToolkitCard"
+import type { RunCardSet, RunCardStatus } from "@/components/chat/RunProposalCard"
 import type { ToolkitResult } from "@/components/toolkit/ToolkitPicker"
 import { formatToolkitResults } from "@/lib/toolkit"
 import { asRenderablePlan, planTarget } from "@/lib/plan"
@@ -23,7 +24,7 @@ import { refusedCalls, type RefusedCall } from "@/lib/worker-state"
 import { ASK_AGENT_EVENT, OPEN_CHAT_EVENT, openAgentChat, type AskAgentDetail } from "@/lib/ask-agent"
 import {
   addChat, attachContext, attachKey, attentionQueue, chatFor, chatStatus, chatTitle, defaultChat, epicOf, fromSaved, INTERRUPTED, isActionableError, isWaiting,
-  itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, toSaved,
+  itemAgents, newChatId, newlyWaiting, nextInQueue, ORCHESTRATOR_ID, ORCHESTRATOR_TITLE, patchChat, pendingReviews, routeAsk, toSaved,
   type Attach, type Chat, type ChatStatus, type ItemAgent, type Worker,
 } from "@/lib/chats"
 import { currentTask } from "@/components/workers/WorkerStrip"
@@ -43,6 +44,8 @@ export interface ChatMessage {
   error?: string
   /** R108 T557: a worker's tool calls Claude Code refused (deny rule or not on the allowlist) */
   refused?: RefusedCall[]
+  /** T562: the orchestrator's `vibedoc_propose_run` cards */
+  runs?: RunCardSet[]
 }
 
 export type ChatTab = Chat<ChatMessage>
@@ -66,18 +69,21 @@ interface ChatApi {
   showDefault: () => void
   /** Resume the chat attached to `a`, or start one */
   showAbout: (a: Attach) => void
+  /** T562: open the project's orchestrator chat (created on first open) */
+  showOrchestrator: () => void
   /** A new empty chat (not saved until its first message); returns its id */
   create: (attach?: Attach | null) => string
   send: (chatId: string, text: string) => void
   stop: (chatId: string) => void
   /** Stop counting an errored chat in the header / rail (saved; the next turn clears it) */
   dismiss: (chatId: string) => void
-  /** Delete a chat (asks first when cards are unreviewed); returns false if the user cancelled */
+  /** Delete a chat (asks first when cards are unreviewed); returns false if the user cancelled. The orchestrator is cleared instead. */
   remove: (chatId: string) => boolean
   resolveProposal: (chatId: string, id: string, path: string, status: ProposalStatus) => void
   resolvePlan: (chatId: string, p: PlanProposal, status: PlanStatus, created: PlanCreated[], unchecked: string[]) => void
   answerQuestions: (chatId: string, set: QuestionSet, answers: string[]) => void
   finishToolkit: (chatId: string, set: ToolkitProposal, results: ToolkitResult[]) => void
+  resolveRun: (chatId: string, set: RunCardSet, status: RunCardStatus, workerId?: string) => void
   /** attachKey → the most urgent chat working on that epic/task */
   agents: Record<string, ItemAgent>
   runningCount: number
@@ -228,7 +234,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // A chat closed before its first message was never saved; drop it so empty chats don't pile up
   function closeModal(opts: { keep?: boolean } = {}) {
-    if (!opts.keep) setChats((cs) => cs.filter((c) => c.id !== modalId || c.messages.length > 0 || c.worker))
+    if (!opts.keep) setChats((cs) => cs.filter((c) => c.id !== modalId || c.messages.length > 0 || c.worker || c.id === ORCHESTRATOR_ID))
     setModalId(null)
   }
 
@@ -261,6 +267,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   function showAbout(a: Attach) {
     const c = chatFor(chats, a)
     show(c ? c.id : create(a))
+  }
+
+  function showOrchestrator() {
+    if (!chats.some((c) => c.id === ORCHESTRATOR_ID)) setChats((cs) => addChat(cs, ORCHESTRATOR_ID, { title: ORCHESTRATOR_TITLE }))
+    show(ORCHESTRATOR_ID)
   }
 
   // askAgent() from anywhere, routed by routeAsk(): an ask about an item goes to that item's chat (or opens it while it
@@ -321,6 +332,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("vibedoc:sse", onSse)
   }, [demo])
 
+  // T562: a worker stopped; the server saved a note for the orchestrator's next turn. Keep it in this copy too, since
+  // this page saves that chat (and would write the note away). Not marked dirty: the file has it already.
+  useEffect(() => {
+    function onSse(e: Event) {
+      const msg = (e as CustomEvent<{ type: string; payload?: { note?: string } }>).detail
+      const note = msg?.payload?.note
+      if (msg?.type !== "orchestrator_note" || !note || demo) return
+      setChats((cs) => {
+        const base = cs.some((c) => c.id === ORCHESTRATOR_ID) ? cs : addChat(cs, ORCHESTRATOR_ID, { title: ORCHESTRATOR_TITLE })
+        return patchChat(base, ORCHESTRATOR_ID, (c) => ({ ...c, notes: [...c.notes, note] }))
+      })
+    }
+    window.addEventListener("vibedoc:sse", onSse)
+    return () => window.removeEventListener("vibedoc:sse", onSse)
+  }, [demo])
+
   function patchLast(chatId: string, fn: (m: ChatMessage) => ChatMessage) {
     setChats((cs) => patchChat(cs, chatId, (c) => ({ ...c, messages: [...c.messages.slice(0, -1), fn(c.messages[c.messages.length - 1])] })))
   }
@@ -367,11 +394,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           preselect: Array.isArray(b.input?.preselect) ? (b.input.preselect as unknown[]).filter((x): x is string => typeof x === "string") : undefined,
           note: typeof b.input?.note === "string" ? b.input.note : undefined,
         }))
-      const cards = ["vibedoc_propose_edit", "vibedoc_propose_plan", "vibedoc_ask_questions", "vibedoc_propose_toolkit"]
+      const runs: RunCardSet[] = uses
+        .filter((b) => b.name.endsWith("vibedoc_propose_run") && typeof b.input?.target === "string")
+        .map((b) => {
+          const str = (k: string) => (typeof b.input[k] === "string" && b.input[k] ? b.input[k] as string : undefined)
+          const mode = b.input.mode === "new" || b.input.mode === "existing" ? b.input.mode : undefined
+          return { id: b.id, status: "pending" as const, request: { target: (b.input.target as string).trim().toUpperCase(), mode, workerId: str("workerId"), branch: str("branch"), base: str("base") } }
+        })
+      const cards = ["vibedoc_propose_edit", "vibedoc_propose_plan", "vibedoc_ask_questions", "vibedoc_propose_toolkit", "vibedoc_propose_run"]
       const tools = uses
         .filter((b) => !cards.some((c) => b.name.endsWith(c)))
         .map((b) => b.name.replace(/^mcp__vibedoc__vibedoc_/, ""))
-      if (tools.length || proposals.length || plans.length || questions.length || toolkits.length) {
+      if (tools.length || proposals.length || plans.length || questions.length || toolkits.length || runs.length) {
         patchLast(chatId, (m) => ({
           ...m,
           tools: [...m.tools, ...tools],
@@ -379,6 +413,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           plans: [...m.plans, ...plans],
           questions: [...m.questions, ...questions],
           toolkits: [...(m.toolkits ?? []), ...toolkits],
+          runs: [...(m.runs ?? []), ...runs],
         }))
       }
     } else if (ev.type === "user") {
@@ -395,6 +430,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           plans: m.plans.filter((p) => !failed.has(p.id)),
           questions: m.questions.filter((q) => !failed.has(q.id)),
           toolkits: m.toolkits?.filter((k) => !failed.has(k.id)),
+          runs: m.runs?.filter((r) => !failed.has(r.id)),
         }))
       }
     } else if (ev.type === "result" && ev.is_error) {
@@ -419,7 +455,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setChats((cs) => patchChat(cs, chatId, (c) => ({
       ...c,
       // An attached chat keeps its item title until the first message names what it's for
-      title: c.messages.length ? c.title : chatTitle(message),
+      title: c.messages.length || c.id === ORCHESTRATOR_ID ? c.title : chatTitle(message),
       attach: c.attach ?? attach,
       busy: true,
       dismissed: false,
@@ -532,6 +568,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }
 
   function remove(chatId: string) {
+    if (chatId === ORCHESTRATOR_ID) return clearOrchestrator()
     const chat = chats.find((c) => c.id === chatId)
     const n = chat ? pendingReviews(chat) : 0
     if (n && !window.confirm(`Discard ${n} unreviewed proposal${n === 1 ? "" : "s"}?`)) return false
@@ -547,6 +584,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ delete: chatId }),
     }).catch((e) => console.warn(`[vibedoc] could not delete chat ${chatId}:`, e))
+    return true
+  }
+
+  // T562: Clear, never delete: a fresh session, no messages; notes about workers stay for the next turn
+  function clearOrchestrator() {
+    const chat = chats.find((c) => c.id === ORCHESTRATOR_ID)
+    const n = chat ? pendingReviews(chat) : 0
+    if (n && !window.confirm(`Discard ${n} unreviewed proposal${n === 1 ? "" : "s"}?`)) return false
+    if (chat?.busy) stop(ORCHESTRATOR_ID)
+    setChats((cs) => patchChat(cs, ORCHESTRATOR_ID, (c) => ({ ...c, messages: [], sessionId: null, dismissed: false, updatedAt: new Date().toISOString() })))
+    markDirty(ORCHESTRATOR_ID)
     return true
   }
 
@@ -597,11 +645,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!busy) send(chatId, summary)
   }
 
+  function resolveRun(chatId: string, set: RunCardSet, status: RunCardStatus, workerId?: string) {
+    const { target, mode } = set.request
+    mapMessages(chatId, (m) => ({
+      ...m,
+      runs: m.runs?.map((r) => (r.id === set.id ? { ...r, status, workerId } : r)),
+    }), status === "accepted"
+      ? `User accepted the run for ${target}: worker ${workerId}${mode === "existing" ? " continues" : " started"}.`
+      : `User rejected the run for ${target}.`)
+  }
+
   const api: ChatApi = {
     chats, loaded, modalId,
     closeModal,
-    show, showDefault, showAbout, create, send, stop, dismiss, remove,
-    resolveProposal, resolvePlan, answerQuestions, finishToolkit,
+    show, showDefault, showAbout, showOrchestrator, create, send, stop, dismiss, remove,
+    resolveProposal, resolvePlan, answerQuestions, finishToolkit, resolveRun,
     agents, runningCount, waitingCount, errorCount, queue, now,
     notice, dismissNotice: () => setNotice(null),
   }

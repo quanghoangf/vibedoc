@@ -94,6 +94,33 @@ if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope"
     out({ type: "assistant", session_id: sid, message: { content: [{ type: "text", text: `Done ${taskId}` }] } })
     out({ type: "result", session_id: sid, is_error: false, result: `Done ${taskId}: ${text.split("\n")[0]}`, permission_denials: denied ? [push] : [] })
   }, Number(process.env.CLAUDE_STUB_WORKER_MS ?? 2000))
+} else if (args[0] === "-p" && (args[args.indexOf("--append-system-prompt") + 1] ?? "").includes("project's orchestrator")) {
+  // T562 orchestrator turn (e2e/orchestrator.mjs): really calls vibedoc_list_workers over the MCP URL and answers with
+  // its text; a prompt naming an epic (R005) also calls vibedoc_propose_run on it, so the chat draws a run card.
+  const prompt = args[1]
+  const { url, headers } = JSON.parse(args[args.indexOf("--mcp-config") + 1]).mcpServers.vibedoc
+  const sid = "stub-orchestrator-1"
+  const out = (o) => process.stdout.write(JSON.stringify(o) + "\n")
+  const call = async (name, input) => (await (await fetch(url, {
+    method: "POST", headers: { "content-type": "application/json", ...headers },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: input } }),
+  })).json()).result
+  const use = async (id, name, input) => {
+    out({ type: "assistant", session_id: sid, message: { content: [{ type: "tool_use", id, name: `mcp__vibedoc__${name}`, input }] } })
+    const r = await call(name, input)
+    out({ type: "user", session_id: sid, message: { content: [{ type: "tool_result", tool_use_id: id, is_error: !!r.isError, content: r.content[0].text }] } })
+    return r.content[0].text
+  }
+  ;(async () => {
+    out({ type: "system", subtype: "init", session_id: sid })
+    const workers = await use("tu-list", "vibedoc_list_workers", {})
+    const reply = `From vibedoc_list_workers:\n\n${workers}`
+    out({ type: "stream_event", session_id: sid, event: { type: "message_start" } })
+    out({ type: "stream_event", session_id: sid, event: { type: "content_block_delta", delta: { type: "text_delta", text: reply } } })
+    const epic = prompt.match(/\bpropose a run on (R\d+)/i)?.[1]
+    if (epic) await use(`tu-run-${epic}`, "vibedoc_propose_run", { target: epic })
+    out({ type: "result", session_id: sid, is_error: false, result: reply })
+  })()
 } else if (args[0] === "-p") {
   // A chat turn (e2e/chat-reload.mjs): stream-json over ~4s, slow enough to reload the page mid-turn.
   // CLAUDE_STUB_TURN_MS overrides the length; the reply names the prompt so the test can find it.

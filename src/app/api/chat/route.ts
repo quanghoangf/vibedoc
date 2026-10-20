@@ -17,6 +17,7 @@ import { buildEpisode, isHandoffWritten, mergeSources, turnSessions } from '@/li
 import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 import { CHAT_CALL_HEADER } from '@/lib/agent-connect'
 import { beginTurn, isTurnRunning, turnStream } from '@/lib/chat-turns'
+import { ORCHESTRATOR_ID } from '@/lib/chats'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -28,6 +29,13 @@ whole file. The user reviews a diff and accepts or rejects it, so never claim an
 For requests to plan a roadmap or break an epic into tasks, first call vibedoc_get_planning_guide and follow it.
 When the user asks to set up plugins, skills or their toolkit, call vibedoc_propose_toolkit and end your turn; never give install commands to run instead.
 Paths are relative to the project root. Keep replies short and answer in the user's language.`
+
+// T562: appended for the orchestrator chat only (ADR-007 decision 3)
+const ORCHESTRATOR_PROMPT = `You are this project's orchestrator. Agent workers each run one epic task by task in their own git worktree.
+You never write code and never start anything. Read the workers with vibedoc_list_workers before you answer who is working on what.
+To start work, call vibedoc_propose_run (one call per epic) and end your turn: the user accepts or rejects a run card.
+If the user asks for something you can't schedule (e.g. "start R110 after R108 finishes"), say so and propose what can run now.
+Lines in [brackets] at the start of a message are notes about workers and run cards since your last turn.`
 
 const EPISODE_LOOKBACK = 2000 // the whole activity log (ACTIVITY_CAP)
 
@@ -77,6 +85,9 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'message is required' }, { status: 400 })
   }
 
+  // From the chat id, not a body flag: any other chat asking for orchestrator mode would get propose_run
+  const orchestrator = conversationId === ORCHESTRATOR_ID
+
   // Doc context goes in the user turn, not the system prompt: resumed sessions reuse the first system prompt.
   const prompt = docPath ? `[Currently open doc: ${docPath}]\n\n${message}` : message
   const mcpUrl = `${req.nextUrl.origin}/api/mcp?root=${encodeURIComponent(root)}`
@@ -94,10 +105,10 @@ export async function POST(req: NextRequest) {
     '--disallowedTools', 'mcp__vibedoc__vibedoc_write_doc', 'mcp__vibedoc__vibedoc_append_doc', 'mcp__vibedoc__vibedoc_delete_doc',
     'mcp__vibedoc__vibedoc_create_roadmap_item', 'mcp__vibedoc__vibedoc_delete_entry',
     // R108: only the orchestrator chat (T562) proposes runs
-    'mcp__vibedoc__vibedoc_propose_run',
+    ...(orchestrator ? [] : ['mcp__vibedoc__vibedoc_propose_run']),
     '--setting-sources', '',
     '--disable-slash-commands',
-    '--append-system-prompt', SYSTEM_PROMPT,
+    '--append-system-prompt', orchestrator ? `${SYSTEM_PROMPT}\n\n${ORCHESTRATOR_PROMPT}` : SYSTEM_PROMPT,
   ]
   if (typeof sessionId === 'string' && sessionId) args.push('--resume', sessionId)
 

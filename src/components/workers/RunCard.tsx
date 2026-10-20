@@ -10,7 +10,7 @@ import type { RunProposal } from "@/lib/run-proposal"
 export interface RunValues { branch: string; base: string }
 
 /** The one card for starting work: target, mode, branch, base, tools and budget. Nothing starts before Accept. */
-export function RunCard({ proposal, errors = [], busy, error, onAccept, onCancel }: {
+export function RunCard({ proposal, errors = [], busy, error, onAccept, onCancel, cancelLabel }: {
   proposal: RunProposal
   /** validateRunProposal's reasons (T561): shown, and Accept is off */
   errors?: string[]
@@ -18,6 +18,8 @@ export function RunCard({ proposal, errors = [], busy, error, onAccept, onCancel
   error?: string | null
   onAccept: (v: RunValues) => void
   onCancel?: () => void
+  /** The cancel button's text (the orchestrator chat's card says Reject) */
+  cancelLabel?: string
 }) {
   const { t } = useT()
   const [branch, setBranch] = useState(proposal.branch)
@@ -56,7 +58,7 @@ export function RunCard({ proposal, errors = [], busy, error, onAccept, onCancel
       {errors.map((e) => <p key={e} role="alert" className="whitespace-pre-wrap text-xs text-danger">{e}</p>)}
       {error && <p role="alert" className="whitespace-pre-wrap text-xs text-danger">{t("workers.startFailed", { error })}</p>}
       <div className="flex justify-end gap-2">
-        {onCancel && <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={busy}>{t("workers.cancel")}</Button>}
+        {onCancel && <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={busy}>{cancelLabel ?? t("workers.cancel")}</Button>}
         <Button type="submit" size="sm" disabled={busy || blocked || !branch.trim() || !base.trim()} className="bg-accent text-accent-fg hover:bg-accent/90">
           <Bot /> {busy ? t("workers.starting") : existing ? t("workers.acceptExisting") : t("workers.accept")}
         </Button>

@@ -10,7 +10,7 @@
 import { spawn, type ChildProcess } from 'child_process'
 import type { Chat, Worker, WorkerTurn } from './chats'
 import type { QueueResult } from './work-queue'
-import { nextStep, resumableTurn } from './worker-loop'
+import { nextStep, orchestratorNote, resumableTurn } from './worker-loop'
 import { beginTurn } from './chat-turns'
 import { killGroup } from './test-runner'
 import { stopFrontend } from './frontend-server'
@@ -33,6 +33,8 @@ export interface WorkerDeps {
   env: Record<string, string>
   /** Persist the chat and tell the browser (worker_updated) */
   save: (chat: WorkerChat) => Promise<void>
+  /** T562: leave a note in the orchestrator chat (its next turn reads it); never starts a turn */
+  notify?: (note: string) => Promise<void>
 }
 
 type Run = { epic: string; child: ChildProcess | null; cancelled: boolean; port?: number }
@@ -171,7 +173,10 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, an
   const run = runs.get(keyOf(root, chat.id))
   if (!run) throw new Error(`worker ${chat.id} was not reserved`)
   const save = (patch: Partial<Worker>) => {
+    const from = chat.worker.phase
     chat.worker = { ...chat.worker, ...patch }
+    const note = patch.phase && patch.phase !== from ? orchestratorNote(chat.worker, patch.phase, chat.worker.reason) : null
+    if (note) deps.notify?.(note).catch(e => console.warn(`[vibedoc] orchestrator note not saved: ${(e as Error).message}`))
     chat.updatedAt = new Date().toISOString()
     chat.busy = chat.worker.phase === 'running'
     return deps.save(chat).catch(e => console.warn(`[vibedoc] worker ${chat.id} not saved: ${(e as Error).message}`))

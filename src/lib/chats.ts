@@ -41,6 +41,19 @@ export interface Worker {
   port?: number
 }
 
+/**
+ * T562: the project's one orchestrator chat (ADR-007 decision 3): reads every worker, proposes runs as run cards,
+ * never starts anything. Fixed id, pinned first in the lists; cleared, never deleted.
+ */
+export const ORCHESTRATOR_ID = "orchestrator"
+export const ORCHESTRATOR_TITLE = "Orchestrator"
+export const isOrchestrator = (c: Pick<Chat, "id">) => c.id === ORCHESTRATOR_ID
+
+/** The orchestrator, if there is one, and every other chat (the lists pin it above their groups). */
+export function splitPinned<C extends Chat>(chats: C[]): { pinned: C | undefined; rest: C[] } {
+  return { pinned: chats.find(isOrchestrator), rest: chats.filter((c) => !isOrchestrator(c)) }
+}
+
 export function newChatId(now: number, salt = Math.random()): string {
   return `c-${now.toString(36)}${salt.toString(36).slice(2, 6)}`
 }
@@ -65,6 +78,8 @@ export interface StatusMessage {
   proposals: { status: string }[]
   plans: { status: string }[]
   toolkits?: { results?: unknown }[]
+  /** T562: the orchestrator's `vibedoc_propose_run` cards */
+  runs?: { status: string }[]
   error?: string
 }
 
@@ -81,7 +96,7 @@ export const STATUS_LABEL: Record<ChatStatus, string> = {
 /** Plan and edit cards the user hasn't accepted or rejected yet, across the whole chat. */
 export function pendingReviews(chat: Chat<StatusMessage>): number {
   return chat.messages.reduce(
-    (n, m) => n + m.plans.filter((p) => p.status === "pending").length + m.proposals.filter((p) => p.status === "pending").length,
+    (n, m) => n + [...m.plans, ...m.proposals, ...(m.runs ?? [])].filter((p) => p.status === "pending").length,
     0,
   )
 }
@@ -196,7 +211,8 @@ export function attachContext(a: Attach): string {
 }
 
 /** Starter prompts shown in an empty chat. Each is something the agent can do with only the vibedoc_* tools. */
-export function suggestions(a: Attach | null): string[] {
+export function suggestions(a: Attach | null, orchestrator = false): string[] {
+  if (orchestrator) return ["Who is working on what?", "What waits on me?", "Which epic should a worker take next?"]
   if (!a) return ["What should I work on next?", "Plan a roadmap for this project.", "What is blocked right now?"]
   if (a.kind === "epic") return [`Break down epic ${a.id} into tasks.`, "Summarize this epic's progress.", "What is at risk in this epic?"]
   return ["Refine this task's spec.", "Split this task into smaller tasks.", "What blocks this task?"]
@@ -243,9 +259,9 @@ export function defaultChat<C extends Chat<StatusMessage>>(chats: C[], now = Dat
 
 // ─── Persistence (.vibedoc/chats/<id>.json via /api/conversations) ───────────
 
-/** What gets saved: never busy (a running turn can't survive a reload). Empty chats aren't saved, unless a worker. */
+/** What gets saved: never busy (a running turn can't survive a reload). Empty chats aren't saved, unless a worker or the orchestrator (a Clear must persist). */
 export function toSaved<M>(c: Chat<M>): Chat<M> | null {
-  return c.messages.length || c.worker ? { ...c, busy: false } : null
+  return c.messages.length || c.worker || isOrchestrator(c) ? { ...c, busy: false } : null
 }
 
 /** A saved chat as loaded: a turn that was cut off (empty last reply, no error) gets an "interrupted" error. */
@@ -255,7 +271,7 @@ export function fromSaved<M extends StatusMessage>(raw: unknown): Chat<M> | null
   const c = raw as Chat<M> | null
   if (!c || typeof c.id !== "string" || !Array.isArray(c.messages)) return null
   const last = c.messages[c.messages.length - 1]
-  const cut = last?.role === "assistant" && !last.text && !last.error && !last.tools?.length && !last.plans?.length && !last.proposals?.length && !last.questions?.length && !last.toolkits?.length
+  const cut = last?.role === "assistant" && !last.text && !last.error && !last.tools?.length && !last.plans?.length && !last.proposals?.length && !last.questions?.length && !last.toolkits?.length && !last.runs?.length
   const messages = cut ? [...c.messages.slice(0, -1), { ...last, error: INTERRUPTED }] : c.messages
   const at = c.updatedAt ?? c.createdAt ?? new Date(0).toISOString()
   return { ...c, messages, busy: false, notes: c.notes ?? [], attach: c.attach ?? null, createdAt: c.createdAt ?? at, updatedAt: at }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   ERROR_ALARM_MS, MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, ago, attentionQueue, attachContext, chatFor, chatStatus, chatTitle, defaultChat, epicOf,
   fromSaved, groupChats, isActionableError, itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, shellStatus, suggestions,
-  toSaved, waitingTitle, type Attach, type Chat, type StatusMessage, type Worker,
+  toSaved, waitingTitle, ORCHESTRATOR_ID, splitPinned, type Attach, type Chat, type StatusMessage, type Worker,
 } from './chats.ts'
 
 const T = (min: number) => new Date(Date.UTC(2026, 8, 29, 9, min)).toISOString()
@@ -117,6 +117,17 @@ assert.match(attachContext(task('T5')), /task T5.*vibedoc_get_task/)
 assert.equal(suggestions(epic('R4'))[0], 'Break down epic R004'.replace('R004', 'R4') + ' into tasks.')
 assert.equal(suggestions(task('T5')).length, 3)
 assert.equal(suggestions(null).length, 3)
+assert.equal(suggestions(null, true)[0], 'Who is working on what?')
+
+// T562: the orchestrator is pinned above the groups, whatever its status; a pending run card is a review
+const orch = chat(ORCHESTRATOR_ID, [msg({ runs: [{ status: 'pending' }] })], { updatedAt: T(0) })
+const others = [chat('a', [ask], { updatedAt: T(5) }), chat('b', [msg()], { updatedAt: T(9) })]
+const split = splitPinned([...others, orch])
+assert.equal(split.pinned?.id, ORCHESTRATOR_ID)
+assert.deepEqual(split.rest.map((c) => c.id), ['a', 'b'])
+assert.equal(splitPinned(others).pinned, undefined)
+assert.equal(chatStatus(orch), 'review')
+assert.equal(pendingReviews(chat('x', [msg({ runs: [{ status: 'accepted' }, { status: 'pending' }] })])), 1)
 
 // groupChats / defaultChat
 const g = groupChats([
@@ -154,6 +165,7 @@ assert.equal(shellStatus(chat('b', [failed], { busy: true }), qNow), 'running')
 
 // toSaved / fromSaved
 assert.equal(toSaved(chat('e', [])), null)                                              // empty chats aren't saved
+assert.equal(toSaved(chat(ORCHESTRATOR_ID, []))?.id, ORCHESTRATOR_ID)                    // T562: a cleared orchestrator is saved
 assert.equal(toSaved(chat('s', [msg()], { busy: true }))?.busy, false)
 // R108: a worker chat keeps its worktree through a save and a load, even before its first turn
 const worker: Worker = { dir: '/w', branch: 'vibedoc/R1', base: 'main', target: epic('R1'), phase: 'running', turns: [{ taskId: 'T1', sessionId: 's', startedAt: T(1), endedAt: null, result: null }] }

@@ -1,6 +1,6 @@
 // Self-check for worker-loop. Run: node src/lib/worker-loop.check.mts
 import assert from 'node:assert/strict'
-import { nextStep, resumableTurn } from './worker-loop.ts'
+import { nextStep, orchestratorNote, resumableTurn } from './worker-loop.ts'
 
 const running = { phase: 'running' as const }
 const turn = (result: string | null) => ({ taskId: 'T1', sessionId: 's', startedAt: 'a', endedAt: 'b', result })
@@ -32,5 +32,13 @@ assert.equal(resumableTurn({ phase: 'running', turns: [asked] }), null)
 assert.equal(resumableTurn({ phase: 'wait-user', turns: [turn('done')] }), null, 'waiting on the queue (a blocked task), not on a turn')
 assert.equal(resumableTurn({ phase: 'wait-user', turns: [{ ...asked, sessionId: null }] }), null, 'no session to resume')
 assert.equal(resumableTurn({ phase: 'wait-user', turns: [] }), null)
+
+// T562: the orchestrator's note when a worker stops; none while it runs
+const wk = { branch: 'vibedoc/R108', target: { kind: 'epic' as const, id: 'R108' } }
+assert.equal(orchestratorNote(wk, 'wait-user', 'T557: the agent stopped before the task was done'), 'Worker vibedoc/R108 (R108) waits on you: T557: the agent stopped before the task was done.')
+assert.equal(orchestratorNote(wk, 'ended', 'Epic finished'), 'Worker vibedoc/R108 (R108) ended: Epic finished.')
+assert.equal(orchestratorNote(wk, 'stopped'), 'Worker vibedoc/R108 (R108) was stopped.')
+assert.match(orchestratorNote(wk, 'failed', 'boom') ?? '', /failed: boom/)
+for (const p of ['starting', 'running'] as const) assert.equal(orchestratorNote(wk, p), null)
 
 console.log('worker-loop: ok')

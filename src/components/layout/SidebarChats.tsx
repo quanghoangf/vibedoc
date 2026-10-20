@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { Suspense } from "react"
-import { Loader2, MessagesSquare, Plus, X } from "lucide-react"
+import { Loader2, MessagesSquare, Network, Plus, X } from "lucide-react"
 import {
   SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuAction, SidebarMenuButton, SidebarMenuItem,
@@ -11,7 +11,7 @@ import {
 import { useChats } from "@/context/ChatContext"
 import { AttachLabel, StatusMarker } from "@/components/chat/StatusMarker"
 import { useChatText } from "@/components/chat/chat-text"
-import { groupChats, isActionableError, shellStatus } from "@/lib/chats"
+import { groupChats, isActionableError, shellStatus, splitPinned } from "@/lib/chats"
 import { cn } from "@/lib/utils"
 import { shortcutFor } from "@/lib/shortcuts"
 import { useT } from "@/context/LanguageContext"
@@ -31,13 +31,15 @@ export function SidebarChats() {
 }
 
 function SidebarChatsInner() {
-  const { chats, loaded, modalId, show, create, dismiss, waitingCount, runningCount, errorCount, now } = useChats()
+  const { chats, loaded, modalId, show, showOrchestrator, create, dismiss, waitingCount, runningCount, errorCount, now } = useChats()
   const chatText = useChatText()
   const { t } = useT()
   const pathname = usePathname()
   const pageId = useSearchParams().get("id")
-  const g = groupChats(chats, now)
-  const listed = [...g.needsYou, ...g.errors, ...g.running, ...g.recent.slice(0, RECENT_IN_SIDEBAR)]
+  // T562: the orchestrator sits on top whatever its status
+  const { pinned, rest } = splitPinned(chats)
+  const g = groupChats(rest, now)
+  const listed = [...(pinned ? [pinned] : []), ...g.needsYou, ...g.errors, ...g.running, ...g.recent.slice(0, RECENT_IN_SIDEBAR)]
   const hidden = chats.length - listed.length
   const railTip = [runningCount && t("shell.railRunning", { n: runningCount }), waitingCount && t("shell.railWaiting", { n: waitingCount }), errorCount && t("shell.railError", { n: errorCount })]
     .filter(Boolean).join(" · ")
@@ -47,6 +49,10 @@ function SidebarChatsInner() {
   return (
     <SidebarGroup role="group" aria-label={t("shell.chats")}>
       <SidebarGroupLabel>{t("shell.chats")}</SidebarGroupLabel>
+      <SidebarGroupAction title={t("workers.askOrchestrator")} onClick={showOrchestrator} className="right-9">
+        <Network />
+        <span className="sr-only">{t("workers.askOrchestrator")}</span>
+      </SidebarGroupAction>
       <SidebarGroupAction title={t("shell.newChat")} onClick={() => show(create())}>
         <Plus />
         <span className="sr-only">{t("shell.newChat")}</span>
@@ -85,7 +91,7 @@ function SidebarChatsInner() {
                   className={cn("h-8", status === "idle" && "text-muted", alarm && "pr-8")}
                   title={chatText.title(c.title)}
                 >
-                  <StatusMarker status={status} showIdle />
+                  {c === pinned ? <Network className="text-accent" /> : <StatusMarker status={status} showIdle />}
                   <span data-user-content className="min-w-0 flex-1 truncate">{chatText.title(c.title)}</span>
                   {alarm && <span aria-hidden className="shrink-0 font-mono text-[10px] text-danger">{t("shell.chatError")}</span>}
                   {/* "Break down R043" already names its epic */}

@@ -3,7 +3,7 @@
  * What a worker does next (ADR-007 decision 1). Pure: worker-runs.ts claims and spawns. Called twice per step:
  * first with no claim (may it claim? claiming has a side effect), then with the claim's result.
  */
-import type { Worker, WorkerTurn } from './chats'
+import type { Worker, WorkerPhase, WorkerTurn } from './chats'
 import type { QueueResult } from './work-queue'
 
 export type WorkerStep =
@@ -37,4 +37,18 @@ export function nextStep(worker: Pick<Worker, 'phase'>, claim: QueueResult | nul
 export function resumableTurn(worker: Pick<Worker, 'phase' | 'turns'>): WorkerTurn | null {
   const last = worker.turns[worker.turns.length - 1]
   return worker.phase === 'wait-user' && last?.sessionId && nextStep({ phase: 'running' }, null, last).kind === 'wait-user' ? last : null
+}
+
+/**
+ * T562: the note a worker's phase change leaves in the orchestrator chat, so its next turn knows (no turn is started).
+ * Only the phases where a worker stops: null for the others. "Interrupted" is not a server phase (a page reload infers it).
+ */
+export function orchestratorNote(w: Pick<Worker, 'branch' | 'target'>, phase: WorkerPhase, reason?: string): string | null {
+  const who = `Worker ${w.branch} (${w.target.id})`
+  const why = reason ? `: ${reason}` : ''
+  if (phase === 'wait-user') return `${who} waits on you${why}.`
+  if (phase === 'ended') return `${who} ended${why}.`
+  if (phase === 'stopped') return `${who} was stopped.`
+  if (phase === 'failed') return `${who} failed${why}.`
+  return null
 }

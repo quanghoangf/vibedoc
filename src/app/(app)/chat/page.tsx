@@ -7,7 +7,7 @@ import { useChats, type ChatTab } from "@/context/ChatContext"
 import { ChatView } from "@/components/chat/ChatView"
 import { ChatContextRail } from "@/components/chat/ChatContextRail"
 import { AttachLabel, StatusMarker } from "@/components/chat/StatusMarker"
-import { defaultChat, groupChats, shellStatus, suggestions } from "@/lib/chats"
+import { defaultChat, groupChats, isOrchestrator, shellStatus, splitPinned, suggestions } from "@/lib/chats"
 import { useMinute } from "@/hooks/use-minute"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -70,8 +70,11 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
   const { t } = useT()
   const q = query.trim().toLowerCase()
   const shown = q ? chats.filter((c) => c.title.toLowerCase().includes(q) || c.attach?.id.toLowerCase().includes(q)) : chats
-  const g = groupChats(shown, now)
+  // T562: the orchestrator is pinned above the groups
+  const { pinned, rest } = splitPinned(shown)
+  const g = groupChats(rest, now)
   const sections = [
+    { label: t("workers.orchestrator"), items: pinned ? [pinned] : [], tone: "text-accent" },
     { label: t("chat.groupNeedsYou"), items: g.needsYou, tone: "text-amber" },
     { label: t("chat.groupErrors"), items: g.errors, tone: "text-danger" },
     { label: t("chat.groupRunning"), items: g.running, tone: "text-accent" },
@@ -150,7 +153,7 @@ function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
           </span>
         )}
       </button>
-      <button
+      {!isOrchestrator(chat) && <button
         type="button"
         onClick={() => remove(chat.id)}
         aria-label={t("chat.closeTitle", { title: chat.title })}
@@ -158,7 +161,7 @@ function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
         className="absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-md text-muted opacity-0 transition-opacity duration-(--duration-fast) hover:bg-surface hover:text-danger focus-visible:opacity-100 group-hover:opacity-100"
       >
         <X className="size-3.5" />
-      </button>
+      </button>}
     </li>
   )
 }

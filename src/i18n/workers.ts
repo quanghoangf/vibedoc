@@ -45,6 +45,17 @@ export const en = {
   maxRunning: "Workers at the same time",
   save: "Save",
   saved: "Saved",
+  orchestrator: "Orchestrator",
+  askOrchestrator: "Ask the orchestrator",
+  orchestratorLead: "It reads every worker of this project and proposes runs as a run card. It never starts anything or writes code.",
+  clearOrchestrator: "Clear the orchestrator chat",
+  sugWho: "Who is working on what?",
+  sugWaits: "What waits on me?",
+  sugNextEpic: "Which epic should a worker take next?",
+  reject: "Reject",
+  runAccepted: "Accepted: the worker took the run.",
+  runRejected: "Rejected.",
+  openWorker: "Open the worker",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -91,4 +102,15 @@ export const vi: Messages<typeof en> = {
   maxRunning: "Số worker cùng lúc",
   save: "Lưu",
   saved: "Đã lưu",
+  orchestrator: "Điều phối",
+  askOrchestrator: "Hỏi bên điều phối",
+  orchestratorLead: "Nó đọc mọi worker của dự án và đề xuất lượt chạy bằng thẻ chạy. Nó không bao giờ tự bắt đầu việc gì hay viết code.",
+  clearOrchestrator: "Xoá nội dung chat điều phối",
+  sugWho: "Ai đang làm gì?",
+  sugWaits: "Việc gì đang chờ tôi?",
+  sugNextEpic: "Worker nên nhận epic nào tiếp theo?",
+  reject: "Từ chối",
+  runAccepted: "Đã chấp nhận: worker đã nhận lượt chạy.",
+  runRejected: "Đã từ chối.",
+  openWorker: "Mở worker",
 }
