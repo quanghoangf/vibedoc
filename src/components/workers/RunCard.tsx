@@ -53,7 +53,7 @@ export function RunCard({ proposal, errors = [], busy, error, onAccept, onCancel
         <dt className="text-muted">{t("workers.denied")}</dt>
         <dd className="flex flex-wrap gap-1">{proposal.denied.map((a) => <code key={a} className="rounded-sm border border-danger/30 px-1 font-mono text-[10px] text-danger">{a}</code>)}</dd>
         <dt className="text-muted">{t("workers.budget")}</dt>
-        <dd className="text-txt">{proposal.budget ?? t("workers.noBudget")}</dd>
+        <dd className="text-txt">{proposal.budget ? t("workers.budgetValue", { turns: proposal.budget.maxTurns, min: proposal.budget.timeoutMin }) : t("workers.noBudget")}</dd>
       </dl>
       {errors.map((e) => <p key={e} role="alert" className="whitespace-pre-wrap text-xs text-danger">{e}</p>)}
       {error && <p role="alert" className="whitespace-pre-wrap text-xs text-danger">{t("workers.startFailed", { error })}</p>}

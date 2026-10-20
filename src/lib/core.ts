@@ -1455,7 +1455,7 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
  * and `statuses` (custom statuses; the built-ins when unset). `runs.keep` (R059): test runs kept per task, default 5.
  */
 export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number; autoSendBack: boolean; maxAutoFixes: number; agentHeader: boolean; workers: WorkerSettings }> {
-  let s: { docs?: { agentHeader?: unknown }; tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown; maxAutoFixes?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown }; workers?: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown } } | null = null
+  let s: { docs?: { agentHeader?: unknown }; tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown; maxAutoFixes?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown }; workers?: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown; maxTurnsPerTask?: unknown; taskTimeoutMin?: unknown } } | null = null
   try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
   const budget = Number(s?.memory?.sessionBudgetTokens)
   return {
@@ -1475,11 +1475,17 @@ export async function readProjectSettings(root: string): Promise<{ sizeDays: Siz
   }
 }
 
-/** R108 T557: what a worker may run, which env names it inherits and how many run at once (`workers` in settings). */
-export interface WorkerSettings { allowedTools: string[]; maxRunning: number; env: string[] }
+/**
+ * R108 T557: what a worker may run, which env names it inherits and how many run at once (`workers` in settings).
+ * T567: each task's budget, `maxTurnsPerTask` (`--max-turns`) and `taskTimeoutMin` (the server kills the turn).
+ */
+export interface WorkerSettings { allowedTools: string[]; maxRunning: number; env: string[]; maxTurnsPerTask: number; taskTimeoutMin: number }
 export const DEFAULT_MAX_WORKERS = 2
+/** The spike's trivial task took 38 s; a real task runs tens of round trips. Room on both. */
+export const DEFAULT_MAX_TURNS_PER_TASK = 60
+export const DEFAULT_TASK_TIMEOUT_MIN = 30
 
-function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown } | undefined): WorkerSettings {
+function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown; maxTurnsPerTask?: unknown; taskTimeoutMin?: unknown } | undefined): WorkerSettings {
   const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').map(x => x.trim()).filter(Boolean) : [])
   const allowed = strings(w?.allowedTools)
   const max = w?.maxRunning
@@ -1487,8 +1493,12 @@ function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?:
     allowedTools: allowed.length ? allowed : WORKER_ALLOWED,
     maxRunning: Number.isInteger(max) && (max as number) >= 1 ? (max as number) : DEFAULT_MAX_WORKERS,
     env: strings(w?.env).filter(n => /^[A-Za-z_][A-Za-z0-9_]*$/.test(n)),
+    maxTurnsPerTask: positiveInt(w?.maxTurnsPerTask) ?? DEFAULT_MAX_TURNS_PER_TASK,
+    taskTimeoutMin: positiveInt(w?.taskTimeoutMin) ?? DEFAULT_TASK_TIMEOUT_MIN,
   }
 }
+
+const positiveInt = (v: unknown): number | null => (Number.isInteger(v) && (v as number) >= 1 ? (v as number) : null)
 
 /** Replace-or-insert (or remove, for '' / null) one `**Label:**` line inside the head meta block. */
 function withMetaLine(content: string, label: string, value: string | null): string {
@@ -4395,6 +4405,7 @@ export async function getRunContext(root: string, live: Set<string>): Promise<Ru
     roadmap: items.map(i => ({ id: i.id, parent: i.parent, status: i.status })),
     workers: workers.map(w => ({ ...w, running: live.has(w.id) })),
     branches, maxRunning: settings.maxRunning, allowedTools: settings.allowedTools, denied: WORKER_DENIED,
+    budget: { maxTurns: settings.maxTurnsPerTask, timeoutMin: settings.taskTimeoutMin },
   }
 }
 

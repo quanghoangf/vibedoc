@@ -2,13 +2,15 @@
 
 import { useState } from "react"
 import { Check, Copy, GitBranch } from "lucide-react"
-import { useT } from "@/context/LanguageContext"
+import { useFormat, useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
-import type { Worker, WorkerPhase } from "@/lib/chats"
+import type { Worker, WorkerPhase, WorkerTurn } from "@/lib/chats"
+import { sumUsage } from "@/lib/worker-state"
 
 const PHASE_KEY: Record<WorkerPhase, MessageKey> = {
   starting: "workers.phaseStarting",
   running: "workers.phaseRunning",
+  paused: "workers.phasePaused",
   "wait-user": "workers.phaseWaitUser",
   ended: "workers.phaseEnded",
   stopped: "workers.phaseStopped",
@@ -21,9 +23,23 @@ export function currentTask(w: Worker): string | null {
   return last && last.result === null ? last.taskId : null
 }
 
-/** Under a worker chat's header: branch, folder (copy), base, phase and the current task. */
+/** T567: "12 turns · 3m · $0.73" for some turns' usage (one task's, or the whole worker's); null when none reported. */
+export function useUsageText() {
+  const { tn } = useT()
+  const { duration, lang } = useFormat()
+  return (turns: WorkerTurn[]): string | null => {
+    if (!turns.some((x) => x.usage)) return null
+    const u = sumUsage(turns.map((x) => x.usage))
+    const cost = new Intl.NumberFormat(lang, { style: "currency", currency: "USD", maximumFractionDigits: 2 }).format(u.costUsd)
+    return [tn("workers.usageTurns", u.turns), duration(Math.round(u.durationMs / 60_000)), cost].join(" · ")
+  }
+}
+
+/** Under a worker chat's header: branch, folder (copy), base, phase, the current task and what it has used so far. */
 export function WorkerStrip({ worker }: { worker: Worker }) {
   const { t } = useT()
+  const { clock } = useFormat()
+  const usage = useUsageText()(worker.turns)
   const [copied, setCopied] = useState(false)
   const task = currentTask(worker)
   const copy = async () => {
@@ -52,7 +68,10 @@ export function WorkerStrip({ worker }: { worker: Worker }) {
       </span>
       <span className="ml-auto inline-flex items-center gap-2">
         {task && <span className="font-mono text-accent">{t("workers.currentTask", { id: task })}</span>}
-        <span className="text-muted" title={worker.reason}>{t(PHASE_KEY[worker.phase])}</span>
+        {usage && <span data-worker-usage className="text-muted" title={t("workers.usageTotal")}>{usage}</span>}
+        <span className="text-muted" title={worker.reason}>
+          {worker.phase === "paused" && worker.retryAt ? t("workers.pausedUntil", { time: clock(worker.retryAt) }) : t(PHASE_KEY[worker.phase])}
+        </span>
       </span>
     </div>
   )

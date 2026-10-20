@@ -13,6 +13,10 @@
 //   4. Browser (T555): epic sheet → Work with agent → run card → Start → the worker chat opens with branch, folder and the
 //      current task, streams the reply, starts a divider per task; the board card moves without a reload; a reload
 //      mid-task re-attaches to the running turn. Fails on any browser console error.
+//   5. T567 (budget, S10): workers.maxTurnsPerTask 5 + taskTimeoutMin 1. A stub task that hits --max-turns → wait-user
+//      "Turn budget reached (5)", no next task; an answer resumes it with the budget again. One that hangs → killed after
+//      1 min, wait-user "Took longer than 1 min". One that hits a usage limit → paused with a retry time, not in the
+//      inbox, then the task runs again by itself. Usage (turns, time, cost) is saved per turn. Takes about 70 s.
 // With PLAYGROUND=1 (server started with VIBEDOC_PLAYGROUND=1) it only checks POST /api/workers → 403.
 //
 // The server must run with e2e/fixtures/claude-stub first on PATH and the same VIBEDOC_HOME as this script:
@@ -57,7 +61,13 @@ writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Pare
 writeFileSync(path.join(fx, "plans/roadmap/R003-other.md"), "# R003: Other\n**Parent:** R001\n**Status:** planned\n**Order:** 20\n**Tasks:** T003, T004\n")
 writeFileSync(path.join(fx, "plans/roadmap/R004-browser.md"), "# R004: Browser\n**Parent:** R001\n**Status:** planned\n**Order:** 30\n**Tasks:** T005, T006\n")
 writeFileSync(path.join(fx, "plans/roadmap/R005-limit.md"), "# R005: Limit\n**Parent:** R001\n**Status:** planned\n**Order:** 40\n**Tasks:** T007\n")
+// T567: R006 T008 hits --max-turns, then T009; R007 T010 hangs; R008 T011 hits a usage limit (.claude-stub-outcomes)
+writeFileSync(path.join(fx, "plans/roadmap/R006-turns.md"), "# R006: Turns\n**Parent:** R001\n**Status:** planned\n**Order:** 50\n**Tasks:** T008, T009\n")
+writeFileSync(path.join(fx, "plans/roadmap/R007-time.md"), "# R007: Time\n**Parent:** R001\n**Status:** planned\n**Order:** 60\n**Tasks:** T010\n")
+writeFileSync(path.join(fx, "plans/roadmap/R008-usage.md"), "# R008: Usage\n**Parent:** R001\n**Status:** planned\n**Order:** 70\n**Tasks:** T011\n")
+writeFileSync(path.join(fx, ".claude-stub-outcomes"), JSON.stringify({ T008: "max-turns", T010: "hang", T011: "usage-limit" }))
 task("T001", "R002"); task("T002", "R002"); task("T003", "R003"); task("T004", "R003", "T003"); task("T005", "R004"); task("T006", "R004", "T005"); task("T007", "R005")
+task("T008", "R006"); task("T009", "R006", "T008"); task("T010", "R007"); task("T011", "R008")
 const stubEnv = ["CLAUDE_STUB_WORKER_MS"]
 const settings = (workers) => writeFileSync(path.join(fx, ".vibedoc/settings.json"), JSON.stringify({ workers: { env: stubEnv, ...workers } }))
 settings({})
@@ -139,6 +149,7 @@ try {
   assert.equal(fresh.proposal.branch, "vibedoc/R005")
   assert.ok(fresh.proposal.denied.includes("Bash(git push*)"))
   assert.deepEqual(fresh.errors, [])
+  assert.deepEqual(fresh.proposal.budget, { maxTurns: 60, timeoutMin: 30 })
   assert.equal(worktreeCount(), trees, "a proposal creates nothing")
   assert.equal(git(["branch", "--list", "vibedoc/R005"]).trim(), "")
   const refusedNew = await mcp("vibedoc_propose_run", { target: "R002", mode: "new" })
@@ -153,18 +164,18 @@ try {
   console.log("ok  propose: R002 → its idle worker, R005 → a new worktree, nothing created; MCP propose_run new refused naming it; list_workers")
 
   // existing + Accept: a new task on R002 → the same worker claims it in the same worktree
-  task("T008", "R002")
-  writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** T001, T002, T008\n")
+  task("T012", "R002")
+  writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** T001, T002, T012\n")
   const cont = await post("/api/workers", { target: { kind: "epic", id: "R002" }, mode: "existing", workerId: w.id })
   const contBody = await cont.json()
   assert.equal(cont.status, 200, JSON.stringify(contBody))
   assert.equal(contBody.id, w.id)
   assert.equal(contBody.dir, w.dir)
-  await until(() => savedChat(w.id).worker.phase === "ended" && savedChat(w.id).worker.turns.length === 3, "the worker continued with T008")
-  assert.equal(status("T008"), "done")
+  await until(() => savedChat(w.id).worker.phase === "ended" && savedChat(w.id).worker.turns.length === 3, "the worker continued with T012")
+  assert.equal(status("T012"), "done")
   assert.equal(worktreeCount(), trees, "no second worktree")
-  assert.deepEqual(git(["log", "--format=%s", "main..vibedoc/R002"]).trim().split("\n"), ["feat: T008", "feat: T002", "feat: T001"])
-  console.log("ok  Accept on an existing worker → it claims T008 in its worktree, no new worktree (S7)")
+  assert.deepEqual(git(["log", "--format=%s", "main..vibedoc/R002"]).trim().split("\n"), ["feat: T012", "feat: T002", "feat: T001"])
+  console.log("ok  Accept on an existing worker → it claims T012 in its worktree, no new worktree (S7)")
 
   // a settings allowlist that allows push, one worker at a time, GITHUB_TOKEN passed on
   settings({ allowedTools: ["Read", "Bash(git push*)"], maxRunning: 1, env: [...stubEnv, "GITHUB_TOKEN"] })
@@ -218,6 +229,7 @@ try {
     assert.equal(await runCard.getByLabel("Branch").inputValue(), "vibedoc/R004")
     assert.equal(await runCard.getByLabel("Base").inputValue(), "HEAD")
     await runCard.getByText("Bash(git push*)").waitFor()
+    await runCard.getByText("60 turns · 30 min per task").waitFor() // T567: the proposal carries the default budget
     await runCard.getByRole("button", { name: "Start worker" }).click()
 
     const chatBox = page.getByRole("dialog")
@@ -234,6 +246,9 @@ try {
     await card("todo", "T005").waitFor({ state: "detached" })
     await chatBox.getByRole("separator", { name: "Task T006" }).waitFor()
     await strip.getByText("Working on T006").waitFor()
+    // T567: the stub reports 3 turns, 1.5 s and $0.25 per task: the strip sums them, the divider shows its task's
+    await strip.locator("[data-worker-usage]").getByText(/^3 turns · .+ · \$0\.25$/).waitFor()
+    await chatBox.getByRole("separator", { name: "Task T005" }).getByText(/^3 turns · /).waitFor()
     console.log("ok  T005 done → its board card moves without a reload; the chat starts a divider for T006 (S2)")
 
     const workerChat = readdirSync(path.join(fx, ".vibedoc/chats")).map((f) => savedChat(f.replace(/\.json$/, ""))).find((c) => c.worker?.target.id === "R004")
@@ -273,6 +288,59 @@ try {
   } finally {
     await browser.close()
   }
+
+  // 5. T567: the budget per task and the usage-limit pause (S10)
+  settings({ maxRunning: 3, maxTurnsPerTask: 5, taskTimeoutMin: 1 })
+  const start = async (epic) => {
+    const r = await (await post("/api/workers", { target: { kind: "epic", id: epic } })).json()
+    assert.ok(r.dir, JSON.stringify(r))
+    dirs.push(r.dir)
+    return r
+  }
+  const hang = await start("R007")
+  const usage = await start("R008")
+  const turns = await start("R006")
+
+  await until(() => savedChat(usage.id).worker.phase === "paused", "usage-limit worker paused")
+  const uw = savedChat(usage.id).worker
+  assert.ok(Date.parse(uw.retryAt) > Date.now() - 5000, `retryAt ${uw.retryAt}`)
+  assert.deepEqual(uw.turns.map((t) => [t.taskId, t.result]), [["T011", "usage-limit"]])
+  const inbox = await (await fetch(`${BASE}/api/inbox?project=${encodeURIComponent(registerProject(fx).id)}`)).json()
+  assert.ok(!inbox.some((i) => i.id === usage.id), `a paused worker is not in the inbox: ${JSON.stringify(inbox)}`)
+  console.log("ok  a usage limit → phase paused with a retry time, not in the inbox (S10)")
+  await until(() => savedChat(turns.id).worker.phase === "wait-user", "max-turns worker waits")
+  let tw = savedChat(turns.id).worker
+  assert.equal(tw.reason, "T008: Turn budget reached (5)")
+  assert.deepEqual(tw.turns.map((t) => [t.taskId, t.result]), [["T008", "over-turns"]])
+  assert.equal(tw.turns[0].usage.turns, 6)
+  assert.equal(status("T008"), "in-progress")
+  assert.equal(status("T009"), "todo")
+  assert.match(readFileSync(path.join(turns.dir, ".claude-stub.log"), "utf8"), /--max-turns 5 /)
+  console.log("ok  --max-turns 5 reached → the task stops, wait-user \"Turn budget reached (5)\", T009 not claimed (S10)")
+  assert.equal((await post("/api/workers/answer", { id: turns.id, message: "Go on." })).status, 200)
+  await until(() => savedChat(turns.id).worker.phase === "ended", "resumed worker ends", 30000)
+  tw = savedChat(turns.id).worker
+  assert.deepEqual(tw.turns.map((t) => [t.taskId, t.result]), [["T008", "over-turns"], ["T008", "done"], ["T009", "done"]])
+  assert.equal(tw.turns[1].sessionId, "stub-worker-T008", "the answer resumed T008's session")
+  console.log("ok  an answer resumes the over-budget task with the budget again; the worker goes on to T009")
+
+  await until(() => savedChat(usage.id).worker.phase === "ended", "paused worker retries and ends", 30000)
+  const ue = savedChat(usage.id).worker
+  assert.deepEqual(ue.turns.map((t) => [t.taskId, t.result]), [["T011", "usage-limit"], ["T011", "done"]])
+  assert.equal(ue.retryAt, undefined)
+  assert.equal(status("T011"), "done")
+  assert.deepEqual(ue.turns[1].usage, { turns: 3, durationMs: 1500, costUsd: 0.25, tokens: 3100 })
+  console.log("ok  after the retry time the task runs again by itself and finishes; usage is saved per turn")
+
+  await until(() => savedChat(hang.id).worker.phase === "wait-user", "timed-out worker waits", 90000)
+  const hw = savedChat(hang.id).worker
+  assert.equal(hw.reason, "T010: Took longer than 1 min")
+  assert.deepEqual(hw.turns.map((t) => [t.taskId, t.result]), [["T010", "over-time"]])
+  assert.ok(Date.parse(hw.turns[0].endedAt) - Date.parse(hw.turns[0].startedAt) >= 60000)
+  assert.equal(status("T010"), "in-progress")
+  assert.equal(git(["log", "--format=%s", "main..vibedoc/R007"]).trim(), "", "the killed turn committed nothing")
+  console.log("ok  a task past taskTimeoutMin (1) → killed, wait-user \"Took longer than 1 min\" (S10)")
+  settings({})
 } finally {
   sse.abort()
   for (const d of dirs) { try { git(["worktree", "remove", "--force", d]) } catch { rmSync(d, { recursive: true, force: true }) } }

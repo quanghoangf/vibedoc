@@ -513,7 +513,7 @@ export const TOOLS = [
   {
     name: "vibedoc_list_workers",
     description:
-      "List this project's agent workers (R108: a worker runs an epic task by task in its own git worktree): id, epic, branch, base, phase (running, wait-user, ended, stopped, failed), current task, the last line of its reply, commits ahead of its base and its dev server port. Use it to answer who is working on what.",
+      "List this project's agent workers (R108: a worker runs an epic task by task in its own git worktree): id, epic, branch, base, phase (running, paused, wait-user, ended, stopped, failed), current task, the last line of its reply, commits ahead of its base and its dev server port. Use it to answer who is working on what.",
     inputSchema: { type: "object", properties: {} },
   },
   {

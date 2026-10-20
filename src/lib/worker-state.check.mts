@@ -1,6 +1,6 @@
 // Self-check for worker-state. Run: node src/lib/worker-state.check.mts
 import assert from 'node:assert/strict'
-import { refusedCalls } from './worker-state.ts'
+import { rateLimitPause, refusedCalls, sumUsage, turnOutcome, turnUsage, USAGE_PAUSE_AT } from './worker-state.ts'
 
 // The spike's shapes (ADR-007): tool_use → system/permission_denied → result.permission_denials
 const turn = [
@@ -24,5 +24,39 @@ assert.deepEqual(refusedCalls([{ type: 'system', subtype: 'permission_denied', t
 // Only the result: non-Bash input is its file path
 assert.deepEqual(refusedCalls([{ type: 'result', permission_denials: [{ tool_name: 'Edit', tool_use_id: 'e', tool_input: { file_path: '/a.ts' } }] }]), [{ tool: 'Edit', input: '/a.ts' }])
 assert.deepEqual(refusedCalls([{ type: 'result', is_error: false, result: 'ok' }]), [])
+
+// T567: the spike's real excerpts (ADR-007 § Spike). Run C2, `--max-turns 2` with sequential calls: exit 1
+const budget = { maxTurns: 60, timeoutMin: 30 }
+const maxTurns = JSON.parse('{"type":"result","subtype":"error_max_turns","is_error":true,"terminal_reason":"max_turns","errors":["Reached maximum number of turns (2)"],"num_turns":3}')
+assert.deepEqual(turnOutcome(maxTurns, { code: 1 }, 20_000, budget), { kind: 'over-turns' })
+assert.deepEqual(turnOutcome({ terminal_reason: 'max_turns' }, { code: 1 }, 1, budget), { kind: 'over-turns' })
+// Run A's result: a clean exit is done, and its numbers are the turn's usage
+const runA = JSON.parse('{"type":"result","subtype":"success","is_error":false,"duration_ms":38000,"duration_api_ms":33000,"num_turns":14,"result":"Done","total_cost_usd":0.73,"usage":{"input_tokens":12,"cache_creation_input_tokens":66894,"cache_read_input_tokens":708649,"output_tokens":2437}}')
+assert.deepEqual(turnOutcome(runA, { code: 0 }, 38_000, budget), { kind: 'done' })
+assert.deepEqual(turnUsage(runA), { turns: 14, durationMs: 38000, costUsd: 0.73, tokens: 12 + 66894 + 708649 + 2437 })
+assert.equal(turnUsage(null), null)
+assert.deepEqual(turnUsage({ type: 'result' }), { turns: 0, durationMs: 0, costUsd: 0, tokens: 0 })
+assert.deepEqual(sumUsage([turnUsage(runA), null, { turns: 1, durationMs: 2, costUsd: 0.27, tokens: 3 }]), { turns: 15, durationMs: 38002, costUsd: 1, tokens: 777995 })
+// Killed by the server's timeout (no result event): over time, whatever the exit code
+assert.deepEqual(turnOutcome(null, { code: null, timedOut: true }, 1_800_000, budget), { kind: 'over-time' })
+assert.deepEqual(turnOutcome(null, { code: 143 }, 1_800_001, budget), { kind: 'over-time' })
+assert.deepEqual(turnOutcome(null, { code: 1, stderr: 'boom' }, 5_000, budget), { kind: 'error' })
+// Usage limit: the rejected shape was never observed, so a failure whose text names a limit counts
+const now = Date.parse('2026-10-20T05:00:00Z')
+const resets = 1792478400 // run A's resetsAt (seconds)
+assert.deepEqual(turnOutcome({ is_error: true, result: 'Claude AI usage limit reached|1792478400' }, { code: 1 }, 1, budget, null, now), { kind: 'usage-limit', retryAt: new Date(resets * 1000).toISOString() })
+assert.deepEqual(turnOutcome(null, { code: 1, stderr: 'API Error: 429 Too Many Requests' }, 1, budget, null, now), { kind: 'usage-limit', retryAt: null })
+assert.deepEqual(turnOutcome({ is_error: true, result: "5-hour limit reached ∙ resets 3pm" }, { code: 1 }, 1, budget, { status: 'allowed', resetsAt: resets }, now), { kind: 'usage-limit', retryAt: new Date(resets * 1000).toISOString() })
+assert.deepEqual(turnOutcome({ is_error: true, result: 'x' }, { code: 1 }, 1, budget, { status: 'rejected', resetsAt: resets }, now), { kind: 'usage-limit', retryAt: new Date(resets * 1000).toISOString() })
+assert.deepEqual(turnOutcome({ is_error: true, result: 'limit reached|1000000000' }, { code: 1 }, 1, budget, null, now), { kind: 'usage-limit', retryAt: null }, 'a reset in the past gives no time')
+assert.deepEqual(turnOutcome({ is_error: false, result: 'I hit no usage limit' }, { code: 0 }, 1, budget), { kind: 'done' }, 'a clean exit is never a limit')
+
+// Run A's rate_limit_event: 43% used → no pause; at the threshold → pause until resetsAt
+const info = JSON.parse('{"status":"allowed","rateLimitType":"five_hour","resetsAt":1792478400,"unifiedWindows":{"five_hour":{"utilization":0.43},"seven_day":{"utilization":0.06}}}')
+assert.equal(rateLimitPause(info, now), null)
+assert.equal(rateLimitPause({ ...info, unifiedWindows: { ...info.unifiedWindows, seven_day: { utilization: USAGE_PAUSE_AT } } }, now), new Date(resets * 1000).toISOString())
+assert.equal(rateLimitPause({ ...info, status: 'rejected' }, now), new Date(resets * 1000).toISOString())
+assert.equal(rateLimitPause({ ...info, status: 'rejected' }, resets * 1000 + 1), null, 'already reset')
+assert.equal(rateLimitPause(null, now), null)
 
 console.log('worker-state: ok')

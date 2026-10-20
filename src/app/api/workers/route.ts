@@ -6,7 +6,8 @@
  * the task-by-task loop (src/lib/worker-runs.ts). `existing` continues that worker's loop on its worktree: a new task
  * claim, no new worktree. Each task turn streams through GET /api/conversations/turn?id=<id>; every step emits
  * `worker_updated`. One worker per epic, at most `workers.maxRunning` per project (409, T557).
- * GET /api/workers → {allowed, denied, maxRunning, env}: what a worker will run with (Settings → Workers).
+ * GET /api/workers → {allowed, denied, maxRunning, env, maxTurnsPerTask, taskTimeoutMin}: what a worker will run with
+ * (Settings → Workers; T567 adds each task's budget).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createWorktree, detectFrontend, getChat, getRoadmapItem, getRunContext, installWorktreeDeps, readProjectSettings, rootFrom, workerPortsInUse, RoadmapError, type WorkerSettings } from '@/lib/core'
@@ -24,7 +25,7 @@ export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
   const { workers } = await readProjectSettings(rootFrom(req.nextUrl.searchParams.get('root')))
-  return NextResponse.json({ allowed: workers.allowedTools, denied: WORKER_DENIED, maxRunning: workers.maxRunning, env: workers.env })
+  return NextResponse.json({ allowed: workers.allowedTools, denied: WORKER_DENIED, maxRunning: workers.maxRunning, env: workers.env, maxTurnsPerTask: workers.maxTurnsPerTask, taskTimeoutMin: workers.taskTimeoutMin })
 }
 
 export async function POST(req: NextRequest) {

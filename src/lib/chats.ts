@@ -22,11 +22,25 @@ export interface Chat<M = unknown> {
   worker?: Worker
 }
 
-/** Where a worker is: `wait-user` = a task stopped without finishing; `stopped` = cancelled; `failed` = setup failed. */
-export type WorkerPhase = "starting" | "running" | "wait-user" | "ended" | "stopped" | "failed"
+/**
+ * Where a worker is: `wait-user` = a task stopped without finishing; `paused` = a usage limit, it goes on by itself at
+ * `retryAt` (T567); `stopped` = cancelled; `failed` = setup failed.
+ */
+export type WorkerPhase = "starting" | "running" | "paused" | "wait-user" | "ended" | "stopped" | "failed"
 
-/** One task turn. `result`: the task's status after the turn, `error` (non-zero exit) or `stopped`; null while it runs. */
-export interface WorkerTurn { taskId: string; sessionId: string | null; startedAt: string; endedAt: string | null; result: string | null }
+/**
+ * One task turn. `result`: the task's status after the turn, `error` (non-zero exit), `stopped`, or T567's
+ * `over-turns` / `over-time` (budget, `note` says which) / `usage-limit`; null while it runs.
+ */
+export interface WorkerTurn {
+  taskId: string; sessionId: string | null; startedAt: string; endedAt: string | null; result: string | null
+  /** T567: why it stopped, in English, e.g. "Turn budget reached (60)" */
+  note?: string
+  /** T567: turns, duration, cost and tokens from its `result` event */
+  usage?: { turns: number; durationMs: number; costUsd: number; tokens: number }
+  /** T567: a usage limit's reset time when the message gave one */
+  retryAt?: string
+}
 
 export interface Worker {
   dir: string
@@ -39,6 +53,8 @@ export interface Worker {
   turns: WorkerTurn[]
   /** T559: the worktree app's own dev server port (ADR-007 decision 12); none when the project has no frontend */
   port?: number
+  /** T567: while `paused`, when it tries again (saved, so a restart picks it up) */
+  retryAt?: string
 }
 
 /**

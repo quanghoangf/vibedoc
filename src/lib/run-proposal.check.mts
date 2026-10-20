@@ -1,6 +1,6 @@
 // Self-check for run-proposal. Run: node src/lib/run-proposal.check.mts
 import assert from 'node:assert/strict'
-import { formatWorkers, freeBranch, routeRun, validateRunProposal, type RunContext, type WorkerInfo } from './run-proposal.ts'
+import { formatProposal, formatWorkers, freeBranch, routeRun, validateRunProposal, type RunContext, type WorkerInfo } from './run-proposal.ts'
 
 const epic = (id: string) => ({ kind: 'epic' as const, id })
 const worker = (o: Partial<WorkerInfo> = {}): WorkerInfo => ({
@@ -22,6 +22,11 @@ const errs = (target: string, c: RunContext, want = {}) => validateRunProposal(r
 const fresh = routeRun(epic('R3'), ctx())
 assert.deepEqual(fresh, { target: epic('R3'), mode: 'new', branch: 'vibedoc/R3', base: 'HEAD', allowedTools: ['Read'], denied: ['Bash(git push*)'] })
 assert.deepEqual(validateRunProposal(fresh, ctx()), [])
+// T567: the settings' budget per task rides on the proposal, both modes
+const budget = { maxTurns: 60, timeoutMin: 30 }
+assert.deepEqual(routeRun(epic('R3'), ctx({ budget })).budget, budget)
+assert.deepEqual(routeRun(epic('R2'), ctx({ budget, workers: [worker()] })).budget, budget)
+assert.match(formatProposal(routeRun(epic('R3'), ctx({ budget }))), /Budget: 60 turns · 30 min per task\./)
 // a removed worker left its branch: the default moves on, so the card is still acceptable as is
 assert.equal(freeBranch('R3', ['vibedoc/R3', 'vibedoc/R3-2']), 'vibedoc/R3-3')
 assert.equal(routeRun(epic('R3'), ctx({ branches: ['vibedoc/R3'] })).branch, 'vibedoc/R3-2')

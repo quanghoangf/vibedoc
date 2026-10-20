@@ -51,4 +51,9 @@ assert.equal(workerEnv(vibedocEnv, ['GITHUB_TOKEN']).GITHUB_TOKEN, 'x')
 assert.equal(workerEnv(vibedocEnv, ['GITHUB_TOKEN']).ANTHROPIC_API_KEY, undefined)
 assert.ok(!('MISSING' in workerEnv(vibedocEnv, ['MISSING'])), 'an unset listed name is left out, not ""')
 
+// T567: the turn budget is --max-turns; none given = no flag
+assert.ok(!args.includes('--max-turns'))
+const budgeted = workerArgs({ taskId: 'T1', mainRoot: '/r', mcpOrigin: 'http://h', workerId: 'w', pluginDir: '/p', maxTurns: 60 })
+assert.equal(budgeted[budgeted.indexOf('--max-turns') + 1], '60')
+
 console.log('worker-args: ok')

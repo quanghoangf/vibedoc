@@ -58,6 +58,9 @@ if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope"
   // and exits 0 with the task still in-progress; `--resume stub-worker-<task>` (the answer) then does the task.
   // T557: writes its env names to .claude-stub-env.json and tries `git push` once, refused like Claude Code 2.1 does
   // (ADR-007 § Spike) when the argv's --disallowedTools has Bash(git push*).
+  // T567: .claude-stub-outcomes in the worktree ({"T001": "max-turns" | "hang" | "usage-limit"}) makes that task's first
+  // fresh turn hit `--max-turns` (exit 1, error_max_turns), never finish (the server's timeout kills it), or fail on a
+  // usage limit that resets in 6 s (rate_limit_event rejected + an is_error result, exit 1). Later turns do the task.
   const resume = args.includes("--resume") ? args[args.indexOf("--resume") + 1] : null
   const taskId = (resume ?? args[1]).match(/\bT\d{3,}\b/)[0]
   const { url, headers } = JSON.parse(args[args.indexOf("--mcp-config") + 1]).mcpServers.vibedoc
@@ -73,6 +76,23 @@ if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope"
     out({ type: "user", session_id: sid, message: { content: [{ type: "tool_result", tool_use_id: push.tool_use_id, is_error: true, content: "Permission denied" }] } })
   }
   process.on("SIGTERM", () => process.exit(143))
+  const outcomes = fs.existsSync(".claude-stub-outcomes") ? JSON.parse(fs.readFileSync(".claude-stub-outcomes", "utf8")) : {}
+  state.outcomeSeen = state.outcomeSeen ?? []
+  const outcome = !resume && !state.outcomeSeen.includes(taskId) ? outcomes[taskId] : undefined
+  if (outcome) { state.outcomeSeen.push(taskId); save() }
+  const usage = { num_turns: 3, duration_ms: 1500, total_cost_usd: 0.25, usage: { input_tokens: 10, cache_creation_input_tokens: 1000, cache_read_input_tokens: 2000, output_tokens: 90 } }
+  out({ type: "rate_limit_event", session_id: sid, rate_limit_info: { status: outcome === "usage-limit" ? "rejected" : "allowed", rateLimitType: "five_hour", resetsAt: Math.floor(Date.now() / 1000) + 6, unifiedWindows: { five_hour: { utilization: outcome === "usage-limit" ? 1 : 0.43 } } } })
+  if (outcome === "max-turns") {
+    const max = Number(args[args.indexOf("--max-turns") + 1])
+    for (let i = 0; i <= max; i++) out({ type: "assistant", session_id: sid, message: { content: [{ type: "tool_use", id: `glob-${i}`, name: "Glob", input: { pattern: "*" } }] } })
+    out({ type: "result", subtype: "error_max_turns", session_id: sid, is_error: true, terminal_reason: "max_turns", errors: [`Reached maximum number of turns (${max})`], ...usage, num_turns: max + 1 })
+    return void (process.exitCode = 1) // not exit(): a pipe on macOS may drop the lines above
+  }
+  if (outcome === "usage-limit") {
+    out({ type: "result", subtype: "success", session_id: sid, is_error: true, result: `Claude AI usage limit reached|${Math.floor(Date.now() / 1000) + 6}`, ...usage })
+    return void (process.exitCode = 1) // not exit(): a pipe on macOS may drop the lines above
+  }
+  if (outcome === "hang") return void setInterval(() => {}, 60_000)
   const asks = fs.existsSync(".claude-stub-ask") ? fs.readFileSync(".claude-stub-ask", "utf8").split(/\s+/) : []
   const asking = !resume && asks.includes(taskId)
   if (asking) {
@@ -92,7 +112,7 @@ if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope"
     })
     const text = (await res.json()).result.content[0].text
     out({ type: "assistant", session_id: sid, message: { content: [{ type: "text", text: `Done ${taskId}` }] } })
-    out({ type: "result", session_id: sid, is_error: false, result: `Done ${taskId}: ${text.split("\n")[0]}`, permission_denials: denied ? [push] : [] })
+    out({ type: "result", session_id: sid, is_error: false, result: `Done ${taskId}: ${text.split("\n")[0]}`, permission_denials: denied ? [push] : [], ...usage })
   }, Number(process.env.CLAUDE_STUB_WORKER_MS ?? 2000))
 } else if (args[0] === "-p" && (args[args.indexOf("--append-system-prompt") + 1] ?? "").includes("project's orchestrator")) {
   // T562 orchestrator turn (e2e/orchestrator.mjs): really calls vibedoc_list_workers over the MCP URL and answers with

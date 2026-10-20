@@ -30,7 +30,11 @@ export interface RunContext {
   maxRunning: number
   allowedTools: string[]
   denied: string[]
+  /** Each task's budget (T567, workers.maxTurnsPerTask / taskTimeoutMin) */
+  budget?: RunBudget
 }
+
+export interface RunBudget { maxTurns: number; timeoutMin: number }
 
 export interface RunProposal {
   target: Attach
@@ -40,8 +44,8 @@ export interface RunProposal {
   base: string
   allowedTools: string[]
   denied: string[]
-  /** Not built yet (T567): undefined shows "No limit yet" */
-  budget?: string
+  /** Each task's budget (T567); undefined shows "No limit yet" */
+  budget?: RunBudget
   /** existing: the worker runs right now, so Accept is off */
   running?: boolean
   currentTask?: string | null
@@ -65,7 +69,7 @@ export function freeBranch(epic: string, branches: string[]): string {
 
 /** What a run on `target` would do: send it to the epic's worker, else a new worktree. `want` overrides (MCP, Accept). */
 export function routeRun(target: Attach, ctx: RunContext, want: RunRequest = {}): RunProposal {
-  const tools = { allowedTools: ctx.allowedTools, denied: ctx.denied }
+  const tools = { allowedTools: ctx.allowedTools, denied: ctx.denied, ...(ctx.budget && { budget: ctx.budget }) }
   const existing = want.mode === 'new' ? null
     : want.workerId ? ctx.workers.find(w => w.id === want.workerId) ?? null
     : workerFor(target.id, ctx.workers)
@@ -121,5 +125,5 @@ export function formatWorkers(workers: WorkerInfo[]): string {
 /** vibedoc_propose_run's reply for a valid proposal. */
 export function formatProposal(p: RunProposal): string {
   const what = p.mode === 'existing' ? `send ${p.target.id} to worker ${p.workerId} (\`${p.branch}\`)` : `a new worktree for ${p.target.id} on \`${p.branch}\` from ${p.base}`
-  return `🃏 Proposed: ${what}. Allowed tools: ${p.allowedTools.join(', ')}. Denied: ${p.denied.join(', ')}. Budget: ${p.budget ?? 'no limit yet'}.\nNothing is created or started: the user accepts the run card.`
+  return `🃏 Proposed: ${what}. Allowed tools: ${p.allowedTools.join(', ')}. Denied: ${p.denied.join(', ')}. Budget: ${p.budget ? `${p.budget.maxTurns} turns · ${p.budget.timeoutMin} min per task` : 'no limit yet'}.\nNothing is created or started: the user accepts the run card.`
 }

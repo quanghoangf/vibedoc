@@ -58,14 +58,17 @@ export interface WorkerArgsInput {
   allowed?: string[]
   /** T558: answer the worker's question in that task's session instead of starting a fresh one */
   resume?: { sessionId: string; message: string }
+  /** T567: `workers.maxTurnsPerTask` (model round trips, not tool calls: ADR-007 § Spike) */
+  maxTurns?: number
 }
 
-export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, resume }: WorkerArgsInput): string[] {
+export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, resume, maxTurns }: WorkerArgsInput): string[] {
   const url = `${mcpOrigin}/api/mcp?root=${encodeURIComponent(mainRoot)}`
   return [
     ...(resume ? ['-p', resume.message, '--resume', resume.sessionId] : ['-p', workerPrompt(taskId)]),
     '--append-system-prompt', WORKER_SYSTEM_PROMPT,
     '--output-format', 'stream-json', '--verbose',
+    ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),
     '--mcp-config', JSON.stringify({ mcpServers: { vibedoc: { type: 'http', url, headers: { [WORKER_CALL_HEADER]: workerId } } } }),
     '--strict-mcp-config',
     '--setting-sources', 'project,local',
