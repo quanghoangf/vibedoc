@@ -166,7 +166,8 @@ export function epicOf(message: string): string | null {
 
 /** The chat to resume for `a`: the most recently updated one attached to it. */
 export function chatFor<C extends Chat>(chats: C[], a: Attach): C | undefined {
-  return chats.filter((c) => sameAttach(c.attach, a)).sort((x, y) => y.updatedAt.localeCompare(x.updatedAt))[0]
+  // R108: a worker shows on its epic (itemAgents) but is not the item's conversation: it takes no messages yet
+  return chats.filter((c) => !c.worker && sameAttach(c.attach, a)).sort((x, y) => y.updatedAt.localeCompare(x.updatedAt))[0]
 }
 
 /** What the roadmap/board show on an item while a chat works on it. Idle and errored chats show nothing. */

@@ -23,8 +23,12 @@ import { ASK_AGENT_EVENT, OPEN_CHAT_EVENT, openAgentChat, type AskAgentDetail } 
 import {
   addChat, attachContext, attachKey, attentionQueue, chatFor, chatStatus, chatTitle, defaultChat, epicOf, fromSaved, INTERRUPTED, isActionableError, isWaiting,
   itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, toSaved,
-  type Attach, type Chat, type ChatStatus, type ItemAgent,
+  type Attach, type Chat, type ChatStatus, type ItemAgent, type Worker,
 } from "@/lib/chats"
+import { currentTask } from "@/components/workers/WorkerStrip"
+
+/** A worker runs (and shows as running) while it sets up or works a task */
+const workerBusy = (w: Worker) => w.phase === "starting" || w.phase === "running"
 
 export interface ChatMessage {
   role: "user" | "assistant"
@@ -127,8 +131,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const docPath = pathname === "/docs" ? selectedDoc?.path : undefined
 
   // Picks a server-side turn back up after a reload (an Effect Event: the load effect below shouldn't re-run per render)
-  const resumeTurn = useEffectEvent((id: string) => {
-    void follow(id, (signal) => fetch(`/api/conversations/turn${rootParam}&id=${encodeURIComponent(id)}`, { signal }))
+  const resumeTurn = useEffectEvent((id: string, worker = false) => {
+    void follow(id, (signal) => fetch(`/api/conversations/turn${rootParam}&id=${encodeURIComponent(id)}`, { signal }), worker)
   })
 
   // A Claude session belongs to one project: stop everything and load that project's chats
@@ -152,8 +156,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // A turn cut off by the reload that the server still has (running or just ended): drop the "interrupted"
         // note, show it running again and replay it from the start
         const resumable = new Set(loadedChats.filter((c) => turns.has(c.id) && c.messages[c.messages.length - 1]?.error === INTERRUPTED).map((c) => c.id))
+        // R108: a worker mid-task saved its `/vibedoc:work` line but no reply yet: follow that turn again
+        const workerTurns = new Set(loadedChats.filter((c) => c.worker?.phase === "running" && turns.has(c.id) && c.messages[c.messages.length - 1]?.role === "user").map((c) => c.id))
         const shown = loadedChats.map((c) => (resumable.has(c.id)
           ? { ...c, busy: true, messages: [...c.messages.slice(0, -1), blank("assistant")] }
+          : workerTurns.has(c.id) ? { ...c, busy: true, messages: [...c.messages, blank("assistant")] }
+          : c.worker ? { ...c, busy: workerBusy(c.worker) && turns.has(c.id) }
           : c))
         notifiedRef.current = Object.fromEntries(shown.map((c) => [c.id, chatStatus(c)]))
         setChats(shown)
@@ -161,6 +169,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setCurrentId(null)
         setLoaded(true)
         for (const id of resumable) resumeTurn(id)
+        for (const id of workerTurns) resumeTurn(id, true)
       })
       .catch((e) => {
         console.warn("[vibedoc] could not load chats:", e)
@@ -175,7 +184,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     for (const id of [...dirtyRef.current]) {
       const chat = chats.find((c) => c.id === id)
       dirtyRef.current.delete(id)
-      const saved = chat && toSaved(chat)
+      // A worker's chat file is written by the server (src/lib/worker-runs.ts): never overwrite it from here
+      const saved = chat && !chat.worker && toSaved(chat)
       if (!saved) continue
       fetch(`/api/conversations${rootParam}`, {
         method: "POST",
@@ -215,7 +225,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // A chat closed before its first message was never saved; drop it so empty chats don't pile up
   function closeModal(opts: { keep?: boolean } = {}) {
-    if (!opts.keep) setChats((cs) => cs.filter((c) => c.id !== modalId || c.messages.length > 0))
+    if (!opts.keep) setChats((cs) => cs.filter((c) => c.id !== modalId || c.messages.length > 0 || c.worker))
     setModalId(null)
   }
 
@@ -283,12 +293,37 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   })
 
+  // R108: the server drives a worker; `worker_updated` patches its chat, and a new task turn is followed like a chat turn.
+  // ponytail: a turn that starts while the previous one's stream is still being read is missed; T558 can re-sync from the file.
+  useEffect(() => {
+    function onSse(e: Event) {
+      const msg = (e as CustomEvent<{ type: string; payload?: { id?: string; worker?: Worker } }>).detail
+      const id = msg?.payload?.id
+      const worker = msg?.payload?.worker
+      if (msg?.type !== "worker_updated" || !id || !worker || demo) return
+      const task = currentTask(worker)
+      const follows = !!task && !abortsRef.current.has(id)
+      const line = `/vibedoc:work ${task}`
+      setChats((cs) => {
+        const base = cs.some((c) => c.id === id) ? cs : addChat(cs, id, { attach: worker.target, title: `Worker ${worker.target.id}` })
+        return patchChat(base, id, (c) => {
+          const last = c.messages[c.messages.length - 1]
+          const asked = last?.role === "user" && last.text === line ? c.messages : [...c.messages, blank("user", line)]
+          return { ...c, worker, busy: workerBusy(worker), updatedAt: new Date().toISOString(), messages: follows ? [...asked, blank("assistant")] : c.messages }
+        })
+      })
+      if (follows) resumeTurn(id, true)
+    }
+    window.addEventListener("vibedoc:sse", onSse)
+    return () => window.removeEventListener("vibedoc:sse", onSse)
+  }, [demo])
+
   function patchLast(chatId: string, fn: (m: ChatMessage) => ChatMessage) {
     setChats((cs) => patchChat(cs, chatId, (c) => ({ ...c, messages: [...c.messages.slice(0, -1), fn(c.messages[c.messages.length - 1])] })))
   }
 
   // Handles one line of `claude -p --output-format stream-json` for chat `chatId`
-  function handleEvent(chatId: string, ev: any) {
+  function handleEvent(chatId: string, ev: any, worker = false) {
     if (ev.session_id) setChats((cs) => patchChat(cs, chatId, (c) => (c.sessionId === ev.session_id ? c : { ...c, sessionId: ev.session_id })))
     if (ev.type === "stream_event") {
       const e = ev.event
@@ -298,6 +333,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         patchLast(chatId, (m) => ({ ...m, text: m.text + e.delta.text }))
       }
     } else if (ev.type === "assistant") {
+      // A worker's turn has no partial messages: its text arrives whole, one block per assistant message
+      const said = worker ? (ev.message?.content ?? []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("") : ""
+      if (said) patchLast(chatId, (m) => ({ ...m, text: m.text ? `${m.text}\n\n${said}` : said }))
       const uses: { type: string; id: string; name: string; input: Record<string, unknown> }[] =
         (ev.message?.content ?? []).filter((b: { type: string }) => b.type === "tool_use")
       const proposals: Proposal[] = uses
@@ -368,7 +406,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const message = text.trim()
     const chat = chats.find((c) => c.id === chatId)
     if (playground) return void toast(tNow("chat.playgroundNoAgents")) // `vibedoc --demo` (R085)
-    if (!message || chat?.busy || demo) return
+    if (!message || chat?.busy || chat?.worker || demo) return
     // Ask once, from this click/Enter (browsers want a user gesture), so waiting chats can notify later
     if ("Notification" in window && Notification.permission === "default") void Notification.requestPermission().catch(() => {})
     const first = !chat?.messages.length
@@ -401,7 +439,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }
 
   // Reads one turn's NDJSON into chat `chatId` (a new turn, or one picked back up after a reload), then saves it
-  async function follow(chatId: string, open: (signal: AbortSignal) => Promise<Response>) {
+  async function follow(chatId: string, open: (signal: AbortSignal) => Promise<Response>, worker = false) {
     const ac = new AbortController()
     abortsRef.current.set(chatId, ac)
     try {
@@ -421,7 +459,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         buf = lines.pop() ?? ""
         for (const line of lines) {
           if (!line.trim()) continue
-          try { handleEvent(chatId, JSON.parse(line)) } catch { /* partial or non-JSON line */ }
+          try { handleEvent(chatId, JSON.parse(line), worker) } catch { /* partial or non-JSON line */ }
         }
       }
     } catch (e) {
@@ -434,13 +472,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         abortsRef.current.delete(chatId)
         markDirty(chatId)
       }
-      setChats((cs) => patchChat(cs, chatId, (c) => ({ ...c, busy: false, updatedAt: new Date().toISOString() })))
+      // a worker's busy follows its phase (worker_updated), not the end of one task's stream
+      if (!worker) setChats((cs) => patchChat(cs, chatId, (c) => ({ ...c, busy: false, updatedAt: new Date().toISOString() })))
     }
   }
 
   // The turn runs on the server (it survives a reload), so Stop asks the server to kill it, then stops reading
   function stop(chatId: string) {
-    fetch(`/api/conversations/turn/cancel${rootParam}`, {
+    const worker = !!chats.find((c) => c.id === chatId)?.worker
+    fetch(`/api/${worker ? "workers" : "conversations/turn"}/cancel${rootParam}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: chatId }),

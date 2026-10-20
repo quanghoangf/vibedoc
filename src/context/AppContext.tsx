@@ -250,6 +250,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         window.dispatchEvent(new CustomEvent("vibedoc:sse", { detail: msg }))
         // Saving a chat is this tab's own bookkeeping, not a project change: don't flash "live update"
         if (msg.type === "chat_saved") return
+        // R108: a worker's own steps; the board moves on its task_updated events
+        if (msg.type === "worker_updated") return
         // R099: the hub changed (opened, renamed, pinned…): reload the list, not the project
         if (msg.type === "projects_updated") {
           fetch("/api/projects").then((r) => r.json()).then((p: Project[]) => { if (Array.isArray(p) && p.length) setProjects(p) }).catch(() => {})

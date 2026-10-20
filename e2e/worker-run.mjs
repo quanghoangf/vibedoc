@@ -4,19 +4,24 @@
 //   2. The worker argv: ?root=<main root>, --strict-mcp-config, push denied, six built-in tools (never `--tools ''`).
 //   3. A second worker on a running epic → 409. Cancel mid-task → the process is gone, the task stays in-progress,
 //      no next task is claimed.
+//   4. Browser (T555): epic sheet → Work with agent → run card → Start → the worker chat opens with branch, folder and the
+//      current task, streams the reply, starts a divider per task; the board card moves without a reload; a reload
+//      mid-task re-attaches to the running turn. Fails on any browser console error.
 // With PLAYGROUND=1 (server started with VIBEDOC_PLAYGROUND=1) it only checks POST /api/workers → 403.
 //
 // The server must run with e2e/fixtures/claude-stub first on PATH and the same VIBEDOC_HOME as this script:
 //   PATH=$PWD/e2e/fixtures/claude-stub:$PATH VIBEDOC_HOME=$H PORT=3082 pnpm exec next start -p 3082   (after pnpm build)
-//   VIBEDOC_HOME=$H BASE=http://localhost:3082 node e2e/worker-run.mjs
+//   VIBEDOC_HOME=$H BASE=http://localhost:3082 PW_DIR=<dir with node_modules/playwright> node e2e/worker-run.mjs
+// Section 4 reloads mid-task: start the server with CLAUDE_STUB_WORKER_MS=4000 (the script reads the same variable).
 // Writes only a fresh mktemp fixture and its worktrees under $VIBEDOC_HOME/worktrees (removed at the end).
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { makeFixture } from "./stub-chat.mjs"
+import { launchChrome, makeFixture, registerProject } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3082"
+const STUB_MS = Number(process.env.CLAUDE_STUB_WORKER_MS ?? 2000)
 const fx = makeFixture()
 const q = `?root=${encodeURIComponent(fx)}`
 const git = (args, cwd = fx) => execFileSync("git", args, { cwd, encoding: "utf8" })
@@ -40,7 +45,8 @@ const task = (id, epic, dep = "") => writeFileSync(path.join(fx, "plans/tasks", 
   `# ${id}: Task ${id}\n**Status:** todo\n**Phase:** ${epic}\n${dep ? `**Depends on:** ${dep}\n` : ""}\n## Goal\nWrite ${id}.txt\n`)
 writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** T001, T002\n")
 writeFileSync(path.join(fx, "plans/roadmap/R003-other.md"), "# R003: Other\n**Parent:** R001\n**Status:** planned\n**Order:** 20\n**Tasks:** T003, T004\n")
-task("T001", "R002"); task("T002", "R002"); task("T003", "R003"); task("T004", "R003", "T003")
+writeFileSync(path.join(fx, "plans/roadmap/R004-browser.md"), "# R004: Browser\n**Parent:** R001\n**Status:** planned\n**Order:** 30\n**Tasks:** T005, T006\n")
+task("T001", "R002"); task("T002", "R002"); task("T003", "R003"); task("T004", "R003", "T003"); task("T005", "R004"); task("T006", "R004", "T005")
 git(["init", "-q", "-b", "main"])
 git(["add", "-A"])
 git(["-c", "user.name=e2e", "-c", "user.email=e2e@example.com", "commit", "-q", "-m", "init"])
@@ -106,13 +112,71 @@ try {
   await until(() => status("T003") === "in-progress" && existsSync(path.join(r3.dir, ".claude-stub.log")), "T003 claimed and the stub started")
   assert.equal((await post("/api/workers/cancel", { id: r3.id })).status, 200)
   await until(() => savedChat(r3.id).worker.phase === "stopped", "worker stopped")
-  await new Promise((r) => setTimeout(r, 2500)) // past the stub's 2s: a live process would commit now
+  await new Promise((r) => setTimeout(r, STUB_MS + 500)) // past the stub's delay: a live process would commit now
   assert.equal(git(["log", "--format=%s", "main..vibedoc/R003"]).trim(), "", "the killed turn committed nothing")
   assert.equal(status("T003"), "in-progress")
   assert.equal(status("T004"), "todo")
   assert.deepEqual(savedChat(r3.id).worker.turns.map((t) => [t.taskId, t.result]), [["T003", "stopped"]])
   assert.equal((await post("/api/workers/cancel", { id: r3.id })).status, 404)
   console.log("ok  cancel mid-task → the process is gone, T003 stays in-progress, nothing else claimed")
+
+  // 4. the browser path (T555)
+  const browser = await launchChrome()
+  const errors = []
+  try {
+    const { id: projectId } = registerProject(fx)
+    const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } })
+    await ctx.route("**/api/projects", (route) => route.fulfill({ json: [{ id: projectId, name: "fixture", root: fx, hasVibedoc: true }] }))
+    const page = await ctx.newPage()
+    const board = await ctx.newPage()
+    for (const p of [page, board]) {
+      p.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
+      p.on("pageerror", (e) => errors.push(e.message))
+    }
+    await board.goto(`${BASE}/board`)
+    const card = (col, id) => board.locator(`[data-column="${col}"]`).getByLabel(`${id} Task ${id}`)
+    // the done column folds its cards into a list of ids
+    const done = (id) => board.locator('[data-column="done"]').getByText(id, { exact: true })
+    await card("todo", "T005").waitFor()
+
+    await page.goto(`${BASE}/roadmap?item=R004`)
+    await page.getByRole("button", { name: "Work with agent" }).click()
+    const runCard = page.getByRole("form", { name: "Work on R004 with an agent" })
+    assert.equal(await runCard.getByLabel("Branch").inputValue(), "vibedoc/R004")
+    assert.equal(await runCard.getByLabel("Base").inputValue(), "HEAD")
+    await runCard.getByText("Bash(git push*)").waitFor()
+    await runCard.getByRole("button", { name: "Start worker" }).click()
+
+    const chatBox = page.getByRole("dialog")
+    const strip = chatBox.locator("[data-worker-strip]")
+    await strip.getByText("vibedoc/R004").waitFor()
+    await strip.getByText(/worktrees.*vibedoc-r004/).waitFor()
+    await strip.getByText("Working on T005").waitFor()
+    await chatBox.getByRole("separator", { name: "Task T005" }).waitFor()
+    await chatBox.getByText(/^Done T005/).first().waitFor({ timeout: STUB_MS + 10000 })
+    console.log("ok  Work with agent → run card → the worker chat shows branch, folder, the current task and streams (S1)")
+
+    await done("T005").waitFor({ timeout: 10000 })
+    await card("todo", "T005").waitFor({ state: "detached" })
+    await chatBox.getByRole("separator", { name: "Task T006" }).waitFor()
+    await strip.getByText("Working on T006").waitFor()
+    console.log("ok  T005 done → its board card moves without a reload; the chat starts a divider for T006 (S2)")
+
+    const workerChat = readdirSync(path.join(fx, ".vibedoc/chats")).map((f) => savedChat(f.replace(/\.json$/, ""))).find((c) => c.worker?.target.id === "R004")
+    dirs.push(workerChat.worker.dir)
+    await page.goto(`${BASE}/chat?id=${workerChat.id}`)
+    const pane = page.getByRole("region", { name: /Worker R004/ })
+    await pane.locator("[data-worker-strip]").getByText("Working on T006").waitFor()
+    await pane.getByRole("button", { name: "Stop" }).first().waitFor()
+    await pane.getByText(/^Done T006/).first().waitFor({ timeout: STUB_MS + 10000 })
+    assert.equal(await pane.getByText("Interrupted").count(), 0)
+    await pane.locator("[data-worker-strip]").getByText("Ended").waitFor()
+    await done("T006").waitFor()
+    console.log("ok  reload mid-task → the chat re-attaches to the running turn and shows its reply; the worker ends")
+    assert.deepEqual(errors, [], `browser console errors: ${errors.join("\n")}`)
+  } finally {
+    await browser.close()
+  }
 } finally {
   sse.abort()
   for (const d of dirs) { try { git(["worktree", "remove", "--force", d]) } catch { rmSync(d, { recursive: true, force: true }) } }

@@ -16,6 +16,7 @@ import { askAgent } from "@/lib/ask-agent"
 import { useApp } from "@/context/AppContext"
 import { chatFor } from "@/lib/chats"
 import { AgentDot, AgentMark } from "@/components/chat/AgentMark"
+import { RunCardDialog, newWorktreeProposal, type RunValues } from "@/components/workers/RunCard"
 import { useChats } from "@/context/ChatContext"
 import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
 import { pickNextTask } from "@/lib/work-queue"
@@ -119,8 +120,30 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
   const epics = items.filter((i) => i.parent === item.id).sort((a, b) => a.order - b.order)
   const progress = progressById[item.id]
   const today = localToday()
-  const { chats, showAbout } = useChats()
-  const { demo, openDoc } = useApp()
+  const { chats, showAbout, show } = useChats()
+  const { demo, playground, openDoc, rootParam } = useApp()
+  // R108: "Work with agent" → run card → POST /api/workers → the worker's chat
+  const [running, setRunning] = useState<"closed" | "open" | "starting">("closed")
+  const [runError, setRunError] = useState<string | null>(null)
+  const startWorker = async (v: RunValues) => {
+    setRunning("starting")
+    setRunError(null)
+    try {
+      const res = await fetch(`/api/workers${rootParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: { kind: "epic", id: item.id }, branch: v.branch, base: v.base }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.id) throw new Error(data?.error ?? t("board.requestFailed", { status: res.status }))
+      setRunning("closed")
+      onClose()
+      show(data.id)
+    } catch (e) {
+      setRunError((e as Error).message)
+      setRunning("open")
+    }
+  }
   // R069: the epic's ## Spec changes, offered for merging once it is done (until **Spec merged:** is stamped)
   const specChanges = isHorizon ? [] : parseSpecChanges(item.body)
   const canMerge = item.status === "done" && specChanges.length > 0 && !item.specMerged
@@ -297,6 +320,11 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
             <MessageSquare /> {chat ? t("board.openChat") : t("roadmap.chat")}
           </Button>
         )}
+        {!isHorizon && !playground && (
+          <Button size="sm" variant="outline" onClick={() => { setRunError(null); setRunning("open") }}>
+            <Bot /> {t("workers.workWithAgent")}
+          </Button>
+        )}
         {isHorizon && (
           <Button size="sm" onClick={() => onAddFeature(item.id)} className="bg-accent text-accent-fg hover:bg-accent/90">
             <Plus /> {t("roadmap.addEpic")}
@@ -316,6 +344,16 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
         </Button>
       </footer>
       {canMerge && <SpecMergeDialog epicId={item.id} open={merging} onOpenChange={setMerging} />}
+      {!isHorizon && !playground && (
+        <RunCardDialog
+          proposal={newWorktreeProposal({ kind: "epic", id: item.id })}
+          open={running !== "closed"}
+          onOpenChange={(o) => setRunning(o ? "open" : "closed")}
+          busy={running === "starting"}
+          error={runError}
+          onAccept={startWorker}
+        />
+      )}
     </div>
   )
 }

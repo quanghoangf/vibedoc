@@ -16,6 +16,7 @@ import { QuestionCard, type QuestionSet } from "./QuestionCard"
 import { ToolkitCard, type ToolkitProposal } from "./ToolkitCard"
 import type { ToolkitResult } from "@/components/toolkit/ToolkitPicker"
 import { AttachLabel, StatusMarker, attachHref } from "./StatusMarker"
+import { WorkerStrip } from "@/components/workers/WorkerStrip"
 
 /**
  * One conversation. The chat modal and the /chat page both render this, so they are the same chat UI.
@@ -81,6 +82,7 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
           </button>
         )}
       </header>
+      {chat.worker && <WorkerStrip worker={chat.worker} />}
 
       {mounted.map((id) => {
         const c = chats.find((x) => x.id === id)
@@ -93,7 +95,9 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
           <button onClick={dismissNotice} aria-label={t("chat.dismiss")} className="leading-none text-muted hover:text-txt">×</button>
         </div>
       )}
-      <Composer key={chat.id} chat={chat} wide={variant === "page"} />
+      {chat.worker
+        ? <p role="note" className="shrink-0 px-5 pb-4 pt-1 text-xs text-muted">{t("workers.workerNoComposer")}</p>
+        : <Composer key={chat.id} chat={chat} wide={variant === "page"} />}
     </section>
   )
 }
@@ -114,8 +118,8 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
   return (
     <div ref={scrollRef} hidden={hidden} role="log" aria-live="polite" className="min-h-0 flex-1 overflow-y-auto">
       <div className={cn("mx-auto flex flex-col gap-5 px-5 py-6 text-sm", wide ? "max-w-3xl" : "max-w-none")}>
-        {messages.length === 0 && <EmptyChat chat={chat} onPick={(s) => send(chat.id, s)} />}
-        {messages.map((m, i) => (
+        {messages.length === 0 && !chat.worker && <EmptyChat chat={chat} onPick={(s) => send(chat.id, s)} />}
+        {messages.map((m, i) => (chat.worker && m.role === "user" ? <TaskDivider key={i} text={m.text} /> : (
           <Message
             key={i}
             m={m}
@@ -126,8 +130,21 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
             onAnswers={(set, answers) => answerQuestions(chat.id, set, answers)}
             onToolkit={(set, results) => finishToolkit(chat.id, set, results)}
           />
-        ))}
+        )))}
       </div>
+    </div>
+  )
+}
+
+/** A worker chat's user line is the `/vibedoc:work <task>` that started a task turn: one divider per task. */
+function TaskDivider({ text }: { text: string }) {
+  const { t } = useT()
+  const id = /\bT\d+\b/.exec(text)?.[0] ?? text
+  return (
+    <div role="separator" aria-label={t("workers.taskDivider", { id })} className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-wide text-muted animate-fade-in">
+      <span className="h-px flex-1 bg-border" aria-hidden />
+      {t("workers.taskDivider", { id })}
+      <span className="h-px flex-1 bg-border" aria-hidden />
     </div>
   )
 }

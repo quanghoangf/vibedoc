@@ -187,3 +187,6 @@ assert.equal(ago(T(0), base + 50 * 3600_000), '2d')
 assert.equal(ago(T(5), base), 'now')                                                    // future clamps to now
 
 console.log('chats: ok')
+// …and is never the item's conversation (chatFor), though it still marks the epic (itemAgents)
+assert.equal(chatFor([...onEpic, chat('w', [msg()], { attach: epic('R4'), updatedAt: T(9), worker, busy: true })], epic('R4'))?.id, 'new')
+assert.equal(itemAgents([chat('w', [msg()], { attach: epic('R4'), worker, busy: true })])['epic:R4']?.chatId, 'w')
