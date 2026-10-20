@@ -104,6 +104,31 @@ export async function probeVibedoc(port, timeoutMs = 1500) {
 }
 
 /**
+ * What answers on a port (R112 T584), from whether it is taken and what `GET /api/server` said:
+ * `{ kind: "free" }`, `{ kind: "vibedoc", version, startedBy }` (version / startedBy null for a VibeDoc from before
+ * that endpoint: it still answers /api/projects), or `{ kind: "other" }` (taken by a program that isn't VibeDoc). Pure.
+ */
+export function classifyAddress({ taken, identity, isVibedoc }) {
+  if (identity?.app === 'vibedoc') {
+    return { kind: 'vibedoc', version: typeof identity.version === 'string' ? identity.version : null, startedBy: identity.startedBy === 'desktop' ? 'desktop' : identity.startedBy === 'cli' ? 'cli' : null }
+  }
+  if (isVibedoc) return { kind: 'vibedoc', version: null, startedBy: null }
+  return taken ? { kind: 'other' } : { kind: 'free' }
+}
+
+/** classifyAddress for a live port: the identity endpoint, else the older /api/projects probe. */
+export async function probeAddress(port, timeoutMs = 1500) {
+  let identity = null
+  try {
+    const res = await fetch(`${appUrl(port)}/api/server`, { signal: AbortSignal.timeout(timeoutMs) })
+    if (res.ok) identity = await res.json()
+  } catch {}
+  if (identity?.app === 'vibedoc') return classifyAddress({ taken: true, identity })
+  const isVibedoc = !!(await probeVibedoc(port, timeoutMs))
+  return classifyAddress({ taken: isVibedoc || (await isPortTaken(port)), identity: null, isVibedoc })
+}
+
+/**
  * Where to serve: `{ start: port, changedFrom? }`, `{ running: port }` when a VibeDoc hub already answers there (R100:
  * whatever its projects; the CLI adds this repo to it), or `{ error }` when a pinned `--port` is held by another program.
  */

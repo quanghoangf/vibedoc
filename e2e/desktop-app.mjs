@@ -11,7 +11,10 @@
 //   6. S1: the app (its own VibeDoc) and a Chrome tab on one fixture project: a move in the app and a rename in the tab
 //      show on the other side within 1 s (SSE), and a chat started in the app (stubbed agent) shows in the tab's /chat.
 //   7. S2 (R112): a local update feed with 99.0.0 → the banner, What's new with its notes, Later hides it after a
-//      reload; a browser tab has no banner; an unreachable feed shows no banner and no error.
+//      reload; a browser tab has no banner; an unreachable feed shows no banner and no error. Update downloads; an
+//      unsigned macOS app falls back to the release page.
+//   8. S3 (R112): `vibedoc start` then the app → one server, the menu names the terminal's; the app's own VibeDoc then
+//      `vibedoc` → "already running"; another program on the address → the app names it and starts nothing.
 //
 //   pnpm build && pnpm --dir desktop install && node e2e/desktop-app.mjs      (PORT=3085 by default)
 //
@@ -19,13 +22,14 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import { execFileSync, spawn } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { makeFixture, stubChat } from "./stub-chat.mjs"
+import { killTree } from "../bin/server-state.mjs"
 
 const repoDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..")
 const desktopDir = path.join(repoDir, "desktop")
@@ -91,7 +95,8 @@ try {
   const win = await app.firstWindow()
   await win.waitForURL(`http://localhost:${PORT}/**`, { timeout: 30_000 })
   await waitFor(async () => /VibeDoc/.test(await win.title()), "the window title")
-  assert.equal(await statusLine(app), `Using VibeDoc at http://localhost:${PORT}`, "the menu says which VibeDoc")
+  const { version: appVersion } = JSON.parse(readFileSync(path.join(repoDir, "package.json"), "utf8"))
+  assert.equal(await statusLine(app), `Using the VibeDoc running from your terminal, v${appVersion} · http://localhost:${PORT}`, "the menu says which VibeDoc")
   assert.equal(servers(PORT), 1, "S2: no second VibeDoc")
   console.log("✓ the app opens the running hub in its window and says so")
 
@@ -320,9 +325,66 @@ try {
   apps.delete(app6)
   await stopHub(hub5)
   console.log("✓ no banner in a browser tab, and none (and no error) when the feed can't be reached")
+  // 8. S3 (T584): two installs, one address. A `vibedoc start` background VibeDoc → the app uses it (one server, the
+  //    menu names the terminal's); the app's own VibeDoc → plain `vibedoc` says it runs and starts nothing; an address
+  //    held by another program → the app says so and starts nothing
+  const home8 = path.join(tmp, "home8")
+  mkdirSync(home8)
+  const cli = (home, args) => new Promise((resolve) => {
+    const env = { ...process.env, VIBEDOC_HOME: home, VIBEDOC_NO_OPEN: "1" }
+    delete env.VIBEDOC_ROOT
+    const c = spawn(process.execPath, [bin, ...args], { cwd: loose, env })
+    let out = ""
+    c.stdout.on("data", (d) => { out += d })
+    c.stderr.on("data", (d) => { out += d })
+    c.on("exit", (code) => resolve({ code, out }))
+  })
+  const started = await cli(home8, ["start", "--no-open", "--port", String(PORT + 4)])
+  assert.equal(started.code, 0, started.out)
+  try {
+    const app8 = await launch(home8, path.join(tmp, "user-data-8"))
+    const win8 = await app8.firstWindow()
+    await win8.waitForURL(`http://localhost:${PORT + 4}/**`, { timeout: 30_000 })
+    assert.equal(servers(PORT + 4), 1, "the app uses the terminal's VibeDoc")
+    assert.equal(await statusLine(app8), `Using the VibeDoc running from your terminal, v${appVersion} · http://localhost:${PORT + 4}`)
+    await app8.close()
+    apps.delete(app8)
+    assert.ok(await answers(PORT + 4), "the terminal's VibeDoc outlives the app")
+  } finally {
+    await cli(home8, ["stop"])
+  }
+
+  const home9 = path.join(tmp, "home9")
+  mkdirSync(home9)
+  writeFileSync(path.join(home9, "port"), `${PORT + 5}\n`)
+  const app9 = await launch(home9, path.join(tmp, "user-data-9"))
+  const win9 = await app9.firstWindow()
+  await win9.waitForURL(`http://localhost:${PORT + 5}/**`, { timeout: 90_000 })
+  assert.equal((await (await fetch(`http://localhost:${PORT + 5}/api/server`)).json()).startedBy, "desktop")
+  const second9 = await cli(home9, ["--no-open"])
+  assert.equal(second9.code, 0, second9.out)
+  assert.match(second9.out, /already running/)
+  assert.equal(servers(PORT + 5), 1, "the CLI started nothing")
+  await app9.close()
+  apps.delete(app9)
+
+  const home10 = path.join(tmp, "home10")
+  mkdirSync(home10)
+  writeFileSync(path.join(home10, "port"), `${PORT + 6}\n`)
+  const squatter = createServer((_, res) => { res.writeHead(200, { "content-type": "text/html" }); res.end("<p>not VibeDoc</p>") })
+  await new Promise((r) => squatter.listen(PORT + 6, r))
+  const app10 = await launch(home10, path.join(tmp, "user-data-10"))
+  const win10 = await app10.firstWindow()
+  await waitFor(async () => (await win10.title()) === "VibeDoc couldn’t start", "the address error", 30_000)
+  assert.match(await win10.locator("#reason").textContent(), new RegExp(`http://localhost:${PORT + 6} is in use by another program`))
+  await app10.close()
+  apps.delete(app10)
+  squatter.close()
+  console.log("✓ S3: one VibeDoc per address whichever install started it; another program on it is named, nothing starts")
   console.log("desktop-app e2e: ok")
 } finally {
   for (const app of apps) await app.close().catch(() => {})
-  for (const child of children) child.kill("SIGKILL")
+  // the whole tree: SIGKILL on the CLI alone would leave its `next start` running on the port
+  for (const child of children) await killTree(child.pid, { graceMs: 2000 })
   rmSync(tmp, { recursive: true, force: true })
 }

@@ -6,7 +6,7 @@ import { createServer } from 'node:net'
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer as createHttpServer } from 'node:http'
-import { addToHub, addressChangedMessage, dropLegacyPort, legacyPort, migrationMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, portFile, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
+import { addToHub, addressChangedMessage, classifyAddress, probeAddress, dropLegacyPort, legacyPort, migrationMessage, connectCommand, firstFreePort, isPortTaken, mcpUrl, parsePortArg, portFile, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
 
 const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-address-'))
 const servers: { close(): unknown }[] = []
@@ -78,6 +78,27 @@ try {
   await serve(html, '<html>hi</html>', 'text/html')
   assert.deepEqual(await probeVibedoc(vd), { root })
   assert.equal(await probeVibedoc(html), null)
+
+  // R112 T584: what holds an address. Pure classification first, then live ports
+  assert.deepEqual(classifyAddress({ taken: false, identity: null }), { kind: 'free' })
+  assert.deepEqual(classifyAddress({ taken: true, identity: null }), { kind: 'other' })
+  assert.deepEqual(classifyAddress({ taken: true, identity: null, isVibedoc: true }), { kind: 'vibedoc', version: null, startedBy: null })
+  assert.deepEqual(classifyAddress({ taken: true, identity: { app: 'vibedoc', version: '1.25.0', startedBy: 'desktop' } }), { kind: 'vibedoc', version: '1.25.0', startedBy: 'desktop' })
+  assert.deepEqual(classifyAddress({ taken: true, identity: { app: 'vibedoc', version: 7, startedBy: 'x' } }), { kind: 'vibedoc', version: null, startedBy: null })
+  assert.deepEqual(classifyAddress({ taken: true, identity: { app: 'other' } }), { kind: 'other' })
+  const ident = base + 30
+  await new Promise<void>((resolve) => {
+    const s = createHttpServer((req, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(req.url === '/api/server' ? JSON.stringify({ app: 'vibedoc', version: '1.30.0', startedBy: 'cli' }) : '[]')
+    })
+    servers.push(s)
+    s.listen(ident, '127.0.0.1', () => resolve())
+  })
+  assert.deepEqual(await probeAddress(ident), { kind: 'vibedoc', version: '1.30.0', startedBy: 'cli' })
+  assert.deepEqual(await probeAddress(vd), { kind: 'vibedoc', version: null, startedBy: null }, 'a VibeDoc from before /api/server')
+  assert.deepEqual(await probeAddress(html), { kind: 'other' })
+  assert.deepEqual(await probeAddress(closed), { kind: 'free' })
   assert.equal(await probeVibedoc(closed), null)
   // A hub with no projects yet (started outside a repo) still is a VibeDoc
   const emptyHub = base + 13

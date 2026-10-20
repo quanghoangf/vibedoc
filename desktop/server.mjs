@@ -6,7 +6,7 @@ import { createWriteStream, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { binDir, fromBin } from './bin-path.mjs'
 
-const { FIRST_PORT, appUrl, probeVibedoc, readSavedPort, tailLines } = await fromBin('address.mjs')
+const { FIRST_PORT, appUrl, probeAddress, probeVibedoc, readSavedPort, tailLines } = await fromBin('address.mjs')
 const { killTree } = await fromBin('server-state.mjs')
 const bin = path.join(binDir, 'vibedoc.mjs')
 export const desktopLogFile = (home) => path.join(home, 'logs', 'desktop-server.log')
@@ -16,11 +16,16 @@ const READY = /✓ VibeDoc is (ready|already running)/
 const hubPort = (home) => readSavedPort(home) ?? FIRST_PORT
 
 /**
- * `{ url, owned: false }` when a hub answers already, `{ url, owned: true, child }` once the one this started answers,
- * or `{ error, log: [last lines] }` when it couldn't start. `onStarting` runs before a spawn (the starting screen).
+ * `{ url, owned: false, version, startedBy }` when a VibeDoc answers already (any version, either install: R112 T584),
+ * `{ url, owned: true, child }` once the one this started answers, or `{ error, log: [last lines] }` when it couldn't
+ * start, or another program holds the address (never a second VibeDoc on another port). `onStarting` runs before a
+ * spawn (the starting screen).
  */
 export async function ensureServer({ home, onStarting = () => {}, timeoutMs = 90_000 }) {
-  if (await probeVibedoc(hubPort(home))) return { url: appUrl(hubPort(home)), owned: false }
+  const port = hubPort(home)
+  const found = await probeAddress(port)
+  if (found.kind === 'vibedoc') return { url: appUrl(port), owned: false, version: found.version, startedBy: found.startedBy }
+  if (found.kind === 'other') return { error: `${appUrl(port)} is in use by another program, so VibeDoc can't start there. Stop that program, or change the port VibeDoc uses (${path.join(home, 'port')}).`, log: [] }
   onStarting()
   let log
   try {
@@ -31,9 +36,10 @@ export async function ensureServer({ home, onStarting = () => {}, timeoutMs = 90
   }
   log.write(`\n── ${new Date().toISOString()} desktop app starts VibeDoc ──\n`)
   // cwd = the VibeDoc home: not a repo, so the hub starts with no project to add (the user picks one in the app)
-  const child = spawn(process.execPath, [bin, '--no-open'], {
+  // --port pins the address: taken meanwhile → the CLI refuses (shown), never moves to another port
+  const child = spawn(process.execPath, [bin, '--no-open', '--port', String(port)], {
     cwd: home,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', VIBEDOC_HOME: home, VIBEDOC_NO_OPEN: '1' },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', VIBEDOC_HOME: home, VIBEDOC_NO_OPEN: '1', VIBEDOC_STARTED_BY: 'desktop' },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
@@ -62,8 +68,10 @@ export async function ensureServer({ home, onStarting = () => {}, timeoutMs = 90
   })
   const url = appUrl(hubPort(home))
   // "already running": another VibeDoc took the port meanwhile; it isn't ours (the CLI exits once it says so)
-  if (result.ready && /already running/.test(out)) return { url, owned: false }
-  if (result.exit === 0 && (await probeVibedoc(hubPort(home)))) return { url, owned: false }
+  if ((result.ready && /already running/.test(out)) || (result.exit === 0 && (await probeVibedoc(port)))) {
+    const other = await probeAddress(port)
+    return { url, owned: false, version: other.version ?? null, startedBy: other.startedBy ?? null }
+  }
   if (result.ready) {
     child.once('exit', () => log.end())
     return { url, owned: true, child }

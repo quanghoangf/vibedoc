@@ -21,6 +21,19 @@ The app first looks for a VibeDoc hub that already runs, the way the CLI does: t
 
 Opening the app again focuses its window instead of opening a second one. On macOS closing the window keeps the app in the Dock (and a VibeDoc it started keeps running until you quit); its icon reopens the window. On Windows and Linux closing the last window quits the app.
 
+## Next to the terminal install
+
+The desktop app and the terminal install (`install.sh`, npm, Homebrew) can live on one machine: whichever starts first serves the usual address, and the other uses it. `GET /api/server` says which VibeDoc answers there (`{ app: "vibedoc", version, startedBy: "cli" | "desktop" }`), and `probeAddress` in `bin/address.mjs` sorts an address into free / VibeDoc / another program.
+
+| What holds the address | The app | `vibedoc` in a terminal |
+|---|---|---|
+| nothing | starts its own VibeDoc there (pinned with `--port`) | starts one, as before |
+| a VibeDoc from the terminal | uses it; the menu says `Using the VibeDoc running from your terminal, vX.Y.Z` | "already running", adds the repo, exits 0 |
+| a VibeDoc the app started | uses it | "already running", starts nothing |
+| another program | "VibeDoc couldn't start": names the address, starts nothing | moves to the next free port and says so (R080) |
+
+When the terminal's VibeDoc is older than the app, the app shows one quiet notification ("Your terminal VibeDoc is v1.24.0, the app is v1.26.0") and goes on using it; each install updates on its own.
+
 ## When nothing is running
 
 ```mermaid

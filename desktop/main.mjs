@@ -3,7 +3,7 @@
 // the app starts one as its own child and stops it on quit (desktop/server.mjs, T578). The window shows the same Next
 // app as the browser. A VibeDoc the app didn't start is never stopped.
 // Run from source: pnpm --dir desktop install && pnpm --dir desktop start. Doc: docs/desktop-app.md
-import { app, BrowserWindow, Menu, nativeImage, screen, shell } from 'electron'
+import { app, BrowserWindow, Menu, nativeImage, Notification, screen, shell } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -50,13 +50,33 @@ function saveBounds() {
 
 // ── menu: the standard Edit / View / Window menus (copy, paste, reload) plus a status line ──
 function buildMenu() {
-  const label = !server ? t(lang, 'notRunning') : t(lang, server.owned ? 'owned' : 'using', { url: server.url })
+  const label = !server ? t(lang, 'notRunning')
+    : server.owned ? t(lang, 'owned', { url: server.url })
+      : server.startedBy === 'cli' && server.version ? t(lang, 'usingTerminal', { url: server.url, version: server.version })
+        : t(lang, 'using', { url: server.url })
   const status = { label, enabled: false }
   const mac = process.platform === 'darwin'
   const first = mac
     ? { label: app.name, submenu: [status, { type: 'separator' }, { role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] }
     : { label: 'VibeDoc', submenu: [status, { type: 'separator' }, { role: 'quit' }] }
   Menu.setApplicationMenu(Menu.buildFromTemplate([first, { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' }]))
+}
+
+/** "x.y.z" < "x.y.w" by numbers; anything unparsable compares equal (no note). */
+function olderVersion(a, b) {
+  const parse = (v) => (/^\d+\.\d+\.\d+/.test(v ?? '') ? v.split(/[.+-]/).slice(0, 3).map(Number) : null)
+  const x = parse(a), y = parse(b)
+  if (!x || !y) return false
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] < y[i]
+  return false
+}
+
+/** A terminal-install VibeDoc older than this app: one non-blocking notification (T584), never a dialog. */
+let skewNoted = false
+function noteVersionSkew(found) {
+  if (skewNoted || found.owned || !olderVersion(found.version, app.getVersion()) || !Notification.isSupported()) return
+  skewNoted = true
+  new Notification({ title: t(lang, 'skewTitle'), body: t(lang, 'skewBody', { server: found.version, app: app.getVersion() }), silent: true }).show()
 }
 
 function showPage(query) {
@@ -88,6 +108,7 @@ function connect() {
         return
       }
       server = found
+      noteVersionSkew(found)
       // an owned VibeDoc that dies: the window says so with Try again (no automatic restart: that is R109's background mode)
       found.child?.once('exit', (code) => {
         if (quitting || server !== found) return

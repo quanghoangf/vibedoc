@@ -2,6 +2,9 @@
 export const messages = {
   en: {
     using: 'Using VibeDoc at {url}',
+    usingTerminal: 'Using the VibeDoc running from your terminal, v{version} · {url}',
+    skewTitle: 'Your terminal VibeDoc is older',
+    skewBody: 'Your terminal VibeDoc is v{server}, the app is v{app}. Update it with `vibedoc` from your terminal install (install.sh --update, npm or Homebrew).',
     owned: 'VibeDoc at {url} · started by this app',
     notRunning: 'VibeDoc isn’t running',
     startingTitle: 'Starting VibeDoc…',
@@ -13,6 +16,9 @@ export const messages = {
   },
   vi: {
     using: 'Đang dùng VibeDoc tại {url}',
+    usingTerminal: 'Đang dùng VibeDoc chạy từ terminal, v{version} · {url}',
+    skewTitle: 'VibeDoc ở terminal cũ hơn',
+    skewBody: 'VibeDoc ở terminal là v{server}, app là v{app}. Hãy cập nhật bản cài terminal (install.sh --update, npm hoặc Homebrew).',
     owned: 'VibeDoc tại {url} · do app này khởi động',
     notRunning: 'VibeDoc chưa chạy',
     startingTitle: 'Đang khởi động VibeDoc…',
