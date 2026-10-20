@@ -20,8 +20,10 @@ files:
 # The server the app starts when nothing runs (desktop/server.mjs, run by Electron's own Node, so no Node install)
 # is copied into Resources/server by scripts/dist.mjs's afterPack: extraResources leaves node_modules out.
 icon: icons/icon.png
+# Fixed file names, no version (T586): the site links /releases/latest/download/<file>, so its links never change
 mac:
   category: public.app-category.developer-tools
+  artifactName: VibeDoc-mac-${arch}.${ext}
   target:
     - target: dmg
       arch: [arm64, x64]
@@ -32,10 +34,12 @@ win:
     - target: nsis
       arch: [x64]
 nsis:
+  artifactName: VibeDoc-Setup.${ext}
   oneClick: true
   perMachine: false
 linux:
   category: Development
+  artifactName: VibeDoc-x86_64.${ext}
   target:
     - target: AppImage # the only Linux target electron-updater updates in place
       arch: [x64]

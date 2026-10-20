@@ -66,9 +66,11 @@ Each release builds the installers on its own runner per OS (`.github/workflows/
 
 | OS | Files |
 |---|---|
-| macOS | `VibeDoc-<version>-arm64.dmg`, `VibeDoc-<version>.dmg` (Intel), the matching `.zip`s (what auto-update downloads), `latest-mac.yml` |
-| Windows | `VibeDoc Setup <version>.exe` (per-user, no admin), `latest.yml` |
-| Linux | `VibeDoc-<version>.AppImage`, `latest-linux.yml` |
+| macOS | `VibeDoc-mac-arm64.dmg`, `VibeDoc-mac-x64.dmg` (Intel), the matching `.zip`s (what auto-update downloads), `latest-mac.yml` |
+| Windows | `VibeDoc-Setup.exe` (per-user, no admin), `latest.yml` |
+| Linux | `VibeDoc-x86_64.AppImage`, `latest-linux.yml` |
+
+The names carry no version (`artifactName` in `desktop/electron-builder.yml`), so `https://github.com/quanghoangf/vibedoc/releases/latest/download/<file>` always gets the newest: the site's **Desktop app** install tab and the README link there (T586).
 
 The app carries its own copy of the VibeDoc server: `desktop/scripts/dist.mjs` packs the npm package as it would be published (`npm pack`) and installs it with its production dependencies once per OS and CPU (`npm install --os --cpu`, since Next's swc and sharp ship native binaries), then electron-builder (`desktop/electron-builder.yml`) copies the right one into the app's `Resources/server`. The app runs it with Electron's own Node, so the machine needs no Node install. The version is the root `package.json`'s.
 

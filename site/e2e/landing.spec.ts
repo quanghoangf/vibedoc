@@ -63,6 +63,38 @@ test.describe('install (T202)', () => {
     }
   })
 
+  test('the Desktop app tab links each installer of the latest release and marks this computer\'s (T586)', async ({ page }) => {
+    await page.goto('./')
+    await page.getByRole('tablist', { name: 'Install with' }).getByRole('tab', { name: 'Desktop app', exact: true }).click()
+    const panel = page.getByRole('tabpanel', { name: 'Desktop app', exact: true })
+    const latest = 'https://github.com/quanghoangf/vibedoc/releases/latest/download/'
+    for (const [name, file] of [['macOS · Apple silicon', 'VibeDoc-mac-arm64.dmg'], ['macOS · Intel', 'VibeDoc-mac-x64.dmg'], ['Windows', 'VibeDoc-Setup.exe'], ['Linux · AppImage', 'VibeDoc-x86_64.AppImage']]) {
+      await expect(panel.getByRole('link', { name })).toHaveAttribute('href', latest + file)
+    }
+    await expect(panel.getByText('right-click → Open')).toBeVisible()
+  })
+
+  test('the visitor\'s own installer stands out: one button for a Mac, none for a phone (T586)', async ({ browser }) => {
+    for (const [userAgent, os] of [
+      ['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36', 'mac'],
+      ['Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36', 'linux'],
+      ['Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148', null],
+    ] as const) {
+      const context = await browser.newContext({ userAgent })
+      const page = await context.newPage()
+      await page.goto('./')
+      const marked = page.locator('[data-downloads] a[data-recommended]')
+      if (os) {
+        await expect(marked).toHaveCount(1)
+        await expect(marked).toHaveAttribute('data-os', os)
+      } else {
+        await expect(page.locator('[data-downloads] a').first()).toBeAttached()
+        await expect(marked).toHaveCount(0)
+      }
+      await context.close()
+    }
+  })
+
   test('"Ask your AI" copies the whole install prompt (T211)', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await page.goto('./')
