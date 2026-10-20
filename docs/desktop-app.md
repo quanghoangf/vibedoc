@@ -73,9 +73,24 @@ Without signing secrets (`CSC_LINK` / `WIN_CSC_LINK`) the build is unsigned and 
 
 The installed app checks for a newer release at start and every 6 hours (`desktop/updater.mjs`, electron-updater reading the `latest*.yml` the release attached). It never downloads on its own:
 
-1. A newer version → a small card at the bottom of the window: **VibeDoc X.Y.Z is available** · **Later** · **What's new**.
+1. A newer version → a small card at the bottom of the window: **VibeDoc X.Y.Z is available** · **Later** · **What's new** · **Update**.
 2. **What's new** opens that release's notes (the GitHub release body semantic-release wrote, the same text as CHANGELOG.md).
 3. **Later** hides that version for good; the next version shows the card again. The choice is kept by the app (`update.json` in its `userData`), never in the browser.
+4. **Update** downloads it, with the percentage on the card, then offers **Restart to update**. If an agent is still working in a chat, the app asks first.
+5. **Restart to update** stops the VibeDoc the app started (a VibeDoc from the terminal install keeps running: it updates through `install.sh --update`, npm or Homebrew), installs the new version and reopens the app, which starts the new version's server.
+
+If the download or the install fails, the card says so with **Try again** and **Download the new version** (that release's page on GitHub). That is always the case on macOS until the app is signed (T585): macOS installs updates only into a signed app.
+
+```mermaid
+stateDiagram-v2
+  [*] --> available: newer version found
+  available --> downloading: Update
+  downloading --> ready: downloaded
+  ready --> [*]: Restart to update
+  downloading --> failed: error
+  failed --> downloading: Try again
+  available --> [*]: Later
+```
 
 The card shows only inside the app: the app's preload (`desktop/preload.cjs`) gives the page `window.vibedocDesktop`, and a browser tab has none. A check that fails (offline, no feed) is logged and shows nothing. A build run from source doesn't check; `VIBEDOC_UPDATE_FEED=<url>` points it at a generic feed (a folder with `latest-mac.yml` / `latest.yml` / `latest-linux.yml`) to try it.
 

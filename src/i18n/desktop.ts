@@ -11,6 +11,14 @@ export const en = {
   noNotes: "This release has no notes.",
   released: "Released {date}",
   close: "Close",
+  update: "Update",
+  downloading: "Downloading VibeDoc {version}… {percent}%",
+  ready: "VibeDoc {version} is ready",
+  restart: "Restart to update",
+  confirmRestart: "An agent is still working in a chat. Restart VibeDoc to update anyway? The chat stops and can be resumed later.",
+  failed: "VibeDoc {version} couldn’t be installed from here",
+  downloadPage: "Download the new version",
+  tryAgain: "Try again",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -22,4 +30,12 @@ export const vi: Messages<typeof en> = {
   noNotes: "Bản phát hành này không có ghi chú.",
   released: "Phát hành {date}",
   close: "Đóng",
+  update: "Cập nhật",
+  downloading: "Đang tải VibeDoc {version}… {percent}%",
+  ready: "VibeDoc {version} đã sẵn sàng",
+  restart: "Khởi động lại để cập nhật",
+  confirmRestart: "Một agent vẫn đang làm việc trong một chat. Vẫn khởi động lại VibeDoc để cập nhật? Chat sẽ dừng và có thể tiếp tục sau.",
+  failed: "Không cài được VibeDoc {version} từ đây",
+  downloadPage: "Tải bản mới",
+  tryAgain: "Thử lại",
 }

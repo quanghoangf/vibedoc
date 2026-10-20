@@ -17,6 +17,7 @@
 //
 // Temp VIBEDOC_HOME and Electron userData (never ~/.vibedoc or the real app's folder); the app runs with --lang=en-US.
 import assert from "node:assert/strict"
+import { createHash } from "node:crypto"
 import { execFileSync, spawn } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
@@ -230,14 +231,16 @@ try {
   const home5 = path.join(tmp, "home5")
   const hub5 = await startHub(home5, PORT + 3)
   const feedFile = process.platform === "darwin" ? "latest-mac.yml" : process.platform === "win32" ? "latest.yml" : "latest-linux.yml"
+  const zip = Buffer.from("PK\x05\x06" + "\0".repeat(18), "binary") // an empty zip: enough to download and verify
+  const zipSha = createHash("sha512").update(zip).digest("base64")
   const feedYml = [
     "version: 99.0.0",
     "files:",
     "  - url: VibeDoc-99.0.0.zip",
-    "    sha512: AAAA",
-    "    size: 1",
+    `    sha512: ${zipSha}`,
+    `    size: ${zip.length}`,
     "path: VibeDoc-99.0.0.zip",
-    "sha512: AAAA",
+    `sha512: ${zipSha}`,
     "releaseDate: '2026-10-21T08:00:00.000Z'",
     "releaseNotes: |",
     "  ## Faster boards",
@@ -245,7 +248,9 @@ try {
     "  - Moved cards stay where you put them",
   ].join("\n") + "\n"
   const feed = createServer((req, res) => {
-    if (req.url?.startsWith(`/${feedFile}`)) { res.writeHead(200, { "content-type": "text/yaml" }); res.end(feedYml) } else { res.writeHead(404); res.end() }
+    if (req.url?.startsWith(`/${feedFile}`)) { res.writeHead(200, { "content-type": "text/yaml" }); res.end(feedYml) }
+    else if (req.url?.startsWith("/VibeDoc-99.0.0.zip")) { res.writeHead(200, { "content-type": "application/zip", "content-length": zip.length }); res.end(zip) }
+    else { res.writeHead(404); res.end() }
   })
   await new Promise((r) => feed.listen(0, "127.0.0.1", r))
   const feedUrl = `http://127.0.0.1:${feed.address().port}/`
@@ -273,6 +278,26 @@ try {
   await app5.close()
   apps.delete(app5)
   console.log("✓ S2: a newer version shows a banner, What's new shows its notes, Later hides that version")
+
+  // T583: Update downloads it. macOS installs only into a signed app, so an unsigned one (this e2e) ends on the
+  // release-page fallback; elsewhere the card offers Restart to update
+  const app7 = await _electron.launch({ executablePath: electronBin, args: [desktopDir, "--lang=en-US"], env: { ...appEnv(home5, path.join(tmp, "user-data-7")), VIBEDOC_UPDATE_FEED: feedUrl } })
+  apps.add(app7)
+  const win7 = await app7.firstWindow()
+  await win7.waitForURL(`http://localhost:${PORT + 3}/**`, { timeout: 30_000 })
+  const card7 = win7.getByRole("region", { name: "VibeDoc update" })
+  await card7.getByRole("button", { name: "Update" }).click({ timeout: 20_000 })
+  if (process.platform === "darwin") {
+    await card7.getByText("VibeDoc 99.0.0 couldn’t be installed from here").waitFor({ timeout: 30_000 })
+    assert.equal(await card7.getByRole("link", { name: "Download the new version" }).getAttribute("href"), "https://github.com/quanghoangf/vibedoc/releases/tag/v99.0.0")
+    assert.ok(await card7.getByRole("button", { name: "Try again" }).isVisible())
+    console.log("✓ T583: Update downloads; an unsigned macOS app falls back to the release page, no crash")
+  } else {
+    await card7.getByRole("button", { name: "Restart to update" }).waitFor({ timeout: 30_000 })
+    console.log("✓ T583: Update downloads and offers Restart to update")
+  }
+  await app7.close()
+  apps.delete(app7)
 
   const browser5 = await desktopRequire("playwright").chromium.launch({ channel: "chrome" })
   try {

@@ -176,8 +176,15 @@ if (!app.requestSingleInstanceLock()) {
     if (process.platform === 'darwin') app.dock?.setIcon(icon)
     buildMenu()
     createWindow()
-    // a found update goes to whichever window is open (the page also asks on load: window.vibedocDesktop.getUpdate)
-    startUpdates((update) => win && !win.isDestroyed() && win.webContents.send('vibedoc:update', update))
+    // update events go to whichever window is open (the page also asks on load: window.vibedocDesktop.getUpdate)
+    startUpdates((event) => win && !win.isDestroyed() && win.webContents.send('vibedoc:update-event', event), {
+      // the VibeDoc this app started goes first (the new version starts its own); one it didn't start keeps running
+      beforeInstall: async () => {
+        if (!server?.owned || server.child.exitCode !== null) return
+        quitting = true
+        await stopServer(server.child)
+      },
+    })
   })
   // macOS keeps the app in the Dock with no window; the Dock icon reopens it. Elsewhere the last window quits.
   // Neither stops VibeDoc: this app didn't start it.
