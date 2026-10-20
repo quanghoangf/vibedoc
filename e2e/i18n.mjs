@@ -162,7 +162,8 @@ const PAGES = [
   // R099 T531: All projects (a row's actions, rename form open)
   { path: "/projects", name: "all projects", open: async (page) => {
     await page.locator("[data-project-row]").first().waitFor()
-    await page.getByRole("button", { name: "Đổi tên" }).first().click()
+    await page.getByRole("button", { name: /^Thao tác khác cho / }).first().click()
+    await page.getByRole("menuitem", { name: "Đổi tên" }).click()
     await page.getByRole("button", { name: "Lưu", exact: true }).waitFor()
   } },
   // R107 T551: search across projects, with a result

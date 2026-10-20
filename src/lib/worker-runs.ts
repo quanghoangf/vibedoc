@@ -136,8 +136,10 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps): v
         }
         const turn: WorkerTurn = { taskId: step.taskId, sessionId: null, startedAt: new Date().toISOString(), endedAt: null, result: null }
         chat.messages.push(message('user', `/vibedoc:work ${step.taskId}`))
+        // spawn first: the page follows the turn as soon as `worker_updated` names it, so it must be registered by then
+        const ended = runTurn(root, chat, run, turn, deps)
         await save({ phase: 'running', turns: [...chat.worker.turns, turn] })
-        turn.result = await runTurn(root, chat, run, turn, deps)
+        turn.result = await ended
         turn.endedAt = new Date().toISOString()
         last = turn
         await save({}) // `turn` is in chat.worker.turns: its result and session are saved with it

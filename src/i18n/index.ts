@@ -18,8 +18,9 @@ import * as shell from "./shell"
 import * as templates from "./templates"
 import * as tests from "./tests"
 import * as welcome from "./welcome"
+import * as workers from "./workers"
 
-export const AREAS = { shell, board, roadmap, docs, templates, memory, tests, chat, settings, help, connect, welcome, firstWeek, feedback, apiRef, projects, search, inbox }
+export const AREAS = { shell, board, roadmap, docs, templates, memory, tests, chat, settings, help, connect, welcome, firstWeek, feedback, apiRef, projects, search, inbox, workers }
 
 type Areas = typeof AREAS
 type AreaKey<A extends keyof Areas> = keyof Areas[A]["en"] & string
