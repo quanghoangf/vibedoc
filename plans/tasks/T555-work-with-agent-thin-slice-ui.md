@@ -1,9 +1,12 @@
 # T555: Thin slice UI: "Work with agent" → worker chat
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T554
 **Covers:** S1, S2
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 The user starts a worker from an epic's sheet, confirms branch and base, and watches it work task by task in a chat that shows its worktree, end to end for the first time.
@@ -47,5 +50,16 @@ BASE=http://localhost:3081 node e2e/i18n.mjs
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S1 — WHEN the user accepts a run card for a new worktree → THEN a new worktree and branch exist, the worker's commits land only there, and the user's checkout has no code changes
 - [ ] S2 — WHEN the worker claims and finishes a task in the worktree → THEN the card moves on the board in real time, like a terminal session
+- [ ] Open /roadmap, click an epic with ready tasks → the sheet footer shows "Work with agent" next to Chat
+- [ ] Click Work with agent → a dialog shows branch `vibedoc/<epic>`, base HEAD, allowed and denied tools, Budget "No limit yet"
+- [ ] Click Start worker → the chat opens with a strip: branch, base, the worktree folder (copy button copies it), "Working on T…"
+- [ ] Wait for the task to finish → a "Task T…" divider starts for the next task; the board card moves without a reload
+- [ ] Reload /chat?id=<worker> mid-task → the strip still says "Working on T…", the Stop button shows and the reply arrives
+- [ ] Click Stop in the worker chat header → the strip reads Stopped; the task stays in-progress
+### Regression risk
+- [ ] The epic sheet's Chat button still opens a normal conversation (not the worker chat), and sending a message works
+- [ ] A normal chat still streams and survives a reload (e2e/chat-reload.mjs)

@@ -1,8 +1,11 @@
 # T552: ADR-007: workers, run cards and the orchestrator
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** S (~1 hr)
 **Depends on:** T566
+**Owner:** ai:claude
+**Due:** 2026-10-21
+**Started:** 2026-10-20
 
 ## Goal
 Write down the decisions behind R108 once, with the spike's evidence, so every later task (and the next agent) builds the same model instead of re-deciding it.
@@ -51,3 +54,12 @@ flowchart LR
 ```bash
 pnpm build:cli && node bin/vibedoc.mjs check --root .
 ```
+
+## Manual tests
+_2026-10-20 — ai_
+### Steps
+- [ ] Open /docs?doc=docs/architecture/decisions/ADR-007-orchestrator-and-workers.md → Status Accepted, the § Spike tables are unchanged, then Decision (12 numbered decisions + a flow diagram), Rationale, Alternatives considered, Consequences
+- [ ] Read Decision 9 and Decision 8 → each says "Spike:" where the spike changed the epic's first assumption (setting sources, the task file staging, resume cwd)
+- [ ] Check the Alternatives table → every rejected option from T552's Context is a row with its reason
+### Regression risk
+- [ ] The flow Mermaid diagram renders (no parse error box)

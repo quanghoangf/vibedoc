@@ -1,9 +1,12 @@
 # T553: Worktree lifecycle in core
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T552
 **Covers:** S1
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 VibeDoc can create, list and remove git worktrees for a project in one place outside the repo and install their dependencies, so a worker has somewhere isolated to work.
@@ -50,4 +53,11 @@ pnpm lint && pnpm build
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN the user accepts a run card for a new worktree → THEN a new worktree and branch exist, the worker's commits land only there, and the user's checkout has no code changes
+_2026-10-20 — ai_
+### Steps
+- [ ] Run `node src/lib/worktrees.check.mts` on branch spartan-hoangnguyen/r108-core → prints "worktrees: ok"
+- [ ] In a node script (built with esbuild), call `createWorktree(root, {branch: 'vibedoc/R108'})` with `VIBEDOC_HOME=<tmp>` → `<tmp>/worktrees/<repo>-<hash>/vibedoc-r108` exists on branch vibedoc/R108, and `git status` in your checkout is unchanged
+- [ ] Call it again with the same branch → "Branch vibedoc/R108 already exists", and no new folder appears
+- [ ] Add a file in the worktree, then call `removeWorktree(root, dir)` → "has uncommitted changes"; with `{force: true}` → the folder is gone (the branch stays; delete it with `git branch -D`)
+### Regression risk
+- [ ] All projects (/projects) still lists and adds projects: hub.json now uses the new `vibedocHome()` path

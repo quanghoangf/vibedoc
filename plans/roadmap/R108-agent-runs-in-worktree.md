@@ -1,6 +1,6 @@
 # R108: Agent runs in a worktree
 **Parent:** R002
-**Status:** planned
+**Status:** in-progress
 **Order:** 490
 **Tasks:** T566, T552, T553, T554, T555, T557, T567, T558, T556, T568, T563, T564, T561, T562, T559, T560, T565
 

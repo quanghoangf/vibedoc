@@ -1,9 +1,12 @@
 # T556: Worker survives a restart
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T554, T558
 **Covers:** S5
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 A worker keeps running when VibeDoc restarts: the current task's process goes on, the page follows it again, and the next task still starts. If the process died, the worker shows as interrupted with Resume.
@@ -61,4 +64,14 @@ node e2e/worker-restart.mjs   # starts and restarts its own server with the stub
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S5 — WHEN VibeDoc restarts while a worker runs → THEN the worker keeps going (including the next task) and the page follows it again, or it shows as interrupted with Resume, never silently lost
+- [ ] Start a worker on an epic with 2+ tasks (Work with agent), stop VibeDoc (Ctrl-C) mid-task, start it again and open /chat → the worker's chat shows the current task's output, its reply, then the next task's divider; the board card moves to done
+- [ ] Stop VibeDoc mid-task, kill the `claude -p` process (pid in `~/.vibedoc/worktrees/<project>/.vibedoc-workers/<id>.json`), start VibeDoc and open the worker chat → the strip says "Interrupted" with a Resume button
+- [ ] Click Resume → the chat adds "Continue task T…", the agent continues in the worktree (not your checkout) and the task ends done
+- [ ] Inside the worker's worktree, `git status` → only the agent's own changes; no `.vibedoc-workers` folder or `.ndjson` file
+### Regression risk
+- [ ] Reload /chat while a worker runs (no restart) → it re-attaches to the running task and shows its reply
+- [ ] A worker that asks a question (question card) still waits on you and resumes on Submit, not "Interrupted"
+- [ ] Stop on a running worker still kills its task

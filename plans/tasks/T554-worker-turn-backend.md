@@ -1,9 +1,12 @@
 # T554: Worker backend: task-by-task loop in a worktree
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** L (half a day)
 **Depends on:** T553, T566
 **Covers:** S1, S2
+**Owner:** ai:claude
+**Due:** 2026-10-27
+**Started:** 2026-10-20
 
 ## Goal
 `POST /api/workers` creates a worktree for an epic and the server works through it one task at a time: claim the next ready task, run `claude -p "/vibedoc:work <task>"` in a fresh session inside the worktree, then the next, with board updates landing in the main project.
@@ -82,6 +85,13 @@ BASE=http://localhost:3081 node e2e/worker-run.mjs   # server started with e2e/f
 ```
 
 ## Manual tests
-- [ ] S1 — WHEN the user accepts a run card for a new worktree → THEN a new worktree and branch exist, the worker's commits land only there, and the user's checkout has no code changes
-- [ ] S2 — WHEN the worker claims and finishes a task in the worktree → THEN the card moves on the board in real time, like a terminal session
-- [ ] In Claude Code, `/vibedoc:work T<id>` on a real task → the agent does only that task and stops
+_2026-10-20 — ai_
+### Steps
+- [ ] With the real `claude` CLI, `curl -X POST -H 'content-type: application/json' 'http://localhost:3333/api/workers?root=<repo>' -d '{"target":{"kind":"epic","id":"R0xx"}}'` on an epic with a small ready task → a worktree appears under ~/.vibedoc/worktrees/<project>/vibedoc-r0xx, the task card moves to In progress, then Done/Review on the board
+- [ ] After that run, `git log main..vibedoc/R0xx` in the repo → one commit per task, and `git status` in the main checkout shows no code change (only plans/ and .vibedoc files)
+- [ ] Open .vibedoc/chats/<id>.json for the worker → `worker.turns` has one entry per task with its own session id and result
+- [ ] Start a worker, then `POST /api/workers/cancel {"id": "<id>"}` mid-task → no `claude` process left (`ps`), the task stays In progress, phase = stopped
+- [ ] In Claude Code, `/vibedoc:work T<id>` on a real task → the agent does only that task and stops, never calls vibedoc_next_task
+### Regression risk
+- [ ] The in-app agent chat (header Agent button) still answers and still can't edit files
+- [ ] Settings → Connect agent still turns ✓ after a real terminal agent's tool call

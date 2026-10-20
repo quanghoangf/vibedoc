@@ -1,9 +1,12 @@
 # T558: Worker asks mid-task → needs you → resume
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T555
 **Covers:** S3
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 When a worker needs a decision, its task stops and waits on the user (sidebar, header, inbox); the user's answer continues that task's session in the same worktree, and the loop goes on after.
@@ -48,4 +51,13 @@ BASE=http://localhost:3081 node e2e/chat-reload.mjs
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S3 — WHEN the worker needs a decision mid-task → THEN the worker waits on the user, the inbox counts it, and the user's answer continues that task's session in the same worktree
+- [ ] Start a real worker on an epic whose task leaves a decision open → its chat shows a question card, the strip reads "Waiting on you", and the header Inbox badge goes up by one
+- [ ] Open /inbox → the row reads "Worker · vibedoc/<epic> · <task>" and opens the worker chat
+- [ ] Pick an answer and press Submit → the card shows Answered, the answer appears as your message, and the worker runs again (strip reads "Working on <task>")
+- [ ] After that task finishes → a "Task <next>" divider appears and the worker goes on to the next task; the code changes are in the worktree, not your checkout
+- [ ] A worker that stopped mid-task without a question → a composer shows under its chat; typing a reply resumes the task
+### Regression risk
+- [ ] A plain agent chat (header Agent button) still sends, streams and answers its own question cards as before

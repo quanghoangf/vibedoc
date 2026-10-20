@@ -1,9 +1,12 @@
 # T560: Start a worker on a single task
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** S (~1 hr)
 **Depends on:** T561
 **Covers:** S1
+**Owner:** ai:claude
+**Due:** 2026-10-21
+**Started:** 2026-10-20
 
 ## Goal
 The user can start a worker on one task, not only a whole epic; the worker's loop runs that one task (plus its verify) and ends.
@@ -37,4 +40,13 @@ BASE=http://localhost:3081 node e2e/worker-run.mjs
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S1 — WHEN the user accepts a run card for a new worktree → THEN a new worktree and branch exist, the worker's commits land only there, and the user's checkout has no code changes
+- [ ] Open /board, open a todo task in an epic with no worker, ⋯ → Work with agent → the card "Work on T… with an agent" shows New worktree and branch vibedoc/T…
+- [ ] Start worker → the worker chat opens on vibedoc/T…, runs that one task, then shows Ended; the epic's other todo tasks stay todo
+- [ ] Open /roadmap?item=<epic>, hover a task row → a bot button shows next to the chat button; click it → the same run card for that task
+- [ ] On a task whose epic already has an idle worker, Work with agent → the card says "Send to worker vibedoc/R…"; Send → that worker runs this task first
+- [ ] A done or cancelled task → no Work with agent in its ⋯ menu and no bot button on its row
+### Regression risk
+- [ ] The epic sheet's own "Work with agent" button still opens the epic's run card and starts the worker

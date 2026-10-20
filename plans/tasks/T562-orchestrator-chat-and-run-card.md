@@ -1,9 +1,12 @@
 # T562: Orchestrator chat (optional overview)
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T561
 **Covers:** S12
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 Each project has one orchestrator chat that knows every worker: the user asks "who is working on what", or a fuzzy "do billing first, R110 after", and it answers from the live workers and proposes runs as the same run card. It is never on the path of the button.
@@ -46,5 +49,14 @@ BASE=http://localhost:3081 node e2e/chat-reload.mjs
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S12 — WHEN the user asks the orchestrator chat who is working on what → THEN it answers from the live workers, and any run it suggests comes as the same run card
 - [ ] With a real `claude`: "do R110 after R108 finishes" → it explains what it can and can't schedule and proposes a card for what it can
+- [ ] Sidebar Chats header → click the network icon "Ask the orchestrator" → a chat titled "Orchestrator" opens with three suggestions (Who is working on what? …)
+- [ ] With a real `claude`, ask "Propose a run on <an epic without a worker>" → a run card shows inside the chat with branch vibedoc/<epic>; Start worker → "Accepted", Open the worker opens the worker chat
+- [ ] Start a worker whose task stops without finishing → the next orchestrator message starts with a `[Worker … waits on you …]` note (visible in the agent's answer about it)
+- [ ] /chat → Orchestrator sits on top in its own group with no ✕; the eraser in its header clears it, and it is still listed after a reload
+### Regression risk
+- [ ] A normal chat still can't propose runs (ask it to start a worker → it says it can't / uses no run card)
+- [ ] Epic sheet → Work with agent still opens the run card and starts a worker

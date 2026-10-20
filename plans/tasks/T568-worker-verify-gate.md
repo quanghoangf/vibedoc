@@ -1,9 +1,12 @@
 # T568: Verify each task before the next
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T554, T558
 **Covers:** S11
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 Nobody reads the code while a worker runs, so each finished task gets a verification review (R067) in the loop; critical or major findings are fixed once, else the worker waits on the user before it claims the next task.
@@ -53,4 +56,13 @@ BASE=http://localhost:3081 node e2e/verification.mjs
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S11 — WHEN a task finishes with critical or major verification findings → THEN the worker fixes them once in the same worktree, else waits on the user, and only then claims the next task
+- [ ] Start a worker on an epic and let its first task finish → the worker chat shows a "Task T…" divider, then a "Verify T…" divider, then the next task's divider (when the review finds nothing critical or major)
+- [ ] A review with a major finding → the chat shows a "Fix this verification finding: …" message, then a second "Verify T…" divider; the task's panel shows the new Verification block
+- [ ] A second major finding on the same task → the task goes back to To do with a "changes requested" review entry naming the finding, the worker strip says Waiting on you, and no next task is claimed
+- [ ] Set `"workers": { "verify": false }` in .vibedoc/settings.json, then Settings → Workers → Save → `verify: false` is still in the file, and a new worker runs tasks with no Verify dividers
+### Regression risk
+- [ ] A worker that asks a question (vibedoc_ask_questions) → answering it in the chat still resumes that task and the worker goes on
+- [ ] The R067 Verify button on a done task (board panel) still opens a chat whose verify context lists the task's commits on the current branch

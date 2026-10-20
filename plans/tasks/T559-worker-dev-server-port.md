@@ -1,9 +1,12 @@
 # T559: Worker's own dev server and port for UI specs
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T554
 **Covers:** S9
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 A worker's UI specs run against the worktree's own app on its own port, so "done" proves the branch, never the user's running checkout.
@@ -41,4 +44,12 @@ BASE=http://localhost:3081 node e2e/worker-frontend.mjs
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S9 — WHEN a worker runs a UI spec → THEN it hits the worktree's own app on its own port, not the user's running app
+- [ ] Start a worker on an epic in a project with a frontend, then open its `.vibedoc/chats/<id>.json` → `worker.port` is the project's frontend port + 100 (or the next free one)
+- [ ] Start a second worker on another epic → it gets a different port
+- [ ] Ask the worker's agent to call `vibedoc_get_frontend` → Dir is inside `~/.vibedoc/worktrees/…`, URL is `http://localhost:<worker port>`, Start command starts with `PORT=<worker port>`
+- [ ] Remove the first worker's worktree, start a new worker → it gets the freed port back
+### Regression risk
+- [ ] Your own agent's `vibedoc_get_frontend` (not a worker) and Settings → Frontend app still show the project's app, URL and start command unchanged

@@ -1,9 +1,12 @@
 # T564: Finish actions: Open PR and Merge
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T563
 **Covers:** S6
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 From the finish panel the user pushes the branch and opens a PR, or merges it into the base, each after one confirm. The worker itself can never push.
@@ -44,5 +47,14 @@ BASE=http://localhost:3081 node e2e/worker-finish.mjs
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S6 — WHEN a worker's run ends → THEN the user sees the branch diff and can open a PR, merge, or remove the worktree
+- [ ] Open a finished worker's chat (/chat?id=…) → the finish panel shows Open PR and "Merge into <base>" next to Remove worktree
+- [ ] Click Open PR → the dialog names `git push -u origin <branch>` and `gh pr create --fill --base <base> --head <branch>`; Push and open PR → a "Pull request" link appears in the panel header
 - [ ] On a real GitHub repo, Open PR → the PR opens with the branch's commits and no Claude attribution
+- [ ] With `gh auth logout` (or gh not installed), Open PR → the dialog shows the two commands with copy buttons and nothing is pushed
+- [ ] Edit a file under src/ in the main checkout, then Merge → refused with the file named and an "Open a PR instead" button; git status unchanged
+- [ ] With only plans/tasks/*.md modified, Merge → "Merged into <base>." shows, and the Remove dialog opens with "Also delete branch" ticked
+### Regression risk
+- [ ] Remove worktree on an unmerged worker still asks to discard uncommitted changes and warns before deleting the branch

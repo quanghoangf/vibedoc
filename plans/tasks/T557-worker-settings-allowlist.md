@@ -1,9 +1,12 @@
 # T557: Worker settings: allowlist, minimal env, max workers
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T554
 **Covers:** S4
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 The user controls what a worker may run, what environment it gets and how many workers run at once, and sees every refused call in the worker's log.
@@ -50,4 +53,14 @@ BASE=http://localhost:3081 node e2e/worker-run.mjs
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S4 — WHEN the worker tries a command it was not allowed (e.g. `git push`) → THEN it is refused, and the worker's log shows what was refused
+- [ ] Open /settings → Workers → an amber note says the allowlist is not a sandbox; the allowed tools list shows the defaults (mcp__vibedoc__*, Bash(pnpm *)…) and red chips show Bash(git push*) and Bash(gh *)
+- [ ] Add `GITHUB_TOKEN` under Environment variables, set Workers at the same time to 1, click Save → "Saved" shows, and `.vibedoc/settings.json` has `workers.env: ["GITHUB_TOKEN"]` and `maxRunning: 1`
+- [ ] Open an epic on /roadmap → Work with agent → the run card's Allowed tools are the list from Settings → Workers
+- [ ] With Workers at the same time = 1 and one worker running, start Work with agent on another epic → the card shows an error naming the limit of 1 running workers
+- [ ] In a running worker's chat, a refused command shows as a red "Refused" row with the command text
+### Regression risk
+- [ ] A normal agent chat (header Agent button) still streams its reply and tool chips
+- [ ] Work with agent still starts a worker that moves its tasks on the board

@@ -1,9 +1,12 @@
 # T567: Worker budget and usage limits
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T557
 **Covers:** S10
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 A stuck worker can't burn quota all night: each task has a turn and time budget, and an account usage limit pauses the worker until it can continue, instead of failing it.
@@ -48,4 +51,14 @@ BASE=http://localhost:3081 node e2e/worker-run.mjs
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S10 — WHEN a task runs past its turn or time budget, or the account hits a usage limit → THEN the worker stops that task and waits on the user (budget) or shows paused and continues by itself later (usage limit), never burns on
+- [ ] Open /settings?tab=workers → a "Budget per task" block shows Turns 60 and Minutes 30; change them, Save → .vibedoc/settings.json has workers.maxTurnsPerTask / taskTimeoutMin
+- [ ] Open an epic → Work with agent → the run card's Budget row reads "60 turns · 30 min per task" (not "No limit yet")
+- [ ] Start a real worker on a small epic → after a task, the strip shows "N turns · Xm · $Y" and the "Task T…" divider shows that task's numbers
+- [ ] Set Turns to 2, start a worker → the task stops, the strip says "Waiting on you" with the reason "Turn budget reached (2)" on hover; type "go on" in the composer → the same session continues
+- [ ] With a paused worker (usage limit) → the strip reads "Paused until HH:MM (usage limit)", the header shows Stop, and the worker is not in the Inbox; restart VibeDoc and open the chat page → it still resumes at that time
+### Regression risk
+- [ ] A worker that asks a question (vibedoc_ask_questions) still waits on you and the answer resumes it
+- [ ] Stop on a running worker still kills the task and leaves it in-progress

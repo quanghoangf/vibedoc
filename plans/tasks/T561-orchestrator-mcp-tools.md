@@ -1,9 +1,12 @@
 # T561: Run card from the server: routing, existing workers, MCP tools
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T555, T557
 **Covers:** S7, S8
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 "Work with agent" shows a run card at once that the server computed from the project's workers: a new worktree, or the worker that already has this epic. The same routing is an MCP tool, so an agent (T562) proposes with the same card.
@@ -47,5 +50,14 @@ BASE=http://localhost:3081 node e2e/worker-run.mjs
 ```
 
 ## Manual tests
-- [ ] S7 — WHEN the user starts work on an epic that already has a worker → THEN the run card proposes sending it to that worker, and no second worktree is made
+_2026-10-20 — ai_
+### Steps
 - [ ] S8 — WHEN the user clicks "Work with agent" → THEN a run card shows at once, and nothing is created or started until the user accepts it
+- [ ] S7 — WHEN the user starts work on an epic that already has a worker → THEN the run card proposes sending it to that worker, and no second worktree is made
+- [ ] Open /roadmap, pick an epic with no worker, click Work with agent → the card says "New worktree", branch vibedoc/<epic>, base HEAD, the allowed tools and Denied chips; Cancel → `git worktree list` and `git branch` unchanged
+- [ ] On an epic whose worker ended, click Work with agent → the card says "Send to worker vibedoc/<epic>…", branch/base are read-only, the button reads "Send to worker"; Accept → the worker's chat opens and claims the next ready task in the same folder
+- [ ] While that worker runs, open its epic's card again → "This worker is running Tn now…" and Send to worker is disabled
+- [ ] Remove a worker's worktree (branch kept), then Work with agent on that epic → a new worktree on vibedoc/<epic>-2
+### Regression risk
+- [ ] Starting a brand-new worker from the epic sheet still opens its chat and streams the first task (T555)
+- [ ] The in-app agent chat still works (its --disallowedTools list grew by vibedoc_propose_run)

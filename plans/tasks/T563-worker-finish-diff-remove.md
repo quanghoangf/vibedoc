@@ -1,9 +1,12 @@
 # T563: Finish view: branch diff and Remove worktree
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R108 — Agent runs in a worktree
 **Size:** M (2–3 hrs)
 **Depends on:** T556
 **Covers:** S6
+**Owner:** ai:claude
+**Due:** 2026-10-23
+**Started:** 2026-10-20
 
 ## Goal
 When a worker's run ends, the user reviews what its branch changed and can remove the worktree to free a slot.
@@ -40,4 +43,14 @@ BASE=http://localhost:3081 node e2e/worker-finish.mjs
 ```
 
 ## Manual tests
+_2026-10-20 — ai_
+### Steps
 - [ ] S6 — WHEN a worker's run ends → THEN the user sees the branch diff and can open a PR, merge, or remove the worktree
+- [ ] Start a worker on an epic and let it finish → at the bottom of its chat a "What vibedoc/R… changed" panel lists its commits and changed files with +/- counts
+- [ ] Click a file row in the panel → its diff opens or closes (short diffs start open, long ones collapsed)
+- [ ] Click Remove worktree → a dialog says the folder can't be restored; Cancel leaves everything as it was
+- [ ] Remove a worktree with uncommitted files → the dialog asks to discard them; "Discard and remove" removes it and the strip reads "Worktree removed"
+- [ ] Tick "Also delete branch" before removing → `git branch` no longer lists the worker's branch; the chat is still in the list as history
+### Regression risk
+- [ ] A running worker chat still streams, shows task dividers and has no finish panel until it ends
+- [ ] Your own checkout keeps its branch and files after a Remove
