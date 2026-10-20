@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import {
   ERROR_ALARM_MS, MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, ago, attentionQueue, attachContext, chatFor, chatStatus, chatTitle, defaultChat, epicOf,
-  fromSaved, groupChats, isActionableError, itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, shellStatus, suggestions,
+  appendNote, fromSaved, groupChats, mergeNotes, isActionableError, itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, shellStatus, suggestions,
   toSaved, waitingTitle, ORCHESTRATOR_ID, splitPinned, type Attach, type Chat, type StatusMessage, type Worker,
 } from './chats.ts'
 
@@ -197,6 +197,23 @@ assert.equal(ago(T(0), base + 5 * 60_000), '5m')
 assert.equal(ago(T(0), base + 3 * 3600_000), '3h')
 assert.equal(ago(T(0), base + 50 * 3600_000), '2d')
 assert.equal(ago(T(5), base), 'now')                                                    // future clamps to now
+
+// T562: notes the server appended survive a browser save that never saw them; notes the browser sent stay cleared
+const empty = addChat<StatusMessage>([], ORCHESTRATOR_ID)[0]
+const n1 = appendNote(empty, 'a')
+assert.deepEqual([n1.notes, n1.noteSeq], [['a'], 1])
+const seen = { ...n1, notes: ['a', 'accepted'] }                                        // browser added its own note
+const n2 = appendNote(n1, 'end')                                                        // server, meanwhile
+assert.deepEqual(mergeNotes(n2, seen).notes, ['a', 'accepted', 'end'])
+assert.equal(mergeNotes(n2, seen).noteSeq, 2)
+assert.deepEqual(mergeNotes(n2, { ...n2, notes: [] }).notes, [])                         // sent with the turn: cleared
+assert.deepEqual(mergeNotes(n2, { ...n1, notes: [] }).notes, ['end'])                    // cleared, but 'end' was unseen
+assert.deepEqual(mergeNotes(null, seen), seen)
+assert.deepEqual(mergeNotes(empty, { ...empty, notes: ['x'] }).notes, ['x'])               // no seq anywhere: saver wins
+assert.deepEqual(mergeNotes({ ...n2, noteSeq: 9 }, { ...n1, notes: [] }).notes, ['a', 'end']) // capped at the file's notes
+let many = empty
+for (let i = 0; i < 25; i++) many = appendNote(many, `n${i}`)
+assert.deepEqual([many.notes.length, many.notes[0], many.noteSeq], [20, 'n5', 25])
 
 console.log('chats: ok')
 // …and is never the item's conversation (chatFor), though it still marks the epic (itemAgents)

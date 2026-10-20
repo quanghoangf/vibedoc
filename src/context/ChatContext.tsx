@@ -236,7 +236,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [chats])
 
-  function markDirty(id: string) { dirtyRef.current.add(id) }
+  // Queued behind the caller's setChats, so the save effect that sees the id also sees the change: marking the ref at
+  // once let a pending effect of an earlier render (e.g. an SSE patch) save the old copy and drop the id (T562)
+  function markDirty(id: string) { setChats((cs) => { dirtyRef.current.add(id); return cs }) }
 
   // A chat closed before its first message was never saved; drop it so empty chats don't pile up
   function closeModal(opts: { keep?: boolean } = {}) {
@@ -339,16 +341,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("vibedoc:sse", onSse)
   }, [demo])
 
-  // T562: a worker stopped; the server saved a note for the orchestrator's next turn. Keep it in this copy too, since
-  // this page saves that chat (and would write the note away). Not marked dirty: the file has it already.
+  // T562: a worker stopped; the server saved a note for the orchestrator's next turn. Keep it in this copy too (its
+  // `seq`: a save of this copy keeps the server notes it hasn't seen, and a note already loaded isn't added twice).
+  // Not marked dirty: the file has it already.
   useEffect(() => {
     function onSse(e: Event) {
-      const msg = (e as CustomEvent<{ type: string; payload?: { note?: string } }>).detail
+      const msg = (e as CustomEvent<{ type: string; payload?: { note?: string; seq?: number } }>).detail
       const note = msg?.payload?.note
+      const seq = msg?.payload?.seq ?? 0
       if (msg?.type !== "orchestrator_note" || !note || demo) return
       setChats((cs) => {
         const base = cs.some((c) => c.id === ORCHESTRATOR_ID) ? cs : addChat(cs, ORCHESTRATOR_ID, { title: ORCHESTRATOR_TITLE })
-        return patchChat(base, ORCHESTRATOR_ID, (c) => ({ ...c, notes: [...c.notes, note] }))
+        return patchChat(base, ORCHESTRATOR_ID, (c) => (seq && seq <= (c.noteSeq ?? 0) ? c : { ...c, notes: [...c.notes, note], noteSeq: seq || c.noteSeq }))
       })
     }
     window.addEventListener("vibedoc:sse", onSse)
