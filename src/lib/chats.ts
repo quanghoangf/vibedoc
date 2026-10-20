@@ -65,6 +65,10 @@ export interface Worker {
   nextTask?: string
   /** T563: when its worktree was removed (the chat stays as history) */
   removedAt?: string
+  /** T564: the PR the user opened from the finish panel */
+  prUrl?: string
+  /** T564: when the user merged its branch into the base */
+  mergedAt?: string
 }
 
 /**

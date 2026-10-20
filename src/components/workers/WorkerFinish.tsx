@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { FileDiff, GitCommit, Trash2 } from "lucide-react"
+import { ExternalLink, FileDiff, GitCommit, GitMerge, GitPullRequest, Trash2 } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/toast"
+import { CopyCommand } from "@/components/shared/CopyCommand"
 import { cn } from "@/lib/utils"
 import type { Worker, WorkerPhase } from "@/lib/chats"
 import type { WorkerDiff } from "@/lib/core"
@@ -20,6 +21,7 @@ const OPEN_MAX_LINES = 40
 /**
  * T563: at the end of a finished worker's chat: its branch's commits and per-file diff since the base, and Remove
  * worktree (confirms: a worktree can't be restored, unlike the undo toasts elsewhere).
+ * T564: Open PR and Merge into the base, each after a confirm naming the exact commands; after a merge, Remove is offered.
  */
 export function WorkerFinish({ chatId, worker }: { chatId: string; worker: Worker }) {
   const { t, tn } = useT()
@@ -27,6 +29,10 @@ export function WorkerFinish({ chatId, worker }: { chatId: string; worker: Worke
   const [diff, setDiff] = useState<WorkerDiff | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [action, setAction] = useState<GitAction | null>(null)
+  // set at once, before worker_updated brings mergedAt
+  const [justMerged, setJustMerged] = useState(false)
+  const merged = justMerged || !!worker.mergedAt
   const turns = worker.turns.length
 
   useEffect(() => {
@@ -40,15 +46,34 @@ export function WorkerFinish({ chatId, worker }: { chatId: string; worker: Worke
       })
       .catch((e: Error) => { if (live) setError(e.message) })
     return () => { live = false }
-  }, [chatId, rootParam, turns, worker.phase, t])
+  }, [chatId, rootParam, turns, worker.phase, worker.mergedAt, t])
 
   return (
     <section data-worker-finish aria-label={t("workers.finishTitle", { branch: worker.branch })} className="rounded-md border border-border">
       <header className="flex flex-wrap items-center gap-2 border-b border-border bg-surface2 px-3 py-2 text-xs">
         <span className="font-medium text-txt">{t("workers.finishTitle", { branch: worker.branch })}</span>
         {diff && <span className="text-muted">{tn("workers.finishCommits", diff.commits.length)} · {tn("workers.finishFiles", diff.files.length)}</span>}
+        {worker.prUrl && (
+          <a href={worker.prUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent hover:underline">
+            <ExternalLink className="size-3.5" aria-hidden />
+            {t("workers.prLink")}
+          </a>
+        )}
+        <span className="ml-auto" />
+        {diff && diff.commits.length > 0 && !merged && (
+          <>
+            <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setAction("pr")}>
+              <GitPullRequest className="size-3.5" aria-hidden />
+              {t("workers.openPr")}
+            </Button>
+            <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={() => setAction("merge")}>
+              <GitMerge className="size-3.5" aria-hidden />
+              {t("workers.merge", { base: worker.base })}
+            </Button>
+          </>
+        )}
         {!worker.removedAt && (
-          <Button type="button" variant="outline" size="sm" className="ml-auto h-7 gap-1 text-xs hover:text-danger" onClick={() => setConfirming(true)}>
+          <Button type="button" variant="outline" size="sm" className="h-7 gap-1 text-xs hover:text-danger" onClick={() => setConfirming(true)}>
             <Trash2 className="size-3.5" aria-hidden />
             {t("workers.remove")}
           </Button>
@@ -57,6 +82,7 @@ export function WorkerFinish({ chatId, worker }: { chatId: string; worker: Worke
       <div className="flex flex-col gap-3 px-3 py-2 text-xs">
         {!diff && !error && <p className="text-muted">{t("workers.finishLoading")}</p>}
         {error && <p role="alert" className="text-danger">{error}</p>}
+        {merged && <p className="text-txt">{t("workers.merged", { base: worker.base })}</p>}
         {diff && diff.commits.length === 0 && <p className="text-muted">{t("workers.finishNoChanges", { base: worker.base })}</p>}
         {diff && diff.commits.length > 0 && (
           <ul aria-label={tn("workers.finishCommits", diff.commits.length)} className="flex flex-col gap-0.5">
@@ -76,7 +102,19 @@ export function WorkerFinish({ chatId, worker }: { chatId: string; worker: Worke
         )}
         {diff && diff.cut > 0 && <p className="text-muted">{t("workers.finishCut", { n: diff.cut })}</p>}
       </div>
-      {confirming && <RemoveDialog chatId={chatId} worker={worker} unmerged={(diff?.commits.length ?? 0) > 0} onClose={() => setConfirming(false)} />}
+      {confirming && <RemoveDialog chatId={chatId} worker={worker} merged={merged} unmerged={!merged && (diff?.commits.length ?? 0) > 0} onClose={() => setConfirming(false)} />}
+      {action && (
+        <GitActionDialog
+          key={action}
+          kind={action}
+          chatId={chatId}
+          worker={worker}
+          onClose={() => setAction(null)}
+          onSwitch={setAction}
+          // offer Remove once the branch is in the base
+          onMerged={() => { setJustMerged(true); setAction(null); if (!worker.removedAt) setConfirming(true) }}
+        />
+      )}
     </section>
   )
 }
@@ -122,10 +160,11 @@ function FilePatch({ file }: { file: WorkerDiff["files"][number] }) {
   )
 }
 
-function RemoveDialog({ chatId, worker, unmerged, onClose }: { chatId: string; worker: Worker; unmerged: boolean; onClose: () => void }) {
+function RemoveDialog({ chatId, worker, merged, unmerged, onClose }: { chatId: string; worker: Worker; merged: boolean; unmerged: boolean; onClose: () => void }) {
   const { t } = useT()
   const { rootParam } = useApp()
-  const [deleteBranch, setDeleteBranch] = useState(false)
+  // merged: its commits are in the base, so the branch can go too
+  const [deleteBranch, setDeleteBranch] = useState(merged)
   const [dirty, setDirty] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -170,6 +209,87 @@ function RemoveDialog({ chatId, worker, unmerged, onClose }: { chatId: string; w
           <Button type="button" variant="destructive" size="sm" onClick={() => void remove()} disabled={busy}>
             {busy ? t("workers.removing") : dirty ? t("workers.removeDiscard") : t("workers.removeConfirm")}
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+type GitAction = "pr" | "merge"
+
+/** The argv src/lib/git-actions.ts runs (it imports child_process, so the client can't import it). */
+const gitCommands = (kind: GitAction, w: Worker) => kind === "merge"
+  ? [`git merge --no-ff --no-edit ${w.branch}`]
+  : [`git push -u origin ${w.branch}`, `gh pr create --fill --base ${w.base} --head ${w.branch}`]
+
+function GitActionDialog({ kind, chatId, worker, onClose, onSwitch, onMerged }: {
+  kind: GitAction
+  chatId: string
+  worker: Worker
+  onClose: () => void
+  onSwitch: (kind: GitAction) => void
+  onMerged: () => void
+}) {
+  const { t } = useT()
+  const { rootParam } = useApp()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // refused: the commands to run yourself (no gh, not logged in), or a merge that should be a PR
+  const [commands, setCommands] = useState<string[] | null>(null)
+  const [offerPr, setOfferPr] = useState(false)
+
+  const go = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/workers/${kind}${rootParam}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: chatId }),
+      })
+      const d = await res.json().catch(() => null) as { error?: string; commands?: string[]; offerPr?: boolean } | null
+      if (!res.ok) {
+        setError(d?.error ?? t("board.requestFailed", { status: res.status }))
+        setCommands(d?.commands ?? null)
+        setOfferPr(!!d?.offerPr)
+        return
+      }
+      if (kind === "merge") { onMerged(); return }
+      toast(t("workers.prOpened"))
+      onClose()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const done = !!commands || offerPr
+  return (
+    <Dialog open onOpenChange={(v) => { if (!v && !busy) onClose() }}>
+      <DialogContent className="max-w-lg border-border bg-surface text-txt shadow-xl shadow-black/20">
+        <DialogTitle className="text-sm font-semibold text-txt">
+          {kind === "merge" ? t("workers.mergeTitle", { branch: worker.branch, base: worker.base }) : t("workers.prTitle")}
+        </DialogTitle>
+        <DialogDescription className="text-xs text-muted">
+          {kind === "merge" ? t("workers.mergeLead", { base: worker.base }) : t("workers.prLead")}
+        </DialogDescription>
+        {!commands && (
+          <pre aria-label={t("workers.commands")} className="overflow-x-auto rounded-md border border-border bg-surface2 px-3 py-2 font-mono text-xs text-txt">
+            {gitCommands(kind, worker).join("\n")}
+          </pre>
+        )}
+        {kind === "merge" && !done && <p className="text-xs text-muted">{t("workers.mergeNote")}</p>}
+        {error && <p role="alert" className="break-words text-xs text-danger">{error}</p>}
+        {commands && <div className="flex flex-col gap-2">{commands.map((c) => <CopyCommand key={c} command={c} />)}</div>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={busy}>{done ? t("workers.close") : t("workers.cancel")}</Button>
+          {offerPr && <Button type="button" size="sm" onClick={() => onSwitch("pr")}>{t("workers.mergeInsteadPr")}</Button>}
+          {!done && (
+            <Button type="button" size="sm" onClick={() => void go()} disabled={busy}>
+              {kind === "merge" ? (busy ? t("workers.merging") : t("workers.mergeConfirm")) : (busy ? t("workers.prOpening") : t("workers.prConfirm"))}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

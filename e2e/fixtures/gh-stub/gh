@@ -1,0 +1,31 @@
+#!/usr/bin/env node
+// A fake GitHub CLI for src/lib/git-actions.check.mts and e2e/worker-finish.mjs (R108 T564). Put this folder on PATH.
+// Logged out while the cwd has a `.gh-stub-logged-out` file. `pr create` prints a PR URL; a second one for the same
+// head says it already exists, like gh 2.x.
+const fs = require("node:fs")
+const path = require("node:path")
+const args = process.argv.slice(2)
+const cmd = args.slice(0, 2).join(" ")
+
+if (cmd === "auth status") {
+  if (fs.existsSync(path.join(process.cwd(), ".gh-stub-logged-out"))) {
+    console.error("You are not logged into any GitHub hosts. To log in, run: gh auth login")
+    process.exit(1)
+  }
+  console.log("github.com\n  ✓ Logged in to github.com account e2e (keyring)")
+} else if (cmd === "pr create") {
+  const head = args[args.indexOf("--head") + 1]
+  const base = args[args.indexOf("--base") + 1]
+  const url = "https://github.com/example/fixture/pull/1"
+  const seen = path.join(process.cwd(), ".git", "gh-stub-prs")
+  const prs = fs.existsSync(seen) ? fs.readFileSync(seen, "utf8").split("\n") : []
+  if (prs.includes(head)) {
+    console.error(`a pull request for branch "${head}" into branch "${base}" already exists:\n${url}`)
+    process.exit(1)
+  }
+  fs.appendFileSync(seen, `${head}\n`)
+  console.log(`\nCreating pull request for ${head} into ${base} in example/fixture\n\n${url}`)
+} else {
+  console.error(`gh stub: unknown command ${args.join(" ")}`)
+  process.exit(1)
+}
