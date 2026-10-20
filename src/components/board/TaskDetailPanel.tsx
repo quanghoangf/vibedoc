@@ -33,6 +33,7 @@ import { useChatText } from "@/components/chat/chat-text"
 import { latestReview, reviewHistory, type ReviewEntry, type ReviewMark } from "@/lib/review"
 import { SEVERITIES, formatFindingsNote, type Verification } from "@/lib/verification"
 import { verifyTask } from "@/lib/ask-agent"
+import { useRunCard } from "@/components/workers/RunCard"
 import { useT } from "@/context/LanguageContext"
 import { readCookie } from "@/lib/player-prefs"
 import { clampPanelWidth, panelWidthCookie, parsePanelWidth, PANEL_DEFAULT_WIDTH, PANEL_KEYBOARD_STEP, PANEL_MIN_WIDTH, PANEL_WIDTH_COOKIE } from "@/lib/panel-width"
@@ -138,8 +139,11 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
 }) {
   const nextStatuses = NEXT_STATUS[task.status] || []
   const { chats, showAbout } = useChats()
-  const { rootParam, demo, openDoc } = useApp()
+  const { rootParam, demo, playground, openDoc } = useApp()
   const chat = chatFor(chats, { kind: "task", id: task.id })
+  // T560: "Work with agent" on this task → the run card (a worker in its own worktree)
+  const run = useRunCard({ kind: "task", id: task.id }, onClose)
+  const canRun = !playground && task.status !== "done" && task.status !== "cancelled"
   const [error, setError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const statusDefs = useStatusDefs()
@@ -200,6 +204,7 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
                 <DropdownMenuItem onSelect={chatAbout}><MessageSquare /> {t("board.chatAboutTask")}<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
+                {canRun && <DropdownMenuItem onSelect={run.open}><Bot /> {t("workers.workWithAgent")}</DropdownMenuItem>}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> {t("board.delete")}<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
               </DropdownMenuContent>
@@ -211,6 +216,7 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
         propertiesClassName="@2xl:grid-cols-[minmax(6.5rem,8.5rem)_minmax(0,1fr)_minmax(6.5rem,8.5rem)_minmax(0,1fr)] @2xl:gap-x-4"
       />
 
+      {canRun && !demo && run.dialog}
       {error && <p role="alert" className="px-5 py-2 text-xs text-danger border-b border-border">{error}</p>}
 
       {/* Quick actions (none in the read-only demo) */}

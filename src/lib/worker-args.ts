@@ -42,6 +42,13 @@ You are a VibeDoc worker in a git worktree. Do task ${taskId} only, then stop: n
 Commit only the code and docs you changed here. VibeDoc owns plans/tasks/*, plans/roadmap/*, memory/MEMORY.md and .vibedoc*: never stage or edit them (the board lives in another checkout; use the vibedoc_* tools instead). Never push.`
 }
 
+/** T568: the review turn's prompt, the same words as R067's Verify button (`verifyTask` in ask-agent.ts). */
+export const verifyPrompt = (taskId: string) => `Verify task ${taskId}: call vibedoc_verify_context, then vibedoc_report_findings.`
+
+/** T568: a review only reads: no Edit/Write, Bash only for git diff / git log, the VibeDoc tools for context + findings. */
+export const VERIFY_TOOLS = 'Read,Glob,Grep,Bash'
+export const VERIFY_ALLOWED = ['mcp__vibedoc__*', 'Read', 'Glob', 'Grep', 'Bash(git diff*)', 'Bash(git log*)']
+
 /** T558: `-p` has no AskUserQuestion, so the worker asks through VibeDoc's card and waits on the user. */
 export const WORKER_SYSTEM_PROMPT = 'To ask the user, call vibedoc_ask_questions and end your turn; the answer arrives as the next message. Never guess on a decision the task leaves open.'
 
@@ -60,21 +67,23 @@ export interface WorkerArgsInput {
   resume?: { sessionId: string; message: string }
   /** T567: `workers.maxTurnsPerTask` (model round trips, not tool calls: ADR-007 § Spike) */
   maxTurns?: number
+  /** T568: a fresh read-only review turn (verifyPrompt), not the task; ignores `allowed` and `resume` */
+  verify?: boolean
 }
 
-export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, resume, maxTurns }: WorkerArgsInput): string[] {
+export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, resume, maxTurns, verify }: WorkerArgsInput): string[] {
   const url = `${mcpOrigin}/api/mcp?root=${encodeURIComponent(mainRoot)}`
   return [
-    ...(resume ? ['-p', resume.message, '--resume', resume.sessionId] : ['-p', workerPrompt(taskId)]),
-    '--append-system-prompt', WORKER_SYSTEM_PROMPT,
+    ...(verify ? ['-p', verifyPrompt(taskId)] : resume ? ['-p', resume.message, '--resume', resume.sessionId] : ['-p', workerPrompt(taskId)]),
+    ...(verify ? [] : ['--append-system-prompt', WORKER_SYSTEM_PROMPT]),
     '--output-format', 'stream-json', '--verbose',
     ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),
     '--mcp-config', JSON.stringify({ mcpServers: { vibedoc: { type: 'http', url, headers: { [WORKER_CALL_HEADER]: workerId } } } }),
     '--strict-mcp-config',
     '--setting-sources', 'project,local',
-    '--tools', WORKER_TOOLS,
-    '--plugin-dir', pluginDir,
-    '--allowedTools', ...allowed,
+    '--tools', verify ? VERIFY_TOOLS : WORKER_TOOLS,
+    ...(verify ? [] : ['--plugin-dir', pluginDir]),
+    '--allowedTools', ...(verify ? VERIFY_ALLOWED : allowed),
     // T561: proposing runs is the orchestrator chat's (T562), never a worker's
     '--disallowedTools', ...WORKER_DENIED, 'mcp__vibedoc__vibedoc_propose_run',
   ]

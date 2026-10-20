@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
-import { INTERRUPTED, TOO_MANY_CHATS, type ChatStatus } from "@/lib/chats"
+import { INTERRUPTED, ORCHESTRATOR_TITLE, TOO_MANY_CHATS, type ChatStatus } from "@/lib/chats"
 
 const STATUS_KEY: Record<ChatStatus, MessageKey> = {
   running: "chat.statusRunning",
@@ -29,6 +29,9 @@ const SUGGESTION_KEY: Record<string, MessageKey> = {
   "Refine this task's spec.": "chat.sugRefine",
   "Split this task into smaller tasks.": "chat.sugSplit",
   "What blocks this task?": "chat.sugTaskBlocks",
+  "Who is working on what?": "workers.sugWho",
+  "What waits on me?": "workers.sugWaits",
+  "Which epic should a worker take next?": "workers.sugNextEpic",
 }
 
 export function useChatText() {
@@ -44,6 +47,7 @@ export function useChatText() {
     /** A chat's title: the ones VibeDoc names (new chat, attachTitle, chatTitle's "Break down R…") translated, typed ones as written. */
     title: (s: string) => {
       if (s === "New chat") return t("chat.newChat")
+      if (s === ORCHESTRATOR_TITLE) return t("workers.orchestrator")
       const m = /^(Epic|Task|Break down) ([RT]\d+)$/.exec(s)
       if (!m) return s
       return t(m[1] === "Epic" ? "chat.titleEpic" : m[1] === "Task" ? "chat.titleTask" : "chat.titleBreakDown", { id: m[2] })

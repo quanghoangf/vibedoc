@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { ArrowUp, ArrowUpRight, Maximize2, ShieldAlert, Square, Trash2 } from "lucide-react"
+import { ArrowUp, ArrowUpRight, Eraser, Maximize2, Network, ShieldAlert, Square, Trash2 } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useChats, type ChatMessage, type ChatTab } from "@/context/ChatContext"
 import { useT } from "@/context/LanguageContext"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
-import { chatStatus, suggestions, type WorkerTurn } from "@/lib/chats"
+import { chatStatus, isOrchestrator, suggestions, type WorkerTurn } from "@/lib/chats"
 import { resumableTurn } from "@/lib/worker-loop"
 import type { RefusedCall } from "@/lib/worker-state"
 import { useChatText } from "./chat-text"
@@ -16,6 +16,7 @@ import { ProposalCard, type ProposalStatus } from "./ProposalCard"
 import { PlanCard, type PlanCreated, type PlanProposal, type PlanStatus } from "./PlanCard"
 import { QuestionCard, type QuestionSet } from "./QuestionCard"
 import { ToolkitCard, type ToolkitProposal } from "./ToolkitCard"
+import { RunProposalCard, type RunCardSet, type RunCardStatus } from "./RunProposalCard"
 import type { ToolkitResult } from "@/components/toolkit/ToolkitPicker"
 import { AttachLabel, StatusMarker, attachHref } from "./StatusMarker"
 import { WorkerStrip, useUsageText } from "@/components/workers/WorkerStrip"
@@ -79,7 +80,14 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
             <span className="sr-only">{t("chat.openAsPage")}</span>
           </button>
         )}
-        {variant === "page" && (
+        {/* T562: the orchestrator is cleared, never deleted (in the modal too: it has no other way out of a long history) */}
+        {isOrchestrator(chat) && chat.messages.length > 0 && (
+          <button type="button" onClick={() => remove(chat.id)} title={t("workers.clearOrchestrator")} className={ICON_BTN}>
+            <Eraser className="size-3.5" />
+            <span className="sr-only">{t("workers.clearOrchestrator")}</span>
+          </button>
+        )}
+        {variant === "page" && !isOrchestrator(chat) && (
           <button type="button" onClick={() => remove(chat.id)} aria-label={t("chat.deleteTitle", { title: chat.title })} title={t("chat.deleteChat")} className={cn(ICON_BTN, "hover:text-danger")}>
             <Trash2 className="size-3.5" />
           </button>
@@ -109,7 +117,7 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
 const ICON_BTN = "grid size-8 shrink-0 place-items-center rounded-md text-muted transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt"
 
 function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; wide: boolean }) {
-  const { send, resolveProposal, resolvePlan, answerQuestions, finishToolkit } = useChats()
+  const { send, show, resolveProposal, resolvePlan, answerQuestions, finishToolkit, resolveRun } = useChats()
   const scrollRef = useRef<HTMLDivElement>(null)
   const messages = chat.messages
 
@@ -123,7 +131,7 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
     <div ref={scrollRef} hidden={hidden} role="log" aria-live="polite" className="min-h-0 flex-1 overflow-y-auto">
       <div className={cn("mx-auto flex flex-col gap-5 px-5 py-6 text-sm", wide ? "max-w-3xl" : "max-w-none")}>
         {messages.length === 0 && !chat.worker && <EmptyChat chat={chat} onPick={(s) => send(chat.id, s)} />}
-        {messages.map((m, i) => (chat.worker && m.role === "user" && m.text.startsWith("/vibedoc:work ") ? <TaskDivider key={i} text={m.text} turns={chat.worker.turns} /> : (
+        {messages.map((m, i) => (chat.worker && m.role === "user" && (m.text.startsWith("/vibedoc:work ") || m.text.startsWith(VERIFY_LINE)) ? <TaskDivider key={i} text={m.text} turns={chat.worker.turns} /> : (
           <Message
             key={i}
             m={m}
@@ -133,6 +141,8 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
             onPlan={(p, status, created, unchecked) => resolvePlan(chat.id, p, status, created, unchecked)}
             onAnswers={(set, answers) => answerQuestions(chat.id, set, answers)}
             onToolkit={(set, results) => finishToolkit(chat.id, set, results)}
+            onRun={(set, status, workerId) => resolveRun(chat.id, set, status, workerId)}
+            onOpenWorker={show}
           />
         )))}
       </div>
@@ -140,22 +150,30 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
   )
 }
 
-/** A worker chat's user line is the `/vibedoc:work <task>` that started a task turn: one divider per task, with its usage (T567). */
+/** T568: a review turn's user line (verifyPrompt in worker-args.ts) */
+const VERIFY_LINE = "Verify task "
+
+/**
+ * A worker chat's user line is the `/vibedoc:work <task>` that started a task turn: one divider per task, with its usage
+ * (T567). T568: a review turn gets its own "Verify T123" divider; each divider sums only its own kind of turns.
+ */
 function TaskDivider({ text, turns }: { text: string; turns: WorkerTurn[] }) {
   const { t } = useT()
   const id = /\bT\d+\b/.exec(text)?.[0] ?? text
-  const usage = useUsageText()(turns.filter((x) => x.taskId === id))
+  const verify = text.startsWith(VERIFY_LINE)
+  const usage = useUsageText()(turns.filter((x) => x.taskId === id && (x.kind === "verify") === verify))
+  const label = t(verify ? "workers.verifyDivider" : "workers.taskDivider", { id })
   return (
-    <div role="separator" aria-label={t("workers.taskDivider", { id })} className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-wide text-muted animate-fade-in">
+    <div role="separator" aria-label={label} className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-wide text-muted animate-fade-in">
       <span className="h-px flex-1 bg-border" aria-hidden />
-      {t("workers.taskDivider", { id })}
+      {label}
       {usage && <span data-task-usage className="normal-case tracking-normal">{usage}</span>}
       <span className="h-px flex-1 bg-border" aria-hidden />
     </div>
   )
 }
 
-function Message({ m, thinking, busy, onProposal, onPlan, onAnswers, onToolkit }: {
+function Message({ m, thinking, busy, onProposal, onPlan, onAnswers, onToolkit, onRun, onOpenWorker }: {
   m: ChatMessage
   thinking: boolean
   busy: boolean
@@ -163,6 +181,8 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers, onToolkit }
   onPlan: (p: PlanProposal, status: PlanStatus, created: PlanCreated[], unchecked: string[]) => void
   onAnswers: (set: QuestionSet, answers: string[]) => void
   onToolkit: (set: ToolkitProposal, results: ToolkitResult[]) => void
+  onRun: (set: RunCardSet, status: RunCardStatus, workerId?: string) => void
+  onOpenWorker: (workerId: string) => void
 }) {
   const chatText = useChatText()
   if (m.role === "user") {
@@ -197,6 +217,9 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers, onToolkit }
         ))}
         {m.toolkits?.map((k) => (
           <ToolkitCard key={k.id} set={k} disabled={busy} onDone={(results) => onToolkit(k, results)} />
+        ))}
+        {m.runs?.map((r) => (
+          <RunProposalCard key={r.id} set={r} onResolve={(status, workerId) => onRun(r, status, workerId)} onOpenWorker={onOpenWorker} />
         ))}
         {m.text && <div data-user-content><MarkdownRenderer content={m.text} className="text-sm" /></div>}
         {thinking && !m.text && !m.error && <Thinking />}
@@ -234,19 +257,22 @@ function Thinking() {
 
 function EmptyChat({ chat, onPick }: { chat: ChatTab; onPick: (s: string) => void }) {
   const a = chat.attach
+  const orchestrator = isOrchestrator(chat)
   const { t } = useT()
   const text = useChatText()
   return (
     <div className="flex flex-col items-start gap-4 py-6 animate-fade-in">
-      <div className="grid size-9 place-items-center rounded-lg bg-linear-to-br from-accent to-teal text-sm text-white" aria-hidden>⬡</div>
+      <div className="grid size-9 place-items-center rounded-lg bg-linear-to-br from-accent to-teal text-sm text-white" aria-hidden>
+        {orchestrator ? <Network className="size-4" /> : "⬡"}
+      </div>
       <div>
-        <h3 className="text-lg font-semibold text-txt">{a ? t("chat.askAbout", { id: a.id }) : t("chat.askAgent")}</h3>
+        <h3 className="text-lg font-semibold text-txt">{orchestrator ? t("workers.askOrchestrator") : a ? t("chat.askAbout", { id: a.id }) : t("chat.askAgent")}</h3>
         <p className="mt-1 max-w-md text-sm text-muted">
-          {t(a ? (a.kind === "epic" ? "chat.readsEpic" : "chat.readsTask") : "chat.readsAll")}
+          {orchestrator ? t("workers.orchestratorLead") : t(a ? (a.kind === "epic" ? "chat.readsEpic" : "chat.readsTask") : "chat.readsAll")}
         </p>
       </div>
       <div className="flex flex-col gap-1.5">
-        {suggestions(a).map((s, i) => (
+        {suggestions(a, orchestrator).map((s, i) => (
           <button
             key={s}
             type="button"

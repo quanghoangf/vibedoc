@@ -1,23 +1,25 @@
 /**
- * POST /api/workers {target: {kind: "epic", id}, mode?: "new" | "existing", workerId?, branch?, base?} (R108 T554, ADR-007)
+ * POST /api/workers {target: {kind: "epic" | "task", id}, mode?: "new" | "existing", workerId?, branch?, base?} (R108 T554, ADR-007)
  * The run card's Accept. The proposal is checked again first (validateRunProposal, T561: state may have changed since
  * GET /api/workers/propose), 409 with the reasons. `new` (the default) creates a worktree for the epic (default branch
  * `vibedoc/<epic>`), installs its dependencies, saves a worker chat (.vibedoc/chats/<id>.json with `worker`) and starts
  * the task-by-task loop (src/lib/worker-runs.ts). `existing` continues that worker's loop on its worktree: a new task
- * claim, no new worktree. Each task turn streams through GET /api/workers/stream?id=<id> (T556); every step emits
+ * claim, no new worktree. T560: a task target routes to its epic's worker (it claims that task next), else a new
+ * worktree on `vibedoc/T123` whose loop runs that task only and ends. Each task turn streams through
+ * GET /api/workers/stream?id=<id> (T556); every step emits
  * `worker_updated`. One worker per epic, at most `workers.maxRunning` per project (409, T557).
  * GET /api/workers → {allowed, denied, maxRunning, env, maxTurnsPerTask, taskTimeoutMin}: what a worker will run with
  * (Settings → Workers; T567 adds each task's budget).
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createWorktree, detectFrontend, getChat, getRoadmapItem, getRunContext, installWorktreeDeps, readProjectSettings, rootFrom, workerPortsInUse, RoadmapError, type WorkerSettings } from '@/lib/core'
+import { createWorktree, detectFrontend, getChat, getRoadmapItem, getTask, getRunContext, installWorktreeDeps, readProjectSettings, rootFrom, workerPortsInUse, RoadmapError, type WorkerSettings } from '@/lib/core'
 import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 import { refuseCrossSite } from '@/lib/same-origin'
 import { newChatId, type Attach } from '@/lib/chats'
 import { WORKER_PORT_OFFSET } from '@/lib/worktrees'
 import { WORKER_DENIED } from '@/lib/worker-args'
 import { claimWorkerPort, liveWorkerIds, releaseWorker, reserveWorker, startWorker, type WorkerChat } from '@/lib/worker-runs'
-import { routeRun, validateRunProposal } from '@/lib/run-proposal'
+import { epicOf, routeRun, validateRunProposal } from '@/lib/run-proposal'
 import { saveWorkerChat, workerDeps } from './deps'
 
 export const dynamic = 'force-dynamic'
@@ -35,15 +37,20 @@ export async function POST(req: NextRequest) {
   if (refused) return refused
   const root = rootFrom(req.nextUrl.searchParams.get('root'))
   const body = await req.json().catch(() => null) as { target?: Attach; mode?: unknown; workerId?: unknown; branch?: unknown; base?: unknown } | null
-  const epicId = body?.target?.kind === 'epic' && typeof body.target.id === 'string' ? body.target.id.trim().toUpperCase() : ''
-  if (!/^R\d+$/.test(epicId)) return NextResponse.json({ error: 'target must be {kind: "epic", id: "R…"}' }, { status: 400 })
-  const epic = await getRoadmapItem(epicId, root).catch(() => null)
-  if (!epic) return NextResponse.json({ error: `Epic ${epicId} not found` }, { status: 404 })
-  if (!epic.parent) return NextResponse.json({ error: `${epicId} is a horizon; pass an epic id` }, { status: 400 })
+  // T560: a task target too; its loop runs that task only (or its epic's worker claims it next)
+  const kind = body?.target?.kind === 'task' ? 'task' : 'epic'
+  const targetId = typeof body?.target?.id === 'string' ? body.target.id.trim().toUpperCase() : ''
+  if (!(kind === 'task' ? /^T\d+$/ : /^R\d+$/).test(targetId)) return NextResponse.json({ error: 'target must be {kind: "epic", id: "R…"} or {kind: "task", id: "T…"}' }, { status: 400 })
+  if (kind === 'epic') {
+    const epic = await getRoadmapItem(targetId, root).catch(() => null)
+    if (!epic) return NextResponse.json({ error: `Epic ${targetId} not found` }, { status: 404 })
+    if (!epic.parent) return NextResponse.json({ error: `${targetId} is a horizon; pass an epic id` }, { status: 400 })
+  } else if (!(await getTask(targetId, root).catch(() => null))) return NextResponse.json({ error: `Task ${targetId} not found` }, { status: 404 })
 
   const str = (v: unknown) => (typeof v === 'string' ? v : undefined)
+  const target: Attach = { kind, id: targetId }
   const ctx = await getRunContext(root, liveWorkerIds(root))
-  const proposal = routeRun({ kind: 'epic', id: epicId }, ctx, {
+  const proposal = routeRun(target, ctx, {
     mode: body?.mode === 'existing' ? 'existing' : 'new', workerId: str(body?.workerId), branch: str(body?.branch), base: str(body?.base),
   })
   const errors = validateRunProposal(proposal, ctx)
@@ -53,10 +60,15 @@ export async function POST(req: NextRequest) {
   const existing = proposal.mode === 'existing' ? await getChat(proposal.workerId ?? '', root).catch(() => null) as WorkerChat | null : null
   if (proposal.mode === 'existing' && !existing?.worker) return NextResponse.json({ error: `No worker ${proposal.workerId}` }, { status: 404 })
   const id = existing?.id ?? newChatId(Date.now())
-  const taken = reserveWorker(root, id, epicId, workers.maxRunning, existing?.worker.port)
-  if (taken === 'epic') return NextResponse.json({ error: `A worker is already running on ${epicId}` }, { status: 409 })
+  // one worker per epic: a task in an epic holds its epic, a loose task itself
+  const holds = existing?.worker.target.id ?? epicOf(target, ctx) ?? targetId
+  const taken = reserveWorker(root, id, holds, workers.maxRunning, existing?.worker.port)
+  if (taken === 'epic') return NextResponse.json({ error: `A worker is already running on ${holds}` }, { status: 409 })
   if (taken === 'limit') return NextResponse.json({ error: `The limit of ${workers.maxRunning} running workers is reached (Settings → Workers). Stop one, or wait.` }, { status: 409 })
-  if (existing) return continueWorker(root, existing, req.nextUrl.origin, workers)
+  if (existing) {
+    if (kind === 'task' && existing.worker.target.kind === 'epic') existing.worker.nextTask = targetId
+    return continueWorker(root, existing, req.nextUrl.origin, workers)
+  }
   try {
     const wt = await createWorktree(root, { branch: proposal.branch, base: proposal.base })
     // T559: its own dev server port above the project's frontend port, so a UI spec tests this branch
@@ -65,9 +77,9 @@ export async function POST(req: NextRequest) {
     const port = appPort ? claimWorkerPort(root, id, appPort + WORKER_PORT_OFFSET, saved) : undefined
     const now = new Date().toISOString()
     const chat: WorkerChat = {
-      id, title: `Worker ${epicId}`, messages: [], sessionId: null, busy: true, notes: [],
-      attach: { kind: 'epic', id: epicId }, createdAt: now, updatedAt: now,
-      worker: { ...wt, target: { kind: 'epic', id: epicId }, phase: 'starting', turns: [], ...(port && { port }) },
+      id, title: `Worker ${targetId}`, messages: [], sessionId: null, busy: true, notes: [],
+      attach: target, createdAt: now, updatedAt: now,
+      worker: { ...wt, target, phase: 'starting', turns: [], ...(port && { port }) },
     }
     const save = saveWorkerChat(root)
     await save(chat)

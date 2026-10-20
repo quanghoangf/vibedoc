@@ -1,6 +1,6 @@
 // Self-check for worker-args. Run: node src/lib/worker-args.check.mts
 import assert from 'node:assert/strict'
-import { WORKER_CALL_HEADER, WORKER_SYSTEM_PROMPT, workerArgs, workerEnv } from './worker-args.ts'
+import { VERIFY_ALLOWED, WORKER_CALL_HEADER, WORKER_SYSTEM_PROMPT, verifyPrompt, workerArgs, workerEnv } from './worker-args.ts'
 
 const args = workerArgs({ taskId: 'T554', mainRoot: '/repo main', mcpOrigin: 'http://localhost:3333', workerId: 'c-abc', pluginDir: '/vibedoc/plugin' })
 const after = (flag: string) => args[args.indexOf(flag) + 1]
@@ -55,5 +55,18 @@ assert.ok(!('MISSING' in workerEnv(vibedocEnv, ['MISSING'])), 'an unset listed n
 assert.ok(!args.includes('--max-turns'))
 const budgeted = workerArgs({ taskId: 'T1', mainRoot: '/r', mcpOrigin: 'http://h', workerId: 'w', pluginDir: '/p', maxTurns: 60 })
 assert.equal(budgeted[budgeted.indexOf('--max-turns') + 1], '60')
+
+// T568: a review turn is fresh and read-only: R067's prompt, no Edit/Write, git diff/log only, same MCP, push still denied
+const review = workerArgs({ taskId: 'T554', mainRoot: '/repo main', mcpOrigin: 'http://localhost:3333', workerId: 'c-abc', pluginDir: '/vibedoc/plugin', allowed: ['Edit'], resume: { sessionId: 's-1', message: 'x' }, verify: true })
+const rAfter = (flag: string) => review[review.indexOf(flag) + 1]
+assert.equal(rAfter('-p'), verifyPrompt('T554'))
+assert.match(verifyPrompt('T554'), /^Verify task T554: call vibedoc_verify_context, then vibedoc_report_findings\.$/)
+assert.ok(!review.includes('--resume') && !review.includes('--plugin-dir') && !review.includes('--append-system-prompt'))
+assert.equal(rAfter('--tools'), 'Read,Glob,Grep,Bash')
+assert.deepEqual(review.slice(review.indexOf('--allowedTools') + 1, review.indexOf('--disallowedTools')), VERIFY_ALLOWED)
+assert.ok(!VERIFY_ALLOWED.some(a => /^(Edit|Write)$|git (add|commit)|pnpm|npm|node/.test(a)))
+assert.equal(rAfter('--mcp-config'), after('--mcp-config'))
+assert.equal(rAfter('--setting-sources'), 'project,local')
+assert.ok(review.slice(review.indexOf('--disallowedTools')).includes('Bash(git push*)'))
 
 console.log('worker-args: ok')

@@ -17,6 +17,7 @@ import { applyEdits, type TextEdit } from './diff'
 import { META_LINE, parseMetaBlock } from './meta-block'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
 import { pickNextTask, type QueueResult } from './work-queue'
+import { taskClaim } from './worker-loop'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
 import { parseManualTests, setAllManualTests, setManualTests, setManualTestsChecked, setManualTestsMeta, toggleManualTest, untestedItems, type AutoRun, type ManualTestsMeta } from './manual-tests'
@@ -1480,13 +1481,14 @@ export async function readProjectSettings(root: string): Promise<{ sizeDays: Siz
  * R108 T557: what a worker may run, which env names it inherits and how many run at once (`workers` in settings).
  * T567: each task's budget, `maxTurnsPerTask` (`--max-turns`) and `taskTimeoutMin` (the server kills the turn).
  */
-export interface WorkerSettings { allowedTools: string[]; maxRunning: number; env: string[]; maxTurnsPerTask: number; taskTimeoutMin: number }
+/** `verify` (T568): review each finished task (R067) before the next claim; default on */
+export interface WorkerSettings { allowedTools: string[]; maxRunning: number; env: string[]; maxTurnsPerTask: number; taskTimeoutMin: number; verify: boolean }
 export const DEFAULT_MAX_WORKERS = 2
 /** The spike's trivial task took 38 s; a real task runs tens of round trips. Room on both. */
 export const DEFAULT_MAX_TURNS_PER_TASK = 60
 export const DEFAULT_TASK_TIMEOUT_MIN = 30
 
-function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown; maxTurnsPerTask?: unknown; taskTimeoutMin?: unknown } | undefined): WorkerSettings {
+function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown; maxTurnsPerTask?: unknown; taskTimeoutMin?: unknown; verify?: unknown } | undefined): WorkerSettings {
   const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').map(x => x.trim()).filter(Boolean) : [])
   const allowed = strings(w?.allowedTools)
   const max = w?.maxRunning
@@ -1496,6 +1498,7 @@ function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?:
     env: strings(w?.env).filter(n => /^[A-Za-z_][A-Za-z0-9_]*$/.test(n)),
     maxTurnsPerTask: positiveInt(w?.maxTurnsPerTask) ?? DEFAULT_MAX_TURNS_PER_TASK,
     taskTimeoutMin: positiveInt(w?.taskTimeoutMin) ?? DEFAULT_TASK_TIMEOUT_MIN,
+    verify: w?.verify !== false,
   }
 }
 
@@ -1735,8 +1738,9 @@ const VERIFY_SECTIONS = ['Goal', 'Scope', 'Acceptance criteria', 'Out of scope']
 /**
  * What a reviewing agent needs to judge a finished task (R067): its Goal / Scope / Acceptance criteria / Out of scope,
  * the epic's Done when, the related spec, ranked conventions, and the commits that name the task with their diff.
+ * `ref` (T568): read the log from that branch instead of HEAD, e.g. a worker's (its worktree shares this repo).
  */
-export async function getVerifyContext(taskId: string, root: string): Promise<string> {
+export async function getVerifyContext(taskId: string, root: string, { ref = 'HEAD' }: { ref?: string } = {}): Promise<string> {
   const task = await getTask(taskId, root)
   const raw = task.raw ?? ''
   const sections = VERIFY_SECTIONS.map(h => ({ heading: h, body: taskSection(raw, h) })).filter(x => x.body)
@@ -1751,9 +1755,9 @@ export async function getVerifyContext(taskId: string, root: string): Promise<st
   let diffCut = 0
   let head: string | null = null
   try {
-    head = (await git(['rev-parse', '--short', 'HEAD'], root)).trim() || null
+    head = (await git(['rev-parse', '--short', ref], root)).trim() || null
     // ids are whole words in commit subjects: "(T156)", "T156:"; -F so the id is never a regex
-    commits = (await git(['log', '-F', `--grep=${task.id}`, '--format=%H%x1f%s'], root))
+    commits = (await git(['log', '-F', `--grep=${task.id}`, '--format=%H%x1f%s', ref, '--'], root))
       .split('\n').filter(Boolean).map(l => { const [sha, subject] = l.split('\x1f'); return { sha, subject } })
       .filter(c => new RegExp(`\\b${task.id}\\b`).test(c.subject))
     if (commits.length) {
@@ -1938,6 +1942,19 @@ export function claimNextTask(
     if (result.kind !== 'ready') return { result }
     const { task, previousStatus } = await updateTaskStatus(result.taskId, 'in-progress', root, 'ai', { actor: 'ai', agent })
     return { result, task, previousStatus }
+  })
+}
+
+/** T560: claim one given task for a worker (`taskClaim` decides): todo → in-progress, owned by `agent`. */
+export function claimTask(
+  taskId: string, root: string, agent: string
+): Promise<{ result: QueueResult; task?: Task; previousStatus?: TaskStatus }> {
+  return withTaskClaimLock(async () => {
+    const found = await getTask(taskId, root).catch(() => null)
+    const claim = taskClaim(found, agent)
+    if (claim !== 'claim') return { result: claim }
+    const { task, previousStatus } = await updateTaskStatus(taskId, 'in-progress', root, 'ai', { actor: 'ai', agent })
+    return { result: { kind: 'ready', taskId: task.id }, task, previousStatus }
   })
 }
 
@@ -4464,13 +4481,14 @@ export async function listWorkers(root: string): Promise<WorkerInfo[]> {
 
 /** T561: the run card's context. `live` = ids of workers running in this server (liveWorkerIds in worker-runs.ts). */
 export async function getRunContext(root: string, live: Set<string>): Promise<RunContext> {
-  const [{ items }, workers, branches, { workers: settings }] = await Promise.all([
+  const [{ items }, workers, branches, { workers: settings }, { tasks }] = await Promise.all([
     listRoadmap(root), listWorkers(root),
     git(['for-each-ref', '--format=%(refname:short)', 'refs/heads/'], root).then(s => s.split('\n').filter(Boolean), () => [] as string[]),
-    readProjectSettings(root),
+    readProjectSettings(root), listTasks(root),
   ])
   return {
-    roadmap: items.map(i => ({ id: i.id, parent: i.parent, status: i.status })),
+    roadmap: items.map(i => ({ id: i.id, parent: i.parent, status: i.status, tasks: i.tasks })),
+    tasks: tasks.map(t => ({ id: t.id, status: t.status, owner: t.owner })),
     workers: workers.map(w => ({ ...w, running: live.has(w.id) })),
     branches, maxRunning: settings.maxRunning, allowedTools: settings.allowedTools, denied: WORKER_DENIED,
     budget: { maxTurns: settings.maxTurnsPerTask, timeoutMin: settings.taskTimeoutMin },

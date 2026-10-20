@@ -16,8 +16,7 @@ import { askAgent } from "@/lib/ask-agent"
 import { useApp } from "@/context/AppContext"
 import { chatFor } from "@/lib/chats"
 import { AgentDot, AgentMark } from "@/components/chat/AgentMark"
-import { RunCardDialog, type RunValues } from "@/components/workers/RunCard"
-import type { RunProposal } from "@/lib/run-proposal"
+import { useRunCard } from "@/components/workers/RunCard"
 import { useChats } from "@/context/ChatContext"
 import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
 import { pickNextTask } from "@/lib/work-queue"
@@ -121,45 +120,10 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
   const epics = items.filter((i) => i.parent === item.id).sort((a, b) => a.order - b.order)
   const progress = progressById[item.id]
   const today = localToday()
-  const { chats, showAbout, show } = useChats()
-  const { demo, playground, openDoc, rootParam } = useApp()
+  const { chats, showAbout } = useChats()
+  const { demo, playground, openDoc } = useApp()
   // R108: "Work with agent" → run card → POST /api/workers → the worker's chat
-  const [running, setRunning] = useState<"closed" | "open" | "starting">("closed")
-  const [runError, setRunError] = useState<string | null>(null)
-  // T561: the server routes the run (new worktree, or the epic's worker); nothing exists until Accept
-  const [proposal, setProposal] = useState<{ proposal: RunProposal; errors: string[] } | null>(null)
-  const openRunCard = async () => {
-    setRunError(null)
-    setProposal(null)
-    setRunning("open")
-    try {
-      const res = await fetch(`/api/workers/propose${rootParam}&kind=epic&id=${encodeURIComponent(item.id)}`)
-      const data = await res.json().catch(() => null)
-      if (!res.ok || !data?.proposal) throw new Error(data?.error ?? t("board.requestFailed", { status: res.status }))
-      setProposal(data)
-    } catch (e) {
-      setRunError((e as Error).message)
-    }
-  }
-  const startWorker = async (v: RunValues) => {
-    setRunning("starting")
-    setRunError(null)
-    try {
-      const res = await fetch(`/api/workers${rootParam}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target: { kind: "epic", id: item.id }, mode: proposal?.proposal.mode, workerId: proposal?.proposal.workerId, branch: v.branch, base: v.base }),
-      })
-      const data = await res.json().catch(() => null)
-      if (!res.ok || !data?.id) throw new Error(data?.error ?? t("board.requestFailed", { status: res.status }))
-      setRunning("closed")
-      onClose()
-      show(data.id)
-    } catch (e) {
-      setRunError((e as Error).message)
-      setRunning("open")
-    }
-  }
+  const run = useRunCard({ kind: "epic", id: item.id }, onClose)
   // R069: the epic's ## Spec changes, offered for merging once it is done (until **Spec merged:** is stamped)
   const specChanges = isHorizon ? [] : parseSpecChanges(item.body)
   const canMerge = item.status === "done" && specChanges.length > 0 && !item.specMerged
@@ -337,7 +301,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
           </Button>
         )}
         {!isHorizon && !playground && (
-          <Button size="sm" variant="outline" onClick={() => { void openRunCard() }}>
+          <Button size="sm" variant="outline" onClick={run.open}>
             <Bot /> {t("workers.workWithAgent")}
           </Button>
         )}
@@ -360,18 +324,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
         </Button>
       </footer>
       {canMerge && <SpecMergeDialog epicId={item.id} open={merging} onOpenChange={setMerging} />}
-      {!isHorizon && !playground && (
-        <RunCardDialog
-          target={item.id}
-          proposal={proposal?.proposal ?? null}
-          errors={proposal?.errors}
-          open={running !== "closed"}
-          onOpenChange={(o) => setRunning(o ? "open" : "closed")}
-          busy={running === "starting"}
-          error={runError}
-          onAccept={startWorker}
-        />
-      )}
+      {!isHorizon && !playground && run.dialog}
     </div>
   )
 }
@@ -653,6 +606,7 @@ function LinkedTasks({ item, tasksById, onOpen, selectedId }: {
                   : t.size && t.size !== "—" && <span className="shrink-0 font-mono text-[10px] text-muted">{t.size.split(" ")[0]}</span>}
                 <AgentDot attach={{ kind: "task", id: t.id }} />
               </button>
+              <TaskWorkButton taskId={t.id} status={t.status} />
               <TaskChatButton taskId={t.id} />
             </li>
           )
@@ -664,6 +618,28 @@ function LinkedTasks({ item, tasksById, onOpen, selectedId }: {
         </p>
       )}
     </section>
+  )
+}
+
+/** T560: "Work with agent" on one task row, on hover; not for a finished task. */
+function TaskWorkButton({ taskId, status }: { taskId: string; status: TaskStatus }) {
+  const { demo, playground } = useApp()
+  const run = useRunCard({ kind: "task", id: taskId })
+  const { t } = useT()
+  if (demo || playground || status === "done" || status === "cancelled") return null
+  return (
+    <>
+      <button
+        type="button"
+        onClick={run.open}
+        aria-label={t("workers.runCardTitle", { id: taskId })}
+        title={t("workers.runCardTitle", { id: taskId })}
+        className="grid size-7 shrink-0 place-items-center rounded-md text-muted opacity-0 transition-[opacity,color] duration-(--duration-fast) hover:bg-surface hover:text-accent focus-visible:opacity-100 group-hover:opacity-100"
+      >
+        <Bot className="size-3.5" />
+      </button>
+      {run.dialog}
+    </>
   )
 }
 

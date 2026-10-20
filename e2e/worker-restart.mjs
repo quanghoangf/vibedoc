@@ -9,6 +9,8 @@
 //      `--resume stub-worker-T005` with cwd = the worktree, T005 is done and the worker ends (S5).
 //   4. No worktree gains anything but the agent's own work (the log and state live in <home>/worktrees/<project>/
 //      .vibedoc-workers/). Fails on any browser console error.
+//   5. T568 (workers.verify on): kill T006's review turn while VibeDoc is down → Interrupted, a note in the orchestrator
+//      chat; Resume reruns the review (fresh), it is clean and the worker ends.
 //
 //   pnpm build && PW_DIR=<dir with node_modules/playwright> PORT=3083 node e2e/worker-restart.mjs
 // Writes only a fresh mktemp fixture and a mktemp VIBEDOC_HOME (both removed at the end).
@@ -79,12 +81,15 @@ const epic = (id, tasks) => writeFileSync(path.join(fx, `plans/roadmap/${id}-epi
 epic("R002", ["T001", "T002"]); task("T001", "R002"); task("T002", "R002")
 epic("R003", ["T003", "T004"]); task("T003", "R003"); task("T004", "R003")
 epic("R004", ["T005"]); task("T005", "R004")
-writeFileSync(path.join(fx, ".vibedoc/settings.json"), JSON.stringify({ workers: { env: ["CLAUDE_STUB_WORKER_MS"] } }))
+const settings = (verify) => writeFileSync(path.join(fx, ".vibedoc/settings.json"), JSON.stringify({ workers: { env: ["CLAUDE_STUB_WORKER_MS", "CLAUDE_STUB_VERIFY_MS"], verify } }))
+settings(false) // sections 1–3; T568's review gate in 5
+epic("R005", ["T006"]); task("T006", "R005")
 git(["init", "-q", "-b", "main"])
 git(["add", "-A"])
 git(["-c", "user.name=e2e", "-c", "user.email=e2e@example.com", "commit", "-q", "-m", "init"])
 const { id: projectId } = registerProject(fx)
 process.env.CLAUDE_STUB_WORKER_MS = String(STUB_MS) // the server's env; workers.env hands it to the stub
+process.env.CLAUDE_STUB_VERIFY_MS = String(STUB_MS)
 
 const dirs = []
 const ids = []
@@ -167,6 +172,28 @@ try {
   await pane3.locator("[data-worker-strip]").getByText("Ended").waitFor()
   assert.equal((await post("/api/workers/resume", { id: w3.id })).status, 409, "only an interrupted worker resumes")
   console.log("ok  stub killed while VibeDoc was down → Interrupted + Resume; Resume = --resume stub-worker-T005 in the worktree, T005 done (S5)")
+
+  // 5. T568: the review turn is a detached process too: killed while VibeDoc is down → Interrupted, Resume reruns the review
+  settings(true)
+  await page.goto("about:blank")
+  const w5 = await startWorker("R005", "T006")
+  await until(() => procState(w5.id)?.startedAt === savedChat(w5.id).worker.turns[1]?.startedAt && alive(procState(w5.id).pid), "T006's review started", STUB_MS + 15000)
+  assert.equal(savedChat(w5.id).worker.turns[1].kind, "verify")
+  await stopServer()
+  assert.ok(alive(procState(w5.id).pid), "the review's process outlives the server")
+  process.kill(-procState(w5.id).pid, "SIGTERM")
+  await until(() => !alive(procState(w5.id).pid), "review stub killed")
+  await startServer()
+  await page.goto(`${BASE}/chat?id=${w5.id}`)
+  const pane5 = page.getByRole("region", { name: /Worker R005/ })
+  await pane5.locator("[data-worker-strip]").getByText("Interrupted").waitFor()
+  assert.deepEqual(turns(w5.id), [["T006", "done"], ["T006", "interrupted"]])
+  assert.ok(readFileSync(path.join(fx, ".vibedoc/chats/orchestrator.json"), "utf8").includes("T006: Interrupted"), "the orchestrator gets a note")
+  await pane5.getByRole("button", { name: "Resume" }).click()
+  await until(() => savedChat(w5.id).worker.phase === "ended", "worker R005 ends after Resume", STUB_MS + 15000)
+  assert.deepEqual(turns(w5.id), [["T006", "done"], ["T006", "interrupted"], ["T006", "clean"]])
+  assert.deepEqual(savedChat(w5.id).worker.turns.map((t) => t.kind ?? "task"), ["task", "verify", "verify"], "Resume reruns the review")
+  console.log("ok  review killed while VibeDoc was down → Interrupted (orchestrator note) + Resume reruns the review, clean, worker ends")
 
   // 4. the worktrees hold the agent's work only
   for (const dir of dirs) {
