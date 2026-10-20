@@ -71,7 +71,8 @@ import { CLAUDE_SOURCE_PREFIX, claudeProjectSlug, parseClaudeMemory, planImport,
 import { isDemo, isPlayground } from './demo'
 import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './first-run'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, LOCKFILES, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PackageManager, type PlaywrightStatus } from './frontend'
-import { ownWorktrees, parseWorktreeList, projectSlug, worktreeDir, type Worktree } from './worktrees'
+import { ownWorktrees, parseWorktreeList, projectSlug, worktreeDir, worktreesRoot, type Worktree } from './worktrees'
+import type { WorkerProcState } from './worker-state'
 import { WORKER_ALLOWED, WORKER_DENIED } from './worker-args'
 import type { RunContext, WorkerInfo } from './run-proposal'
 import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
@@ -4359,6 +4360,73 @@ export async function getChat(id: string, root: string): Promise<unknown | null>
 /** R108: a saved worker chat's worker, or null (no such chat, or a plain chat). */
 export async function getWorker(id: string, root: string): Promise<Worker | null> {
   return ((await getChat(id, root)) as { worker?: Worker } | null)?.worker ?? null
+}
+
+/**
+ * T556: a worker's current task process writes into `<home>/worktrees/<project>/.vibedoc-workers/<id>.ndjson` (its
+ * stdout + stderr) and `<id>.json` (pid, task, session), outside the worktree so the agent never sees or commits them.
+ * The process outlives the server; a restart reads both back.
+ */
+function workerFile(root: string, id: string, ext: 'ndjson' | 'json'): string {
+  if (!CHAT_ID.test(id)) throw new Error(`Invalid worker id "${id}"`)
+  return path.join(worktreesRoot(vibedocHome()), projectSlug(root), '.vibedoc-workers', `${id}.${ext}`)
+}
+
+/**
+ * The worker's log, opened for appending by one task turn: `offset` = where this turn starts (its state file keeps it),
+ * so a page still reading the turn before reads it to its end. The caller passes `fd` to spawn, then closes it.
+ */
+// ponytail: append-only, one file per worker (a task's turn is a few hundred KB); rotate if workers run for weeks
+export async function openWorkerLog(root: string, id: string): Promise<{ fd: number; offset: number; close: () => Promise<void> }> {
+  const file = workerFile(root, id, 'ndjson')
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  const handle = await fs.open(file, 'a')
+  const { size } = await handle.stat()
+  return { fd: handle.fd, offset: size, close: () => handle.close() }
+}
+
+/**
+ * The log's complete lines from byte `offset` on (up to `end`, the next turn's start), and the offset after them
+ * (a partial last line waits for the next read).
+ */
+export async function readWorkerLog(root: string, id: string, offset: number, end = Infinity): Promise<{ text: string; next: number }> {
+  const handle = await fs.open(workerFile(root, id, 'ndjson'), 'r').catch(() => null)
+  if (!handle) return { text: '', next: offset }
+  try {
+    const size = Math.min((await handle.stat()).size, end)
+    if (size <= offset) return { text: '', next: offset }
+    const buf = Buffer.alloc(size - offset)
+    const { bytesRead } = await handle.read(buf, 0, buf.length, offset)
+    const whole = buf.subarray(0, bytesRead).lastIndexOf(0x0a) + 1
+    return { text: buf.subarray(0, whole).toString('utf8'), next: offset + whole }
+  } finally {
+    await handle.close()
+  }
+}
+
+/** The server's own line after a turn (its error), so a page following the log shows it. */
+export async function appendWorkerLog(root: string, id: string, text: string): Promise<void> {
+  await fs.appendFile(workerFile(root, id, 'ndjson'), text, 'utf-8')
+}
+
+export async function writeWorkerState(root: string, state: WorkerProcState): Promise<void> {
+  const file = workerFile(root, state.id, 'json')
+  await fs.mkdir(path.dirname(file), { recursive: true })
+  await fs.writeFile(`${file}.tmp`, JSON.stringify(state), 'utf-8')
+  await fs.rename(`${file}.tmp`, file)
+}
+
+export async function readWorkerState(root: string, id: string): Promise<WorkerProcState | null> {
+  const raw = await fs.readFile(workerFile(root, id, 'json'), 'utf-8').catch(() => null)
+  try { return raw ? JSON.parse(raw) as WorkerProcState : null } catch { return null }
+}
+
+/** Every worker process state of this project (one per worker that ran a task). */
+export async function readWorkerStates(root: string): Promise<WorkerProcState[]> {
+  const dir = path.dirname(workerFile(root, 'x', 'json'))
+  const files = (await fs.readdir(dir).catch(() => [] as string[])).filter(f => f.endsWith('.json'))
+  const states = await Promise.all(files.map(f => readWorkerState(root, f.slice(0, -5)).catch(() => null)))
+  return states.filter((s): s is WorkerProcState => s !== null)
 }
 
 /** T559: ports held by this project's workers whose worktree still exists; removing the worktree frees its port. */

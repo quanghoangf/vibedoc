@@ -3,7 +3,8 @@
  * Drives a worker (ADR-007 decision 1): claim the epic's next ready task, run `claude -p "/vibedoc:work <task>"` in a
  * fresh session with cwd = the worktree, repeat until the epic is finished or needs the user. Process handling only,
  * no fs: the route passes core calls in. State lives on globalThis (like test-runner.ts), one loop per worker.
- * Each task turn streams through chat-turns.ts under the worker's chat id, so the chat page follows it.
+ * T556: each task turn's process is detached and writes into the worker's log file (core), so it outlives the server;
+ * the page follows that file (GET /api/workers/stream), and a restart adopts the process (or finds it interrupted).
  * T558: a turn that asks (vibedoc_ask_questions) and exits with the task in-progress waits on the user; the answer
  * resumes that task's session (cwd = the worktree again) and the loop goes on.
  * T567: each turn has a budget (`--max-turns`, a timeout that kills the group): over it, the worker waits on the user,
@@ -14,11 +15,9 @@ import { spawn, type ChildProcess } from 'child_process'
 import type { Chat, Worker, WorkerTurn } from './chats'
 import type { QueueResult } from './work-queue'
 import { nextStep, pauseStep, resumableTurn } from './worker-loop'
-import { beginTurn } from './chat-turns'
-import { killGroup } from './test-runner'
 import { stopFrontend } from './frontend-server'
 import { workerPort } from './worktrees'
-import { rateLimitPause, refusedCalls, turnOutcome, turnUsage, type RateLimitInfo, type RefusedCall, type TurnBudget } from './worker-state'
+import { rateLimitPause, refusedCalls, turnOutcome, turnUsage, workerPhase, type RateLimitInfo, type RefusedCall, type TurnBudget, type TurnOutcome, type WorkerProcState } from './worker-state'
 
 /** The chat message shape ChatContext renders (one user line per task, then the agent's last reply). */
 type QuestionSet = { id: string; questions: unknown[]; answers?: string[] }
@@ -38,17 +37,20 @@ export interface WorkerDeps {
   save: (chat: WorkerChat) => Promise<void>
   /** T567: `workers.maxTurnsPerTask` (also in `args`) and `workers.taskTimeoutMin` */
   budget: TurnBudget
+  /** T556: the turn's log file and process state (core openWorkerLog / readWorkerLog / writeWorkerState) */
+  openLog: () => Promise<{ fd: number; offset: number; close: () => Promise<void> }>
+  readLog: (offset: number) => Promise<{ text: string; next: number }>
+  appendLog: (text: string) => Promise<void>
+  writeState: (state: WorkerProcState) => Promise<void>
 }
 
-/** `wake`: ends a pause early (cancel) */
-type Run = { epic: string; child: ChildProcess | null; cancelled: boolean; port?: number; wake?: () => void }
-const g = globalThis as unknown as { vibedocWorkers?: Map<string, Run>; vibedocWorkersExitHook?: boolean }
+/**
+ * `wake`: ends a pause early (cancel). `pid`: the current turn's process, also when a restart adopted it (`child` null).
+ * No exit hook kills them: a task's process outlives the server (T556), and the next server adopts it.
+ */
+type Run = { epic: string; child: ChildProcess | null; pid: number | null; cancelled: boolean; port?: number; wake?: () => void }
+const g = globalThis as unknown as { vibedocWorkers?: Map<string, Run> }
 const runs = g.vibedocWorkers ?? (g.vibedocWorkers = new Map())
-
-if (!g.vibedocWorkersExitHook) {
-  g.vibedocWorkersExitHook = true
-  process.once('exit', () => { for (const r of runs.values()) killGroup(r.child) })
-}
 
 const keyOf = (root: string, id: string) => `${root}\u0000${id}`
 const message = (role: Message['role'], text: string, error?: string): Message =>
@@ -70,7 +72,7 @@ export function reserveWorker(root: string, id: string, epic: string, max = Infi
   if (workerForEpic(root, epic)) return 'epic'
   const prefix = `${root}\u0000`
   if ([...runs.keys()].filter(k => k.startsWith(prefix)).length >= max) return 'limit'
-  runs.set(keyOf(root, id), { epic: epic.toUpperCase(), child: null, cancelled: false, ...(port && { port }) })
+  runs.set(keyOf(root, id), { epic: epic.toUpperCase(), child: null, pid: null, cancelled: false, ...(port && { port }) })
   return null
 }
 
@@ -102,7 +104,7 @@ export function cancelWorker(root: string, id: string): boolean {
   const run = runs.get(keyOf(root, id))
   if (!run) return false
   run.cancelled = true
-  killGroup(run.child)
+  killPid(run.pid)
   run.wake?.()
   return true
 }
@@ -110,104 +112,183 @@ export function cancelWorker(root: string, id: string): boolean {
 /** T558: what the user answers a waiting worker with; `questionId` + `answers` fill that question card. */
 export interface WorkerAnswer { message: string; questionId?: string; answers?: string[] }
 
+const POLL_MS = 250
+
+/** Signals a turn's process group (the turn's pid leads it: spawned detached). Gone already = nothing to do. */
+function killPid(pid: number | null, signal: NodeJS.Signals = 'SIGTERM'): void {
+  if (!pid) return
+  try {
+    process.kill(process.platform === 'win32' ? pid : -pid, signal)
+  } catch {
+    // already gone
+  }
+}
+
+/** T556: whether a turn's process still runs (EPERM = it runs, as another user). */
+// ponytail: a pid reused by another program after a reboot reads as alive; compare the process start time if that bites
+export function isAlive(pid: number): boolean {
+  if (!pid) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+type TurnExit = { code: number | null | undefined; failed?: string }
+type TurnEnd = { result: string; pauseUntil: string | null }
+
 /**
- * One task turn: resolves with its result (the task's status, `error`, `stopped`, `over-turns`, `over-time` or
- * `usage-limit`) and, for a finished one, when to pause before the next claim (its usage window is nearly spent).
+ * T556: one task turn's process, detached and unref'd so it outlives the server, its stdout + stderr into the
+ * worker's log file (`stdio: ['ignore', fd, fd]`), its pid in the state file. `ended` is watchTurn's.
  */
-function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, deps: WorkerDeps, resume?: string): Promise<{ result: string; pauseUntil: string | null }> {
-  return new Promise((resolve) => {
-    const args = resume && turn.sessionId ? deps.args(turn.taskId, { sessionId: turn.sessionId, message: resume }) : deps.args(turn.taskId)
+async function spawnTurn(chat: WorkerChat, run: Run, turn: WorkerTurn, deps: WorkerDeps, resume?: string): Promise<{ ended: Promise<TurnEnd> }> {
+  const args = resume && turn.sessionId ? deps.args(turn.taskId, { sessionId: turn.sessionId, message: resume }) : deps.args(turn.taskId)
+  const log = await deps.openLog()
+  let child: ChildProcess
+  try {
     // a resume too: cwd = the worktree is the only thing that keeps it out of the user's checkout (spike run D)
-    const child = spawn('claude', args, {
-      cwd: chat.worker.dir, env: deps.env as NodeJS.ProcessEnv /* Next types NODE_ENV as required; a worker gets none */, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
+    child = spawn('claude', args, {
+      cwd: chat.worker.dir, env: deps.env as NodeJS.ProcessEnv /* Next types NODE_ENV as required; a worker gets none */, detached: true, stdio: ['ignore', log.fd, log.fd],
     })
-    run.child = child
-    const stream = beginTurn(root, chat.id, child)
-    let pending = ''
-    let stderr = ''
-    let reply = ''
-    let failed = ''
-    const questions: QuestionSet[] = []
-    const events: unknown[] = [] // the ones refusedCalls reads
-    let resultEvent: Record<string, unknown> | null = null
-    let rateLimit: RateLimitInfo | null = null
-    const started = Date.now()
-    let timedOut = false
-    const timer = setTimeout(() => { timedOut = true; killGroup(child) }, deps.budget.timeoutMin * 60_000)
-    child.stdout.on('data', (chunk: Buffer) => {
-      const text = chunk.toString('utf8')
-      stream.push(text)
-      const lines = (pending + text).split('\n')
-      pending = lines.pop() ?? ''
-      for (const line of lines) {
-        try {
-          const ev = JSON.parse(line)
-          if (typeof ev?.session_id === 'string') turn.sessionId = ev.session_id
-          if (ev?.type === 'result' && typeof ev.result === 'string') reply = ev.result
-          if (ev?.type === 'result') resultEvent = ev
-          if (ev?.type === 'rate_limit_event' && ev.rate_limit_info) rateLimit = ev.rate_limit_info
-          if (ev?.type === 'assistant' || ev?.type === 'system' || ev?.type === 'result') events.push(ev)
-          // T558: the card the chat draws (ChatContext keeps the same shape), saved so the inbox counts it with no tab open
-          if (ev?.type === 'assistant') {
-            for (const b of ev.message?.content ?? []) {
-              if (b?.type === 'tool_use' && String(b.name).endsWith('vibedoc_ask_questions') && Array.isArray(b.input?.questions)) questions.push({ id: b.id, questions: b.input.questions })
-            }
-          } else if (ev?.type === 'user') {
-            for (const b of ev.message?.content ?? []) {
-              if (b?.type === 'tool_result' && b.is_error) questions.splice(0, questions.length, ...questions.filter(q => q.id !== b.tool_use_id))
-            }
-          }
-        } catch {
-          // a partial or non-JSON line: the stream still has it
-        }
-      }
-    })
-    child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8') })
-    child.on('error', (e: NodeJS.ErrnoException) => {
-      failed = e.code === 'ENOENT' ? 'Claude Code CLI not found on PATH. Install it and run `claude` once to log in.' : e.message
-    })
-    child.on('close', async (code) => {
-      clearTimeout(timer)
-      // T559: sweep what the task left in its group, e.g. the dev server it started for its spec
-      killGroup(child)
-      run.child = null
-      const outcome = failed ? { kind: 'error' as const } : turnOutcome(resultEvent, { code, stderr, timedOut }, Date.now() - started, deps.budget, rateLimit)
-      const usage = turnUsage(resultEvent)
-      if (usage) turn.usage = usage
-      if (outcome.kind === 'over-turns') turn.note = `Turn budget reached (${deps.budget.maxTurns})`
-      if (outcome.kind === 'over-time') turn.note = `Took longer than ${deps.budget.timeoutMin} min`
-      if (outcome.kind === 'usage-limit' && outcome.retryAt) turn.retryAt = outcome.retryAt
-      const error = outcome.kind === 'done' ? undefined : turn.note || failed || stderr.trim() || reply || `claude exited with code ${code}`
-      if (error && !run.cancelled) stream.push(JSON.stringify({ type: 'error', message: error }) + '\n')
-      stream.end()
-      const result = run.cancelled ? 'stopped' : outcome.kind !== 'done' ? outcome.kind : await deps.taskStatus(turn.taskId).catch(() => 'error')
-      const refused = refusedCalls(events)
-      chat.messages.push({ ...message('assistant', reply, run.cancelled ? undefined : error), questions, ...(refused.length && { refused }) })
-      resolve({ result, pauseUntil: outcome.kind === 'done' ? rateLimitPause(rateLimit) : null })
-    })
+  } finally {
+    await log.close() // the child has its own copy of the fd
+  }
+  const exited = new Promise<TurnExit>((resolve) => {
+    child.once('exit', code => resolve({ code }))
+    child.once('error', (e: NodeJS.ErrnoException) => resolve({
+      code: null, failed: e.code === 'ENOENT' ? 'Claude Code CLI not found on PATH. Install it and run `claude` once to log in.' : e.message,
+    }))
   })
+  child.unref()
+  run.child = child
+  run.pid = child.pid ?? null
+  const proc: WorkerProcState = { id: chat.id, pid: child.pid ?? 0, taskId: turn.taskId, startedAt: turn.startedAt, offset: log.offset, sessionId: turn.sessionId }
+  if (child.pid) await deps.writeState(proc)
+  return { ended: watchTurn(chat, run, turn, deps, proc, exited, false) }
+}
+
+/** An adopted process is not our child: poll until it is gone (its exit code stays unknown). */
+function waitDead(pid: number): Promise<TurnExit> {
+  return new Promise((resolve) => {
+    const check = () => (isAlive(pid) ? setTimeout(check, POLL_MS * 2) : resolve({ code: undefined }))
+    check()
+  })
+}
+
+/**
+ * Follows one task turn through its log file until the process is gone and the log is drained, then folds it into
+ * the chat. The same for a turn this server spawned and one a restart adopted (T556), so the chat file gets the
+ * reply with no tab open. Resolves with the result (the task's status, `error`, `stopped`, `interrupted`,
+ * `over-turns`, `over-time` or `usage-limit`) and, for a finished one, when to pause before the next claim.
+ */
+async function watchTurn(chat: WorkerChat, run: Run, turn: WorkerTurn, deps: WorkerDeps, proc: WorkerProcState, exited: Promise<TurnExit>, adopted: boolean): Promise<TurnEnd> {
+  let offset = proc.offset ?? 0
+  let stderr = ''
+  let reply = ''
+  const questions: QuestionSet[] = []
+  const events: unknown[] = [] // the ones refusedCalls reads
+  let resultEvent: Record<string, unknown> | null = null
+  let rateLimit: RateLimitInfo | null = null
+  const started = Date.parse(proc.startedAt) || Date.now()
+  let timedOut = false
+  const timer = setTimeout(() => { timedOut = true; killPid(proc.pid) }, Math.max(0, deps.budget.timeoutMin * 60_000 - (Date.now() - started)))
+  const onLine = (line: string) => {
+    let ev
+    try {
+      ev = JSON.parse(line)
+    } catch {
+      stderr += line + '\n' // stderr shares the log
+      return
+    }
+    if (typeof ev?.session_id === 'string') turn.sessionId = ev.session_id
+    if (ev?.type === 'result' && typeof ev.result === 'string') reply = ev.result
+    if (ev?.type === 'result') resultEvent = ev
+    if (ev?.type === 'rate_limit_event' && ev.rate_limit_info) rateLimit = ev.rate_limit_info
+    if (ev?.type === 'assistant' || ev?.type === 'system' || ev?.type === 'result') events.push(ev)
+    // T558: the card the chat draws (ChatContext keeps the same shape), saved so the inbox counts it with no tab open
+    if (ev?.type === 'assistant') {
+      for (const b of ev.message?.content ?? []) {
+        if (b?.type === 'tool_use' && String(b.name).endsWith('vibedoc_ask_questions') && Array.isArray(b.input?.questions)) questions.push({ id: b.id, questions: b.input.questions })
+      }
+    } else if (ev?.type === 'user') {
+      for (const b of ev.message?.content ?? []) {
+        if (b?.type === 'tool_result' && b.is_error) questions.splice(0, questions.length, ...questions.filter(q => q.id !== b.tool_use_id))
+      }
+    }
+  }
+  const drain = async () => {
+    const { text, next } = await deps.readLog(offset)
+    offset = next
+    for (const line of text.split('\n')) if (line) onLine(line)
+  }
+  let exit: TurnExit | null = null
+  void exited.then((e) => { exit = e })
+  while (!exit) {
+    await drain().catch(e => console.warn(`[vibedoc] worker ${chat.id} log not read: ${(e as Error).message}`))
+    if (!exit) await new Promise(r => setTimeout(r, POLL_MS))
+  }
+  await drain().catch(() => {})
+  clearTimeout(timer)
+  // T559: sweep what the task left in its group, e.g. the dev server it started for its spec
+  killPid(proc.pid)
+  run.child = null
+  run.pid = null
+  const { code, failed } = exit as TurnExit
+  let outcome: TurnOutcome = failed ? { kind: 'error' as const } : turnOutcome(resultEvent, { code, stderr, timedOut }, Date.now() - started, deps.budget, rateLimit)
+  let status: string | null = null
+  let interrupted = false
+  if (adopted && !resultEvent && !failed && !timedOut && !run.cancelled) {
+    // died without a result while VibeDoc was down (or since): interrupted, unless its task got finished anyway
+    status = await deps.taskStatus(turn.taskId).catch(() => null)
+    interrupted = workerPhase(proc, false, status) === 'interrupted'
+    if (interrupted) turn.note = 'Interrupted: the process ended without finishing'
+    else outcome = { kind: 'done' }
+  }
+  const usage = turnUsage(resultEvent)
+  if (usage) turn.usage = usage
+  if (outcome.kind === 'over-turns') turn.note = `Turn budget reached (${deps.budget.maxTurns})`
+  if (outcome.kind === 'over-time') turn.note = `Took longer than ${deps.budget.timeoutMin} min`
+  if (outcome.kind === 'usage-limit' && outcome.retryAt) turn.retryAt = outcome.retryAt
+  const error = outcome.kind === 'done' && !interrupted ? undefined : turn.note || failed || stderr.trim() || reply || `claude exited with code ${code}`
+  // the page following the log shows the error too; written before endedAt, so the stream's last read has it
+  if (error && !run.cancelled) await deps.appendLog(JSON.stringify({ type: 'error', message: error }) + '\n').catch(() => {})
+  await deps.writeState({ ...proc, sessionId: turn.sessionId, endedAt: new Date().toISOString() }).catch(e => console.warn(`[vibedoc] worker ${chat.id} state not saved: ${(e as Error).message}`))
+  const result = run.cancelled ? 'stopped' : interrupted ? 'interrupted' : outcome.kind !== 'done' ? outcome.kind : status ?? await deps.taskStatus(turn.taskId).catch(() => 'error')
+  const refused = refusedCalls(events)
+  chat.messages.push({ ...message('assistant', reply, run.cancelled ? undefined : error), questions, ...(refused.length && { refused }) })
+  return { result, pauseUntil: outcome.kind === 'done' ? rateLimitPause(rateLimit) : null }
 }
 
 /**
  * Runs the loop in the background; the caller reserved the epic. Never throws: a failure ends the worker.
  * `answer` (T558): first resume the waiting task's session with it (resumableTurn), then go on as usual.
+ * `adopt` (T556): after a restart, first follow the last turn's process (alive or already gone), then go on as usual.
+ * Resolves once the first new turn's process and state file exist (or the loop paused or ended without one): the answer and
+ * resume routes wait for it, so the page's GET /api/workers/stream reads that turn and not the one before.
  */
-export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, answer?: WorkerAnswer): void {
+export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, answer?: WorkerAnswer, adopt?: WorkerProcState): Promise<void> {
   const run = runs.get(keyOf(root, chat.id))
   if (!run) throw new Error(`worker ${chat.id} was not reserved`)
+  let spawned = () => {}
+  const firstTurn = new Promise<void>((resolve) => { spawned = resolve })
   const save = (patch: Partial<Worker>) => {
     chat.worker = { ...chat.worker, ...patch }
     chat.updatedAt = new Date().toISOString()
     chat.busy = chat.worker.phase === 'running'
     return deps.save(chat).catch(e => console.warn(`[vibedoc] worker ${chat.id} not saved: ${(e as Error).message}`))
   }
-  // One turn: spawn first (synchronously, so the turn is registered before any await): the page follows it as soon as
-  // `worker_updated` names it, and the answer route returns once it exists
+  // One turn: spawn (and write its state file) first: the page follows its log as soon as `worker_updated` names it
   const runOne = async (turn: WorkerTurn, line: string, resume?: string) => {
     chat.messages.push(message('user', line))
-    const ended = runTurn(root, chat, run, turn, deps, resume)
+    const { ended } = await spawnTurn(chat, run, turn, deps, resume)
+    if (run.cancelled) killPid(run.pid) // Stop came while it spawned
     await save({ phase: 'running', reason: undefined, retryAt: undefined, turns: [...chat.worker.turns, turn] })
-    const { result, pauseUntil } = await ended
+    spawned()
+    return endOne(turn, await ended)
+  }
+  const endOne = async (turn: WorkerTurn, { result, pauseUntil }: TurnEnd) => {
     turn.result = result
     turn.endedAt = new Date().toISOString()
     // `turn` is in chat.worker.turns: its result and session are saved with it
@@ -217,6 +298,7 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, an
   // T567: a usage limit (or a nearly spent window) waits here; Stop wakes it
   const pause = async (until: string) => {
     await save({ phase: 'paused', retryAt: until, reason: `Usage limit: tries again at ${until}` })
+    spawned() // nothing runs while it waits: callers waiting for the first turn go on
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, Math.max(0, Date.parse(until) - Date.now()))
       run.wake = () => { clearTimeout(timer); resolve() }
@@ -228,6 +310,11 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, an
   void (async () => {
     let last: WorkerTurn | null = null
     try {
+      const adopted = adopt && chat.worker.turns[chat.worker.turns.length - 1]
+      if (adopt && adopted && adopted.result === null) {
+        run.pid = adopt.pid
+        last = await endOne(adopted, await watchTurn(chat, run, adopted, deps, adopt, waitDead(adopt.pid), true))
+      }
       const waiting = answer && resumableTurn(chat.worker)
       if (answer && waiting) {
         if (answer.questionId && answer.answers) {
@@ -262,6 +349,8 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, an
     } finally {
       stopFrontend(chat.worker.dir) // a server VibeDoc started for this worktree (keyed by its dir) ends with the run
       runs.delete(keyOf(root, chat.id))
+      spawned()
     }
   })()
+  return firstTurn
 }

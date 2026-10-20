@@ -1,6 +1,6 @@
 // Self-check for worker-state. Run: node src/lib/worker-state.check.mts
 import assert from 'node:assert/strict'
-import { rateLimitPause, refusedCalls, sumUsage, turnOutcome, turnUsage, USAGE_PAUSE_AT } from './worker-state.ts'
+import { rateLimitPause, refusedCalls, sessionFromLog, sumUsage, turnOutcome, turnUsage, USAGE_PAUSE_AT, workerPhase } from './worker-state.ts'
 
 // The spike's shapes (ADR-007): tool_use → system/permission_denied → result.permission_denials
 const turn = [
@@ -58,5 +58,30 @@ assert.equal(rateLimitPause({ ...info, unifiedWindows: { ...info.unifiedWindows,
 assert.equal(rateLimitPause({ ...info, status: 'rejected' }, now), new Date(resets * 1000).toISOString())
 assert.equal(rateLimitPause({ ...info, status: 'rejected' }, resets * 1000 + 1), null, 'already reset')
 assert.equal(rateLimitPause(null, now), null)
+
+
+// T556: an adopted process has no exit code: its result decides
+assert.deepEqual(turnOutcome(runA, { code: undefined }, 38_000, budget), { kind: 'done' })
+assert.deepEqual(turnOutcome({ is_error: true, result: 'boom' }, { code: undefined }, 1, budget), { kind: 'error' })
+assert.deepEqual(turnOutcome(maxTurns, { code: undefined }, 1, budget), { kind: 'over-turns' })
+assert.deepEqual(turnOutcome(null, { code: undefined }, 1, budget), { kind: 'error' })
+// own child killed by a signal (code null) still is not done
+assert.deepEqual(turnOutcome(runA, { code: null }, 1, budget), { kind: 'error' })
+
+// T556: what a restart finds
+const st = { endedAt: null }
+assert.equal(workerPhase(null, false, 'in-progress'), 'ended')
+assert.equal(workerPhase({ endedAt: '2026-10-20T00:00:00Z' }, true, 'in-progress'), 'ended', 'already folded')
+assert.equal(workerPhase(st, true, 'in-progress'), 'running')
+assert.equal(workerPhase(st, true, 'done'), 'running', 'alive wins: it may still commit')
+assert.equal(workerPhase(st, false, 'done'), 'between-tasks')
+assert.equal(workerPhase(st, false, 'review'), 'between-tasks')
+assert.equal(workerPhase(st, false, 'in-progress', true), 'between-tasks', 'a result (e.g. a question) is not an interruption')
+assert.equal(workerPhase(st, false, 'in-progress'), 'interrupted')
+assert.equal(workerPhase(st, false, null), 'interrupted')
+
+assert.equal(sessionFromLog(turn), 's')
+assert.equal(sessionFromLog(['stderr text', JSON.stringify({ type: 'assistant', session_id: 'later' })]), null)
+assert.equal(sessionFromLog([]), null)
 
 console.log('worker-state: ok')

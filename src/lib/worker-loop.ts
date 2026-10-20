@@ -34,10 +34,13 @@ export function nextStep(worker: Pick<Worker, 'phase'>, claim: QueueResult | nul
   return claim.needsHuman ? { kind: 'wait-user', reason: why } : { kind: 'ended', reason: `Nothing ready: ${why}` }
 }
 
-/** T558: the turn an answer resumes (that task's session): the last one, when the worker waits because it left its task unfinished. */
+/**
+ * T558: the turn an answer resumes (that task's session): the last one, when the worker waits because it left its task
+ * unfinished. T556: an interrupted one without a session (it died before Claude Code printed one) reruns fresh.
+ */
 export function resumableTurn(worker: Pick<Worker, 'phase' | 'turns'>): WorkerTurn | null {
   const last = worker.turns[worker.turns.length - 1]
-  return worker.phase === 'wait-user' && last?.sessionId && nextStep({ phase: 'running' }, null, last).kind === 'wait-user' ? last : null
+  return worker.phase === 'wait-user' && (last?.sessionId || last?.result === 'interrupted') && nextStep({ phase: 'running' }, null, last).kind === 'wait-user' ? last : null
 }
 
 /** T567: no reset time in the message: retry after 1, 5, 15, then every 30 min (`n` = usage-limit turns in a row). */

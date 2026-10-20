@@ -71,8 +71,11 @@ const resetIso = (resetsAt: number | undefined, nowMs: number): string | null =>
  * How a turn ended (ADR-007 § Spike): `error_max_turns` (exit 1) = over its turn budget; killed by the timeout =
  * over time; a failure whose text names a limit, or a rate limit status other than allowed = a usage limit, retried
  * at the time the message gives (`…|<epoch>`, else `resetsAt`); a clean exit = done (the loop reads the task status).
+ * `code: undefined` = unknown (T556: an adopted process): a result without `is_error` counts as a clean exit.
  */
-export function turnOutcome(result: ResultEvent | null, exit: { code: number | null; stderr?: string; timedOut?: boolean }, elapsedMs: number, budget: TurnBudget, rateLimit?: RateLimitInfo | null, nowMs = Date.now()): TurnOutcome {
+export function turnOutcome(result: ResultEvent | null, exit: { code: number | null | undefined; stderr?: string; timedOut?: boolean }, elapsedMs: number, budget: TurnBudget, rateLimit?: RateLimitInfo | null, nowMs = Date.now()): TurnOutcome {
+  // T556: a process adopted after a restart is not our child, so its exit code is unknown: judge by its result
+  if (exit.code === undefined) exit = { ...exit, code: result && !result.is_error ? 0 : 1 }
   if (result?.subtype === 'error_max_turns' || result?.terminal_reason === 'max_turns') return { kind: 'over-turns' }
   if (exit.timedOut || (exit.code !== 0 && !result && elapsedMs >= budget.timeoutMin * 60_000)) return { kind: 'over-time' }
   if (exit.code === 0 && !result?.is_error) return { kind: 'done' }
@@ -113,4 +116,51 @@ export function sumUsage(list: (TurnUsage | null | undefined)[]): TurnUsage {
   const total: TurnUsage = { turns: 0, durationMs: 0, costUsd: 0, tokens: 0 }
   for (const u of list) if (u) { total.turns += u.turns; total.durationMs += u.durationMs; total.costUsd += u.costUsd; total.tokens += u.tokens }
   return total
+}
+
+/** T556: GET /api/workers/stream names the turn it reads (its `startedAt`), so the page knows which one it followed. */
+export const WORKER_TURN_HEADER = 'x-vibedoc-turn'
+
+/** T556: the process of a worker's current task turn, saved next to its log (core `writeWorkerState`). */
+export interface WorkerProcState {
+  /** The worker's chat id */
+  id: string
+  pid: number
+  taskId: string
+  startedAt: string
+  /** Where this turn starts in the worker's log (append-only, one file per worker) */
+  offset: number
+  /** From the turn's `system/init` line; a resume's is known up front */
+  sessionId?: string | null
+  /** Set when the server folded the turn into the chat: nothing left to adopt */
+  endedAt?: string | null
+}
+
+/**
+ * What a restart finds for a worker's last turn: `ended` = no process state, or the server already folded the turn;
+ * `running` = the process is alive (follow its log); `between-tasks` = it exited on its own: its task is finished, or
+ * it printed a result (e.g. it asked a question), so fold the log and let the loop decide; `interrupted` = it died
+ * mid-task without a result (killed while VibeDoc was down): the worker waits for Resume.
+ */
+export type ProcPhase = 'running' | 'between-tasks' | 'interrupted' | 'ended'
+
+const FINISHED_TASK = new Set(['done', 'review', 'cancelled'])
+
+export function workerPhase(state: Pick<WorkerProcState, 'endedAt'> | null, alive: boolean, taskStatus: string | null, hasResult = false): ProcPhase {
+  if (!state || state.endedAt) return 'ended'
+  if (alive) return 'running'
+  return hasResult || FINISHED_TASK.has(taskStatus ?? '') ? 'between-tasks' : 'interrupted'
+}
+
+/** The session id of a turn's log, from its `system/init` line (null before Claude Code printed it). */
+export function sessionFromLog(lines: string[]): string | null {
+  for (const line of lines) {
+    try {
+      const ev = JSON.parse(line)
+      if (ev?.type === 'system' && ev.subtype === 'init' && typeof ev.session_id === 'string') return ev.session_id
+    } catch {
+      // stderr or a partial line
+    }
+  }
+  return null
 }

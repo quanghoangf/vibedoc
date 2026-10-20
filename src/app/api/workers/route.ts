@@ -4,7 +4,7 @@
  * GET /api/workers/propose), 409 with the reasons. `new` (the default) creates a worktree for the epic (default branch
  * `vibedoc/<epic>`), installs its dependencies, saves a worker chat (.vibedoc/chats/<id>.json with `worker`) and starts
  * the task-by-task loop (src/lib/worker-runs.ts). `existing` continues that worker's loop on its worktree: a new task
- * claim, no new worktree. Each task turn streams through GET /api/conversations/turn?id=<id>; every step emits
+ * claim, no new worktree. Each task turn streams through GET /api/workers/stream?id=<id> (T556); every step emits
  * `worker_updated`. One worker per epic, at most `workers.maxRunning` per project (409, T557).
  * GET /api/workers → {allowed, denied, maxRunning, env, maxTurnsPerTask, taskTimeoutMin}: what a worker will run with
  * (Settings → Workers; T567 adds each task's budget).

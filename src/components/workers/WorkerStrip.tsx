@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, Copy, GitBranch } from "lucide-react"
+import { Check, Copy, GitBranch, Play } from "lucide-react"
 import { useFormat, useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
 import type { Worker, WorkerPhase, WorkerTurn } from "@/lib/chats"
@@ -35,8 +35,16 @@ export function useUsageText() {
   }
 }
 
-/** Under a worker chat's header: branch, folder (copy), base, phase, the current task and what it has used so far. */
-export function WorkerStrip({ worker }: { worker: Worker }) {
+/** T556: its last task's process died without a result (e.g. while VibeDoc was down): it waits for Resume. */
+export function isInterrupted(w: Worker): boolean {
+  return w.phase === "wait-user" && w.turns[w.turns.length - 1]?.result === "interrupted"
+}
+
+/**
+ * Under a worker chat's header: branch, folder (copy), base, phase, the current task and what it has used so far.
+ * `onResume` (T556): the Resume button an interrupted worker shows.
+ */
+export function WorkerStrip({ worker, onResume }: { worker: Worker; onResume?: () => void }) {
   const { t } = useT()
   const { clock } = useFormat()
   const usage = useUsageText()(worker.turns)
@@ -70,8 +78,15 @@ export function WorkerStrip({ worker }: { worker: Worker }) {
         {task && <span className="font-mono text-accent">{t("workers.currentTask", { id: task })}</span>}
         {usage && <span data-worker-usage className="text-muted" title={t("workers.usageTotal")}>{usage}</span>}
         <span className="text-muted" title={worker.reason}>
-          {worker.phase === "paused" && worker.retryAt ? t("workers.pausedUntil", { time: clock(worker.retryAt) }) : t(PHASE_KEY[worker.phase])}
+          {worker.phase === "paused" && worker.retryAt ? t("workers.pausedUntil", { time: clock(worker.retryAt) })
+            : isInterrupted(worker) ? t("workers.phaseInterrupted") : t(PHASE_KEY[worker.phase])}
         </span>
+        {isInterrupted(worker) && onResume && (
+          <button type="button" onClick={onResume} title={t("workers.resumeHint")} className="inline-flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 text-txt hover:border-accent/50 hover:text-accent">
+            <Play className="size-3" aria-hidden />
+            {t("workers.resume")}
+          </button>
+        )}
       </span>
     </div>
   )

@@ -39,6 +39,12 @@ assert.deepEqual(nextStep(running, { kind: 'ready', taskId: 'T2' }, over), { kin
 assert.deepEqual(nextStep(running, null, { ...turn('over-time'), note: 'Took longer than 30 min' }), { kind: 'wait-user', reason: 'T1: Took longer than 30 min' })
 assert.equal(resumableTurn({ phase: 'wait-user', turns: [over] }), over)
 
+// T556: an interrupted task (its process died while VibeDoc was down) waits for Resume, with or without a session
+const cut = { ...turn('interrupted'), note: 'Interrupted: the process ended without finishing' }
+assert.deepEqual(nextStep(running, { kind: 'ready', taskId: 'T2' }, cut), { kind: 'wait-user', reason: 'T1: Interrupted: the process ended without finishing' })
+assert.equal(resumableTurn({ phase: 'wait-user', turns: [cut] }), cut)
+assert.equal(resumableTurn({ phase: 'wait-user', turns: [{ ...cut, sessionId: null }] })?.result, 'interrupted', 'reruns fresh')
+
 // T567: a usage limit pauses: until the message's time, else 1, 5, 15, 30 min after the turn ended (n in a row)
 assert.deepEqual([1, 2, 3, 4, 9].map(retryDelayMs), [1, 5, 15, 30, 30].map(m => m * 60_000))
 const limit = (endedAt: string, retryAt?: string) => ({ ...turn('usage-limit'), endedAt, ...(retryAt && { retryAt }) })

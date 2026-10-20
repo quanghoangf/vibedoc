@@ -2,7 +2,7 @@
  * POST /api/workers/answer {id, message, questionId?, answers?} (R108 T558, ADR-007 decision 9)
  * A worker that stopped mid-task (it asked with vibedoc_ask_questions, or left the task in-progress) waits on the user.
  * The answer resumes that task's session (`--resume`, cwd = the worktree), then the loop goes on. Returns once the
- * turn runs, so the browser can follow it at GET /api/conversations/turn?id=<id>. 409 unless the worker is waiting.
+ * turn runs, so the browser can follow it at GET /api/workers/stream?id=<id> (T556). 409 unless the worker is waiting.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getChat, readProjectSettings, rootFrom } from '@/lib/core'
@@ -33,6 +33,6 @@ export async function POST(req: NextRequest) {
   if (taken === 'limit') return NextResponse.json({ error: `The limit of ${workers.maxRunning} running workers is reached (Settings → Workers). Stop one, or wait.` }, { status: 409 })
   const answers = Array.isArray(body.answers) && body.answers.every(a => typeof a === 'string') ? body.answers as string[] : undefined
   const questionId = typeof body.questionId === 'string' ? body.questionId : undefined
-  startWorker(root, chat, workerDeps(root, chat, req.nextUrl.origin, workers), { message, questionId, answers })
+  await startWorker(root, chat, workerDeps(root, chat, req.nextUrl.origin, workers), { message, questionId, answers })
   return NextResponse.json({ ok: true })
 }

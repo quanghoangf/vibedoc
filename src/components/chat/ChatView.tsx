@@ -32,7 +32,7 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
   /** Called before following a link out of the chat (the modal closes itself) */
   onNavigate?: () => void
 }) {
-  const { chats, stop, remove, notice, dismissNotice } = useChats()
+  const { chats, stop, remove, notice, dismissNotice, resumeWorker } = useChats()
   const router = useRouter()
   const { t } = useT()
   const text = useChatText()
@@ -85,7 +85,7 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
           </button>
         )}
       </header>
-      {chat.worker && <WorkerStrip worker={chat.worker} />}
+      {chat.worker && <WorkerStrip worker={chat.worker} onResume={() => resumeWorker(chat.id)} />}
 
       {mounted.map((id) => {
         const c = chats.find((x) => x.id === id)

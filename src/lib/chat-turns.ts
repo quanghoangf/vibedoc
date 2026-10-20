@@ -10,7 +10,8 @@ type Listener = { onData: (chunk: string) => void; onEnd: () => void }
 type Turn = { child: ChildProcess | null; chunks: string[]; running: boolean; startedAt: number; endedAt: number | null; listeners: Set<Listener> }
 
 // ponytail: in memory, so a server restart (or a finished turn older than KEEP_MS) still loads as "interrupted";
-// upgrade path: have the server write the reply into .vibedoc/chats/<id>.json itself.
+// upgrade path: what workers do since T556 (worker-runs.ts: a detached process into a log file, the server writes the
+// reply into .vibedoc/chats/<id>.json itself). Workers never use this file.
 const KEEP_MS = 30 * 60_000
 const g = globalThis as unknown as { vibedocChatTurns?: Map<string, Turn>; vibedocChatTurnsExitHook?: boolean }
 const turns = g.vibedocChatTurns ?? (g.vibedocChatTurns = new Map())

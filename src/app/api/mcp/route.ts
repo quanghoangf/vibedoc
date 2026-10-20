@@ -117,6 +117,7 @@ import { agentFromUserAgent } from "@/lib/owner";
 import { CHAT_CALL_HEADER, pluginInstalled } from "@/lib/agent-connect";
 import { WORKER_CALL_HEADER } from "@/lib/worker-args";
 import { liveWorkerIds } from "@/lib/worker-runs";
+import { adoptWorkers } from "../workers/deps";
 import { formatProposal, formatWorkers, routeRun, validateRunProposal } from "@/lib/run-proposal";
 import { pluginList } from "@/lib/claude-cli";
 import { TOOLKIT_CATALOG } from "@/lib/toolkit-catalog";
@@ -985,6 +986,8 @@ export async function POST(req: NextRequest) {
           .then((wrote) => { if (wrote) emitUpdate("agent_connected", { root, agent }); })
           .catch((e) => console.warn("[vibedoc] could not record the agent call:", e));
       }
+      // T556: a worker whose task process outlived a restart calls in: its server loop picks it up again
+      if (worker && !isDemo()) void adoptWorkers(root, req.nextUrl.origin).catch((e) => console.warn(`[vibedoc] workers not adopted: ${(e as Error).message}`));
       // R108 T559: a worker's specs run against its worktree's own app on its own port, never the user's checkout
       if (worker && name === "vibedoc_propose_run") throw new Error("A worker can't propose runs: only the user or the orchestrator chat does");
       if (worker && name === "vibedoc_get_frontend") {

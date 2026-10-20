@@ -30,7 +30,8 @@ export type WorkerPhase = "starting" | "running" | "paused" | "wait-user" | "end
 
 /**
  * One task turn. `result`: the task's status after the turn, `error` (non-zero exit), `stopped`, or T567's
- * `over-turns` / `over-time` (budget, `note` says which) / `usage-limit`; null while it runs.
+ * `over-turns` / `over-time` (budget, `note` says which) / `usage-limit`, or T556's `interrupted` (its process died
+ * without a result, e.g. while VibeDoc was down: the worker waits for Resume); null while it runs.
  */
 export interface WorkerTurn {
   taskId: string; sessionId: string | null; startedAt: string; endedAt: string | null; result: string | null
