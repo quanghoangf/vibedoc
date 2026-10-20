@@ -7,6 +7,9 @@
 //   T557: the stub tries `git push` → a refused call in the saved chat and a Refused row; its env has no GITHUB_TOKEN
 //      unless `workers.env` lists it; a settings allowlist without the push deny still spawns with it denied;
 //      `workers.maxRunning: 1` + one running → a second start is 409 naming the limit; Settings → Workers renders.
+//   T561: GET /api/workers/propose → "existing" for R002's idle worker, "new" for an epic without one, nothing created;
+//      MCP vibedoc_propose_run new on R002 → refused naming the worker; vibedoc_list_workers shows phase, commits ahead and
+//      (section 3) the current task; POST mode "existing" with a new task on R002 → the same worker and worktree claim it.
 //   4. Browser (T555): epic sheet → Work with agent → run card → Start → the worker chat opens with branch, folder and the
 //      current task, streams the reply, starts a divider per task; the board card moves without a reload; a reload
 //      mid-task re-attaches to the running turn. Fails on any browser console error.
@@ -34,6 +37,9 @@ const fx = makeFixture()
 const q = `?root=${encodeURIComponent(fx)}`
 const git = (args, cwd = fx) => execFileSync("git", args, { cwd, encoding: "utf8" })
 const post = (url, body) => fetch(`${BASE}${url}${q}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+const mcp = async (name, args = {}) => (await (await post("/api/mcp", { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } })).json()).result
+const propose = async (id) => (await fetch(`${BASE}/api/workers/propose${q}&kind=epic&id=${id}`)).json()
+const worktreeCount = () => git(["worktree", "list", "--porcelain"]).split("\n").filter((l) => l.startsWith("worktree ")).length
 const status = (id) => readFileSync(path.join(fx, "plans/tasks", `${id}-task.md`), "utf8").match(/\*\*Status:\*\* (.+)/)[1]
   .toLowerCase().replace(/[^a-z]+/g, " ").trim().replace(/ /g, "-") // "🔨 In Progress" → in-progress
 async function until(fn, what, ms = 20000) {
@@ -130,6 +136,47 @@ try {
   assert.ok(envNames(w.dir).includes("PATH") && envNames(w.dir).includes("HOME"))
   for (const k of ["GITHUB_TOKEN", "ANTHROPIC_API_KEY", "NODE_ENV"]) assert.ok(!envNames(w.dir).includes(k), `${k} reached the worker`)
   console.log("ok  the stub's git push is saved as a refused call; its env has no GITHUB_TOKEN (S4)")
+  // T561: the run card from the server (S7, S8)
+  const trees = worktreeCount()
+  const toWorker = await propose("R002")
+  assert.equal(toWorker.proposal.mode, "existing")
+  assert.equal(toWorker.proposal.workerId, w.id)
+  assert.equal(toWorker.proposal.branch, "vibedoc/R002")
+  assert.equal(toWorker.proposal.running, false)
+  assert.deepEqual(toWorker.errors, [])
+  const fresh = await propose("R005")
+  assert.equal(fresh.proposal.mode, "new")
+  assert.equal(fresh.proposal.branch, "vibedoc/R005")
+  assert.ok(fresh.proposal.denied.includes("Bash(git push*)"))
+  assert.deepEqual(fresh.errors, [])
+  assert.deepEqual(fresh.proposal.budget, { maxTurns: 60, timeoutMin: 30 })
+  assert.equal(worktreeCount(), trees, "a proposal creates nothing")
+  assert.equal(git(["branch", "--list", "vibedoc/R005"]).trim(), "")
+  const refusedNew = await mcp("vibedoc_propose_run", { target: "R002", mode: "new" })
+  assert.equal(refusedNew.isError, true)
+  assert.match(refusedNew.content[0].text, new RegExp(`R002 already has worker ${w.id} on vibedoc/R002`))
+  assert.match((await mcp("vibedoc_propose_run", { target: "R002" })).content[0].text, new RegExp(`send R002 to worker ${w.id}.*Nothing is created`, "s"))
+  const listed = (await mcp("vibedoc_list_workers")).content[0].text
+  assert.match(listed, new RegExp(`${w.id}.*R002.*vibedoc/R002.*ended.*2 commits ahead`))
+  const newOverWorker = await post("/api/workers", { target: { kind: "epic", id: "R002" }, mode: "new", branch: "other" })
+  assert.equal(newOverWorker.status, 409)
+  assert.match((await newOverWorker.json()).error, new RegExp(`already has worker ${w.id}`))
+  console.log("ok  propose: R002 → its idle worker, R005 → a new worktree, nothing created; MCP propose_run new refused naming it; list_workers")
+
+  // existing + Accept: a new task on R002 → the same worker claims it in the same worktree
+  task("T012", "R002")
+  writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** T001, T002, T012\n")
+  const cont = await post("/api/workers", { target: { kind: "epic", id: "R002" }, mode: "existing", workerId: w.id })
+  const contBody = await cont.json()
+  assert.equal(cont.status, 200, JSON.stringify(contBody))
+  assert.equal(contBody.id, w.id)
+  assert.equal(contBody.dir, w.dir)
+  await until(() => savedChat(w.id).worker.phase === "ended" && savedChat(w.id).worker.turns.length === 3, "the worker continued with T012")
+  assert.equal(status("T012"), "done")
+  assert.equal(worktreeCount(), trees, "no second worktree")
+  assert.deepEqual(git(["log", "--format=%s", "main..vibedoc/R002"]).trim().split("\n"), ["feat: T012", "feat: T002", "feat: T001"])
+  console.log("ok  Accept on an existing worker → it claims T012 in its worktree, no new worktree (S7)")
+
   // a settings allowlist that allows push, one worker at a time, GITHUB_TOKEN passed on
   settings({ allowedTools: ["Read", "Bash(git push*)"], maxRunning: 1, env: [...stubEnv, "GITHUB_TOKEN"] })
 
@@ -138,6 +185,7 @@ try {
   assert.ok(r3.dir, JSON.stringify(r3))
   dirs.push(r3.dir)
   await until(() => status("T003") === "in-progress" && existsSync(path.join(r3.dir, ".claude-stub-env.json")), "T003 claimed and the stub started")
+  assert.match((await mcp("vibedoc_list_workers")).content[0].text, new RegExp(`${r3.id}.*R003.*running.*on T003`))
   const call3 = readFileSync(path.join(r3.dir, ".claude-stub.log"), "utf8")
   assert.ok(call3.includes("--allowedTools Read Bash(git push*) --disallowedTools Bash(git push*) Bash(gh *)"), "push denied whatever the allowlist says")
   assert.ok(envNames(r3.dir).includes("GITHUB_TOKEN"), "workers.env passes GITHUB_TOKEN on")
@@ -181,6 +229,7 @@ try {
     assert.equal(await runCard.getByLabel("Branch").inputValue(), "vibedoc/R004")
     assert.equal(await runCard.getByLabel("Base").inputValue(), "HEAD")
     await runCard.getByText("Bash(git push*)").waitFor()
+    await runCard.getByText("60 turns · 30 min per task").waitFor() // T567: the proposal carries the default budget
     await runCard.getByRole("button", { name: "Start worker" }).click()
 
     const chatBox = page.getByRole("dialog")
@@ -213,6 +262,18 @@ try {
     await pane.locator("[data-worker-strip]").getByText("Ended").waitFor()
     await done("T006").waitFor()
     console.log("ok  reload mid-task → the chat re-attaches to the running turn and shows its reply; the worker ends")
+
+    // T561: an epic with an idle worker → the card sends it there; Cancel creates nothing
+    await page.goto(`${BASE}/roadmap?item=R002`)
+    const t0 = Date.now()
+    await page.getByRole("button", { name: "Work with agent" }).click()
+    const card2 = page.getByRole("form", { name: "Work on R002 with an agent" })
+    await card2.getByText("Send to worker vibedoc/R002", { exact: false }).waitFor()
+    assert.ok(Date.now() - t0 < 3000, `run card took ${Date.now() - t0}ms`)
+    assert.equal(await card2.getByLabel("Branch").inputValue(), "vibedoc/R002")
+    assert.equal(await card2.getByRole("button", { name: "Send to worker" }).isEnabled(), true)
+    await card2.getByRole("button", { name: "Cancel" }).click()
+    console.log("ok  Work with agent on R002 → the card proposes its idle worker at once (S7, S8)")
 
     await page.goto(`${BASE}/settings?tab=workers`)
     await page.getByText(/It is not a sandbox/).waitFor()

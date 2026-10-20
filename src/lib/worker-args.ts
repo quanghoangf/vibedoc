@@ -75,6 +75,7 @@ export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, a
     '--tools', WORKER_TOOLS,
     '--plugin-dir', pluginDir,
     '--allowedTools', ...allowed,
-    '--disallowedTools', ...WORKER_DENIED,
+    // T561: proposing runs is the orchestrator chat's (T562), never a worker's
+    '--disallowedTools', ...WORKER_DENIED, 'mcp__vibedoc__vibedoc_propose_run',
   ]
 }

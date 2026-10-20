@@ -511,6 +511,28 @@ export const TOOLS = [
     },
   },
   {
+    name: "vibedoc_list_workers",
+    description:
+      "List this project's agent workers (R108: a worker runs an epic task by task in its own git worktree): id, epic, branch, base, phase (running, wait-user, ended, stopped, failed), current task, the last line of its reply, commits ahead of its base and its dev server port. Use it to answer who is working on what.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "vibedoc_propose_run",
+    description:
+      "Propose a worker run for the user to accept as a run card: a new worktree for the epic, or (mode \"existing\") sending it to the worker that already has the epic. Routing is deterministic: leave mode out to get the default. Validated against the current workers (one per epic, the running limit, branch taken); on errors, fix and call again. Creates and starts nothing: the user accepts the card.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        target: { type: "string", description: "Epic id, e.g. R108" },
+        mode: { type: "string", enum: ["new", "existing"], description: "Omit for the default: the epic's worker if it has one, else a new worktree" },
+        workerId: { type: "string", description: "existing: the worker id (vibedoc_list_workers)" },
+        branch: { type: "string", description: "new: the branch (default vibedoc/<epic>)" },
+        base: { type: "string", description: "new: what the branch starts from (default HEAD)" },
+      },
+      required: ["target"],
+    },
+  },
+  {
     name: "vibedoc_propose_plan",
     description:
       "Propose a plan for the user to review: kind \"breakdown\" (tasks: pass epic for an existing epic, newEpic to create the epic with the tasks, or neither for loose tasks with no epic) or kind \"roadmap\" (new horizons and epics: horizons + epics; an epic's parent is an existing horizon id or a horizon key in this plan; epic body = one outcome sentence, a blank line, then **In scope:** / **Out of scope:** / **Done when:**). Does NOT write anything: the user sees the plan in the UI, can uncheck items, and accepts. Validated against the current files; on errors, fix the plan and call again. Each task body is the full markdown below the meta block (## Goal, ## Context, ## Scope, ## Files, ## Acceptance criteria, ## Verify). dependsOn lists keys of earlier tasks in this plan or existing task ids (\"T030\"). covers lists the epic's scenario ids (## Scenarios → ### S1: …) the task makes true.",

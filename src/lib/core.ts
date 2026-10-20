@@ -72,7 +72,8 @@ import { isDemo, isPlayground } from './demo'
 import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './first-run'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, LOCKFILES, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PackageManager, type PlaywrightStatus } from './frontend'
 import { ownWorktrees, parseWorktreeList, projectSlug, worktreeDir, type Worktree } from './worktrees'
-import { WORKER_ALLOWED } from './worker-args'
+import { WORKER_ALLOWED, WORKER_DENIED } from './worker-args'
+import type { RunContext, WorkerInfo } from './run-proposal'
 import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
 import { nearestRoot, usableRootHeader } from './agent-connect'
 import type { ProjectFacts } from './toolkit'
@@ -4368,6 +4369,44 @@ export async function workerPortsInUse(root: string): Promise<number[]> {
     if (typeof w?.port === 'number' && await fs.stat(w.dir).then(() => true, () => false)) ports.push(w.port)
   }
   return ports
+}
+
+/**
+ * T561: this project's workers whose worktree still exists (removing it ends the worker), newest first. `running` is
+ * false here: only the server's live runs know it (worker-runs.ts), so callers overlay it.
+ */
+export async function listWorkers(root: string): Promise<WorkerInfo[]> {
+  const out: WorkerInfo[] = []
+  for (const c of await listChats(root) as { id: string; updatedAt?: string; worker?: Worker; messages?: { role?: string; text?: string }[] }[]) {
+    const w = c.worker
+    if (!w || !(await fs.stat(w.dir).then(() => true, () => false))) continue
+    const last = w.turns[w.turns.length - 1]
+    const reply = [...(c.messages ?? [])].reverse().find(m => m.role === 'assistant' && m.text?.trim())?.text ?? ''
+    // ponytail: base is often the literal HEAD, so "ahead" counts against the main checkout's current HEAD; store the sha at create if that misleads
+    const ahead = await git(['rev-list', '--count', `${w.base}..${w.branch}`], root).then(s => Number(s.trim()), () => null)
+    out.push({
+      id: c.id, target: w.target, branch: w.branch, base: w.base, dir: w.dir, phase: w.phase, running: false,
+      currentTask: last && !last.endedAt ? last.taskId : null,
+      lastReply: reply.trim().split('\n').filter(Boolean).pop()?.slice(0, 200) ?? '',
+      ahead: Number.isFinite(ahead) ? ahead : null, ...(w.port && { port: w.port }), updatedAt: c.updatedAt ?? '',
+    })
+  }
+  return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+/** T561: the run card's context. `live` = ids of workers running in this server (liveWorkerIds in worker-runs.ts). */
+export async function getRunContext(root: string, live: Set<string>): Promise<RunContext> {
+  const [{ items }, workers, branches, { workers: settings }] = await Promise.all([
+    listRoadmap(root), listWorkers(root),
+    git(['for-each-ref', '--format=%(refname:short)', 'refs/heads/'], root).then(s => s.split('\n').filter(Boolean), () => [] as string[]),
+    readProjectSettings(root),
+  ])
+  return {
+    roadmap: items.map(i => ({ id: i.id, parent: i.parent, status: i.status })),
+    workers: workers.map(w => ({ ...w, running: live.has(w.id) })),
+    branches, maxRunning: settings.maxRunning, allowedTools: settings.allowedTools, denied: WORKER_DENIED,
+    budget: { maxTurns: settings.maxTurnsPerTask, timeoutMin: settings.taskTimeoutMin },
+  }
 }
 
 export async function deleteChat(id: string, root: string): Promise<void> {
