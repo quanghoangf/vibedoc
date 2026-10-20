@@ -16,7 +16,8 @@ import { askAgent } from "@/lib/ask-agent"
 import { useApp } from "@/context/AppContext"
 import { chatFor } from "@/lib/chats"
 import { AgentDot, AgentMark } from "@/components/chat/AgentMark"
-import { RunCardDialog, newWorktreeProposal, type RunValues } from "@/components/workers/RunCard"
+import { RunCardDialog, type RunValues } from "@/components/workers/RunCard"
+import type { RunProposal } from "@/lib/run-proposal"
 import { useChats } from "@/context/ChatContext"
 import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health"
 import { pickNextTask } from "@/lib/work-queue"
@@ -125,6 +126,21 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
   // R108: "Work with agent" → run card → POST /api/workers → the worker's chat
   const [running, setRunning] = useState<"closed" | "open" | "starting">("closed")
   const [runError, setRunError] = useState<string | null>(null)
+  // T561: the server routes the run (new worktree, or the epic's worker); nothing exists until Accept
+  const [proposal, setProposal] = useState<{ proposal: RunProposal; errors: string[] } | null>(null)
+  const openRunCard = async () => {
+    setRunError(null)
+    setProposal(null)
+    setRunning("open")
+    try {
+      const res = await fetch(`/api/workers/propose${rootParam}&kind=epic&id=${encodeURIComponent(item.id)}`)
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data?.proposal) throw new Error(data?.error ?? t("board.requestFailed", { status: res.status }))
+      setProposal(data)
+    } catch (e) {
+      setRunError((e as Error).message)
+    }
+  }
   const startWorker = async (v: RunValues) => {
     setRunning("starting")
     setRunError(null)
@@ -132,7 +148,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
       const res = await fetch(`/api/workers${rootParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target: { kind: "epic", id: item.id }, branch: v.branch, base: v.base }),
+        body: JSON.stringify({ target: { kind: "epic", id: item.id }, mode: proposal?.proposal.mode, workerId: proposal?.proposal.workerId, branch: v.branch, base: v.base }),
       })
       const data = await res.json().catch(() => null)
       if (!res.ok || !data?.id) throw new Error(data?.error ?? t("board.requestFailed", { status: res.status }))
@@ -321,7 +337,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
           </Button>
         )}
         {!isHorizon && !playground && (
-          <Button size="sm" variant="outline" onClick={() => { setRunError(null); setRunning("open") }}>
+          <Button size="sm" variant="outline" onClick={() => { void openRunCard() }}>
             <Bot /> {t("workers.workWithAgent")}
           </Button>
         )}
@@ -346,7 +362,9 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
       {canMerge && <SpecMergeDialog epicId={item.id} open={merging} onOpenChange={setMerging} />}
       {!isHorizon && !playground && (
         <RunCardDialog
-          proposal={newWorktreeProposal({ kind: "epic", id: item.id })}
+          target={item.id}
+          proposal={proposal?.proposal ?? null}
+          errors={proposal?.errors}
           open={running !== "closed"}
           onOpenChange={(o) => setRunning(o ? "open" : "closed")}
           busy={running === "starting"}

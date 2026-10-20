@@ -42,7 +42,7 @@ assert.deepEqual(resumed.slice(4), args.slice(2))
 
 // a custom allowlist replaces the default; the push / gh deny is always appended (T557)
 const custom = workerArgs({ taskId: 'T1', mainRoot: '/r', mcpOrigin: 'http://h', workerId: 'w', pluginDir: '/p', allowed: ['Read', 'Bash(git push*)'] })
-assert.deepEqual(custom.slice(custom.indexOf('--allowedTools')), ['--allowedTools', 'Read', 'Bash(git push*)', '--disallowedTools', 'Bash(git push*)', 'Bash(gh *)'])
+assert.deepEqual(custom.slice(custom.indexOf('--allowedTools')), ['--allowedTools', 'Read', 'Bash(git push*)', '--disallowedTools', 'Bash(git push*)', 'Bash(gh *)', 'mcp__vibedoc__vibedoc_propose_run'])
 
 // minimal env: base names only, a *_TOKEN var is dropped unless listed
 const vibedocEnv = { PATH: '/bin', HOME: '/h', USER: 'u', SHELL: '/bin/zsh', LANG: 'en', TERM: 'xterm', TMPDIR: '/t', GITHUB_TOKEN: 'x', ANTHROPIC_API_KEY: 'k', AWS_SECRET_ACCESS_KEY: 's', NODE_ENV: 'production' }

@@ -99,7 +99,7 @@ Four commands, one loop. They ship as a Claude Code plugin; in Cursor or any MCP
 
 ```
 your browser  →  http://localhost:<port>          board, roadmap, docs, test review, memory
-your agent    →  http://localhost:<port>/api/mcp  49 MCP tools, same files, same live state
+your agent    →  http://localhost:<port>/api/mcp  52 MCP tools, same files, same live state
 ```
 
 ## Features

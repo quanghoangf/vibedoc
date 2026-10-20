@@ -81,6 +81,12 @@ export function claimWorkerPort(root: string, id: string, base: number, saved: n
   return run.port
 }
 
+/** T561: ids of the workers with a live loop in this server, for one project (the run card's `running`). */
+export function liveWorkerIds(root: string): Set<string> {
+  const prefix = `${root}\u0000`
+  return new Set([...runs.keys()].filter(k => k.startsWith(prefix)).map(k => k.slice(prefix.length)))
+}
+
 export function releaseWorker(root: string, id: string): void {
   runs.delete(keyOf(root, id))
 }

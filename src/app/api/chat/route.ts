@@ -93,6 +93,8 @@ export async function POST(req: NextRequest) {
     // Roadmap items go through vibedoc_propose_plan for the same reason (the planning skill otherwise creates them directly).
     '--disallowedTools', 'mcp__vibedoc__vibedoc_write_doc', 'mcp__vibedoc__vibedoc_append_doc', 'mcp__vibedoc__vibedoc_delete_doc',
     'mcp__vibedoc__vibedoc_create_roadmap_item', 'mcp__vibedoc__vibedoc_delete_entry',
+    // R108: only the orchestrator chat (T562) proposes runs
+    'mcp__vibedoc__vibedoc_propose_run',
     '--setting-sources', '',
     '--disable-slash-commands',
     '--append-system-prompt', SYSTEM_PROMPT,

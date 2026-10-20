@@ -74,6 +74,8 @@ import {
   getEvidence,
   ensureFixtureKit,
   getWorker,
+  getRunContext,
+  listWorkers,
   recordRunResult,
   recallEntries,
   relatedEntries,
@@ -114,6 +116,8 @@ import type { TextEdit } from "@/lib/diff";
 import { agentFromUserAgent } from "@/lib/owner";
 import { CHAT_CALL_HEADER, pluginInstalled } from "@/lib/agent-connect";
 import { WORKER_CALL_HEADER } from "@/lib/worker-args";
+import { liveWorkerIds } from "@/lib/worker-runs";
+import { formatProposal, formatWorkers, routeRun, validateRunProposal } from "@/lib/run-proposal";
 import { pluginList } from "@/lib/claude-cli";
 import { TOOLKIT_CATALOG } from "@/lib/toolkit-catalog";
 import { pluginId, rankToolkit, signalsFrom } from "@/lib/toolkit";
@@ -707,6 +711,23 @@ async function handleTool(name: string, args: Record<string, unknown>, root: str
       return `📝 Proposed ${edits.length} edit(s) to ${docPath}. The user will accept or reject them in the UI; not applied yet.`;
     }
 
+    case "vibedoc_list_workers": {
+      const live = liveWorkerIds(root);
+      return formatWorkers((await listWorkers(root)).map((w) => ({ ...w, running: live.has(w.id) })));
+    }
+
+    case "vibedoc_propose_run": {
+      // Validate only, like propose_plan: the UI starts the worker via POST /api/workers after Accept.
+      const target = { kind: "epic" as const, id: String(args.target ?? "").trim().toUpperCase() };
+      const ctx = await getRunContext(root, liveWorkerIds(root));
+      const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : undefined);
+      const mode = args.mode === "new" || args.mode === "existing" ? args.mode : undefined;
+      const proposal = routeRun(target, ctx, { mode, workerId: str(args.workerId), branch: str(args.branch), base: str(args.base) });
+      const errors = validateRunProposal(proposal, ctx);
+      if (errors.length > 0) throw new Error(`Invalid run:\n- ${errors.join("\n- ")}`);
+      return formatProposal(proposal);
+    }
+
     case "vibedoc_propose_plan": {
       // Validate only, like propose_edit: the UI writes via POST /api/plan/apply after Accept.
       const [{ items }, { tasks }] = await Promise.all([listRoadmap(root), listTasks(root)]);
@@ -965,6 +986,7 @@ export async function POST(req: NextRequest) {
           .catch((e) => console.warn("[vibedoc] could not record the agent call:", e));
       }
       // R108 T559: a worker's specs run against its worktree's own app on its own port, never the user's checkout
+      if (worker && name === "vibedoc_propose_run") throw new Error("A worker can't propose runs: only the user or the orchestrator chat does");
       if (worker && name === "vibedoc_get_frontend") {
         return ok(id, { content: [{ type: "text", text: await workerFrontend(root, worker) }] });
       }
