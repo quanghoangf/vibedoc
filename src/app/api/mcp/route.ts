@@ -112,6 +112,7 @@ import {
 import type { TextEdit } from "@/lib/diff";
 import { agentFromUserAgent } from "@/lib/owner";
 import { CHAT_CALL_HEADER, pluginInstalled } from "@/lib/agent-connect";
+import { WORKER_CALL_HEADER } from "@/lib/worker-args";
 import { pluginList } from "@/lib/claude-cli";
 import { TOOLKIT_CATALOG } from "@/lib/toolkit-catalog";
 import { pluginId, rankToolkit, signalsFrom } from "@/lib/toolkit";
@@ -940,11 +941,16 @@ export async function POST(req: NextRequest) {
       const root = fromFolder ?? rootFrom(asked);
       const agent = typeof args.agent === "string" && args.agent.trim() ? args.agent.trim() : agentFromUserAgent(req.headers.get("user-agent"));
       // R081: a tool call is the evidence that an agent is connected (initialize / tools/list are health checks;
-      // VibeDoc's own chat marks its calls, since it isn't the user's agent)
-      if (!req.headers.get(CHAT_CALL_HEADER)) {
+      // VibeDoc's own chat and workers mark their calls, since they aren't the user's agent)
+      const worker = req.headers.get(WORKER_CALL_HEADER);
+      if (!req.headers.get(CHAT_CALL_HEADER) && !worker) {
         void recordAgentCall(root, agent)
           .then((wrote) => { if (wrote) emitUpdate("agent_connected", { root, agent }); })
           .catch((e) => console.warn("[vibedoc] could not record the agent call:", e));
+      }
+      // R108: a worker's worktree has no dev server of its own yet (T559), so its report stays manual
+      if (worker && name === "vibedoc_get_frontend") {
+        return ok(id, { content: [{ type: "text", text: "No frontend for a worktree yet: keep the report manual (no spec)." }] });
       }
       // T512: the one tool that answers with an image, not text
       if (name === "vibedoc_get_attachment") {

@@ -23,7 +23,7 @@ if (!g.vibedocTestRunsExitHook) {
   process.once('exit', () => { for (const e of runs.values()) killGroup(e.child) })
 }
 
-function killGroup(child: ChildProcess | null, signal: NodeJS.Signals = 'SIGTERM') {
+export function killGroup(child: ChildProcess | null, signal: NodeJS.Signals = 'SIGTERM') {
   if (!child?.pid) return
   try {
     if (process.platform === 'win32') child.kill(signal)

@@ -18,6 +18,25 @@ export interface Chat<M = unknown> {
   updatedAt: string
   /** The user dismissed this chat's error; cleared by the next turn */
   dismissed?: boolean
+  /** R108: a worker is a chat with a worktree; the server drives its turns, one per task */
+  worker?: Worker
+}
+
+/** Where a worker is: `wait-user` = a task stopped without finishing; `stopped` = cancelled; `failed` = setup failed. */
+export type WorkerPhase = "starting" | "running" | "wait-user" | "ended" | "stopped" | "failed"
+
+/** One task turn. `result`: the task's status after the turn, `error` (non-zero exit) or `stopped`; null while it runs. */
+export interface WorkerTurn { taskId: string; sessionId: string | null; startedAt: string; endedAt: string | null; result: string | null }
+
+export interface Worker {
+  dir: string
+  branch: string
+  base: string
+  target: Attach
+  phase: WorkerPhase
+  /** Why it waits, ended or failed, in English (the UI words it from the phase) */
+  reason?: string
+  turns: WorkerTurn[]
 }
 
 export function newChatId(now: number, salt = Math.random()): string {
@@ -221,9 +240,9 @@ export function defaultChat<C extends Chat<StatusMessage>>(chats: C[], now = Dat
 
 // ─── Persistence (.vibedoc/chats/<id>.json via /api/conversations) ───────────
 
-/** What gets saved: never busy (a running turn can't survive a reload). Empty chats aren't saved. */
+/** What gets saved: never busy (a running turn can't survive a reload). Empty chats aren't saved, unless a worker. */
 export function toSaved<M>(c: Chat<M>): Chat<M> | null {
-  return c.messages.length ? { ...c, busy: false } : null
+  return c.messages.length || c.worker ? { ...c, busy: false } : null
 }
 
 /** A saved chat as loaded: a turn that was cut off (empty last reply, no error) gets an "interrupted" error. */

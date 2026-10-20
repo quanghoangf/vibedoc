@@ -1,6 +1,6 @@
 ---
 name: work
-description: Work through one VibeDoc roadmap epic (plans/roadmap/R*.md) by itself. It claims the next ready task with vibedoc_next_task, implements it, runs the task's Verify commands, marks it done, commits, and repeats until the epic is finished or needs a human. Use this whenever the user says "work on epic R037", "implement R037", "/vibedoc:work R037", "start the tasks in this epic", "keep going on the epic", "do the next task", or otherwise wants an agent to run an epic's tasks without picking each one by hand.
+description: Work through one VibeDoc roadmap epic (plans/roadmap/R*.md) by itself. It claims the next ready task with vibedoc_next_task, implements it, runs the task's Verify commands, marks it done, commits, and repeats until the epic is finished or needs a human. Given a task id (T123) instead, it does that one task only and stops. Use this whenever the user says "work on epic R037", "implement R037", "/vibedoc:work R037", "/vibedoc:work T123", "start the tasks in this epic", "keep going on the epic", "do the next task", or otherwise wants an agent to run an epic's tasks without picking each one by hand.
 ---
 
 # Work an epic
@@ -8,6 +8,12 @@ description: Work through one VibeDoc roadmap epic (plans/roadmap/R*.md) by itse
 Run one epic's tasks in order, one at a time, until VibeDoc says the epic is finished or a human is needed. VibeDoc picks the order: `vibedoc_next_task` respects `Depends on`, skips blocked tasks and tasks another agent has claimed, and moves the claimed task to in-progress so the board shows who is working on what. Don't choose tasks yourself, and don't work on a task you did not claim.
 
 **Argument:** an epic id such as `R037`. If there is none, ask which epic to work on (`vibedoc_get_roadmap` lists them). Work on one epic only.
+
+**Task mode:** with a task id such as `T123`, do that one task and stop.
+
+1. Call `vibedoc_get_task { "taskId": "T123" }`. If its status is not `in-progress` yet, claim it with `vibedoc_update_task { "taskId": "T123", "status": "in-progress" }`. A VibeDoc worker claims the task before it starts you, so it is usually in-progress already.
+2. Do steps 2–5 of the loop below once, for this task only.
+3. Stop when the task is done, in review or blocked. Never call `vibedoc_next_task`: it would claim another task.
 
 ## Before the loop
 

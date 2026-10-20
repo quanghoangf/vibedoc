@@ -51,6 +51,28 @@ if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope"
   if ((state.failInstall ?? []).includes(args[2])) { console.error(`✘ Failed to install plugin "${args[2]}": git clone failed (network unreachable)`); process.exit(1) }
   state.plugins = [...(state.plugins ?? []), { id: args[2], version: "1.16.0", scope: "user", enabled: true }]; save()
   console.log(`✔ Successfully installed plugin: ${args[2]} (scope: user)`)
+} else if (args[0] === "-p" && args.includes("--plugin-dir")) {
+  // R108 worker task turn (e2e/worker-run.mjs): cwd = the worktree. After CLAUDE_STUB_WORKER_MS (default 2s, long
+  // enough to cancel mid-task) write <task>.txt, commit only that file, then mark the task done over the MCP URL.
+  const taskId = args[1].match(/\bT\d{3,}\b/)[0]
+  const { url, headers } = JSON.parse(args[args.indexOf("--mcp-config") + 1]).mcpServers.vibedoc
+  const sid = `stub-worker-${taskId}`
+  const out = (o) => process.stdout.write(JSON.stringify(o) + "\n")
+  out({ type: "system", subtype: "init", session_id: sid })
+  process.on("SIGTERM", () => process.exit(143))
+  setTimeout(async () => {
+    const { execFileSync } = require("node:child_process")
+    fs.writeFileSync(`${taskId}.txt`, `${taskId} was here\n`)
+    execFileSync("git", ["add", `${taskId}.txt`])
+    execFileSync("git", ["-c", "user.name=stub", "-c", "user.email=stub@example.com", "commit", "-q", "-m", `feat: ${taskId}`])
+    const res = await fetch(url, {
+      method: "POST", headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_update_task", arguments: { taskId, status: "done" } } }),
+    })
+    const text = (await res.json()).result.content[0].text
+    out({ type: "assistant", session_id: sid, message: { content: [{ type: "text", text: `Done ${taskId}` }] } })
+    out({ type: "result", session_id: sid, is_error: false, result: `Done ${taskId}: ${text.split("\n")[0]}` })
+  }, Number(process.env.CLAUDE_STUB_WORKER_MS ?? 2000))
 } else if (args[0] === "-p") {
   // A chat turn (e2e/chat-reload.mjs): stream-json over ~4s, slow enough to reload the page mid-turn.
   // CLAUDE_STUB_TURN_MS overrides the length; the reply names the prompt so the test can find it.

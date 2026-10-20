@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   ERROR_ALARM_MS, MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, ago, attentionQueue, attachContext, chatFor, chatStatus, chatTitle, defaultChat, epicOf,
   fromSaved, groupChats, isActionableError, itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, shellStatus, suggestions,
-  toSaved, waitingTitle, type Attach, type Chat, type StatusMessage,
+  toSaved, waitingTitle, type Attach, type Chat, type StatusMessage, type Worker,
 } from './chats.ts'
 
 const T = (min: number) => new Date(Date.UTC(2026, 8, 29, 9, min)).toISOString()
@@ -155,6 +155,10 @@ assert.equal(shellStatus(chat('b', [failed], { busy: true }), qNow), 'running')
 // toSaved / fromSaved
 assert.equal(toSaved(chat('e', [])), null)                                              // empty chats aren't saved
 assert.equal(toSaved(chat('s', [msg()], { busy: true }))?.busy, false)
+// R108: a worker chat keeps its worktree through a save and a load, even before its first turn
+const worker: Worker = { dir: '/w', branch: 'vibedoc/R1', base: 'main', target: epic('R1'), phase: 'running', turns: [{ taskId: 'T1', sessionId: 's', startedAt: T(1), endedAt: null, result: null }] }
+assert.deepEqual(toSaved(chat('w', [], { worker }))?.worker, worker)
+assert.deepEqual(fromSaved<StatusMessage>(chat('w', [msg()], { worker }))?.worker, worker)
 const cut = fromSaved<StatusMessage>(chat('cut', [msg({ role: 'user', text: 'hi' }), msg({ text: '' })], { busy: true }))
 assert.equal(cut?.busy, false)
 assert.match(cut?.messages[1].error ?? '', /Interrupted/)
