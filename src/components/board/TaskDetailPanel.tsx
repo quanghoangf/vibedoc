@@ -34,6 +34,8 @@ import { latestReview, reviewHistory, type ReviewEntry, type ReviewMark } from "
 import { SEVERITIES, formatFindingsNote, type Verification } from "@/lib/verification"
 import { verifyTask } from "@/lib/ask-agent"
 import { useRunCard } from "@/components/workers/RunCard"
+import { PHASE_KEY, isInterrupted } from "@/components/workers/WorkerStrip"
+import { useRouter } from "next/navigation"
 import { useT } from "@/context/LanguageContext"
 import { readCookie } from "@/lib/player-prefs"
 import { clampPanelWidth, panelWidthCookie, parsePanelWidth, PANEL_DEFAULT_WIDTH, PANEL_KEYBOARD_STEP, PANEL_MIN_WIDTH, PANEL_WIDTH_COOKIE } from "@/lib/panel-width"
@@ -141,20 +143,28 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
   const { chats, showAbout } = useChats()
   const { rootParam, demo, playground, openDoc } = useApp()
   const chat = chatFor(chats, { kind: "task", id: task.id })
+  const { t } = useT()
   // T560: "Work with agent" on this task → the run card (a worker in its own worktree)
   const run = useRunCard({ kind: "task", id: task.id }, onClose)
-  const canRun = !playground && task.status !== "done" && task.status !== "cancelled"
+  // the same rule as the server's (runRefusals): an in-progress task is someone's, review and done have nothing left
+  const canRun = !playground && !["done", "cancelled", "review", "in-progress"].includes(task.status)
+  // the worker that claimed this task (its owner), while its worktree exists
+  const worker = chats.find((c) => c.worker && !c.worker.removedAt && task.owner === `ai:worker-${c.id}`)
+  const workerPhase = worker?.worker && (isInterrupted(worker.worker) ? t("workers.phaseInterrupted") : t(PHASE_KEY[worker.worker.phase]))
+  const router = useRouter()
+  const openWorker = () => { if (worker) { onClose(); router.push(`/chat?id=${encodeURIComponent(worker.id)}`) } }
   const [error, setError] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const statusDefs = useStatusDefs()
   const statusLabel = useStatusLabel()
-  const { t } = useT()
   const chatAbout = () => { onClose(); showAbout({ kind: "task", id: task.id }) }
   const openFull = () => { onClose(); void openDoc(task.file) }
   useItemCommands(active ? `${task.id} · ${task.title}` : null, [
     { action: "open", label: t("board.openFullDoc"), run: openFull },
     { action: "status", label: t("board.changeStatus"), run: () => setMenuOpen(true) },
     { action: "chat", label: t("board.chatAboutTask"), run: chatAbout },
+    ...(worker ? [{ action: "run" as const, label: t("workers.openWorker"), run: openWorker }]
+      : canRun && !demo ? [{ action: "run" as const, label: t("workers.workWithAgent"), run: run.open }] : []),
     { action: "remove", label: t("board.delete"), run: () => { remove() } },
   ])
 
@@ -204,7 +214,8 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
                 <DropdownMenuItem onSelect={chatAbout}><MessageSquare /> {t("board.chatAboutTask")}<DropdownMenuShortcut>{itemKeyLabel("chat")}</DropdownMenuShortcut></DropdownMenuItem>
-                {canRun && <DropdownMenuItem onSelect={run.open}><Bot /> {t("workers.workWithAgent")}</DropdownMenuItem>}
+                {worker ? <DropdownMenuItem onSelect={openWorker}><Bot /> {t("workers.openWorker")}<DropdownMenuShortcut>{itemKeyLabel("run")}</DropdownMenuShortcut></DropdownMenuItem>
+                  : canRun && <DropdownMenuItem onSelect={run.open}><Bot /> {t("workers.workWithAgent")}<DropdownMenuShortcut>{itemKeyLabel("run")}</DropdownMenuShortcut></DropdownMenuItem>}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={remove} className="text-danger focus:text-danger"><Trash2 /> {t("board.delete")}<DropdownMenuShortcut>{itemKeyLabel("remove")}</DropdownMenuShortcut></DropdownMenuItem>
               </DropdownMenuContent>
@@ -239,12 +250,30 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
             <ScanSearch className="size-3.5" /> {t("board.verify")}
           </button>
         )}
-        <button
-          onClick={() => { onClose(); showAbout({ kind: "task", id: task.id }) }}
-          className={cn(task.status !== "review" && task.status !== "done" && "ml-auto", " inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110")}
-        >
-          <MessageSquare className="size-3.5" /> {chat ? t("board.openChat") : t("board.chatAboutTask")}
-        </button>
+        {/* one primary: the worker on this task, else starting one, else the task's chat */}
+        <span className={cn("flex flex-wrap items-center gap-2", task.status !== "review" && task.status !== "done" && "ml-auto")}>
+          <button
+            onClick={chatAbout}
+            className={cn(
+              "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm",
+              worker || canRun ? "bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors" : "bg-accent text-accent-fg transition-[filter] hover:brightness-110",
+            )}
+          >
+            <MessageSquare className="size-3.5" /> {chat ? t("board.openChat") : t("board.chatAboutTask")}
+          </button>
+          {(worker || canRun) && (
+            <button
+              onClick={worker ? openWorker : run.open}
+              title={`${worker ? t("workers.openWorker") : t("workers.runCardLead")} (${itemKeyLabel("run")})`}
+              aria-keyshortcuts="Shift+W"
+              data-work-with-agent
+              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              <Bot className="size-3.5" aria-hidden />
+              {worker ? t("workers.workerOnTask", { phase: workerPhase ?? "" }) : t("workers.workWithAgent")}
+            </button>
+          )}
+        </span>
       </div>}
 
       {task.status === "review" && !demo && (

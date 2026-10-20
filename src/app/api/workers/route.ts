@@ -2,8 +2,9 @@
  * POST /api/workers {target: {kind: "epic" | "task", id}, mode?: "new" | "existing", workerId?, branch?, base?} (R108 T554, ADR-007)
  * The run card's Accept. The proposal is checked again first (validateRunProposal, T561: state may have changed since
  * GET /api/workers/propose), 409 with the reasons. `new` (the default) creates a worktree for the epic (default branch
- * `vibedoc/<epic>`), installs its dependencies, saves a worker chat (.vibedoc/chats/<id>.json with `worker`) and starts
- * the task-by-task loop (src/lib/worker-runs.ts). `existing` continues that worker's loop on its worktree: a new task
+ * `vibedoc/<epic>`), saves a worker chat (phase `starting`) and answers; its dependency install then runs in the
+ * background (a failure ends it `failed`, the output in its reason), then the task-by-task loop starts
+ * (src/lib/worker-runs.ts). The worker chat is .vibedoc/chats/<id>.json with `worker`. `existing` continues that worker's loop on its worktree: a new task
  * claim, no new worktree. T560: a task target routes to its epic's worker (it claims that task next), else a new
  * worktree on `vibedoc/T123` whose loop runs that task only and ends. Each task turn streams through
  * GET /api/workers/stream?id=<id> (T556); every step emits
@@ -18,8 +19,8 @@ import { refuseCrossSite } from '@/lib/same-origin'
 import { newChatId, type Attach } from '@/lib/chats'
 import { WORKER_PORT_OFFSET } from '@/lib/worktrees'
 import { WORKER_DENIED } from '@/lib/worker-args'
-import { claimWorkerPort, liveWorkerIds, releaseWorker, reserveWorker, startWorker, type WorkerChat } from '@/lib/worker-runs'
-import { epicOf, routeRun, validateRunProposal } from '@/lib/run-proposal'
+import { claimWorkerPort, isCancelled, liveWorkerIds, releaseWorker, reserveWorker, startWorker, type WorkerChat } from '@/lib/worker-runs'
+import { epicOf, routeRun, runRefusals } from '@/lib/run-proposal'
 import { saveWorkerChat, workerDeps } from './deps'
 
 export const dynamic = 'force-dynamic'
@@ -53,8 +54,8 @@ export async function POST(req: NextRequest) {
   const proposal = routeRun(target, ctx, {
     mode: body?.mode === 'existing' ? 'existing' : 'new', workerId: str(body?.workerId), branch: str(body?.branch), base: str(body?.base),
   })
-  const errors = validateRunProposal(proposal, ctx)
-  if (errors.length) return NextResponse.json({ error: errors.join('\n'), errors }, { status: 409 })
+  const refusals = runRefusals(proposal, ctx)
+  if (refusals.length) return NextResponse.json({ error: refusals.map(r => r.text).join('\n'), errors: refusals.map(r => r.text), refusals }, { status: 409 })
 
   const { workers } = await readProjectSettings(root)
   const existing = proposal.mode === 'existing' ? await getChat(proposal.workerId ?? '', root).catch(() => null) as WorkerChat | null : null
@@ -81,18 +82,9 @@ export async function POST(req: NextRequest) {
       attach: target, createdAt: now, updatedAt: now,
       worker: { ...wt, target, phase: 'starting', turns: [], ...(port && { port }) },
     }
-    const save = saveWorkerChat(root)
-    await save(chat)
-    const install = await installWorktreeDeps(wt.dir)
-    if (!install.ok) {
-      chat.busy = false
-      chat.worker = { ...chat.worker, phase: 'failed', reason: `Dependency install failed:\n${install.output}` }
-      await save(chat)
-      releaseWorker(root, id)
-      return NextResponse.json({ error: chat.worker.reason, id, ...wt }, { status: 500 })
-    }
-    chat.worker.phase = 'running'
-    startWorker(root, chat, workerDeps(root, chat, req.nextUrl.origin, workers))
+    await saveWorkerChat(root)(chat)
+    // the install runs after the reply: the run card closes at once and the chat shows "Setting up the worktree"
+    void setUpAndStart(root, chat, req.nextUrl.origin, workers)
     return NextResponse.json({ id, ...wt })
   } catch (e) {
     releaseWorker(root, id)
@@ -105,25 +97,40 @@ export async function POST(req: NextRequest) {
 async function continueWorker(root: string, chat: WorkerChat, origin: string, workers: WorkerSettings) {
   const save = saveWorkerChat(root)
   try {
-    // a worker whose setup failed gets its install again; the others have their dependencies
-    if (chat.worker.phase === 'failed') {
-      const install = await installWorktreeDeps(chat.worker.dir)
-      if (!install.ok) {
-        chat.worker = { ...chat.worker, reason: `Dependency install failed:\n${install.output}` }
-        await save(chat)
-        releaseWorker(root, chat.id)
-        return NextResponse.json({ error: chat.worker.reason, id: chat.id }, { status: 500 })
-      }
-    }
     chat.busy = true
     chat.updatedAt = new Date().toISOString()
-    chat.worker = { ...chat.worker, phase: 'running', reason: undefined }
+    // a worker whose setup failed gets its install again (after the reply); the others have their dependencies
+    const install = chat.worker.phase === 'failed'
+    chat.worker = { ...chat.worker, phase: install ? 'starting' : 'running', reason: undefined }
     await save(chat)
-    startWorker(root, chat, workerDeps(root, chat, origin, workers))
+    if (install) void setUpAndStart(root, chat, origin, workers)
+    else startWorker(root, chat, workerDeps(root, chat, origin, workers))
     const { dir, branch, base } = chat.worker
     return NextResponse.json({ id: chat.id, dir, branch, base, mode: 'existing' })
   } catch (e) {
     releaseWorker(root, chat.id)
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
+}
+
+/** A `starting` worker: its worktree's dependency install, then its loop; a failed install ends it `failed` with the output. */
+async function setUpAndStart(root: string, chat: WorkerChat, origin: string, workers: WorkerSettings) {
+  const save = saveWorkerChat(root)
+  try {
+    const install = await installWorktreeDeps(chat.worker.dir)
+    if (!install.ok) throw new Error(`Dependency install failed:\n${install.output}`)
+    if (isCancelled(root, chat.id)) {
+      chat.busy = false
+      chat.worker = { ...chat.worker, phase: 'stopped' }
+      releaseWorker(root, chat.id)
+      return void await save(chat)
+    }
+    chat.worker.phase = 'running'
+    startWorker(root, chat, workerDeps(root, chat, origin, workers))
+  } catch (e) {
+    chat.busy = false
+    chat.worker = { ...chat.worker, phase: 'failed', reason: (e as Error).message }
+    releaseWorker(root, chat.id)
+    await save(chat).catch(() => {})
   }
 }

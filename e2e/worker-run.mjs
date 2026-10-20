@@ -261,12 +261,16 @@ try {
     await page.getByRole("button", { name: "Work with agent" }).click()
     const runCard = page.getByRole("form", { name: "Work on R004 with an agent" })
     assert.equal(await runCard.getByLabel("Branch").inputValue(), "vibedoc/R004")
-    assert.equal(await runCard.getByLabel("Base").inputValue(), "HEAD")
+    // the base is the branch the main checkout is on, not the literal HEAD
+    assert.equal(await runCard.getByLabel("Base").inputValue(), git(["rev-parse", "--abbrev-ref", "HEAD"]).trim())
+    await runCard.getByText(/\d+ allowed · 2 always denied/).click()
     await runCard.getByText("Bash(git push*)").waitFor()
     await runCard.getByText("60 turns · 30 min per task").waitFor() // T567: the proposal carries the default budget
     await runCard.getByRole("button", { name: "Start worker" }).click()
 
-    const chatBox = page.getByRole("dialog")
+    // Start goes to the worker's chat on /chat
+    await page.waitForURL(/\/chat\?id=/)
+    const chatBox = page.getByRole("region", { name: /Worker R004/ })
     const strip = chatBox.locator("[data-worker-strip]")
     await strip.getByText("vibedoc/R004").waitFor()
     await strip.getByText(/worktrees.*vibedoc-r004/).waitFor()
@@ -299,8 +303,9 @@ try {
 
     // T561: an epic with an idle worker → the card sends it there; Cancel creates nothing
     await page.goto(`${BASE}/roadmap?item=R002`)
+    await page.getByRole("button", { name: "Work with agent" }).waitFor()
     const t0 = Date.now()
-    await page.getByRole("button", { name: "Work with agent" }).click()
+    await page.keyboard.press("Shift+W") // the item key opens the same card
     const card2 = page.getByRole("form", { name: "Work on R002 with an agent" })
     await card2.getByText("Send to worker vibedoc/R002", { exact: false }).waitFor()
     assert.ok(Date.now() - t0 < 3000, `run card took ${Date.now() - t0}ms`)
@@ -309,23 +314,26 @@ try {
     await card2.getByRole("button", { name: "Cancel" }).click()
     console.log("ok  Work with agent on R002 → the card proposes its idle worker at once (S7, S8)")
 
-    // T560: the board task panel's ⋯ → Work with agent on one task
+    // T560: the board task panel's primary Work with agent on one task
     await page.goto(`${BASE}/board?task=T013`)
     const panel = page.getByRole("dialog")
-    await panel.getByRole("button", { name: "Actions for T013" }).click()
-    await page.getByRole("menuitem", { name: "Work with agent" }).click()
+    await panel.getByRole("button", { name: "Work with agent" }).click()
     const card3 = page.getByRole("form", { name: "Work on T013 with an agent" })
     await card3.getByText("New worktree").waitFor()
     assert.equal(await card3.getByLabel("Branch").inputValue(), "vibedoc/T013")
     await card3.getByRole("button", { name: "Start worker" }).click()
-    await page.getByRole("dialog").locator("[data-worker-strip]").getByText("vibedoc/T013").waitFor()
+    await page.waitForURL(/\/chat\?id=/)
+    await page.locator("[data-worker-strip]").getByText("vibedoc/T013").waitFor()
     const taskChat = () => readdirSync(path.join(fx, ".vibedoc/chats")).map((f) => savedChat(f.replace(/\.json$/, ""))).find((c) => c.worker?.target.id === "T013")
     await until(() => taskChat()?.worker.phase === "ended", "the T013 worker ended", STUB_MS + 20000)
     dirs.push(taskChat().worker.dir)
     assert.deepEqual(taskChat().worker.turns.map((t) => [t.taskId, t.result]), [["T013", "done"]])
     assert.equal(readFileSync(path.join(taskChat().worker.dir, ".claude-stub.log"), "utf8").split(/^(?=-p )/m).length, 1)
     assert.equal(status("T016"), "todo", "the epic's other task is not claimed")
-    console.log("ok  task panel → Work with agent → card on vibedoc/T013 → Start → one call naming T013, the worker ends (S1)")
+    // the task now points to its worker instead of offering a second run
+    await page.goto(`${BASE}/board?task=T013`)
+    await page.getByRole("dialog").getByRole("button", { name: /^Open worker · / }).waitFor()
+    console.log("ok  task panel → Work with agent → card on vibedoc/T013 → Start → /chat; one call naming T013, the worker ends; the task links its worker (S1)")
 
     await page.goto(`${BASE}/settings?tab=workers`)
     await page.getByText(/It is not a sandbox/).waitFor()

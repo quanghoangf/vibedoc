@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { ArrowUp, ArrowUpRight, Eraser, Maximize2, Network, ShieldAlert, Square, Trash2 } from "lucide-react"
+import { ArrowUp, ArrowUpRight, Eraser, Loader2, Maximize2, Network, ShieldAlert, Square, Trash2 } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useChats, type ChatMessage, type ChatTab } from "@/context/ChatContext"
 import { useT } from "@/context/LanguageContext"
@@ -121,6 +121,7 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
   const { send, show, resolveProposal, resolvePlan, answerQuestions, finishToolkit, resolveRun } = useChats()
   const scrollRef = useRef<HTMLDivElement>(null)
   const messages = chat.messages
+  const { t } = useT()
 
   // Follow the stream while visible
   useEffect(() => {
@@ -146,6 +147,17 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
             onOpenWorker={show}
           />
         )))}
+        {chat.worker?.phase === "starting" && (
+          <p role="status" className="flex items-center gap-2 text-xs text-muted">
+            <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> {t("workers.settingUp")}
+          </p>
+        )}
+        {chat.worker?.phase === "failed" && chat.worker.reason && (
+          <details open className="rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-xs">
+            <summary className="cursor-pointer text-danger">{t("workers.failedReason")}</summary>
+            <pre data-user-content className="mt-2 max-h-60 overflow-auto whitespace-pre-wrap font-mono text-[11px] text-txt">{chat.worker.reason}</pre>
+          </details>
+        )}
         {chat.worker && !chat.busy && FINISHED.includes(chat.worker.phase) && <WorkerFinish chatId={chat.id} worker={chat.worker} />}
       </div>
     </div>

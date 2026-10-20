@@ -17,7 +17,7 @@ import { applyEdits, type TextEdit } from './diff'
 import { mergeNotes, type Chat } from './chats'
 import { META_LINE, parseMetaBlock } from './meta-block'
 import { roadmapFromMarkdown, roadmapFromTasks, starterRoadmap, type RoadmapDraft, type RoadmapSource } from './roadmap-import'
-import { pickNextTask, type QueueResult } from './work-queue'
+import { depIds, pickNextTask, type QueueResult } from './work-queue'
 import { taskClaim } from './worker-loop'
 import { selectPlan, validatePlan, type Plan } from './plan'
 import { SESSION_GAP_MS, groupSessions, type Session } from './sessions'
@@ -4565,14 +4565,16 @@ export async function workerDiff(root: string, w: { base: string; branch: string
 
 /** T561: the run card's context. `live` = ids of workers running in this server (liveWorkerIds in worker-runs.ts). */
 export async function getRunContext(root: string, live: Set<string>): Promise<RunContext> {
-  const [{ items }, workers, branches, { workers: settings }, { tasks }] = await Promise.all([
+  const [{ items }, workers, branches, { workers: settings }, { tasks }, current] = await Promise.all([
     listRoadmap(root), listWorkers(root),
     git(['for-each-ref', '--format=%(refname:short)', 'refs/heads/'], root).then(s => s.split('\n').filter(Boolean), () => [] as string[]),
     readProjectSettings(root), listTasks(root),
+    git(['rev-parse', '--abbrev-ref', 'HEAD'], root).then(s => s.trim(), () => 'HEAD'),
   ])
   return {
     roadmap: items.map(i => ({ id: i.id, parent: i.parent, status: i.status, tasks: i.tasks })),
-    tasks: tasks.map(t => ({ id: t.id, status: t.status, owner: t.owner })),
+    tasks: tasks.map(t => ({ id: t.id, status: t.status, owner: t.owner, dependsOn: depIds(t.dependsOn) })),
+    currentBranch: current || 'HEAD',
     workers: workers.map(w => ({ ...w, running: live.has(w.id) })),
     branches, maxRunning: settings.maxRunning, allowedTools: settings.allowedTools, denied: WORKER_DENIED,
     budget: { maxTurns: settings.maxTurnsPerTask, timeoutMin: settings.taskTimeoutMin },

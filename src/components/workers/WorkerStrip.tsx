@@ -7,7 +7,7 @@ import type { MessageKey } from "@/i18n"
 import type { Worker, WorkerPhase, WorkerTurn } from "@/lib/chats"
 import { sumUsage } from "@/lib/worker-state"
 
-const PHASE_KEY: Record<WorkerPhase, MessageKey> = {
+export const PHASE_KEY: Record<WorkerPhase, MessageKey> = {
   starting: "workers.phaseStarting",
   running: "workers.phaseRunning",
   paused: "workers.phasePaused",

@@ -108,6 +108,11 @@ export function liveWorkerIds(root: string): Set<string> {
   return new Set([...runs.keys()].filter(k => k.startsWith(prefix)).map(k => k.slice(prefix.length)))
 }
 
+/** Stop came for a reserved worker (e.g. during its dependency install, before its loop started). */
+export function isCancelled(root: string, id: string): boolean {
+  return !!runs.get(keyOf(root, id))?.cancelled
+}
+
 export function releaseWorker(root: string, id: string): void {
   runs.delete(keyOf(root, id))
 }

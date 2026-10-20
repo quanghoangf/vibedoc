@@ -60,11 +60,14 @@ try {
   const card = page.getByRole("form", { name: "Work on R002 with an agent" })
   await card.getByText("New worktree").waitFor()
   assert.equal(await card.getByLabel("Branch").inputValue(), "vibedoc/R002")
+  await card.getByText(/\d+ allowed · 2 always denied/).click()
   await card.getByText("Bash(git push*)").waitFor()
   assert.equal(worktrees(), trees, "the run card creates nothing")
   assert.equal(git(["branch", "--list", "vibedoc/R002"]).trim(), "")
   await card.getByRole("button", { name: "Start worker" }).click()
-  await page.getByRole("dialog").locator("[data-worker-strip]").getByText("Working on T001").waitFor({ timeout: 30000 })
+  // Start lands on the worker's chat page, not a modal over the roadmap
+  await page.waitForURL(/\/chat\?id=/)
+  await page.locator("[data-worker-strip]").getByText("Working on T001").waitFor({ timeout: 30000 })
   const worker = chats().find((c) => c.worker?.target.id === "R002")
   dir = worker.worker.dir
   assert.notEqual(worker.worker.phase, "ended", "the worker still runs when the tab closes")

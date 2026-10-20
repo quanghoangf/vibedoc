@@ -5,7 +5,7 @@ import { Bot } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { RunCard, type RunValues } from "@/components/workers/RunCard"
-import type { RunProposal, RunRequest } from "@/lib/run-proposal"
+import type { RunProposal, RunRefusal, RunRequest } from "@/lib/run-proposal"
 
 export type RunCardStatus = "pending" | "accepted" | "rejected"
 
@@ -29,7 +29,7 @@ export function RunProposalCard({ set, onResolve, onOpenWorker }: {
 }) {
   const { rootParam } = useApp()
   const { t } = useT()
-  const [data, setData] = useState<{ proposal: RunProposal; errors: string[] } | null>(null)
+  const [data, setData] = useState<{ proposal: RunProposal; errors: string[]; refusals?: RunRefusal[] } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const { target, mode, workerId, branch, base } = set.request
@@ -62,6 +62,7 @@ export function RunProposalCard({ set, onResolve, onOpenWorker }: {
         body: JSON.stringify({ target: p.target, mode: p.mode, workerId: p.workerId, branch: v.branch, base: v.base }),
       })
       const d = await res.json().catch(() => null)
+      if (res.status === 409 && d?.refusals) return setData({ ...data, errors: d.errors, refusals: d.refusals })
       if (!res.ok || !d?.id) throw new Error(d?.error ?? t("board.requestFailed", { status: res.status }))
       onResolve("accepted", d.id)
     } catch (e) {
@@ -90,6 +91,8 @@ export function RunProposalCard({ set, onResolve, onOpenWorker }: {
           key={`${data.proposal.mode}-${data.proposal.workerId ?? data.proposal.branch}`}
           proposal={data.proposal}
           errors={data.errors}
+          refusals={data.refusals}
+          onOpenWorker={onOpenWorker}
           busy={busy}
           error={error}
           onAccept={accept}

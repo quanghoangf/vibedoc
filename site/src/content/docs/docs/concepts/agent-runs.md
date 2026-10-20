@@ -4,12 +4,12 @@ description: Start a coding agent on an epic or a task from VibeDoc. It works ta
 sidebar: { order: 7 }
 ---
 
-Click **Work with agent** on an epic (or a task's ⋯ menu) and a worker takes the work: it claims each ready task, writes the code in its own git worktree, verifies it, commits it on its own branch and moves on. You can close the tab. Later you find the tasks done on the board and a branch with one commit per task, and your own checkout has no code changes.
+Click **Work with agent** on an epic or a task (or press <kbd>⇧W</kbd> with it open) and a worker takes the work: it claims each ready task, writes the code in its own git worktree, verifies it, commits it on its own branch and moves on. You can close the tab. Later you find the tasks done on the board and a branch with one commit per task, and your own checkout has no code changes.
 
 ## How it works
 
-1. **Run card** — the server works out the run at once: a new worktree on `vibedoc/<id>`, or the epic's existing worker. It shows the branch, the base, the allowed and denied tools and the budget. Nothing is created until you click **Start worker**.
-2. **Worktree** — `~/.vibedoc/worktrees/<project>/<branch>` (or under `$VIBEDOC_HOME`), outside your repo, with its own dependency install and its own dev server port, so a UI spec tests the branch and not the app you have running.
+1. **Run card** — the server works out the run at once: a new worktree on `vibedoc/<id>`, or the epic's existing worker. It shows the branch, the base, the allowed and denied tools and the budget. Nothing is created until you click **Start worker**; then you land on the worker's chat on `/chat`.
+2. **Worktree** — `~/.vibedoc/worktrees/<project>/<branch>` (or under `$VIBEDOC_HOME`), outside your repo, with its own dependency install (the chat shows *Setting up the worktree* while it runs; a failed install shows its output) and its own dev server port, so a UI spec tests the branch and not the app you have running.
 3. **One task at a time** — each task runs `/vibedoc:work <task>` in a fresh Claude Code session. The task status lands in your checkout, so the board moves live. The code commit stays on the worker's branch.
 4. **Verify** — after each task a read-only review checks the code against the task. Critical or major findings get one fix in the same session. If they remain, the task is sent back and the worker waits on you.
 5. **Finish** — when the epic is done the worker chat shows what the branch changed, with **Open PR**, **Merge into &lt;base&gt;** and **Remove worktree**.

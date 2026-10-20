@@ -1,6 +1,6 @@
 // Self-check for run-proposal. Run: node src/lib/run-proposal.check.mts
 import assert from 'node:assert/strict'
-import { epicOf, formatProposal, formatWorkers, freeBranch, routeRun, validateRunProposal, type RunContext, type WorkerInfo } from './run-proposal.ts'
+import { epicOf, formatProposal, formatWorkers, freeBranch, routeRun, runRefusals, validateRunProposal, type RunContext, type WorkerInfo } from './run-proposal.ts'
 
 const epic = (id: string) => ({ kind: 'epic' as const, id })
 const worker = (o: Partial<WorkerInfo> = {}): WorkerInfo => ({
@@ -100,5 +100,23 @@ const listed = formatWorkers([worker({ phase: 'running', currentTask: 'T5', port
 assert.match(listed, /c-1.*R2.*vibedoc\/R2.*running \(no live process\).*on T5.*2 commits ahead.*port 3100/)
 assert.match(listed, /last: Done T1/)
 assert.match(formatWorkers([]), /No workers/)
+
+// base = the main checkout's branch when known; HEAD only when detached
+assert.equal(routeRun(epic('R3'), ctx({ currentBranch: 'main' })).base, 'main')
+assert.equal(routeRun(epic('R3'), ctx({ currentBranch: 'main' }), { base: 'dev' }).base, 'dev')
+// unfinished dependencies are named (done and review aren't), only for a new task worktree
+const deps = ctx({ tasks: [
+  { id: 'T1', status: 'todo', owner: null, dependsOn: ['T2', 'T3', 'T4'] },
+  { id: 'T2', status: 'in-progress', owner: 'human' }, { id: 'T3', status: 'done', owner: null }, { id: 'T4', status: 'review', owner: null },
+] })
+assert.deepEqual(routeRun(task('T1'), deps).waitingOn, [{ id: 'T2', status: 'in-progress' }])
+assert.equal(routeRun(task('T2'), deps).waitingOn, undefined)
+// refusals as data: code + vars for the UI, the same text as validateRunProposal
+const busyRef = runRefusals(routeRun(epic('R2'), ctx({ workers: [worker({ running: true, currentTask: 'T5' })] })), ctx({ workers: [worker({ running: true, currentTask: 'T5' })] }))
+assert.deepEqual([busyRef[0].code, busyRef[0].workerId, busyRef[0].vars.task], ['worker-running', 'c-1', 'T5'])
+const dupRef = runRefusals(routeRun(epic('R2'), idle, { mode: 'new' }), idle)
+assert.deepEqual([dupRef[0].code, dupRef[0].workerId], ['has-worker', 'c-1'])
+assert.equal(runRefusals(routeRun(epic('R3'), busy), busy)[0].code, 'limit')
+assert.deepEqual(runRefusals(routeRun(task('T2'), deps), deps).map(r => [r.code, r.vars.owner]), [['in-progress', 'human']])
 
 console.log('run-proposal: ok')

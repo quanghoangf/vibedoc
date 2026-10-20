@@ -61,7 +61,12 @@ export function workerDeps(root: string, chat: WorkerChat, origin: string, worke
 // ponytail: runs on GET /api/conversations (every page loads it) and on a worker's own MCP call, not at boot; a startup hook if nobody opens VibeDoc
 export async function adoptWorkers(root: string, origin: string): Promise<void> {
   const live = liveWorkerIds(root)
-  const orphans = (await listChats(root) as WorkerChat[]).filter(c => (c.worker?.phase === 'paused' || c.worker?.phase === 'running') && !live.has(c.id))
+  const chats = await listChats(root) as WorkerChat[]
+  // a restart during the dependency install (POST /api/workers runs it after the reply): failed, so Work with agent installs again
+  for (const c of chats.filter(c => c.worker?.phase === 'starting' && !live.has(c.id))) {
+    await saveWorkerChat(root)({ ...c, busy: false, worker: { ...c.worker, phase: 'failed', reason: 'Setup was interrupted (VibeDoc stopped during the dependency install).' } })
+  }
+  const orphans = chats.filter(c => (c.worker?.phase === 'paused' || c.worker?.phase === 'running') && !live.has(c.id))
   if (!orphans.length) return
   const [{ workers }, states] = await Promise.all([readProjectSettings(root), readWorkerStates(root)])
   const settling: Promise<void>[] = []

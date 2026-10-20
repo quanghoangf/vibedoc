@@ -27,7 +27,9 @@ export interface RunContext {
   /** `tasks`: the epic's **Tasks:** ids (T560: a task's epic) */
   roadmap: { id: string; parent: string | null; status: string; tasks?: string[] }[]
   /** T560: every task's status and owner, for a task target */
-  tasks?: { id: string; status: string; owner: string | null }[]
+  tasks?: { id: string; status: string; owner: string | null; dependsOn?: string[] }[]
+  /** The main checkout's branch: a new worktree's default base (HEAD when detached or unknown) */
+  currentBranch?: string
   workers: WorkerInfo[]
   branches: string[]
   maxRunning: number
@@ -52,6 +54,8 @@ export interface RunProposal {
   /** existing: the worker runs right now, so Accept is off */
   running?: boolean
   currentTask?: string | null
+  /** A task target's dependencies that aren't done or in review: the worker may stop and wait on you */
+  waitingOn?: { id: string; status: string }[]
 }
 
 export interface RunRequest { mode?: 'new' | 'existing'; workerId?: string; branch?: string; base?: string }
@@ -97,44 +101,67 @@ export function routeRun(target: Attach, ctx: RunContext, want: RunRequest = {})
       ...tools, running: existing?.running ?? false, currentTask: existing?.currentTask ?? null,
     }
   }
-  return { target, mode: 'new', branch: want.branch?.trim() || freeBranch(target.id, ctx.branches), base: want.base?.trim() || 'HEAD', ...tools }
+  const task = target.kind === 'task' ? ctx.tasks?.find(t => t.id === target.id) : undefined
+  const waitingOn = (task?.dependsOn ?? []).flatMap(d => {
+    const dep = ctx.tasks?.find(t => t.id === d)
+    return dep && dep.status !== 'done' && dep.status !== 'review' ? [{ id: d, status: dep.status }] : []
+  })
+  return {
+    target, mode: 'new', branch: want.branch?.trim() || freeBranch(target.id, ctx.branches), base: want.base?.trim() || ctx.currentBranch || 'HEAD', ...tools,
+    ...(waitingOn.length && { waitingOn }),
+  }
+}
+
+/** Why a run can't go, as data: `code` + `vars` for the UI's own words (i18n), `text` for the agent and the API (English). */
+export interface RunRefusal {
+  code: 'not-found' | 'horizon' | 'nothing-left' | 'in-progress' | 'has-worker' | 'branch-required' | 'branch-exists' | 'base-required' | 'limit' | 'no-worker' | 'other-target' | 'worker-running'
+  vars: Record<string, string | number>
+  /** A worker chat the refusal points to (has-worker, worker-running) */
+  workerId?: string
+  text: string
 }
 
 /** Why the proposal can't run now; empty = Accept may go. Messages are for the user and the agent (English). */
 export function validateRunProposal(p: RunProposal, ctx: RunContext): string[] {
+  return runRefusals(p, ctx).map(r => r.text)
+}
+
+/** validateRunProposal as data (the run card translates `code`). */
+export function runRefusals(p: RunProposal, ctx: RunContext): RunRefusal[] {
   const id = p.target.id
+  const no = (code: RunRefusal['code'], text: string, vars: RunRefusal['vars'] = {}, workerId?: string): RunRefusal => ({ code, vars: { id, ...vars }, text, ...(workerId && { workerId }) })
   // the worker that owns this run's files: the epic's (one per epic, ADR-007 decision 6), or a loose task's own
   let owner = id
   if (p.target.kind === 'task') {
     const task = ctx.tasks?.find(t => t.id === id)
-    if (!task) return [`Task ${id} not found`]
-    if (task.status === 'done' || task.status === 'cancelled' || task.status === 'review') return [`${id} is ${task.status}: nothing left for a worker`]
+    if (!task) return [no('not-found', `Task ${id} not found`)]
+    if (task.status === 'done' || task.status === 'cancelled' || task.status === 'review') return [no('nothing-left', `${id} is ${task.status}: nothing left for a worker`, { status: task.status })]
     const mine = p.mode === 'existing' && task.owner === `ai:worker-${p.workerId}`
-    if (task.status === 'in-progress' && !mine) return [`${id} is in progress${task.owner ? ` (${task.owner})` : ''}`]
+    if (task.status === 'in-progress' && !mine) return [no('in-progress', `${id} is in progress${task.owner ? ` (${task.owner})` : ''}`, { owner: task.owner ?? '' })]
     owner = epicOf(p.target, ctx) ?? id
   } else {
     const epic = ctx.roadmap.find(i => i.id === id)
-    if (!epic) return [`Epic ${id} not found`]
-    if (!epic.parent) return [`${id} is a horizon; pass an epic id`]
-    if (epic.status === 'done') return [`${id} is done: nothing left for a worker`]
+    if (!epic) return [no('not-found', `Epic ${id} not found`)]
+    if (!epic.parent) return [no('horizon', `${id} is a horizon; pass an epic id`)]
+    if (epic.status === 'done') return [no('nothing-left', `${id} is done: nothing left for a worker`, { status: 'done' })]
   }
-  const errors: string[] = []
+  const errors: RunRefusal[] = []
   const running = ctx.workers.filter(w => w.running).length
-  const overLimit = `The limit of ${ctx.maxRunning} running workers is reached (Settings → Workers). Stop one, or wait.`
+  const overLimit = () => no('limit', `The limit of ${ctx.maxRunning} running workers is reached (Settings → Workers). Stop one, or wait.`, { max: ctx.maxRunning })
   if (p.mode === 'new') {
     const w = workerFor(owner, ctx.workers) ?? (p.target.kind === 'task' ? taskWorker(id, ctx.workers) : null)
-    if (w) errors.push(`${owner} already has worker ${w.id} on ${w.branch} (${w.running ? 'running' : w.phase}): send the run to it (mode "existing", workerId "${w.id}")`)
-    if (!p.branch.trim()) errors.push('A branch name is required')
-    else if (ctx.branches.includes(p.branch.trim())) errors.push(`Branch ${p.branch.trim()} already exists`)
-    if (!p.base.trim()) errors.push('A base is required')
-    if (running >= ctx.maxRunning) errors.push(overLimit)
+    if (w) errors.push(no('has-worker', `${owner} already has worker ${w.id} on ${w.branch} (${w.running ? 'running' : w.phase}): send the run to it (mode "existing", workerId "${w.id}")`, { owner, branch: w.branch }, w.id))
+    if (!p.branch.trim()) errors.push(no('branch-required', 'A branch name is required'))
+    else if (ctx.branches.includes(p.branch.trim())) errors.push(no('branch-exists', `Branch ${p.branch.trim()} already exists`, { branch: p.branch.trim() }))
+    if (!p.base.trim()) errors.push(no('base-required', 'A base is required'))
+    if (running >= ctx.maxRunning) errors.push(overLimit())
     return errors
   }
   const w = ctx.workers.find(x => x.id === p.workerId)
-  if (!w) return [`No worker ${p.workerId ?? '(none given)'} with a worktree in this project`]
-  if (w.target.id !== owner) return [`Worker ${w.id} works on ${w.target.id}, not ${id}`]
-  if (w.running) return [`Worker ${w.id} is already running on ${w.target.id}${w.currentTask ? ` (${w.currentTask})` : ''}`]
-  if (running >= ctx.maxRunning) errors.push(overLimit)
+  if (!w) return [no('no-worker', `No worker ${p.workerId ?? '(none given)'} with a worktree in this project`)]
+  if (w.target.id !== owner) return [no('other-target', `Worker ${w.id} works on ${w.target.id}, not ${id}`, { other: w.target.id })]
+  if (w.running) return [no('worker-running', `Worker ${w.id} is already running on ${w.target.id}${w.currentTask ? ` (${w.currentTask})` : ''}`, { task: w.currentTask ?? w.target.id }, w.id)]
+  if (running >= ctx.maxRunning) errors.push(overLimit())
   return errors
 }
 

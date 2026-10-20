@@ -22,7 +22,7 @@ import { dueState, localToday, type RoadmapProgress } from "@/lib/roadmap-health
 import { pickNextTask } from "@/lib/work-queue"
 import { testReviewHref } from "@/lib/test-review"
 import { ItemActionsMenu, type ItemActions } from "./ItemActionsMenu"
-import { useItemCommands } from "@/components/shared/item-commands"
+import { itemKeyLabel, useItemCommands } from "@/components/shared/item-commands"
 import { OwnerChip } from "@/components/shared/OwnerChip"
 import { ItemPanelHeader } from "@/components/shared/ItemPanelHeader"
 import { EpicDiagram } from "@/components/shared/DerivedDiagram"
@@ -139,6 +139,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
     { action: "status", label: t("board.changeStatus"), run: () => setMenuOpen(true) },
     { action: "duplicate", label: t("roadmap.duplicate"), run: () => actions.duplicate(item.id) },
     ...(isHorizon ? [] : [{ action: "chat" as const, label: t("roadmap.chatAboutIt"), run: () => actions.chat(item.id) }]),
+    ...(isHorizon || playground || item.status === "done" ? [] : [{ action: "run" as const, label: t("workers.workWithAgent"), run: run.open }]),
     ...(epics.length ? [] : [{ action: "remove" as const, label: t("board.delete"), run: () => actions.remove(item.id) }]),
   ])
 
@@ -301,7 +302,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
           </Button>
         )}
         {!isHorizon && !playground && (
-          <Button size="sm" variant="outline" onClick={run.open}>
+          <Button size="sm" variant="outline" onClick={run.open} title={`${t("workers.runCardLead")} (${itemKeyLabel("run")})`} aria-keyshortcuts="Shift+W">
             <Bot /> {t("workers.workWithAgent")}
           </Button>
         )}

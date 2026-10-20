@@ -42,6 +42,7 @@ export const ITEM_KEYS = {
   status: { key: "S", label: "⇧S", help: "help.itemStatus" },
   duplicate: { key: "D", label: "⇧D", help: "docs.duplicate" },
   chat: { key: "C", label: "⇧C", help: "help.itemChat" },
+  run: { key: "W", label: "⇧W", help: "help.itemRun" },
   remove: { key: "Backspace", label: "⌫", help: "help.itemRemove" },
 } as const
 export type ItemAction = keyof typeof ITEM_KEYS
