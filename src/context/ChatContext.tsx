@@ -225,11 +225,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // The tab title's "(n) VibeDoc" counts the whole inbox now (R105 T547): AppHeader's InboxBadge writes it
 
-  // Desktop notification when a chat starts waiting while this browser tab is in the background
+  // Desktop notification when a chat starts waiting while this tab is in the background: hidden, or visible but not
+  // focused (another window in front; the desktop app's window behind another app, R111)
   useEffect(() => {
     const fresh = newlyWaiting(notifiedRef.current, chats)
     notifiedRef.current = Object.fromEntries(chats.map((c) => [c.id, chatStatus(c)]))
-    if (!fresh.length || !document.hidden || !("Notification" in window) || Notification.permission !== "granted") return
+    if (!fresh.length || (!document.hidden && document.hasFocus()) || !("Notification" in window) || Notification.permission !== "granted") return
     for (const { chat, status } of fresh) {
       const n = new Notification(tNow(status === "needs-answer" ? "chat.notifyNeedsAnswer" : "chat.notifyPlanReady"), { body: chat.title, tag: chat.id })
       n.onclick = () => { window.focus(); openAgentChat(chat.id); n.close() }

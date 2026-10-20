@@ -3,7 +3,7 @@
 // the app starts one as its own child and stops it on quit (desktop/server.mjs, T578). The window shows the same Next
 // app as the browser. A VibeDoc the app didn't start is never stopped.
 // Run from source: pnpm --dir desktop install && pnpm --dir desktop start. Doc: docs/desktop-app.md
-import { app, BrowserWindow, Menu, nativeImage, screen } from 'electron'
+import { app, BrowserWindow, Menu, nativeImage, screen, shell } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -102,6 +102,24 @@ function connect() {
   return connecting
 }
 
+/** Links to other sites go to the default browser (http, https, mailto only); anything else is refused (T579). */
+function openOutside(url) {
+  if (/^(https?|mailto):/i.test(url)) shell.openExternal(url)
+}
+const isHub = (url) => {
+  try {
+    return !!server && new URL(url).origin === new URL(server.url).origin
+  } catch {
+    return false
+  }
+}
+
+/** The page title's `(n) VibeDoc` (the UI's inbox count, R105) as the Dock / taskbar badge. */
+function badgeFromTitle(title) {
+  const n = Number(/^\((\d+)\)/.exec(title)?.[1] ?? 0)
+  app.setBadgeCount(n)
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1280,
@@ -121,6 +139,19 @@ function createWindow() {
   win.on('closed', () => {
     win = null
   })
+  // another site never loads in the window: a new window (target=_blank, window.open) on the hub opens here, else the
+  // browser; an in-page navigation away from the hub goes to the browser
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (isHub(url)) win.loadURL(url)
+    else openOutside(url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (e, url) => {
+    if (isHub(url)) return
+    e.preventDefault()
+    openOutside(url)
+  })
+  win.on('page-title-updated', (_e, title) => badgeFromTitle(title))
   // Try again on the failure page is a #retry link (the page has no preload)
   win.webContents.on('did-navigate-in-page', (_e, url) => {
     if (url.endsWith('#retry')) connect()
@@ -149,8 +180,12 @@ if (!app.requestSingleInstanceLock()) {
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit()
   })
+  // the Dock icon, or a click on a notification (macOS activates the app): the window comes to the front
   app.on('activate', () => {
-    if (!win) createWindow()
+    if (!win) return createWindow()
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
   })
   // quit stops only a VibeDoc this app started (and what it started), then quits for real
   app.on('before-quit', (e) => {

@@ -1,6 +1,8 @@
 // End-to-end check for the desktop app (R111): an Electron window around the VibeDoc hub that already runs.
 //   1. A foreground hub runs (`vibedoc --port 3085`): the app's window loads its URL, titled VibeDoc, and the menu's
 //      status line names the address. Still one process listens on the port (S2: no second VibeDoc).
+//      S4: links to other sites go to shell.openExternal (stubbed), a target=_blank hub link stays in the window,
+//      file: and javascript: links do nothing.
 //   2. Opening the app again focuses the one window: the second launch exits, still one window.
 //   3. Closing the window, then quitting the app, leaves the hub answering GET /api/projects 200.
 //   4. S3: nothing runs on the home's port: the app starts its own VibeDoc (starting screen, then the board, the menu
@@ -85,6 +87,35 @@ try {
   assert.equal(await statusLine(app), `Using VibeDoc at http://localhost:${PORT}`, "the menu says which VibeDoc")
   assert.equal(servers(PORT), 1, "S2: no second VibeDoc")
   console.log("✓ the app opens the running hub in its window and says so")
+
+  // S4: other sites go to the default browser (shell.openExternal stubbed), the hub's own links stay in the window
+  await app.evaluate(({ shell }) => { globalThis.opened = []; shell.openExternal = async (url) => { globalThis.opened.push(url) } })
+  const opened = () => app.evaluate(() => globalThis.opened)
+  const click = (href, target) => win.evaluate(([href, target]) => {
+    const a = document.createElement("a")
+    a.href = href
+    if (target) a.target = target
+    a.textContent = "e2e link"
+    document.body.append(a)
+    a.click()
+    a.remove()
+  }, [href, target])
+  const hubUrl = win.url()
+  await click("https://example.com/docs")
+  await waitFor(async () => (await opened()).includes("https://example.com/docs"), "openExternal for an in-page link")
+  await click("https://example.org/new", "_blank")
+  await waitFor(async () => (await opened()).includes("https://example.org/new"), "openExternal for target=_blank")
+  assert.equal(win.url(), hubUrl, "the window stays on the hub")
+  await click("file:///etc/hosts")
+  await click("javascript:void(0)", "_blank")
+  await new Promise((r) => setTimeout(r, 500))
+  assert.deepEqual(await opened(), ["https://example.com/docs", "https://example.org/new"], "file: and javascript: go nowhere")
+  assert.equal(win.url(), hubUrl)
+  await click(`http://localhost:${PORT}/roadmap`, "_blank")
+  await win.waitForURL(`http://localhost:${PORT}/roadmap**`)
+  assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1, "a hub link opens in the app window")
+  assert.equal((await opened()).length, 2)
+  console.log("✓ S4: links to other sites open in the browser, the hub's own stay in the window, file:/javascript: do nothing")
 
   // 2. a second launch focuses the existing window and exits
   const second = spawn(electronBin, [desktopDir, "--lang=en-US"], { env: appEnv(home, userData) })

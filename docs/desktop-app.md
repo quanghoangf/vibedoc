@@ -41,6 +41,12 @@ The app runs `bin/vibedoc.mjs --no-open` (the CLI's foreground start) as its own
 
 The window remembers its size and position in the app's own folder (Electron's `userData`, e.g. `~/Library/Application Support/VibeDoc`), never in the VibeDoc home. The app's own text (the status line, the starting and failure screens) is in English and Vietnamese, picked from the OS language (`desktop/i18n.mjs`).
 
+## Links and notifications
+
+- **Links to other sites** open in your default browser, never inside the VibeDoc window: an ordinary link, a `target=_blank` link and `window.open` alike. Only `http`, `https` and `mailto` links go out; `file:`, `javascript:` and other schemes do nothing. Links to VibeDoc itself stay in the window (a `target=_blank` one opens in the same window, not a second one).
+- **A chat waiting on you** raises a native notification, the same one a browser tab shows when it is in the background: "needs your answer" or "plan ready", with the chat's title. The app counts as in the background when its window is hidden *or* just not focused (another app in front), and so does a browser tab now. Clicking the notification brings the window to the front on that chat.
+- **The Dock / taskbar badge** shows the number in the page title's `(n) VibeDoc`: the inbox count (R105). No number, no badge.
+
 ## Check
 
 ```bash
