@@ -43,7 +43,7 @@ test.describe('docs site (T210)', () => {
   })
 
   test('links between docs pages resolve', async ({ page, request }) => {
-    const pages = ['docs/', 'docs/ai-install/', 'docs/skills/', 'docs/troubleshooting/', 'docs/concepts/tasks/', 'docs/concepts/roadmap/', 'docs/concepts/memory/', 'docs/concepts/specs/', 'docs/concepts/evidence/']
+    const pages = ['docs/', 'docs/ai-install/', 'docs/skills/', 'docs/troubleshooting/', 'docs/concepts/tasks/', 'docs/concepts/roadmap/', 'docs/concepts/memory/', 'docs/concepts/specs/', 'docs/concepts/evidence/', 'docs/concepts/agent-runs/']
     for (const p of pages) {
       await page.goto(p)
       const hrefs = await page.getByRole('main').locator('a[href^="/vibedoc/docs"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')))
