@@ -6,6 +6,8 @@
 //   3. Plain `vibedoc` still runs in the foreground and Ctrl+C stops it.
 //   4. A start failure (the app exits before it is ready) prints the reason + log tail, exits non-zero, and
 //      server.json says stopped with lastError.
+//   S3: `vibedoc status` exits 3 with nothing running (also a dead supervisorPid), 0 with the address, since when and
+//      the log after start, "in the foreground" for plain vibedoc, the last error after a failed start; --json too.
 //
 //   pnpm build && node e2e/background-mode.mjs      (PORT=3090 by default)
 //
@@ -77,6 +79,12 @@ async function stopBackground(h = home) {
 try {
   const url = `http://localhost:${PORT}`
 
+  // S3: with nothing running, status exits 3 and says so (--port: never see a real VibeDoc on 3333)
+  const none = await runToExit(repoA, ["status", "--port", String(PORT)])
+  assert.equal(none.code, 3, none.out)
+  assert.ok(none.out.includes("○ VibeDoc is not running") && none.out.includes("Start it with: vibedoc start"), none.out)
+  console.log("✓ status with nothing running exits 3")
+
   // 1. S1: start hands the terminal back, the app keeps answering
   const first = await runToExit(repoA, ["start", "--port", String(PORT)])
   assert.equal(first.code, 0, first.out)
@@ -96,6 +104,21 @@ try {
   assert.ok(readFileSync(s1.log, "utf8").includes("supervisor: running on"), "the supervisor logs to server.log")
   console.log(`✓ start exits in ${first.ms} ms and VibeDoc keeps answering at ${url}`)
 
+  // S3: status after start: exit 0, the address, since when, the log; --json is valid JSON with running
+  const st = await runToExit(repoB, ["status"])
+  assert.equal(st.code, 0, st.out)
+  assert.ok(st.out.includes(`● VibeDoc is running at ${url}`), st.out)
+  assert.match(st.out, /^ {2}since \d{4}-\d\d-\d\d \d\d:\d\d \((under a minute|\d+ min)\)$/m)
+  assert.ok(st.out.includes(`  log: ${path.join(home, "logs", "server.log")}`), st.out)
+  const stJson = await runToExit(repoB, ["status", "--json"])
+  assert.equal(stJson.code, 0, stJson.out)
+  const parsed = JSON.parse(stJson.out)
+  assert.equal(parsed.running, true)
+  assert.equal(parsed.mode, "background")
+  assert.equal(parsed.port, PORT)
+  assert.equal(parsed.supervisorPid, s1.supervisorPid)
+  console.log("✓ status says running at the address, since when and the log (text and --json)")
+
   // 2. S2: a second start reuses it, in the same repo and in another one
   for (const [cwd, name] of [[repoA, "same repo"], [repoB, "another repo"]]) {
     const again = await runToExit(cwd, ["start"])
@@ -111,6 +134,17 @@ try {
 
   // 3. plain vibedoc stays in the foreground; Ctrl+C stops it
   await stopBackground()
+  // a server.json whose supervisor is dead counts as not running, and status doesn't rewrite it
+  const stale = readFileSync(path.join(home, "server.json"), "utf8")
+  writeFileSync(path.join(home, "server.json"), JSON.stringify({ ...JSON.parse(stale), state: "running" }))
+  const staleBefore = readFileSync(path.join(home, "server.json"), "utf8")
+  assert.ok(!alive(JSON.parse(staleBefore).supervisorPid))
+  const staleStatus = await runToExit(repoA, ["status", "--port", String(PORT)])
+  assert.equal(staleStatus.code, 3, staleStatus.out)
+  assert.ok(staleStatus.out.includes("○ VibeDoc is not running"), staleStatus.out)
+  assert.equal(readFileSync(path.join(home, "server.json"), "utf8"), staleBefore, "status leaves server.json alone")
+  writeFileSync(path.join(home, "server.json"), stale)
+  console.log("✓ a dead supervisorPid in server.json counts as not running")
   const fg = spawn(process.execPath, [bin, "--no-open"], { cwd: repoA, env: env() })
   children.add(fg)
   let fgOut = ""
@@ -119,6 +153,11 @@ try {
   await until("the foreground server", () => fgOut.includes("Press Ctrl+C"), 60_000)
   assert.equal(fg.exitCode, null, "foreground keeps running")
   assert.equal(await answers(PORT), 200)
+  const fgStatus = await runToExit(repoB, ["status"])
+  assert.equal(fgStatus.code, 0, fgStatus.out)
+  assert.ok(fgStatus.out.includes(`● VibeDoc is running in the foreground at ${url} (not started with \`vibedoc start\`)`), fgStatus.out)
+  const fgJson = JSON.parse((await runToExit(repoB, ["status", "--json"])).out)
+  assert.deepEqual([fgJson.running, fgJson.mode, fgJson.port], [true, "foreground", PORT])
   fg.kill("SIGINT")
   await until("the foreground to exit", () => fg.exitCode !== null)
   await until("the port to free after Ctrl+C", async () => (await answers(PORT)) === 0)
@@ -152,6 +191,12 @@ try {
   assert.equal(s4.lastError, "the app exited with code 3 before it was ready")
   assert.ok(!alive(s4.supervisorPid), "the supervisor is gone")
   console.log("✓ a failed start says why, exits", failed.code, "and server.json says stopped")
+  const afterFail = await runToExit(repoA, ["status"])
+  assert.equal(afterFail.code, 3, afterFail.out)
+  assert.ok(afterFail.out.includes("  Last error: the app exited with code 3 before it was ready"), afterFail.out)
+  const failJson = JSON.parse((await runToExit(repoA, ["status", "--json"])).out)
+  assert.deepEqual([failJson.running, failJson.mode, failJson.state], [false, null, "stopped"])
+  console.log("✓ status after a failed start shows the last error")
 } finally {
   for (const child of children) child.kill("SIGTERM")
   const s = state()

@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process'
 import { closeSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { acquireStartLock, isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, serverStateFile, startLockFile, writeServerState } from './server-state.mjs'
+import { acquireStartLock, formatStatus, formatUptime, isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, serverStateFile, startLockFile, tildePath, writeServerState } from './server-state.mjs'
 
 const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-server-state-'))
 try {
@@ -80,6 +80,31 @@ try {
   const release3 = await acquireStartLock(lockHome, { timeoutMs: 1000 })
   assert.equal(typeof release3, 'function', 'a dead holder\'s lock is taken over')
   ;(release3 as () => void)()
+
+  // formatStatus: running (address, since when, log with home as ~), foreground, not running, not running + lastError
+  process.env.TZ = 'UTC'
+  const running = { ...first, state: 'running', startedAt: '2026-10-20T14:02:00.000Z', log: '/Users/me/.vibedoc/logs/server.log' }
+  const now = Date.parse('2026-10-20T17:14:30.000Z')
+  assert.deepEqual(formatStatus(running, { mode: 'background', port: 3333, now, userHome: '/Users/me' }), [
+    '● VibeDoc is running at http://localhost:3333',
+    '  since 2026-10-20 14:02 (3 h 12 min)',
+    '  log: ~/.vibedoc/logs/server.log',
+  ])
+  assert.deepEqual(formatStatus(null, { mode: 'foreground', port: 3333 }), [
+    '● VibeDoc is running in the foreground at http://localhost:3333 (not started with `vibedoc start`)',
+  ])
+  const notRunning = ['○ VibeDoc is not running', '  Start it with: vibedoc start']
+  assert.deepEqual(formatStatus(null, { mode: null, port: null }), notRunning)
+  assert.deepEqual(formatStatus(running, { mode: null, port: null }), notRunning, 'a stale running file: not running')
+  assert.deepEqual(formatStatus({ ...running, state: 'crashed', lastError: 'the app exited with code 1' }, { mode: null, port: null }), [
+    '○ VibeDoc is not running', '  Last error: the app exited with code 1', '  Start it with: vibedoc start',
+  ])
+  assert.equal(formatUptime(30_000), 'under a minute')
+  assert.equal(formatUptime(12 * 60_000), '12 min')
+  assert.equal(formatUptime(3 * 3600_000), '3 h')
+  assert.equal(formatUptime((2 * 24 + 4) * 3600_000 + 5 * 60_000), '2 d 4 h')
+  assert.equal(tildePath('/Users/me', '/Users/me'), '~')
+  assert.equal(tildePath('/Users/meow/x', '/Users/me'), '/Users/meow/x', 'only the home folder itself')
 } finally {
   rmSync(root, { recursive: true, force: true })
 }

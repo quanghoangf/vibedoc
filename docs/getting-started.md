@@ -46,6 +46,8 @@ flowchart LR
 
 It prints `✓ VibeDoc is running in the background at http://localhost:<port>` with the MCP URL, opens the browser and gives the terminal back. A small supervisor keeps the server running; its state is in `~/.vibedoc/server.json` and the server's output in `~/.vibedoc/logs/server.log` (moved to `server.log.1` once it passes 5 MB). Run `vibedoc start` again, in the same repo or another one, and it reuses the running VibeDoc: it adds that repo and prints the same address, never a second server. The same goes for plain `vibedoc` while a background one runs. If the app can't start, `start` prints why and the end of the log, and exits with a non-zero code. The demo (`--demo`) runs in the foreground only.
 
+`vibedoc status` says whether VibeDoc runs and where: `● VibeDoc is running at http://localhost:3333`, since when, and the log file. A plain `vibedoc` shows as running in the foreground. Otherwise it prints `○ VibeDoc is not running`, with the last error when the server stopped on one. It exits 0 when VibeDoc runs and 3 when it doesn't, and `--json` prints the state for scripts.
+
 ## 2. Point it at a project
 
 VibeDoc reads the folder you start it in. To use another folder:

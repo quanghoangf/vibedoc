@@ -4,10 +4,10 @@ import { closeSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { createRequire } from 'node:module'
-import { addToHub, addressChangedMessage, appUrl, dropLegacyPort, legacyPort, migrationMessage, parsePortArg, portFile, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
+import { FIRST_PORT, addToHub, addressChangedMessage, appUrl, dropLegacyPort, legacyPort, migrationMessage, parsePortArg, portFile, probeVibedoc, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
 import { repoRoot } from './repo-root.mjs'
 import { prepareDemo, sweepDemos } from './demo.mjs'
-import { acquireStartLock, isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, writeServerState } from './server-state.mjs'
+import { acquireStartLock, formatStatus, isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, writeServerState } from './server-state.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
@@ -109,6 +109,38 @@ if (args[0] === 'check') {
   // flush a large --json report through a pipe before exiting (the rest of this file would start the app)
   await new Promise((resolve) => process.stdout.write('', resolve))
   process.exit(code)
+}
+
+// `vibedoc status` (R109): whether VibeDoc runs and where, from server.json + a live check. Starts nothing and never
+// rewrites the file. Exit 0 running, 3 not running (LSB), 1 bad args
+if (args[0] === 'status') {
+  const home = vibedocHome()
+  const portArg = parsePortArg(args)
+  if (portArg.error) {
+    console.error(`\n✗ ${portArg.error}\n`)
+    process.exit(1)
+  }
+  const state = readServerState(home)
+  let mode = null
+  let port = null
+  if (state && isAlive(state.supervisorPid) && Number.isInteger(state.port) && (await probeVibedoc(state.port))) {
+    mode = 'background'
+    port = state.port
+  } else {
+    // a VibeDoc with no live supervisor (plain `vibedoc`) on the hub's port
+    const fgPort = portArg.port ?? readSavedPort(home) ?? FIRST_PORT
+    if (await probeVibedoc(fgPort)) {
+      mode = 'foreground'
+      port = fgPort
+    }
+  }
+  if (args.includes('--json')) {
+    const foreground = mode === 'foreground' ? { port } : {}
+    console.log(JSON.stringify({ ...state, ...foreground, running: mode !== null, mode }, null, 2))
+  } else {
+    console.log(formatStatus(state, { mode, port }).join('\n'))
+  }
+  await exitFlushed(mode ? 0 : 3)
 }
 
 // `vibedoc start` (R109): the same startup, but the server runs under a detached supervisor and the terminal is given

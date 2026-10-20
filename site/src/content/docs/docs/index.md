@@ -59,6 +59,8 @@ vibedoc start            # same flags as vibedoc: --port, --no-open
 
 It prints `✓ VibeDoc is running in the background at http://localhost:<port>` with the MCP URL, opens the browser and gives the terminal back. The server's output goes to `~/.vibedoc/logs/server.log`. Run `vibedoc start` again, in the same repo or another one, and it reuses the running VibeDoc: it adds that repo and prints the same address, never a second server. The same goes for plain `vibedoc` while a background one runs. If the app can't start, `start` prints why and the end of the log, and exits with a non-zero code.
 
+`vibedoc status` says whether VibeDoc runs and where: `● VibeDoc is running at http://localhost:3333`, since when, and the log file. A plain `vibedoc` shows as running in the foreground. Otherwise it prints `○ VibeDoc is not running`, with the last error when the server stopped on one. It exits 0 when VibeDoc runs and 3 when it doesn't, and `--json` prints the state for scripts.
+
 ## 2. Connect your agent
 
 The MCP server is `http://localhost:<port>/api/mcp?root=<project folder>` (HTTP JSON-RPC). Use the MCP URL the terminal prints.

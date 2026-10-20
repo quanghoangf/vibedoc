@@ -5,6 +5,7 @@
 //          restarts: [], lastError: null }
 // Check: node bin/server-state.check.mts
 import { closeSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 export const SERVER_STATES = ['starting', 'running', 'crashed', 'stopped']
@@ -120,4 +121,50 @@ export function readLogFrom(home, offset = 0, maxBytes = 16_000) {
   } finally {
     if (fd !== undefined) closeSync(fd)
   }
+}
+
+const pad = (n) => String(n).padStart(2, '0')
+/** A local date and time, `2026-10-20 14:02`. */
+const localStamp = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+
+/** How long it has run: `3 h 12 min`, `2 d 4 h`, `12 min`, `under a minute`. */
+export function formatUptime(ms) {
+  const min = Math.floor(Math.max(0, ms) / 60_000)
+  if (min < 1) return 'under a minute'
+  const d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60
+  if (d) return `${d} d${h ? ` ${h} h` : ''}`
+  if (h) return `${h} h${m ? ` ${m} min` : ''}`
+  return `${m} min`
+}
+
+/** The path with the user's home folder shown as `~`. */
+export function tildePath(p, userHome = os.homedir()) {
+  if (!p || !userHome) return p
+  if (p === userHome) return '~'
+  return p.startsWith(userHome + path.sep) ? `~${p.slice(userHome.length)}` : p
+}
+
+/**
+ * `vibedoc status`'s lines. `state` = server.json (or null); `live` = what the live check found:
+ * `{ mode: "background"|"foreground"|null, port, now?, userHome? }`. The caller reports background only when the
+ * supervisor is alive and the app answers, so a stale file is "not running" (its lastError still shown).
+ */
+export function formatStatus(state, live) {
+  const url = `http://localhost:${live.port}`
+  if (live.mode === 'foreground') {
+    return [`● VibeDoc is running in the foreground at ${url} (not started with \`vibedoc start\`)`]
+  }
+  if (live.mode === 'background') {
+    const lines = [`● VibeDoc is running at ${url}`]
+    const started = Date.parse(state?.startedAt ?? '')
+    if (!Number.isNaN(started)) {
+      lines.push(`  since ${localStamp(new Date(started))} (${formatUptime((live.now ?? Date.now()) - started)})`)
+    }
+    if (state?.log) lines.push(`  log: ${tildePath(state.log, live.userHome)}`)
+    return lines
+  }
+  const lines = ['○ VibeDoc is not running']
+  if (state?.lastError) lines.push(`  Last error: ${state.lastError}`)
+  lines.push('  Start it with: vibedoc start')
+  return lines
 }
