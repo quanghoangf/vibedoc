@@ -23,6 +23,8 @@ export interface AppSettings {
   tasks?: { sizeDays?: Record<string, number> }
   /** Optional: the project's task statuses in board order (R055); unset = the seven built-ins */
   statuses?: StatusDef[]
+  /** Optional (R108 T557): what a worker may run, its env names, how many run at once; unset = defaults (GET /api/workers) */
+  workers?: { allowedTools?: string[]; maxRunning?: number; env?: string[] }
 }
 
 export interface Skill {

@@ -13,9 +13,10 @@ import { beginTurn } from './chat-turns'
 import { killGroup } from './test-runner'
 import { stopFrontend } from './frontend-server'
 import { workerPort } from './worktrees'
+import { refusedCalls, type RefusedCall } from './worker-state'
 
 /** The chat message shape ChatContext renders (one user line per task, then the agent's last reply). */
-type Message = { role: 'user' | 'assistant'; text: string; tools: string[]; proposals: unknown[]; plans: unknown[]; questions: unknown[]; error?: string }
+type Message = { role: 'user' | 'assistant'; text: string; tools: string[]; proposals: unknown[]; plans: unknown[]; questions: unknown[]; error?: string; refused?: RefusedCall[] }
 export type WorkerChat = Chat<Message> & { worker: Worker }
 
 export interface WorkerDeps {
@@ -25,6 +26,8 @@ export interface WorkerDeps {
   taskStatus: (taskId: string) => Promise<string>
   /** The argv of one task turn (worker-args.ts) */
   args: (taskId: string) => string[]
+  /** The whole env of a task turn (workerEnv in worker-args.ts, T557): nothing else of VibeDoc's env passes */
+  env: Record<string, string>
   /** Persist the chat and tell the browser (worker_updated) */
   save: (chat: WorkerChat) => Promise<void>
 }
@@ -49,11 +52,16 @@ export function workerForEpic(root: string, epic: string): string | null {
   return null
 }
 
-/** Holds the epic before the worktree exists, so two quick POSTs never both start; false = taken. */
-export function reserveWorker(root: string, id: string, epic: string): boolean {
-  if (workerForEpic(root, epic)) return false
+/**
+ * Holds the epic before the worktree exists, so two quick POSTs never both start. Null = reserved; else why not:
+ * the epic has a worker, or the project already runs `max` workers (T557, `workers.maxRunning`).
+ */
+export function reserveWorker(root: string, id: string, epic: string, max = Infinity): 'epic' | 'limit' | null {
+  if (workerForEpic(root, epic)) return 'epic'
+  const prefix = `${root}\u0000`
+  if ([...runs.keys()].filter(k => k.startsWith(prefix)).length >= max) return 'limit'
   runs.set(keyOf(root, id), { epic: epic.toUpperCase(), child: null, cancelled: false })
-  return true
+  return null
 }
 
 /**
@@ -84,11 +92,9 @@ export function cancelWorker(root: string, id: string): boolean {
 
 /** One task turn: resolves with its result (the task's status, `error` or `stopped`). */
 function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, deps: WorkerDeps): Promise<string> {
-  const env = { ...process.env }
-  delete env.ANTHROPIC_API_KEY // the CLI falls back to the user's login, like the chat
   return new Promise((resolve) => {
     const child = spawn('claude', deps.args(turn.taskId), {
-      cwd: chat.worker.dir, env, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: chat.worker.dir, env: deps.env as NodeJS.ProcessEnv /* Next types NODE_ENV as required; a worker gets none */, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
     })
     run.child = child
     const stream = beginTurn(root, chat.id, child)
@@ -96,6 +102,7 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
     let stderr = ''
     let reply = ''
     let failed = ''
+    const events: unknown[] = [] // the ones refusedCalls reads
     child.stdout.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf8')
       stream.push(text)
@@ -106,6 +113,7 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
           const ev = JSON.parse(line)
           if (!turn.sessionId && typeof ev?.session_id === 'string') turn.sessionId = ev.session_id
           if (ev?.type === 'result' && typeof ev.result === 'string') reply = ev.result
+          if (ev?.type === 'assistant' || ev?.type === 'system' || ev?.type === 'result') events.push(ev)
         } catch {
           // a partial or non-JSON line: the stream still has it
         }
@@ -122,7 +130,8 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
       if (failed || (code !== 0 && !run.cancelled)) stream.push(JSON.stringify({ type: 'error', message: failed || stderr.trim() || `claude exited with code ${code}` }) + '\n')
       stream.end()
       const result = run.cancelled ? 'stopped' : failed || code !== 0 ? 'error' : await deps.taskStatus(turn.taskId).catch(() => 'error')
-      chat.messages.push(message('assistant', reply, result === 'error' ? (failed || stderr.trim() || `claude exited with code ${code}`) : undefined))
+      const refused = refusedCalls(events)
+      chat.messages.push({ ...message('assistant', reply, result === 'error' ? (failed || stderr.trim() || `claude exited with code ${code}`) : undefined), ...(refused.length && { refused }) })
       resolve(result)
     })
   })

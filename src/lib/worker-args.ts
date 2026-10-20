@@ -11,13 +11,27 @@ export const WORKER_CALL_HEADER = 'x-vibedoc-worker'
 /** Spike run B: only these built-ins, so no user hooks, plugins or extra tools leak into the worker. */
 export const WORKER_TOOLS = 'Bash,Edit,Write,Read,Glob,Grep'
 
-// ponytail: hardcoded allowlist; T557 moves it to a setting
+/** The default allowlist (`workers.allowedTools` in .vibedoc/settings.json replaces it, T557). */
 export const WORKER_ALLOWED = [
   'mcp__vibedoc__*', 'Edit', 'Write', 'Read', 'Glob', 'Grep',
   'Bash(git add*)', 'Bash(git commit*)', 'Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)',
   'Bash(pnpm *)', 'Bash(npm *)', 'Bash(node *)', 'Bash(npx *)',
 ]
+/** Always denied, whatever the settings say (ADR-007 decision 10): not a setting. */
 export const WORKER_DENIED = ['Bash(git push*)', 'Bash(gh *)']
+
+/** The only variables a worker inherits (spike: enough for the CLI, its login comes from the keychain). */
+export const WORKER_BASE_ENV = ['PATH', 'HOME', 'USER', 'SHELL', 'LANG', 'TERM', 'TMPDIR']
+
+/**
+ * A worker's env (ADR-007 decision 10): the base names plus the names the user listed (`workers.env`), so tokens in
+ * VibeDoc's own env (GITHUB_TOKEN, cloud keys, ANTHROPIC_API_KEY) never reach the agent unless listed.
+ */
+export function workerEnv(processEnv: Record<string, string | undefined>, extra: string[] = []): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const k of [...WORKER_BASE_ENV, ...extra]) if (processEnv[k] !== undefined) env[k] = processEnv[k] as string
+  return env
+}
 
 /** The prompt: the skill in task mode, plus the rules a worktree needs (spike: the skill tried to stage the task file). */
 export function workerPrompt(taskId: string): string {
@@ -36,11 +50,11 @@ export interface WorkerArgsInput {
   workerId: string
   /** VibeDoc's own plugin/ folder */
   pluginDir: string
+  /** The project's allowlist (`workers.allowedTools`); WORKER_DENIED is always appended as deny rules */
   allowed?: string[]
-  denied?: string[]
 }
 
-export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, denied = WORKER_DENIED }: WorkerArgsInput): string[] {
+export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED }: WorkerArgsInput): string[] {
   const url = `${mcpOrigin}/api/mcp?root=${encodeURIComponent(mainRoot)}`
   return [
     '-p', workerPrompt(taskId),
@@ -51,6 +65,6 @@ export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, a
     '--tools', WORKER_TOOLS,
     '--plugin-dir', pluginDir,
     '--allowedTools', ...allowed,
-    '--disallowedTools', ...denied,
+    '--disallowedTools', ...WORKER_DENIED,
   ]
 }

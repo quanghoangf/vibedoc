@@ -19,6 +19,7 @@ import type { ToolkitResult } from "@/components/toolkit/ToolkitPicker"
 import { formatToolkitResults } from "@/lib/toolkit"
 import { asRenderablePlan, planTarget } from "@/lib/plan"
 import type { TextEdit } from "@/lib/diff"
+import { refusedCalls, type RefusedCall } from "@/lib/worker-state"
 import { ASK_AGENT_EVENT, OPEN_CHAT_EVENT, openAgentChat, type AskAgentDetail } from "@/lib/ask-agent"
 import {
   addChat, attachContext, attachKey, attentionQueue, chatFor, chatStatus, chatTitle, defaultChat, epicOf, fromSaved, INTERRUPTED, isActionableError, isWaiting,
@@ -40,6 +41,8 @@ export interface ChatMessage {
   /** R098: `vibedoc_propose_toolkit` cards; missing on chats saved before it */
   toolkits?: ToolkitProposal[]
   error?: string
+  /** R108 T557: a worker's tool calls Claude Code refused (deny rule or not on the allowlist) */
+  refused?: RefusedCall[]
 }
 
 export type ChatTab = Chat<ChatMessage>
@@ -451,6 +454,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buf = ""
+      const turnEvents: unknown[] = [] // a worker turn's lines, for refusedCalls
+      let refusedCount = 0
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
@@ -459,7 +464,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         buf = lines.pop() ?? ""
         for (const line of lines) {
           if (!line.trim()) continue
-          try { handleEvent(chatId, JSON.parse(line), worker) } catch { /* partial or non-JSON line */ }
+          let ev: { type?: string }
+          try { ev = JSON.parse(line) } catch { continue /* partial or non-JSON line */ }
+          try { handleEvent(chatId, ev, worker) } catch { /* a shape the handler can't read */ }
+          if (worker && (ev?.type === "assistant" || ev?.type === "system" || ev?.type === "result")) {
+            turnEvents.push(ev)
+            const refused = refusedCalls(turnEvents)
+            if (refused.length !== refusedCount) {
+              refusedCount = refused.length
+              patchLast(chatId, (m) => ({ ...m, refused }))
+            }
+          }
         }
       }
     } catch (e) {
