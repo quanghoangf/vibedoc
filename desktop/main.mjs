@@ -1,31 +1,29 @@
 // VibeDoc desktop app (R111): an Electron window around the VibeDoc hub that already runs (`vibedoc` or
-// `vibedoc start`), found the way the CLI finds it: <home>/port (R100) and a probe of /api/projects. The window shows
-// the same Next app as the browser. Closing it never stops that VibeDoc: the app didn't start it.
+// `vibedoc start`), found the way the CLI finds it: <home>/port (R100) and a probe of /api/projects. Nothing running →
+// the app starts one as its own child and stops it on quit (desktop/server.mjs, T578). The window shows the same Next
+// app as the browser. A VibeDoc the app didn't start is never stopped.
 // Run from source: pnpm --dir desktop install && pnpm --dir desktop start. Doc: docs/desktop-app.md
 import { app, BrowserWindow, Menu, nativeImage, screen } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { FIRST_PORT, appUrl, probeVibedoc, readSavedPort, vibedocHome } from '../bin/address.mjs'
+import { vibedocHome } from '../bin/address.mjs'
+import { desktopLogFile, ensureServer, stopServer } from './server.mjs'
 import { pickLang, t } from './i18n.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const icon = nativeImage.createFromPath(path.join(here, 'icons', 'icon.png'))
-/** While the not-running page shows: how often to look for VibeDoc again. */
-const RETRY_MS = 2000
 
 app.setName('VibeDoc')
 // tests run the app with their own folder for the window size and the one-instance lock
 if (process.env.VIBEDOC_DESKTOP_USER_DATA) app.setPath('userData', process.env.VIBEDOC_DESKTOP_USER_DATA)
 
-/** The hub's address: the port the CLI saved, else the CLI's first port. Read at each probe (a new start may move it). */
-const hubPort = () => readSavedPort(vibedocHome()) ?? FIRST_PORT
-
 let win = null
 let lang = 'en'
-/** The address in use, or null while VibeDoc isn't answering. */
-let using = null
-let retry = null
+/** The VibeDoc in use: `{ url, owned, child? }` (desktop/server.mjs), or null while there is none. */
+let server = null
+let connecting = null
+let quitting = false
 
 // ── window size, remembered in the app's own folder (never the VibeDoc home) ──
 const boundsFile = () => path.join(app.getPath('userData'), 'window.json')
@@ -50,7 +48,8 @@ function saveBounds() {
 
 // ── menu: the standard Edit / View / Window menus (copy, paste, reload) plus a status line ──
 function buildMenu() {
-  const status = { label: using ? t(lang, 'using', { url: using }) : t(lang, 'notRunning'), enabled: false }
+  const label = !server ? t(lang, 'notRunning') : t(lang, server.owned ? 'owned' : 'using', { url: server.url })
+  const status = { label, enabled: false }
   const mac = process.platform === 'darwin'
   const first = mac
     ? { label: app.name, submenu: [status, { type: 'separator' }, { role: 'about' }, { type: 'separator' }, { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' }, { role: 'quit' }] }
@@ -58,30 +57,49 @@ function buildMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate([first, { role: 'editMenu' }, { role: 'viewMenu' }, { role: 'windowMenu' }]))
 }
 
-function showNotRunning(url) {
-  const query = { lang, title: t(lang, 'notRunningTitle'), body: t(lang, 'notRunningBody'), hint: t(lang, 'notRunningHint', { url }) }
-  return win.loadFile(path.join(here, 'not-running.html'), { query })
+function showPage(query) {
+  return win.loadFile(path.join(here, 'starting.html'), { query: { lang, ...query } })
 }
 
-/** Loads the hub when it answers, else the not-running page and a retry until it does. */
-async function connect() {
-  clearTimeout(retry)
-  if (!win || win.isDestroyed()) return
-  const url = appUrl(hubPort())
-  const found = await probeVibedoc(hubPort())
-  if (!win || win.isDestroyed()) return
-  if (found) {
-    using = url
-    buildMenu()
-    await win.loadURL(`${url}/`)
-    return
-  }
-  if (using !== null || !win.webContents.getURL().startsWith('file:')) {
-    using = null
-    buildMenu()
-    await showNotRunning(url)
-  }
-  retry = setTimeout(connect, RETRY_MS)
+/**
+ * Opens the VibeDoc in use, else starts one (the starting screen meanwhile); a failed start shows the reason, the log
+ * tail and Try again. One attempt at a time.
+ */
+function connect() {
+  connecting ??= (async () => {
+    const home = vibedocHome()
+    const alive = server && (!server.owned || server.child.exitCode === null)
+    if (!alive) {
+      server = null
+      const found = await ensureServer({
+        home,
+        onStarting: () => win && !win.isDestroyed() && showPage({ title: t(lang, 'startingTitle'), body: t(lang, 'startingBody') }),
+      })
+      if (found.error) {
+        buildMenu()
+        if (win && !win.isDestroyed()) {
+          await showPage({
+            state: 'failed', title: t(lang, 'failedTitle'), reason: found.error, log: found.log.join('\n'),
+            logPath: t(lang, 'failedLog', { path: desktopLogFile(home) }), retry: t(lang, 'retry'),
+          })
+        }
+        return
+      }
+      server = found
+      // an owned VibeDoc that dies: the window says so with Try again (no automatic restart: that is R109's background mode)
+      found.child?.once('exit', (code) => {
+        if (quitting || server !== found) return
+        server = null
+        buildMenu()
+        if (win && !win.isDestroyed()) {
+          showPage({ state: 'failed', title: t(lang, 'failedTitle'), reason: t(lang, 'stopped', { code: code ?? '?' }), logPath: t(lang, 'failedLog', { path: desktopLogFile(vibedocHome()) }), retry: t(lang, 'retry') })
+        }
+      })
+      buildMenu()
+    }
+    if (win && !win.isDestroyed()) await win.loadURL(`${server.url}/`)
+  })().finally(() => { connecting = null })
+  return connecting
 }
 
 function createWindow() {
@@ -101,8 +119,11 @@ function createWindow() {
   for (const e of ['resize', 'move']) win.on(e, saveBounds)
   win.on('close', saveBounds)
   win.on('closed', () => {
-    clearTimeout(retry)
     win = null
+  })
+  // Try again on the failure page is a #retry link (the page has no preload)
+  win.webContents.on('did-navigate-in-page', (_e, url) => {
+    if (url.endsWith('#retry')) connect()
   })
   connect()
 }
@@ -130,5 +151,12 @@ if (!app.requestSingleInstanceLock()) {
   })
   app.on('activate', () => {
     if (!win) createWindow()
+  })
+  // quit stops only a VibeDoc this app started (and what it started), then quits for real
+  app.on('before-quit', (e) => {
+    if (quitting || !server?.owned || server.child.exitCode !== null) return
+    e.preventDefault()
+    quitting = true
+    stopServer(server.child).finally(() => app.quit())
   })
 }

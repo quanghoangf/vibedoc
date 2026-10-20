@@ -3,14 +3,16 @@
 //      status line names the address. Still one process listens on the port (S2: no second VibeDoc).
 //   2. Opening the app again focuses the one window: the second launch exits, still one window.
 //   3. Closing the window, then quitting the app, leaves the hub answering GET /api/projects 200.
-//   4. Nothing runs on the home's port: the not-running page shows; once a hub starts there, the window opens it.
+//   4. S3: nothing runs on the home's port: the app starts its own VibeDoc (starting screen, then the board, the menu
+//      says "started by this app"); quitting stops it: nothing listens and no `next start` is left.
+//   5. A start that fails (VIBEDOC_HOME is a file) shows the reason and Try again.
 //
 //   pnpm build && pnpm --dir desktop install && node e2e/desktop-app.mjs      (PORT=3085 by default)
 //
 // Temp VIBEDOC_HOME and Electron userData (never ~/.vibedoc or the real app's folder); the app runs with --lang=en-US.
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -52,6 +54,11 @@ const stopHub = (child) => new Promise((resolve) => {
 const servers = (port) => {
   try { return new Set(execFileSync("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }).trim().split("\n").filter(Boolean)).size } catch { return 0 }
 }
+/** Pids listening on the port (the `next start` server; Next renames its process title, so find it by port). */
+const listeners = (port) => {
+  try { return execFileSync("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }).trim().split("\n").filter(Boolean).map(Number) } catch { return [] }
+}
+const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
 const answers = async (port) => (await fetch(`http://localhost:${port}/api/projects`).catch(() => null))?.status === 200
 
 const appEnv = (home, userData) => ({ ...process.env, VIBEDOC_HOME: home, VIBEDOC_DESKTOP_USER_DATA: userData })
@@ -99,23 +106,39 @@ try {
   console.log("✓ closing the window and quitting the app leave the hub running")
   await stopHub(hub)
 
-  // 4. nothing running: the not-running page, then the hub as soon as it answers
+  // 4. S3: nothing running → the app starts VibeDoc (starting screen, then the board) and stops it on quit
   const home2 = path.join(tmp, "home2")
   mkdirSync(home2)
   writeFileSync(path.join(home2, "port"), `${PORT + 1}\n`)
+  assert.equal(servers(PORT + 1), 0)
   const app2 = await launch(home2, path.join(tmp, "user-data-2"))
   const win2 = await app2.firstWindow()
-  await waitFor(async () => (await win2.title()) === "VibeDoc isn’t running", "the not-running page")
-  assert.ok(win2.url().startsWith("file:"), "a local page, no server")
-  assert.ok(await win2.getByText(`Looking for VibeDoc at http://localhost:${PORT + 1}`).isVisible())
-  assert.equal(await statusLine(app2), "VibeDoc isn’t running")
-  const hub2 = await startHub(home2, PORT + 1)
-  await win2.waitForURL(`http://localhost:${PORT + 1}/**`, { timeout: 30_000 })
-  await waitFor(async () => (await statusLine(app2)) === `Using VibeDoc at http://localhost:${PORT + 1}`, "the status line")
-  console.log("✓ with nothing running the app waits on the not-running page, then opens the hub once it answers")
+  const titles = new Set()
+  await waitFor(async () => { titles.add(await win2.title().catch(() => "")); return win2.url().startsWith(`http://localhost:${PORT + 1}/`) }, "the board", 90_000)
+  assert.ok(titles.has("Starting VibeDoc…"), `the starting screen showed (saw ${[...titles].join(" | ")})`)
+  assert.equal(await statusLine(app2), `VibeDoc at http://localhost:${PORT + 1} · started by this app`)
+  assert.equal(servers(PORT + 1), 1)
+  assert.ok(existsSync(path.join(home2, "logs", "desktop-server.log")), "the child's output is logged")
+  const serverPids = listeners(PORT + 1)
+  assert.equal(serverPids.length, 1, "the app's next start listens")
   await app2.close()
   apps.delete(app2)
-  await stopHub(hub2)
+  await waitFor(async () => servers(PORT + 1) === 0 && !(await answers(PORT + 1)), "the app's VibeDoc to stop", 15_000)
+  assert.ok(!serverPids.some(alive), "no next start left behind")
+  console.log("✓ with nothing running the app starts VibeDoc, shows the board, and quitting stops it")
+
+  // 5. a start that fails shows why, with Try again, not a blank window
+  const badHome = path.join(tmp, "not-a-folder")
+  writeFileSync(badHome, "")
+  const app3 = await launch(badHome, path.join(tmp, "user-data-3"))
+  const win3 = await app3.firstWindow()
+  await waitFor(async () => (await win3.title()) === "VibeDoc couldn’t start", "the failure page", 30_000)
+  assert.ok(await win3.getByRole("link", { name: "Try again" }).isVisible())
+  assert.ok((await win3.locator("#reason").textContent()).length > 0, "a reason is shown")
+  assert.equal(await statusLine(app3), "VibeDoc isn’t running")
+  await app3.close()
+  apps.delete(app3)
+  console.log("✓ a failed start shows the reason and Try again")
   console.log("desktop-app e2e: ok")
 } finally {
   for (const app of apps) await app.close().catch(() => {})

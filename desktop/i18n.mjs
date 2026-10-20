@@ -2,17 +2,25 @@
 export const messages = {
   en: {
     using: 'Using VibeDoc at {url}',
+    owned: 'VibeDoc at {url} · started by this app',
     notRunning: 'VibeDoc isn’t running',
-    notRunningTitle: 'VibeDoc isn’t running',
-    notRunningBody: 'Start it in a terminal, and this window opens it as soon as it answers:',
-    notRunningHint: 'Looking for VibeDoc at {url}…',
+    startingTitle: 'Starting VibeDoc…',
+    startingBody: 'Nothing was running, so the app starts VibeDoc. The board opens as soon as it answers.',
+    failedTitle: 'VibeDoc couldn’t start',
+    failedLog: 'Full output: {path}',
+    stopped: 'VibeDoc stopped (exit code {code}).',
+    retry: 'Try again',
   },
   vi: {
     using: 'Đang dùng VibeDoc tại {url}',
+    owned: 'VibeDoc tại {url} · do app này khởi động',
     notRunning: 'VibeDoc chưa chạy',
-    notRunningTitle: 'VibeDoc chưa chạy',
-    notRunningBody: 'Hãy khởi động nó trong terminal, cửa sổ này sẽ mở VibeDoc ngay khi nó trả lời:',
-    notRunningHint: 'Đang tìm VibeDoc tại {url}…',
+    startingTitle: 'Đang khởi động VibeDoc…',
+    startingBody: 'Chưa có VibeDoc nào chạy, nên app tự khởi động nó. Board sẽ mở ngay khi VibeDoc trả lời.',
+    failedTitle: 'Không khởi động được VibeDoc',
+    failedLog: 'Toàn bộ output: {path}',
+    stopped: 'VibeDoc đã dừng (mã thoát {code}).',
+    retry: 'Thử lại',
   },
 }
 
