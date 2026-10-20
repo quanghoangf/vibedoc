@@ -1,9 +1,10 @@
 // Background mode (R109): the supervisor's state file `<home>/server.json` and its log `<home>/logs/server.log`.
-// The supervisor writes the state; `vibedoc start` / `status` / `stop` read it. Plain JS: the bin ships unbuilt.
+// The supervisor writes the state; `vibedoc start` / `status` / `stop` read it. `<home>/server.lock` lets one start
+// run at a time. Plain JS: the bin ships unbuilt.
 // Shape: { supervisorPid, serverPid, port, startedAt, log, state: "starting"|"running"|"crashed"|"stopped",
 //          restarts: [], lastError: null }
 // Check: node bin/server-state.check.mts
-import { closeSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { closeSync, mkdirSync, openSync, readFileSync, readSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 export const SERVER_STATES = ['starting', 'running', 'crashed', 'stopped']
@@ -45,6 +46,46 @@ export function isAlive(pid) {
     return true
   } catch (e) {
     return e.code === 'EPERM'
+  }
+}
+
+export const startLockFile = (home) => path.join(home, 'server.lock')
+
+/**
+ * Claims the right to start VibeDoc: creates `<home>/server.lock` exclusively (O_EXCL) with this pid. While another
+ * live process holds it, waits (polling) until it is released; a lock whose holder is dead is taken over. Resolves to
+ * a `release()` function, or `{ error }` after `timeoutMs`. So two starts at the same moment never make two servers:
+ * the second one goes on only once the first answers or failed, and then finds it running.
+ */
+export async function acquireStartLock(home, { timeoutMs = 90_000, intervalMs = 200, onWait } = {}) {
+  mkdirSync(home, { recursive: true })
+  const file = startLockFile(home)
+  const end = Date.now() + timeoutMs
+  let told = false
+  for (;;) {
+    try {
+      const fd = openSync(file, 'wx')
+      writeFileSync(fd, `${process.pid}\n`)
+      closeSync(fd)
+      let released = false
+      return () => {
+        if (released) return
+        released = true
+        try { if (readFileSync(file, 'utf8').trim() === String(process.pid)) unlinkSync(file) } catch {}
+      }
+    } catch (e) {
+      if (e.code !== 'EEXIST') return { error: `couldn't create ${file}: ${e.message}` }
+    }
+    let holder = null
+    try { holder = Number(readFileSync(file, 'utf8').trim()) } catch {}
+    if (holder !== null && !Number.isNaN(holder) && !isAlive(holder)) {
+      // stale (its holder died): take it over, unless someone else did in the meantime
+      try { if (Number(readFileSync(file, 'utf8').trim()) === holder) unlinkSync(file) } catch {}
+      continue
+    }
+    if (Date.now() > end) return { error: `another VibeDoc start (pid ${holder}) still holds ${file}` }
+    if (!told) { told = true; onWait?.(holder) }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
   }
 }
 

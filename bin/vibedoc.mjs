@@ -7,7 +7,7 @@ import { createRequire } from 'node:module'
 import { addToHub, addressChangedMessage, appUrl, dropLegacyPort, legacyPort, migrationMessage, parsePortArg, portFile, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
 import { repoRoot } from './repo-root.mjs'
 import { prepareDemo, sweepDemos } from './demo.mjs'
-import { isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, writeServerState } from './server-state.mjs'
+import { acquireStartLock, isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, writeServerState } from './server-state.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
@@ -64,6 +64,7 @@ async function startInBackground(port) {
   const spawnFailed = new Promise((resolve) => supervisor.once('error', (err) => resolve({ error: err.message })))
   // the supervisor gives up after 60 s itself; this only catches one that hangs
   const ready = await Promise.race([waitUntilReady({ port, child: supervisor, timeoutMs: 75_000 }), spawnFailed])
+  if (ready === 'ready') releaseStart() // a failure keeps it until server.json says why (released on exit)
 
   if (ready !== 'ready') {
     const state = readServerState(HOME)
@@ -154,8 +155,21 @@ if (portArg.error) {
   console.error(`\n✗ ${portArg.error}\n`)
   process.exit(1)
 }
-if (!demo) await waitForStartingBackground()
+// One start at a time (R109): held from choosing the address until the app answers or fails, so two starts at the
+// same moment can't both find the port free and launch two servers; the second then finds the first running
+let releaseStart = () => {}
+if (!demo) {
+  const lock = await acquireStartLock(HOME, { onWait: () => console.log('\n⏳ Another VibeDoc is starting, waiting for it...') })
+  if (lock.error) {
+    console.error(`\n✗ ${lock.error}\n`)
+    process.exit(1)
+  }
+  releaseStart = lock
+  process.on('exit', releaseStart)
+  await waitForStartingBackground()
+}
 const address = await resolveAddress({ explicit: portArg.port, saved: demo ? null : readSavedPort(HOME) })
+if (address.running) releaseStart()
 if (address.error) {
   console.error(`\n✗ ${address.error}\n`)
   process.exit(1)
@@ -231,6 +245,7 @@ server.on('error', (err) => {
 
 // Open the browser only once the app answers, never on a page that isn't up yet
 const ready = await waitUntilReady({ port, child: server })
+releaseStart()
 if (ready !== 'ready') {
   if (ready === 'timeout') {
     server.kill('SIGTERM')

@@ -124,6 +124,22 @@ try {
   await until("the port to free after Ctrl+C", async () => (await answers(PORT)) === 0)
   console.log("✓ plain vibedoc still runs in the foreground and Ctrl+C stops it")
 
+  // S2 under a race: two starts at the same moment make one server (the start lock), both print its address
+  const [r1, r2] = await Promise.all([runToExit(repoA, ["start"]), runToExit(repoB, ["start"])])
+  assert.equal(r1.code, 0, r1.out)
+  assert.equal(r2.code, 0, r2.out)
+  const launched = [r1, r2].filter((r) => r.out.includes(`running in the background at ${url}`)).length
+  const reused = [r1, r2].filter((r) => r.out.includes(`already running at ${url}`)).length
+  assert.deepEqual([launched, reused], [1, 1], `one launches, one reuses:\n${r1.out}\n---\n${r2.out}`)
+  const raced = state()
+  assert.equal(raced.state, "running", "server.json isn't overwritten by a failed second supervisor")
+  assert.equal(raced.lastError, null)
+  assert.ok(alive(raced.supervisorPid))
+  if (process.platform !== "win32") assert.equal(listeners(PORT), 1, "one process listens")
+  assert.equal(readFileSync(raced.log, "utf8").match(/supervisor: starting/g).length, 2, "two supervisors ever started (step 1 + this one)")
+  await stopBackground()
+  console.log("✓ two simultaneous starts make one server")
+
   // 4. a start failure: the app exits before it is ready (a preload kills only `next`)
   const preload = path.join(tmp, "fail-next.cjs")
   writeFileSync(preload, "if (/next[\\\\/]dist[\\\\/]bin[\\\\/]next$/.test(process.argv[1] || '')) { console.error('simulated boot failure'); process.exit(3) }\n")

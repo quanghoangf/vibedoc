@@ -1,10 +1,10 @@
 // Self-check for the background state file and log (R109). Run: node bin/server-state.check.mts
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { closeSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync, writeSync } from 'node:fs'
+import { closeSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, serverStateFile, writeServerState } from './server-state.mjs'
+import { acquireStartLock, isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, serverStateFile, startLockFile, writeServerState } from './server-state.mjs'
 
 const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-server-state-'))
 try {
@@ -58,6 +58,28 @@ try {
   assert.equal(existsSync(serverLogFile(home)), false, 'over the limit: moved')
   assert.ok(existsSync(`${serverLogFile(home)}.1`))
   rotateLog(path.join(root, 'nowhere')) // no log yet: nothing happens, no throw
+
+  // The start lock: exclusive, a second claimer waits until the first releases, a dead holder's lock is taken over
+  const lockHome = path.join(root, 'lock-home')
+  const release = await acquireStartLock(lockHome)
+  assert.equal(typeof release, 'function')
+  assert.equal(readFileSync(startLockFile(lockHome), 'utf8').trim(), String(process.pid))
+  const timedOut = await acquireStartLock(lockHome, { timeoutMs: 300, intervalMs: 50 })
+  assert.match((timedOut as { error: string }).error, /still holds/)
+  let waited = false
+  const second = acquireStartLock(lockHome, { intervalMs: 20, onWait: () => { waited = true } })
+  await new Promise((r) => setTimeout(r, 100))
+  assert.equal(waited, true, 'the second claimer waits')
+  ;(release as () => void)()
+  const release2 = await second
+  assert.equal(typeof release2, 'function', 'and gets it once the first releases')
+  ;(release2 as () => void)()
+  ;(release2 as () => void)() // twice is harmless
+  assert.equal(existsSync(startLockFile(lockHome)), false)
+  writeFileSync(startLockFile(lockHome), `${dead}\n`)
+  const release3 = await acquireStartLock(lockHome, { timeoutMs: 1000 })
+  assert.equal(typeof release3, 'function', 'a dead holder\'s lock is taken over')
+  ;(release3 as () => void)()
 } finally {
   rmSync(root, { recursive: true, force: true })
 }
