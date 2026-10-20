@@ -61,4 +61,51 @@ assert.equal(pauseStep({ turns: [] }), null)
 // paused is not waiting on the user: no composer
 assert.equal(resumableTurn({ phase: 'paused', turns: [limit('x')] }), null)
 
+// T568: the review gate. Off (no `gate`, or verify false) → a finished task claims the next one as before
+const task = (id: string, result: string, sessionId = `s-${id}`) => ({ taskId: id, sessionId, startedAt: 'a', endedAt: 'b', result })
+const rev = (id: string, result: string) => ({ ...task(id, result, `r-${id}`), kind: 'verify' as const })
+const fix = (id: string, result: string) => ({ ...task(id, result), kind: 'fix' as const })
+const on = (turns: object[]) => ({ verify: true, turns: turns as never[] })
+const off = (turns: object[]) => ({ verify: false, turns: turns as never[] })
+assert.deepEqual(nextStep(running, null, task('T1', 'done'), off([task('T1', 'done')])), { kind: 'claim' })
+// done or review → verify it; blocked / in-progress still wait on the user, unreviewed
+for (const r of ['done', 'review']) assert.deepEqual(nextStep(running, null, task('T1', r), on([task('T1', r)])), { kind: 'verify', taskId: 'T1' })
+assert.equal(nextStep(running, null, task('T1', 'blocked'), on([task('T1', 'blocked')])).kind, 'wait-user')
+assert.equal(nextStep(running, null, task('T1', 'cancelled'), on([task('T1', 'cancelled')])).kind, 'claim')
+// clean → claim the next task
+let h = [task('T1', 'done'), rev('T1', 'clean')]
+assert.deepEqual(nextStep(running, null, h[1], on(h)), { kind: 'claim' })
+assert.deepEqual(nextStep(running, { kind: 'ready', taskId: 'T2' }, h[1], on(h)), { kind: 'run-task', taskId: 'T2' })
+// major → one fix turn in the task's own session (never the reviewer's)
+h = [task('T1', 'done'), rev('T1', 'findings')]
+assert.deepEqual(nextStep(running, null, h[1], on(h)), { kind: 'fix', taskId: 'T1', sessionId: 's-T1' })
+// the fix done → verify again; still major → send back; never claims
+h = [task('T1', 'done'), rev('T1', 'findings'), fix('T1', 'done')]
+assert.deepEqual(nextStep(running, null, h[2], on(h)), { kind: 'verify', taskId: 'T1' })
+h = [...h, rev('T1', 'findings')]
+assert.deepEqual(nextStep(running, { kind: 'ready', taskId: 'T2' }, h[3], on(h)), { kind: 'send-back', taskId: 'T1' })
+// fix → clean → claim
+assert.deepEqual(nextStep(running, null, rev('T1', 'clean'), on([...h.slice(0, 3), rev('T1', 'clean')])), { kind: 'claim' })
+// sent back → wait on the user with the note; the answer resumes the task's session (the fix turn), not the review
+const sent = { ...rev('T1', 'sent-back'), note: 'sent back with 1 verification finding after one fix' }
+h = [task('T1', 'done'), rev('T1', 'findings'), fix('T1', 'done'), sent]
+assert.deepEqual(nextStep(running, { kind: 'ready', taskId: 'T2' }, sent, on(h)), { kind: 'wait-user', reason: 'T1: sent back with 1 verification finding after one fix' })
+assert.equal(resumableTurn({ phase: 'wait-user', turns: h }), h[2])
+// after the answer (a task turn) the count restarts: findings get one more fix
+h = [...h, task('T1', 'done'), rev('T1', 'findings')]
+assert.deepEqual(nextStep(running, null, h[5], on(h)), { kind: 'fix', taskId: 'T1', sessionId: 's-T1' })
+// a fix cut by a usage limit doesn't count as the one fix
+h = [task('T1', 'done'), rev('T1', 'findings'), fix('T1', 'usage-limit'), rev('T1', 'findings')]
+assert.equal(nextStep(running, null, h[3], on(h)).kind, 'fix')
+// a review that failed (error, no report) waits on the user and has no composer
+const failedReview = { ...rev('T1', 'error'), note: 'the review ended without reporting findings' }
+h = [task('T1', 'done'), failedReview]
+assert.deepEqual(nextStep(running, null, failedReview, on(h)), { kind: 'wait-user', reason: 'T1: the review ended without reporting findings' })
+assert.equal(resumableTurn({ phase: 'wait-user', turns: h }), null)
+// a limited review or fix says its kind, so the loop decides again instead of rerunning the task
+assert.deepEqual(pauseStep({ turns: [task('T1', 'done'), { ...rev('T1', 'usage-limit'), retryAt: 'x' }] }), { taskId: 'T1', retryAt: 'x', kind: 'verify' })
+assert.equal(pauseStep({ turns: [{ ...limit('2026-10-20T10:00:00.000Z', 'y') }] })?.kind, undefined)
+// stopped still wins
+assert.equal(nextStep({ phase: 'stopped' }, null, task('T1', 'done'), on([task('T1', 'done')])).kind, 'ended')
+
 console.log('worker-loop: ok')

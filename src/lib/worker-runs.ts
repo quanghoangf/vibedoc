@@ -9,11 +9,16 @@
  * T567: each turn has a budget (`--max-turns`, a timeout that kills the group): over it, the worker waits on the user,
  * whose answer resumes the session with the budget again. A usage limit pauses the worker (phase `paused`, `retryAt`
  * saved) and reruns the task after it; a paused worker stays in `runs`, so it counts toward `workers.maxRunning`.
+ * T568: a task that ends done or review gets a fresh read-only review turn (R067); critical or major findings resume
+ * the task's session once with them, then a second review; still there → the task is sent back, the worker waits.
  */
 import { spawn, type ChildProcess } from 'child_process'
 import type { Chat, Worker, WorkerTurn } from './chats'
 import type { QueueResult } from './work-queue'
+import type { Finding } from './verification'
 import { nextStep, orchestratorNote, pauseStep, resumableTurn } from './worker-loop'
+import { verifyPrompt } from './worker-args'
+import { formatFindingsNote } from './verification'
 import { beginTurn } from './chat-turns'
 import { killGroup } from './test-runner'
 import { stopFrontend } from './frontend-server'
@@ -30,8 +35,8 @@ export interface WorkerDeps {
   claim: () => Promise<QueueResult>
   /** The task's status in the main checkout after a turn */
   taskStatus: (taskId: string) => Promise<string>
-  /** The argv of one task turn (worker-args.ts); `resume` answers a question in that task's session */
-  args: (taskId: string, resume?: { sessionId: string; message: string }) => string[]
+  /** The argv of one task turn (worker-args.ts); `resume` answers a question in that task's session, `verify` = a review turn */
+  args: (taskId: string, opts?: { resume?: { sessionId: string; message: string }; verify?: boolean }) => string[]
   /** The whole env of a task turn (workerEnv in worker-args.ts, T557): nothing else of VibeDoc's env passes */
   env: Record<string, string>
   /** Persist the chat and tell the browser (worker_updated) */
@@ -40,6 +45,12 @@ export interface WorkerDeps {
   notify?: (note: string) => Promise<void>
   /** T567: `workers.maxTurnsPerTask` (also in `args`) and `workers.taskTimeoutMin` */
   budget: TurnBudget
+  /** T568: `workers.verify`: review each finished task before the next claim */
+  verify: boolean
+  /** T568: the task's critical and major findings from its saved `## Verification` (none = clean) */
+  findings: (taskId: string) => Promise<Finding[]>
+  /** T568: the normal send-back with the findings as its note (the task goes back to todo) */
+  sendBack: (taskId: string, findings: Finding[]) => Promise<void>
 }
 
 /** `wake`: ends a pause early (cancel) */
@@ -118,7 +129,8 @@ export interface WorkerAnswer { message: string; questionId?: string; answers?: 
  */
 function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, deps: WorkerDeps, resume?: string): Promise<{ result: string; pauseUntil: string | null }> {
   return new Promise((resolve) => {
-    const args = resume && turn.sessionId ? deps.args(turn.taskId, { sessionId: turn.sessionId, message: resume }) : deps.args(turn.taskId)
+    const args = turn.kind === 'verify' ? deps.args(turn.taskId, { verify: true })
+      : resume && turn.sessionId ? deps.args(turn.taskId, { resume: { sessionId: turn.sessionId, message: resume } }) : deps.args(turn.taskId)
     // a resume too: cwd = the worktree is the only thing that keeps it out of the user's checkout (spike run D)
     const child = spawn('claude', args, {
       cwd: chat.worker.dir, env: deps.env as NodeJS.ProcessEnv /* Next types NODE_ENV as required; a worker gets none */, detached: process.platform !== 'win32', stdio: ['ignore', 'pipe', 'pipe'],
@@ -133,6 +145,7 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
     const events: unknown[] = [] // the ones refusedCalls reads
     let resultEvent: Record<string, unknown> | null = null
     let rateLimit: RateLimitInfo | null = null
+    let reported = false // T568: the review called vibedoc_report_findings
     const started = Date.now()
     let timedOut = false
     const timer = setTimeout(() => { timedOut = true; killGroup(child) }, deps.budget.timeoutMin * 60_000)
@@ -153,6 +166,7 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
           if (ev?.type === 'assistant') {
             for (const b of ev.message?.content ?? []) {
               if (b?.type === 'tool_use' && String(b.name).endsWith('vibedoc_ask_questions') && Array.isArray(b.input?.questions)) questions.push({ id: b.id, questions: b.input.questions })
+              if (b?.type === 'tool_use' && String(b.name).endsWith('vibedoc_report_findings')) reported = true
             }
           } else if (ev?.type === 'user') {
             for (const b of ev.message?.content ?? []) {
@@ -179,10 +193,15 @@ function runTurn(root: string, chat: WorkerChat, run: Run, turn: WorkerTurn, dep
       if (outcome.kind === 'over-turns') turn.note = `Turn budget reached (${deps.budget.maxTurns})`
       if (outcome.kind === 'over-time') turn.note = `Took longer than ${deps.budget.timeoutMin} min`
       if (outcome.kind === 'usage-limit' && outcome.retryAt) turn.retryAt = outcome.retryAt
-      const error = outcome.kind === 'done' ? undefined : turn.note || failed || stderr.trim() || reply || `claude exited with code ${code}`
+      // ponytail: a review that ends without reporting would read an older `## Verification` as current, so it waits on the user
+      const unreported = turn.kind === 'verify' && outcome.kind === 'done' && !reported && !run.cancelled
+      if (unreported) turn.note = 'the review ended without reporting findings'
+      const error = outcome.kind === 'done' && !unreported ? undefined : turn.note || failed || stderr.trim() || reply || `claude exited with code ${code}`
       if (error && !run.cancelled) stream.push(JSON.stringify({ type: 'error', message: error }) + '\n')
       stream.end()
-      const result = run.cancelled ? 'stopped' : outcome.kind !== 'done' ? outcome.kind : await deps.taskStatus(turn.taskId).catch(() => 'error')
+      const result = run.cancelled ? 'stopped' : outcome.kind !== 'done' ? outcome.kind : unreported ? 'error'
+        : turn.kind === 'verify' ? await deps.findings(turn.taskId).then(f => (f.length ? 'findings' : 'clean'), () => 'error')
+        : await deps.taskStatus(turn.taskId).catch(() => 'error')
       const refused = refusedCalls(events)
       chat.messages.push({ ...message('assistant', reply, run.cancelled ? undefined : error), questions, ...(refused.length && { refused }) })
       resolve({ result, pauseUntil: outcome.kind === 'done' ? rateLimitPause(rateLimit) : null })
@@ -228,8 +247,8 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, an
     })
     run.wake = undefined
   }
-  const fresh = (taskId: string, sessionId: string | null = null): WorkerTurn =>
-    ({ taskId, sessionId, startedAt: new Date().toISOString(), endedAt: null, result: null })
+  const fresh = (taskId: string, sessionId: string | null = null, kind?: WorkerTurn['kind']): WorkerTurn =>
+    ({ taskId, sessionId, startedAt: new Date().toISOString(), endedAt: null, result: null, ...(kind && { kind }) })
   void (async () => {
     let last: WorkerTurn | null = null
     try {
@@ -246,14 +265,32 @@ export function startWorker(root: string, chat: WorkerChat, deps: WorkerDeps, an
           await pause(paused.retryAt)
           if (!run.cancelled) {
             await save({ retryAt: undefined })
+            // T568: a limited review or fix: the gate decides again from the turn before it (a review runs again)
+            if (paused.taskId && paused.kind) last = chat.worker.turns[chat.worker.turns.length - 2] ?? null
             // the limit stopped this task mid-way: run it again in a fresh session (it is still in-progress and ours)
-            if (paused.taskId) { last = await runOne(fresh(paused.taskId), `/vibedoc:work ${paused.taskId}`); continue }
+            else if (paused.taskId) { last = await runOne(fresh(paused.taskId), `/vibedoc:work ${paused.taskId}`); continue }
           }
         }
         const phase = run.cancelled ? 'stopped' : chat.worker.phase
-        let step = nextStep({ phase }, null, last)
-        if (step.kind === 'claim') step = nextStep({ phase }, await deps.claim(), last)
+        const gate = { verify: deps.verify, turns: chat.worker.turns }
+        let step = nextStep({ phase }, null, last, gate)
+        if (step.kind === 'claim') step = nextStep({ phase }, await deps.claim(), last, gate)
         if (run.cancelled) step = nextStep({ phase: 'stopped' }, null, null)
+        if (step.kind === 'verify') { last = await runOne(fresh(step.taskId, null, 'verify'), verifyPrompt(step.taskId)); continue }
+        if (step.kind === 'fix') {
+          const note = formatFindingsNote(await deps.findings(step.taskId)) || `Fix the findings in ${step.taskId}'s ## Verification.`
+          last = await runOne(fresh(step.taskId, step.sessionId, 'fix'), note, note)
+          continue
+        }
+        if (step.kind === 'send-back') {
+          const findings = await deps.findings(step.taskId)
+          await deps.sendBack(step.taskId, findings)
+          if (last) {
+            last.result = 'sent-back'
+            last.note = `sent back with ${findings.length} verification finding${findings.length === 1 ? '' : 's'} after one fix`
+          }
+          continue // the gate sees `sent-back`: wait on the user
+        }
         if (step.kind !== 'run-task') {
           const end = run.cancelled ? 'stopped' : step.kind === 'wait-user' ? 'wait-user' : 'ended'
           await save({ phase: end, reason: step.kind === 'claim' ? undefined : step.reason })

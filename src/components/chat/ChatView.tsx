@@ -131,7 +131,7 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
     <div ref={scrollRef} hidden={hidden} role="log" aria-live="polite" className="min-h-0 flex-1 overflow-y-auto">
       <div className={cn("mx-auto flex flex-col gap-5 px-5 py-6 text-sm", wide ? "max-w-3xl" : "max-w-none")}>
         {messages.length === 0 && !chat.worker && <EmptyChat chat={chat} onPick={(s) => send(chat.id, s)} />}
-        {messages.map((m, i) => (chat.worker && m.role === "user" && m.text.startsWith("/vibedoc:work ") ? <TaskDivider key={i} text={m.text} turns={chat.worker.turns} /> : (
+        {messages.map((m, i) => (chat.worker && m.role === "user" && (m.text.startsWith("/vibedoc:work ") || m.text.startsWith(VERIFY_LINE)) ? <TaskDivider key={i} text={m.text} turns={chat.worker.turns} /> : (
           <Message
             key={i}
             m={m}
@@ -150,15 +150,23 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
   )
 }
 
-/** A worker chat's user line is the `/vibedoc:work <task>` that started a task turn: one divider per task, with its usage (T567). */
+/** T568: a review turn's user line (verifyPrompt in worker-args.ts) */
+const VERIFY_LINE = "Verify task "
+
+/**
+ * A worker chat's user line is the `/vibedoc:work <task>` that started a task turn: one divider per task, with its usage
+ * (T567). T568: a review turn gets its own "Verify T123" divider; each divider sums only its own kind of turns.
+ */
 function TaskDivider({ text, turns }: { text: string; turns: WorkerTurn[] }) {
   const { t } = useT()
   const id = /\bT\d+\b/.exec(text)?.[0] ?? text
-  const usage = useUsageText()(turns.filter((x) => x.taskId === id))
+  const verify = text.startsWith(VERIFY_LINE)
+  const usage = useUsageText()(turns.filter((x) => x.taskId === id && (x.kind === "verify") === verify))
+  const label = t(verify ? "workers.verifyDivider" : "workers.taskDivider", { id })
   return (
-    <div role="separator" aria-label={t("workers.taskDivider", { id })} className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-wide text-muted animate-fade-in">
+    <div role="separator" aria-label={label} className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-wide text-muted animate-fade-in">
       <span className="h-px flex-1 bg-border" aria-hidden />
-      {t("workers.taskDivider", { id })}
+      {label}
       {usage && <span data-task-usage className="normal-case tracking-normal">{usage}</span>}
       <span className="h-px flex-1 bg-border" aria-hidden />
     </div>

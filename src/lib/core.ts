@@ -1479,13 +1479,14 @@ export async function readProjectSettings(root: string): Promise<{ sizeDays: Siz
  * R108 T557: what a worker may run, which env names it inherits and how many run at once (`workers` in settings).
  * T567: each task's budget, `maxTurnsPerTask` (`--max-turns`) and `taskTimeoutMin` (the server kills the turn).
  */
-export interface WorkerSettings { allowedTools: string[]; maxRunning: number; env: string[]; maxTurnsPerTask: number; taskTimeoutMin: number }
+/** `verify` (T568): review each finished task (R067) before the next claim; default on */
+export interface WorkerSettings { allowedTools: string[]; maxRunning: number; env: string[]; maxTurnsPerTask: number; taskTimeoutMin: number; verify: boolean }
 export const DEFAULT_MAX_WORKERS = 2
 /** The spike's trivial task took 38 s; a real task runs tens of round trips. Room on both. */
 export const DEFAULT_MAX_TURNS_PER_TASK = 60
 export const DEFAULT_TASK_TIMEOUT_MIN = 30
 
-function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown; maxTurnsPerTask?: unknown; taskTimeoutMin?: unknown } | undefined): WorkerSettings {
+function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown; maxTurnsPerTask?: unknown; taskTimeoutMin?: unknown; verify?: unknown } | undefined): WorkerSettings {
   const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').map(x => x.trim()).filter(Boolean) : [])
   const allowed = strings(w?.allowedTools)
   const max = w?.maxRunning
@@ -1495,6 +1496,7 @@ function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?:
     env: strings(w?.env).filter(n => /^[A-Za-z_][A-Za-z0-9_]*$/.test(n)),
     maxTurnsPerTask: positiveInt(w?.maxTurnsPerTask) ?? DEFAULT_MAX_TURNS_PER_TASK,
     taskTimeoutMin: positiveInt(w?.taskTimeoutMin) ?? DEFAULT_TASK_TIMEOUT_MIN,
+    verify: w?.verify !== false,
   }
 }
 
@@ -1734,8 +1736,9 @@ const VERIFY_SECTIONS = ['Goal', 'Scope', 'Acceptance criteria', 'Out of scope']
 /**
  * What a reviewing agent needs to judge a finished task (R067): its Goal / Scope / Acceptance criteria / Out of scope,
  * the epic's Done when, the related spec, ranked conventions, and the commits that name the task with their diff.
+ * `ref` (T568): read the log from that branch instead of HEAD, e.g. a worker's (its worktree shares this repo).
  */
-export async function getVerifyContext(taskId: string, root: string): Promise<string> {
+export async function getVerifyContext(taskId: string, root: string, { ref = 'HEAD' }: { ref?: string } = {}): Promise<string> {
   const task = await getTask(taskId, root)
   const raw = task.raw ?? ''
   const sections = VERIFY_SECTIONS.map(h => ({ heading: h, body: taskSection(raw, h) })).filter(x => x.body)
@@ -1750,9 +1753,9 @@ export async function getVerifyContext(taskId: string, root: string): Promise<st
   let diffCut = 0
   let head: string | null = null
   try {
-    head = (await git(['rev-parse', '--short', 'HEAD'], root)).trim() || null
+    head = (await git(['rev-parse', '--short', ref], root)).trim() || null
     // ids are whole words in commit subjects: "(T156)", "T156:"; -F so the id is never a regex
-    commits = (await git(['log', '-F', `--grep=${task.id}`, '--format=%H%x1f%s'], root))
+    commits = (await git(['log', '-F', `--grep=${task.id}`, '--format=%H%x1f%s', ref, '--'], root))
       .split('\n').filter(Boolean).map(l => { const [sha, subject] = l.split('\x1f'); return { sha, subject } })
       .filter(c => new RegExp(`\\b${task.id}\\b`).test(c.subject))
     if (commits.length) {

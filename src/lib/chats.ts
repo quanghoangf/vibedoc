@@ -40,6 +40,11 @@ export interface WorkerTurn {
   usage?: { turns: number; durationMs: number; costUsd: number; tokens: number }
   /** T567: a usage limit's reset time when the message gave one */
   retryAt?: string
+  /**
+   * T568: absent = a task turn. `verify` = the R067 review of the task (result `clean`, `findings` or `sent-back`, or a
+   * process result such as `error`); `fix` = the task's session resumed once with the findings (result = task status).
+   */
+  kind?: "verify" | "fix"
 }
 
 export interface Worker {

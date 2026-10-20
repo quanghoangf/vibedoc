@@ -69,7 +69,7 @@ writeFileSync(path.join(fx, ".claude-stub-outcomes"), JSON.stringify({ T008: "ma
 task("T001", "R002"); task("T002", "R002"); task("T003", "R003"); task("T004", "R003", "T003"); task("T005", "R004"); task("T006", "R004", "T005"); task("T007", "R005")
 task("T008", "R006"); task("T009", "R006", "T008"); task("T010", "R007"); task("T011", "R008")
 const stubEnv = ["CLAUDE_STUB_WORKER_MS"]
-const settings = (workers) => writeFileSync(path.join(fx, ".vibedoc/settings.json"), JSON.stringify({ workers: { env: stubEnv, ...workers } }))
+const settings = (workers) => writeFileSync(path.join(fx, ".vibedoc/settings.json"), JSON.stringify({ workers: { env: stubEnv, verify: false, ...workers } })) // T568's review gate: e2e/worker-verify.mjs
 settings({})
 git(["init", "-q", "-b", "main"])
 git(["add", "-A"])

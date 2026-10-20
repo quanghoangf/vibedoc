@@ -34,6 +34,7 @@ const task = (id) => writeFileSync(path.join(fx, "plans/tasks", `${id}-task.md`)
 writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** T001, T002\n")
 task("T001"); task("T002")
 writeFileSync(path.join(fx, ".claude-stub-ask"), "T001\n")
+writeFileSync(path.join(fx, ".vibedoc/settings.json"), JSON.stringify({ workers: { verify: false } })) // T568's review gate: e2e/worker-verify.mjs
 git(["init", "-q", "-b", "main"])
 git(["add", "-A"])
 git(["-c", "user.name=e2e", "-c", "user.email=e2e@example.com", "commit", "-q", "-m", "init"])

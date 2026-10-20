@@ -990,6 +990,11 @@ export async function POST(req: NextRequest) {
       if (worker && name === "vibedoc_get_frontend") {
         return ok(id, { content: [{ type: "text", text: await workerFrontend(root, worker) }] });
       }
+      // T568: a worker's commits are on its branch, not the main checkout's HEAD
+      if (worker && name === "vibedoc_verify_context") {
+        const w = await getWorker(worker, root).catch(() => null);
+        return ok(id, { content: [{ type: "text", text: await getVerifyContext(String(args.taskId ?? ""), root, w ? { ref: w.branch } : {}) }] });
+      }
       // T512: the one tool that answers with an image, not text
       if (name === "vibedoc_get_attachment") {
         const rel = String(args.path ?? "").replace(/^\.\//, "");

@@ -45,7 +45,7 @@ export function WorkersSettings({ settings, onSave, rootParam }: {
   const save = async () => {
     const tools = lines(allowed)
     const count = (n: number) => Math.max(1, Math.floor(n) || 1)
-    await onSave({ ...settings, workers: { ...(tools.length && { allowedTools: tools }), maxRunning: count(max), env: lines(env), maxTurnsPerTask: count(turns), taskTimeoutMin: count(timeoutMin) } })
+    await onSave({ ...settings, workers: { ...(settings.workers?.verify === false && { verify: false }), ...(tools.length && { allowedTools: tools }), maxRunning: count(max), env: lines(env), maxTurnsPerTask: count(turns), taskTimeoutMin: count(timeoutMin) } })
     setSaved(true)
   }
   const field = "w-full rounded-lg border border-border bg-surface2 px-3 py-2 font-mono text-xs text-txt focus:border-accent/60 focus:outline-hidden"

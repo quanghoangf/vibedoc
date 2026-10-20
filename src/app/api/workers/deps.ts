@@ -3,10 +3,11 @@
  * POST /api/workers/answer (T558, resume). Not a route: Next only serves route.ts.
  */
 import path from 'path'
-import { claimNextTask, getChat, getTask, listChats, readProjectSettings, saveChat, type WorkerSettings } from '@/lib/core'
+import { claimNextTask, getChat, getTask, listChats, readProjectSettings, saveChat, sendBackTask, type WorkerSettings } from '@/lib/core'
 import { addChat, ORCHESTRATOR_ID, ORCHESTRATOR_TITLE, type Chat } from '@/lib/chats'
 import { emitUpdate } from '@/lib/events'
 import { workerArgs, workerEnv } from '@/lib/worker-args'
+import { formatFindingsNote } from '@/lib/verification'
 import { reserveWorker, startWorker, type WorkerChat, type WorkerDeps } from '@/lib/worker-runs'
 
 export function workerDeps(root: string, chat: WorkerChat, origin: string, workers: WorkerSettings): WorkerDeps {
@@ -19,8 +20,8 @@ export function workerDeps(root: string, chat: WorkerChat, origin: string, worke
       return result
     },
     taskStatus: async (taskId) => (await getTask(taskId, root)).status,
-    args: (taskId, resume) => workerArgs({
-      taskId, mainRoot: root, mcpOrigin: origin, workerId: chat.id, resume,
+    args: (taskId, { resume, verify } = {}) => workerArgs({
+      taskId, mainRoot: root, mcpOrigin: origin, workerId: chat.id, resume, verify,
       // VibeDoc's own plugin, read from the package like readPlanningSkill()
       pluginDir: path.join(process.cwd(), 'plugin'),
       allowed: workers.allowedTools,
@@ -31,6 +32,12 @@ export function workerDeps(root: string, chat: WorkerChat, origin: string, worke
     save: saveWorkerChat(root),
     notify: (note) => noteOrchestrator(root, note),
     budget: { maxTurns: workers.maxTurnsPerTask, timeoutMin: workers.taskTimeoutMin },
+    verify: workers.verify,
+    findings: async (taskId) => (await getTask(taskId, root)).verification?.findings.filter(f => f.severity !== 'minor') ?? [],
+    sendBack: async (taskId, findings) => {
+      const { task, previousStatus } = await sendBackTask(taskId, formatFindingsNote(findings), root)
+      emitUpdate('task_updated', { taskId: task.id, status: task.status, previousStatus, task })
+    },
   }
 }
 
