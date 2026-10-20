@@ -50,6 +50,7 @@ src/
   lib/
     core.ts               ← ALL file system logic (shared by API routes + MCP)
     events.ts             ← In-process SSE event bus (singleton)
+desktop/                  ← Desktop app (R111): Electron shell (own package.json, exact electron pin) around the running hub; docs/desktop-app.md
 plugin/                   ← Claude Code plugin `vibedoc`: skills/{roadmap,breakdown,work,next} → /vibedoc:<name>; the chat reads roadmap + breakdown
 .claude-plugin/marketplace.json ← marketplace for `/plugin install vibedoc@vibedoc`
 docs/                     ← VibeDoc's own documentation (this project)

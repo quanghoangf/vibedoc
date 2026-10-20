@@ -1,0 +1,17 @@
+{
+  "name": "vibedoc-desktop",
+  "private": true,
+  "version": "1.24.0",
+  "description": "VibeDoc in its own window (R111): an Electron shell around the running VibeDoc",
+  "type": "module",
+  "main": "main.mjs",
+  "scripts": {
+    "postinstall": "node node_modules/electron/install.js",
+    "start": "electron .",
+    "test:e2e": "node ../e2e/desktop-app.mjs"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "playwright": "1.63.0"
+  }
+}
