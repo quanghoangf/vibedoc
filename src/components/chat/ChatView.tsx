@@ -9,6 +9,7 @@ import { useT } from "@/context/LanguageContext"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
 import { chatStatus, suggestions } from "@/lib/chats"
+import { resumableTurn } from "@/lib/worker-loop"
 import { useChatText } from "./chat-text"
 import { ProposalCard, type ProposalStatus } from "./ProposalCard"
 import { PlanCard, type PlanCreated, type PlanProposal, type PlanStatus } from "./PlanCard"
@@ -95,7 +96,8 @@ export function ChatView({ chatId, variant, onExpand, onNavigate }: {
           <button onClick={dismissNotice} aria-label={t("chat.dismiss")} className="leading-none text-muted hover:text-txt">×</button>
         </div>
       )}
-      {chat.worker && chat.worker.phase !== "wait-user"
+      {/* T558: a worker takes a message only while an answer can resume its task (not while the queue waits on a human) */}
+      {chat.worker && !resumableTurn(chat.worker)
         ? <p role="note" className="shrink-0 px-5 pb-4 pt-1 text-xs text-muted">{t("workers.workerNoComposer")}</p>
         : <Composer key={chat.id} chat={chat} wide={variant === "page"} />}
     </section>
