@@ -2,19 +2,27 @@
  * POST /api/workers {target: {kind: "epic", id}, branch?, base?} (R108 T554, ADR-007)
  * Creates a worktree for the epic (default branch `vibedoc/<epic>`), installs its dependencies, saves a worker chat
  * (.vibedoc/chats/<id>.json with `worker`) and starts the task-by-task loop (src/lib/worker-runs.ts). Each task turn
- * streams through GET /api/conversations/turn?id=<id>; every step emits `worker_updated`. One worker per epic (409).
+ * streams through GET /api/conversations/turn?id=<id>; every step emits `worker_updated`. One worker per epic (409),
+ * at most `workers.maxRunning` per project (409, T557).
+ * GET /api/workers → {allowed, denied, maxRunning, env}: what a worker will run with (the run card and Settings → Workers).
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { createWorktree, detectFrontend, getRoadmapItem, installWorktreeDeps, rootFrom, workerPortsInUse, RoadmapError } from '@/lib/core'
+import { createWorktree, detectFrontend, getRoadmapItem, installWorktreeDeps, readProjectSettings, rootFrom, workerPortsInUse, RoadmapError } from '@/lib/core'
 import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 import { refuseCrossSite } from '@/lib/same-origin'
 import { newChatId, type Attach } from '@/lib/chats'
 import { defaultBranch, WORKER_PORT_OFFSET } from '@/lib/worktrees'
+import { WORKER_DENIED } from '@/lib/worker-args'
 import { claimWorkerPort, releaseWorker, reserveWorker, startWorker, type WorkerChat } from '@/lib/worker-runs'
 import { saveWorkerChat, workerDeps } from './deps'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
+
+export async function GET(req: NextRequest) {
+  const { workers } = await readProjectSettings(rootFrom(req.nextUrl.searchParams.get('root')))
+  return NextResponse.json({ allowed: workers.allowedTools, denied: WORKER_DENIED, maxRunning: workers.maxRunning, env: workers.env })
+}
 
 export async function POST(req: NextRequest) {
   if (isDemo()) return demoForbidden()
@@ -29,8 +37,11 @@ export async function POST(req: NextRequest) {
   if (!epic) return NextResponse.json({ error: `Epic ${epicId} not found` }, { status: 404 })
   if (!epic.parent) return NextResponse.json({ error: `${epicId} is a horizon; pass an epic id` }, { status: 400 })
 
+  const { workers } = await readProjectSettings(root)
   const id = newChatId(Date.now())
-  if (!reserveWorker(root, id, epicId)) return NextResponse.json({ error: `A worker is already running on ${epicId}` }, { status: 409 })
+  const taken = reserveWorker(root, id, epicId, workers.maxRunning)
+  if (taken === 'epic') return NextResponse.json({ error: `A worker is already running on ${epicId}` }, { status: 409 })
+  if (taken === 'limit') return NextResponse.json({ error: `The limit of ${workers.maxRunning} running workers is reached (Settings → Workers). Stop one, or wait.` }, { status: 409 })
   try {
     const wt = await createWorktree(root, {
       branch: typeof body?.branch === 'string' && body.branch.trim() ? body.branch : defaultBranch(epicId),
@@ -57,7 +68,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: chat.worker.reason, id, ...wt }, { status: 500 })
     }
     chat.worker.phase = 'running'
-    startWorker(root, chat, workerDeps(root, chat, req.nextUrl.origin))
+    startWorker(root, chat, workerDeps(root, chat, req.nextUrl.origin, workers))
     return NextResponse.json({ id, ...wt })
   } catch (e) {
     releaseWorker(root, id)

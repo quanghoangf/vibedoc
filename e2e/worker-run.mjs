@@ -4,15 +4,19 @@
 //   2. The worker argv: ?root=<main root>, --strict-mcp-config, push denied, six built-in tools (never `--tools ''`).
 //   3. A second worker on a running epic → 409. Cancel mid-task → the process is gone, the task stays in-progress,
 //      no next task is claimed.
+//   T557: the stub tries `git push` → a refused call in the saved chat and a Refused row; its env has no GITHUB_TOKEN
+//      unless `workers.env` lists it; a settings allowlist without the push deny still spawns with it denied;
+//      `workers.maxRunning: 1` + one running → a second start is 409 naming the limit; Settings → Workers renders.
 //   4. Browser (T555): epic sheet → Work with agent → run card → Start → the worker chat opens with branch, folder and the
 //      current task, streams the reply, starts a divider per task; the board card moves without a reload; a reload
 //      mid-task re-attaches to the running turn. Fails on any browser console error.
 // With PLAYGROUND=1 (server started with VIBEDOC_PLAYGROUND=1) it only checks POST /api/workers → 403.
 //
 // The server must run with e2e/fixtures/claude-stub first on PATH and the same VIBEDOC_HOME as this script:
-//   PATH=$PWD/e2e/fixtures/claude-stub:$PATH VIBEDOC_HOME=$H PORT=3082 pnpm exec next start -p 3082   (after pnpm build)
+//   PATH=$PWD/e2e/fixtures/claude-stub:$PATH VIBEDOC_HOME=$H GITHUB_TOKEN=x PORT=3082 pnpm exec next start -p 3082   (after pnpm build)
 //   VIBEDOC_HOME=$H BASE=http://localhost:3082 PW_DIR=<dir with node_modules/playwright> node e2e/worker-run.mjs
-// Section 4 reloads mid-task: start the server with CLAUDE_STUB_WORKER_MS=4000 (the script reads the same variable).
+// Section 4 reloads mid-task: start the server with CLAUDE_STUB_WORKER_MS=4000 (the script reads the same variable; the
+// fixture lists it in `workers.env`, since a worker only gets the minimal env, T557).
 // Writes only a fresh mktemp fixture and its worktrees under $VIBEDOC_HOME/worktrees (removed at the end).
 import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
@@ -46,7 +50,11 @@ const task = (id, epic, dep = "") => writeFileSync(path.join(fx, "plans/tasks", 
 writeFileSync(path.join(fx, "plans/roadmap/R002-epic.md"), "# R002: Epic\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** T001, T002\n")
 writeFileSync(path.join(fx, "plans/roadmap/R003-other.md"), "# R003: Other\n**Parent:** R001\n**Status:** planned\n**Order:** 20\n**Tasks:** T003, T004\n")
 writeFileSync(path.join(fx, "plans/roadmap/R004-browser.md"), "# R004: Browser\n**Parent:** R001\n**Status:** planned\n**Order:** 30\n**Tasks:** T005, T006\n")
-task("T001", "R002"); task("T002", "R002"); task("T003", "R003"); task("T004", "R003", "T003"); task("T005", "R004"); task("T006", "R004", "T005")
+writeFileSync(path.join(fx, "plans/roadmap/R005-limit.md"), "# R005: Limit\n**Parent:** R001\n**Status:** planned\n**Order:** 40\n**Tasks:** T007\n")
+task("T001", "R002"); task("T002", "R002"); task("T003", "R003"); task("T004", "R003", "T003"); task("T005", "R004"); task("T006", "R004", "T005"); task("T007", "R005")
+const stubEnv = ["CLAUDE_STUB_WORKER_MS"]
+const settings = (workers) => writeFileSync(path.join(fx, ".vibedoc/settings.json"), JSON.stringify({ workers: { env: stubEnv, ...workers } }))
+settings({})
 git(["init", "-q", "-b", "main"])
 git(["add", "-A"])
 git(["-c", "user.name=e2e", "-c", "user.email=e2e@example.com", "commit", "-q", "-m", "init"])
@@ -105,11 +113,28 @@ try {
   }
   console.log("ok  argv: ?root=<main root>, --strict-mcp-config, push denied, no --resume, no empty --tools")
 
+  // T557: refusals and the minimal env (the server runs with GITHUB_TOKEN=x)
+  assert.deepEqual(chat.messages.filter((m) => m.role === "assistant").map((m) => m.refused),
+    [[{ tool: "Bash", input: "git push origin HEAD" }], [{ tool: "Bash", input: "git push origin HEAD" }]])
+  const envNames = (dir) => JSON.parse(readFileSync(path.join(dir, ".claude-stub-env.json"), "utf8"))
+  assert.ok(envNames(w.dir).includes("PATH") && envNames(w.dir).includes("HOME"))
+  for (const k of ["GITHUB_TOKEN", "ANTHROPIC_API_KEY", "NODE_ENV"]) assert.ok(!envNames(w.dir).includes(k), `${k} reached the worker`)
+  console.log("ok  the stub's git push is saved as a refused call; its env has no GITHUB_TOKEN (S4)")
+  // a settings allowlist that allows push, one worker at a time, GITHUB_TOKEN passed on
+  settings({ allowedTools: ["Read", "Bash(git push*)"], maxRunning: 1, env: [...stubEnv, "GITHUB_TOKEN"] })
+
   // 3. cancel mid-task
   const r3 = await (await post("/api/workers", { target: { kind: "epic", id: "R003" } })).json()
   assert.ok(r3.dir, JSON.stringify(r3))
   dirs.push(r3.dir)
-  await until(() => status("T003") === "in-progress" && existsSync(path.join(r3.dir, ".claude-stub.log")), "T003 claimed and the stub started")
+  await until(() => status("T003") === "in-progress" && existsSync(path.join(r3.dir, ".claude-stub-env.json")), "T003 claimed and the stub started")
+  const call3 = readFileSync(path.join(r3.dir, ".claude-stub.log"), "utf8")
+  assert.ok(call3.includes("--allowedTools Read Bash(git push*) --disallowedTools Bash(git push*) Bash(gh *)"), "push denied whatever the allowlist says")
+  assert.ok(envNames(r3.dir).includes("GITHUB_TOKEN"), "workers.env passes GITHUB_TOKEN on")
+  const limited = await post("/api/workers", { target: { kind: "epic", id: "R005" } })
+  assert.equal(limited.status, 409)
+  assert.match((await limited.json()).error, /limit of 1 running workers/)
+  console.log("ok  settings: push still denied, workers.env passes GITHUB_TOKEN, maxRunning 1 → a second start is 409")
   assert.equal((await post("/api/workers/cancel", { id: r3.id })).status, 200)
   await until(() => savedChat(r3.id).worker.phase === "stopped", "worker stopped")
   await new Promise((r) => setTimeout(r, STUB_MS + 500)) // past the stub's delay: a live process would commit now
@@ -119,6 +144,7 @@ try {
   assert.deepEqual(savedChat(r3.id).worker.turns.map((t) => [t.taskId, t.result]), [["T003", "stopped"]])
   assert.equal((await post("/api/workers/cancel", { id: r3.id })).status, 404)
   console.log("ok  cancel mid-task → the process is gone, T003 stays in-progress, nothing else claimed")
+  settings({})
 
   // 4. the browser path (T555)
   const browser = await launchChrome()
@@ -154,6 +180,7 @@ try {
     await strip.getByText("Working on T005").waitFor()
     await chatBox.getByRole("separator", { name: "Task T005" }).waitFor()
     await chatBox.getByText(/^Done T005/).first().waitFor({ timeout: STUB_MS + 10000 })
+    await chatBox.getByRole("note", { name: "Refused" }).getByText("git push origin HEAD").first().waitFor()
     console.log("ok  Work with agent → run card → the worker chat shows branch, folder, the current task and streams (S1)")
 
     await done("T005").waitFor({ timeout: 10000 })
@@ -173,6 +200,16 @@ try {
     await pane.locator("[data-worker-strip]").getByText("Ended").waitFor()
     await done("T006").waitFor()
     console.log("ok  reload mid-task → the chat re-attaches to the running turn and shows its reply; the worker ends")
+
+    await page.goto(`${BASE}/settings?tab=workers`)
+    await page.getByText(/It is not a sandbox/).waitFor()
+    assert.match(await page.getByLabel("Allowed tools").inputValue(), /^mcp__vibedoc__\*$/m)
+    await page.getByText("Bash(git push*)").waitFor()
+    await page.getByLabel("Environment variables").fill("GITHUB_TOKEN")
+    await page.getByRole("button", { name: "Save" }).click()
+    await page.getByRole("status").getByText("Saved").waitFor()
+    assert.deepEqual(JSON.parse(readFileSync(path.join(fx, ".vibedoc/settings.json"), "utf8")).workers.env, ["GITHUB_TOKEN"])
+    console.log("ok  Settings → Workers: the not-a-sandbox line, the default allowlist, the deny rules; Save writes workers.env")
     assert.deepEqual(errors, [], `browser console errors: ${errors.join("\n")}`)
   } finally {
     await browser.close()

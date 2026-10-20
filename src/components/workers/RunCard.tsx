@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Bot, GitBranch } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { useT } from "@/context/LanguageContext"
+import { useApp } from "@/context/AppContext"
+import type { WorkerTools } from "@/components/settings/WorkersSettings"
 import type { Attach } from "@/lib/chats"
 import { WORKER_ALLOWED, WORKER_DENIED } from "@/lib/worker-args"
 
@@ -77,7 +79,7 @@ export function RunCard({ proposal, busy, error, onAccept, onCancel }: {
   )
 }
 
-/** RunCard in a dialog (the epic sheet's "Work with agent"). */
+/** RunCard in a dialog (the epic sheet's "Work with agent"). Shows the project's allowlist (GET /api/workers, T557). */
 export function RunCardDialog({ proposal, open, onOpenChange, busy, error, onAccept }: {
   proposal: RunProposal
   open: boolean
@@ -87,12 +89,22 @@ export function RunCardDialog({ proposal, open, onOpenChange, busy, error, onAcc
   onAccept: (v: RunValues) => void
 }) {
   const { t } = useT()
+  const { rootParam } = useApp()
+  const [tools, setTools] = useState<WorkerTools | null>(null)
+  useEffect(() => {
+    if (!open) return
+    fetch(`/api/workers${rootParam}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch((e) => { console.warn("[vibedoc] could not read worker settings:", e); return null })
+      // unreadable: the defaults, which is what the server falls back to as well
+      .then((w: WorkerTools | null) => setTools(w ?? { allowed: proposal.allowed, denied: proposal.denied, maxRunning: 0, env: [] }))
+  }, [open, rootParam, proposal.allowed, proposal.denied])
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!busy) onOpenChange(o) }}>
       <DialogContent className="max-w-lg bg-surface border-border text-txt">
         <DialogTitle className="text-sm font-semibold text-txt">{t("workers.runCardTitle", { id: proposal.target.id })}</DialogTitle>
         <DialogDescription className="text-xs text-muted">{t("workers.runCardLead")}</DialogDescription>
-        {open && <RunCard proposal={proposal} busy={busy} error={error} onAccept={onAccept} onCancel={() => onOpenChange(false)} />}
+        {open && tools && <RunCard proposal={{ ...proposal, allowed: tools.allowed, denied: tools.denied }} busy={busy} error={error} onAccept={onAccept} onCancel={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
   )

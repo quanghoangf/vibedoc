@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
-import { ArrowUp, ArrowUpRight, Maximize2, Square, Trash2 } from "lucide-react"
+import { ArrowUp, ArrowUpRight, Maximize2, ShieldAlert, Square, Trash2 } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useChats, type ChatMessage, type ChatTab } from "@/context/ChatContext"
 import { useT } from "@/context/LanguageContext"
@@ -10,6 +10,7 @@ import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { cn } from "@/lib/utils"
 import { chatStatus, suggestions } from "@/lib/chats"
 import { resumableTurn } from "@/lib/worker-loop"
+import type { RefusedCall } from "@/lib/worker-state"
 import { useChatText } from "./chat-text"
 import { ProposalCard, type ProposalStatus } from "./ProposalCard"
 import { PlanCard, type PlanCreated, type PlanProposal, type PlanStatus } from "./PlanCard"
@@ -181,6 +182,7 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers, onToolkit }
             ))}
           </div>
         )}
+        {m.refused?.map((r, j) => <RefusedRow key={j} call={r} />)}
         {m.proposals.map((p) => (
           <ProposalCard key={p.id} proposal={p} onResolve={(status) => onProposal(p.id, p.path, status)} />
         ))}
@@ -197,6 +199,18 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers, onToolkit }
         {thinking && !m.text && !m.error && <Thinking />}
         {m.error && <p data-user-content className="whitespace-pre-wrap text-xs text-danger">{chatText.error(m.error)}</p>}
       </div>
+    </div>
+  )
+}
+
+/** R108 T557: a tool call the worker was not allowed to make (a deny rule such as `git push`, or not on the allowlist). */
+function RefusedRow({ call }: { call: RefusedCall }) {
+  const { t } = useT()
+  return (
+    <div role="note" aria-label={t("workers.refused")} className="flex items-baseline gap-2 rounded-md border border-danger/30 bg-danger/5 px-2.5 py-1.5 text-xs animate-fade-in">
+      <ShieldAlert className="size-3.5 shrink-0 self-center text-danger" aria-hidden />
+      <span className="shrink-0 font-medium text-danger">{t("workers.refused")}</span>
+      <code data-user-content className="min-w-0 break-all font-mono text-[11px] text-txt">{call.tool === "Bash" ? call.input : `${call.tool} ${call.input}`}</code>
     </div>
   )
 }

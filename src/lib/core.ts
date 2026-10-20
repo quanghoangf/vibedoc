@@ -72,6 +72,7 @@ import { isDemo, isPlayground } from './demo'
 import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './first-run'
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, LOCKFILES, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PackageManager, type PlaywrightStatus } from './frontend'
 import { ownWorktrees, parseWorktreeList, projectSlug, worktreeDir, type Worktree } from './worktrees'
+import { WORKER_ALLOWED } from './worker-args'
 import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
 import { nearestRoot, usableRootHeader } from './agent-connect'
 import type { ProjectFacts } from './toolkit'
@@ -1452,8 +1453,8 @@ function ownerAfterMove(current: string | null, status: TaskStatus, mover?: { ac
  * The task settings from .vibedoc/settings.json (R055): `tasks.sizeDays` over the defaults (automatic due dates)
  * and `statuses` (custom statuses; the built-ins when unset). `runs.keep` (R059): test runs kept per task, default 5.
  */
-export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number; autoSendBack: boolean; maxAutoFixes: number; agentHeader: boolean }> {
-  let s: { docs?: { agentHeader?: unknown }; tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown; maxAutoFixes?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown } } | null = null
+export async function readProjectSettings(root: string): Promise<{ sizeDays: SizeDays; statuses: StatusDef[]; sessionBudgetTokens: number; runsKeep: number; testRetries: number; autoSendBack: boolean; maxAutoFixes: number; agentHeader: boolean; workers: WorkerSettings }> {
+  let s: { docs?: { agentHeader?: unknown }; tasks?: { sizeDays?: SizeDays }; tests?: { retries?: unknown; autoSendBack?: unknown; maxAutoFixes?: unknown }; statuses?: unknown; memory?: { sessionBudgetTokens?: unknown }; runs?: { keep?: unknown }; workers?: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown } } | null = null
   try { s = JSON.parse(await fs.readFile(path.join(root, '.vibedoc', 'settings.json'), 'utf8')) } catch {}
   const budget = Number(s?.memory?.sessionBudgetTokens)
   return {
@@ -1469,6 +1470,22 @@ export async function readProjectSettings(root: string): Promise<{ sizeDays: Siz
     maxAutoFixes: Number.isInteger(s?.tests?.maxAutoFixes) && (s?.tests?.maxAutoFixes as number) >= 1 ? (s?.tests?.maxAutoFixes as number) : 3,
     // R087: the one-line context header on vibedoc_read_doc (`docs.agentHeader`, default on)
     agentHeader: s?.docs?.agentHeader !== false,
+    workers: workerSettings(s?.workers),
+  }
+}
+
+/** R108 T557: what a worker may run, which env names it inherits and how many run at once (`workers` in settings). */
+export interface WorkerSettings { allowedTools: string[]; maxRunning: number; env: string[] }
+export const DEFAULT_MAX_WORKERS = 2
+
+function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown } | undefined): WorkerSettings {
+  const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').map(x => x.trim()).filter(Boolean) : [])
+  const allowed = strings(w?.allowedTools)
+  const max = w?.maxRunning
+  return {
+    allowedTools: allowed.length ? allowed : WORKER_ALLOWED,
+    maxRunning: Number.isInteger(max) && (max as number) >= 1 ? (max as number) : DEFAULT_MAX_WORKERS,
+    env: strings(w?.env).filter(n => /^[A-Za-z_][A-Za-z0-9_]*$/.test(n)),
   }
 }
 

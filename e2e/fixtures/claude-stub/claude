@@ -56,12 +56,22 @@ if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope"
   // enough to cancel mid-task) write <task>.txt, commit only that file, then mark the task done over the MCP URL.
   // T558 (e2e/worker-ask.mjs): a task listed in the worktree's .claude-stub-ask asks instead (vibedoc_ask_questions)
   // and exits 0 with the task still in-progress; `--resume stub-worker-<task>` (the answer) then does the task.
+  // T557: writes its env names to .claude-stub-env.json and tries `git push` once, refused like Claude Code 2.1 does
+  // (ADR-007 § Spike) when the argv's --disallowedTools has Bash(git push*).
   const resume = args.includes("--resume") ? args[args.indexOf("--resume") + 1] : null
   const taskId = (resume ?? args[1]).match(/\bT\d{3,}\b/)[0]
   const { url, headers } = JSON.parse(args[args.indexOf("--mcp-config") + 1]).mcpServers.vibedoc
   const sid = `stub-worker-${taskId}`
   const out = (o) => process.stdout.write(JSON.stringify(o) + "\n")
+  fs.writeFileSync(".claude-stub-env.json", JSON.stringify(Object.keys(process.env).sort()))
   out({ type: "system", subtype: "init", session_id: sid })
+  const push = { tool_name: "Bash", tool_use_id: `tu-push-${taskId}`, tool_input: { command: "git push origin HEAD" } }
+  const denied = args.slice(args.indexOf("--disallowedTools") + 1).includes("Bash(git push*)")
+  out({ type: "assistant", session_id: sid, message: { content: [{ type: "tool_use", id: push.tool_use_id, name: "Bash", input: push.tool_input }] } })
+  if (denied) {
+    out({ type: "system", subtype: "permission_denied", session_id: sid, tool_name: "Bash", tool_use_id: push.tool_use_id, decision_reason_type: "subcommandResults", message: `Permission to use Bash with command ${push.tool_input.command} has been denied.` })
+    out({ type: "user", session_id: sid, message: { content: [{ type: "tool_result", tool_use_id: push.tool_use_id, is_error: true, content: "Permission denied" }] } })
+  }
   process.on("SIGTERM", () => process.exit(143))
   const asks = fs.existsSync(".claude-stub-ask") ? fs.readFileSync(".claude-stub-ask", "utf8").split(/\s+/) : []
   const asking = !resume && asks.includes(taskId)
@@ -82,7 +92,7 @@ if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope"
     })
     const text = (await res.json()).result.content[0].text
     out({ type: "assistant", session_id: sid, message: { content: [{ type: "text", text: `Done ${taskId}` }] } })
-    out({ type: "result", session_id: sid, is_error: false, result: `Done ${taskId}: ${text.split("\n")[0]}` })
+    out({ type: "result", session_id: sid, is_error: false, result: `Done ${taskId}: ${text.split("\n")[0]}`, permission_denials: denied ? [push] : [] })
   }, Number(process.env.CLAUDE_STUB_WORKER_MS ?? 2000))
 } else if (args[0] === "-p") {
   // A chat turn (e2e/chat-reload.mjs): stream-json over ~4s, slow enough to reload the page mid-turn.

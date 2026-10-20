@@ -1,6 +1,6 @@
 // Self-check for worker-args. Run: node src/lib/worker-args.check.mts
 import assert from 'node:assert/strict'
-import { WORKER_CALL_HEADER, WORKER_SYSTEM_PROMPT, workerArgs } from './worker-args.ts'
+import { WORKER_CALL_HEADER, WORKER_SYSTEM_PROMPT, workerArgs, workerEnv } from './worker-args.ts'
 
 const args = workerArgs({ taskId: 'T554', mainRoot: '/repo main', mcpOrigin: 'http://localhost:3333', workerId: 'c-abc', pluginDir: '/vibedoc/plugin' })
 const after = (flag: string) => args[args.indexOf(flag) + 1]
@@ -40,8 +40,15 @@ const resumed = workerArgs({ taskId: 'T554', mainRoot: '/repo main', mcpOrigin: 
 assert.deepEqual(resumed.slice(0, 4), ['-p', 'Answers:\n- Scope: A', '--resume', 's-1'])
 assert.deepEqual(resumed.slice(4), args.slice(2))
 
-// custom lists replace the defaults
-const custom = workerArgs({ taskId: 'T1', mainRoot: '/r', mcpOrigin: 'http://h', workerId: 'w', pluginDir: '/p', allowed: ['Read'], denied: ['Bash(rm *)'] })
-assert.deepEqual(custom.slice(custom.indexOf('--allowedTools')), ['--allowedTools', 'Read', '--disallowedTools', 'Bash(rm *)'])
+// a custom allowlist replaces the default; the push / gh deny is always appended (T557)
+const custom = workerArgs({ taskId: 'T1', mainRoot: '/r', mcpOrigin: 'http://h', workerId: 'w', pluginDir: '/p', allowed: ['Read', 'Bash(git push*)'] })
+assert.deepEqual(custom.slice(custom.indexOf('--allowedTools')), ['--allowedTools', 'Read', 'Bash(git push*)', '--disallowedTools', 'Bash(git push*)', 'Bash(gh *)'])
+
+// minimal env: base names only, a *_TOKEN var is dropped unless listed
+const vibedocEnv = { PATH: '/bin', HOME: '/h', USER: 'u', SHELL: '/bin/zsh', LANG: 'en', TERM: 'xterm', TMPDIR: '/t', GITHUB_TOKEN: 'x', ANTHROPIC_API_KEY: 'k', AWS_SECRET_ACCESS_KEY: 's', NODE_ENV: 'production' }
+assert.deepEqual(Object.keys(workerEnv(vibedocEnv)).sort(), ['HOME', 'LANG', 'PATH', 'SHELL', 'TERM', 'TMPDIR', 'USER'])
+assert.equal(workerEnv(vibedocEnv, ['GITHUB_TOKEN']).GITHUB_TOKEN, 'x')
+assert.equal(workerEnv(vibedocEnv, ['GITHUB_TOKEN']).ANTHROPIC_API_KEY, undefined)
+assert.ok(!('MISSING' in workerEnv(vibedocEnv, ['MISSING'])), 'an unset listed name is left out, not ""')
 
 console.log('worker-args: ok')

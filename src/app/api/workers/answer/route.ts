@@ -5,7 +5,7 @@
  * turn runs, so the browser can follow it at GET /api/conversations/turn?id=<id>. 409 unless the worker is waiting.
  */
 import { NextRequest, NextResponse } from 'next/server'
-import { getChat, rootFrom } from '@/lib/core'
+import { getChat, readProjectSettings, rootFrom } from '@/lib/core'
 import { isDemo, demoForbidden, isPlayground, playgroundForbidden } from '@/lib/demo'
 import { refuseCrossSite } from '@/lib/same-origin'
 import { resumableTurn } from '@/lib/worker-loop'
@@ -27,11 +27,12 @@ export async function POST(req: NextRequest) {
   const chat = await getChat(body.id, root).catch(() => null) as WorkerChat | null
   if (!chat?.worker) return NextResponse.json({ error: 'No worker with this id' }, { status: 404 })
   if (!resumableTurn(chat.worker)) return NextResponse.json({ error: 'This worker is not waiting on a task' }, { status: 409 })
-  if (!reserveWorker(root, chat.id, chat.worker.target.id, chat.worker.port)) {
-    return NextResponse.json({ error: `A worker is already running on ${chat.worker.target.id}` }, { status: 409 })
-  }
+  const { workers } = await readProjectSettings(root)
+  const taken = reserveWorker(root, chat.id, chat.worker.target.id, workers.maxRunning, chat.worker.port)
+  if (taken === 'epic') return NextResponse.json({ error: `A worker is already running on ${chat.worker.target.id}` }, { status: 409 })
+  if (taken === 'limit') return NextResponse.json({ error: `The limit of ${workers.maxRunning} running workers is reached (Settings → Workers). Stop one, or wait.` }, { status: 409 })
   const answers = Array.isArray(body.answers) && body.answers.every(a => typeof a === 'string') ? body.answers as string[] : undefined
   const questionId = typeof body.questionId === 'string' ? body.questionId : undefined
-  startWorker(root, chat, workerDeps(root, chat, req.nextUrl.origin), { message, questionId, answers })
+  startWorker(root, chat, workerDeps(root, chat, req.nextUrl.origin, workers), { message, questionId, answers })
   return NextResponse.json({ ok: true })
 }
