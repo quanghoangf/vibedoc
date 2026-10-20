@@ -60,6 +60,7 @@ export function reserveWorker(root: string, id: string, epic: string): boolean {
  * T559: the reserved worker's dev server port. Sync, so two POSTs that awaited `saved` side by side still get two ports:
  * `saved` = ports of the project's saved workers whose worktree exists, plus every running worker's (any project).
  */
+// ponytail: an ended worker's port only counts in its own project; check every hub project's chats if two collide
 export function claimWorkerPort(root: string, id: string, base: number, saved: number[]): number {
   const run = runs.get(keyOf(root, id))
   if (!run) throw new Error(`worker ${id} was not reserved`)

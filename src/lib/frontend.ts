@@ -92,13 +92,14 @@ export function frontendNotes(app: FrontendApp, vibedocPort: number, isVibedocRe
 
 /**
  * R108 T559: the app as a worker runs it, on its own port. `PORT=` covers Next / CRA / plain servers; `--port` covers
- * the CLIs that ignore PORT (Vite, Astro, …) and beats a port hardcoded in the script. npm needs `--` to pass it on.
+ * the CLIs that ignore PORT (Vite, Astro, …) and beats a port hardcoded in the script (last flag wins). npm needs `--` to pass it on.
  */
 // ponytail: POSIX env prefix; a Windows worker would need `set PORT=… &&` or cross-env
 export function workerApp(app: FrontendApp, port: number): FrontendApp {
   const url = URL.canParse(app.url) ? new URL(app.url) : new URL('http://localhost')
   url.port = String(port)
-  const flag = app.framework === 'cra' || app.framework === 'unknown' ? '' : app.packageManager === 'npm' ? ` -- --port ${port}` : ` --port ${port}`
+  // An override's own command may not take --port: it gets PORT only
+  const flag = app.source === 'override' || app.framework === 'cra' || app.framework === 'unknown' ? '' : app.packageManager === 'npm' ? ` -- --port ${port}` : ` --port ${port}`
   return {
     ...app,
     url: url.origin,

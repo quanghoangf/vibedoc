@@ -185,5 +185,6 @@ console.log('ok playwrightTestDir')
   assert.equal(workerApp(custom, 4100).startCommand, 'PORT=4100 node server.mjs')
   assert.equal(workerApp(custom, 4100).url, 'http://127.0.0.1:4100')
   assert.equal(workerApp({ ...custom, startCommand: '', url: '' }, 4100).startCommand, '')
+  assert.equal(workerApp({ ...next, source: 'override', startCommand: 'node server.mjs' }, 3100).startCommand, 'PORT=3100 node server.mjs', 'an override command gets PORT only')
 }
 console.log('ok workerApp')
