@@ -177,7 +177,8 @@ export function migrationMessage({ oldPort, port, root }) {
 
 /**
  * Waits until the app answers /api/projects: 'ready', `{ exit: code }` when the child process ends first, or
- * 'timeout'. Polls every `intervalMs`.
+ * 'timeout'. Polls every `intervalMs`. Without a child (R109: a background VibeDoc another `start` launched) it only
+ * polls.
  */
 export function waitUntilReady({ port, child, timeoutMs = 60_000, intervalMs = 250 }) {
   return new Promise((resolve) => {
@@ -186,13 +187,13 @@ export function waitUntilReady({ port, child, timeoutMs = 60_000, intervalMs = 2
       if (done) return
       done = true
       clearTimeout(timer)
-      child.off('exit', onExit)
+      child?.off('exit', onExit)
       resolve(result)
     }
-    const onExit = (code) => finish({ exit: code ?? 1 })
-    child.once('exit', onExit)
-    if (child.exitCode !== null) onExit(child.exitCode)
     const timer = setTimeout(() => finish('timeout'), timeoutMs)
+    const onExit = (code) => finish({ exit: code ?? 1 })
+    child?.once('exit', onExit)
+    if (child && child.exitCode !== null) onExit(child.exitCode)
     const poll = async () => {
       if (done) return
       if (await probeVibedoc(port, Math.min(intervalMs * 4, 2000))) return finish('ready')

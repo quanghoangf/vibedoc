@@ -49,6 +49,16 @@ Uninstalling removes only VibeDoc's Node, package and launcher, never your proje
 
 VibeDoc opens the repo you start it in. For another folder: `VIBEDOC_ROOT=/path/to/project npx vibedoc`.
 
+### Run in the background
+
+`vibedoc` runs in the foreground: closing the terminal (or Ctrl+C) stops it. To keep VibeDoc up without a terminal open, start it in the background:
+
+```bash
+vibedoc start            # same flags as vibedoc: --port, --no-open
+```
+
+It prints `✓ VibeDoc is running in the background at http://localhost:<port>` with the MCP URL, opens the browser and gives the terminal back. The server's output goes to `~/.vibedoc/logs/server.log`. Run `vibedoc start` again, in the same repo or another one, and it reuses the running VibeDoc: it adds that repo and prints the same address, never a second server. The same goes for plain `vibedoc` while a background one runs. If the app can't start, `start` prints why and the end of the log, and exits with a non-zero code.
+
 ## 2. Connect your agent
 
 The MCP server is `http://localhost:<port>/api/mcp?root=<project folder>` (HTTP JSON-RPC). Use the MCP URL the terminal prints.

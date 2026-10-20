@@ -28,6 +28,24 @@ To keep a `vibedoc` command instead of `npx`, install it once with any of these 
 
 Then run `vibedoc` in your project. `vibedoc --version` shows which version you have; every channel serves the same one.
 
+### Run in the background
+
+`vibedoc` runs in the foreground: closing the terminal (or Ctrl+C) stops it. To keep VibeDoc up without a terminal open, start it in the background:
+
+```bash
+vibedoc start            # same flags as vibedoc: --port, --no-open
+```
+
+```mermaid
+flowchart LR
+  A[vibedoc start] --> B{VibeDoc answers already?}
+  B -- yes --> C[add this repo, print its address, exit]
+  B -- no --> D[start a supervisor in the background]
+  D --> E[wait until the app answers, print the address, exit]
+```
+
+It prints `✓ VibeDoc is running in the background at http://localhost:<port>` with the MCP URL, opens the browser and gives the terminal back. A small supervisor keeps the server running; its state is in `~/.vibedoc/server.json` and the server's output in `~/.vibedoc/logs/server.log` (moved to `server.log.1` once it passes 5 MB). Run `vibedoc start` again, in the same repo or another one, and it reuses the running VibeDoc: it adds that repo and prints the same address, never a second server. The same goes for plain `vibedoc` while a background one runs. If the app can't start, `start` prints why and the end of the log, and exits with a non-zero code. The demo (`--demo`) runs in the foreground only.
+
 ## 2. Point it at a project
 
 VibeDoc reads the folder you start it in. To use another folder:

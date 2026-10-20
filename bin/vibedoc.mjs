@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
+import { closeSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { addToHub, addressChangedMessage, appUrl, dropLegacyPort, legacyPort, migrationMessage, parsePortArg, portFile, readSavedPort, resolveAddress, savePort, startupBanner, tailLines, vibedocHome, waitUntilReady } from './address.mjs'
 import { repoRoot } from './repo-root.mjs'
 import { prepareDemo, sweepDemos } from './demo.mjs'
+import { isAlive, openLog, readLogFrom, readServerState, rotateLog, serverLogFile, writeServerState } from './server-state.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
@@ -30,6 +32,67 @@ function noticeMigration(port) {
   dropLegacyPort(PROJECT)
 }
 
+// Flushes stdout/stderr before exiting: on macOS a pipe is written async, and process.exit would cut the banner off
+async function exitFlushed(code) {
+  await Promise.all([process.stdout, process.stderr].map((s) => new Promise((resolve) => s.write('', resolve))))
+  process.exit(code)
+}
+
+// A background VibeDoc another `start` launched that doesn't answer yet (R109): wait for it instead of taking the next
+// port, so two starts never make two servers
+async function waitForStartingBackground() {
+  const state = readServerState(HOME)
+  if (state?.state !== 'starting' || !isAlive(state.supervisorPid) || !Number.isInteger(state.port)) return
+  console.log(`\n⏳ VibeDoc is starting in the background on ${appUrl(state.port)}, waiting for it...`)
+  await waitUntilReady({ port: state.port })
+}
+
+// `vibedoc start` (R109): the supervisor runs detached with its output in the log; this process waits until the app
+// answers, prints the address and exits. Returns the exit code
+async function startInBackground(port) {
+  rotateLog(HOME)
+  const { fd, offset } = openLog(HOME)
+  const supervisor = spawn(process.execPath, [path.join(__dirname, 'supervisor.mjs')], {
+    detached: true,
+    windowsHide: true,
+    stdio: ['ignore', fd, fd],
+    cwd: projectRoot,
+    env: { ...process.env, VIBEDOC_HOME: HOME, VIBEDOC_ROOT, VIBEDOC_ADD_ROOT: PROJECT || '', VIBEDOC_PORT: String(port) },
+  })
+  closeSync(fd)
+  supervisor.unref()
+  const spawnFailed = new Promise((resolve) => supervisor.once('error', (err) => resolve({ error: err.message })))
+  // the supervisor gives up after 60 s itself; this only catches one that hangs
+  const ready = await Promise.race([waitUntilReady({ port, child: supervisor, timeoutMs: 75_000 }), spawnFailed])
+
+  if (ready !== 'ready') {
+    const state = readServerState(HOME)
+    if (ready === 'timeout') {
+      supervisor.kill('SIGKILL')
+      if (state?.supervisorPid === supervisor.pid && isAlive(state.serverPid)) process.kill(state.serverPid, 'SIGKILL')
+    }
+    const own = state?.supervisorPid === supervisor.pid
+    const reason = (own && state.state === 'stopped' && state.lastError)
+      || (ready === 'timeout' ? `the app didn't answer on ${appUrl(port)} within 75 seconds`
+        : ready.error ? `couldn't start the supervisor: ${ready.error}`
+          : `the supervisor exited with code ${ready.exit}`)
+    // a supervisor that died before it could record why gets its state written here
+    if (!own || state.state !== 'stopped' || !state.lastError) {
+      writeServerState(HOME, { supervisorPid: supervisor.pid ?? null, serverPid: null, port, log: serverLogFile(HOME), state: 'stopped', lastError: reason })
+    }
+    const tail = tailLines(readLogFrom(HOME, offset))
+    console.error(`\n✗ VibeDoc could not start: ${reason}${tail.length ? `\n\n   Last output (${serverLogFile(HOME)}):\n${tail.map((l) => `   ${l}`).join('\n')}` : ''}\n`)
+    return 1
+  }
+
+  console.log(`\n✓ VibeDoc is running in the background at ${appUrl(port)}\n\n${startupBanner({ root: PROJECT, port })}\n`)
+  if (address.changedFrom) console.log(`${addressChangedMessage({ oldPort: address.changedFrom, newPort: port, root: PROJECT })}\n`)
+  noticeMigration(port)
+  console.log(`   Log: ${serverLogFile(HOME)}`)
+  await openBrowser(`${appUrl(port)}${START_PATH}`)
+  return 0
+}
+
 // Parse args
 const args = process.argv.slice(2)
 // `vibedoc check` (R090): the docs lint for CI from the prebuilt bundle; never starts the app
@@ -47,6 +110,11 @@ if (args[0] === 'check') {
   process.exit(code)
 }
 
+// `vibedoc start` (R109): the same startup, but the server runs under a detached supervisor and the terminal is given
+// back once it answers. The flags are the foreground's
+const background = args[0] === 'start'
+if (background) args.shift()
+
 // --no-open / VIBEDOC_NO_OPEN=1: start without opening a browser tab (scripts, e2e)
 const noOpen = args.includes('--no-open') || process.env.VIBEDOC_NO_OPEN === '1'
 
@@ -55,6 +123,11 @@ if (args.some((a) => a === '--version' || a === '-v')) {
   const { version } = createRequire(import.meta.url)('../package.json')
   process.stdout.write(`${version}\n`)
   process.exit(0)
+}
+
+if (background && args.includes('--demo')) {
+  console.error('\n✗ The demo runs in the foreground only (its copy is deleted when it stops): run vibedoc --demo\n')
+  process.exit(1)
 }
 
 // --demo (R085): the sample project in a throwaway temp copy, removed when this process ends
@@ -81,6 +154,7 @@ if (portArg.error) {
   console.error(`\n✗ ${portArg.error}\n`)
   process.exit(1)
 }
+if (!demo) await waitForStartingBackground()
 const address = await resolveAddress({ explicit: portArg.port, saved: demo ? null : readSavedPort(HOME) })
 if (address.error) {
   console.error(`\n✗ ${address.error}\n`)
@@ -102,13 +176,16 @@ if (address.running) {
     }
     openPath = `/?project=${encodeURIComponent(added.id)}`
   }
-  console.log(`\n✓ VibeDoc is already running\n\n${startupBanner({ root: PROJECT, port: address.running })}\n`)
+  const where = background ? ` at ${appUrl(address.running)}` : ''
+  console.log(`\n✓ VibeDoc is already running${where}\n\n${startupBanner({ root: PROJECT, port: address.running })}\n`)
   noticeMigration(address.running)
   await openBrowser(`${appUrl(address.running)}${openPath}`)
-  process.exit(0)
+  await exitFlushed(0)
 }
 const port = address.start
 if (!demo && !savePort(HOME, port)) console.log(`   (Couldn't save the port to ${portFile(HOME)}; the next run may use another one.)`)
+
+if (background) await exitFlushed(await startInBackground(port))
 
 console.log('\n🚀 Starting VibeDoc...\n')
 if (demo) console.log(`   Demo: a sample project in a temporary copy (${VIBEDOC_ROOT}), deleted when you stop VibeDoc\n`)
