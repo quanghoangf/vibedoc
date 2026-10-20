@@ -65,6 +65,26 @@ It prints `✓ VibeDoc is running in the background at http://localhost:<port>` 
 
 If the background server crashes, VibeDoc restarts it on the same address after 1 s, then 2 s, then 4 s. Your agents keep their MCP URL, and agent runs keep going through the restart. After 5 crashes within a minute it stops retrying and stays down: `vibedoc status` shows the exit code and the last lines of the log, and `vibedoc start` starts it again. The full output is in `~/.vibedoc/logs/server.log` (the previous one in `server.log.1`).
 
+### Start at login
+
+To have VibeDoc running whenever you log in, with no command to type, turn on start at login:
+
+```bash
+vibedoc login on       # start in the background each time you log in
+vibedoc login status   # Start at login: on (LaunchAgent, ~/Library/LaunchAgents/io.github.quanghoangf.vibedoc.plist)
+vibedoc login off      # stop doing that
+```
+
+At login it runs `vibedoc start --no-open` with the full path of the VibeDoc you installed, so no browser tab opens and PATH doesn't matter. Each OS gets one login item, and running `on` again rewrites it, never a second one:
+
+| OS | Login item |
+|---|---|
+| macOS | LaunchAgent `~/Library/LaunchAgents/io.github.quanghoangf.vibedoc.plist` |
+| Linux | systemd user unit `~/.config/systemd/user/vibedoc.service` (enabled with `systemctl --user enable`); without systemd, `~/.config/autostart/vibedoc.desktop` |
+| Windows | the `VibeDoc` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (no admin rights) |
+
+`on` takes effect at your next login; run `vibedoc start` to start it now. `off` removes only the login item: a VibeDoc that is running keeps running until `vibedoc stop` or you log out, and your projects, saved runs and settings are untouched.
+
 ## 2. Connect your agent
 
 The MCP server is `http://localhost:<port>/api/mcp?root=<project folder>` (HTTP JSON-RPC). Use the MCP URL the terminal prints.

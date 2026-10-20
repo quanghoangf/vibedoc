@@ -111,6 +111,12 @@ if (args[0] === 'check') {
   process.exit(code)
 }
 
+// `vibedoc login on|off|status` (R110): start VibeDoc in the background at login; never starts the app now
+if (args[0] === 'login') {
+  const { runLogin } = await import('./login.mjs')
+  await exitFlushed(runLogin(args.slice(1)))
+}
+
 // `vibedoc status` (R109): whether VibeDoc runs and where, from server.json + a live check. Starts nothing and never
 // rewrites the file. Exit 0 running, 3 not running (LSB), 1 bad args
 if (args[0] === 'status') {
