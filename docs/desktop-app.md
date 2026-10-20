@@ -69,6 +69,16 @@ pnpm --dir desktop run dist          # this OS → desktop/dist/; --dir for just
 
 Without signing secrets (`CSC_LINK` / `WIN_CSC_LINK`) the build is unsigned and says "unsigned build": macOS then asks you to right-click → Open the first time.
 
+## Updates
+
+The installed app checks for a newer release at start and every 6 hours (`desktop/updater.mjs`, electron-updater reading the `latest*.yml` the release attached). It never downloads on its own:
+
+1. A newer version → a small card at the bottom of the window: **VibeDoc X.Y.Z is available** · **Later** · **What's new**.
+2. **What's new** opens that release's notes (the GitHub release body semantic-release wrote, the same text as CHANGELOG.md).
+3. **Later** hides that version for good; the next version shows the card again. The choice is kept by the app (`update.json` in its `userData`), never in the browser.
+
+The card shows only inside the app: the app's preload (`desktop/preload.cjs`) gives the page `window.vibedocDesktop`, and a browser tab has none. A check that fails (offline, no feed) is logged and shows nothing. A build run from source doesn't check; `VIBEDOC_UPDATE_FEED=<url>` points it at a generic feed (a folder with `latest-mac.yml` / `latest.yml` / `latest-linux.yml`) to try it.
+
 ## Check
 
 ```bash

@@ -11,6 +11,9 @@ files:
   - server.mjs
   - bin-path.mjs
   - i18n.mjs
+  - preload.cjs
+  - updater.mjs
+  - update-notes.mjs
   - starting.html
   - icons/**
   - package.json

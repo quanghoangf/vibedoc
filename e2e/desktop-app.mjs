@@ -10,6 +10,8 @@
 //   5. A start that fails (VIBEDOC_HOME is a file) shows the reason and Try again.
 //   6. S1: the app (its own VibeDoc) and a Chrome tab on one fixture project: a move in the app and a rename in the tab
 //      show on the other side within 1 s (SSE), and a chat started in the app (stubbed agent) shows in the tab's /chat.
+//   7. S2 (R112): a local update feed with 99.0.0 → the banner, What's new with its notes, Later hides it after a
+//      reload; a browser tab has no banner; an unreachable feed shows no banner and no error.
 //
 //   pnpm build && pnpm --dir desktop install && node e2e/desktop-app.mjs      (PORT=3085 by default)
 //
@@ -18,6 +20,7 @@ import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { createRequire } from "node:module"
+import { createServer } from "node:http"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -222,6 +225,76 @@ try {
   await app4.close()
   apps.delete(app4)
   rmSync(fx, { recursive: true, force: true })
+  // 7. S2 (T582): a newer version on the feed → the banner, What's new shows its notes, Later hides that version for
+  //    good; a browser tab never shows it; an unreachable feed shows nothing
+  const home5 = path.join(tmp, "home5")
+  const hub5 = await startHub(home5, PORT + 3)
+  const feedFile = process.platform === "darwin" ? "latest-mac.yml" : process.platform === "win32" ? "latest.yml" : "latest-linux.yml"
+  const feedYml = [
+    "version: 99.0.0",
+    "files:",
+    "  - url: VibeDoc-99.0.0.zip",
+    "    sha512: AAAA",
+    "    size: 1",
+    "path: VibeDoc-99.0.0.zip",
+    "sha512: AAAA",
+    "releaseDate: '2026-10-21T08:00:00.000Z'",
+    "releaseNotes: |",
+    "  ## Faster boards",
+    "",
+    "  - Moved cards stay where you put them",
+  ].join("\n") + "\n"
+  const feed = createServer((req, res) => {
+    if (req.url?.startsWith(`/${feedFile}`)) { res.writeHead(200, { "content-type": "text/yaml" }); res.end(feedYml) } else { res.writeHead(404); res.end() }
+  })
+  await new Promise((r) => feed.listen(0, "127.0.0.1", r))
+  const feedUrl = `http://127.0.0.1:${feed.address().port}/`
+  const updData = path.join(tmp, "user-data-5")
+  const launchWithFeed = async (url) => {
+    const a = await _electron.launch({ executablePath: electronBin, args: [desktopDir, "--lang=en-US"], env: { ...appEnv(home5, updData), VIBEDOC_UPDATE_FEED: url } })
+    apps.add(a)
+    return a
+  }
+  const app5 = await launchWithFeed(feedUrl)
+  const win5 = await app5.firstWindow()
+  await win5.waitForURL(`http://localhost:${PORT + 3}/**`, { timeout: 30_000 })
+  const banner = win5.getByRole("region", { name: "VibeDoc update" })
+  await banner.getByText("VibeDoc 99.0.0 is available").waitFor({ timeout: 20_000 })
+  await banner.getByRole("button", { name: "What's new" }).click()
+  const notes = win5.getByRole("dialog")
+  await notes.getByRole("heading", { name: "What's new in VibeDoc 99.0.0" }).waitFor()
+  await notes.getByText("Moved cards stay where you put them").waitFor()
+  await notes.getByRole("button", { name: "Later" }).click()
+  await banner.waitFor({ state: "detached" })
+  await win5.reload()
+  await win5.getByRole("navigation").first().waitFor({ timeout: 30_000 }).catch(() => {})
+  await new Promise((r) => setTimeout(r, 1500))
+  assert.equal(await win5.locator("[data-desktop-update]").count(), 0, "Later keeps 99.0.0 hidden after a reload")
+  await app5.close()
+  apps.delete(app5)
+  console.log("✓ S2: a newer version shows a banner, What's new shows its notes, Later hides that version")
+
+  const browser5 = await desktopRequire("playwright").chromium.launch({ channel: "chrome" })
+  try {
+    const tab5 = await browser5.newPage()
+    await tab5.goto(`http://localhost:${PORT + 3}/board`)
+    await tab5.waitForLoadState("networkidle")
+    assert.equal(await tab5.evaluate(() => typeof window.vibedocDesktop), "undefined")
+    assert.equal(await tab5.locator("[data-desktop-update]").count(), 0, "no banner in a browser tab")
+  } finally {
+    await browser5.close()
+  }
+  feed.close()
+  const app6 = await launchWithFeed("http://127.0.0.1:9/") // nothing listens: offline
+  const win6 = await app6.firstWindow()
+  await win6.waitForURL(`http://localhost:${PORT + 3}/**`, { timeout: 30_000 })
+  await new Promise((r) => setTimeout(r, 4000))
+  assert.equal(await win6.locator("[data-desktop-update]").count(), 0, "offline: no banner")
+  assert.equal(await app6.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1, "offline: no error window")
+  await app6.close()
+  apps.delete(app6)
+  await stopHub(hub5)
+  console.log("✓ no banner in a browser tab, and none (and no error) when the feed can't be reached")
   console.log("desktop-app e2e: ok")
 } finally {
   for (const app of apps) await app.close().catch(() => {})

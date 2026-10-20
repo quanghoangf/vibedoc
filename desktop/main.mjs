@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { fromBin } from './bin-path.mjs'
 import { desktopLogFile, ensureServer, stopServer } from './server.mjs'
 import { pickLang, t } from './i18n.mjs'
+import { startUpdates } from './updater.mjs'
 
 const { vibedocHome } = await fromBin('address.mjs')
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -132,7 +133,7 @@ function createWindow() {
     icon,
     backgroundColor: '#0a0a0f',
     show: false,
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, preload: path.join(here, 'preload.cjs') },
   })
   win.once('ready-to-show', () => win.show())
   for (const e of ['resize', 'move']) win.on(e, saveBounds)
@@ -175,6 +176,8 @@ if (!app.requestSingleInstanceLock()) {
     if (process.platform === 'darwin') app.dock?.setIcon(icon)
     buildMenu()
     createWindow()
+    // a found update goes to whichever window is open (the page also asks on load: window.vibedocDesktop.getUpdate)
+    startUpdates((update) => win && !win.isDestroyed() && win.webContents.send('vibedoc:update', update))
   })
   // macOS keeps the app in the Dock with no window; the Dock icon reopens it. Elsewhere the last window quits.
   // Neither stops VibeDoc: this app didn't start it.
