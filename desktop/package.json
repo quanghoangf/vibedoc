@@ -8,10 +8,13 @@
   "scripts": {
     "postinstall": "node node_modules/electron/install.js",
     "start": "electron .",
-    "test:e2e": "node ../e2e/desktop-app.mjs"
+    "test:e2e": "node ../e2e/desktop-app.mjs",
+    "dist": "node scripts/dist.mjs",
+    "dist:all": "node scripts/dist.mjs --all"
   },
   "devDependencies": {
     "electron": "44.5.1",
+    "electron-builder": "26.17.0",
     "playwright": "1.63.0"
   }
 }

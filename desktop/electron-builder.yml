@@ -1,0 +1,44 @@
+# Desktop installers (R112 T581). Built by scripts/dist.mjs, which first installs the VibeDoc npm package and its
+# production dependencies in build/server-<os>-<cpu> and sets the version from the root package.json.
+appId: io.github.quanghoangf.vibedoc
+productName: VibeDoc
+copyright: Copyright © VibeDoc contributors
+directories:
+  output: dist
+  buildResources: build
+files:
+  - main.mjs
+  - server.mjs
+  - bin-path.mjs
+  - i18n.mjs
+  - starting.html
+  - icons/**
+  - package.json
+# The server the app starts when nothing runs (desktop/server.mjs, run by Electron's own Node, so no Node install)
+# is copied into Resources/server by scripts/dist.mjs's afterPack: extraResources leaves node_modules out.
+icon: icons/icon.png
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip # electron-updater updates a mac app from the zip
+      arch: [arm64, x64]
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: true
+  perMachine: false
+linux:
+  category: Development
+  target:
+    - target: AppImage # the only Linux target electron-updater updates in place
+      arch: [x64]
+# latest.yml / latest-mac.yml / latest-linux.yml go to the GitHub release of v<version>, which semantic-release made
+publish:
+  provider: github
+  owner: quanghoangf
+  repo: vibedoc
+  releaseType: release

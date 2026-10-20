@@ -1,0 +1,68 @@
+name: Desktop
+
+# R112 T581: the desktop app's installers (.dmg + .zip for macOS, .exe for Windows, .AppImage for Linux) and the
+# latest*.yml update feeds, uploaded to the GitHub release v<version>. release.yml dispatches this after a release
+# that changed the version (the release commit carries [skip ci]); run it by hand with a version to rebuild one.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to build (its tag v<version> and GitHub release must exist)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout v${{ inputs.version }}
+        uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Build the app VibeDoc serves
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm build:playwright
+          pnpm build:cli
+
+      - name: Install the desktop package
+        run: pnpm --dir desktop install --frozen-lockfile
+
+      # Signing (T585) only when its secrets are set; without them dist.mjs builds unsigned and says so
+      - name: Build and upload the installers
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # an empty secret is an empty string: electron-builder must not see it as set
+          for v in CSC_LINK CSC_KEY_PASSWORD WIN_CSC_LINK WIN_CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!v}" ] || unset "$v"
+          done
+          node desktop/scripts/dist.mjs --publish

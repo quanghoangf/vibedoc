@@ -59,6 +59,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh workflow run site.yml --ref main
 
+      # Desktop installers (R112): built per OS by desktop.yml and attached to this release
+      - name: Build the desktop app
+        if: steps.after.outputs.version != steps.before.outputs.version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run desktop.yml --ref main -f version=${{ steps.after.outputs.version }}
+
       # Homebrew (R072): when the release published a new version, push its formula to the tap.
       - name: Update Homebrew tap
         if: steps.after.outputs.version != steps.before.outputs.version

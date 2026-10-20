@@ -4,11 +4,11 @@
 import { spawn } from 'node:child_process'
 import { createWriteStream, mkdirSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { FIRST_PORT, appUrl, probeVibedoc, readSavedPort, tailLines } from '../bin/address.mjs'
-import { killTree } from '../bin/server-state.mjs'
+import { binDir, fromBin } from './bin-path.mjs'
 
-const bin = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'vibedoc.mjs')
+const { FIRST_PORT, appUrl, probeVibedoc, readSavedPort, tailLines } = await fromBin('address.mjs')
+const { killTree } = await fromBin('server-state.mjs')
+const bin = path.join(binDir, 'vibedoc.mjs')
 export const desktopLogFile = (home) => path.join(home, 'logs', 'desktop-server.log')
 /** The CLI prints this once the app answers (bin/vibedoc.mjs), after it saved the port. */
 const READY = /✓ VibeDoc is (ready|already running)/

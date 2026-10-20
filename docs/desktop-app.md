@@ -47,6 +47,28 @@ The window remembers its size and position in the app's own folder (Electron's `
 - **A chat waiting on you** raises a native notification, the same one a browser tab shows when it is in the background: "needs your answer" or "plan ready", with the chat's title. The app counts as in the background when its window is hidden *or* just not focused (another app in front), and so does a browser tab now. Clicking the notification brings the window to the front on that chat.
 - **The Dock / taskbar badge** shows the number in the page title's `(n) VibeDoc`: the inbox count (R105). No number, no badge.
 
+## Installers
+
+Each release builds the installers on its own runner per OS (`.github/workflows/desktop.yml`, dispatched by `release.yml` once semantic-release has made the GitHub release) and attaches them to the release `v<version>`:
+
+| OS | Files |
+|---|---|
+| macOS | `VibeDoc-<version>-arm64.dmg`, `VibeDoc-<version>.dmg` (Intel), the matching `.zip`s (what auto-update downloads), `latest-mac.yml` |
+| Windows | `VibeDoc Setup <version>.exe` (per-user, no admin), `latest.yml` |
+| Linux | `VibeDoc-<version>.AppImage`, `latest-linux.yml` |
+
+The app carries its own copy of the VibeDoc server: `desktop/scripts/dist.mjs` packs the npm package as it would be published (`npm pack`) and installs it with its production dependencies once per OS and CPU (`npm install --os --cpu`, since Next's swc and sharp ship native binaries), then electron-builder (`desktop/electron-builder.yml`) copies the right one into the app's `Resources/server`. The app runs it with Electron's own Node, so the machine needs no Node install. The version is the root `package.json`'s.
+
+Build one locally:
+
+```bash
+pnpm build && pnpm build:playwright && pnpm build:cli   # the app VibeDoc serves
+pnpm --dir desktop install
+pnpm --dir desktop run dist          # this OS → desktop/dist/; --dir for just the unpacked app
+```
+
+Without signing secrets (`CSC_LINK` / `WIN_CSC_LINK`) the build is unsigned and says "unsigned build": macOS then asks you to right-click → Open the first time.
+
 ## Check
 
 ```bash

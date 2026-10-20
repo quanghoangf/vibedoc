@@ -7,10 +7,11 @@ import { app, BrowserWindow, Menu, nativeImage, screen, shell } from 'electron'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { vibedocHome } from '../bin/address.mjs'
+import { fromBin } from './bin-path.mjs'
 import { desktopLogFile, ensureServer, stopServer } from './server.mjs'
 import { pickLang, t } from './i18n.mjs'
 
+const { vibedocHome } = await fromBin('address.mjs')
 const here = path.dirname(fileURLToPath(import.meta.url))
 const icon = nativeImage.createFromPath(path.join(here, 'icons', 'icon.png'))
 
