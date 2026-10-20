@@ -63,6 +63,8 @@ export interface Worker {
   retryAt?: string
   /** T560: an epic worker sent one of its tasks claims that task next (once), then its epic's queue */
   nextTask?: string
+  /** T563: when its worktree was removed (the chat stays as history) */
+  removedAt?: string
 }
 
 /**

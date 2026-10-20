@@ -2984,6 +2984,16 @@ export async function removeWorktree(root: string, dir: string, opts: { force?: 
   }
 }
 
+/** T563: `git branch -D` for a removed worker's branch; git refuses a branch some checkout still has out (409). */
+export async function deleteBranch(root: string, branch: string): Promise<void> {
+  if (!branch || branch.startsWith('-')) throw new RoadmapError('A branch name is required')
+  try {
+    await git(['branch', '-D', branch], root)
+  } catch (e) {
+    throw new RoadmapError(`git branch -D failed: ${gitError(e)}`, 409)
+  }
+}
+
 // ─── Release notes from done work (R091) ──────────────────────────────────────
 
 export type ReleaseNotesDraft = {
@@ -4477,6 +4487,43 @@ export async function listWorkers(root: string): Promise<WorkerInfo[]> {
     })
   }
   return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+}
+
+const WORKER_DIFF_MAX_LINES = 2000
+
+export type WorkerDiff = {
+  commits: { sha: string; subject: string }[]
+  /** `patch` = the file's unified diff from its `diff --git` line; empty once the line cap is reached */
+  files: { path: string; added: number | null; removed: number | null; patch: string }[]
+  /** Patch lines left out past the cap */
+  cut: number
+}
+
+/**
+ * T563: what a worker's branch changed since it forked from its base: `git log base..branch` and `git diff base...branch`
+ * (three dots: from the fork point, so commits on the base since then don't show). Patches capped at 2000 lines in all.
+ */
+export async function workerDiff(root: string, w: { base: string; branch: string }): Promise<WorkerDiff> {
+  const range = `${w.base}...${w.branch}`
+  const [log, numstat, patch] = await Promise.all([
+    git(['log', '--format=%h%x1f%s', `${w.base}..${w.branch}`, '--'], root),
+    git(['diff', '--numstat', range, '--'], root),
+    git(['diff', range, '--'], root),
+  ])
+  const commits = log.split('\n').filter(Boolean).map(l => { const [sha, subject] = l.split('\x1f'); return { sha, subject } })
+  // numstat and the patch list files in the same order; binary files show "-"
+  const patches = patch ? patch.split(/^(?=diff --git )/m) : []
+  let budget = WORKER_DIFF_MAX_LINES
+  let cut = 0
+  const files = numstat.split('\n').filter(Boolean).map((l, i) => {
+    const [a, r, ...p] = l.split('\t')
+    const lines = (patches[i] ?? '').replace(/\n$/, '').split('\n')
+    const kept = lines.slice(0, Math.max(0, budget))
+    budget -= kept.length
+    cut += lines.length - kept.length
+    return { path: p.join('\t'), added: a === '-' ? null : Number(a), removed: r === '-' ? null : Number(r), patch: kept.join('\n') }
+  })
+  return { commits, files, cut }
 }
 
 /** T561: the run card's context. `live` = ids of workers running in this server (liveWorkerIds in worker-runs.ts). */

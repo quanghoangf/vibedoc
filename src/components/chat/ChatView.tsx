@@ -20,6 +20,7 @@ import { RunProposalCard, type RunCardSet, type RunCardStatus } from "./RunPropo
 import type { ToolkitResult } from "@/components/toolkit/ToolkitPicker"
 import { AttachLabel, StatusMarker, attachHref } from "./StatusMarker"
 import { WorkerStrip, useUsageText } from "@/components/workers/WorkerStrip"
+import { FINISHED, WorkerFinish } from "@/components/workers/WorkerFinish"
 
 /**
  * One conversation. The chat modal and the /chat page both render this, so they are the same chat UI.
@@ -145,6 +146,7 @@ function Conversation({ chat, hidden, wide }: { chat: ChatTab; hidden: boolean; 
             onOpenWorker={show}
           />
         )))}
+        {chat.worker && !chat.busy && FINISHED.includes(chat.worker.phase) && <WorkerFinish chatId={chat.id} worker={chat.worker} />}
       </div>
     </div>
   )

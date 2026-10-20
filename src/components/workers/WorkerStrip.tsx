@@ -78,7 +78,8 @@ export function WorkerStrip({ worker, onResume }: { worker: Worker; onResume?: (
         {task && <span className="font-mono text-accent">{t("workers.currentTask", { id: task })}</span>}
         {usage && <span data-worker-usage className="text-muted" title={t("workers.usageTotal")}>{usage}</span>}
         <span className="text-muted" title={worker.reason}>
-          {worker.phase === "paused" && worker.retryAt ? t("workers.pausedUntil", { time: clock(worker.retryAt) })
+          {worker.removedAt ? t("workers.phaseRemoved")
+            : worker.phase === "paused" && worker.retryAt ? t("workers.pausedUntil", { time: clock(worker.retryAt) })
             : isInterrupted(worker) ? t("workers.phaseInterrupted") : t(PHASE_KEY[worker.phase])}
         </span>
         {isInterrupted(worker) && onResume && (
