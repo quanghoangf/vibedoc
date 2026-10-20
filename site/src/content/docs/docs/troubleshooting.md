@@ -27,6 +27,10 @@ Install the plugin (see [Skills](/vibedoc/docs/skills/)), then restart Claude Co
 
 Open **Settings → Frontend app**. VibeDoc shows the app it detected, its start command and URL; fix them there if the guess is wrong. If Playwright is missing, the same page shows the install command. If pages need a login, click **Log in** once to save a session.
 
+### VibeDoc keeps crashing
+
+A background VibeDoc (`vibedoc start`) restarts itself after a crash. After 5 crashes within a minute it gives up, and `vibedoc status` says `○ VibeDoc is not running` with the last error: the exit code and the last lines of the log. The whole log is `~/.vibedoc/logs/server.log` (`$VIBEDOC_HOME/logs/server.log` when you set it). Look there for the first error after `supervisor: starting VibeDoc`. Fix it, then run `vibedoc start`. If you can't tell what it means, open an issue with those lines.
+
 ### `npx vibedoc` says the Node version is too old
 
 VibeDoc needs Node.js 20.9 or newer. `node -v` shows yours. Homebrew installs bring their own Node.

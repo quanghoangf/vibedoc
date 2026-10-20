@@ -262,7 +262,15 @@ export function formatStatus(state, live) {
     return lines
   }
   const lines = ['○ VibeDoc is not running']
-  if (state?.lastError) lines.push(`  Last error: ${state.lastError}`)
-  lines.push('  Start it with: vibedoc start')
+  if (state?.lastError) {
+    // a crash loop's lastError carries the log tail on the lines after the reason (T572)
+    const [reason, ...tail] = String(state.lastError).split('\n')
+    lines.push(`  Last error: ${reason}`, ...tail.map((l) => `    ${l}`))
+  }
+  if (state?.state === 'crashed') {
+    lines.push(`  See the log: ${tildePath(state.log, live.userHome) ?? '(no log)'} · Start again: vibedoc start`)
+  } else {
+    lines.push('  Start it with: vibedoc start')
+  }
   return lines
 }

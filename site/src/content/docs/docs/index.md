@@ -63,6 +63,8 @@ It prints `✓ VibeDoc is running in the background at http://localhost:<port>` 
 
 `vibedoc stop` stops the background VibeDoc and everything it started: agent workers, test runs and the dev servers it launched for them. It doesn't ask first. It names the agent runs it stopped (`Stopped 2 agent runs (R108, R109). They show as Interrupted with Resume next time.`): after the next `vibedoc start`, each one waits on its chat with **Resume**, which continues the task where it stopped. It ends with `✓ VibeDoc stopped`, and `status` then says not running. With nothing running it says so and exits 0. A VibeDoc running in the foreground isn't stopped: press Ctrl+C in its terminal.
 
+If the background server crashes, VibeDoc restarts it on the same address after 1 s, then 2 s, then 4 s. Your agents keep their MCP URL, and agent runs keep going through the restart. After 5 crashes within a minute it stops retrying and stays down: `vibedoc status` shows the exit code and the last lines of the log, and `vibedoc start` starts it again. The full output is in `~/.vibedoc/logs/server.log` (the previous one in `server.log.1`).
+
 ## 2. Connect your agent
 
 The MCP server is `http://localhost:<port>/api/mcp?root=<project folder>` (HTTP JSON-RPC). Use the MCP URL the terminal prints.

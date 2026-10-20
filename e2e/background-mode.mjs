@@ -12,11 +12,16 @@
 //      slow claude stub), stop names the worker, and the supervisor, server and stub are gone, the port free, status
 //      exits 3; the next start shows the worker Interrupted. /api/server/shutdown refuses without the CLI header or
 //      from another origin. With the server SIGSTOPped, stop still ends everything within 15 s (the sweep).
+//   6. S5: SIGKILL the server → within 10 s it answers again on the same port with a new serverPid, an MCP call works,
+//      and the agent worker running through the crash is still running (its chat still follows it).
+//   7. Crash loop: kill it 5 times quickly → the supervisor gives up and exits, server.json says crashed, `status`
+//      exits 3 and prints the last error with the log lines.
+//   8. Done when: start → the parent exits → the app answers → an MCP tools/call vibedoc_get_status on the printed MCP
+//      URL answers → stop → no supervisor, server or worker pid is alive and no worker turn is left.
 //
 //   pnpm build && PATH=$PWD/e2e/fixtures/claude-stub:$PATH node e2e/background-mode.mjs      (PORT=3090 by default)
 //
 // Spawns the real bin with --no-open from the `.next` build, with its own temp VIBEDOC_HOME (never ~/.vibedoc).
-// Later tasks (status, stop, crash restart) extend it.
 import assert from "node:assert/strict"
 import { execFileSync, spawn } from "node:child_process"
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
@@ -39,6 +44,22 @@ const stubPids = new Set()
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const state = (h = home) => { try { return JSON.parse(readFileSync(path.join(h, "server.json"), "utf8")) } catch { return null } }
 const alive = (pid) => { try { process.kill(pid, 0); return true } catch { return false } }
+/** A crash: the process dies without warning (Windows has no signals: taskkill /F). */
+const crash = (pid) => process.platform === "win32" ? execFileSync("taskkill", ["/PID", String(pid), "/F"], { stdio: "ignore" }) : process.kill(pid, "SIGKILL")
+/** An MCP tools/call at `mcpUrl` → the reply's text (fails on an error reply). */
+async function mcpCall(mcpUrl, name, args = {}) {
+  const res = await fetch(mcpUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json", "user-agent": "claude-code/2.1" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+    signal: AbortSignal.timeout(10_000),
+  })
+  const d = await res.json()
+  assert.equal(res.status, 200, JSON.stringify(d))
+  const text = d.result?.content?.[0]?.text
+  assert.ok(text && !d.result.isError, JSON.stringify(d))
+  return text
+}
 
 function env(extra = {}) {
   const e = { ...process.env, VIBEDOC_HOME: home, ...extra }
@@ -219,7 +240,7 @@ try {
   writeFileSync(path.join(workRepo, ".vibedoc/feedback.json"), JSON.stringify({ consent: false, sent: [] }))
   writeFileSync(path.join(workRepo, ".vibedoc/settings.json"), JSON.stringify({ workers: { env: ["CLAUDE_STUB_WORKER_MS"], verify: false } }))
   writeFileSync(path.join(workRepo, "plans/roadmap/R001-now.md"), "# R001: Now\n**Status:** planned\n**Order:** 10\n**Tasks:** —\n")
-  for (const [epicId, taskId] of [["R002", "T001"], ["R003", "T002"]]) {
+  for (const [epicId, taskId] of [["R002", "T001"], ["R003", "T002"], ["R004", "T003"], ["R005", "T004"]]) {
     writeFileSync(path.join(workRepo, `plans/roadmap/${epicId}-epic.md`), `# ${epicId}: Epic ${epicId}\n**Parent:** R001\n**Status:** planned\n**Order:** 10\n**Tasks:** ${taskId}\n`)
     writeFileSync(path.join(workRepo, `plans/tasks/${taskId}-task.md`), `# ${taskId}: Task ${taskId}\n**Status:** todo\n**Phase:** ${epicId}\n\n## Goal\nWrite ${taskId}.txt\n`)
   }
@@ -236,6 +257,20 @@ try {
       try { return JSON.parse(readFileSync(path.join(dir, p, ".vibedoc-workers", `${id}.json`), "utf8")) } catch {}
     }
     return null
+  }
+  /** Worker turns whose pid still lives, from every worker state file (what stop's sweep reads too). */
+  const workerTurnsAlive = () => {
+    const dir = path.join(home, "worktrees")
+    const live = []
+    for (const p of readdirSync(dir)) {
+      let files = []
+      try { files = readdirSync(path.join(dir, p, ".vibedoc-workers")).filter((f) => f.endsWith(".json")) } catch {}
+      for (const f of files) {
+        const s = JSON.parse(readFileSync(path.join(dir, p, ".vibedoc-workers", f), "utf8"))
+        if (alive(s.pid)) live.push(s.id ?? f)
+      }
+    }
+    return live
   }
   const workerChat = (id) => JSON.parse(readFileSync(path.join(workRepo, ".vibedoc/chats", `${id}.json`), "utf8"))
   async function startWorker(epicId, taskId) {
@@ -293,6 +328,80 @@ try {
   } else {
     assert.equal((await runToExit(repoA, ["stop"])).code, 0)
   }
+
+  // 6. S5: a crash comes back at the same address; the worker running through it keeps running
+  const s6 = await runToExit(workRepo, ["start"], { extraEnv: workEnv })
+  assert.equal(s6.code, 0, s6.out)
+  const mcpUrl = `${url}/api/mcp${q}`
+  assert.ok(await mcpCall(mcpUrl, "vibedoc_get_status"))
+  const w3 = await startWorker("R004", "T003")
+  const before = state()
+  const crashedAt = Date.now()
+  crash(before.serverPid)
+  await until("the app to answer again with a new server", async () => {
+    const s = state()
+    return s?.state === "running" && s.serverPid && s.serverPid !== before.serverPid && (await answers(PORT)) === 200
+  }, 10_000)
+  const back = Date.now() - crashedAt
+  const s6after = state()
+  assert.equal(s6after.port, PORT, "same port")
+  assert.equal(s6after.supervisorPid, before.supervisorPid, "same supervisor")
+  assert.equal(s6after.restarts.length, 1)
+  if (process.platform !== "win32") assert.equal(s6after.restarts[0].signal, "SIGKILL")
+  assert.ok(readFileSync(s6after.log, "utf8").includes("restarting in 1 s"), "the log says it restarts")
+  assert.ok(await mcpCall(mcpUrl, "vibedoc_get_status"), "the MCP URL works after the crash")
+  // the worker's turn outlived the crash and its chat still follows it (T556 adopts it on the next request)
+  await fetch(`${url}/api/conversations${q}`)
+  assert.equal(alive(w3.pid), true, "the worker's turn is still running")
+  const w3chat = workerChat(w3.id).worker
+  assert.equal(w3chat.phase, "running", JSON.stringify(w3chat))
+  assert.equal(w3chat.turns.at(-1).taskId, "T003")
+  assert.equal(w3chat.turns.at(-1).result ?? null, null, "the turn hasn't ended")
+  assert.equal(workerProc(w3.id).pid, w3.pid)
+  console.log(`✓ after a SIGKILL VibeDoc answers again at ${url} in ${back} ms; MCP works and the worker kept running`)
+
+  // 7. crash loop: 5 crashes within 60 s → the supervisor gives up, status says why
+  for (let killed = before.serverPid, n = 0; n < 6; n++) {
+    await until("a new server or the supervisor to give up", () => !alive(before.supervisorPid) || (alive(state()?.serverPid) && state().serverPid !== killed), 15_000)
+    if (!alive(before.supervisorPid)) break
+    killed = state().serverPid
+    crash(killed)
+  }
+  await until("the supervisor to give up", () => !alive(before.supervisorPid), 15_000)
+  const s7 = state()
+  assert.equal(s7.state, "crashed")
+  assert.equal(s7.restarts.length, 5)
+  assert.equal(s7.serverPid, null)
+  assert.match(s7.lastError, /^the app exited with (signal SIGKILL|code \d+), 5 times in 60 s\n/)
+  assert.ok(s7.lastError.split("\n").length > 2, "the log lines follow the reason")
+  assert.equal(await answers(PORT), 0, "it stays down")
+  const loopStatus = await runToExit(repoA, ["status"])
+  assert.equal(loopStatus.code, 3, loopStatus.out)
+  assert.ok(loopStatus.out.includes(`  Last error: ${s7.lastError.split("\n")[0]}`), loopStatus.out)
+  assert.ok(loopStatus.out.includes("restarting in 4 s"), "the log lines are shown")
+  assert.ok(loopStatus.out.includes(`  See the log: ${s7.log} · Start again: vibedoc start`), loopStatus.out)
+  // the worker's turn is detached and outlives the supervisor; end it here (step 8 checks stop on its own)
+  crash(w3.pid)
+  console.log("✓ 5 crashes within 60 s: the supervisor gives up, status exits 3 with the last error and log lines")
+
+  // 8. the epic's Done when: start, leave, use it from the browser and an agent, stop, nothing left
+  const dw = await runToExit(workRepo, ["start"], { extraEnv: workEnv })
+  assert.equal(dw.code, 0, dw.out)
+  const printedMcp = dw.out.match(/MCP: +(\S+)/)?.[1]
+  assert.equal(printedMcp, mcpUrl, "the printed MCP URL")
+  const s8 = state()
+  assert.deepEqual([s8.state, s8.restarts, s8.lastError], ["running", [], null], "a start after a crash loop starts fresh")
+  assert.equal(await answers(PORT), 200, "the app answers after the parent exited")
+  assert.ok((await fetch(`${url}/?root=${encodeURIComponent(workRepo)}`, { redirect: "manual" })).status < 400, "the browser page")
+  assert.ok(await mcpCall(printedMcp, "vibedoc_get_status"), "the agent's MCP call")
+  const w4 = await startWorker("R005", "T004")
+  const dwStop = await runToExit(repoA, ["stop"])
+  assert.equal(dwStop.code, 0, dwStop.out)
+  for (const [pid, what] of [[s8.supervisorPid, "supervisor"], [s8.serverPid, "server"], [w4.pid, "worker"]]) assert.equal(alive(pid), false, `the ${what} is gone`)
+  assert.deepEqual(workerTurnsAlive(), [], "no worker turn left")
+  if (process.platform !== "win32") assert.equal(listeners(PORT), 0, "the port is free")
+  assert.equal((await runToExit(repoA, ["status"])).code, 3)
+  console.log("✓ Done when: start → the browser and an agent use it → stop leaves nothing running")
 } finally {
   for (const child of children) child.kill("SIGTERM")
   const s = state()

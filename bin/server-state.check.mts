@@ -96,8 +96,17 @@ try {
   const notRunning = ['○ VibeDoc is not running', '  Start it with: vibedoc start']
   assert.deepEqual(formatStatus(null, { mode: null, port: null }), notRunning)
   assert.deepEqual(formatStatus(running, { mode: null, port: null }), notRunning, 'a stale running file: not running')
-  assert.deepEqual(formatStatus({ ...running, state: 'crashed', lastError: 'the app exited with code 1' }, { mode: null, port: null }), [
-    '○ VibeDoc is not running', '  Last error: the app exited with code 1', '  Start it with: vibedoc start',
+  assert.deepEqual(formatStatus({ ...running, state: 'stopped', lastError: 'the app exited with code 1 before it was ready' }, { mode: null, port: null }), [
+    '○ VibeDoc is not running', '  Last error: the app exited with code 1 before it was ready', '  Start it with: vibedoc start',
+  ])
+  // a crash loop: the reason, the log tail indented under it, and where to look + how to start again
+  const crashed = { ...running, state: 'crashed', lastError: 'the app exited with code 1, 5 times in 60 s\nError: boom\n  at x.js:1' }
+  assert.deepEqual(formatStatus(crashed, { mode: null, port: null, userHome: '/Users/me' }), [
+    '○ VibeDoc is not running',
+    '  Last error: the app exited with code 1, 5 times in 60 s',
+    '    Error: boom',
+    '      at x.js:1',
+    '  See the log: ~/.vibedoc/logs/server.log · Start again: vibedoc start',
   ])
   assert.equal(formatUptime(30_000), 'under a minute')
   assert.equal(formatUptime(12 * 60_000), '12 min')
