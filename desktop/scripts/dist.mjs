@@ -57,6 +57,8 @@ if (!signing) {
 }
 const builder = await import('electron-builder')
 await builder.build({
+  // desktop/, whatever the cwd (CI runs this from the repo root, which has no electron)
+  projectDir: desktop,
   ...(args.includes('--all') ? { mac: [], win: [], linux: [] } : {}),
   ...(args.includes('--dir') ? { dir: true } : {}),
   publish: args.includes('--publish') ? 'always' : 'never',
