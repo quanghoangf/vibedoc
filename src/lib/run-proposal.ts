@@ -37,7 +37,11 @@ export interface RunContext {
   denied: string[]
   /** Each task's budget (T567, workers.maxTurnsPerTask / taskTimeoutMin) */
   budget?: RunBudget
+  /** R113 T588: the permission mode the run uses (`fallback`: the CLI has no `auto`, so Accept edits) */
+  permission?: RunPermission
 }
+
+export interface RunPermission { wanted: 'auto' | 'acceptEdits'; mode: 'auto' | 'acceptEdits'; fallback: boolean }
 
 export interface RunBudget { maxTurns: number; timeoutMin: number }
 
@@ -51,6 +55,8 @@ export interface RunProposal {
   denied: string[]
   /** Each task's budget (T567); undefined shows "No limit yet" */
   budget?: RunBudget
+  /** R113 T588 */
+  permission?: RunPermission
   /** existing: the worker runs right now, so Accept is off */
   running?: boolean
   currentTask?: string | null
@@ -90,7 +96,7 @@ const taskWorker = (id: string, workers: WorkerInfo[]) =>
  * `vibedoc/T123` whose loop runs that task only.
  */
 export function routeRun(target: Attach, ctx: RunContext, want: RunRequest = {}): RunProposal {
-  const tools = { allowedTools: ctx.allowedTools, denied: ctx.denied, ...(ctx.budget && { budget: ctx.budget }) }
+  const tools = { allowedTools: ctx.allowedTools, denied: ctx.denied, ...(ctx.budget && { budget: ctx.budget }), ...(ctx.permission && { permission: ctx.permission }) }
   const epic = epicOf(target, ctx)
   const existing = want.mode === 'new' ? null
     : want.workerId ? ctx.workers.find(w => w.id === want.workerId) ?? null

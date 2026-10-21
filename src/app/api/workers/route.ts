@@ -9,8 +9,8 @@
  * worktree on `vibedoc/T123` whose loop runs that task only and ends. Each task turn streams through
  * GET /api/workers/stream?id=<id> (T556); every step emits
  * `worker_updated`. One worker per epic, at most `workers.maxRunning` per project (409, T557).
- * GET /api/workers → {allowed, denied, maxRunning, env, maxTurnsPerTask, taskTimeoutMin}: what a worker will run with
- * (Settings → Workers; T567 adds each task's budget).
+ * GET /api/workers → {allowed, denied, maxRunning, env, maxTurnsPerTask, taskTimeoutMin, mode}: what a worker will run with
+ * (Settings → Workers; T567 adds each task's budget, R113 T588 the permission mode).
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { createWorktree, detectFrontend, getChat, getRoadmapItem, getTask, getRunContext, installWorktreeDeps, readProjectSettings, rootFrom, workerPortsInUse, RoadmapError, type WorkerSettings } from '@/lib/core'
@@ -28,7 +28,7 @@ export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
   const { workers } = await readProjectSettings(rootFrom(req.nextUrl.searchParams.get('root')))
-  return NextResponse.json({ allowed: workers.allowedTools, denied: WORKER_DENIED, maxRunning: workers.maxRunning, env: workers.env, maxTurnsPerTask: workers.maxTurnsPerTask, taskTimeoutMin: workers.taskTimeoutMin })
+  return NextResponse.json({ allowed: workers.allowedTools, denied: WORKER_DENIED, maxRunning: workers.maxRunning, env: workers.env, maxTurnsPerTask: workers.maxTurnsPerTask, taskTimeoutMin: workers.taskTimeoutMin, mode: workers.mode })
 }
 
 export async function POST(req: NextRequest) {
@@ -68,6 +68,8 @@ export async function POST(req: NextRequest) {
   if (taken === 'limit') return NextResponse.json({ error: `The limit of ${workers.maxRunning} running workers is reached (Settings → Workers). Stop one, or wait.` }, { status: 409 })
   if (existing) {
     if (kind === 'task' && existing.worker.target.kind === 'epic') existing.worker.nextTask = targetId
+    // R113 T588: the mode in Settings now (and what this CLI supports) for its next turns
+    if (proposal.permission) existing.worker.permissionMode = proposal.permission.mode
     return continueWorker(root, existing, req.nextUrl.origin, workers)
   }
   try {
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
     const chat: WorkerChat = {
       id, title: `Worker ${targetId}`, messages: [], sessionId: null, busy: true, notes: [],
       attach: target, createdAt: now, updatedAt: now,
-      worker: { ...wt, target, phase: 'starting', turns: [], ...(port && { port }) },
+      worker: { ...wt, target, phase: 'starting', turns: [], ...(port && { port }), ...(proposal.permission && { permissionMode: proposal.permission.mode }) },
     }
     await saveWorkerChat(root)(chat)
     // the install runs after the reply: the run card closes at once and the chat shows "Setting up the worktree"

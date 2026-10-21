@@ -12,11 +12,22 @@ export const WORKER_CALL_HEADER = 'x-vibedoc-worker'
 /** Spike run B: only these built-ins, so no user hooks, plugins or extra tools leak into the worker. */
 export const WORKER_TOOLS = 'Bash,Edit,Write,Read,Glob,Grep'
 
+/**
+ * Read-only shell commands (R113 T588): in Accept edits mode a compound command (`pnpm lint | tail -5`) runs only when
+ * every part matches a rule, so the usual tails and greps are allowed too.
+ */
+export const READ_ONLY_BASH = [
+  'Bash(ls*)', 'Bash(cat *)', 'Bash(head *)', 'Bash(tail *)', 'Bash(wc *)', 'Bash(grep *)', 'Bash(rg *)', 'Bash(find *)',
+  'Bash(echo *)', 'Bash(sort *)', 'Bash(diff *)', 'Bash(pwd)', 'Bash(which *)', 'Bash(sed -n *)',
+  'Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)', 'Bash(git show*)', 'Bash(git branch*)', 'Bash(git rev-parse*)', 'Bash(git ls-files*)',
+]
+/** Running a project's checks: builds, tests, linters, scripts. */
+const CHECK_BASH = ['Bash(pnpm *)', 'Bash(npm *)', 'Bash(yarn *)', 'Bash(bun *)', 'Bash(node *)', 'Bash(npx *)', 'Bash(tsc *)']
+
 /** The default allowlist (`workers.allowedTools` in .vibedoc/settings.json replaces it, T557). */
 export const WORKER_ALLOWED = [
   'mcp__vibedoc__*', 'Edit', 'Write', 'Read', 'Glob', 'Grep',
-  'Bash(git add*)', 'Bash(git commit*)', 'Bash(git status*)', 'Bash(git diff*)', 'Bash(git log*)',
-  'Bash(pnpm *)', 'Bash(npm *)', 'Bash(node *)', 'Bash(npx *)',
+  'Bash(git add*)', 'Bash(git commit*)', 'Bash(mkdir *)', ...READ_ONLY_BASH, ...CHECK_BASH,
 ]
 /** Always denied, whatever the settings say (ADR-007 decision 10): not a setting. */
 export const WORKER_DENIED = ['Bash(git push*)', 'Bash(gh *)']
@@ -45,9 +56,26 @@ Commit only the code and docs you changed here. VibeDoc owns plans/tasks/*, plan
 /** T568: the review turn's prompt, the same words as R067's Verify button (`verifyTask` in ask-agent.ts). */
 export const verifyPrompt = (taskId: string) => `Verify task ${taskId}: call vibedoc_verify_context, then vibedoc_report_findings.`
 
-/** T568: a review only reads: no Edit/Write, Bash only for git diff / git log, the VibeDoc tools for context + findings. */
+/**
+ * T568: a review never edits: no Edit/Write tools. R113 T588: it may run the task's checks (its Verify block), so its
+ * Bash covers the read-only commands and the check runners.
+ */
 export const VERIFY_TOOLS = 'Read,Glob,Grep,Bash'
-export const VERIFY_ALLOWED = ['mcp__vibedoc__*', 'Read', 'Glob', 'Grep', 'Bash(git diff*)', 'Bash(git log*)']
+export const VERIFY_ALLOWED = ['mcp__vibedoc__*', 'Read', 'Glob', 'Grep', ...READ_ONLY_BASH, ...CHECK_BASH]
+
+/**
+ * R113 T588: a worker's permission mode. `auto` (Claude Code's own classifier approves safe actions, the spike's
+ * pick) or `acceptEdits` (edits pass, Bash only by the allowlist). `-p` has nobody to ask, so `default` would deny.
+ */
+export const WORKER_MODES = ['auto', 'acceptEdits'] as const
+export type WorkerMode = (typeof WORKER_MODES)[number]
+export const DEFAULT_WORKER_MODE: WorkerMode = 'auto'
+
+/** The mode a run uses: the wanted one when the CLI has it, else Accept edits (`fallback` says why). Pure. */
+export function effectiveWorkerMode(wanted: WorkerMode, choices: string[] | null): { mode: WorkerMode; fallback: boolean } {
+  if (wanted === 'auto' && !choices?.includes('auto')) return { mode: 'acceptEdits', fallback: true }
+  return { mode: wanted, fallback: false }
+}
 
 /** T558: `-p` has no AskUserQuestion, so the worker asks through VibeDoc's card and waits on the user. */
 export const WORKER_SYSTEM_PROMPT = 'To ask the user, call vibedoc_ask_questions and end your turn; the answer arrives as the next message. Never guess on a decision the task leaves open.'
@@ -69,14 +97,17 @@ export interface WorkerArgsInput {
   maxTurns?: number
   /** T568: a fresh read-only review turn (verifyPrompt), not the task; ignores `allowed` and `resume` */
   verify?: boolean
+  /** R113 T588: every turn's `--permission-mode` (task, fix, answer and review alike) */
+  permissionMode?: WorkerMode
 }
 
-export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, resume, maxTurns, verify }: WorkerArgsInput): string[] {
+export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, resume, maxTurns, verify, permissionMode = 'acceptEdits' }: WorkerArgsInput): string[] {
   const url = `${mcpOrigin}/api/mcp?root=${encodeURIComponent(mainRoot)}`
   return [
     ...(verify ? ['-p', verifyPrompt(taskId)] : resume ? ['-p', resume.message, '--resume', resume.sessionId] : ['-p', workerPrompt(taskId)]),
     ...(verify ? [] : ['--append-system-prompt', WORKER_SYSTEM_PROMPT]),
     '--output-format', 'stream-json', '--verbose',
+    '--permission-mode', permissionMode,
     ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),
     '--mcp-config', JSON.stringify({ mcpServers: { vibedoc: { type: 'http', url, headers: { [WORKER_CALL_HEADER]: workerId } } } }),
     '--strict-mcp-config',

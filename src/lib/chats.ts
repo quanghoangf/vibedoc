@@ -71,6 +71,8 @@ export interface Worker {
   prUrl?: string
   /** T564: when the user merged its branch into the base */
   mergedAt?: string
+  /** R113 T588: its turns' `--permission-mode`, set when it starts (a worker from before: Accept edits) */
+  permissionMode?: 'auto' | 'acceptEdits'
 }
 
 /**

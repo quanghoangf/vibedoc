@@ -1,9 +1,12 @@
 # T588: Worker permission mode: Auto by default, review turns run their checks
-**Status:** 📋 Todo
+**Status:** 👀 Review
 **Phase:** R113 — Worker sessions like Claude Code
 **Size:** M
 **Depends on:** —
 **Covers:** S1, S2, S3, S5
+**Owner:** ai:claude
+**Due:** 2026-10-24
+**Started:** 2026-10-21
 
 ## Goal
 A worker's `claude -p` runs in a permission mode the user picks (Auto by default, or Accept edits), so a task's commands (pipes, env-prefixed commands, builds) run without silent denials, and the review turn can re-run the checks without being able to edit.
@@ -42,3 +45,17 @@ node src/lib/worker-args.check.mts
 pnpm lint && pnpm build
 PATH=$PWD/e2e/fixtures/claude-stub:$PATH BASE=http://localhost:3081 node e2e/worker-run.mjs
 ```
+
+## Manual tests
+_2026-10-21 — ai_
+### Steps
+- [x] S1 — WHEN a worker in Auto mode runs `pnpm lint 2>&1 | tail -5` or `FOO=1 node script.mjs` → THEN the command runs, and no permission denial shows in the worker chat
+- [ ] S2 — WHEN a task’s review turn runs its Verify commands → THEN they run, and the review can’t edit or write files
+- [x] S3 — WHEN a worker tries `git push` or `gh` in any mode → THEN it is refused
+- [x] S5 — WHEN the installed Claude Code has no Auto mode → THEN the run card says so and the worker runs in Accept edits with the allowlist
+- [ ] Restart VibeDoc (it reads `claude --help` once), open Settings → Workers → "Permission mode" shows Auto selected with its hint; pick Accept edits, Save, reload → it stays
+- [ ] Work with agent on a real epic → the run card has a "Permission mode: Auto" row
+- [ ] Let a real worker run a task whose Verify pipes into tail (this repo’s tasks do) → its chat shows no "Refused" rows for those commands; the review turn re-runs the checks
+### Regression risk
+- [ ] An existing idle worker continued with Work with agent still claims its next task (it now gets the mode too)
+- [ ] _Spike (claude -p 2.1.305): `auto` runs the pipe / python / env-prefix commands `default` refused, and `--disallowedTools` still refuses `git push`. Checks: `node src/lib/worker-args.check.mts` (mode on every turn incl. review, review has no Edit/Write but runs checks, push/gh denied in auto, fallback rule) and `node src/lib/claude-cli.check.mts` (choices parsed from 2.1.305’s help). e2e with the stub: worker-run (argv has `--permission-mode auto`, run card row, Auto checked in Settings), worker-verify, agent-runs, orchestrator, worker-ask pass; a server whose stub help has no `auto` proposes `{mode: acceptEdits, fallback: true}`. worker-finish fails the same way without this change (checked on a build without it). Not done here: a real (non-stub) worker run in Auto. Run card: shows the mode, change it in Settings (no per-run switch). Settings fix: the mode hints are descriptions, not names, so "Allowed tools" stays one field._

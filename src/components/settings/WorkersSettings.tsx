@@ -4,11 +4,11 @@ import { useEffect, useState } from "react"
 import { ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { AppSettings } from "@/lib/settings"
-import { WORKER_BASE_ENV } from "@/lib/worker-args"
+import { WORKER_BASE_ENV, WORKER_MODES, type WorkerMode } from "@/lib/worker-args"
 import { useT } from "@/context/LanguageContext"
 
 /** What GET /api/workers answers: the effective settings (defaults filled in) plus the fixed deny rules. */
-export interface WorkerTools { allowed: string[]; denied: string[]; maxRunning: number; env: string[]; maxTurnsPerTask: number; taskTimeoutMin: number }
+export interface WorkerTools { allowed: string[]; denied: string[]; maxRunning: number; env: string[]; maxTurnsPerTask: number; taskTimeoutMin: number; mode: WorkerMode }
 
 const lines = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boolean)
 
@@ -25,6 +25,7 @@ export function WorkersSettings({ settings, onSave, rootParam }: {
   const [max, setMax] = useState(1)
   const [turns, setTurns] = useState(1)
   const [timeoutMin, setTimeoutMin] = useState(1)
+  const [mode, setMode] = useState<WorkerMode>("auto")
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export function WorkersSettings({ settings, onSave, rootParam }: {
         setMax(w.maxRunning)
         setTurns(w.maxTurnsPerTask)
         setTimeoutMin(w.taskTimeoutMin)
+        setMode(w.mode)
       })
       .catch((e) => console.warn("[vibedoc] could not read worker settings:", e))
   }, [rootParam])
@@ -45,7 +47,7 @@ export function WorkersSettings({ settings, onSave, rootParam }: {
   const save = async () => {
     const tools = lines(allowed)
     const count = (n: number) => Math.max(1, Math.floor(n) || 1)
-    await onSave({ ...settings, workers: { ...(settings.workers?.verify === false && { verify: false }), ...(tools.length && { allowedTools: tools }), maxRunning: count(max), env: lines(env), maxTurnsPerTask: count(turns), taskTimeoutMin: count(timeoutMin) } })
+    await onSave({ ...settings, workers: { ...(settings.workers?.verify === false && { verify: false }), ...(tools.length && { allowedTools: tools }), maxRunning: count(max), env: lines(env), maxTurnsPerTask: count(turns), taskTimeoutMin: count(timeoutMin), mode } })
     setSaved(true)
   }
   const field = "w-full rounded-lg border border-border bg-surface2 px-3 py-2 font-mono text-xs text-txt focus:border-accent/60 focus:outline-hidden"
@@ -62,6 +64,19 @@ export function WorkersSettings({ settings, onSave, rootParam }: {
       </p>
       {loaded && (
         <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); void save() }} onChange={() => setSaved(false)}>
+          <fieldset className="space-y-2">
+            <legend className="mb-2 block text-sm font-medium text-txt">{t("workers.permissionMode")}</legend>
+            {/* the hint describes the radio, it isn't its name (it mentions "allowed tools", the field below) */}
+            {WORKER_MODES.map((m) => (
+              <div key={m} className="flex items-start gap-2 rounded-lg border border-border bg-surface2 p-3 has-[:checked]:border-accent/60">
+                <input type="radio" id={`worker-mode-${m}`} name="worker-mode" value={m} checked={mode === m} onChange={() => setMode(m)} aria-describedby={`worker-mode-${m}-hint`} className="mt-1 accent-[var(--color-accent)]" />
+                <div>
+                  <label htmlFor={`worker-mode-${m}`} className="block cursor-pointer text-sm text-txt">{t(m === "auto" ? "workers.modeAuto" : "workers.modeAcceptEdits")}</label>
+                  <p id={`worker-mode-${m}-hint`} className="text-xs text-muted">{t(m === "auto" ? "workers.modeAutoHint" : "workers.modeAcceptEditsHint")}</p>
+                </div>
+              </div>
+            ))}
+          </fieldset>
           <label className="block space-y-2">
             <span className="block text-sm font-medium text-txt">{t("workers.allowedTools")}</span>
             <span className="block text-xs text-muted">{t("workers.allowedToolsHint")}</span>

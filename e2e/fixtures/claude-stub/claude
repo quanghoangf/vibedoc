@@ -14,7 +14,11 @@ const cmd = args.slice(0, 2).join(" ")
 // `plugin marketplace add <repo>` registers the marketplace under the name its marketplace.json declares
 const MARKETPLACE_NAMES = { "quanghoangf/vibedoc": "vibedoc", "anthropics/claude-plugins-official": "claude-plugins-official", "anthropics/skills": "anthropic-agent-skills" }
 
-if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope") + 1] === "user") {
+if (args[0] === "--help") {
+  // R113 T588: VibeDoc reads the --permission-mode choices; CLAUDE_STUB_NO_AUTO=1 = a CLI from before Auto mode
+  const modes = process.env.CLAUDE_STUB_NO_AUTO === "1" ? '"acceptEdits", "plan"' : '"acceptEdits", "auto",\n                                        "bypassPermissions", "plan"'
+  console.log(`Usage: claude [options] [command] [prompt]\n\n  --permission-mode <mode>              Permission mode to use for the session\n                                        (choices: ${modes})`)
+} else if (cmd === "mcp add" && args.includes("--scope") && args[args.indexOf("--scope") + 1] === "user") {
   // R104: the user-scope server (one for every project); the URL is the arg after the name
   if (state.mcpUser) { console.error("MCP server vibedoc already exists in user config"); process.exit(1) }
   const h = args.indexOf("--header")

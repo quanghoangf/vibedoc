@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { mcpAdd, mcpAddUser, mcpRemove, mcpRemoveUser } from './claude-cli.ts'
+import { mcpAdd, mcpAddUser, mcpRemove, mcpRemoveUser, permissionModeChoices } from './claude-cli.ts'
 
 const stub = path.resolve(import.meta.dirname, '../../e2e/fixtures/claude-stub')
 const root = mkdtempSync(path.join(tmpdir(), 'vibedoc-cli-'))
@@ -44,3 +44,14 @@ try {
   process.env.PATH = PATH
   rmSync(root, { recursive: true, force: true })
 }
+
+// R113 T588: the permission modes from `claude --help` (2.1.305's wrapped layout), none from an older help
+const help = `  --permission-mode <mode>              Permission mode to use for the session
+                                        (choices: "acceptEdits", "auto",
+                                        "bypassPermissions", "manual",
+                                        "dontAsk", "plan")
+  --permission-prompts <target>         Who answers permission prompts with
+                                        (choices: "host", "none", default:`
+assert.deepEqual(permissionModeChoices(help), ['acceptEdits', 'auto', 'bypassPermissions', 'manual', 'dontAsk', 'plan'])
+assert.equal(permissionModeChoices('  --print  Print response and exit'), null)
+console.log('claude-cli permission modes ok')

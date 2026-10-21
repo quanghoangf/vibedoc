@@ -89,6 +89,14 @@ export function RunCard({ proposal, errors = [], refusals, busy, error, onAccept
       <dl className="grid grid-cols-[max-content_1fr] items-baseline gap-x-3 gap-y-2 text-xs">
         <dt className="text-muted">{t("workers.budget")}</dt>
         <dd className="font-medium text-txt">{proposal.budget ? t("workers.budgetValue", { turns: proposal.budget.maxTurns, min: proposal.budget.timeoutMin }) : t("workers.noBudget")}</dd>
+        {proposal.permission && (
+          <>
+            <dt className="text-muted">{t("workers.permissionMode")}</dt>
+            <dd className={proposal.permission.fallback ? "font-medium text-amber" : "font-medium text-txt"} data-permission-mode={proposal.permission.mode}>
+              {proposal.permission.fallback ? t("workers.modeFallback") : t(proposal.permission.mode === "auto" ? "workers.modeAuto" : "workers.modeAcceptEdits")}
+            </dd>
+          </>
+        )}
         <dt className="text-muted">{t("workers.toolsRow")}</dt>
         <dd>
           {/* the full allowlist is one click away: the summary is what changes run to run */}

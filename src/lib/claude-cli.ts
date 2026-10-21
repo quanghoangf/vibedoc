@@ -58,3 +58,20 @@ export const mcpAddUserArgs = (url: string) => ['mcp', 'add', '--scope', 'user',
 export const mcpRemoveUserArgs = ['mcp', 'remove', 'vibedoc', '-s', 'user']
 export const mcpAddUser = (cwd: string, url: string) => run(mcpAddUserArgs(url), cwd)
 export const mcpRemoveUser = (cwd: string) => run(mcpRemoveUserArgs, cwd)
+
+/** R113 T588: the `--permission-mode` choices `claude --help` lists, or null when the help doesn't say (an old CLI). Pure. */
+export function permissionModeChoices(help: string): string[] | null {
+  const block = help.match(/--permission-mode[\s\S]*?\(choices:([^)]*)\)/)
+  return block ? [...block[1].matchAll(/"([A-Za-z]+)"/g)].map(m => m[1]) : null
+}
+
+/**
+ * R113 T588: the `--permission-mode` choices of the installed CLI (`claude --help`), null when it doesn't say or isn't
+ * there. Asked once per process: the CLI is the same until VibeDoc restarts.
+ */
+// ponytail: cached for the process's life; a Claude Code upgrade is seen after a VibeDoc restart
+let modes: Promise<string[] | null> | null = null
+export function claudePermissionModes(cwd: string): Promise<string[] | null> {
+  modes ??= run(['--help'], cwd).then(r => (r.ok ? permissionModeChoices(r.stdout) : null))
+  return modes
+}

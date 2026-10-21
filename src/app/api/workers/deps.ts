@@ -31,6 +31,7 @@ export function workerDeps(root: string, chat: WorkerChat, origin: string, worke
       pluginDir: path.join(process.cwd(), 'plugin'),
       allowed: workers.allowedTools,
       maxTurns: workers.maxTurnsPerTask,
+      permissionMode: chat.worker.permissionMode,
     }),
     // T557: a minimal env, so VibeDoc's tokens never reach the agent; PORT = its own dev server port (T559)
     env: { ...workerEnv(process.env, workers.env), ...(chat.worker.port && { PORT: String(chat.worker.port) }) },

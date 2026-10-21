@@ -1,6 +1,6 @@
 // Self-check for worker-args. Run: node src/lib/worker-args.check.mts
 import assert from 'node:assert/strict'
-import { VERIFY_ALLOWED, WORKER_CALL_HEADER, WORKER_SYSTEM_PROMPT, verifyPrompt, workerArgs, workerEnv } from './worker-args.ts'
+import { VERIFY_ALLOWED, WORKER_ALLOWED, WORKER_CALL_HEADER, effectiveWorkerMode, WORKER_SYSTEM_PROMPT, verifyPrompt, workerArgs, workerEnv } from './worker-args.ts'
 
 const args = workerArgs({ taskId: 'T554', mainRoot: '/repo main', mcpOrigin: 'http://localhost:3333', workerId: 'c-abc', pluginDir: '/vibedoc/plugin' })
 const after = (flag: string) => args[args.indexOf(flag) + 1]
@@ -56,7 +56,7 @@ assert.ok(!args.includes('--max-turns'))
 const budgeted = workerArgs({ taskId: 'T1', mainRoot: '/r', mcpOrigin: 'http://h', workerId: 'w', pluginDir: '/p', maxTurns: 60 })
 assert.equal(budgeted[budgeted.indexOf('--max-turns') + 1], '60')
 
-// T568: a review turn is fresh and read-only: R067's prompt, no Edit/Write, git diff/log only, same MCP, push still denied
+// T568 + R113 T588: a review turn is fresh and never edits: R067's prompt, no Edit/Write; it may run checks
 const review = workerArgs({ taskId: 'T554', mainRoot: '/repo main', mcpOrigin: 'http://localhost:3333', workerId: 'c-abc', pluginDir: '/vibedoc/plugin', allowed: ['Edit'], resume: { sessionId: 's-1', message: 'x' }, verify: true })
 const rAfter = (flag: string) => review[review.indexOf(flag) + 1]
 assert.equal(rAfter('-p'), verifyPrompt('T554'))
@@ -64,9 +64,27 @@ assert.match(verifyPrompt('T554'), /^Verify task T554: call vibedoc_verify_conte
 assert.ok(!review.includes('--resume') && !review.includes('--plugin-dir') && !review.includes('--append-system-prompt'))
 assert.equal(rAfter('--tools'), 'Read,Glob,Grep,Bash')
 assert.deepEqual(review.slice(review.indexOf('--allowedTools') + 1, review.indexOf('--disallowedTools')), VERIFY_ALLOWED)
-assert.ok(!VERIFY_ALLOWED.some(a => /^(Edit|Write)$|git (add|commit)|pnpm|npm|node/.test(a)))
+assert.ok(!VERIFY_ALLOWED.some(a => /^(Edit|Write)$|git (add|commit|push)|^Bash\(gh /.test(a)), 'a review never edits, commits or pushes')
+assert.ok(['Bash(node *)', 'Bash(pnpm *)', 'Bash(tail *)', 'Bash(grep *)'].every(a => VERIFY_ALLOWED.includes(a)), 'a review runs the checks')
 assert.equal(rAfter('--mcp-config'), after('--mcp-config'))
 assert.equal(rAfter('--setting-sources'), 'project,local')
 assert.ok(review.slice(review.indexOf('--disallowedTools')).includes('Bash(git push*)'))
+
+// R113 T588: every turn has a --permission-mode: the worker's (auto), Accept edits for a worker from before
+assert.equal(after('--permission-mode'), 'acceptEdits', 'no mode given (a worker from before R113)')
+const auto = workerArgs({ taskId: 'T1', mainRoot: '/r', mcpOrigin: 'http://h', workerId: 'w', pluginDir: '/p', permissionMode: 'auto' })
+assert.equal(auto[auto.indexOf('--permission-mode') + 1], 'auto')
+const autoReview = workerArgs({ taskId: 'T1', mainRoot: '/r', mcpOrigin: 'http://h', workerId: 'w', pluginDir: '/p', permissionMode: 'auto', verify: true })
+assert.equal(autoReview[autoReview.indexOf('--permission-mode') + 1], 'auto')
+assert.equal(autoReview[autoReview.indexOf('--tools') + 1], 'Read,Glob,Grep,Bash', 'auto review still has no Edit/Write')
+for (const a of [auto, autoReview]) assert.ok(a.slice(a.indexOf('--disallowedTools')).includes('Bash(git push*)') && a.includes('Bash(gh *)'), 'push / gh denied in auto too')
+assert.ok(!auto.includes('bypassPermissions'))
+// the default allowlist covers a compound command's usual tails (Accept edits checks every part)
+assert.ok(['Bash(tail *)', 'Bash(head *)', 'Bash(echo *)', 'Bash(grep *)', 'Bash(node *)'].every(a => WORKER_ALLOWED.includes(a)))
+// Auto only when this CLI lists it
+assert.deepEqual(effectiveWorkerMode('auto', ['acceptEdits', 'auto', 'plan']), { mode: 'auto', fallback: false })
+assert.deepEqual(effectiveWorkerMode('auto', ['acceptEdits', 'plan']), { mode: 'acceptEdits', fallback: true })
+assert.deepEqual(effectiveWorkerMode('auto', null), { mode: 'acceptEdits', fallback: true })
+assert.deepEqual(effectiveWorkerMode('acceptEdits', null), { mode: 'acceptEdits', fallback: false })
 
 console.log('worker-args: ok')

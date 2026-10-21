@@ -20,8 +20,12 @@ One epic has at most one worker. Workers on different epics run side by side, up
 
 ## The limits
 
-- **No permission prompts mid-turn.** A worker can't stop to ask "may I run this?". What it may run is decided up front by the allowlist. A call outside it is refused, and the refusal shows in the worker's chat.
-- **The allowlist is not a sandbox.** It limits which tools a worker calls. A worker that may run `pnpm *` can run any package script, so any code, as you. `git push` and `gh` are always denied, whatever the settings say.
+- **No permission prompts mid-turn.** A worker can't stop to ask "may I run this?", so it runs in a permission mode decided up front:
+  - **Auto** (the default): Claude Code's own classifier approves safe commands and blocks risky ones, as in your own sessions in Auto mode. Pipes (`pnpm lint | tail -5`), `FOO=1 node x.mjs` and builds just run.
+  - **Accept edits**: edits go through, and a shell command runs only when every part of it matches the allowed tools. VibeDoc uses this when your Claude Code has no Auto mode yet, and the run card says so.
+
+  A call that is still refused shows in the worker's chat. The review turn after each task runs in the same mode without Edit and Write: it can re-run the task's checks, never change code.
+- **Neither is a sandbox.** A worker that may run `pnpm *` can run any package script, so any code, as you. Its fence is its own worktree, its budget, and `git push` and `gh`, which are always denied, whatever the mode or the settings say.
 - **Minimal environment.** A worker gets only `PATH HOME USER SHELL LANG TERM TMPDIR`, plus the names you list. Tokens in VibeDoc's own environment never reach it unless you list them.
 - **Budgets.** Each task has a turn budget (model round trips) and a time limit. Past either one, the task stops and the worker waits on you. Your answer resumes it with the budget again.
 - **Usage limits.** Near your Claude usage limit the worker shows **Paused** and continues by itself when the limit resets.
@@ -34,7 +38,8 @@ One epic has at most one worker. Workers on different epics run side by side, up
 
 | Setting | Default | What it does |
 |---|---|---|
-| Allowed tools (`allowedTools`) | VibeDoc's tools, Edit/Write/Read/Glob/Grep, `git add/commit/status/diff/log`, `pnpm`/`npm`/`node`/`npx` | Claude Code permission rules, e.g. `Bash(make *)`. Empty = the default list |
+| Permission mode (`mode`) | `auto` | `auto` or `acceptEdits`, for every turn of a run (shown on the run card) |
+| Allowed tools (`allowedTools`) | VibeDoc's tools, Edit/Write/Read/Glob/Grep, `git add/commit` and the read-only git commands, `pnpm`/`npm`/`yarn`/`bun`/`node`/`npx`/`tsc`, read-only shell (`ls`, `cat`, `head`, `tail`, `grep`, `sed -n`, …) | Claude Code permission rules, e.g. `Bash(make *)`. Empty = the default list. Decides everything in Accept edits; in Auto, what it allows runs without the classifier |
 | Environment variables (`env`) | none | Extra variable names a worker inherits, e.g. `DATABASE_URL` |
 | Workers at the same time (`maxRunning`) | 2 | A start past the limit is refused |
 | Turns (`maxTurnsPerTask`) | 60 | `--max-turns` for each task |

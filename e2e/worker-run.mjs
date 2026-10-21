@@ -133,8 +133,9 @@ try {
     assert.ok(/--disallowedTools Bash\(git push\*\)/.test(c), "push denied")
     assert.ok(c.includes("--tools Bash,Edit,Write,Read,Glob,Grep") && !/--tools {2}/.test(c), "six built-ins, never --tools ''")
     assert.ok(!c.includes("--resume"))
+    assert.ok(c.includes("--permission-mode auto"), "R113: Auto mode by default (the stub's help lists it)")
   }
-  console.log("ok  argv: ?root=<main root>, --strict-mcp-config, push denied, no --resume, no empty --tools")
+  console.log("ok  argv: ?root=<main root>, --strict-mcp-config, push denied, no --resume, no empty --tools, --permission-mode auto")
 
   // T557: refusals and the minimal env (the server runs with GITHUB_TOKEN=x)
   assert.deepEqual(chat.messages.filter((m) => m.role === "assistant").map((m) => m.refused),
@@ -266,6 +267,7 @@ try {
     await runCard.getByText(/\d+ allowed · 2 always denied/).click()
     await runCard.getByText("Bash(git push*)").waitFor()
     await runCard.getByText("60 turns · 30 min per task").waitFor() // T567: the proposal carries the default budget
+    await runCard.getByText("Auto", { exact: true }).waitFor() // R113 T588: the permission mode row
     await runCard.getByRole("button", { name: "Start worker" }).click()
 
     // Start goes to the worker's chat on /chat
@@ -336,7 +338,8 @@ try {
     console.log("ok  task panel → Work with agent → card on vibedoc/T013 → Start → /chat; one call naming T013, the worker ends; the task links its worker (S1)")
 
     await page.goto(`${BASE}/settings?tab=workers`)
-    await page.getByText(/It is not a sandbox/).waitFor()
+    await page.getByText(/are not a sandbox/).waitFor()
+    assert.ok(await page.getByRole("radio", { name: "Auto", exact: true }).isChecked(), "R113 T588: Auto is the default mode")
     assert.match(await page.getByLabel("Allowed tools").inputValue(), /^mcp__vibedoc__\*$/m)
     await page.getByText("Bash(git push*)").waitFor()
     await page.getByLabel("Environment variables").fill("GITHUB_TOKEN")
