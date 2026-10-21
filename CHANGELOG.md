@@ -1,3 +1,11 @@
+# [1.26.0](https://github.com/quanghoangf/vibedoc/compare/v1.25.1...v1.26.0) (2026-10-21)
+
+
+### Features
+
+* **workers:** runs use Auto permission mode by default, reviews can re-run the checks (T588) ([b6e9315](https://github.com/quanghoangf/vibedoc/commit/b6e9315ca8d4e5e89fea5f2ab611d37f63e49972))
+* **workers:** workers run with your Claude Code setup by default, MCP servers opt-in (T589) ([a16c54b](https://github.com/quanghoangf/vibedoc/commit/a16c54bad29c3602c284434a041a8baad4fb1f46))
+
 ## [1.25.1](https://github.com/quanghoangf/vibedoc/compare/v1.25.0...v1.25.1) (2026-10-21)
 
 
