@@ -139,10 +139,11 @@ test.describe('install (T202)', () => {
     await expect(page.getByRole('tabpanel', { name: 'npx', exact: true }).getByRole('button', { name: 'Copy install command' })).toBeFocused()
   })
 
-  test('"Running in a minute" shows the three steps with their exact commands', async ({ page }) => {
+  test('"Running in a minute" shows the four steps with their exact commands', async ({ page }) => {
     await page.goto('./#install')
     const install = page.getByRole('region', { name: 'Running in a minute.' })
-    await expect(install.getByRole('heading', { level: 3 })).toHaveCount(3)
+    await expect(install.getByRole('heading', { level: 3 })).toHaveCount(4)
+    await expect(install.getByText('vibedoc login on', { exact: false })).toBeVisible()
     await expect(install.getByText('npx vibedoc', { exact: false })).toBeVisible()
     await expect(install.getByText('"url": "http://localhost:<port>/api/mcp"', { exact: false })).toBeVisible()
     await expect(install.getByText('/plugin install vibedoc@vibedoc', { exact: false })).toBeVisible()
