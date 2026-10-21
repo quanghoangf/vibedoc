@@ -1,3 +1,10 @@
+## [1.25.1](https://github.com/quanghoangf/vibedoc/compare/v1.25.0...v1.25.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **desktop:** build the installers whatever the working directory, so the release job finds Electron ([642e981](https://github.com/quanghoangf/vibedoc/commit/642e98172ae3db8dfa08fd7ae886860d040a4380))
+
 # [1.25.0](https://github.com/quanghoangf/vibedoc/compare/v1.24.0...v1.25.0) (2026-10-21)
 
 
