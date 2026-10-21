@@ -1,3 +1,50 @@
+# [1.25.0](https://github.com/quanghoangf/vibedoc/compare/v1.24.0...v1.25.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **cli:** one start at a time, so simultaneous starts make one server (T569) ([0079cc3](https://github.com/quanghoangf/vibedoc/commit/0079cc3c7efa84c6e784167be2c3b7edcc09ddea))
+* **workers:** composer only when an answer can resume the worker's task (T558) ([5a92a99](https://github.com/quanghoangf/vibedoc/commit/5a92a994ae13decfab16213ae4f74f32a246a334))
+* **workers:** e2e lists CLAUDE_STUB_WORKER_MS in workers.env (T557) ([51f868a](https://github.com/quanghoangf/vibedoc/commit/51f868ac9b06471890a04b10f36d9d830c0a6986))
+* **workers:** orchestrator notes no longer lost to concurrent chat writes (T562) ([64958c6](https://github.com/quanghoangf/vibedoc/commit/64958c632552722f27d66d0962af98cf987d5489))
+* **workers:** override start commands get PORT only (T559) ([cfb3a2e](https://github.com/quanghoangf/vibedoc/commit/cfb3a2ea05a010a48e1a2312a7c0ea94168da96b))
+* **workers:** store a HEAD base as the branch it means (T564) ([763a27f](https://github.com/quanghoangf/vibedoc/commit/763a27f17da98414aca64996beba8200d17feedc))
+* **workers:** Work with agent is the task's primary action and lands on /chat ([b38916b](https://github.com/quanghoangf/vibedoc/commit/b38916bb0460190793679d70d1ec62212c8e4655))
+
+
+### Features
+
+* **chat:** chats saved in another tab or the desktop app show without a reload; desktop app e2e covers S1-S4 (T580) ([392ed27](https://github.com/quanghoangf/vibedoc/commit/392ed2770d8d0cf492143dfff91e8a51b36326fa))
+* **cli:** a crashed background VibeDoc restarts, and a crash loop stops (T572) ([82f3f01](https://github.com/quanghoangf/vibedoc/commit/82f3f01632da15be2ebfbf21ca23663b44012794))
+* **cli:** vibedoc login on|off|status starts VibeDoc at login (T573) ([4826466](https://github.com/quanghoangf/vibedoc/commit/48264665d880ea9640159375d364ee963502e4a5))
+* **cli:** vibedoc start runs VibeDoc in the background (T569) ([396b325](https://github.com/quanghoangf/vibedoc/commit/396b325fc2a6544ac8a5f8a860f821f4bd361474))
+* **cli:** vibedoc status says whether VibeDoc runs, where and since when (T570) ([0dc7bdb](https://github.com/quanghoangf/vibedoc/commit/0dc7bdb24eb1faeff5eec4667b3bf9e9ce415ead))
+* **cli:** vibedoc stop ends VibeDoc, its agent workers and test runs (T571) ([9bc2cb6](https://github.com/quanghoangf/vibedoc/commit/9bc2cb6e4830f6096bc59f7419f01ad47ea90201))
+* **desktop:** Electron app opens the running VibeDoc in its own window (T577) ([de99ae4](https://github.com/quanghoangf/vibedoc/commit/de99ae44a2fe99db63f281b3533bb2942df14214))
+* **desktop:** installers for macOS, Windows and Linux on every release, with the server inside (T581) ([85eca20](https://github.com/quanghoangf/vibedoc/commit/85eca20746518281f56faf1c92c6e8e431cf3e63))
+* **desktop:** one VibeDoc per address whichever install started it (T584) ([e650b09](https://github.com/quanghoangf/vibedoc/commit/e650b0942745d25b2c751d148c4a18664802084b))
+* **desktop:** other sites open in the browser, waiting chats notify when the window is unfocused (T579) ([2c65444](https://github.com/quanghoangf/vibedoc/commit/2c65444c128375a07d74d1711b66b7196d3b92fa))
+* **desktop:** the app says when a newer version is out and shows its release notes (T582) ([c15a04f](https://github.com/quanghoangf/vibedoc/commit/c15a04f2ed8d9c5264e11be1cf40ecd7fa628d55))
+* **desktop:** the app starts its own VibeDoc when none runs and stops only that one on quit (T578) ([3bb538e](https://github.com/quanghoangf/vibedoc/commit/3bb538ed04b55741ea3aa9d7552925792efff337))
+* **desktop:** Update downloads the new version, Restart installs it and reopens the app (T583) ([16106e7](https://github.com/quanghoangf/vibedoc/commit/16106e7feb1e39548de07c7aa9958b98a9846c9d))
+* **install:** install.ps1 asks about background start; update and uninstall handle it (T575) ([acafcb9](https://github.com/quanghoangf/vibedoc/commit/acafcb9a00f0ca9941ca899f7d43b22ccaf6a5d6))
+* **install:** install.sh asks about background start; update and uninstall handle it (T574) ([6c662fc](https://github.com/quanghoangf/vibedoc/commit/6c662fcd7b69f8a172e14906609e0e850d6b2888))
+* **site:** desktop app downloads on the install box and a full Desktop app docs page (T586) ([df44b37](https://github.com/quanghoangf/vibedoc/commit/df44b37f1f25517b3a4678213ee7abcc12acb164))
+* **workers:** a worker asks mid-task, waits on you, and the answer resumes its session (T558) ([692519c](https://github.com/quanghoangf/vibedoc/commit/692519c43e7ae215f3e63c58502116a377974073))
+* **workers:** allowlist, minimal env and max workers settings, refused calls in the log (T557) ([4795a3c](https://github.com/quanghoangf/vibedoc/commit/4795a3cbc668b6875508dc42b0412b9f9b37f273))
+* **workers:** finish panel with the branch diff and Remove worktree (T563) ([afc397f](https://github.com/quanghoangf/vibedoc/commit/afc397ffc09fff4debbb3aaef4f111d045f394bb))
+* **workers:** Open PR and Merge from the finish panel (T564) ([e859634](https://github.com/quanghoangf/vibedoc/commit/e859634f2e4f61e5c8758bf7a88f7b51a023902e))
+* **workers:** orchestrator chat reads workers, proposes runs as the run card, gets a note when a worker stops (T562) ([b8e997b](https://github.com/quanghoangf/vibedoc/commit/b8e997b64c4a8e1c2afa32a9d6fe972bf6245725))
+* **workers:** own dev server port per worker (T559) ([6432c0a](https://github.com/quanghoangf/vibedoc/commit/6432c0adaed3b8ac133ff2f3693c321de960c9d0))
+* **workers:** run card routed by the server, existing workers, list_workers and propose_run MCP tools (T561) ([1e4d339](https://github.com/quanghoangf/vibedoc/commit/1e4d339ea7664c27d811b11904ea27c1726be439))
+* **workers:** start a worker on a single task, routed to its epic's worker or a vibedoc/T123 worktree (T560) ([e14da09](https://github.com/quanghoangf/vibedoc/commit/e14da097e3398fed3e562257ab9ada0999afaf4f))
+* **workers:** task-by-task worker loop in a worktree (T554) ([867f3ee](https://github.com/quanghoangf/vibedoc/commit/867f3eed0259db30316f3ac0ff1edc0a2f4d5630))
+* **workers:** turn and time budget per task, usage limit pauses and retries (T567) ([0f402a2](https://github.com/quanghoangf/vibedoc/commit/0f402a29a7e0c7534ad0728fea1338f376b976ba))
+* **workers:** verify each finished task before the next claim, one fix turn, else send back and wait (T568) ([104a5a7](https://github.com/quanghoangf/vibedoc/commit/104a5a7fff8bcadd5be4c3f5607d8b2e8133c4f3))
+* **workers:** Work with agent on the epic sheet opens a worker chat (T555) ([fc0776f](https://github.com/quanghoangf/vibedoc/commit/fc0776fd1854db171be6ba998f4ed39cf2046c72))
+* **workers:** worker survives a VibeDoc restart, interrupted task resumes (T556) ([164690b](https://github.com/quanghoangf/vibedoc/commit/164690be7c7854292eef2781b0e9a8cded706157))
+* **worktrees:** worktree lifecycle in core (T553) ([ef10277](https://github.com/quanghoangf/vibedoc/commit/ef10277416300ee05bd639c4a407d38d6b05e9cd))
+
 # [1.24.0](https://github.com/quanghoangf/vibedoc/compare/v1.23.0...v1.24.0) (2026-10-16)
 
 
