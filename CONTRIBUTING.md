@@ -64,6 +64,44 @@ Breaking changes: add `!` after the type (`feat!: rename vibedoc_write_doc`)
 
 ---
 
+## Releasing
+
+A push to `main` releases. `.github/workflows/release.yml` runs semantic-release, which reads the commits since the last tag:
+
+| Commits since the last tag | Release |
+|---|---|
+| only `chore` / `docs` / `test` / `refactor` | none |
+| a `fix` | patch (1.24.0 → 1.24.1) |
+| a `feat` | minor (1.24.0 → 1.25.0) |
+| a `!` after the type, or `BREAKING CHANGE:` in a body | major |
+
+When a release happens, in order:
+
+1. **npm** — the `vibedoc` package (its `prepublishOnly` builds `.next`, the Playwright kit and the `vibedoc check` bundle), the tag `v<version>`, the GitHub release with its notes, and `CHANGELOG.md` + the bumped `package.json` / `plugin/.claude-plugin/plugin.json` in a `[skip ci]` commit. Don't edit CHANGELOG.md by hand.
+2. **Site** — `site.yml` rebuilds the site, so the changelog page and the docs show the release.
+3. **Desktop app** — `desktop.yml` builds the installers on macOS, Windows and Linux runners and attaches them to the GitHub release: `VibeDoc-mac-arm64.dmg`, `VibeDoc-mac-x64.dmg`, the macOS `.zip`s, `VibeDoc-Setup.exe`, `VibeDoc-x86_64.AppImage` and the `latest*.yml` update feeds. The installed apps see the new version from those feeds. To rebuild one version: Actions → Desktop → Run workflow with that version.
+4. **Homebrew** — the formula in `quanghoangf/homebrew-vibedoc`.
+
+Repository secrets:
+
+| Secret | For | Without it |
+|---|---|---|
+| `NPM_TOKEN` | publishing to npm | no release |
+| `HOMEBREW_TAP_TOKEN` | pushing the Homebrew formula | the tap step is skipped |
+| `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | signing and notarizing the macOS app | unsigned: users right-click → Open the first time, and the app can't install its own updates on macOS (it links to the release instead) |
+| `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD` | signing the Windows installer | unsigned: SmartScreen asks once (More info → Run anyway) |
+
+Before pushing a release, locally:
+
+```bash
+pnpm lint && pnpm build                       # the app
+pnpm --dir site test                          # the site
+node e2e/desktop-app.mjs                      # the desktop app (after pnpm --dir desktop install)
+pnpm --dir desktop run dist                   # optional: this OS's installer in desktop/dist/
+```
+
+---
+
 ## Branch naming
 
 ```

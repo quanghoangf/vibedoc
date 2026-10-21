@@ -84,7 +84,30 @@ Opens a sample project (a roadmap in progress, tasks in every status, agent chat
 | No Node (macOS, Linux) | `curl -fsSL https://quanghoangf.github.io/vibedoc/install.sh \| sh` | same with `sh -s -- --update` | same with `sh -s -- --uninstall` |
 | No Node (Windows) | `irm https://quanghoangf.github.io/vibedoc/install.ps1 \| iex` | run it again | [see the docs](https://quanghoangf.github.io/vibedoc/docs/) |
 
-The one-line installer asks whether to keep VibeDoc running in the background and start it at login (`VIBEDOC_BACKGROUND=1|0` answers for scripts). Prefer a window of its own? Download the [desktop app](https://quanghoangf.github.io/vibedoc/docs/desktop-app/) for macOS ([Apple silicon](https://github.com/quanghoangf/vibedoc/releases/latest/download/VibeDoc-mac-arm64.dmg), [Intel](https://github.com/quanghoangf/vibedoc/releases/latest/download/VibeDoc-mac-x64.dmg)), [Windows](https://github.com/quanghoangf/vibedoc/releases/latest/download/VibeDoc-Setup.exe) or [Linux](https://github.com/quanghoangf/vibedoc/releases/latest/download/VibeDoc-x86_64.AppImage). Every channel serves the same version. Check with `vibedoc --version`. Needs Node.js 20.9+ (Homebrew and the one-line installer bring their own).
+Every channel serves the same version. Check with `vibedoc --version`. Needs Node.js 20.9+ (Homebrew, the one-line installer and the desktop app bring their own).
+
+### Keep it running
+
+`vibedoc` runs in the foreground: closing the terminal stops it. To keep VibeDoc up without a terminal:
+
+```bash
+vibedoc start        # in the background; prints the address and gives the terminal back
+vibedoc status       # running or not, where, since when, the log file
+vibedoc stop         # stops it and everything it started (agent runs, test runs)
+vibedoc login on     # also start it in the background every time you log in (off: vibedoc login off)
+```
+
+A crashed background VibeDoc restarts itself on the same address, so your agents stay connected. The one-line installer asks once whether to turn on start at login (`VIBEDOC_BACKGROUND=1` or `=0` answers for scripts). More: [Run in the background](https://quanghoangf.github.io/vibedoc/docs/#run-in-the-background).
+
+### Desktop app
+
+VibeDoc in its own window, with a Dock / taskbar icon and the same screens as the browser. It uses the VibeDoc that already runs (from any install) or starts its own, and it updates itself after one click.
+
+| macOS | Windows | Linux |
+|---|---|---|
+| [Apple silicon](https://github.com/quanghoangf/vibedoc/releases/latest/download/VibeDoc-mac-arm64.dmg) · [Intel](https://github.com/quanghoangf/vibedoc/releases/latest/download/VibeDoc-mac-x64.dmg) | [VibeDoc-Setup.exe](https://github.com/quanghoangf/vibedoc/releases/latest/download/VibeDoc-Setup.exe) | [AppImage](https://github.com/quanghoangf/vibedoc/releases/latest/download/VibeDoc-x86_64.AppImage) |
+
+The builds aren't signed yet: the first time, right-click → **Open** on macOS, **More info → Run anyway** on Windows. See [Desktop app](https://quanghoangf.github.io/vibedoc/docs/desktop-app/).
 
 ## How it works
 
@@ -137,7 +160,7 @@ your agent    →  http://localhost:<port>/api/mcp  52 MCP tools, same files, sa
   </tr>
 </table>
 
-Also: an agent chat inside the app that plans with you and proposes edits as diffs, live activity and session history, saved board views, a docs editor with live collaboration, and an API reference from your `openapi.yaml` (endpoints and schemas in Docs, Try it against your local app, `vibedoc_get_endpoint` for the agent).
+Also: **Work with agent** on a task or an epic, which runs a coding agent task by task in its own git worktree and branch while the board follows it ([Agent runs](https://quanghoangf.github.io/vibedoc/docs/concepts/agent-runs/)); a [desktop app](https://quanghoangf.github.io/vibedoc/docs/desktop-app/); an agent chat inside the app that plans with you and proposes edits as diffs, live activity and session history, saved board views, a docs editor with live collaboration, and an API reference from your `openapi.yaml` (endpoints and schemas in Docs, Try it against your local app, `vibedoc_get_endpoint` for the agent).
 
 ## Recommended CLAUDE.md snippet
 
@@ -167,7 +190,7 @@ your-project/
 └── memory/MEMORY.md, entries/       session handoff and knowledge entries
 ```
 
-VibeDoc's own state stays small and readable: `.vibedoc-activity.json` (the activity log) and `.vibedoc/` (settings, saved views, chats). Test runs go to `~/.vibedoc/runs/`, outside the repo.
+VibeDoc's own state stays small and readable: `.vibedoc-activity.json` (the activity log) and `.vibedoc/` (settings, saved views, chats). Outside the repo, in `~/.vibedoc/` (or `$VIBEDOC_HOME`): test runs (`runs/`), the projects hub and its port (`hub.json`, `port`), background mode's state and log (`server.json`, `logs/`), and agent worktrees (`worktrees/`).
 
 VibeDoc sends nothing about your project. On a first run it asks once whether to send anonymous first-run steps (off unless you say yes); see [First-run feedback & privacy](https://quanghoangf.github.io/vibedoc/docs/privacy/).
 
@@ -180,7 +203,7 @@ pnpm install
 VIBEDOC_ROOT=/path/to/a/project pnpm dev
 ```
 
-Next.js 16 (App Router) · Tailwind CSS 4 · MCP over HTTP JSON-RPC (`/api/mcp`) · Server-Sent Events · the file system as the only store. The landing page and docs are in [`site/`](site/) (Astro + Starlight).
+Next.js 16 (App Router) · Tailwind CSS 4 · MCP over HTTP JSON-RPC (`/api/mcp`) · Server-Sent Events · the file system as the only store. The landing page and docs are in [`site/`](site/) (Astro + Starlight); the desktop app is in [`desktop/`](desktop/) (Electron, its own package: `pnpm build && pnpm --dir desktop install && pnpm --dir desktop start`, see [docs/desktop-app.md](docs/desktop-app.md)).
 
 Pull requests are welcome: see [CONTRIBUTING.md](./CONTRIBUTING.md) for the architecture rules and commit conventions, and open an [issue](https://github.com/quanghoangf/vibedoc/issues/new/choose) for bugs and ideas.
 

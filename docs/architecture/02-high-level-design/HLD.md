@@ -1,5 +1,5 @@
 # High-Level Design
-**Last updated:** 2026-09-30
+**Last updated:** 2026-10-21
 
 ## Request flows
 
@@ -98,6 +98,26 @@ sequenceDiagram
     AI->>MCP: 6. vibedoc_update_memory
     Note over AI: write handoff for next session
 ```
+
+## How VibeDoc runs
+
+One Next.js server (the hub, R100) serves every project at one address, `http://localhost:<port>` with the port saved in `~/.vibedoc/port`. What starts it differs; there is never a second one on the address.
+
+| Started by | Process tree | Stops when | Restart after a crash |
+|---|---|---|---|
+| `vibedoc` (foreground) | `bin/vibedoc.mjs` → `next start` | Ctrl+C / the terminal closes | no |
+| `vibedoc start` (R109), or the login item from `vibedoc login on` (R110) | detached `bin/supervisor.mjs` → `next start`; state `~/.vibedoc/server.json` | `vibedoc stop` (asks `POST /api/server/shutdown` to stop workers and test runs first) | yes: 1 s, 2 s, 4 s; gives up after 5 in a minute |
+| the desktop app (R111), when nothing answers | Electron → `bin/vibedoc.mjs --no-open --port <saved>` (Electron's own Node) → `next start` | the app quits (it stops only the VibeDoc it started) | no |
+
+```mermaid
+flowchart LR
+  A[a start: CLI, login item or app] --> B{GET /api/server answers?}
+  B -- a VibeDoc --> C[use it: add the repo / open the window]
+  B -- another program --> D[CLI: next free port · app: error page]
+  B -- nothing --> E[start next start on the saved port]
+```
+
+`GET /api/server` says which VibeDoc answers (`{app, version, startedBy}`), so the CLI and the desktop app (two installs, maybe two versions) share it. The browser and the desktop window are both just clients of that server: the same pages, the same SSE stream.
 
 ## Component responsibilities
 

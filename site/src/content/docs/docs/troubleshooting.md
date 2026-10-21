@@ -31,6 +31,22 @@ Open **Settings → Frontend app**. VibeDoc shows the app it detected, its start
 
 A background VibeDoc (`vibedoc start`) restarts itself after a crash. After 5 crashes within a minute it gives up, and `vibedoc status` says `○ VibeDoc is not running` with the last error: the exit code and the last lines of the log. The whole log is `~/.vibedoc/logs/server.log` (`$VIBEDOC_HOME/logs/server.log` when you set it). Look there for the first error after `supervisor: starting VibeDoc`. Fix it, then run `vibedoc start`. If you can't tell what it means, open an issue with those lines.
 
+### VibeDoc doesn't start when I log in
+
+Run `vibedoc login status`. `Start at login: off` means it was never turned on (or the installer was answered no): run `vibedoc login on`. If it says on, the login item runs `vibedoc start --no-open` with the path the item names; if that VibeDoc was moved or uninstalled, run `vibedoc login on` again from the one you use now, so it points there. Then log out and in, and check `vibedoc status` and `~/.vibedoc/logs/server.log`.
+
+### The desktop app won't open (unsigned app)
+
+The installers aren't signed yet. On macOS, right-click (Control-click) VibeDoc in Applications → **Open** → **Open**, or System Settings → Privacy & Security → **Open Anyway**. On Windows, SmartScreen's **More info** → **Run anyway**. You only do this once.
+
+### The desktop app says "VibeDoc couldn't start"
+
+The window shows the reason and the last lines of `~/.vibedoc/logs/desktop-server.log`. The usual one: another program holds VibeDoc's address (`http://localhost:3333 is in use by another program`). Stop that program, or put another port in `~/.vibedoc/port`, then click **Try again**. A VibeDoc you run from the terminal never causes this: the app uses it.
+
+### The desktop app can't install an update
+
+On macOS an app can install its own updates only once it is signed, so the update card says it couldn't install and offers **Download the new version**: download the `.dmg` from the release page and drag VibeDoc over the old one. On Windows and Linux, **Try again** on the card; if it keeps failing, download the installer from the [latest release](https://github.com/quanghoangf/vibedoc/releases/latest).
+
 ### `npx vibedoc` says the Node version is too old
 
 VibeDoc needs Node.js 20.9 or newer. `node -v` shows yours. Homebrew installs bring their own Node.
