@@ -75,7 +75,7 @@ import { parseFeedback, reachedSteps, type FeedbackState, type StepId } from './
 import { applyOverride, cleanOverride, detectFrontendApp, detectFrontendProject, FIXTURE_KIT_FILES, FIXTURE_KIT_IMPORT, hasChromium, LOCKFILES, PLAYWRIGHT_PACKAGES, playwrightStatus, playwrightTestDir, workspacePatterns, type FrontendApp, type FrontendAuth, type FrontendOverride, type PackageManager, type PlaywrightStatus } from './frontend'
 import { ownWorktrees, parseWorktreeList, projectSlug, worktreeDir, worktreesRoot, type Worktree } from './worktrees'
 import type { WorkerProcState } from './worker-state'
-import { DEFAULT_WORKER_MODE, WORKER_ALLOWED, WORKER_DENIED, WORKER_MODES, effectiveWorkerMode, type WorkerMode } from './worker-args'
+import { DEFAULT_WORKER_MODE, DEFAULT_WORKER_SETUP, WORKER_ALLOWED, WORKER_DENIED, WORKER_MODES, WORKER_SETUPS, effectiveWorkerMode, type WorkerMode, type WorkerSetup } from './worker-args'
 import { claudePermissionModes } from './claude-cli'
 import type { RunContext, WorkerInfo } from './run-proposal'
 import { parseConnection, shouldRecordCall, type AgentConnection } from './agent-connect'
@@ -1484,13 +1484,13 @@ export async function readProjectSettings(root: string): Promise<{ sizeDays: Siz
  * T567: each task's budget, `maxTurnsPerTask` (`--max-turns`) and `taskTimeoutMin` (the server kills the turn).
  */
 /** `verify` (T568): review each finished task (R067) before the next claim; default on */
-export interface WorkerSettings { allowedTools: string[]; maxRunning: number; env: string[]; maxTurnsPerTask: number; taskTimeoutMin: number; verify: boolean; /** R113 T588 */ mode: WorkerMode }
+export interface WorkerSettings { allowedTools: string[]; maxRunning: number; env: string[]; maxTurnsPerTask: number; taskTimeoutMin: number; verify: boolean; /** R113 T588 */ mode: WorkerMode; /** R113 T589 */ setup: WorkerSetup; userMcp: boolean }
 export const DEFAULT_MAX_WORKERS = 2
 /** The spike's trivial task took 38 s; a real task runs tens of round trips. Room on both. */
 export const DEFAULT_MAX_TURNS_PER_TASK = 60
 export const DEFAULT_TASK_TIMEOUT_MIN = 30
 
-function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown; maxTurnsPerTask?: unknown; taskTimeoutMin?: unknown; verify?: unknown; mode?: unknown } | undefined): WorkerSettings {
+function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?: unknown; maxTurnsPerTask?: unknown; taskTimeoutMin?: unknown; verify?: unknown; mode?: unknown; setup?: unknown; userMcp?: unknown } | undefined): WorkerSettings {
   const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').map(x => x.trim()).filter(Boolean) : [])
   const allowed = strings(w?.allowedTools)
   const max = w?.maxRunning
@@ -1502,6 +1502,8 @@ function workerSettings(w: { allowedTools?: unknown; maxRunning?: unknown; env?:
     taskTimeoutMin: positiveInt(w?.taskTimeoutMin) ?? DEFAULT_TASK_TIMEOUT_MIN,
     verify: w?.verify !== false,
     mode: (WORKER_MODES as readonly unknown[]).includes(w?.mode) ? w?.mode as WorkerMode : DEFAULT_WORKER_MODE,
+    setup: (WORKER_SETUPS as readonly unknown[]).includes(w?.setup) ? w?.setup as WorkerSetup : DEFAULT_WORKER_SETUP,
+    userMcp: w?.userMcp === true,
   }
 }
 
@@ -4572,7 +4574,7 @@ export async function getRunContext(root: string, live: Set<string>): Promise<Ru
     git(['for-each-ref', '--format=%(refname:short)', 'refs/heads/'], root).then(s => s.split('\n').filter(Boolean), () => [] as string[]),
     readProjectSettings(root), listTasks(root),
     git(['rev-parse', '--abbrev-ref', 'HEAD'], root).then(s => s.trim(), () => 'HEAD'),
-    claudePermissionModes(root),
+    claudePermissionModes(),
   ])
   return {
     roadmap: items.map(i => ({ id: i.id, parent: i.parent, status: i.status, tasks: i.tasks })),
@@ -4582,6 +4584,7 @@ export async function getRunContext(root: string, live: Set<string>): Promise<Ru
     branches, maxRunning: settings.maxRunning, allowedTools: settings.allowedTools, denied: WORKER_DENIED,
     budget: { maxTurns: settings.maxTurnsPerTask, timeoutMin: settings.taskTimeoutMin },
     permission: { wanted: settings.mode, ...effectiveWorkerMode(settings.mode, modes) },
+    setup: { setup: settings.setup, userMcp: settings.setup === 'mine' && settings.userMcp },
   }
 }
 

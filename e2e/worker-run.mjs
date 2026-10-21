@@ -1,7 +1,8 @@
 // API check for R108 T554: a worker works through an epic task by task in its own worktree.
 //   1. POST /api/workers on an epic with two ready tasks → two stub calls (fresh sessions, one task each), two
 //      commits on vibedoc/R002, the board moves over SSE, the main checkout has no code change.
-//   2. The worker argv: ?root=<main root>, --strict-mcp-config, push denied, six built-in tools (never `--tools ''`).
+//   2. The worker argv: ?root=<main root>, --strict-mcp-config, push denied, the user's setup with Claude Code's default
+//      tools (R113: `--setting-sources user,project,local`, no `--tools`), `--permission-mode auto`.
 //   3. A second worker on a running epic → 409. Cancel mid-task → the process is gone, the task stays in-progress,
 //      no next task is claimed.
 //   T557: the stub tries `git push` → a refused call in the saved chat and a Refused row; its env has no GITHUB_TOKEN
@@ -131,11 +132,12 @@ try {
     assert.ok(c.includes(`?root=${encodeURIComponent(fx)}`), "MCP ?root= is the main checkout")
     assert.ok(c.includes("--strict-mcp-config"))
     assert.ok(/--disallowedTools Bash\(git push\*\)/.test(c), "push denied")
-    assert.ok(c.includes("--tools Bash,Edit,Write,Read,Glob,Grep") && !/--tools {2}/.test(c), "six built-ins, never --tools ''")
+    // R113 T589: the user's Claude Code setup by default: user settings, Claude Code's default tools, MCP still VibeDoc's
+    assert.ok(c.includes("--setting-sources user,project,local") && !c.includes("--tools "), "the user's setup, default tools")
     assert.ok(!c.includes("--resume"))
     assert.ok(c.includes("--permission-mode auto"), "R113: Auto mode by default (the stub's help lists it)")
   }
-  console.log("ok  argv: ?root=<main root>, --strict-mcp-config, push denied, no --resume, no empty --tools, --permission-mode auto")
+  console.log("ok  argv: ?root=<main root>, --strict-mcp-config, push denied, no --resume, the user's setup, --permission-mode auto")
 
   // T557: refusals and the minimal env (the server runs with GITHUB_TOKEN=x)
   assert.deepEqual(chat.messages.filter((m) => m.role === "assistant").map((m) => m.refused),
@@ -268,6 +270,7 @@ try {
     await runCard.getByText("Bash(git push*)").waitFor()
     await runCard.getByText("60 turns · 30 min per task").waitFor() // T567: the proposal carries the default budget
     await runCard.getByText("Auto", { exact: true }).waitFor() // R113 T588: the permission mode row
+    await runCard.getByText("My Claude Code setup", { exact: true }).waitFor() // R113 T589: the setup row
     await runCard.getByRole("button", { name: "Start worker" }).click()
 
     // Start goes to the worker's chat on /chat
@@ -340,6 +343,8 @@ try {
     await page.goto(`${BASE}/settings?tab=workers`)
     await page.getByText(/are not a sandbox/).waitFor()
     assert.ok(await page.getByRole("radio", { name: "Auto", exact: true }).isChecked(), "R113 T588: Auto is the default mode")
+    assert.ok(await page.getByRole("radio", { name: "My Claude Code setup" }).isChecked(), "R113 T589: the user's setup is the default")
+    assert.equal(await page.getByRole("checkbox", { name: "Also my MCP servers" }).isChecked(), false, "the user's MCP servers stay off by default")
     assert.match(await page.getByLabel("Allowed tools").inputValue(), /^mcp__vibedoc__\*$/m)
     await page.getByText("Bash(git push*)").waitFor()
     await page.getByLabel("Environment variables").fill("GITHUB_TOKEN")

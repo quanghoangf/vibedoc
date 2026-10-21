@@ -96,3 +96,28 @@ A task is the natural checkpoint: it has a spec, a Verify block and one commit. 
 - **Ceiling: a usage limit's rejected shape is unknown.** T567 matches by text until a real one is seen.
 - Each task pays about 54k tokens of base context. Most of it is the project `CLAUDE.md` with its `@` includes and the 50 MCP tool definitions. A smaller `CLAUDE.md` makes every worker task cheaper.
 - `/vibedoc:work` documents epic ids only, but a task id works (spike). If the skill changes, T554 must check that the task-id form still works.
+
+## Addendum (R113, 2026-10-21): permission mode and the user's setup
+
+Workers kept failing on permissions: worker R109's log has 26 refused Bash calls in 9 turns, and its 4 review turns had 9 of 11 calls refused (`VERIFY_ALLOWED` was `git diff` / `git log` only). In `-p` nobody answers a permission prompt, so mode `default` refuses everything outside the allowlist, including a compound command whose tail (`| tail -5`, `&& echo`) isn't listed, a `VAR=1 cmd` prefix and a write to `/tmp`.
+
+**Spike** (`claude -p`, Claude Code 2.1.305, a scratch repo, the worker's minimal env):
+
+| Run | Result |
+|---|---|
+| `--permission-mode default`, `pnpm build 2>&1 \| tail -3` | refused |
+| `--permission-mode auto`: that, `python3 -c …` writing a file, `FOO=1 node x.mjs` | all ran |
+| `auto` + `--disallowedTools 'Bash(git push*)'`, `git push` | refused |
+| Isolated (decision 9) | 6 tools, 0 MCP, 4 plugins, 23 skills, 7.6k context tokens |
+| `--setting-sources user,project,local`, no `--tools`, `--strict-mcp-config` | 26 tools, 0 MCP, 24 plugins, 151 skills, 33.7k |
+| The same without `--strict-mcp-config` | 309 tools, 34 MCP servers (claude.ai mail, drive and calendar connectors among them), 42.4k |
+
+The user's SessionStart hooks ran without error under the minimal env, and VibeDoc's plugin loaded once although it is also installed.
+
+**Decision** (supersedes the "Default setting sources" alternative above, and decision 9's setting sources and tools by default):
+1. Every turn passes `--permission-mode`: `workers.mode`, default `auto`; `acceptEdits` when `claude --help` lists no `auto` (the run card says so). Auto is Claude Code's classifier, not a sandbox: the fence stays the worktree, the budget and the always-denied `git push` / `gh`.
+2. A review turn keeps `Read,Glob,Grep,Bash` (never Edit/Write) and may run the checks: `VERIFY_ALLOWED` covers the read-only shell and the check runners.
+3. `workers.setup`, default `mine`: the user's settings (`--setting-sources user,project,local`) and Claude Code's default tool set, so a worker has the user's plugins, skills, hooks, CLAUDE.md and permission rules. `isolated` keeps decision 9's argv.
+4. The user's MCP servers only with `workers.userMcp` (off by default, `mine` only): an unattended agent with the user's mail and drive connectors is a bigger step than plugins and skills.
+
+**Consequence:** with `mine` each task starts at about 34k context tokens instead of 8k (more with the project's own CLAUDE.md), paid once per task as a cache write. A machine-specific setup makes runs less reproducible across machines; `isolated` is the choice when that matters.

@@ -71,6 +71,16 @@ export const WORKER_MODES = ['auto', 'acceptEdits'] as const
 export type WorkerMode = (typeof WORKER_MODES)[number]
 export const DEFAULT_WORKER_MODE: WorkerMode = 'auto'
 
+/**
+ * R113 T589: whose Claude Code setup a worker runs with. `mine`: the user's settings too (plugins, skills, hooks,
+ * CLAUDE.md, permission rules) and the default tool set, like typing `claude` in the worktree. `isolated`: ADR-007's
+ * spike setup (project settings, six tools), small and predictable. Spike 2026-10-21: a trivial turn's context was
+ * 7.6k tokens isolated, 33.7k with the user's setup, 42.4k with their MCP servers as well.
+ */
+export const WORKER_SETUPS = ['mine', 'isolated'] as const
+export type WorkerSetup = (typeof WORKER_SETUPS)[number]
+export const DEFAULT_WORKER_SETUP: WorkerSetup = 'mine'
+
 /** The mode a run uses: the wanted one when the CLI has it, else Accept edits (`fallback` says why). Pure. */
 export function effectiveWorkerMode(wanted: WorkerMode, choices: string[] | null): { mode: WorkerMode; fallback: boolean } {
   if (wanted === 'auto' && !choices?.includes('auto')) return { mode: 'acceptEdits', fallback: true }
@@ -99,9 +109,14 @@ export interface WorkerArgsInput {
   verify?: boolean
   /** R113 T588: every turn's `--permission-mode` (task, fix, answer and review alike) */
   permissionMode?: WorkerMode
+  /** R113 T589: the user's setup or the isolated one (a review keeps its four read-only tools either way) */
+  setup?: WorkerSetup
+  /** R113 T589: with `mine`, the user's MCP servers too (claude.ai connectors such as mail included); else VibeDoc's only */
+  userMcp?: boolean
 }
 
-export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, resume, maxTurns, verify, permissionMode = 'acceptEdits' }: WorkerArgsInput): string[] {
+export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, allowed = WORKER_ALLOWED, resume, maxTurns, verify, permissionMode = 'acceptEdits', setup = 'isolated', userMcp = false }: WorkerArgsInput): string[] {
+  const mine = setup === 'mine'
   const url = `${mcpOrigin}/api/mcp?root=${encodeURIComponent(mainRoot)}`
   return [
     ...(verify ? ['-p', verifyPrompt(taskId)] : resume ? ['-p', resume.message, '--resume', resume.sessionId] : ['-p', workerPrompt(taskId)]),
@@ -110,9 +125,10 @@ export function workerArgs({ taskId, mainRoot, mcpOrigin, workerId, pluginDir, a
     '--permission-mode', permissionMode,
     ...(maxTurns ? ['--max-turns', String(maxTurns)] : []),
     '--mcp-config', JSON.stringify({ mcpServers: { vibedoc: { type: 'http', url, headers: { [WORKER_CALL_HEADER]: workerId } } } }),
-    '--strict-mcp-config',
-    '--setting-sources', 'project,local',
-    '--tools', verify ? VERIFY_TOOLS : WORKER_TOOLS,
+    ...(mine && userMcp ? [] : ['--strict-mcp-config']),
+    '--setting-sources', mine ? 'user,project,local' : 'project,local',
+    // a review never edits, whoever's setup; a task with the user's setup has Claude Code's default tool set
+    ...(verify ? ['--tools', VERIFY_TOOLS] : mine ? [] : ['--tools', WORKER_TOOLS]),
     ...(verify ? [] : ['--plugin-dir', pluginDir]),
     '--allowedTools', ...(verify ? VERIFY_ALLOWED : allowed),
     // T561: proposing runs is the orchestrator chat's (T562), never a worker's

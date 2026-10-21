@@ -25,6 +25,7 @@ One epic has at most one worker. Workers on different epics run side by side, up
   - **Accept edits**: edits go through, and a shell command runs only when every part of it matches the allowed tools. VibeDoc uses this when your Claude Code has no Auto mode yet, and the run card says so.
 
   A call that is still refused shows in the worker's chat. The review turn after each task runs in the same mode without Edit and Write: it can re-run the task's checks, never change code.
+- **Your setup comes along.** By default a worker loads your Claude Code setup: your plugins, skills, hooks, global CLAUDE.md and permission rules, as when you type `claude` in the worktree. Each task then starts with a bigger context (about 34k tokens instead of 8k). Your MCP servers and claude.ai connectors stay out unless you tick **Also my MCP servers**. **Isolated** gives the small, predictable setup that is the same on every machine.
 - **Neither is a sandbox.** A worker that may run `pnpm *` can run any package script, so any code, as you. Its fence is its own worktree, its budget, and `git push` and `gh`, which are always denied, whatever the mode or the settings say.
 - **Minimal environment.** A worker gets only `PATH HOME USER SHELL LANG TERM TMPDIR`, plus the names you list. Tokens in VibeDoc's own environment never reach it unless you list them.
 - **Budgets.** Each task has a turn budget (model round trips) and a time limit. Past either one, the task stops and the worker waits on you. Your answer resumes it with the budget again.
@@ -39,6 +40,8 @@ One epic has at most one worker. Workers on different epics run side by side, up
 | Setting | Default | What it does |
 |---|---|---|
 | Permission mode (`mode`) | `auto` | `auto` or `acceptEdits`, for every turn of a run (shown on the run card) |
+| Setup (`setup`) | `mine` | `mine`: your Claude Code setup (plugins, skills, hooks, CLAUDE.md, permission rules) and its full tool set, like typing `claude` in the worktree. `isolated`: only the project's settings, VibeDoc's skills and six tools |
+| Your MCP servers (`userMcp`) | off | With `mine`, also every MCP server and claude.ai connector you have (mail, drives…). Off: VibeDoc's tools only |
 | Allowed tools (`allowedTools`) | VibeDoc's tools, Edit/Write/Read/Glob/Grep, `git add/commit` and the read-only git commands, `pnpm`/`npm`/`yarn`/`bun`/`node`/`npx`/`tsc`, read-only shell (`ls`, `cat`, `head`, `tail`, `grep`, `sed -n`, …) | Claude Code permission rules, e.g. `Bash(make *)`. Empty = the default list. Decides everything in Accept edits; in Auto, what it allows runs without the classifier |
 | Environment variables (`env`) | none | Extra variable names a worker inherits, e.g. `DATABASE_URL` |
 | Workers at the same time (`maxRunning`) | 2 | A start past the limit is refused |

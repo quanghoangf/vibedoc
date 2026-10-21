@@ -39,7 +39,11 @@ export interface RunContext {
   budget?: RunBudget
   /** R113 T588: the permission mode the run uses (`fallback`: the CLI has no `auto`, so Accept edits) */
   permission?: RunPermission
+  /** R113 T589: the user's Claude Code setup or the isolated one, and whether the user's MCP servers come along */
+  setup?: RunSetup
 }
+
+export interface RunSetup { setup: 'mine' | 'isolated'; userMcp: boolean }
 
 export interface RunPermission { wanted: 'auto' | 'acceptEdits'; mode: 'auto' | 'acceptEdits'; fallback: boolean }
 
@@ -57,6 +61,8 @@ export interface RunProposal {
   budget?: RunBudget
   /** R113 T588 */
   permission?: RunPermission
+  /** R113 T589 */
+  setup?: RunSetup
   /** existing: the worker runs right now, so Accept is off */
   running?: boolean
   currentTask?: string | null
@@ -96,7 +102,7 @@ const taskWorker = (id: string, workers: WorkerInfo[]) =>
  * `vibedoc/T123` whose loop runs that task only.
  */
 export function routeRun(target: Attach, ctx: RunContext, want: RunRequest = {}): RunProposal {
-  const tools = { allowedTools: ctx.allowedTools, denied: ctx.denied, ...(ctx.budget && { budget: ctx.budget }), ...(ctx.permission && { permission: ctx.permission }) }
+  const tools = { allowedTools: ctx.allowedTools, denied: ctx.denied, ...(ctx.budget && { budget: ctx.budget }), ...(ctx.permission && { permission: ctx.permission }), ...(ctx.setup && { setup: ctx.setup }) }
   const epic = epicOf(target, ctx)
   const existing = want.mode === 'new' ? null
     : want.workerId ? ctx.workers.find(w => w.id === want.workerId) ?? null

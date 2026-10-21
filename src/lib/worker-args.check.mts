@@ -87,4 +87,20 @@ assert.deepEqual(effectiveWorkerMode('auto', ['acceptEdits', 'plan']), { mode: '
 assert.deepEqual(effectiveWorkerMode('auto', null), { mode: 'acceptEdits', fallback: true })
 assert.deepEqual(effectiveWorkerMode('acceptEdits', null), { mode: 'acceptEdits', fallback: false })
 
+// R113 T589: the user's setup: user settings and Claude Code's default tools, MCP still only VibeDoc's unless asked
+const base = { taskId: 'T1', mainRoot: '/r', mcpOrigin: 'http://h', workerId: 'w', pluginDir: '/p', permissionMode: 'auto' as const }
+const mine = workerArgs({ ...base, setup: 'mine' })
+assert.equal(mine[mine.indexOf('--setting-sources') + 1], 'user,project,local')
+assert.ok(!mine.includes('--tools'), "the user's setup: Claude Code's default tool set")
+assert.ok(mine.includes('--strict-mcp-config'), "the user's MCP servers stay out unless asked")
+assert.equal(mine[mine.indexOf('--plugin-dir') + 1], '/p', "VibeDoc's plugin still loads (the spike: no duplicate when installed too)")
+const mineMcp = workerArgs({ ...base, setup: 'mine', userMcp: true })
+assert.ok(!mineMcp.includes('--strict-mcp-config'))
+assert.ok(mineMcp.includes('--mcp-config'), "VibeDoc's server is still passed")
+const isolatedMcp = workerArgs({ ...base, setup: 'isolated', userMcp: true })
+assert.ok(isolatedMcp.includes('--strict-mcp-config') && isolatedMcp[isolatedMcp.indexOf('--setting-sources') + 1] === 'project,local', 'userMcp only means something with mine')
+const mineReview = workerArgs({ ...base, setup: 'mine', userMcp: true, verify: true })
+assert.equal(mineReview[mineReview.indexOf('--tools') + 1], 'Read,Glob,Grep,Bash', "a review never edits, whoever's setup")
+for (const a of [mine, mineMcp, mineReview]) assert.ok(a.slice(a.indexOf('--disallowedTools')).includes('Bash(git push*)') && a.includes('Bash(gh *)'))
+
 console.log('worker-args: ok')

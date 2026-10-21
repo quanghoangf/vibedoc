@@ -4,6 +4,7 @@
  * Process only (no fs): `claude mcp add` with the default local scope keys the server to the cwd's project.
  */
 import { execFile } from 'child_process'
+import { tmpdir } from 'os'
 
 /** A `claude` call that hangs (a prompt, a network wait) is cut off after this. */
 const CLI_TIMEOUT_MS = 30_000
@@ -71,7 +72,8 @@ export function permissionModeChoices(help: string): string[] | null {
  */
 // ponytail: cached for the process's life; a Claude Code upgrade is seen after a VibeDoc restart
 let modes: Promise<string[] | null> | null = null
-export function claudePermissionModes(cwd: string): Promise<string[] | null> {
-  modes ??= run(['--help'], cwd).then(r => (r.ok ? permissionModeChoices(r.stdout) : null))
+export function claudePermissionModes(): Promise<string[] | null> {
+  // `--help` needs no project: run it outside every checkout
+  modes ??= run(['--help'], tmpdir()).then(r => (r.ok ? permissionModeChoices(r.stdout) : null))
   return modes
 }

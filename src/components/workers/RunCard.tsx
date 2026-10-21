@@ -97,6 +97,14 @@ export function RunCard({ proposal, errors = [], refusals, busy, error, onAccept
             </dd>
           </>
         )}
+        {proposal.setup && (
+          <>
+            <dt className="text-muted">{t("workers.setupRow")}</dt>
+            <dd className="font-medium text-txt" data-worker-setup={proposal.setup.setup}>
+              {proposal.setup.setup === "isolated" ? t("workers.setupIsolated") : t(proposal.setup.userMcp ? "workers.setupMineMcpValue" : "workers.setupMineValue")}
+            </dd>
+          </>
+        )}
         <dt className="text-muted">{t("workers.toolsRow")}</dt>
         <dd>
           {/* the full allowlist is one click away: the summary is what changes run to run */}
