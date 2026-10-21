@@ -3,6 +3,9 @@ title: Desktop app
 description: VibeDoc in its own window with a Dock or taskbar icon. The same app as the browser, it updates itself, and both stay in sync.
 ---
 
+> [!NOTE]
+> The desktop app is a beta and isn't signed: the terminal install ([Install and start](/vibedoc/docs/)) with `vibedoc start` is the main way to run VibeDoc.
+
 VibeDoc also runs as a desktop app: its own window, its own Dock / taskbar icon, the same screens as the browser. Use either one, or both at once on the same project: a task you move in the app moves in the browser tab within a second, and the other way round.
 
 ## Install

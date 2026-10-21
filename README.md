@@ -99,9 +99,9 @@ vibedoc login on     # also start it in the background every time you log in (of
 
 A crashed background VibeDoc restarts itself on the same address, so your agents stay connected. The one-line installer asks once whether to turn on start at login (`VIBEDOC_BACKGROUND=1` or `=0` answers for scripts). More: [Run in the background](https://quanghoangf.github.io/vibedoc/docs/#run-in-the-background).
 
-### Desktop app
+### Desktop app (beta)
 
-VibeDoc in its own window, with a Dock / taskbar icon and the same screens as the browser. It uses the VibeDoc that already runs (from any install) or starts its own, and it updates itself after one click.
+The terminal install above is the main way to run VibeDoc. The desktop app is VibeDoc in its own window, with a Dock / taskbar icon and the same screens as the browser. It uses the VibeDoc that already runs (from any install) or starts its own, and it updates itself after one click.
 
 | macOS | Windows | Linux |
 |---|---|---|

@@ -65,8 +65,8 @@ test.describe('install (T202)', () => {
 
   test('the Desktop app tab links each installer of the latest release and marks this computer\'s (T586)', async ({ page }) => {
     await page.goto('./')
-    await page.getByRole('tablist', { name: 'Install with' }).getByRole('tab', { name: 'Desktop app', exact: true }).click()
-    const panel = page.getByRole('tabpanel', { name: 'Desktop app', exact: true })
+    await page.getByRole('tablist', { name: 'Install with' }).getByRole('tab', { name: 'Desktop (beta)', exact: true }).click()
+    const panel = page.getByRole('tabpanel', { name: 'Desktop (beta)', exact: true })
     const latest = 'https://github.com/quanghoangf/vibedoc/releases/latest/download/'
     for (const [name, file] of [['macOS · Apple silicon', 'VibeDoc-mac-arm64.dmg'], ['macOS · Intel', 'VibeDoc-mac-x64.dmg'], ['Windows', 'VibeDoc-Setup.exe'], ['Linux · AppImage', 'VibeDoc-x86_64.AppImage']]) {
       await expect(panel.getByRole('link', { name })).toHaveAttribute('href', latest + file)

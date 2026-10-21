@@ -1,5 +1,5 @@
 # T585: Sign and notarize the desktop builds (blocked on credentials)
-**Status:** 🚫 Blocked
+**Status:** ⏸️ Paused
 **Phase:** R112 — Desktop installers & auto-update
 **Size:** M
 **Depends on:** T581
@@ -53,3 +53,7 @@ _2026-10-21 — ai:claude_
 - No signing credentials exist: no Apple Developer ID Application certificate (+ app-specific password, team id) and no Windows code-signing certificate (OV/EV or Azure Trusted Signing). The task says to start only once they are GitHub secrets.
 - A human must: get the certificates, add `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`, `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD` (or the Azure Trusted Signing config) as repo secrets, then unblock this task.
 - Already in place from T581/T583: `desktop.yml` passes those secrets through (empty ones unset), `desktop/scripts/dist.mjs` builds unsigned and says so when they are missing, and the app's update card falls back to the release page when macOS refuses an unsigned update.
+
+## Paused
+_2026-10-21 — human decision_
+- Users install from the terminal (`install.sh`, `vibedoc start`, `vibedoc login on`); paying for Apple / Windows certificates is not worth it now. The desktop app ships unsigned as a beta. Resume when signing is wanted.
