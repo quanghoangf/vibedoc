@@ -171,6 +171,10 @@ assert.equal(toSaved(chat('s', [msg()], { busy: true }))?.busy, false)
 const worker: Worker = { dir: '/w', branch: 'vibedoc/R1', base: 'main', target: epic('R1'), phase: 'running', turns: [{ taskId: 'T1', sessionId: 's', startedAt: T(1), endedAt: null, result: null }] }
 assert.deepEqual(toSaved(chat('w', [], { worker }))?.worker, worker)
 assert.deepEqual(fromSaved<StatusMessage>(chat('w', [msg()], { worker }))?.worker, worker)
+// T558: a worker stopped mid-task waits on you without a card, so it never reads "Idle"
+assert.equal(chatStatus(chat('w', [msg()], { worker: { ...worker, phase: 'wait-user' } })), 'needs-answer')
+assert.equal(chatStatus(chat('w', [msg()], { worker: { ...worker, phase: 'wait-user' }, busy: true })), 'running')
+assert.equal(chatStatus(chat('w', [msg()], { worker: { ...worker, phase: 'ended' } })), 'idle')
 const cut = fromSaved<StatusMessage>(chat('cut', [msg({ role: 'user', text: 'hi' }), msg({ text: '' })], { busy: true }))
 assert.equal(cut?.busy, false)
 assert.match(cut?.messages[1].error ?? '', /Interrupted/)

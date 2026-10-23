@@ -1,7 +1,6 @@
 // node src/lib/sidebar-items.check.mts
 import assert from 'node:assert/strict'
-import { disclosureCookie, isExpanded, MAX_CHILDREN, parseDisclosure, sidebarChildren, type SidebarInput, type TaskLite } from './sidebar-items.ts'
-import { emptyRecent } from './recent-items.ts'
+import { disclosureCookie, isExpanded, MAX_NEEDS, parseDisclosure, sidebarChildren, type SidebarInput, type TaskLite } from './sidebar-items.ts'
 
 const task = (id: string, status: string, extra: Partial<TaskLite> = {}): TaskLite =>
   ({ id, title: `Task ${id}`, status, manualTests: null, lastRun: null, ...extra })
@@ -9,7 +8,7 @@ const task = (id: string, status: string, extra: Partial<TaskLite> = {}): TaskLi
 const needsYou = (t: TaskLite) => t.lastRun?.status === 'failed' || t.status === 'review' || ((t.manualTests?.untested ?? 0) > 0 && t.status !== 'done')
 
 const base = (over: Partial<SidebarInput> = {}): SidebarInput => ({
-  tasks: [], needsYou, epics: [], drift: [], docs: [], lint: [], cleanupFlags: 0, entries: [], recent: emptyRecent(), ...over,
+  tasks: [], needsYou, epics: [], drift: [], docs: [], lint: [], cleanupFlags: 0, ...over,
 })
 
 // Acceptance: a task in review + an overdue epic → Board / Manual tests show the task, Roadmap the epic, as needs-action
@@ -25,37 +24,27 @@ const base = (over: Partial<SidebarInput> = {}): SidebarInput => ({
   assert.deepEqual(out['/roadmap'].map((c) => [c.id, c.hint, c.tone, c.href]), [['R9', 'overdue', 'danger', '/roadmap?item=R9']])
 }
 
-// needs-action first, recents after, deduped; deleted items dropped
+// needs-action only: no "Viewed" history, nothing for a page with nothing to do
 {
-  const recent = { ...emptyRecent(), task: ['T1', 'T404', 'T2'], epic: ['R404'], doc: ['docs/x.md', 'docs/gone.md'], entry: ['E1', 'E404'] }
-  const out = sidebarChildren(base({
-    tasks: [task('T1', 'blocked'), task('T2', 'todo')],
-    docs: [{ path: 'docs/x.md', name: 'x' }],
-    entries: [{ id: 'E1', summary: 'Use pnpm' }],
-    recent,
-  }))
-  assert.deepEqual(out['/board'].map((c) => [c.id, c.reason, c.hint]), [['T1', 'needs-action', 'blocked'], ['T2', 'recent', 'viewed']])
+  const out = sidebarChildren(base({ tasks: [task('T1', 'blocked'), task('T2', 'todo')], docs: [{ path: 'docs/x.md', name: 'x' }] }))
+  assert.deepEqual(out['/board'].map((c) => [c.id, c.reason, c.hint]), [['T1', 'needs-action', 'blocked']])
   assert.deepEqual(out['/roadmap'], [])
-  assert.deepEqual(out['/docs'].map((c) => [c.id, c.label, c.href]), [['docs/x.md', 'x', '/docs?doc=docs%2Fx.md']])
-  assert.deepEqual(out['/memory'].map((c) => [c.id, c.label]), [['E1', 'Use pnpm']])
-}
-
-// not loaded yet (null): those pages show recents only for what can be named; docs aren't filtered
-{
-  const out = sidebarChildren(base({ epics: null, docs: null, entries: null, recent: { ...emptyRecent(), epic: ['R1'], doc: ['docs/a/b.md'], entry: ['E1'] } }))
-  assert.deepEqual(out['/roadmap'], [])
+  assert.deepEqual(out['/docs'], [])
   assert.deepEqual(out['/memory'], [])
-  assert.deepEqual(out['/docs'].map((c) => c.label), ['b'])
 }
 
-// caps: 3 needs-action + "+N more", then recents up to MAX_CHILDREN
+// not loaded yet (null): epics can't be named, so Roadmap lists nothing
 {
-  const tasks = ['T1', 'T2', 'T3', 'T4', 'T5'].map((id) => task(id, 'review')).concat(task('T6', 'todo'), task('T7', 'todo'))
-  const out = sidebarChildren(base({ tasks, recent: { ...emptyRecent(), task: ['T6', 'T7', 'T1'] } }))
-  assert.equal(out['/board'].length, MAX_CHILDREN)
-  assert.deepEqual(out['/board'].map((c) => c.hint), ['review', 'review', 'review', 'more', 'viewed'])
-  assert.equal(out['/board'][3].n, 2)
-  assert.equal(out['/board'][3].href, '/board')
+  const out = sidebarChildren(base({ epics: null, docs: null, drift: [{ id: 'R1', kind: 'overdue' }] }))
+  assert.deepEqual(out['/roadmap'], [])
+}
+
+// cap: at most MAX_NEEDS rows, no "+N more" (the page lists the rest)
+{
+  const tasks = ['T1', 'T2', 'T3', 'T4', 'T5'].map((id) => task(id, 'review'))
+  const out = sidebarChildren(base({ tasks }))
+  assert.equal(out['/board'].length, MAX_NEEDS)
+  assert.deepEqual(out['/board'].map((c) => c.id), ['T1', 'T2', 'T3'])
 }
 
 // manual tests order: failed, unverified, review, checks left
@@ -87,11 +76,10 @@ const base = (over: Partial<SidebarInput> = {}): SidebarInput => ({
   assert.deepEqual(d, { '/board': false, '/docs': true })
   assert.equal(disclosureCookie(d), 'vibedoc-sidebar=board:0,docs:1; path=/; max-age=31536000; samesite=lax')
   assert.deepEqual(parseDisclosure(null), {})
-  // explicit choice wins; otherwise current page or needs-action
-  assert.equal(isExpanded('/board', d, { current: true, needsAction: true }), false)
-  assert.equal(isExpanded('/roadmap', d, { current: false, needsAction: false }), false)
-  assert.equal(isExpanded('/roadmap', d, { current: true, needsAction: false }), true)
-  assert.equal(isExpanded('/memory', d, { current: false, needsAction: true }), true)
+  // explicit choice wins; otherwise collapsed (every page link stays above the fold)
+  assert.equal(isExpanded('/board', d), false)
+  assert.equal(isExpanded('/docs', d), true)
+  assert.equal(isExpanded('/roadmap', d), false)
 }
 
 console.log('sidebar-items: ok')

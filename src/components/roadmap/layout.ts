@@ -85,3 +85,25 @@ export function arrangePositions(items: RoadmapItem[], heightOf: (id: string) =>
   }
   return out
 }
+
+/** Horizons whose epics are all done: the map draws them as one compact node until expanded (render only, layout.json untouched). */
+export function doneHorizons(items: RoadmapItem[]): Set<string> {
+  const out = new Set<string>()
+  for (const h of items.filter((i) => i.parent === null)) {
+    const kids = items.filter((i) => i.parent === h.id)
+    if (kids.length > 0 && kids.every((k) => k.status === "done")) out.add(h.id)
+  }
+  return out
+}
+
+/**
+ * The horizon the map opens on: the first (by order) with an in-progress or planned epic that has an open task.
+ * `isOpen(taskId)` says whether a task still needs work (unknown ids should count as open). null = no such horizon.
+ */
+export function focusHorizon(items: RoadmapItem[], isOpen: (taskId: string) => boolean): string | null {
+  for (const h of items.filter((i) => i.parent === null).sort((a, b) => a.order - b.order)) {
+    const live = items.some((i) => i.parent === h.id && (i.status === "in-progress" || i.status === "planned") && i.tasks.some(isOpen))
+    if (live) return h.id
+  }
+  return null
+}

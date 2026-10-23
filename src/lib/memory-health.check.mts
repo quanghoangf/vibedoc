@@ -1,6 +1,6 @@
 // Self-check for memory-health. Run: node src/lib/memory-health.check.mts
 import assert from 'node:assert/strict'
-import { duplicateScore, findContradictions, findDuplicates, findStale, formatHealthWarnings, markRecalled, prose, pruneDismissed, splitSections, type DupEntry, type HealthFlag } from './memory-health.ts'
+import { duplicateScore, findContradictions, findDuplicates, findStale, fixMemoryPrompt, formatHealthWarnings, markRecalled, prose, pruneDismissed, splitSections, type DupEntry, type HealthFlag } from './memory-health.ts'
 import { extractRefs } from './memory-graph.ts'
 import { tokenize } from './recall.ts'
 
@@ -190,5 +190,15 @@ assert.equal(formatHealthWarnings(sf), 'ℹ 2 memory cleanup suggestions on /mem
 assert.equal(markRecalled({ E4: today }, ['E4'], today), null)
 assert.deepEqual(Object.entries(markRecalled({ E10: '2026-01-01', E4: '2026-09-01' }, ['E2', 'E4'], today) ?? {}),
   [['E2', today], ['E4', today], ['E10', '2026-01-01']])
+
+// "Ask agent to fix": names the flag and its entries, and asks for a proposal, never a direct write
+{
+  const p = fixMemoryPrompt({ kind: 'dangling-ref', message: 'E012 names T999, which does not exist', refs: ['E012', 'T999'] })
+  assert.match(p, /E012 names T999/)
+  assert.match(p, /vibedoc_get_entries with ids E012/)
+  assert.match(p, /vibedoc_propose_edit/)
+  assert.match(p, /never write memory directly/)
+  assert.match(fixMemoryPrompt({ kind: 'duplicate', message: 'm', refs: ['E1', 'E2'], suggestion: { action: 'merge', ids: ['E1', 'E2'] } }), /Suggested: merge E1, E2/)
+}
 
 console.log('memory-health: all checks passed')

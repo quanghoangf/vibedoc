@@ -58,6 +58,11 @@ try {
   await page.waitForURL(/\/board\?task=T001/)
   console.log("ok  Cleanup (1) and the row opens T001 on the board")
 
+  // 1b. Ask agent to fix sits next to Dismiss (it opens a chat whose prompt asks for a proposal, never a write)
+  await page.goto(`${BASE}/memory?cleanup=1`)
+  await panel.locator(t001).getByRole("button", { name: "Ask agent to fix" }).waitFor()
+  console.log("ok  a Cleanup row offers Ask agent to fix")
+
   // 2. Dismiss → hidden, file written, session no longer warns; reload keeps it hidden
   await page.goto(`${BASE}/memory?cleanup=1`)
   const dismissed = page.waitForResponse((r) => r.url().includes("/api/memory/health/dismiss"))

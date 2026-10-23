@@ -117,10 +117,10 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
 }
 
 /**
- * "● 2 agents working · 1 running · 1 need you · 1 error": terminal agents (MCP sessions in the activity log) lead,
+ * "● 2 agents working · 1 running · 1 chat waiting · 1 error" (chats only: the Inbox count is the one "needs you"): terminal agents (MCP sessions in the activity log) lead,
  * then in-app chats. Only recent, undismissed chat errors count. Zero counts are left out; the SSE link is a small
  * neutral dot while connected (amber, "Reconnecting…" when it drops). Click opens the attention queue's head, else /chat.
- * Below sm: dot · bot glyph + "2" · need-you and error counts; the strip clips before it covers the page title. Agents and actionable counts in text ink; running stays muted.
+ * Below sm: dot · bot glyph + "2" · waiting and error counts; the strip clips before it covers the page title. Agents and actionable counts in text ink; running stays muted.
  */
 function AgentStatus({ liveIndicator, activity, now }: { liveIndicator: boolean; activity: ActivityEvent[]; now: number }) {
   const { connection } = useApp()
@@ -134,11 +134,11 @@ function AgentStatus({ liveIndicator, activity, now }: { liveIndicator: boolean;
     state,
     agents && tn("shell.agentsWorking", agents),
     running && tn("shell.chatsRunning", running),
-    waiting && t("shell.needYou", { n: waiting }),
+    waiting && tn("shell.chatsWaiting", waiting),
     errors && tn("shell.chatErrors", errors),
   ].filter(Boolean).join(" · ")
   const label = t("shell.statusLabel", { summary, action: queue[0] ? t("shell.openNextInQueue") : t("shell.openChats") })
-  const announce = [waiting && tn("shell.chatsNeedYou", waiting), errors && tn("shell.chatErrors", errors)]
+  const announce = [waiting && tn("shell.chatsWaiting", waiting), errors && tn("shell.chatErrors", errors)]
     .filter(Boolean).join(", ")
   // A separator goes inside each count after the first (or after "Reconnecting…"), so a count hidden below sm takes its separator with it
   const counts: [string, ReactNode][] = [
@@ -157,7 +157,7 @@ function AgentStatus({ liveIndicator, activity, now }: { liveIndicator: boolean;
     ["waiting", waiting > 0 && (
       <>
         <span aria-hidden className="size-1.5 rounded-full bg-amber animate-pulse-dot" />
-        <span className="text-txt">{waiting}<span className="max-sm:sr-only"> {t("shell.needYouSuffix")}</span></span>
+        <span className="text-txt">{waiting}<span className="max-sm:sr-only"> {tn("shell.chatsWaitingSuffix", waiting)}</span></span>
       </>
     )],
     ["errors", errors > 0 && (

@@ -25,6 +25,9 @@ export const en = {
   searchAll: "Search all projects for “{query}”",
   tipScope: "Pick a group or this project to narrow the search.",
   tipOpen: "A result opens in its own project: the doc, the task panel, the epic or the memory entry.",
+  similarNames: "Docs with a similar name",
+  broaden: "Try fewer or shorter words, or another spelling.",
+  tryAllProjects: "Search all projects instead",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -51,4 +54,7 @@ export const vi: Messages<typeof en> = {
   searchAll: "Tìm “{query}” trong mọi dự án",
   tipScope: "Chọn một nhóm hoặc dự án này để thu hẹp tìm kiếm.",
   tipOpen: "Một kết quả mở trong chính dự án của nó: tài liệu, bảng việc, epic hoặc mục ghi nhớ.",
+  similarNames: "Tài liệu có tên gần giống",
+  broaden: "Thử ít từ hơn, từ ngắn hơn, hoặc cách viết khác.",
+  tryAllProjects: "Tìm trong mọi dự án",
 }

@@ -1,17 +1,18 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { Suspense, useEffect, useRef, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Inbox } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
-import { toast } from "@/components/ui/toast"
+import { toast, undoToast } from "@/components/ui/toast"
 import { InboxRow, KIND_LABEL } from "@/components/inbox/InboxRow"
 import { useInbox } from "@/components/inbox/use-inbox"
 import type { InboxItem, InboxKind } from "@/lib/inbox"
 import type { ProjectGroup } from "@/lib/groups"
+import { shouldHandleShortcut } from "@/lib/shortcuts"
 
 // `project` and `group` already mean the open project / group view in the app's URL (AppContext), so the filters use their own keys
 const FILTER_KEYS = { repo: "repo", group: "repo_group", kind: "kind" } as const
@@ -58,18 +59,36 @@ function InboxView() {
   const shown = (items ?? []).filter((i) => !filters.kind || i.kind === filters.kind)
   const filtered = !!(filters.repo || filters.group || filters.kind)
 
-  // Optimistic: the row leaves at once; a refusal says why and brings it back
+  const router = useRouter()
+  const list = useRef<HTMLUListElement>(null)
+  const [focus, setFocus] = useState(-1)
+  const [noteFor, setNoteFor] = useState<string | null>(null)
+  const keyOf = (i: InboxItem) => `${i.project.id}/${i.id}`
+
+  // Optimistic: the row leaves at once; a refusal says why and brings it back. Undo puts the task file back as it was.
   const decide = async (item: InboxItem, action: "approve" | "send-back", note = "") => {
-    setItems((prev) => prev?.filter((i) => !(i.project.id === item.project.id && i.id === item.id)) ?? prev)
+    setNoteFor(null)
+    setItems((prev) => prev?.filter((i) => keyOf(i) !== keyOf(item)) ?? prev)
     const vars = { id: item.id, project: item.project.name }
+    const root = item.project.root ? `?root=${encodeURIComponent(item.project.root)}` : ""
     try {
-      const root = item.project.root ? `?root=${encodeURIComponent(item.project.root)}` : ""
       const res = await fetch(`/api/tasks/review${root}`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, action, note }),
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
-      toast(t(action === "approve" ? "inbox.approved" : "inbox.sentBack", vars))
+      // Closure: what the approve did for its epic, from the tally the inbox already has
+      const message = action === "approve"
+        ? item.epic ? t("inbox.approvedEpic", { id: item.id, epic: item.epic.id, done: item.epic.done + 1, total: item.epic.total }) : t("inbox.approved", vars)
+        : t("inbox.sentBack", vars)
+      undoToast(message, async () => {
+        const undo = await fetch(`/api/tasks/review/undo${root}`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data?.undo ?? {}),
+        })
+        const out = await undo.json().catch(() => null)
+        if (!undo.ok) throw new Error(out?.error ?? `HTTP ${undo.status}`)
+        void reload()
+      })
     } catch (e) {
       toast(t("inbox.failed", { ...vars, error: (e as Error).message }))
     }
@@ -77,6 +96,35 @@ function InboxView() {
   }
 
   const live = projects.filter((p) => !p.archived && !p.missing)
+  const at = Math.min(focus, shown.length - 1)
+  const canDecide = (i: InboxItem | undefined): i is InboxItem => !!i && i.kind === "review" && !demo
+
+  // j/k move the row, a approves, s opens the send-back note, Enter (native, on the focused link) opens it.
+  // Capture phase so a / s win over the layout's Activity / Settings jumps; never while typing or in a dialog.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!shouldHandleShortcut(e) || document.querySelector("[role=dialog]")) return
+      const row = shown[at]
+      switch (e.key) {
+        case "j": case "k": {
+          if (!shown.length) return
+          const next = Math.min(shown.length - 1, Math.max(0, at < 0 ? 0 : at + (e.key === "j" ? 1 : -1)))
+          setFocus(next)
+          list.current?.querySelectorAll<HTMLAnchorElement>("[data-inbox-row] > div > a")[next]?.focus()
+          break
+        }
+        // a / s belong to this page even with nothing to decide, so they never jump away by surprise
+        case "a": if (canDecide(row)) void decide(row, "approve"); break
+        case "s": if (canDecide(row)) setNoteFor(keyOf(row)); break
+        // on the row's link Enter is native; from nowhere (body) it opens the focused row; on any other control it stays that control's
+        case "Enter": if (row && (!document.activeElement || document.activeElement === document.body)) router.push(row.href); else return; break
+        default: return
+      }
+      e.preventDefault()
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  })
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col px-4 py-8 sm:px-6">
@@ -108,13 +156,17 @@ function InboxView() {
         ? <EmptyState icon={<Inbox className="size-6" />} message={t("inbox.emptyFiltered")} action={<Button size="sm" variant="outline" onClick={clear}>{t("inbox.clearFilters")}</Button>} />
         : <EmptyState icon={<Inbox className="size-6" />} message={t("inbox.emptyMessage")} lead={t("inbox.emptyLead")} />)}
       {shown.length > 0 && (
-        <ul aria-label={t("inbox.title")} className="divide-y divide-border">
-          {shown.map((item) => (
+        <ul ref={list} aria-label={t("inbox.title")} className="divide-y divide-border">
+          {shown.map((item, i) => (
             <InboxRow
-              key={`${item.project.id}/${item.id}`}
+              key={keyOf(item)}
               item={item}
+              focused={i === at}
+              onFocus={() => setFocus(i)}
               onApprove={demo ? undefined : () => decide(item, "approve")}
               onSendBack={demo ? undefined : (note) => decide(item, "send-back", note)}
+              noteOpen={noteFor === keyOf(item)}
+              onNoteOpen={(open) => setNoteFor(open ? keyOf(item) : null)}
             />
           ))}
         </ul>

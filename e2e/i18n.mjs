@@ -24,6 +24,11 @@ import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const fx = makeFixture()
+// /start redirects a project with a roadmap or tasks to the board (welcomeTarget): the welcome gets its own fixture,
+// docs and nothing planned, so it shows the "from your docs" start
+const welcomeFx = makeFixture()
+rmSync(path.join(welcomeFx, "plans/roadmap"), { recursive: true, force: true })
+writeFileSync(path.join(welcomeFx, "README.md"), "# Shop\n\nA small shop.\n")
 // A task with a due date and one status change, so Activity has an event and the roadmap timeline has a marker
 writeFileSync(path.join(fx, "plans/tasks/T001-sample.md"), "# T001: Sample\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n\n## Goal\nA sample.\n")
 writeFileSync(path.join(fx, "plans/tasks/T002-next.md"), "# T002: Next step\n**Status:** 📋 Todo\n**Phase:** R002 — Epic\n**Depends on:** T001\n**Size:** M (2–3 hrs)\n\n## Goal\nAfter the sample.\n")
@@ -283,8 +288,10 @@ const PAGES = [
   { path: "/getting-started", name: "getting started", open: async (page) => {
     await page.locator("article [data-user-content], article p").first().waitFor()
   } },
-  // T270: the first-run welcome (the fixture has docs, so the "from your docs" start)
+  // T270: the first-run welcome (welcomeFx has docs and no roadmap, so the "from your docs" start)
   { path: "/start", name: "first-run welcome", open: async (page) => {
+    await stubChat(page, [], { root: welcomeFx }) // the newest route wins: this page now sees welcomeFx
+    await page.goto(`${BASE}/start`)
     await page.getByRole("button", { name: "Tạo lộ trình từ tài liệu của bạn" }).waitFor()
   } },
 ]
@@ -387,6 +394,7 @@ try {
     if (process.env.SHOTS) await page.screenshot({ path: path.join(process.env.SHOTS, `${p.name.replace(/[^\w]+/g, "-")}.png`) })
     console.log(`ok  ${p.name}: no English UI text`)
   }
+  await stubChat(page, [], { root: fx }) // back to the main fixture after /start's welcomeFx
 
   // Empty project: every route's empty state, also at phone width
   const empty = makeFixture()
@@ -468,4 +476,5 @@ try {
 } finally {
   await browser.close()
   rmSync(fx, { recursive: true, force: true })
+  rmSync(welcomeFx, { recursive: true, force: true })
 }

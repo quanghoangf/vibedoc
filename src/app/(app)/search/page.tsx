@@ -7,6 +7,7 @@ import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { KIND_ICON, KIND_LABEL, fetchSearch, useOpenResult } from "@/components/search/search-results"
 import type { CrossGroup } from "@/lib/cross-search"
+import { NoMatch } from "@/components/search/NoMatch"
 
 type Result = { key: string; status: "done"; groups: CrossGroup[] } | { key: string; status: "error"; error: string }
 
@@ -21,7 +22,7 @@ export default function SearchPage() {
 
 function SearchView() {
   const params = useSearchParams()
-  const { activeProjectId, groups } = useApp()
+  const { activeProjectId, groups, rootParam, openDoc } = useApp()
   const { t, tn } = useT()
   const open = useOpenResult()
   const [query, setQuery] = useState(() => params.get("q") ?? "")
@@ -56,6 +57,19 @@ function SearchView() {
 
   const current = result?.key === key ? result : null
   const count = current?.status === "done" ? current.groups.reduce((n, g) => n + g.results.length, 0) : 0
+
+  // nothing anywhere: doc names in this project that look like the query (a miss is a question, R087)
+  const [suggested, setSuggested] = useState<{ q: string; paths: string[] } | null>(null)
+  const missed = current?.status === "done" && count === 0
+  useEffect(() => {
+    if (!missed) return
+    const ctrl = new AbortController()
+    fetch(`/api/docs${rootParam}&suggest=${encodeURIComponent(q)}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((d: { suggestions?: string[] }) => setSuggested({ q, paths: d?.suggestions ?? [] }))
+      .catch(() => setSuggested({ q, paths: [] }))
+    return () => ctrl.abort()
+  }, [missed, q, rootParam])
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col px-4 py-8 sm:px-6">
@@ -93,7 +107,14 @@ function SearchView() {
         {!q && <p className="text-sm text-muted">{t("search.typeToSearch")}</p>}
         {q && !current && <p className="text-sm text-muted">{t("search.searching")}</p>}
         {current?.status === "error" && <p role="alert" className="text-sm text-danger">{t("search.failed", { error: current.error })}</p>}
-        {current?.status === "done" && count === 0 && <p className="text-sm text-muted">{t("search.nothing", { query: q })}</p>}
+        {missed && (
+          <NoMatch
+            message={t("search.nothing", { query: q })}
+            suggestions={suggested?.q === q ? suggested.paths : []}
+            onOpen={(path) => { void openDoc(path) }}
+            action={scope !== "all" ? { label: t("search.tryAllProjects"), onClick: () => setScope("all") } : undefined}
+          />
+        )}
         {current?.status === "done" && count > 0 && <p className="mb-3 text-xs text-muted">{tn("search.results", count)}</p>}
       </div>
 

@@ -156,6 +156,8 @@ export function pendingReviews(chat: Chat<StatusMessage>): number {
 /** Precedence: running > needs-answer > review > error > idle. */
 export function chatStatus(chat: Chat<StatusMessage>): ChatStatus {
   if (chat.busy) return "running"
+  // R108 T558: a worker that stopped mid-task waits on the user even without a question card
+  if (chat.worker?.phase === "wait-user") return "needs-answer"
   const last = chat.messages[chat.messages.length - 1]
   // Same rule as the composer hint: only the latest reply's questions block
   if (last?.questions.some((q) => !q.answers) || last?.toolkits?.some((k) => !k.results)) return "needs-answer"

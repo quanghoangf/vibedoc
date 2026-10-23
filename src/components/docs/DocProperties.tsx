@@ -224,6 +224,6 @@ function useMetaRows(path: string, meta: MetaBlock["entries"]): ItemProperty[] {
   // a task always offers the board's editable fields, even when the file doesn't name them yet
   if (task) for (const k of Object.keys(editable)) if (!seen.has(k)) row(k, editable[k](task))
   // T507: the checklist's state, one click from Test review; "No manual tests yet" when the file has none
-  if (task) rows.push({ id: "manual-tests", icon: FlaskConical, label: t("shell.manualTests"), value: <TestsRowValue task={task} /> })
+  if (task) rows.push({ id: "manual-tests", icon: FlaskConical, label: t("board.propManualTests"), value: <TestsRowValue task={task} /> })
   return rows
 }

@@ -20,13 +20,17 @@ const defs = statusDefs([
   { id: 'todo', label: 'Backlog' },
   { id: 'qa', label: 'QA', color: 'accent', category: 'review' },
   { id: 'design-review', label: 'Design review', color: 'pink', category: 'review' },
+  { id: 'signoff', label: 'Sign-off', category: 'review' },              // no color → the review hue
   { id: 'wip', label: 'Clash', category: 'in-progress' },           // alias of a built-in → dropped
   { id: 'Bad Id!', label: 'x', category: 'todo' },                   // malformed → dropped
   { id: 'nocat', label: 'x' },                                       // no category → dropped
   { id: 'qa', label: 'dup', category: 'todo' },                      // duplicate → dropped
 ])
-assert.deepEqual(defs.map((d) => d.id), ['todo', 'qa', 'design-review', 'in-progress', 'review', 'blocked', 'paused', 'done', 'cancelled'])
+assert.deepEqual(defs.map((d) => d.id), ['todo', 'qa', 'design-review', 'signoff', 'in-progress', 'review', 'blocked', 'paused', 'done', 'cancelled'])
 assert.equal(defs[0].label, 'Backlog'); assert.equal(defs[0].category, 'todo')
+assert.equal(defs.find((d) => d.id === 'signoff')?.color, 'review', 'a review-like status without a color takes the review hue')
+assert.equal(defs.find((d) => d.id === 'review')?.color, 'review', 'review never defaults to the accent')
+assert.equal(statusDefs([{ id: 'review', label: 'Review', color: 'accent' }]).find((d) => d.id === 'review')?.color, 'review', 'a saved old default moves to the review hue')
 assert.deepEqual(resolveStatus('👀 Qa', defs), { status: 'review', customStatus: 'qa' })
 assert.deepEqual(resolveStatus('qa', defs), { status: 'review', customStatus: 'qa' })
 assert.deepEqual(resolveStatus('👀 Design-review', defs), { status: 'review', customStatus: 'design-review' })

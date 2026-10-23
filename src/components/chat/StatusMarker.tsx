@@ -6,7 +6,7 @@ import type { Attach, ChatStatus } from "@/lib/chats"
 import { useChatText } from "./chat-text"
 
 /**
- * Running = spinner; needs answers = pulsing amber dot; review = pulsing accent diamond; error = red dot; idle = hollow dot.
+ * Running = spinner; needs answers = pulsing amber dot; review = pulsing diamond in the review hue; error = red dot; idle = hollow dot.
  * Shape and motion differ, not only hue: the accent can be green, close to the teal used for done.
  */
 export function StatusMarker({ status, showIdle = false, label, className }: { status: ChatStatus; showIdle?: boolean; label?: string; className?: string }) {
@@ -21,7 +21,7 @@ export function StatusMarker({ status, showIdle = false, label, className }: { s
         <span
           className={cn(
             "size-1.5",
-            status === "review" ? "size-2 rotate-45 rounded-[1px] bg-accent animate-pulse-dot" : "rounded-full",
+            status === "review" ? "size-2 rotate-45 rounded-[1px] bg-review animate-pulse-dot" : "rounded-full",
             status === "needs-answer" && "bg-amber animate-pulse-dot",
             status === "error" && "bg-danger",
             status === "idle" && "border border-muted/60",

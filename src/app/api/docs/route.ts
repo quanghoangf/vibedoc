@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { listDocs, listDocsIn, listLazyFolders, readDoc, searchDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, rootFrom, enrichDescription, noteDocEdit, docLastEdit, setDocProperties, readGettingStarted } from '@/lib/core'
+import { listDocs, listDocsIn, listLazyFolders, readDoc, searchDocs, suggestDocs, writeDoc, editDoc, createDoc, renameDoc, deleteDoc, rootFrom, enrichDescription, noteDocEdit, docLastEdit, setDocProperties, readGettingStarted } from '@/lib/core'
 import { PROPERTY_KEY, parsePriority } from '@/lib/doc-priority'
 import { emitUpdate } from '@/lib/events'
 import { isDemo, demoForbidden } from '@/lib/demo'
@@ -19,8 +19,12 @@ export async function GET(req: NextRequest) {
   }
   if (query) {
     const results = await searchDocs(query, root)
-    return NextResponse.json({ results })
+    // a miss offers doc names that look like the query (R087's similarPaths), so the reader has somewhere to go
+    return NextResponse.json({ results, ...(results.length === 0 && { suggestions: await suggestDocs(query, root) }) })
   }
+  // only the "did you mean" names, e.g. for /search when nothing matched in any project
+  const suggest = req.nextUrl.searchParams.get('suggest')
+  if (suggest !== null) return NextResponse.json({ suggestions: suggest.trim() ? await suggestDocs(suggest, root) : [] })
   // The other top-level folders (names + counts only), and one of them opened: read only when someone clicks it
   if (req.nextUrl.searchParams.get('folders') === '1') return NextResponse.json(await listLazyFolders(root))
   const dir = req.nextUrl.searchParams.get('dir')

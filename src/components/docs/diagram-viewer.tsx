@@ -42,6 +42,78 @@ export function decorateDiagram(node: HTMLElement) {
   node.append(bar)
 }
 
+/**
+ * A wide diagram isn't clipped silently: Mermaid's node gets a frame (once; a theme re-render keeps it) holding a
+ * right-edge fade and a "Fit" / "Scroll →" chip, outside the scrolling node so neither scrolls away with the SVG.
+ * measureDiagramFrame decides the frame's state.
+ */
+export function frameDiagram(node: HTMLElement) {
+  let frame = node.parentElement
+  if (!frame?.hasAttribute("data-diagram-frame")) {
+    frame = document.createElement("div")
+    frame.className = "diagram-frame not-prose"
+    frame.dataset.diagramFrame = ""
+    node.replaceWith(frame)
+    const fade = document.createElement("div")
+    fade.className = "diagram-fade"
+    fade.setAttribute("aria-hidden", "true")
+    const chip = button("fit", tNow("docs.diagramFitLabel"), "")
+    chip.className = "diagram-fit"
+    chip.textContent = tNow("docs.diagramFitWidth")
+    frame.append(node, fade, chip)
+  }
+  measureDiagramFrame(frame)
+}
+
+/**
+ * data-wide: the SVG is wider than the prose column, so the frame breaks out of it up to the pane (.doc-preview grid);
+ * data-overflow: even there it can't shrink to its 75% floor, so it scrolls (fade + chip, the node takes focus for arrow keys);
+ * data-fit: the reader chose Fit, so the SVG scales to the width; data-at-end: scrolled to the right edge (no fade).
+ */
+export function measureDiagramFrame(frame: HTMLElement) {
+  const node = frame.querySelector<HTMLElement>(":scope > .mermaid")
+  const svg = node?.querySelector<SVGSVGElement>(":scope > svg")
+  if (!node || !svg) return
+  const natural = parseFloat(svg.style.maxWidth) || 0
+  const floor = parseFloat(svg.style.minWidth) || natural
+  const css = getComputedStyle(node)
+  const padX = parseFloat(css.paddingLeft) + parseFloat(css.paddingRight)
+  const borderX = node.offsetWidth - node.clientWidth
+  const inner = () => node.clientWidth - padX
+  delete frame.dataset.wide
+  frame.style.maxWidth = ""
+  if (natural > inner()) {
+    frame.dataset.wide = ""
+    frame.style.maxWidth = `${Math.ceil(natural + padX + borderX)}px`
+  }
+  const overflow = floor > inner() + 1
+  frame.toggleAttribute("data-overflow", overflow)
+  if (overflow) node.tabIndex = 0
+  else {
+    node.removeAttribute("tabindex")
+    const chip = frame.querySelector<HTMLElement>(":scope > .diagram-fit")
+    if (frame.hasAttribute("data-fit") && chip) toggleFit(chip)
+  }
+  markScrollEnd(node)
+}
+
+function markScrollEnd(node: HTMLElement) {
+  node.parentElement?.toggleAttribute("data-at-end", node.scrollLeft + node.clientWidth >= node.scrollWidth - 2)
+}
+
+function toggleFit(chip: HTMLElement) {
+  const frame = chip.closest<HTMLElement>("[data-diagram-frame]")
+  if (!frame) return
+  const fit = !frame.hasAttribute("data-fit")
+  frame.toggleAttribute("data-fit", fit)
+  chip.textContent = tNow(fit ? "docs.diagramScrollWide" : "docs.diagramFitWidth")
+  chip.setAttribute("aria-label", tNow(fit ? "docs.diagramScrollLabel" : "docs.diagramFitLabel"))
+  chip.title = chip.getAttribute("aria-label") ?? ""
+  chip.setAttribute("aria-pressed", String(fit))
+  const node = frame.querySelector<HTMLElement>(":scope > .mermaid")
+  if (node) markScrollEnd(node)
+}
+
 /** A visual block's toolbar (T517): Copy, keeping the look. Static markup, so added once per render of the doc. */
 function decorateBlock(block: HTMLElement) {
   block.dataset.tools = ""
@@ -196,6 +268,7 @@ export function useDiagramTools(containerRef: RefObject<HTMLElement | null>, htm
     const onClick = (e: MouseEvent) => {
       const btn = (e.target as Element | null)?.closest<HTMLElement>("[data-diagram-action]")
       if (!btn || !root.contains(btn)) return
+      if (btn.dataset.diagramAction === "fit") { e.preventDefault(); toggleFit(btn); return }
       if (btn.dataset.diagramAction === "copy-rich") {
         const block = btn.closest<HTMLElement>(".md-visual")
         if (block) { e.preventDefault(); copyBlock(block).catch(failed) }
@@ -215,7 +288,27 @@ export function useDiagramTools(containerRef: RefObject<HTMLElement | null>, htm
       }
     }
     root.addEventListener("click", onClick)
-    return () => root.removeEventListener("click", onClick)
+    // scroll doesn't bubble: capture it to drop the fade at the right edge
+    const onScroll = (e: Event) => {
+      const node = e.target as HTMLElement
+      if (node instanceof HTMLElement && node.parentElement?.hasAttribute("data-diagram-frame")) markScrollEnd(node)
+    }
+    root.addEventListener("scroll", onScroll, true)
+    // the pane resizes (Linked docs column, window): frames re-decide wide / overflow
+    // width only, next frame: re-measuring changes heights, which must not feed back into this observer
+    let lastWidth = root.clientWidth
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry?.contentRect.width ?? 0
+      if (w === lastWidth) return
+      lastWidth = w
+      requestAnimationFrame(() => { for (const f of root.querySelectorAll<HTMLElement>("[data-diagram-frame]")) measureDiagramFrame(f) })
+    })
+    ro.observe(root)
+    return () => {
+      root.removeEventListener("click", onClick)
+      root.removeEventListener("scroll", onScroll, true)
+      ro.disconnect()
+    }
   }, [containerRef, html])
   return <DiagramDialog svg={open?.svg ?? null} opener={opener} onClose={() => setOpen(null)} />
 }

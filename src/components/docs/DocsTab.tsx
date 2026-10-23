@@ -33,9 +33,11 @@ interface DocsTabProps {
   /** Folders outside docs/, plans/ and memory/ not opened yet, and how to open one */
   lazyFolders?: LazyFolder[]
   onOpenFolder?: (name: string) => Promise<void>
+  /** Doc names that look like a search that found nothing */
+  searchSuggestions?: string[]
 }
 
-export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSelect, onDirtyChange, onNewDocClick, onDocDeleted, onDocRenamed, rootParam, docActions, apiSpec, apiOpen, onApiOpen, lazyFolders = [], onOpenFolder }: DocsTabProps) {
+export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSelect, onDirtyChange, onNewDocClick, onDocDeleted, onDocRenamed, rootParam, docActions, apiSpec, apiOpen, onApiOpen, lazyFolders = [], onOpenFolder, searchSuggestions }: DocsTabProps) {
   const [liveContent, setLiveContent] = useState(selectedDoc?.content ?? "")
   useEffect(() => { setLiveContent(selectedDoc?.content ?? "") }, [selectedDoc?.path])
   const [listCollapsed, setListCollapsed] = useState(lastListCollapsed)
@@ -72,6 +74,7 @@ export function DocsTab({ docs, selectedDoc, docSearch, onSearchChange, onDocSel
         docActions={docActions}
         lazyFolders={lazyFolders}
         onOpenFolder={onOpenFolder}
+        suggestions={searchSuggestions}
       />
       <div className={cn("flex-1 min-w-0 overflow-y-auto", !selectedDoc && !showApi && !noDocs && "max-md:hidden")}>
         {showApi && apiSpec && apiOpen && onApiOpen ? (

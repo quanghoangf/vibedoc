@@ -28,7 +28,7 @@ import { dueState, localToday, roadmapHealth, taskDueSummary, type RoadmapDrift,
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { RoadmapTimeline } from "./RoadmapTimeline"
-import { FEATURE_W, HORIZON_W, arrangePositions, resolvePositions } from "./layout"
+import { FEATURE_W, HORIZON_W, arrangePositions, doneHorizons, focusHorizon, resolvePositions } from "./layout"
 import { StatusDot, nodeTypes, useRoadmapStatusLabel, type RoadmapNode } from "./RoadmapNodes"
 import { RoadmapItemPane, RoadmapItemSheet } from "./RoadmapItemSheet"
 import { TaskDetailBody } from "@/components/board/TaskDetailPanel"
@@ -43,7 +43,6 @@ import { undoToast } from "@/components/ui/toast"
 import { tNow, useT } from "@/context/LanguageContext"
 import { useFlowAriaLabels } from "@/components/shared/flow-labels"
 import type { MessageKey } from "@/i18n"
-import { recordRecent } from "@/components/layout/sidebar-store"
 
 type ApiResult<T> = { data?: T; error?: string }
 
@@ -215,15 +214,6 @@ export function RoadmapTab() {
   const rfRef = useRef<ReactFlowInstance<RoadmapNode> | null>(null)
   // false until the map was framed once: it starts hidden when the URL opens a task (no width to frame against)
   const framedRef = useRef(false)
-  const showTop = useCallback((rf: ReactFlowInstance<RoadmapNode>, duration = 0) => {
-    rfRef.current = rf
-    const width = containerRef.current?.clientWidth ?? 0
-    const bounds = rf.getNodesBounds(rf.getNodes())
-    if (!width || !bounds.width) return
-    framedRef.current = true
-    const zoom = Math.min(1, Math.max(MIN_INITIAL_ZOOM, (width - VIEWPORT_PAD * 2) / bounds.width))
-    rf.setViewport({ x: width / 2 - (bounds.x + bounds.width / 2) * zoom, y: VIEWPORT_PAD - bounds.y * zoom, zoom }, { duration })
-  }, [])
   // a roadmap_updated that arrived mid-drag; reloaded once the drag's layout POST lands
   const pendingReloadRef = useRef(false)
   // only the latest load() may apply its response (guards project switches / overlapping SSE reloads)
@@ -279,6 +269,15 @@ export function RoadmapTab() {
     return () => es.close()
   }, [load])
 
+  // Horizons whose epics are all done draw as one compact node until expanded (component state, never layout.json)
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+  const allDone = useMemo(() => doneHorizons(items), [items])
+  const collapsed = useMemo(() => new Set([...allDone].filter((id) => !expanded.has(id))), [allDone, expanded])
+  const toggleHorizon = useCallback((id: string) => setExpanded((prev) => {
+    const next = new Set(prev)
+    if (!next.delete(id)) next.add(id)
+    return next
+  }), [])
   const edges = useMemo(() => {
     const byId = new Map(nodes.map((n) => [n.id, n]))
     const out: Edge[] = []
@@ -291,10 +290,10 @@ export function RoadmapTab() {
     for (const item of items) {
       const p = item.parent && byId.get(item.parent)
       const c = byId.get(item.id)
-      if (p && c && p.type === "horizon") out.push(edge(`branch-${item.id}`, p, c, false))
+      if (p && c && p.type === "horizon" && !collapsed.has(p.id)) out.push(edge(`branch-${item.id}`, p, c, false))
     }
     return out
-  }, [items, nodes])
+  }, [items, nodes, collapsed])
 
   // board is refreshed by AppContext on task_updated, so progress/drift follow task moves live
   const tasksById = useMemo<Record<string, Task>>(
@@ -303,11 +302,30 @@ export function RoadmapTab() {
   )
   const health = useMemo(() => roadmapHealth(items, tasksById, today), [items, tasksById, today])
 
+  // open on what's happening now: the first horizon with live work, else the top of the map
+  const focusId = useMemo(() => focusHorizon(items, (id) => {
+    const s = tasksById[id]?.status
+    return s !== "done" && s !== "cancelled"
+  }), [items, tasksById])
+
+  const showTop = useCallback((rf: ReactFlowInstance<RoadmapNode>, duration = 0) => {
+    rfRef.current = rf
+    const width = containerRef.current?.clientWidth ?? 0
+    const bounds = rf.getNodesBounds(rf.getNodes())
+    if (!width || !bounds.width) return
+    framedRef.current = true
+    const zoom = Math.min(1, Math.max(MIN_INITIAL_ZOOM, (width - VIEWPORT_PAD * 2) / bounds.width))
+    // the focused horizon's block (it + its epics) starts at the top edge
+    const block = focusId ? rf.getNodes().filter((n) => n.id === focusId || n.data.item.parent === focusId) : []
+    const top = block.length ? Math.min(...block.map((n) => n.position.y)) : bounds.y
+    rf.setViewport({ x: width / 2 - (bounds.x + bounds.width / 2) * zoom, y: VIEWPORT_PAD - top * zoom, zoom }, { duration })
+  }, [focusId])
+
   const shownNodes = useMemo(() => {
     const allTasks = Object.values(tasksById)
     // chapters number real horizons only; orphans on the spine get none
     const chapters = new Map(items.filter((i) => i.parent === null).sort((a, b) => a.order - b.order).map((h, i) => [h.id, i + 1]))
-    return nodes.map((n) => {
+    return nodes.filter((n) => !(n.type === "feature" && n.data.item.parent && collapsed.has(n.data.item.parent))).map((n) => {
       const { item } = n.data
       const kids = items.filter((i) => i.parent === item.id)
       const next = n.type === "feature" && item.status === "in-progress" ? pickNextTask(item, allTasks) : null
@@ -326,11 +344,12 @@ export function RoadmapTab() {
           ...(n.type === "horizon" && {
             chapter: chapters.get(item.id),
             epics: { done: kids.filter((k) => k.status === "done").length, total: kids.length },
+            ...(allDone.has(item.id) && { collapsed: collapsed.has(item.id), onToggle: () => toggleHorizon(item.id) }),
           }),
         },
       }
     })
-  }, [nodes, items, health, today, tasksById, t, statusLabel])
+  }, [nodes, items, health, today, tasksById, t, statusLabel, allDone, collapsed, toggleHorizon])
 
   const onNodesChange = useCallback(
     (changes: NodeChange<RoadmapNode>[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -487,9 +506,6 @@ export function RoadmapTab() {
       requestAnimationFrame(() => showTop(rf))
     }
   }, [mapShown, showTop])
-  // T511: the sidebar lists recently opened epics under Roadmap
-  const openedId = selected?.id
-  useEffect(() => { if (openedId) recordRecent("epic", openedId) }, [openedId])
 
   const report = (err: string | null) => { if (err) setError(err) }
   const actions: ItemActions = {
@@ -691,7 +707,7 @@ export function RoadmapTab() {
             </ReactFlow>
           </div>
         ) : (
-          <RoadmapTimeline items={items} today={today} onSelect={setSelectedId} onItemContextMenu={openMenu} progressById={health.progress} />
+          <RoadmapTimeline items={items} today={today} onSelect={setSelectedId} onItemContextMenu={openMenu} progressById={health.progress} taskDates={tasksById} />
         )}
         </div>
         {epic && openTask && (

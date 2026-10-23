@@ -27,6 +27,15 @@ export function welcomeKind(docPaths: string[]): 'docs' | 'empty' {
 }
 
 /**
+ * What /start shows, deciding like `/` does: a project with tasks or roadmap items is set up, so the board
+ * (it never says "no roadmap yet" to a repo that has one); else the welcome that fits its docs.
+ */
+export function welcomeTarget(p: { tasks: number; roadmapItems: number; demo?: boolean; docPaths: string[]; docsElsewhere?: boolean }): 'board' | 'docs' | 'empty' {
+  if (firstScreen(p) === 'board') return 'board'
+  return p.docsElsewhere ? 'docs' : welcomeKind(p.docPaths)
+}
+
+/**
  * Per-browser cookie with the last (app) page used per project (R082, per project since R099):
  * `<id>:<path>` pairs joined by `|`, newest first, at most MAX_LAST_PAGES. A pre-R099 bare `/roadmap` is project ''.
  */

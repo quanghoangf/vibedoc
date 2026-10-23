@@ -260,3 +260,23 @@ export function pruneDismissed(dismissed: Record<string, string>, goneIds: strin
 
 export const sortedLog = (log: RecallLog): RecallLog =>
   Object.fromEntries(Object.entries(log).sort(([a], [b]) => byId(a, b)))
+
+/** "Ask agent to fix" on a /memory Cleanup row: the flag, where it points, and propose-don't-write. */
+export function fixMemoryPrompt(flag: Pick<HealthFlag, 'kind' | 'message' | 'refs' | 'suggestion'>): string {
+  const entries = flag.refs.filter((id) => /^E\d+$/.test(id))
+  const items = flag.refs.filter((id) => !/^E\d+$/.test(id))
+  const read = [
+    'vibedoc_read_memory',
+    ...(entries.length ? [`vibedoc_get_entries with ids ${entries.join(', ')}`] : []),
+    ...(items.length ? [`vibedoc_get_task / vibedoc_get_roadmap for ${items.join(', ')}`] : []),
+  ]
+  return [
+    `Fix memory: the /memory Cleanup check flagged a ${flag.kind} issue:`,
+    `- ${flag.message}`,
+    ...(flag.suggestion ? [`- Suggested: ${flag.suggestion.action} ${flag.suggestion.ids.join(', ')}`] : []),
+    '',
+    `Read ${read.join(', ')}. Then propose the fix with vibedoc_propose_edit on memory/MEMORY.md or the entry's file ` +
+      '(memory/entries/E…md), never write memory directly (no vibedoc_update_memory, vibedoc_save_entry or vibedoc_delete_entry). ' +
+      'If the memory is right and the flag is wrong, say so instead of editing.',
+  ].join('\n')
+}

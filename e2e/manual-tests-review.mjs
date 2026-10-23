@@ -1,6 +1,6 @@
 // Browser check for R043 (manual tests & optional review), end to end on a fixture project:
 //   1. An agent finishes tasks with reports (vibedoc_update_task + manualTests) → with checks left they land in
-//      review, not done, and the queue still hands out T002 (it depends on T001) → 0/2 rows under Needs you
+//      review, not done, and the queue still hands out T002 (it depends on T001) → 0/2 rows under To check
 //      → tick everything there → the task files get - [x] and the rows read 2/2.
 //   2. Review: move a task to review → send it back from the panel → vibedoc_next_task reclaims it with the
 //      note first → back to review → approve → done, with both entries in ## Review.
@@ -37,7 +37,7 @@ const browser = await launchChrome()
 const errors = []
 try {
   const page = await browser.newPage({ viewport: { width: 1500, height: 900 } })
-  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
+  page.on("console", (m) => { if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text()) })
   page.on("pageerror", (e) => errors.push(e.message))
   await stubChat(page, [], { root: fx })
 

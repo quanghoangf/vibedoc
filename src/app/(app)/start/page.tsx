@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Bot, FileText, Sparkles } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
@@ -9,32 +10,40 @@ import { Button } from "@/components/ui/button"
 import { ConnectSlot } from "@/components/welcome/ConnectSlot"
 import { ToolkitStep } from "@/components/welcome/ToolkitStep"
 import { askAgent } from "@/lib/ask-agent"
-import { welcomeKind } from "@/lib/first-screen"
+import { welcomeTarget } from "@/lib/first-screen"
 
 /** First run on a project with no tasks and no roadmap (R082): one start that fits what the project has. `/` sends new projects here. */
 export default function WelcomePage() {
-  const { rootParam, activeProject } = useApp()
+  const { rootParam, activeProject, demo: readOnlyDemo } = useApp()
   const { t } = useT()
+  const router = useRouter()
   const [kind, setKind] = useState<"docs" | "empty" | null>(null)
+  const q = rootParam === "?" ? "" : rootParam
+  const board = `/board${q}`
 
   useEffect(() => {
     if (!activeProject) return
-    const json = (q: string) => fetch(`/api/docs${rootParam}${q}`).then((r) => (r.ok ? r.json() : []))
-    // the root .md files and docs/, plus any other folder (names only) that holds a project doc
-    Promise.all([json(""), json("&folders=1")])
-      .then(([docs, folders]: [{ path?: string }[], { hasDocs?: boolean }[]]) => {
-        const paths = Array.isArray(docs) ? docs.map((d) => d?.path ?? "") : []
-        const elsewhere = Array.isArray(folders) && folders.some((f) => f?.hasDocs)
-        setKind(elsewhere ? "docs" : welcomeKind(paths))
+    const json = (path: string, q: string) => fetch(`${path}${rootParam}${q}`).then((r) => (r.ok ? r.json() : null))
+    // the root .md files and docs/, plus any other folder (names only) that holds a project doc; tasks and roadmap
+    // decide like `/` does, so a project that is already set up goes to the board instead of this welcome
+    Promise.all([json("/api/docs", ""), json("/api/docs", "&folders=1"), json("/api/tasks", ""), json("/api/roadmap", "")])
+      .then(([docs, folders, tasks, roadmap]: [{ path?: string }[] | null, { hasDocs?: boolean }[] | null, { tasks?: unknown[] } | null, { items?: unknown[] } | null]) => {
+        const target = welcomeTarget({
+          tasks: tasks?.tasks?.length ?? 0,
+          roadmapItems: roadmap?.items?.length ?? 0,
+          demo: readOnlyDemo,
+          docPaths: Array.isArray(docs) ? docs.map((d) => d?.path ?? "") : [],
+          docsElsewhere: Array.isArray(folders) && folders.some((f) => f?.hasDocs),
+        })
+        if (target === "board") router.replace(board)
+        else setKind(target)
       })
       .catch((e) => {
         console.error("[vibedoc] welcome: could not list docs:", e)
         setKind("empty")
       })
-  }, [activeProject, rootParam])
+  }, [activeProject, rootParam, readOnlyDemo, router, board])
 
-  const q = rootParam === "?" ? "" : rootParam
-  const board = `/board${q}`
   const docs = kind === "docs"
 
   return (

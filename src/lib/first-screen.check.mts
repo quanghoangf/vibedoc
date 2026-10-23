@@ -1,6 +1,6 @@
 // node src/lib/first-screen.check.mts
 import assert from 'node:assert/strict'
-import { MAX_LAST_PAGES, firstScreen, hasProjectDocs, lastPageCookie, lastPageTarget, parseLastPages, welcomeKind } from './first-screen.ts'
+import { MAX_LAST_PAGES, firstScreen, hasProjectDocs, lastPageCookie, lastPageTarget, parseLastPages, welcomeKind, welcomeTarget } from './first-screen.ts'
 
 assert.equal(hasProjectDocs([]), false)
 assert.equal(hasProjectDocs(['LICENSE.md', 'CHANGELOG.md', 'CONTRIBUTING.md']), false)
@@ -42,4 +42,10 @@ assert.equal(again, 'web:/graph|api:/roadmap|/memory')
 assert.deepEqual(parseLastPages('a:/board|a:/docs|b:/start|c:https://x|/board'), [['a', '/board'], ['', '/board']])
 const many = Array.from({ length: 30 }, (_, i) => `p${i}:/board`).join('|')
 assert.equal(parseLastPages((lastPageCookie('/docs', many, 'new') ?? '').match(/^vibedoc-last=([^;]*)/)?.[1]).length, MAX_LAST_PAGES)
+// /start decides like `/`: a repo with a roadmap (or tasks) never hears "no roadmap yet"
+assert.equal(welcomeTarget({ tasks: 0, roadmapItems: 4, docPaths: ['README.md'] }), 'board')
+assert.equal(welcomeTarget({ tasks: 3, roadmapItems: 0, docPaths: [] }), 'board')
+assert.equal(welcomeTarget({ tasks: 0, roadmapItems: 0, docPaths: ['README.md'] }), 'docs')
+assert.equal(welcomeTarget({ tasks: 0, roadmapItems: 0, docPaths: ['LICENSE.md'], docsElsewhere: true }), 'docs')
+assert.equal(welcomeTarget({ tasks: 0, roadmapItems: 0, docPaths: ['LICENSE.md'] }), 'empty')
 console.log('first-screen ok')

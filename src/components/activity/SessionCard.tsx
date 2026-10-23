@@ -4,22 +4,12 @@ import { useEffect, useRef, useState } from "react"
 import { Bot, ChevronRight, FileText, Scale, User } from "lucide-react"
 import type { ActivityEvent, Session } from "@/types"
 import { cn } from "@/lib/utils"
-import { StatusIcon } from "@/components/shared/StatusIcon"
+import { ProgressMarks, StatusIcon, useProgressLabel } from "@/components/shared/StatusIcon"
 import { ActivityEventRow } from "./ActivityEventRow"
 import type { EventTarget } from "@/lib/activity"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { useStatusLabel } from "@/components/shared/StatusIcon"
 import { useSessionHeadline } from "./session-text"
-
-// One mark per task, filled with the task's status hue (the One Status Language, as a bar)
-const STATUS_BAR: Record<string, string> = {
-  done: "bg-teal",
-  "in-progress": "bg-amber",
-  review: "bg-accent",
-  blocked: "bg-danger",
-  todo: "bg-border2",
-  cancelled: "bg-border2",
-}
 
 const chip =
   "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-sm border border-border px-2 py-1 font-mono text-[11px] text-txt transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
@@ -67,7 +57,8 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, onOpen, fo
 
   const isAgent = session.actor === "ai"
   const Actor = isAgent ? Bot : User
-  const done = session.tasks.filter(t => t.lastStatus === "done").length
+  const statuses = session.tasks.map(t => t.lastStatus)
+  const progressLabel = useProgressLabel()
   const hasLinks = session.tasks.length + session.docs.length + session.decisions.length > 0
   const count = tn("memory.events", session.eventCount)
 
@@ -116,10 +107,8 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, onOpen, fo
 
         {session.tasks.length > 0 && (
           <div className="mt-3 flex items-center gap-3">
-            <div className="flex flex-1 gap-0.5" role="img" aria-label={t("memory.tasksDoneOf", { done, total: session.tasks.length })}>
-              {session.tasks.map(t => <span key={t.id} className={cn("h-1 flex-1 rounded-full", STATUS_BAR[t.lastStatus] ?? "bg-border2")} />)}
-            </div>
-            <span className="font-mono text-[11px] text-muted tabular-nums"><span className="text-txt">{done}</span>/{session.tasks.length}</span>
+            <ProgressMarks statuses={statuses} className="h-1 flex-1" />
+            <span aria-hidden className="font-mono text-[11px] text-muted tabular-nums">{progressLabel(statuses)}</span>
           </div>
         )}
 

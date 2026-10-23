@@ -1,8 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname, useSearchParams } from "next/navigation"
-import { Suspense, useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ChevronRight } from "lucide-react"
 import { SidebarMenuAction, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from "@/components/ui/sidebar"
 import { useApp } from "@/context/AppContext"
@@ -12,13 +11,12 @@ import { localToday, roadmapHealth } from "@/lib/roadmap-health"
 import { CHILD_PAGES, isExpanded, sidebarChildren, type SidebarChild, type SidebarPage } from "@/lib/sidebar-items"
 import type { RoadmapItem } from "@/lib/core"
 import { cn } from "@/lib/utils"
-import { recordRecent, setPageOpen, useDisclosure, useRecent } from "./sidebar-store"
+import { setPageOpen, useDisclosure } from "./sidebar-store"
 
 type SidebarData = {
   roadmap: RoadmapItem[]
   lint: { path: string; errors: number; outdated: number }[]
   cleanupFlags: number
-  entries: { id: string; summary: string }[]
   docs: { path: string; name: string }[]
 }
 
@@ -28,7 +26,6 @@ const QUIET_EVENTS = new Set(["chat_saved", "test_run", "suite_run", "agent_conn
 /** Children per page (T511): the board is live from AppContext, the rest from /api/sidebar, refetched on SSE. */
 export function usePageChildren(): Record<SidebarPage, SidebarChild[]> {
   const { board, rootParam, activeProject } = useApp()
-  const recent = useRecent()
   const [data, setData] = useState<SidebarData | null>(null)
 
   useEffect(() => {
@@ -67,49 +64,19 @@ export function usePageChildren(): Record<SidebarPage, SidebarChild[]> {
       docs: data?.docs ?? null,
       lint: data?.lint ?? [],
       cleanupFlags: data?.cleanupFlags ?? 0,
-      entries: data?.entries ?? null,
-      recent,
     })
-  }, [board, data, recent])
-}
-
-/** Records what the URL or AppContext says is open: a doc, a memory entry, a task in Test review, deep links. */
-export function RecentWatcher() {
-  return (
-    <Suspense>
-      <RecentWatcherInner />
-    </Suspense>
-  )
-}
-
-function RecentWatcherInner() {
-  const pathname = usePathname()
-  const params = useSearchParams()
-  const { selectedDoc } = useApp()
-  const docPath = pathname === "/docs" ? selectedDoc?.path : undefined
-  const task = params.get("task")
-  const item = params.get("item")
-  const entry = params.get("entry")
-  useEffect(() => { if (docPath) recordRecent("doc", docPath) }, [docPath])
-  useEffect(() => {
-    if (pathname === "/manual-tests" && task) recordRecent("test", task)
-    if (pathname === "/board" && task) recordRecent("task", task)
-    if (pathname === "/roadmap" && item) recordRecent("epic", item)
-    if (pathname === "/memory" && entry) recordRecent("entry", entry)
-  }, [pathname, task, item, entry])
-  return null
+  }, [board, data])
 }
 
 export function isChildPage(href: string): href is SidebarPage {
   return (CHILD_PAGES as string[]).includes(href)
 }
 
-/** Open state + the ←/→ keys for a page row; `needsAction` and the current page open it until you choose. */
+/** Open state + the ←/→ keys for a page row; collapsed until you open it (the row then shows a needs-you dot). */
 export function usePageDisclosure(page: SidebarPage, kids: SidebarChild[]) {
-  const pathname = usePathname()
   const disclosure = useDisclosure()
-  const needsAction = kids.some((c) => c.reason === "needs-action")
-  const open = kids.length > 0 && isExpanded(page, disclosure, { current: pathname.startsWith(page), needsAction })
+  const needsAction = kids.length > 0
+  const open = needsAction && isExpanded(page, disclosure)
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!kids.length || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return
     if (e.key === "ArrowRight" && !open) { e.preventDefault(); setPageOpen(page, true) }
@@ -138,11 +105,13 @@ export function PageDisclosureButton({ page, label, open }: { page: SidebarPage;
 const MARK: Record<SidebarChild["tone"], string> = {
   danger: "bg-danger",
   warn: "bg-amber",
+  review: "bg-review",
   muted: "border border-border2",
 }
 const HINT_TONE: Record<SidebarChild["tone"], string> = {
   danger: "text-danger",
   warn: "text-amber",
+  review: "text-review",
   muted: "text-muted",
 }
 
@@ -154,7 +123,6 @@ export function PageChildren({ page, label, kids }: { page: SidebarPage; label: 
       case "checks": return tn("shell.hintChecks", c.n ?? 0)
       case "lint": return tn("shell.hintLint", c.n ?? 0)
       case "cleanup": return tn("shell.hintCleanup", c.n ?? 0)
-      case "more": return ""
       case "review": return t("shell.hintReview")
       case "blocked": return t("shell.hintBlocked")
       case "failed": return t("shell.hintFailed")
@@ -163,20 +131,19 @@ export function PageChildren({ page, label, kids }: { page: SidebarPage; label: 
       case "at-risk": return t("shell.hintAtRisk")
       case "drift": return t("shell.hintDrift")
       case "outdated": return t("shell.hintOutdated")
-      case "viewed": return t("shell.hintViewed")
     }
   }
   return (
     <SidebarMenuSub id={`sidebar-items-${page.slice(1)}`} aria-label={t("shell.pageItems", { page: label })} className="animate-slide-in gap-0.5">
       {kids.map((c) => {
-        const text = c.kind === "cleanup" ? t("shell.cleanupItem") : c.kind === "more" ? tn("shell.moreItems", c.n ?? 0) : c.label
+        const text = c.kind === "cleanup" ? t("shell.cleanupItem") : c.label
         const h = hint(c)
         return (
           <SidebarMenuSubItem key={c.key} data-sidebar-child={c.reason} data-ref={c.id || c.kind}>
             <SidebarMenuSubButton
               asChild
               size="sm"
-              className={cn("h-6 gap-1.5 pr-1.5", c.reason === "recent" || c.kind === "more" ? "text-muted" : "text-txt")}
+              className="h-6 gap-1.5 pr-1.5 text-txt"
               title={[c.id, c.label, h].filter(Boolean).join(" · ")}
             >
               <Link
@@ -188,12 +155,12 @@ export function PageChildren({ page, label, kids }: { page: SidebarPage; label: 
                   openDoc(c.id)
                 } : undefined}
               >
-                {c.kind !== "more" && <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", c.reason === "recent" ? MARK.muted : MARK[c.tone])} />}
-                {(c.kind === "task" || c.kind === "epic" || c.kind === "entry") && (
+                <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", MARK[c.tone])} />
+                {(c.kind === "task" || c.kind === "epic") && (
                   <span className="shrink-0 font-mono text-[10px] tabular-nums text-muted">{c.id}</span>
                 )}
                 <span data-user-content={c.label ? "" : undefined} className="min-w-0 flex-1 truncate">{text}</span>
-                {h && <span className={cn("shrink-0 text-[10px]", HINT_TONE[c.reason === "recent" ? "muted" : c.tone])}>{h}</span>}
+                {h && <span className={cn("shrink-0 text-[10px]", HINT_TONE[c.tone])}>{h}</span>}
               </Link>
             </SidebarMenuSubButton>
           </SidebarMenuSubItem>

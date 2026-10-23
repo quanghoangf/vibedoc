@@ -90,8 +90,16 @@ export const TEST_REVIEW_KEYS = {
   play: { key: "Space", label: "help.trPlay" },
 } as const
 
+/** /inbox: the triage keys. `a` approves at once (the toast has Undo); `a` and `s` shadow Activity / Settings there only. */
+export const INBOX_KEYS = {
+  move: { key: "j k", label: "help.inMove" },
+  approve: { key: "a", label: "help.inApprove" },
+  sendBack: { key: "s", label: "help.inSendBack" },
+  open: { key: "↵", label: "help.inOpen" },
+} as const
+
 /** Everything else the help sheet lists, after the page jumps, grouped by `section`. */
-export const OTHER_SHORTCUTS: readonly { key: string; label: MessageKey; section: "Open" | "Board" | "Graph" | "Test review" | "Open item" | "Editing & other" }[] = [
+export const OTHER_SHORTCUTS: readonly { key: string; label: MessageKey; section: "Open" | "Board" | "Graph" | "Test review" | "Inbox" | "Open item" | "Editing & other" }[] = [
   { key: "⌘K", label: "help.commandPalette", section: "Open" },
   { key: "⌘P", label: "help.goToFile", section: "Open" },
   { key: CHAT_KEY, label: "help.openNextChat", section: "Open" },
@@ -102,6 +110,7 @@ export const OTHER_SHORTCUTS: readonly { key: string; label: MessageKey; section
   { key: "⇧-click", label: "help.selectTasks", section: "Board" },
   ...Object.values(GRAPH_KEYS).map(({ key, label }) => ({ key, label, section: "Graph" as const })),
   ...Object.values(TEST_REVIEW_KEYS).map(({ key, label }) => ({ key, label, section: "Test review" as const })),
+  ...Object.values(INBOX_KEYS).map(({ key, label }) => ({ key, label, section: "Inbox" as const })),
   ...Object.values(ITEM_KEYS).map(({ label, help }) => ({ key: label, label: help, section: "Open item" as const })),
   { key: "/", label: "help.focusSearchWhere", section: "Editing & other" },
   { key: DOC_TESTS_KEY.label, label: "help.docTests", section: "Open item" },
@@ -117,13 +126,14 @@ const SECTION_TITLE: Record<(typeof OTHER_SHORTCUTS)[number]["section"], Message
   Board: "shell.board",
   Graph: "shell.graph",
   "Test review": "tests.title",
+  Inbox: "inbox.title",
   "Open item": "help.sectionItem",
   "Editing & other": "help.sectionOther",
 }
 
 export const SHORTCUT_SECTIONS: readonly { title: MessageKey; rows: readonly { key: string; description: MessageKey }[] }[] = [
   { title: "help.goTo", rows: PAGE_SHORTCUTS.map(({ key, label, help }) => ({ key, description: help ?? label })) },
-  ...(["Open", "Board", "Graph", "Test review", "Open item", "Editing & other"] as const).map((section) => ({
+  ...(["Open", "Board", "Graph", "Test review", "Inbox", "Open item", "Editing & other"] as const).map((section) => ({
     title: SECTION_TITLE[section], rows: OTHER_SHORTCUTS.filter((s) => s.section === section).map(({ key, label }) => ({ key, description: label })),
   })),
 ]
@@ -228,7 +238,7 @@ export const PAGE_HELP: Readonly<Record<string, PageHelp>> = {
   },
   "/inbox": {
     title: "inbox.title",
-    keys: [],
+    keys: Object.values(INBOX_KEYS),
     tips: [
       "inbox.tipInboxOpen",
       "inbox.tipInboxFilters",

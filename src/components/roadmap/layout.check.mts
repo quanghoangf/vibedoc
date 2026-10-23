@@ -1,6 +1,6 @@
 // node src/components/roadmap/layout.check.mts
 import assert from 'node:assert/strict'
-import { arrangePositions } from './layout.ts'
+import { arrangePositions, doneHorizons, focusHorizon } from './layout.ts'
 
 const item = (id: string, parent: string | null, order: number) =>
   ({ id, title: id, parent, status: 'planned', order, tasks: [], due: null, owner: null, priority: null, body: '', file: '' }) as never
@@ -36,4 +36,19 @@ assert.deepEqual(rightIds, [...rightIds].sort((a, b) => a - b))
 
 // R2's block starts below R1's lowest epic
 assert.ok(Math.min(pos.R2.y, pos.F0.y, pos.F1.y) > Math.max(...boxes.filter((b) => b.id.startsWith('E')).map((b) => b.bottom)))
+// done horizons collapse; the camera opens on the first horizon with live work
+{
+  const it = (id: string, parent: string | null, order: number, status: string, tasks: string[] = []) =>
+    ({ ...(item(id, parent, order) as object), status, tasks }) as never
+  const list = [
+    it('H1', null, 1, 'done'), it('A', 'H1', 0, 'done', ['T1']),
+    it('H2', null, 2, 'in-progress'), it('B', 'H2', 0, 'done', ['T2']), it('C', 'H2', 1, 'paused', ['T3']),
+    it('H3', null, 3, 'planned'), it('D', 'H3', 0, 'planned', ['T4']),
+    it('H4', null, 4, 'planned'),
+  ]
+  assert.deepEqual([...doneHorizons(list)], ['H1']) // H4 has no epics: nothing to collapse
+  const open = new Set(['T3', 'T4'])
+  assert.equal(focusHorizon(list, (id) => open.has(id)), 'H3') // H2's open task sits on a paused epic
+  assert.equal(focusHorizon(list, () => false), null)
+}
 console.log('layout ok')

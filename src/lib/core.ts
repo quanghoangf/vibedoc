@@ -48,7 +48,7 @@ import { runIdTime } from './test-review'
 import { chatStatus, fromSaved, isWaiting, type StatusMessage, type Worker } from './chats'
 import { isTurnRunning } from './chat-turns'
 import { stopFrontend } from './frontend-server'
-import { buildInbox, type InboxItem, type InboxProjectInput } from './inbox'
+import { buildInbox, needsYouCount, type InboxItem, type InboxProjectInput } from './inbox'
 import { roadmapHealth } from './roadmap-health'
 import { groupRollup, projectStats, type PortfolioRow, type ProjectStats } from './portfolio'
 import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
@@ -568,7 +568,7 @@ export class HubError extends Error {
   }
 }
 
-/** Per project on All projects (T531): open tasks, and what waits on the user (review + Test review's Needs you). */
+/** Per project on All projects (T531): open tasks, and what waits on the user (its inbox rows, `needsYouCount`). */
 export interface ProjectCounts { open: number; needsYou: number }
 
 /** Every hub project with its counts, one call for the page; a project whose tasks can't be read gets null. */
@@ -577,14 +577,43 @@ export async function listProjectsWithCounts(): Promise<(Project & { counts: Pro
   return Promise.all(projects.map(async p => {
     if (p.missing) return { ...p, counts: null }
     try {
-      const { tasks } = await listTasks(p.root)
-      const open = tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length
-      const needsYou = tasks.filter(t => t.status === 'review' || countNeedsYou([t]) > 0).length
-      return { ...p, counts: { open, needsYou } }
+      const input = await inboxInputFor(p)
+      const open = input.tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length
+      return { ...p, counts: { open, needsYou: needsYouCount(input) } }
     } catch {
       return { ...p, counts: null }
     }
   }))
+}
+
+/** One project's inbox facts: every task (with its evidence and epic) and every chat. Throws when it can't be read. */
+async function inboxInputFor(p: Project): Promise<InboxProjectInput> {
+  const configured = path.resolve(getConfiguredRoot())
+  const [{ tasks }, chats] = await Promise.all([listTasks(p.root), listChats(p.root)])
+  // a chat turn is keyed by the root string its request used: the hub's root, or the configured root as given
+  const running = (id: string) => isTurnRunning(p.root, id) || (normalizeRoot(configured) === normalizeRoot(p.root) && isTurnRunning(getConfiguredRoot(), id))
+  return {
+    project: p,
+    tasks: tasks.map(t => {
+      const run = t.lastRun?.status ?? t.manualTests?.autoRun?.result ?? 'none'
+      const failedRun = run === 'failed'
+      const mt = t.manualTests
+      return {
+        id: t.id, title: t.title, status: t.status, failedRun, needsTest: countNeedsYou([t]) > 0,
+        since: (failedRun && t.lastRun && runIdTime(t.lastRun.runId)) || t.updatedAt,
+        checks: mt && mt.total > 0 ? { proven: mt.total - mt.untested, total: mt.total } : null,
+        run, failedStep: failedRun ? t.lastRun?.failed?.index ?? null : null,
+        autoFixLimit: !!t.raw && latestReview(t.raw)?.outcome === 'auto fix limit reached',
+        epicId: /^(R\d+)/.exec(t.phase ?? '')?.[1] ?? null,
+      }
+    }),
+    chats: chats.map(raw => fromSaved<StatusMessage>(raw)).filter(c => c !== null).map(c => ({
+      id: c.id, title: c.title, since: c.updatedAt,
+      // T558: chatStatus counts a worker that stopped mid-task (wait-user) as waiting
+      waiting: isWaiting(chatStatus(c)) && !running(c.id),
+      ...(c.worker && { worker: { branch: c.worker.branch, taskId: c.worker.turns[c.worker.turns.length - 1]?.taskId ?? null } }),
+    })),
+  }
 }
 
 /**
@@ -594,34 +623,11 @@ export async function listProjectsWithCounts(): Promise<(Project & { counts: Pro
 export async function getInbox(opts: { project?: string | null; group?: string | null } = {}): Promise<InboxItem[]> {
   // T547: a group keeps its member repos; an unknown slug keeps nothing
   const members = opts.group ? new Set((await listGroups()).find(g => g.slug === opts.group)?.members.map(m => m.id) ?? []) : null
-  const configured = path.resolve(getConfiguredRoot())
   const projects = (await discoverProjects()).filter(p => !p.archived && !p.missing && (!opts.project || p.id === opts.project))
-  const inputs = await Promise.all(projects.map(async (p): Promise<InboxProjectInput | null> => {
-    try {
-      const [{ tasks }, chats] = await Promise.all([listTasks(p.root), listChats(p.root)])
-      // a chat turn is keyed by the root string its request used: the hub's root, or the configured root as given
-      const running = (id: string) => isTurnRunning(p.root, id) || (normalizeRoot(configured) === normalizeRoot(p.root) && isTurnRunning(getConfiguredRoot(), id))
-      return {
-        project: p,
-        tasks: tasks.map(t => {
-          const failedRun = (t.lastRun?.status ?? t.manualTests?.autoRun?.result) === 'failed'
-          return {
-            id: t.id, title: t.title, status: t.status, failedRun, needsTest: countNeedsYou([t]) > 0,
-            since: (failedRun && t.lastRun && runIdTime(t.lastRun.runId)) || t.updatedAt,
-          }
-        }),
-        chats: chats.map(raw => fromSaved<StatusMessage>(raw)).filter(c => c !== null).map(c => ({
-          id: c.id, title: c.title, since: c.updatedAt,
-          // T558: a worker that stopped mid-task waits on the user even without a question card
-          waiting: (isWaiting(chatStatus(c)) || c.worker?.phase === 'wait-user') && !running(c.id),
-          ...(c.worker && { worker: { branch: c.worker.branch, taskId: c.worker.turns[c.worker.turns.length - 1]?.taskId ?? null } }),
-        })),
-      }
-    } catch (e) {
-      console.warn(`[vibedoc] inbox: skipping ${p.root}: ${(e as Error).message}`)
-      return null
-    }
-  }))
+  const inputs = await Promise.all(projects.map(p => inboxInputFor(p).catch((e) => {
+    console.warn(`[vibedoc] inbox: skipping ${p.root}: ${(e as Error).message}`)
+    return null
+  })))
   return buildInbox(inputs.filter(i => i !== null), { projects: members })
 }
 
@@ -1799,7 +1805,28 @@ async function reviewTask(taskId: string, outcome: ReviewOutcome, note: string, 
   const at = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z')
   const content = appendReviewEntry(task.raw ?? '', outcome, note, at, auto)
   await fs.writeFile(path.join(root, task.file), content, 'utf8')
-  return updateTaskStatus(task.id, next, root, 'human')
+  // `before`: the file as it was, so Undo (undoReview) can put it back byte for byte
+  return { ...(await updateTaskStatus(task.id, next, root, 'human')), file: task.file, before: task.raw ?? '' }
+}
+
+/**
+ * Undo for approveTask / sendBackTask: write the task file back to `before`, only while it still reads `after`
+ * (what the decision wrote), so an edit made since (an agent, another tab) is never thrown away.
+ */
+export function undoReview(file: unknown, before: unknown, after: unknown, root: string): Promise<{ task: Task; previousStatus: TaskStatus }> {
+  return withTaskClaimLock(async () => {
+    if (!isFileIn(file, 'plans/tasks', /^T\d+[^/]*\.md$/) || typeof before !== 'string' || typeof after !== 'string') throw new RangeError('Invalid review to undo')
+    const abs = path.join(root, file)
+    const current = await fs.readFile(abs, 'utf8').catch(() => null)
+    if (current === null) throw new Error(`Task not found: ${file}`)
+    if (current !== after) throw new TaskStateError(`${file} changed since the decision; open the task to change it by hand`)
+    const id = path.basename(file).match(/^(T\d+)/i)![1].toUpperCase()
+    const previousStatus = (await getTask(id, root)).status
+    await fs.writeFile(abs, before, 'utf8')
+    const task = await getTask(id, root)
+    await appendActivity(root, { type: 'task_updated', actor: 'human', title: `${id} moved to ${task.status}`, detail: task.title, taskId: id, taskStatus: task.status })
+    return { task, previousStatus }
+  })
 }
 
 /** R062: the decision was made from this kept run; null when there is none (unknown runId → RangeError). */

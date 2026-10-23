@@ -6,6 +6,7 @@
  * on one that is neither in review nor done (REVIEWABLE in src/lib/review.ts).
  * R062: `runId` = the kept run the decision was made from; `marks` = flagged steps ({ item, step, kind:
  * "doubt" | "failed" | "unverified", comment?, screenshot? }) written into the entry. A send back needs a note or a mark.
+ * The reply carries `undo: { file, before, after }` for POST /api/tasks/review/undo.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -33,7 +34,8 @@ export async function POST(req: NextRequest) {
   try {
     const result = body.action === 'approve' ? await approveTask(body.id, root, note, { runId }) : await sendBackTask(body.id, note, root, { runId, marks })
     emitUpdate('task_updated', { taskId: result.task.id, status: result.task.status, previousStatus: result.previousStatus, task: result.task })
-    return NextResponse.json({ task: result.task })
+    // undo: POST /api/tasks/review/undo with these three puts the file back byte for byte
+    return NextResponse.json({ task: result.task, undo: { file: result.file, before: result.before, after: result.task.raw } })
   } catch (e) {
     const message = (e as Error).message
     const status = e instanceof TaskStateError ? 409 : e instanceof RangeError ? 400 : message.startsWith('Task not found') ? 404 : 500

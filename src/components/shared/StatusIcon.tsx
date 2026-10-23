@@ -11,25 +11,50 @@ import { statusDefIn, useStatusDefs } from "./status-defs"
 export const STATUS_META: Record<TaskStatus, { label: string; icon: LucideIcon; text: string; chip: string }> = {
   todo:          { label: "Todo",        icon: Circle,      text: "text-muted",  chip: "border-border2 text-muted" },
   "in-progress": { label: "In progress", icon: CircleDot,   text: "text-amber",  chip: "border-amber/30 bg-amber/5 text-amber" },
-  review:        { label: "Review",      icon: Eye,         text: "text-accent", chip: "border-accent/30 bg-accent/5 text-accent" },
+  review:        { label: "Review",      icon: Eye,         text: "text-review", chip: "border-review/30 bg-review/5 text-review" },
   blocked:       { label: "Blocked",     icon: CircleSlash, text: "text-danger", chip: "border-danger/30 bg-danger/5 text-danger" },
   paused:        { label: "Paused",      icon: CirclePause, text: "text-muted",  chip: "border-border2 bg-surface2 text-muted" },
   done:          { label: "Done",        icon: CircleCheck, text: "text-teal",   chip: "border-teal/30 bg-teal/5 text-teal" },
   cancelled:     { label: "Cancelled",   icon: CircleX,     text: "text-muted",  chip: "border-border text-muted" },
 }
 
-/** Literal classes per palette color (Tailwind only generates classes it can see). Extra hues take -600 ink on paper, -400 on dark (4.5:1 both ways). */
+/** Literal classes per palette color (Tailwind only generates classes it can see). Every hue is a token in globals.css with a
+ *  light and a dark ink that clear 4.5:1 on the page and on Graphite. `bar` is a progress segment: review is hatched, never solid. */
 export const STATUS_COLOR_CLASS: Record<StatusColor, { text: string; chip: string; bg: string }> = {
-  gray:   { text: "text-muted",      chip: "border-border2 text-muted",                       bg: "bg-border2" },
-  amber:  { text: "text-amber",      chip: "border-amber/30 bg-amber/5 text-amber",           bg: "bg-amber" },
-  accent: { text: "text-accent",     chip: "border-accent/30 bg-accent/5 text-accent",        bg: "bg-accent" },
-  red:    { text: "text-danger",     chip: "border-danger/30 bg-danger/5 text-danger",        bg: "bg-danger" },
-  slate:  { text: "text-muted",      chip: "border-border2 bg-surface2 text-muted",           bg: "bg-muted/60" },
-  teal:   { text: "text-teal",       chip: "border-teal/30 bg-teal/5 text-teal",              bg: "bg-teal" },
-  blue:   { text: "text-blue-600 dark:text-blue-400", chip: "border-blue-600/30 bg-blue-600/5 text-blue-600 dark:border-blue-400/30 dark:bg-blue-400/5 dark:text-blue-400", bg: "bg-blue-500 dark:bg-blue-400" },
-  pink:   { text: "text-pink-600 dark:text-pink-400", chip: "border-pink-600/30 bg-pink-600/5 text-pink-600 dark:border-pink-400/30 dark:bg-pink-400/5 dark:text-pink-400", bg: "bg-pink-500 dark:bg-pink-400" },
-  green:  { text: "text-green-600 dark:text-green-400", chip: "border-green-600/30 bg-green-600/5 text-green-600 dark:border-green-400/30 dark:bg-green-400/5 dark:text-green-400", bg: "bg-green-500 dark:bg-green-400" },
-  orange: { text: "text-orange-600 dark:text-orange-400", chip: "border-orange-600/30 bg-orange-600/5 text-orange-600 dark:border-orange-400/30 dark:bg-orange-400/5 dark:text-orange-400", bg: "bg-orange-500 dark:bg-orange-400" },
+  gray:   { text: "text-muted",     chip: "border-border2 text-muted",                         bg: "bg-border2" },
+  amber:  { text: "text-amber",     chip: "border-amber/30 bg-amber/5 text-amber",             bg: "bg-amber" },
+  review: { text: "text-review",    chip: "border-review/30 bg-review/5 text-review",          bg: "bg-review" },
+  accent: { text: "text-accent",    chip: "border-accent/30 bg-accent/5 text-accent",          bg: "bg-accent" },
+  red:    { text: "text-danger",    chip: "border-danger/30 bg-danger/5 text-danger",          bg: "bg-danger" },
+  slate:  { text: "text-muted",     chip: "border-border2 bg-surface2 text-muted",             bg: "bg-muted/60" },
+  teal:   { text: "text-teal",      chip: "border-teal/30 bg-teal/5 text-teal",                bg: "bg-teal" },
+  blue:   { text: "text-st-blue",   chip: "border-st-blue/30 bg-st-blue/5 text-st-blue",       bg: "bg-st-blue" },
+  pink:   { text: "text-st-pink",   chip: "border-st-pink/30 bg-st-pink/5 text-st-pink",       bg: "bg-st-pink" },
+  green:  { text: "text-st-green",  chip: "border-st-green/30 bg-st-green/5 text-st-green",    bg: "bg-st-green" },
+  orange: { text: "text-st-orange", chip: "border-st-orange/30 bg-st-orange/5 text-st-orange", bg: "bg-st-orange" },
+}
+
+/** One progress mark per task, by category (board lanes, By epic, Table groups, the roadmap, activity sessions).
+ *  Done is the only solid "finished" fill; review is hatched in its hue so a bar of review tasks never reads as done. */
+export const PROGRESS_MARK: Record<TaskStatus, string> = {
+  todo: "bg-border2",
+  "in-progress": "bg-amber",
+  review: "bar-review",
+  blocked: "bg-danger",
+  paused: "bg-muted/60",
+  done: "bg-teal",
+  cancelled: "bg-border",
+}
+
+/** "0/4 done · 4 in review": the text and accessible name of every task progress bar (the review part only when there is one). */
+export function useProgressLabel(): (statuses: readonly TaskStatus[]) => string {
+  const { t } = useT()
+  return useCallback((statuses: readonly TaskStatus[]) => {
+    const done = statuses.filter((s) => s === "done").length
+    const review = statuses.filter((s) => s === "review").length
+    const base = t("board.progressDone", { done, total: statuses.length })
+    return review ? `${base} · ${t("board.progressInReview", { n: review })}` : base
+  }, [t])
 }
 
 /** R078: built-in status names in the UI language; STATUS_META's English labels stay for code that isn't UI. */
@@ -84,6 +109,17 @@ export function StatusChip({ status, className }: { status: string; className?: 
     <span className={cn("inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] leading-none", meta.chip, className)}>
       <Icon className="size-3" aria-hidden />
       {meta.label}
+    </span>
+  )
+}
+
+/** A task progress bar: one mark per task (PROGRESS_MARK), named for screen readers with the same "0/4 done · 4 in review" text. */
+export function ProgressMarks({ statuses, className, markClassName }: { statuses: readonly TaskStatus[]; className?: string; markClassName?: string }) {
+  const label = useProgressLabel()(statuses)
+  if (!statuses.length) return null
+  return (
+    <span role="img" aria-label={label} title={label} className={cn("flex min-w-0 gap-0.5", className)}>
+      {statuses.map((s, i) => <span key={i} className={cn("h-full flex-1 rounded-full", PROGRESS_MARK[s], markClassName)} />)}
     </span>
   )
 }

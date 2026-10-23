@@ -12,7 +12,7 @@ test('T221 Test review and evidence in Vietnamese', async ({ page, step, context
     await page.goto('/manual-tests')
     await expect(page.getByRole('heading', { level: 1, name: 'Duyệt kiểm thử' })).toBeVisible()
     const tabs = page.getByRole('navigation', { name: 'Lọc theo kết quả' })
-    for (const tab of ['Cần bạn', 'Lỗi', 'Đạt', 'Chập chờn', 'Chưa chạy', 'Tất cả', 'Bộ kiểm thử']) {
+    for (const tab of ['Cần kiểm', 'Lỗi', 'Đạt', 'Chập chờn', 'Chưa chạy', 'Tất cả', 'Bộ kiểm thử']) {
       await expect(tabs.getByRole('button', { name: new RegExp(`^${tab}`) })).toBeVisible()
     }
   })

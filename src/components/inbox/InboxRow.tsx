@@ -18,7 +18,7 @@ export const KIND_LABEL: Record<InboxKind, MessageKey> = {
 }
 
 const KIND_ICON: Record<InboxKind, { icon: LucideIcon; tone: string }> = {
-  review: { icon: Eye, tone: "text-accent" },
+  review: { icon: Eye, tone: "text-review" },
   "needs-test": { icon: ListChecks, tone: "text-muted" },
   "failed-run": { icon: XCircle, tone: "text-danger" },
   blocked: { icon: Ban, tone: "text-amber" },
@@ -27,61 +27,95 @@ const KIND_ICON: Record<InboxKind, { icon: LucideIcon; tone: string }> = {
 
 interface InboxRowProps {
   item: InboxItem
+  /** The keyboard row (j/k): a ring, and a/s act on it */
+  focused?: boolean
+  onFocus?: () => void
   /** Review rows only: approve, or send back with a note. Absent = no inline actions (demo). */
   onApprove?: () => void
   onSendBack?: (note: string) => void
+  /** The send-back note is open; the page owns it so `s` can open it */
+  noteOpen?: boolean
+  onNoteOpen?: (open: boolean) => void
 }
 
-/** One waiting item: kind, title, project chip and age; the row opens it in its project, review rows decide inline. */
-export function InboxRow({ item, onApprove, onSendBack }: InboxRowProps) {
+/** "1/7 checks · no run", "failed at step 2 · auto-fix limit reached": what the decision rests on, in mono. */
+function useEvidenceText(item: InboxItem): string | null {
+  const { t } = useT()
+  const e = item.evidence
+  if (!e) return null
+  const run = e.run === "failed" ? (e.failedStep ? t("inbox.evFailedAt", { n: e.failedStep }) : t("inbox.evFailed")) : e.run === "passed" ? t("inbox.evPassed") : t("inbox.evNoRun")
+  return [
+    e.checks ? t("inbox.evChecks", { proven: e.checks.proven, total: e.checks.total }) : t("inbox.evNoChecks"),
+    run,
+    e.autoFixLimit && t("inbox.evFixLimit"),
+  ].filter(Boolean).join(" · ")
+}
+
+/** Unproven checks or a failed run left: Approve is then the quiet button, not the primary one. */
+export function approveIsRisky(item: InboxItem): boolean {
+  const e = item.evidence
+  return !!e && (e.run === "failed" || (!!e.checks && e.checks.proven < e.checks.total))
+}
+
+/** One waiting item: kind, title, evidence, project chip and age; the row opens it in its project, review rows decide inline. */
+export function InboxRow({ item, focused = false, onFocus, onApprove, onSendBack, noteOpen = false, onNoteOpen }: InboxRowProps) {
   const { t } = useT()
   const f = useFormat()
-  const [note, setNote] = useState<string | null>(null)
+  const [note, setNote] = useState("")
   const { icon: Icon, tone } = KIND_ICON[item.kind]
   const kind = t(KIND_LABEL[item.kind])
   const review = item.kind === "review" && onApprove && onSendBack
+  const evidence = useEvidenceText(item)
+  const e = item.evidence
+  const close = () => { setNote(""); onNoteOpen?.(false) }
 
   return (
-    <li data-inbox-row={`${item.project.id}/${item.id}`} className="py-2.5">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <Link href={item.href} className="group flex min-w-0 flex-1 items-center gap-3 rounded-md focus-visible:outline-2 focus-visible:outline-accent">
-          <Icon aria-hidden className={cn("size-4 shrink-0", tone)} />
+    <li data-inbox-row={`${item.project.id}/${item.id}`} data-focused={focused || undefined} onFocus={onFocus} className={cn("-mx-2 rounded-md px-2 py-2.5", focused && "bg-surface2/60")}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <Link href={item.href} className="group flex min-w-0 flex-1 items-start gap-3 rounded-md focus-visible:outline-2 focus-visible:outline-accent sm:items-center">
+          <Icon aria-hidden className={cn("mt-0.5 size-4 shrink-0 sm:mt-0", tone)} />
           <span className="sr-only">{kind}: </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm text-txt group-hover:underline">
+            {/* phones: the title wraps to two lines instead of losing all but two words */}
+            <span className="line-clamp-2 text-sm text-txt group-hover:underline sm:block sm:truncate">
               <span className="font-mono text-xs text-muted">{item.id.startsWith("c-") ? "" : `${item.id} `}</span>
               <span data-user-content>{item.title}</span>
             </span>
-            <span className="mt-0.5 flex items-center gap-2 text-xs text-muted">
+            <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
               <span aria-hidden>{kind}</span>
+              {evidence && (
+                <span data-inbox-evidence className={cn("font-mono text-[11px]", e?.run === "failed" || e?.autoFixLimit ? "text-danger" : "text-txt")}>
+                  <span className="sr-only">{t("inbox.evidence")}: </span>{evidence}
+                </span>
+              )}
               <span data-user-content className="max-w-48 truncate rounded-sm border border-border px-1.5 font-mono text-[11px] text-txt">{item.project.name}</span>
               {item.since && <span>{f.timeAgo(item.since)}</span>}
             </span>
           </span>
         </Link>
-        {review && note === null && (
-          <div className="flex shrink-0 gap-2">
-            <Button size="sm" variant="outline" onClick={onApprove}>{t("inbox.approve")}</Button>
-            <Button size="sm" variant="outline" onClick={() => setNote("")}>{t("inbox.sendBack")}</Button>
+        {review && !noteOpen && (
+          <div className="flex shrink-0 gap-2 pl-7 sm:pl-0">
+            <Button size="sm" variant={approveIsRisky(item) ? "outline" : "default"} onClick={onApprove} data-inbox-action="approve" aria-keyshortcuts={focused ? "a" : undefined}>{t("inbox.approve")}</Button>
+            <Button size="sm" variant="outline" onClick={() => onNoteOpen?.(true)} data-inbox-action="send-back" aria-keyshortcuts={focused ? "s" : undefined}>{t("inbox.sendBack")}</Button>
           </div>
         )}
       </div>
-      {review && note !== null && (
+      {review && noteOpen && (
         <form
           className="mt-2 flex flex-wrap gap-2 pl-7"
-          onSubmit={(e) => { e.preventDefault(); if (note.trim()) onSendBack(note.trim()) }}
+          onSubmit={(ev) => { ev.preventDefault(); if (note.trim()) { onSendBack(note.trim()); setNote("") } }}
         >
           <input
             autoFocus
             value={note}
-            onChange={(e) => setNote(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Escape") setNote(null) }}
+            onChange={(ev) => setNote(ev.target.value)}
+            onKeyDown={(ev) => { if (ev.key === "Escape") { ev.stopPropagation(); close() } }}
             aria-label={t("inbox.sendBackNote")}
             placeholder={t("inbox.sendBackNote")}
             className="h-8 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 text-sm text-txt placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
           />
           <Button size="sm" type="submit" disabled={!note.trim()}>{t("inbox.sendBackSubmit")}</Button>
-          <Button size="sm" type="button" variant="ghost" onClick={() => setNote(null)}>{t("inbox.cancel")}</Button>
+          <Button size="sm" type="button" variant="ghost" onClick={close}>{t("inbox.cancel")}</Button>
         </form>
       )}
     </li>

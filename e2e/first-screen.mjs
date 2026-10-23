@@ -1,6 +1,7 @@
 // Browser check for R082 (smart first screen): `/` picks the first screen from what the project has.
 //   S1  docs, no tasks/roadmap → /start, first start "Generate roadmap from your docs" (opens an agent chat)
 //   S2  nothing → /start, "Plan the first epics with the agent"
+//   /start opened directly on a set-up project redirects to the board (welcomeTarget)
 //   set up (a task) → /board, never the welcome
 //   S3  set up → the last page used (cookie vibedoc-last), a bad cookie → /board
 //   S4  "Write project docs" → the template wizard (/setup); the agent row says connected once an `ai` event is logged
@@ -86,6 +87,11 @@ try {
     await page.waitForURL(/\/board\b/)
     assert.equal(await page.getByRole("heading", { name: "Welcome to VibeDoc" }).count(), 0)
     console.log("ok  set-up project → board, no welcome")
+    // /start opened directly decides like `/`: a repo with tasks or a roadmap never hears "no roadmap yet"
+    await page.goto(`${BASE}/start?root=${encodeURIComponent(setUp)}`)
+    await page.waitForURL(/\/board\b/)
+    assert.equal(await page.getByText(/no roadmap yet/i).count(), 0)
+    console.log("ok  /start on a set-up project → board")
     await page.goto(`${BASE}/roadmap?root=${encodeURIComponent(setUp)}`)
     await page.locator("main#main").waitFor()
     await page.goto(`${BASE}/?root=${encodeURIComponent(setUp)}`)

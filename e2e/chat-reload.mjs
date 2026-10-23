@@ -31,7 +31,7 @@ const browser = await launchChrome()
 const errors = []
 try {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
-  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
+  page.on("console", (m) => { if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text()) })
   page.on("pageerror", (e) => errors.push(e.message))
   await page.route("**/api/projects", (route) => route.fulfill({ json: [{ id: "fixture", name: "fixture", root: fx, hasVibedoc: true }] }))
 

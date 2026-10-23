@@ -45,7 +45,7 @@ const DEMO_BLOCKED = ["/chat", "/settings", "/setup"]
 const skipLink = "sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-1.5 focus:text-xs focus:text-txt focus:ring-2 focus:ring-ring"
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
-  const { loading, summary, projects, activeProject, activeProjectId, liveIndicator, onProjectChange, board, openDoc, rootParam, demo, activeGroup } = useApp()
+  const { loading, summary, projects, activeProject, activeProjectId, liveIndicator, onProjectChange, openDoc, rootParam, demo, activeGroup } = useApp()
   const router = useRouter()
   const pathname = usePathname()
   const [showHelp, setShowHelp] = useState(false)
@@ -139,7 +139,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       {/* The sidebar precedes the header in the DOM (shadcn's peer selectors need it), so the agent strip gets its own skip link */}
       <a href="#agent-status" className={skipLink}>{t("shell.skipToAgents")}</a>
       <a href="#main" className={skipLink}>{t("shell.skipToContent")}</a>
-      <AppSidebar board={board} />
+      <AppSidebar />
       <SidebarInset className="min-w-0">
         <AppHeader
           summary={summary}

@@ -1,12 +1,11 @@
 "use client"
 
-import { Suspense, useEffect, useMemo, useState } from "react"
+import { Suspense, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { BoardTab } from "@/components/board/BoardTab"
 import { TaskDetailPanel } from "@/components/board/TaskDetailPanel"
 import { NewTaskModal } from "@/components/board/NewTaskModal"
-import { recordRecent } from "@/components/layout/sidebar-store"
 import type { Task } from "@/types"
 
 export default function BoardPage() {
@@ -39,9 +38,6 @@ function BoardPageInner() {
   const tasks = useMemo(() => (board ? Object.values(board).flat() : []), [board])
   // derived from the board so edits show live and a deleted task closes the panel
   const selectedTask = tasks.find((t) => t.id === selectedId) ?? null
-  // T511: the sidebar lists recently opened tasks under Board
-  const openedId = selectedTask?.id
-  useEffect(() => { if (openedId) recordRecent("task", openedId) }, [openedId])
 
   if (!board) return null
 

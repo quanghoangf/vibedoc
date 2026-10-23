@@ -1,6 +1,8 @@
 // T546: GET /api/inbox lists what waits on the user across every hub project, newest first.
 // T547: ?group= keeps a project group's repos; /inbox lists them with filters in the URL, the header badge counts
 // the whole inbox, and reviews are approved / sent back inline in their own repo, without opening the project.
+// Critique round: the sidebar's Inbox row shows the same count; rows show their evidence in mono; Approve has Undo
+// (the task file comes back byte for byte) and says what changed for the epic; j/k/a/s work; 390px keeps titles.
 //
 //   VIBEDOC_HOME=<tmp> PORT=3114 pnpm dev:next
 //   VIBEDOC_HOME=<same tmp> BASE=http://localhost:3114 PW_DIR=<dir with node_modules/playwright> node e2e/inbox.mjs
@@ -68,7 +70,9 @@ try {
   const total = (await inbox()).length
   await page.waitForFunction((n) => document.querySelector("[data-inbox-count]")?.textContent === String(n), total)
   assert.match(await page.title(), new RegExp(`^\\(${total}\\) `))
-  console.log(`ok  S1: B's waiting chat shows on A with B's name; badge and title count the whole inbox (${total})`)
+  // one definition: the sidebar's Inbox row says the same number
+  await page.waitForFunction((n) => document.querySelector("[data-sidebar-inbox-count]")?.firstChild?.textContent === String(n), total)
+  console.log(`ok  S1: B's waiting chat shows on A with B's name; header badge, sidebar Inbox and title count the whole inbox (${total})`)
 
   // Filters live in the URL (their own keys: ?project= is the open project)
   await page.getByRole("combobox", { name: "Kind" }).selectOption("chat-waiting")
@@ -83,15 +87,51 @@ try {
   await page.getByRole("combobox", { name: "Project" }).selectOption("")
   console.log("ok  kind and project filters narrow the list and survive a reload")
 
-  // S2 + Done when: clear the three repos' reviews from the inbox, never opening a project
+  // Evidence in the row: these hand-written reviews have no checklist and no run, so Approve is the primary button
+  assert.match(await row(pa, "T001").locator("[data-inbox-evidence]").innerText(), /no checks · no run/)
+  assert.match(await row(pa, "T001").getByRole("button", { name: "Approve" }).getAttribute("class"), /bg-accent/)
+  console.log("ok  rows show their evidence (no checks · no run); Approve is primary when nothing is left unproven")
+
+  // 390px: the buttons drop under the title instead of squeezing it to two words
+  await page.setViewportSize({ width: 390, height: 800 })
+  const link = await row(pa, "T001").locator("a").first().boundingBox()
+  const approveBox = await row(pa, "T001").getByRole("button", { name: "Approve" }).boundingBox()
+  assert.ok(link && approveBox && link.width > 300 && approveBox.y >= link.y + link.height - 1, `row at 390px: ${JSON.stringify({ link, approveBox })}`)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  console.log("ok  390px: the title gets the row's width, the buttons sit under it")
+
+  // j moves the keyboard row
+  await page.locator("[data-inbox-row] a").first().focus()
+  await page.keyboard.press("j")
+  assert.equal(await page.locator("[data-inbox-row]").nth(1).getAttribute("data-focused"), "true")
+  console.log("ok  j moves the focused row")
+
+  const fileA = path.join(a, "plans/tasks/T001-review.md")
+  const until = async (ok) => { for (let i = 0; i < 100 && !ok(); i++) await page.waitForTimeout(100); assert.ok(ok()) }
+
+  // Approve → the toast closes the loop for the epic; Undo puts the task file back byte for byte
+  const before = readFileSync(fileA, "utf8")
   await row(pa, "T001").getByRole("button", { name: "Approve" }).click()
+  await row(pa, "T001").waitFor({ state: "detached" })
+  await page.getByRole("status").getByText("Approved T001 · R002 now 1/1 done").waitFor()
+  await until(() => /done/i.test(status(a, "T001-review.md")))
+  await page.getByRole("status").getByRole("button", { name: "Undo" }).click()
+  await row(pa, "T001").waitFor()
+  await until(() => readFileSync(fileA, "utf8") === before)
+  console.log("ok  Approve says R002 is now 1/1 done; Undo brings the row back and the task file byte for byte")
+
+  // S2 + Done when: clear the three repos' reviews from the inbox, never opening a project (a and s on the focused row)
+  await row(pa, "T001").locator("a").first().focus()
+  await page.keyboard.press("a")
   await row(pa, "T001").waitFor({ state: "detached" })
   await row(pc, "T001").getByRole("button", { name: "Approve" }).click()
   await row(pc, "T001").waitFor({ state: "detached" })
-  await row(pb, "T002").getByRole("button", { name: "Send back" }).click()
+  await row(pb, "T002").locator("a").first().focus()
+  await page.keyboard.press("s")
   await row(pb, "T002").getByRole("textbox").fill("Rename the button")
   await row(pb, "T002").getByRole("button", { name: "Send back" }).click()
   await row(pb, "T002").waitFor({ state: "detached" })
+  await until(() => /todo/i.test(status(b, "T002-bravo.md")))
   assert.match(status(a, "T001-review.md"), /done/i)
   assert.match(status(c, "T001-charlie.md"), /done/i)
   assert.match(status(b, "T002-bravo.md"), /todo/i)

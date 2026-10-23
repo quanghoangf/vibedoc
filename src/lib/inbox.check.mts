@@ -1,6 +1,6 @@
 // Self-check for the cross-project inbox. Run: node src/lib/inbox.check.mts
 import assert from 'node:assert/strict'
-import { buildInbox, sortInbox, taskKind, type InboxChatInput, type InboxTaskInput } from './inbox.ts'
+import { buildInbox, needsYouCount, sortInbox, taskKind, type InboxChatInput, type InboxTaskInput } from './inbox.ts'
 
 const T = (min: number) => new Date(Date.UTC(2026, 9, 16, 9, min)).toISOString()
 const task = (id: string, o: Partial<InboxTaskInput> = {}): InboxTaskInput =>
@@ -22,13 +22,13 @@ const items = buildInbox([
   { project: b, tasks: [task('T9', { status: 'blocked', since: null }), task('T8', { needsTest: true, since: T(2) })], chats: [chat('c-wait', { since: T(5) })] },
 ])
 assert.deepEqual(items.map((i) => [i.kind, i.project.name, i.id]), [
-  ['chat-waiting', 'Bravo', 'c-wait'], // newest first: B's chat beats A's older review
-  ['failed-run', 'Alpha', 'T2'],
+  ['failed-run', 'Alpha', 'T2'], // failed runs first, whatever their age
+  ['chat-waiting', 'Bravo', 'c-wait'], // then newest first: B's chat beats A's older review
   ['needs-test', 'Bravo', 'T8'],
   ['review', 'Alpha', 'T1'],
   ['blocked', 'Bravo', 'T9'], // unknown time last
 ])
-assert.deepEqual(items[0], { kind: 'chat-waiting', project: b, id: 'c-wait', title: 'c-wait chat', since: T(5), href: '/chat?id=c-wait&project=bravo' })
+assert.deepEqual(items[1], { kind: 'chat-waiting', project: b, id: 'c-wait', title: 'c-wait chat', since: T(5), href: '/chat?id=c-wait&project=bravo' })
 assert.equal(items.find((i) => i.id === 'T1')?.href, '/board?task=T1&project=alpha')
 assert.equal(items.find((i) => i.id === 'T2')?.href, '/manual-tests?task=T2&project=alpha')
 assert.equal(items.find((i) => i.id === 'T9')?.href, '/board?task=T9&project=bravo')
@@ -46,6 +46,32 @@ assert.deepEqual(buildInbox([{ project: a, tasks: [task('T1', { status: 'review'
 assert.deepEqual(buildInbox(withHidden.slice(2), { projects: new Set(['charlie']) }).map((i) => i.id), ['T3'])
 assert.deepEqual(buildInbox(withHidden.slice(2), { projects: new Set() }), [])
 assert.equal(buildInbox([{ project: { ...a, root: '/r/a' }, tasks: [task('T1', { status: 'review' })], chats: [] }])[0].project.root, '/r/a')
+
+// an auto-fix-limit review goes first too, ahead of a newer review
+const limit = buildInbox([{ project: a, tasks: [task('T1', { status: 'review', since: T(9) }), task('T2', { status: 'review', autoFixLimit: true, since: T(1) })], chats: [] }])
+assert.deepEqual(limit.map((i) => i.id), ['T2', 'T1'])
+
+// evidence rides on task rows; a failed flag without a run result still reads failed
+const ev = buildInbox([{ project: a, tasks: [
+  task('T1', { status: 'review', checks: { proven: 1, total: 7 }, run: 'none' }),
+  task('T2', { failedRun: true, failedStep: 2 }),
+], chats: [chat('c1')] }])
+assert.deepEqual(ev.find((i) => i.id === 'T1')?.evidence, { checks: { proven: 1, total: 7 }, run: 'none', failedStep: null, autoFixLimit: false })
+assert.deepEqual(ev.find((i) => i.id === 'T2')?.evidence, { checks: null, run: 'failed', failedStep: 2, autoFixLimit: false })
+assert.equal(ev.find((i) => i.id === 'c1')?.evidence, undefined)
+
+// epic tally over the project's tasks (cancelled left out), for the closure line after an approve
+const ep = buildInbox([{ project: a, tasks: [
+  task('T1', { status: 'review', epicId: 'R9' }), task('T2', { status: 'done', epicId: 'R9' }),
+  task('T3', { status: 'todo', epicId: 'R9' }), task('T4', { status: 'cancelled', epicId: 'R9' }), task('T5', { status: 'review' }),
+], chats: [] }])
+assert.deepEqual(ep.find((i) => i.id === 'T1')?.epic, { id: 'R9', done: 1, total: 3 })
+assert.equal(ep.find((i) => i.id === 'T5')?.epic, undefined)
+
+// one definition: /projects' count is the project's inbox rows, archived or not
+const one = { project: { ...a, archived: true }, tasks: [task('T1', { status: 'review' }), task('T2', { status: 'blocked' }), task('T3')], chats: [chat('c1'), chat('c2', { waiting: false })] }
+assert.equal(needsYouCount(one), 3)
+assert.equal(needsYouCount({ ...one, project: a }), buildInbox([{ ...one, project: a }]).length)
 
 // stable ties: same time → project id, then item id
 const tie = sortInbox([

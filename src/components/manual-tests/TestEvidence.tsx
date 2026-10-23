@@ -8,7 +8,7 @@ import { useReviewText } from "./review-text"
 import { MarkdownRenderer, flashElement } from "@/components/docs/MarkdownRenderer"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { ReviewActions } from "@/components/board/TaskDetailPanel"
-import { AlertTriangle, Check, HelpCircle, X } from "lucide-react"
+import { AlertTriangle, Check, CircleCheck, CircleX, HelpCircle, X } from "lucide-react"
 import type { ReviewMark } from "@/lib/review"
 
 type Row = { item: number; text: string; auto: boolean; result: "passed" | "failed" | "missing" | "manual"; screenshot: string | null; error: string | null; unverified: string[]; flaky?: { attempts: number; error: string | null; screenshot: string | null } | null }
@@ -135,7 +135,11 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
   const newer = newest && evidence!.runId !== newest.runId ? newest : null
   const shown = evidence?.runs.find((r) => r.runId === evidence.runId)
   // The newest run plays in Review's player; an older one only has its raw file
-  const head = (evidence ? (cut < 0 ? evidence.markdown : evidence.markdown.slice(0, cut)) : "")
+  const rawHead = evidence ? (cut < 0 ? evidence.markdown : evidence.markdown.slice(0, cut)) : ""
+  // The verdict's ✅ / ❌ is for EVIDENCE.md; here a lucide icon beside the head says it (no emoji in the UI)
+  const verdict = /^\*\*❌/m.test(rawHead) ? "failed" : /^\*\*✅/m.test(rawHead) ? "passed" : null
+  // "per 🤖 check" tells an agent which items get a step(); the page says it in words
+  const head = rawHead.replace(/^\*\*(✅|❌) /m, "**").replace("per 🤖 check", "per automated check")
     .replace("[▶ Video of this run](", `[${newer ? t("tests.openVideo") : t("tests.playInReview")}](`)
     // The doc keeps UTC (EVIDENCE.md / MCP); here the run line matches History's local time
     .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC/, (t) => (shown ? stamp(f, shown.startedAt) : t))
@@ -217,7 +221,13 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
           {!loading && shown ? t(shown === newest ? "tests.showingNewest" : "tests.showingRun", { when: stamp(f, shown.startedAt), status: shown.status === "passed" ? t("board.runPassed") : t("board.runFailed") }) : ""}
         </p>
 
-        {evidence && <MarkdownRenderer content={head} className="prose-evidence" />}
+        {evidence && (
+          <div className="flex items-start gap-2">
+            {verdict === "failed" && <CircleX aria-hidden className="mt-1 size-4 shrink-0 text-danger" />}
+            {verdict === "passed" && <CircleCheck aria-hidden className="mt-1 size-4 shrink-0 text-teal" />}
+            <MarkdownRenderer content={head} className="prose-evidence min-w-0 flex-1" />
+          </div>
+        )}
 
         {error && (
           <div role="alert" className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">

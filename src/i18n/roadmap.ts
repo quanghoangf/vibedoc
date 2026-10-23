@@ -4,7 +4,7 @@ import type { Messages } from "../lib/i18n"
 
 export const en = {
   // Roadmap statuses
-  statusActive: "Active",
+  statusActive: "In progress",
   statusPaused: "Paused",
   statusDone: "Done",
   statusPlanned: "Planned",
@@ -62,6 +62,12 @@ export const en = {
   tasksOverdue_other: "{n} tasks overdue",
   nextDue: "Next due {date}",
   epicsCount: "{done}/{total} epics",
+  epicsAllDone_one: "{n} epic · all done",
+  epicsAllDone_other: "{n} epics · all done",
+  showEpics: "Show",
+  collapseEpics: "Collapse",
+  showEpicsLabel: "Show the epics of {title}",
+  collapseEpicsLabel: "Collapse the epics of {title}",
   live: "Live",
   taskCount_one: "{n} task",
   taskCount_other: "{n} tasks",
@@ -155,7 +161,9 @@ export const en = {
   // Roadmap timeline
   markerDue: "{id} · {title} · due {date}",
   markerOverdue: "{id} · {title} · due {date} (overdue)",
-  noDueDates: "No due dates yet — open an item and set a Due date.",
+  noDueDates: "No dates yet. Set a Due date on an item, or start one of its tasks.",
+  markerDerived: "{id} · {title} · no due date, from its tasks: {start} → {end}",
+  spanDates: "{start} → {end}",
   noDueDate: "No due date · {n}",
 
   // Doc link graph
@@ -289,6 +297,12 @@ export const vi: Messages<typeof en> = {
   tasksOverdue_other: "{n} việc quá hạn",
   nextDue: "Hạn tiếp theo {date}",
   epicsCount: "{done}/{total} epic",
+  epicsAllDone_one: "{n} epic · đã xong hết",
+  epicsAllDone_other: "{n} epic · đã xong hết",
+  showEpics: "Hiện",
+  collapseEpics: "Thu gọn",
+  showEpicsLabel: "Hiện các epic của {title}",
+  collapseEpicsLabel: "Thu gọn các epic của {title}",
   live: "Đang làm",
   taskCount_one: "{n} việc",
   taskCount_other: "{n} việc",
@@ -378,7 +392,9 @@ export const vi: Messages<typeof en> = {
 
   markerDue: "{id} · {title} · hạn {date}",
   markerOverdue: "{id} · {title} · hạn {date} (quá hạn)",
-  noDueDates: "Chưa có hạn nào — mở một mục và đặt Hạn.",
+  noDueDates: "Chưa có ngày nào. Đặt Hạn cho một mục, hoặc bắt đầu một việc của nó.",
+  markerDerived: "{id} · {title} · chưa có hạn, theo các việc: {start} → {end}",
+  spanDates: "{start} → {end}",
   noDueDate: "Chưa có hạn · {n}",
 
   kindDocs: "Tài liệu",

@@ -39,6 +39,8 @@ const fxWiki = makeFixture()
 write(fxWiki, "wiki/guide.md", "# Guide\n")
 const fxLog = makeFixture()
 write(fxLog, "packages/ui/CHANGELOG.md", "# Changelog\n")
+// the welcome is for projects with nothing planned: /start sends one with a roadmap to the board (welcomeTarget)
+for (const f of [fxWiki, fxLog]) rmSync(path.join(f, "plans/roadmap"), { recursive: true, force: true })
 
 const get = async (root, query) => {
   const res = await fetch(`${BASE}/api/docs?root=${encodeURIComponent(root)}${query}`)

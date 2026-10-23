@@ -8,7 +8,7 @@ import { useApp } from "@/context/AppContext"
 import { useChats } from "@/context/ChatContext"
 import { useT } from "@/context/LanguageContext"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
-import { StatusChip, StatusIcon } from "@/components/shared/StatusIcon"
+import { StatusChip, StatusIcon, useProgressLabel } from "@/components/shared/StatusIcon"
 import { SegmentedProgress, StatusPill } from "@/components/roadmap/RoadmapNodes"
 import { cn } from "@/lib/utils"
 import type { Attach } from "@/lib/chats"
@@ -83,10 +83,10 @@ function NoAttach() {
 
 function EpicContext({ item, id, tasksById }: { item?: RoadmapItem; id: string; tasksById: Record<string, Task> }) {
   const { t } = useT()
+  const progressLabel = useProgressLabel()
   if (!item) return <Missing kind="epic" id={id} />
   const tasks = item.tasks.map((tid) => tasksById[tid]).filter((x): x is Task => !!x)
   const statuses = tasks.map((x) => x.status).filter((s): s is TaskStatus => s !== "cancelled")
-  const done = statuses.filter((s) => s === "done").length
   return (
     <>
       <div className="flex flex-col gap-2">
@@ -102,7 +102,7 @@ function EpicContext({ item, id, tasksById }: { item?: RoadmapItem; id: string; 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between">
             <p className={KICKER}>{t("chat.progress")}</p>
-            <span className="font-mono text-[10px] text-muted">{t("chat.tasksDone", { done, total: statuses.length })}</span>
+            <span aria-hidden className="font-mono text-[10px] text-muted">{progressLabel(statuses)}</span>
           </div>
           <SegmentedProgress statuses={statuses} />
         </div>

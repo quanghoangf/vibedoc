@@ -23,7 +23,7 @@ const CATEGORY_HELP: Record<TaskStatus, MessageKey> = {
   paused: "settings.helpPaused", done: "settings.helpDone", cancelled: "settings.helpCancelled",
 }
 const COLOR_KEY: Record<StatusColor, MessageKey> = {
-  gray: "settings.colorGray", amber: "settings.colorAmber", accent: "settings.colorAccent", red: "settings.colorRed", slate: "settings.colorSlate",
+  gray: "settings.colorGray", amber: "settings.colorAmber", review: "settings.colorReview", accent: "settings.colorAccent", red: "settings.colorRed", slate: "settings.colorSlate",
   teal: "settings.colorTeal", blue: "settings.colorBlue", pink: "settings.colorPink", green: "settings.colorGreen", orange: "settings.colorOrange",
 }
 const slug = (label: string) => label.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)
@@ -108,7 +108,8 @@ export function StatusesSettings({ settings, onSave }: { settings: AppSettings; 
                 <div className="order-last col-span-3 flex min-w-0 items-center gap-2 pl-6 sm:order-none sm:contents">
                 <span className="w-20 shrink-0 truncate font-mono text-[11px] text-muted sm:w-auto" title={d.id} data-user-content>{d.id}</span>
                 <select aria-label={t("settings.colorFor", { id: d.id })} value={d.color} onChange={(e) => patch(d.id, { color: e.target.value as StatusColor })} className={cn(FIELD, "min-w-28")}>
-                  {STATUS_COLORS.map((c) => <option key={c} value={c}>{t(COLOR_KEY[c])}</option>)}
+                  {/* The accent never encodes a status: offered only to a status that already has it */}
+                  {STATUS_COLORS.filter((c) => c !== "accent" || d.color === "accent").map((c) => <option key={c} value={c}>{t(COLOR_KEY[c])}</option>)}
                 </select>
                 {builtin ? (
                   <span className="px-2 text-xs text-muted" title={t("settings.builtInHint")}>{t("settings.builtIn")}</span>
@@ -157,7 +158,7 @@ export function StatusesSettings({ settings, onSave }: { settings: AppSettings; 
             {BUILTIN_STATUSES.map((c) => <option key={c} value={c}>{t("settings.worksLikeOption", { category: categoryLabel(c), help: t(CATEGORY_HELP[c]) })}</option>)}
           </select>
           <select aria-label={t("settings.newStatusColor")} value={color} onChange={(e) => setColor(e.target.value as StatusColor)} className={FIELD}>
-            {STATUS_COLORS.map((c) => <option key={c} value={c}>{t(COLOR_KEY[c])}</option>)}
+            {STATUS_COLORS.filter((c) => c !== "accent").map((c) => <option key={c} value={c}>{t(COLOR_KEY[c])}</option>)}
           </select>
           <button type="submit" disabled={!label.trim() || !!idError} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">
             <Plus className="size-3.5" /> {t("settings.add")}

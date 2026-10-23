@@ -10,6 +10,7 @@ import { FEATURE_W, HORIZON_W } from "./layout"
 import { AgentMark } from "@/components/chat/AgentMark"
 import { useItemAgent } from "@/context/ChatContext"
 import type { MessageKey } from "@/i18n"
+import { ProgressMarks } from "@/components/shared/StatusIcon"
 
 export type RoadmapNodeData = {
   item: RoadmapItem
@@ -22,6 +23,8 @@ export type RoadmapNodeData = {
   nextTaskId?: string | null                   // feature: what vibedoc_next_task would hand out
   chapter?: number                             // horizon: 1-based position on the spine
   epics?: { done: number; total: number }      // horizon: child epics
+  collapsed?: boolean                          // horizon, all epics done: drawn as one compact node
+  onToggle?: () => void                        // horizon, all epics done: collapse / expand its epics
 }
 export type RoadmapNode = Node<RoadmapNodeData, "horizon" | "feature">
 
@@ -91,25 +94,17 @@ export function StatusPill({ status }: { status: RoadmapStatus }) {
 export const TASK_STATUS_BG: Record<TaskStatus, string> = {
   done: "bg-teal",
   "in-progress": "bg-amber",
-  review: "bg-accent",
+  review: "bg-review",
   blocked: "bg-danger",
   paused: "bg-muted/60",
   todo: "bg-border2",
   cancelled: "bg-border",
 }
 
-/** One segment per task, colored by its board status (same colors as the board). */
+/** One segment per task, as on the board (review hatched, never solid); named "0/4 done · 4 in review". */
 export function SegmentedProgress({ statuses, className }: { statuses?: TaskStatus[]; className?: string }) {
-  const { t } = useT()
   if (!statuses?.length) return null
-  const done = statuses.filter((s) => s === "done").length
-  return (
-    <div className={cn("flex h-1.5 min-w-0 flex-1 gap-0.5", className)} title={t("roadmap.tasksDone", { done, total: statuses.length })}>
-      {statuses.map((s, i) => (
-        <span key={i} className={cn("h-full flex-1 rounded-[1px]", TASK_STATUS_BG[s])} />
-      ))}
-    </div>
-  )
+  return <ProgressMarks statuses={statuses} className={cn("h-1.5 flex-1", className)} markClassName="rounded-[1px]" />
 }
 
 /** Small progress ring; color follows `className` (currentColor). */
@@ -185,8 +180,8 @@ function DriftMark({ drift }: { drift?: string[] }) {
 
 /** A horizon is a chapter: big number, title, epic count, and a ring for task progress. */
 export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
-  const { item, progress, epics, chapter } = data
-  const { t } = useT()
+  const { item, progress, epics, chapter, collapsed, onToggle } = data
+  const { t, tn } = useT()
   const status = item.status
   return (
     <div
@@ -212,12 +207,23 @@ export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase leading-snug tracking-wider text-txt">{item.title}</p>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-muted">
-          {epics && epics.total > 0 && <span>{t("roadmap.epicsCount", { done: epics.done, total: epics.total })}</span>}
+          {epics && epics.total > 0 && <span>{collapsed ? tn("roadmap.epicsAllDone", epics.total) : t("roadmap.epicsCount", { done: epics.done, total: epics.total })}</span>}
           <DueChip due={item.due} state={data.dueState} />
+          {onToggle && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggle() }}
+              aria-expanded={!collapsed}
+              aria-label={t(collapsed ? "roadmap.showEpicsLabel" : "roadmap.collapseEpicsLabel", { title: item.title })}
+              className="nodrag nopan rounded-xs text-accent underline-offset-2 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              {t(collapsed ? "roadmap.showEpics" : "roadmap.collapseEpics")}
+            </button>
+          )}
         </p>
       </div>
       {progress && (
-        <ProgressRing value={progress.done} total={progress.total} className={status === "done" ? "text-teal" : "text-accent"} />
+        <ProgressRing value={progress.done} total={progress.total} className="text-teal" />
       )}
       <DriftMark drift={data.drift} />
     </div>
@@ -283,7 +289,7 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
         <div className="flex items-center gap-2">
           <SegmentedProgress statuses={taskStatuses} />
           <span className="shrink-0 font-mono text-[10px] text-muted">
-            {live && nextTaskId ? <>{t("roadmap.nextTask")} <span className="text-txt">{nextTaskId}</span></> : `${taskStatuses.filter((s) => s === "done").length}/${taskStatuses.length}`}
+            {live && nextTaskId ? <>{t("roadmap.nextTask")} <span className="text-txt">{nextTaskId}</span></> : t("board.progressDone", { done: taskStatuses.filter((s) => s === "done").length, total: taskStatuses.length })}
           </span>
         </div>
       )}

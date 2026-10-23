@@ -28,7 +28,8 @@ export const STATUS_ALIASES: Record<string, TaskStatus> = {
 }
 
 /** Named colors only: Tailwind generates classes it sees literally, so the UI maps these names to fixed classes. */
-export const STATUS_COLORS = ["gray", "amber", "accent", "red", "slate", "teal", "blue", "pink", "green", "orange"] as const
+/** `review` is the review hue (its own token, never the accent). `accent` stays selectable for saved settings, but no default uses it. */
+export const STATUS_COLORS = ["gray", "amber", "review", "accent", "red", "slate", "teal", "blue", "pink", "green", "orange"] as const
 export type StatusColor = (typeof STATUS_COLORS)[number]
 
 export interface StatusDef {
@@ -42,7 +43,7 @@ export interface StatusDef {
 export const DEFAULT_STATUSES: StatusDef[] = [
   { id: "todo", label: "Todo", color: "gray", category: "todo" },
   { id: "in-progress", label: "In progress", color: "amber", category: "in-progress" },
-  { id: "review", label: "Review", color: "accent", category: "review" },
+  { id: "review", label: "Review", color: "review", category: "review" },
   { id: "blocked", label: "Blocked", color: "red", category: "blocked" },
   { id: "paused", label: "Paused", color: "slate", category: "paused" },
   { id: "done", label: "Done", color: "teal", category: "done" },
@@ -76,7 +77,8 @@ export function statusDefs(fromSettings: unknown): StatusDef[] {
     out.push({
       id,
       label: typeof r?.label === "string" && r.label.trim() ? r.label.trim() : base?.label ?? id,
-      color: STATUS_COLORS.includes(r?.color as StatusColor) ? (r?.color as StatusColor) : base?.color ?? "gray",
+      // Review used to default to the accent and saved settings carry that default; it now has its own hue
+      color: STATUS_COLORS.includes(r?.color as StatusColor) && !(id === "review" && r?.color === "accent") ? (r?.color as StatusColor) : base?.color ?? "gray",
       category,
     })
   }

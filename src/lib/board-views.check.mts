@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import type { ActivityEvent, Task } from './core'
 import {
-  DEFAULT_VIEWS, applyView, defaultView, depOutline, epicOf, foldAxis, fromParams, groupTasks, isDirty, isReady, sizeOf, taskKey, timelineBars, toParams,
+  DEFAULT_VIEWS, applyView, defaultView, depOutline, epicOf, foldAxis, fromParams, groupTasks, isDirty, isReady, sizeOf, sortLanes, taskKey, timelineBars, toParams,
   type ViewState,
 } from './board-views.ts'
 
@@ -199,6 +199,13 @@ assert.deepEqual(fromParams(new URLSearchParams('view=nope&g=bad&sc=year&f=zzz:i
   // URL codec keeps the repo filter / lanes / sections
   const st = view({ group: 'repo', subGroup: 'repo', filters: [{ prop: 'repo', op: 'is', value: ['api'] }] })
   assert.deepEqual(fromParams(toParams(st)), st)
+}
+
+// sortLanes: review / in-progress lanes first, then todo, then paused/done-only lanes; ties keep their order
+{
+  const lane = (key: string, ...st: Task['status'][]) => ({ key, tasks: st.map((status, i) => task(`${key}${i}`, { status })) })
+  const order = sortLanes([lane('P', 'paused', 'done'), lane('A', 'todo'), lane('B', 'done', 'review'), lane('D', 'done'), lane('C', 'in-progress'), lane('E', 'blocked')])
+  assert.deepEqual(order.map((l) => l.key), ['B', 'C', 'A', 'E', 'P', 'D'])
 }
 
 console.log('board-views: ok')

@@ -4,8 +4,8 @@ import { useState, type ReactNode } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { Task, TaskStatus } from "@/types"
-import { taskKey, type PropertyKey, type TaskGroup, type ViewState } from "@/lib/board-views"
-import { StatusIcon, useStatusLabel } from "@/components/shared/StatusIcon"
+import { sortLanes, taskKey, type PropertyKey, type TaskGroup, type ViewState } from "@/lib/board-views"
+import { ProgressMarks, StatusIcon, useProgressLabel, useStatusLabel } from "@/components/shared/StatusIcon"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
 import { TaskCard } from "../TaskCard"
@@ -33,17 +33,6 @@ const DONE_IDS = 5
 /** Fully done lanes shown before "+ N more … all done". */
 const DONE_LANES = 4
 
-/** One 4px mark per task, in its status hue (same as the Manual tests / Activity marks). */
-const MARK: Record<TaskStatus, string> = {
-  todo: "bg-border2",
-  "in-progress": "bg-amber",
-  review: "bg-accent",
-  blocked: "bg-danger",
-  paused: "bg-muted/60",
-  done: "bg-teal",
-  cancelled: "bg-border",
-}
-
 const isDone = (t: Task) => t.status === "done" || t.status === "cancelled"
 const newestFirst = (a: Task, b: Task) => b.id.localeCompare(a.id, undefined, { numeric: true })
 /** Cancelled tasks (shown only when a status filter names them) sit in Done, matching the lane tallies. */
@@ -55,6 +44,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
   const label = useStatusLabel()
   const groupTasks = useTaskGroups()
   const { t } = useT()
+  const progressLabel = useProgressLabel()
   // The project's statuses in its order; cancelled shows inside Done. Paused and Done sit collapsed until opened.
   const COLUMNS: Column[] = defs.filter((d) => d.id !== "cancelled").map((d) => d.id)
   const MOBILE_ORDER: Column[] = [...defs.filter((d) => d.id !== "cancelled")]
@@ -88,7 +78,8 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
     />
   )
   // Lanes with open work first, then fully done ones (collapsed, capped)
-  const openLanes = lanes?.filter((l) => !l.tasks.every(isDone)) ?? []
+  // review / in-progress lanes first, paused-only lanes last (sortLanes)
+  const openLanes = sortLanes(lanes?.filter((l) => !l.tasks.every(isDone)) ?? [])
   const doneLanes = lanes?.filter((l) => l.tasks.every(isDone)) ?? []
   const hiddenDoneLanes = showAllDoneLanes ? 0 : Math.max(0, doneLanes.length - DONE_LANES)
   const shownLanes = [...openLanes, ...doneLanes.slice(0, doneLanes.length - hiddenDoneLanes)]
@@ -161,7 +152,7 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
             {shownLanes.map((lane) => {
               const allDone = lane.tasks.every(isDone)
               const open = laneOpen[lane.key] ?? !allDone
-              const doneCount = lane.tasks.filter(isDone).length
+              const laneStatuses = lane.tasks.filter((t) => t.status !== "cancelled").map((t) => t.status)
               return (
                 <section key={lane.key} aria-label={lane.epicId ? `${lane.epicId} ${lane.label}` : lane.label}>
                   <button
@@ -173,12 +164,8 @@ export function BoardView({ tasks, state, onOpenTask, onMoveTask, selected, onTo
                     {open ? <ChevronDown className="size-3.5 shrink-0 text-muted" aria-hidden /> : <ChevronRight className="size-3.5 shrink-0 text-muted" aria-hidden />}
                     {lane.epicId && <span className="font-mono text-[11px] text-muted">{lane.epicId}</span>}
                     <span className="min-w-0 truncate text-[13px] font-semibold text-txt">{lane.label}</span>
-                    <span className="flex w-30 shrink-0 gap-0.5" aria-hidden>
-                      {lane.tasks.map((t) => <span key={taskKey(t)} className={cn("h-1 flex-1 rounded-full", MARK[t.status])} />)}
-                    </span>
-                    <span className="font-mono text-[11px] text-muted tabular-nums" aria-label={t("board.doneOfTotal", { done: doneCount, total: lane.tasks.length })}>
-                      <span className="text-txt">{doneCount}</span>/{lane.tasks.length}
-                    </span>
+                    <ProgressMarks statuses={laneStatuses} className="h-1 w-30 shrink-0" />
+                    <span aria-hidden className="shrink-0 font-mono text-[11px] text-muted tabular-nums">{progressLabel(laneStatuses)}</span>
                     {allDone && <span className="text-xs text-muted">{t("board.allDone")}</span>}
                   </button>
                   <div className={cn("grid transition-[grid-template-rows,opacity] duration-(--duration-base) ease-out-soft", open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>

@@ -50,7 +50,7 @@ try {
   console.log("ok  two runs → EVIDENCE.md with the 🤖 items matched and both runs in History")
 
   const page = await browser.newPage({ viewport: { width: 1500, height: 900 } })
-  page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
+  page.on("console", (m) => { if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(m.text()) })
   page.on("pageerror", (e) => errors.push(e.message))
   await stubChat(page, [], { root: fx })
 

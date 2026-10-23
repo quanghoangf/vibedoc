@@ -77,6 +77,13 @@ try {
   assert.deepEqual((await json(`/api/search?q=&scope=all`)).data, [])
   console.log("ok  scope project:<id>, unknown group 404, bad scope 400, empty query []")
 
+  // a miss is a question: /search and the docs list offer doc names that look like the query
+  const root = `root=${encodeURIComponent(web.root)}`
+  assert.deepEqual((await json(`/api/docs?${root}&suggest=frontend`)).data.suggestions, ["docs/frontend.md"])
+  const miss = await json(`/api/docs?${root}&q=${encodeURIComponent("frontend zzqx-nowhere")}`)
+  if (miss.data.results.length === 0) assert.ok(Array.isArray(miss.data.suggestions), "a docs search with no results carries suggestions")
+  console.log("ok  no results → similar doc names (suggest=, q= miss)")
+
   // ── T550: MCP vibedoc_search_docs scope ──────────────────────────────────────
   const text = await mcp(web.root, { query: "rate limit", scope: "group" })
   assert.match(text, new RegExp(`^\\[${api.id}\\] doc \\*\\*Rate limit decision\\*\\* — docs/decisions/rate-limit\\.md$`, "m"))

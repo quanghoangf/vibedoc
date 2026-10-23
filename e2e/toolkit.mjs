@@ -24,6 +24,8 @@ import { launchChrome, makeFixture, stubChat, toolTurn } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const fx = makeFixture()
+// nothing planned, so /start shows the welcome instead of sending the project to the board (welcomeTarget)
+rmSync(path.join(fx, "plans/roadmap"), { recursive: true, force: true })
 // a Next.js web app in a git repo, with TypeScript: web-frontend, git and lsp-ts fit
 writeFileSync(path.join(fx, "package.json"), JSON.stringify({ name: "shop", scripts: { dev: "next dev" }, dependencies: { next: "16.0.0", react: "19.0.0" } }))
 writeFileSync(path.join(fx, "tsconfig.json"), "{}")

@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, Info, Trash2 } from "lucide-react"
+import { AlertTriangle, Info, Sparkles, Trash2 } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { StatusIcon } from "@/components/shared/StatusIcon"
 import { displayStatus } from "@/lib/statuses"
 import { cn } from "@/lib/utils"
 import type { CleanupFlag } from "@/lib/core"
-import type { HealthKind } from "@/lib/memory-health"
+import { fixMemoryPrompt, type HealthKind } from "@/lib/memory-health"
+import { askAgent } from "@/lib/ask-agent"
 import type { Entry } from "@/lib/entries"
 import { MergeDialog, type MergeInput } from "./MergeDialog"
 import { useT } from "@/context/LanguageContext"
@@ -39,7 +40,7 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
   onClose: () => void
 }) {
   const router = useRouter()
-  const { board } = useApp()
+  const { board, demo, playground } = useApp()
   const { t, tn } = useT()
   const taskStatus = useStatusLabel()
   const roadmapStatus = useRoadmapStatusLabel()
@@ -142,6 +143,18 @@ export function CleanupPanel({ flags, entries, onDismiss, onMerge, onDelete, onO
             className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs text-txt outline-none transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 hover:text-danger focus-visible:ring-2 focus-visible:ring-accent"
           >
             <Trash2 className="size-3" aria-hidden /> {t("board.delete")}
+          </button>
+        )}
+        {!f.dismissed && !demo && !playground && (
+          <button
+            type="button"
+            data-action
+            data-fix-memory
+            onClick={() => askAgent(fixMemoryPrompt(f))}
+            title={t("memory.askAgentFixHint")}
+            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-border px-2 text-xs text-txt outline-none transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            <Sparkles className="size-3" aria-hidden /> {t("memory.askAgentFix")}
           </button>
         )}
         {f.dismissed ? (

@@ -29,7 +29,7 @@ export function AgentMark({ attach, className }: { attach: Attach; className?: s
         "nodrag inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-px font-mono text-[10px] leading-4 animate-fade-in transition-colors duration-(--duration-fast)",
         agent.status === "running" && "border-accent/50 text-accent hover:bg-accent/10",
         agent.status === "needs-answer" && "border-amber/50 text-amber hover:bg-amber/10",
-        agent.status === "review" && "border-accent/50 bg-accent/10 text-accent hover:bg-accent/20",
+        agent.status === "review" && "border-review/50 bg-review/10 text-review hover:bg-review/20",
         className,
       )}
     >

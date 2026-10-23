@@ -212,7 +212,7 @@ function Message({ m, thinking, busy, onProposal, onPlan, onAnswers, onToolkit, 
     <div className="flex gap-3 animate-fade-in">
       <div className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md bg-linear-to-br from-accent to-teal text-[10px] text-white" aria-hidden>⬡</div>
       <div className="min-w-0 flex-1 space-y-2">
-        {m.tools.length > 0 && (
+        {!!m.tools?.length && (
           <div className="flex flex-wrap gap-1">
             {m.tools.map((tool, j) => (
               <span key={j} data-user-content className="rounded-sm border border-border bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-muted animate-slide-in">{tool}</span>

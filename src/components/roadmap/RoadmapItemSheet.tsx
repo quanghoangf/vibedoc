@@ -130,6 +130,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
   const [merging, setMerging] = useState(false)
   const chat = isHorizon ? undefined : chatFor(chats, { kind: "epic", id: item.id })
   const offerBreakdown = !isHorizon && item.tasks.length === 0 && !chat
+  const reviewCount = isHorizon ? 0 : item.tasks.filter((id) => tasksById[id]?.status === "review").length
   const [menuOpen, setMenuOpen] = useState(false)
   const { t } = useT()
   const statusLabel = useRoadmapStatusLabel()
@@ -211,9 +212,13 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
           <div className="mt-2 flex items-end gap-4">
             <p className="font-mono text-3xl font-semibold leading-none tabular-nums text-txt">
               {Math.round((progress.done / progress.total) * 100)}<span className="text-base text-muted">%</span>
+              <span className="ml-1.5 font-sans text-base font-normal text-muted">{t("board.nounDone")}</span>
             </p>
             <div className="flex-1 pb-1">
-              <p className="mb-1.5 font-mono text-[10px] text-muted">{t(isHorizon ? "roadmap.progressDone" : "roadmap.progressTasksDone", { done: progress.done, total: progress.total })}</p>
+              <p className="mb-1.5 font-mono text-[10px] text-muted">
+                {t(isHorizon ? "roadmap.progressDone" : "roadmap.progressTasksDone", { done: progress.done, total: progress.total })}
+                {!isHorizon && reviewCount > 0 && ` · ${t("board.progressInReview", { n: reviewCount })}`}
+              </p>
               {isHorizon ? (
                 <div className="h-1.5 overflow-hidden rounded-full bg-border">
                   <div className="h-full rounded-full bg-teal" style={{ width: `${(progress.done / progress.total) * 100}%` }} />

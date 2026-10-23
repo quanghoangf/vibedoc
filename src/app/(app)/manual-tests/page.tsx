@@ -540,7 +540,7 @@ function Row({ row: r, selected, picked, picking, tabStop, onSelect }: {
       </span>
       <span className="col-start-2 row-start-2 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] leading-4 text-muted">
         {priority && <PriorityBadge priority={priority} />}
-        {r.status === "review" && <span className="shrink-0 rounded-sm bg-accent/15 px-1 font-mono text-accent">{t("tests.reviewChip")}</span>}
+        {r.status === "review" && <span className="shrink-0 rounded-sm bg-review/15 px-1 font-mono text-review">{t("tests.reviewChip")}</span>}
         {r.auto.total > 0 && (
           <span className={cn("inline-flex shrink-0 items-center gap-1 font-mono", r.auto.result === "passed" ? "text-teal" : r.auto.result === "failed" ? "text-danger" : "")} title={t("tests.automatedItems")}>
             <Bot className="size-3" aria-hidden />{r.auto.total}

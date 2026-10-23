@@ -281,6 +281,19 @@ export function groupTasks(tasks: Task[], by: GroupBy, statuses?: { id: string; 
   return out
 }
 
+/**
+ * Swimlane order on the board: lanes with review or in-progress work first, then lanes with other open work (todo,
+ * blocked), then lanes that are only paused / done / cancelled. Stable: the grouping's own order breaks ties.
+ */
+export function laneRank(tasks: Pick<Task, "status">[]): number {
+  if (tasks.some((t) => t.status === "review" || t.status === "in-progress")) return 0
+  if (tasks.some((t) => t.status !== "paused" && t.status !== "done" && t.status !== "cancelled")) return 1
+  return 2
+}
+export function sortLanes<G extends { tasks: Pick<Task, "status">[] }>(lanes: G[]): G[] {
+  return lanes.map((l, i) => ({ l, i, r: laneRank(l.tasks) })).sort((a, b) => a.r - b.r || a.i - b.i).map((x) => x.l)
+}
+
 // ─── Dependency outline ───────────────────────────────────────────────────────
 
 const MAX_DEPTH = 4

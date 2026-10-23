@@ -16,7 +16,7 @@ import { toast } from "@/components/ui/toast"
 import { useDocLinks, type DocLinksData } from "./useDocLinks"
 import { LinkPreview } from "./LinkPreview"
 import { useCodeTabs } from "./code-tabs"
-import { decorateDiagram, useDiagramTools } from "./diagram-viewer"
+import { decorateDiagram, frameDiagram, useDiagramTools } from "./diagram-viewer"
 import { tNow } from "@/context/LanguageContext"
 import { resolveImageSrc } from "@/lib/attachments"
 import { MERMAID_TOKENS, mermaidThemeVariables, type MermaidTokens } from "@/lib/mermaid-theme"
@@ -253,6 +253,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
           bindFunctions?.(node)
           floorDiagramWidth(node)
           decorateDiagram(node)
+          frameDiagram(node)
         } catch (e) {
           if (cancelled || mine !== pass) return
           showMermaidError(node, src, e)

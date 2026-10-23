@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Bot, Check, ChevronRight, FlaskConical, Minus } fro
 import { cn } from "@/lib/utils"
 import { useTaskGroups } from "./useTaskGroups"
 import { useT } from "@/context/LanguageContext"
+import { ProgressMarks, useProgressLabel } from "@/components/shared/StatusIcon"
 import type { MessageKey } from "@/i18n"
 import { localToday } from "@/lib/roadmap-health"
 import { QuickReviewButton } from "../QuickReview"
@@ -34,9 +35,6 @@ const WIDTH: Record<PropertyKey, string> = {
 /** Hidden below md: the phone table keeps ID · Title · Status · Due · Agent. */
 const WIDE_ONLY = new Set<PropertyKey>(["epic", "size", "deps", "tests", "owner"])
 const SORTABLE = new Set<string>(["id", "title", "status", "epic", "size", "due"])
-const MARK_BG: Record<TaskStatus, string> = {
-  todo: "bg-border2", "in-progress": "bg-amber", review: "bg-accent", blocked: "bg-danger", paused: "bg-muted/60", done: "bg-teal", cancelled: "bg-border",
-}
 
 const cellMono = "font-mono text-[11px] text-muted"
 const ring = "focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
@@ -54,6 +52,7 @@ export function nextSorts(sorts: SortRule[], prop: SortProp, additive: boolean):
 export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, selected = new Set(), onToggleSelect }: TableViewProps) {
   const groupTasks = useTaskGroups()
   const { t } = useT()
+  const progressLabel = useProgressLabel()
   const props = ORDER.filter((p) => state.properties.includes(p))
   const groups: TaskGroup[] =
     state.group === "none" ? [{ key: "all", label: t("board.allTasks"), epicId: null, tasks }] : groupTasks(tasks, state.group)
@@ -237,7 +236,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
           </tr>
         </thead>
         {groups.map((g) => {
-          const doneCount = g.tasks.filter((t) => t.status === "done").length
+          const statuses = g.tasks.filter((t) => t.status !== "cancelled").map((t) => t.status)
           const allDone = g.tasks.length > 0 && g.tasks.every((t) => t.status === "done" || t.status === "cancelled")
           const open = state.group === "none" || (toggled[g.key] ?? !allDone)
           return (
@@ -257,12 +256,8 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
                       />
                       {g.epicId && <span className={cellMono}>{g.epicId}</span>}
                       <span className="min-w-0 truncate text-[13px] font-semibold text-txt">{g.label}</span>
-                      <span className="flex w-[110px] shrink-0 gap-0.5" aria-hidden>
-                        {g.tasks.map((t) => <span key={t.id} className={cn("h-1 flex-1 rounded-full", MARK_BG[t.status])} />)}
-                      </span>
-                      <span className={cellMono}>
-                        <span className="text-txt">{doneCount}</span>/{g.tasks.length}
-                      </span>
+                      <ProgressMarks statuses={statuses} className="h-1 w-[110px] shrink-0" />
+                      <span aria-hidden className={cn(cellMono, "shrink-0")}>{progressLabel(statuses)}</span>
                     </button>
                   </th>
                 </tr>

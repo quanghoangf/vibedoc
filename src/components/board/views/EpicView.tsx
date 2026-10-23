@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { QuickReviewButton } from "../QuickReview"
 import type { Task, TaskStatus } from "@/types"
 import { depOutline, isReady, sizeOf, taskKey, type TaskGroup, type ViewState } from "@/lib/board-views"
-import { STATUS_META, StatusIcon, useCategoryLabel } from "@/components/shared/StatusIcon"
+import { ProgressMarks, STATUS_META, StatusIcon, useCategoryLabel, useProgressLabel } from "@/components/shared/StatusIcon"
 import { useTaskGroups } from "./useTaskGroups"
 import { useT } from "@/context/LanguageContext"
 
@@ -22,16 +22,6 @@ const RING = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring
 /** Collapsed all-done epics shown before "+ N more". */
 const DONE_SHOWN = 3
 const UP_NEXT_MAX = 5
-
-const MARK_BG: Record<TaskStatus, string> = {
-  todo: "bg-border2",
-  "in-progress": "bg-amber",
-  review: "bg-accent",
-  blocked: "bg-danger",
-  paused: "bg-muted/60",
-  done: "bg-teal",
-  cancelled: "bg-border2",
-}
 
 const idNum = (id: string) => parseInt(id.replace(/\D/g, ""), 10) || 0
 const byId = (a: Task, b: Task) => idNum(a.id) - idNum(b.id)
@@ -165,13 +155,11 @@ export function EpicView({ tasks, allTasks, agentTasks, onOpenTask }: ViewProps)
   )
 }
 
+const progressStatuses = (tasks: Task[]) => tasks.filter(t => t.status !== "cancelled").map(t => t.status)
+
 function Progress({ tasks }: { tasks: Task[] }) {
-  const done = tasks.filter(t => t.status === "done").length
-  return (
-    <span className="shrink-0 font-mono text-[11px] text-muted">
-      <span className="text-txt">{done}</span>/{tasks.length}
-    </span>
-  )
+  const label = useProgressLabel()
+  return <span className="shrink-0 font-mono text-[11px] text-muted">{label(progressStatuses(tasks))}</span>
 }
 
 function DoneLine({ group, onExpand }: { group: TaskGroup; onExpand: () => void }) {
@@ -235,11 +223,7 @@ function EpicSection({
         )}
       </div>
 
-      <div className="flex gap-[3px] px-0.5" aria-hidden>
-        {marks.map(t => (
-          <span key={taskKey(t)} className={cn("h-[5px] flex-1 rounded-full", MARK_BG[t.status])} />
-        ))}
-      </div>
+      <ProgressMarks statuses={progressStatuses(marks)} className="h-[5px] gap-[3px] px-0.5" />
 
       <ul className="flex flex-col">
         {outline.map(({ task, depth, alsoAfter }) => {

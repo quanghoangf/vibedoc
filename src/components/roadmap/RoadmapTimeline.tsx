@@ -6,7 +6,7 @@ import type { RoadmapItem } from "@/types"
 import type { RoadmapProgress } from "@/lib/roadmap-health"
 import { StatusDot } from "./RoadmapNodes"
 import { AgentDot } from "@/components/chat/AgentMark"
-import { LANE_ROW_H, buildTimeline } from "./timeline"
+import { LANE_ROW_H, buildTimeline, type TaskDates } from "./timeline"
 import { AlertTriangle } from "lucide-react"
 import { useFormat, useT } from "@/context/LanguageContext"
 
@@ -29,11 +29,13 @@ interface RoadmapTimelineProps {
   onSelect: (id: string, section?: string) => void
   onItemContextMenu?: (id: string, e: React.MouseEvent) => void
   progressById: Record<string, RoadmapProgress>
+  /** Tasks' Started / Done dates: an item with no Due is drawn over the span they cover (dashed, derived) */
+  taskDates?: TaskDates
   /** R102: one block of lanes per repo under its header, on one shared month axis (`items` / `progressById` unused) */
   sections?: TimelineSection[]
 }
 
-export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, progressById, sections }: RoadmapTimelineProps) {
+export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, progressById, taskDates, sections }: RoadmapTimelineProps) {
   const f = useFormat()
   const { t, tn } = useT()
   // Ids repeat across repos (R001 in each), so every repo builds its own lanes; the axis spans every repo's dates
@@ -42,11 +44,11 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
     const axis = list.flatMap((b) => b.items.map((i) => i.due)).filter((d): d is string => !!d)
     return list.map((b) => ({
       ...b,
-      tl: buildTimeline(b.items, today, f.month, axis),
+      tl: buildTimeline(b.items, today, f.month, axis, sections ? {} : taskDates),
       // same chapter numbers as the map: real horizons by order
       chapters: new Map(b.items.filter((i) => i.parent === null).sort((a, c) => a.order - c.order).map((h, i) => [h.id, i + 1])),
     }))
-  }, [sections, items, progressById, today, f.month])
+  }, [sections, items, progressById, today, f.month, taskDates])
   const tl = blocks[0]?.tl ?? buildTimeline([], today, f.month)
   const group = !!sections
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -107,12 +109,23 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
               <LaneLabel item={lane.item} chapter={b.chapters.get(lane.item.id)} progress={b.progressById[lane.item.id]} onSelect={(id) => onSelect(id, b.id || undefined)} onContextMenu={onItemContextMenu} />
               <div className="relative" style={{ width: tl.width, height: lane.rows * LANE_ROW_H + 12 }}>
                 {lane.markers.map((mk) => (
+                  <div key={mk.item.id} className="contents">
+                  {/* no Due: a dashed bar over the span its tasks' Started → Done cover */}
+                  {mk.derived && (
+                    <span
+                      aria-hidden
+                      className="absolute border-t-2 border-dashed border-muted/60"
+                      style={{ left: mk.startX, width: Math.max(0, mk.x - mk.startX), top: 6 + mk.row * LANE_ROW_H + 17 }}
+                    />
+                  )}
                   <button
-                    key={mk.item.id}
                     type="button"
+                    data-derived={mk.derived || undefined}
                     onClick={() => onSelect(mk.item.id, b.id || undefined)}
                     onContextMenu={(e) => onItemContextMenu?.(mk.item.id, e)}
-                    title={t(mk.state === "overdue" ? "roadmap.markerOverdue" : "roadmap.markerDue", { id: mk.item.id, title: mk.item.title, date: f.day(mk.item.due as string) })}
+                    title={mk.derived
+                      ? t("roadmap.markerDerived", { id: mk.item.id, title: mk.item.title, start: f.day(mk.start as string), end: f.day(mk.end as string) })
+                      : t(mk.state === "overdue" ? "roadmap.markerOverdue" : "roadmap.markerDue", { id: mk.item.id, title: mk.item.title, date: f.day(mk.item.due as string) })}
                     className="group absolute flex items-center gap-1.5"
                     style={{ left: mk.x - 10, top: 6 + mk.row * LANE_ROW_H }}
                   >
@@ -132,7 +145,7 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
                     <span
                       className={cn(
                         "flex max-w-[150px] flex-col rounded-md border px-2 py-0.5 text-left transition-colors",
-                        mk.item.status === "in-progress" ? "border-accent/50 bg-surface shadow-[0_6px_18px_-10px_rgb(var(--rgb-accent)/0.7)]"
+                        mk.derived ? "border-dashed border-border2 bg-bg" : mk.item.status === "in-progress" ? "border-accent/50 bg-surface shadow-[0_6px_18px_-10px_rgb(var(--rgb-accent)/0.7)]"
                           : mk.item.status === "done" ? "border-border bg-surface/60" : "border-dashed border-border2 bg-bg",
                         "group-hover:border-accent",
                       )}
@@ -151,10 +164,11 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
                           mk.state === "overdue" ? "text-danger" : mk.state === "soon" ? "text-amber" : "text-muted",
                         )}
                       >
-                        {f.day(mk.item.due as string)}
+                        {mk.derived ? t("roadmap.spanDates", { start: f.day(mk.start as string), end: f.day(mk.end as string) }) : f.day(mk.item.due as string)}
                       </span>
                     </span>
                   </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -162,8 +176,9 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
           </section>
           ))}
 
+          {/* above the today line (relative z-10 + a solid background), pinned next to the lane labels */}
           {!hasDates && (
-            <p className="px-6 py-8 text-sm text-muted" style={{ marginLeft: LANE_LABEL_W }}>
+            <p className="sticky z-10 my-6 w-max max-w-[min(32rem,calc(100vw-16rem))] rounded-md border border-border bg-bg px-4 py-3 text-sm text-muted" style={{ marginLeft: LANE_LABEL_W + 24, left: LANE_LABEL_W + 24 }}>
               {t("roadmap.noDueDates")}
             </p>
           )}

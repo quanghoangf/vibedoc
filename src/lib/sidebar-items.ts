@@ -1,11 +1,9 @@
-// The sidebar's page children (T511): per page, what needs your action there first, then what you opened lately.
+// The sidebar's page children (T511): per page, at most MAX_NEEDS items that need your action there. The page
+// itself lists the rest; the sidebar no longer mirrors pages (no "Viewed" history, no "+N more").
 // Pure, no React, no fs. Rules are the ones the pages already use, passed in (`needsYou`) or precomputed
 // (roadmap drift, doc lint, memory flags): nothing new is decided here, only picked, ordered and capped.
-import type { Recent } from './recent-items'
 
-/** Children per page, all reasons together. */
-export const MAX_CHILDREN = 5
-/** Needs-action rows before the rest folds into "+N more"; recents fill what is left of MAX_CHILDREN. */
+/** Needs-action rows per page; the rest are on the page. */
 export const MAX_NEEDS = 3
 
 export type SidebarPage = '/board' | '/manual-tests' | '/roadmap' | '/docs' | '/memory'
@@ -16,21 +14,21 @@ export type ChildHint =
   | 'review' | 'blocked' | 'failed' | 'unverified' | 'checks'
   | 'overdue' | 'at-risk' | 'drift'
   | 'lint' | 'outdated'
-  | 'cleanup' | 'more' | 'viewed'
+  | 'cleanup'
 
 export interface SidebarChild {
   /** unique within the page */
   key: string
-  kind: 'task' | 'epic' | 'doc' | 'entry' | 'cleanup' | 'more'
-  /** T216, R066, E012, the doc path; '' for cleanup / more */
+  kind: 'task' | 'epic' | 'doc' | 'entry' | 'cleanup'
+  /** T216, R066, E012, the doc path; '' for cleanup */
   id: string
   /** user content (title, summary, doc name); '' when the id says it all */
   label: string
-  reason: 'needs-action' | 'recent'
+  reason: 'needs-action'
   hint: ChildHint
-  /** count for lint / checks / cleanup / more */
+  /** count for lint / checks / cleanup */
   n?: number
-  tone: 'danger' | 'warn' | 'muted'
+  tone: 'danger' | 'warn' | 'review' | 'muted'
   href: string
 }
 
@@ -46,7 +44,7 @@ export interface SidebarInput {
   tasks: TaskLite[]
   /** test-review's rule (countNeedsYou for one task), injected so there is one definition */
   needsYou: (t: TaskLite) => boolean
-  /** null while the roadmap / lint / memory haven't loaded: those pages then show recents only */
+  /** null while the roadmap / lint / memory haven't loaded: those pages then list nothing yet */
   epics: { id: string; title: string }[] | null
   drift: { id: string; kind: string }[]
   docs: { path: string; name: string }[] | null
@@ -54,27 +52,17 @@ export interface SidebarInput {
   lint: { path: string; errors: number; outdated: number }[]
   /** memory cleanup flags that want a decision (severity warn) */
   cleanupFlags: number
-  entries: { id: string; summary: string }[] | null
-  recent: Recent
 }
 
 const enc = encodeURIComponent
 
-function cap(needs: SidebarChild[], recent: SidebarChild[], page: SidebarPage): SidebarChild[] {
-  const seen = new Set(needs.map((c) => `${c.kind}:${c.id}`))
-  const shown = needs.slice(0, MAX_NEEDS)
-  if (needs.length > MAX_NEEDS) {
-    shown.push({ key: 'more', kind: 'more', id: '', label: '', reason: 'needs-action', hint: 'more', n: needs.length - MAX_NEEDS, tone: 'muted', href: page })
-  }
-  const rest = recent.filter((c) => !seen.has(`${c.kind}:${c.id}`))
-  return [...shown, ...rest.slice(0, Math.max(0, MAX_CHILDREN - shown.length))]
-}
+const cap = (needs: SidebarChild[]) => needs.slice(0, MAX_NEEDS)
 
 function testHint(t: TaskLite): { hint: ChildHint; tone: SidebarChild['tone']; n?: number } {
   const result = t.lastRun?.status ?? t.manualTests?.autoRun?.result
   if (result === 'failed') return { hint: 'failed', tone: 'danger' }
   if ((t.manualTests?.autoRun?.unverified ?? 0) > 0) return { hint: 'unverified', tone: 'warn' }
-  if (t.status === 'review') return { hint: 'review', tone: 'warn' }
+  if (t.status === 'review') return { hint: 'review', tone: 'review' }
   return { hint: 'checks', tone: 'warn', n: t.manualTests?.untested ?? 0 }
 }
 
@@ -82,15 +70,9 @@ const TEST_ORDER: ChildHint[] = ['failed', 'unverified', 'review', 'checks']
 const DRIFT_ORDER = ['overdue', 'at-risk']
 
 export function sidebarChildren(input: SidebarInput): Record<SidebarPage, SidebarChild[]> {
-  const tasks = new Map(input.tasks.map((t) => [t.id, t]))
-  const recentTasks = (kind: 'task' | 'test', base: string) => input.recent[kind].flatMap((id): SidebarChild[] => {
-    const t = tasks.get(id)
-    return t ? [{ key: `r:${id}`, kind: 'task', id, label: t.title, reason: 'recent', hint: 'viewed', tone: 'muted', href: `${base}?task=${id}` }] : []
-  })
-
   // Board: the task is waiting on you (review) or stuck (blocked)
   const boardNeeds = (['review', 'blocked'] as const).flatMap((status) => input.tasks.filter((t) => t.status === status).map((t): SidebarChild => ({
-    key: `n:${t.id}`, kind: 'task', id: t.id, label: t.title, reason: 'needs-action', hint: status, tone: status === 'blocked' ? 'danger' : 'warn', href: `/board?task=${t.id}`,
+    key: `n:${t.id}`, kind: 'task', id: t.id, label: t.title, reason: 'needs-action', hint: status, tone: status === 'blocked' ? 'danger' : 'review', href: `/board?task=${t.id}`,
   })))
 
   // Manual tests: the Needs you tab, failed first
@@ -110,10 +92,6 @@ export function sidebarChildren(input: SidebarInput): Record<SidebarPage, Sideba
     const e = epics?.get(id)
     return e ? [{ key: `n:${id}`, kind: 'epic', id, label: e.title, reason: 'needs-action', hint, tone: hint === 'overdue' ? 'danger' : 'warn', href: `/roadmap?item=${id}` }] : []
   }).sort((a, b) => rank(a.hint) - rank(b.hint))
-  const roadmapRecent = epics ? input.recent.epic.flatMap((id): SidebarChild[] => {
-    const e = epics.get(id)
-    return e ? [{ key: `r:${id}`, kind: 'epic', id, label: e.title, reason: 'recent', hint: 'viewed', tone: 'muted', href: `/roadmap?item=${id}` }] : []
-  }) : []
 
   // Docs: lint errors, then docs that may be outdated
   const docs = input.docs && new Map(input.docs.map((d) => [d.path, d]))
@@ -124,26 +102,18 @@ export function sidebarChildren(input: SidebarInput): Record<SidebarPage, Sideba
     ...input.lint.filter((l) => l.errors === 0 && l.outdated > 0)
       .map((l): SidebarChild => ({ key: `n:${l.path}`, kind: 'doc', id: l.path, label: docName(l.path), reason: 'needs-action', hint: 'outdated', tone: 'warn', href: `/docs?doc=${enc(l.path)}` })),
   ]
-  // ponytail: docs are only checked against the list once it loads; before that a deleted doc can show for a moment
-  const docRecent = input.recent.doc.filter((p) => !docs || docs.has(p))
-    .map((p): SidebarChild => ({ key: `r:${p}`, kind: 'doc', id: p, label: docName(p), reason: 'recent', hint: 'viewed', tone: 'muted', href: `/docs?doc=${enc(p)}` }))
 
-  // Memory: one Cleanup row (the panel decides per flag), then entries
-  const entries = input.entries && new Map(input.entries.map((e) => [e.id, e]))
+  // Memory: one Cleanup row (the panel decides per flag)
   const memoryNeeds: SidebarChild[] = input.cleanupFlags > 0
     ? [{ key: 'cleanup', kind: 'cleanup', id: '', label: '', reason: 'needs-action', hint: 'cleanup', n: input.cleanupFlags, tone: 'warn', href: '/memory?cleanup=1' }]
     : []
-  const memoryRecent = entries ? input.recent.entry.flatMap((id): SidebarChild[] => {
-    const e = entries.get(id)
-    return e ? [{ key: `r:${id}`, kind: 'entry', id, label: e.summary, reason: 'recent', hint: 'viewed', tone: 'muted', href: `/memory?entry=${id}` }] : []
-  }) : []
 
   return {
-    '/board': cap(boardNeeds, recentTasks('task', '/board'), '/board'),
-    '/manual-tests': cap(testNeeds, recentTasks('test', '/manual-tests'), '/manual-tests'),
-    '/roadmap': cap(roadmapNeeds, roadmapRecent, '/roadmap'),
-    '/docs': cap(docNeeds, docRecent, '/docs'),
-    '/memory': cap(memoryNeeds, memoryRecent, '/memory'),
+    '/board': cap(boardNeeds),
+    '/manual-tests': cap(testNeeds),
+    '/roadmap': cap(roadmapNeeds),
+    '/docs': cap(docNeeds),
+    '/memory': cap(memoryNeeds),
   }
 }
 
@@ -153,7 +123,8 @@ function rank(h: ChildHint): number {
 }
 
 // ─── Open / closed per page ─────────────────────────────────────────────────
-// Only explicit choices are kept; a page you never toggled opens while you're on it or it needs you.
+// Only explicit choices are kept; a page you never toggled stays collapsed (its row shows a needs-you dot instead),
+// so every page link fits above the fold.
 
 export const SIDEBAR_COOKIE = 'vibedoc-sidebar'
 export type Disclosure = Partial<Record<SidebarPage, boolean>>
@@ -174,6 +145,6 @@ export function disclosureCookie(d: Disclosure): string {
   return `${SIDEBAR_COOKIE}=${value}; path=/; max-age=31536000; samesite=lax`
 }
 
-export function isExpanded(page: SidebarPage, d: Disclosure, ctx: { current: boolean; needsAction: boolean }): boolean {
-  return d[page] ?? (ctx.current || ctx.needsAction)
+export function isExpanded(page: SidebarPage, d: Disclosure): boolean {
+  return d[page] ?? false
 }

@@ -17,7 +17,9 @@ import { shortcutFor } from "@/lib/shortcuts"
 import { useT } from "@/context/LanguageContext"
 
 /** Recent idle chats listed under the ones that need you, errored or running; the rest are on /chat. */
-const RECENT_IN_SIDEBAR = 4
+const RECENT_IN_SIDEBAR = 2
+/** Chat rows at most, so the page links below stay above the fold at 900px; "All chats (N)" covers the rest. */
+const MAX_IN_SIDEBAR = 5
 const PAGE_KEY = shortcutFor("/chat")
 const kbdClass = "rounded-sm border border-border bg-surface2 px-1 font-mono text-[10px] leading-4 text-muted"
 
@@ -39,7 +41,8 @@ function SidebarChatsInner() {
   // T562: the orchestrator sits on top whatever its status
   const { pinned, rest } = splitPinned(chats)
   const g = groupChats(rest, now)
-  const listed = [...(pinned ? [pinned] : []), ...g.needsYou, ...g.errors, ...g.running, ...g.recent.slice(0, RECENT_IN_SIDEBAR)]
+  // On /chat the page has its own list: the group folds to its "All chats" row
+  const listed = pathname === "/chat" ? [] : [...(pinned ? [pinned] : []), ...g.needsYou, ...g.errors, ...g.running, ...g.recent.slice(0, RECENT_IN_SIDEBAR)].slice(0, MAX_IN_SIDEBAR)
   const hidden = chats.length - listed.length
   const railTip = [runningCount && t("shell.railRunning", { n: runningCount }), waitingCount && t("shell.railWaiting", { n: waitingCount }), errorCount && t("shell.railError", { n: errorCount })]
     .filter(Boolean).join(" · ")

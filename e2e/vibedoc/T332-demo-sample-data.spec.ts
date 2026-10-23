@@ -25,7 +25,7 @@ test('T332 Sample project shows every part of VibeDoc', async ({ page, step }) =
   })
   await step('Open /manual-tests → T006 "Live sync for shared lists" needs you', async () => {
     await page.goto('/manual-tests')
-    await expect(page.getByText(/^Needs you\s*1$/).first()).toBeVisible()
+    await expect(page.getByText(/^To check\s*1$/).first()).toBeVisible()
     await expect(page.getByText('Live sync for shared lists').first()).toBeVisible()
   })
   await step('Open /activity → events from the last days, newest a day ago', async () => {

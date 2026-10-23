@@ -37,6 +37,8 @@ export default function DocsPage() {
   // Folders outside docs/, plans/ and memory/ opened on this visit: every refetch keeps their docs in the list
   const openedRef = useRef<string[]>([])
   const [docSearch, setDocSearch] = useState("")
+  // doc names that look like a search that found nothing
+  const [suggestions, setSuggestions] = useState<string[]>([])
   const [newDocOpen, setNewDocOpen] = useState(false)
   const isDirtyRef = useRef(false)
   const [pathDialog, setPathDialog] = useState<{ mode: "rename" | "move"; path: string } | null>(null)
@@ -117,6 +119,7 @@ export default function DocsPage() {
     }
     const res = await fetch(`/api/docs${rootParam}&q=${encodeURIComponent(q)}`)
     const data = await res.json()
+    setSuggestions(data?.suggestions ?? [])
     setDocs(
       data.results?.map((r: { file: string }) => ({
         path: r.file,
@@ -251,6 +254,7 @@ export default function DocsPage() {
         onApiOpen={openApi}
         lazyFolders={closedFolders}
         onOpenFolder={openFolder}
+        searchSuggestions={suggestions}
       />
       <NewDocModal
         open={newDocOpen}

@@ -28,6 +28,7 @@ import { isSpecPath } from "@/lib/specs"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
 import { DocLintPanel } from "./DocLintPanel"
+import { NoMatch } from "@/components/search/NoMatch"
 
 // ─── Selection context (scoped to DocList, not exported) ──────────────────────
 
@@ -284,9 +285,11 @@ interface DocListProps {
   /** Folders outside docs/, plans/ and memory/ that aren't loaded yet; opening one loads its docs into `docs` */
   lazyFolders?: LazyFolder[]
   onOpenFolder?: (name: string) => Promise<void>
+  /** Doc names that look like a search that found nothing */
+  suggestions?: string[]
 }
 
-export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, rootParam = "", docActions, className, collapsed: listCollapsed = false, top, lazyFolders = [], onOpenFolder }: DocListProps) {
+export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, onDocClick, onNewDocClick, rootParam = "", docActions, className, collapsed: listCollapsed = false, top, lazyFolders = [], onOpenFolder, suggestions = [] }: DocListProps) {
   const [selectMode, setSelectMode] = useState(false)
   const { t } = useT()
   const filterLabel = (f: PriorityFilter) => (FILTER_LABELS[f].startsWith("docs.") ? t(FILTER_LABELS[f] as MessageKey) : FILTER_LABELS[f])
@@ -575,7 +578,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                 )}
                 {isSearching ? (
                   docs.length === 0 ? (
-                    <p className="text-xs text-muted px-2 py-4 text-center">{t("docs.noResults")}</p>
+                    <NoMatch compact message={t("docs.noResults")} suggestions={suggestions} onOpen={onDocClick} />
                   ) : (
                     docs.map(doc => (
                       <button

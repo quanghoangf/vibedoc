@@ -2,7 +2,7 @@
 //   1. A kit spec with an honest step, a step with no expect and one with only `expect(true)` → Run tests on
 //      /manual-tests → the strip shows the blank-page check, then "Passed · 3/3 steps · 2 unverified"
 //   2. The task file: only the honest 🤖 item ticked, `Auto: passed <today> · 2 unverified`; the task (done)
-//      still shows under Needs you
+//      still shows under To check
 //   3. Moved to review, Evidence lists both weak steps as unverified and Send back writes them as ❔ marks
 // Fails on any browser console error.
 //
@@ -83,9 +83,9 @@ try {
   const checklist = page.getByRole("region", { name: "Checklist" })
   await checklist.getByText("· 2 unverified, check by hand").waitFor()
   assert.equal(await checklist.getByText("unverified", { exact: true }).count(), 2)
-  await page.goto(`${BASE}/manual-tests?task=T001`) // Needs you (the default tab) lists the done task
+  await page.goto(`${BASE}/manual-tests?task=T001`) // To check (the default tab) lists the done task
   await page.locator('[data-row="T001"]').waitFor()
-  console.log("ok  file: only the honest item [x], Auto … · 2 unverified; the done task is under Needs you")
+  console.log("ok  file: only the honest item [x], Auto … · 2 unverified; the done task is under To check")
 
   // 3. Review from the proof: both weak steps flagged and sent back
   assert.match(await mcp("vibedoc_update_task", { taskId: "T001", status: "review" }), /→ \*\*review\*\*/)

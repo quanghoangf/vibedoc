@@ -77,7 +77,7 @@ try {
 
   // 4. a status change in the detail shows in the pane live
   await row("T001").getByRole("button", { name: /Alpha task/ }).click()
-  await detail("T001").getByRole("button").filter({ hasText: /^\s*done\s*$/ }).click()
+  await detail("T001").getByRole("button").filter({ hasText: /^\s*Done\s*$/ }).click()
   await pane.getByText("1 of 3 tasks done").waitFor()
   await row("T001").locator("span[title=Done]").waitFor()
   console.log("ok  done in the detail → pane row and progress update")
