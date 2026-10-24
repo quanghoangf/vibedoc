@@ -57,11 +57,13 @@ export function pendingSteps(state: FeedbackState, reached: StepId[]): StepId[] 
 
 /**
  * The state after the user answers (on the card or in Settings). Opting in marks the steps already reached as
- * done with, except `started`, so a project that is long set up doesn't send a whole funnel at once.
+ * done with, except `started`, so a project that is long set up doesn't send a whole funnel at once. The first
+ * answer also keeps `agent-connected`: the card is only asked once the agent has connected, so a yes still counts it.
  */
 export function applyConsent(state: FeedbackState, consent: boolean, reached: StepId[], now: string): FeedbackState {
+  const keep = (s: StepId) => s === 'started' || (s === 'agent-connected' && state.consent === null)
   const sent = consent && state.consent !== true
-    ? STEPS.filter((s) => state.sent.includes(s) || (s !== 'started' && reached.includes(s)))
+    ? STEPS.filter((s) => state.sent.includes(s) || (!keep(s) && reached.includes(s)))
     : state.sent
   return { consent, answeredAt: now, sent }
 }

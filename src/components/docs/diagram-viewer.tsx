@@ -63,6 +63,10 @@ export function frameDiagram(node: HTMLElement) {
     frame.append(node, fade, chip)
   }
   measureDiagramFrame(frame)
+  // Mermaid drew into a pane that may still be settling (the frame just broke out of the prose column, the Linked
+  // docs rail or the outline mounting beside it): measure again once layout has caught up, so a diagram that
+  // overflows shows its fade and Fit chip at rest, not only after a resize
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (frame.isConnected) measureDiagramFrame(frame) }))
 }
 
 /**
@@ -74,6 +78,12 @@ export function measureDiagramFrame(frame: HTMLElement) {
   const node = frame.querySelector<HTMLElement>(":scope > .mermaid")
   const svg = node?.querySelector<SVGSVGElement>(":scope > svg")
   if (!node || !svg) return
+  // a derived map in a narrow rail always scales to its box: nothing to scroll
+  if (frame.closest(".derived-diagram-fit")) {
+    frame.removeAttribute("data-overflow")
+    node.removeAttribute("tabindex")
+    return
+  }
   const natural = parseFloat(svg.style.maxWidth) || 0
   const floor = parseFloat(svg.style.minWidth) || natural
   const css = getComputedStyle(node)

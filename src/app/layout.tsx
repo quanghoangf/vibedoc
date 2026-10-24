@@ -40,6 +40,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       className={`dark ${fontVars}`}
       data-font-sans={DEFAULT_SETTINGS.fontSans}
       data-font-mono={DEFAULT_SETTINGS.fontMono}
+      // the default size from the first paint: the shell renders before settings load, and a rem change after it
+      // animated the sidebar's width (and moved every page's layout under it)
+      data-font-size={DEFAULT_SETTINGS.fontSize}
     >
       <body className="bg-bg text-txt min-h-screen"><LanguageProvider initial={lang}>{children}</LanguageProvider></body>
     </html>

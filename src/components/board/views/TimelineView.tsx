@@ -276,7 +276,7 @@ export default function TimelineView({ tasks, state, agentTasks, onOpenTask, eve
               )}
               {nowX != null && (
                 <span
-                  className="absolute top-0 z-10 -translate-x-1/2 rounded bg-accent px-1.5 py-0.5 font-mono text-[10px] text-accent-fg"
+                  className="absolute top-0 z-10 -translate-x-1/2 rounded bg-txt px-1.5 py-0.5 font-mono text-[10px] text-bg"
                   style={{ left: nowX }}
                 >
                   {hm(lang, now)}
@@ -307,7 +307,7 @@ export default function TimelineView({ tasks, state, agentTasks, onOpenTask, eve
                   {scale === "active" && segs.slice(1).map((s) => (
                     <span key={s.startMs} aria-hidden className="absolute inset-y-0 border-l border-dashed border-border2" style={{ left: s.x - FOLD_W / 2 }} />
                   ))}
-                  {nowX != null && <span aria-hidden className="absolute inset-y-0 z-10 w-px bg-accent" style={{ left: nowX }} />}
+                  {nowX != null && <span aria-hidden className="absolute inset-y-0 z-10 w-px bg-muted" style={{ left: nowX }} />}
 
                   {worked.map(({ task, bar }, i) => {
                     const x0 = xAt(segs, bar.startMs) ?? 0

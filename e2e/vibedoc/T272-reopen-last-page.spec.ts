@@ -36,7 +36,7 @@ test('T272 Reopen the last page used', async ({ page, step }) => {
 
   await step('Open the setup wizard, then open VibeDoc again → still the roadmap (the wizard is never reopened)', async () => {
     await page.goto(`/setup${q}`)
-    await expect(page.getByRole('heading', { name: 'Setup Wizard' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Write project docs' })).toBeVisible()
     await page.goto(`/${q}`)
     await expect(page).toHaveURL(/\/roadmap\b/)
   })

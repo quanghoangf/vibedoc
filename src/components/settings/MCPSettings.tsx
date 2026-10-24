@@ -72,7 +72,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
           <button
             onClick={testConnection}
             disabled={testing}
-            className="px-4 py-2 bg-accent text-accent-fg rounded-lg text-sm font-medium hover:bg-accent/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 border border-border text-txt rounded-lg text-sm hover:bg-surface2 transition-colors disabled:opacity-50 flex items-center gap-2"
           >
             {testing ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -85,7 +85,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
         {testResult && (
           <div className={cn(
             "flex items-center gap-2 text-sm",
-            testResult === "success" ? "text-green-400" : "text-red-400"
+            testResult === "success" ? "text-teal" : "text-danger"
           )}>
             {testResult === "success" ? (
               <>

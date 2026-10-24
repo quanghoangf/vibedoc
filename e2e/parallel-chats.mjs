@@ -47,7 +47,8 @@ try {
 
   // 1–2. "Break down epics…" with all 3 checked → 3 requests in flight, 3 running tabs
   await page.goto(`${BASE}/roadmap`)
-  await page.getByRole("button", { name: "Break down epics…" }).click()
+  await page.getByRole("button", { name: "More roadmap actions" }).click()
+  await page.getByRole("menuitem", { name: "Break down epics…" }).click()
   const dialog = page.getByRole("dialog")
   await dialog.getByText("Epic 3").waitFor()
   assert.equal(await dialog.locator('input[type="checkbox"]:checked').count(), 3)
@@ -128,7 +129,9 @@ try {
   const savedBefore = readdirSync(path.join(fx, ".vibedoc/chats")).length
   assert.equal(savedBefore, 3, "each chat is saved to .vibedoc/chats")
   await list.getByRole("button", { name: "Close Break down R003" }).click()
-  await page.waitForFunction((s) => document.querySelectorAll(`${s} li button[title]`).length === 2, SIDEBAR)
+  // On /chat the sidebar folds its chat rows into "All chats · N" (round 1): the count drops with the list
+  await page.locator(`${SIDEBAR} a`, { hasText: "All chats · 2" }).waitFor()
+  assert.equal(await list.locator("[data-list-item]").count(), 2, "the /chat list has the 2 others")
   assert.equal(await list.getByRole("button", { name: /Break down R003/ }).first().count(), 0)
   await list.getByRole("button", { name: /Break down R002/ }).first().waitFor()
   for (let i = 0; i < 20 && readdirSync(path.join(fx, ".vibedoc/chats")).length !== 2; i++) await page.waitForTimeout(100)
@@ -138,7 +141,8 @@ try {
   // 6. Reload: chats come back from .vibedoc/chats with their plans resolved
   await page.reload()
   await page.getByRole("complementary", { name: "All chats" }).getByRole("button", { name: /Break down R004/ }).first().waitFor()
-  assert.equal(await page.locator(`${SIDEBAR} li button[title]`).count(), 2)
+  await page.locator(`${SIDEBAR} a`, { hasText: "All chats · 2" }).waitFor()
+  assert.equal(await page.getByRole("complementary", { name: "All chats" }).locator("[data-list-item]").count(), 2)
   console.log("ok  chats survive a reload")
   console.log(`fixture: ${fx}`)
 } finally {

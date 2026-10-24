@@ -379,6 +379,9 @@ try {
   await page.waitForURL(/\/graph\?node=docs%2Fa\.md&focus=1/)
   await sel.getByText("docs/a.md").waitFor()
   await node("docs/sub/b.md").waitFor()
+  // a links to T001: arriving turns tasks on, so its task link is on the map, not filtered out
+  await node("plans/tasks/T001-x.md").waitFor()
+  assert.match(page.url(), /kinds=[^&]*task/, "Show in graph turns on the kinds a's links need")
   assert.equal(await node("docs/d.md").count(), 0, "Focus 1 cuts d (two hops from a)")
   assert.match(await node("docs/a.md").getAttribute("aria-label"), /, selected$/, "the selected node is named selected")
   assert.doesNotMatch(await sel.innerText(), /←→\s*linked/, "the keys live in Help, not on the card")

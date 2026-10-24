@@ -72,3 +72,23 @@ export function hitHref(r: Pick<CrossHit, 'kind' | 'id' | 'path'>): string {
   if (r.kind === 'entry') return `/memory?entry=${id}`
   return `/docs?doc=${encodeURIComponent(r.path)}`
 }
+
+/** A doc hit's snippet for people: no `L12:` prefix, no block markers (`# `, `> `, `- `, `| `), links keep their text. */
+export function snippetText(snippet: string): string {
+  return snippet
+    .replace(/^L\d+:\s*/, '')
+    .replace(/^(?:#{1,6}\s+|>\s*|[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+|\|\s*)+/, '')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|__|~~|`)(\S(?:.*?\S)?)\1/g, '$2')
+    .replace(/\s*\|\s*$/, '')
+    .replace(/\s*\|\s*/g, ' · ')
+    .trim()
+}
+
+/** `text` split on the query's words (case-insensitive, 2+ letters), so the matches can be marked. */
+export function highlightParts(text: string, query: string): { text: string; hit: boolean }[] {
+  const words = [...new Set(query.toLowerCase().split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length >= 2))]
+  if (!words.length || !text) return text ? [{ text, hit: false }] : []
+  const re = new RegExp(`(${words.sort((a, b) => b.length - a.length).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'giu')
+  return text.split(re).map((part, i) => ({ text: part, hit: i % 2 === 1 })).filter((p) => p.text)
+}

@@ -96,6 +96,8 @@ export const en = {
   horizon: "Horizon",
   tasksWord: "tasks",
   needAttention: "{n} need attention",
+  moreActions: "More roadmap actions",
+  mergeSpec: "Merge spec",
   setStatusTo: "Set status to {status}",
 
   // Needs attention (drift)
@@ -216,6 +218,9 @@ export const en = {
   linksTo: "Links to",
   linkedFrom: "Linked from",
   hiddenLinks: "hidden by filters",
+  showThem: "Show them",
+  linkedOnlyHidden_one: "{n} file links only to hidden kinds",
+  linkedOnlyHidden_other: "{n} files link only to hidden kinds",
   focus: "Focus",
   focusWithin_one: "Show files within {n} link",
   focusWithin_other: "Show files within {n} links",
@@ -330,6 +335,8 @@ export const vi: Messages<typeof en> = {
   horizon: "Chặng",
   tasksWord: "việc",
   needAttention: "{n} mục cần chú ý",
+  moreActions: "Thêm thao tác lộ trình",
+  mergeSpec: "Gộp spec",
   setStatusTo: "Đặt trạng thái thành {status}",
 
   driftOverdue: "{id} “{title}” đã quá hạn từ {due}",
@@ -446,6 +453,9 @@ export const vi: Messages<typeof en> = {
   linksTo: "Liên kết tới",
   linkedFrom: "Được liên kết từ",
   hiddenLinks: "bị bộ lọc ẩn",
+  showThem: "Hiện chúng",
+  linkedOnlyHidden_one: "{n} tệp chỉ liên kết tới loại đang ẩn",
+  linkedOnlyHidden_other: "{n} tệp chỉ liên kết tới loại đang ẩn",
   focus: "Tập trung",
   focusWithin_one: "Hiện các tệp trong phạm vi {n} liên kết",
   focusWithin_other: "Hiện các tệp trong phạm vi {n} liên kết",

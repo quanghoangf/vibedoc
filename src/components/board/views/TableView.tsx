@@ -199,6 +199,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
           <button
             type="button"
             onClick={() => onOpenTask(task)}
+            data-list-item
             title={task.title}
             className={cn("block w-full truncate rounded-sm px-1.5 py-1 text-left font-medium", done ? "text-muted" : "text-txt", ring)}
           >

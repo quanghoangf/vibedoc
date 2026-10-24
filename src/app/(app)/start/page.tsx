@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Bot, FileText, Sparkles } from "lucide-react"
+import { Bot, Sparkles } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { Button } from "@/components/ui/button"
@@ -12,7 +12,11 @@ import { ToolkitStep } from "@/components/welcome/ToolkitStep"
 import { askAgent } from "@/lib/ask-agent"
 import { welcomeTarget } from "@/lib/first-screen"
 
-/** First run on a project with no tasks and no roadmap (R082): one start that fits what the project has. `/` sends new projects here. */
+/**
+ * First run on a project with no tasks and no roadmap (R082): one start that fits what the project has. `/` sends new
+ * projects here. First paint = the headline, the one start (it runs with the agent) and the agent status under it as
+ * the first step; the board, the docs wizard and the optional plugins are quiet links below.
+ */
 export default function WelcomePage() {
   const { rootParam, activeProject, demo: readOnlyDemo } = useApp()
   const { t } = useT()
@@ -54,19 +58,20 @@ export default function WelcomePage() {
       ) : (
         <>
           <p className="text-sm text-muted">{t(docs ? "welcome.docsLead" : "welcome.emptyLead")}</p>
-          <Button
-            onClick={() => askAgent(docs ? "Plan a roadmap for this project from its docs." : "Plan the first epics for this project.")}
-            className="bg-accent text-accent-fg hover:bg-accent/90"
-          >
-            {docs ? <Sparkles /> : <Bot />} {t(docs ? "welcome.docsStart" : "welcome.emptyStart")}
-          </Button>
-          <Link href={board} className="text-xs text-muted underline-offset-2 hover:text-txt hover:underline">{t("welcome.skip")}</Link>
-          <ConnectSlot />
-          <ToolkitStep />
-          <div className="mt-6 flex flex-col items-center gap-1 border-t border-border pt-4">
-            <Button asChild variant="outline" size="sm"><Link href={`/setup${q}`}><FileText /> {t("welcome.writeDocs")}</Link></Button>
-            <p className="text-xs text-muted">{t("welcome.writeDocsHint")}</p>
+          <div className="flex flex-col items-center gap-2">
+            <Button
+              onClick={() => askAgent(docs ? "Plan a roadmap for this project from its docs." : "Plan the first epics for this project.")}
+              className="bg-accent text-accent-fg hover:bg-accent/90"
+            >
+              {docs ? <Sparkles /> : <Bot />} {t(docs ? "welcome.docsStart" : "welcome.emptyStart")}
+            </Button>
+            <ConnectSlot />
           </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
+            <Link href={board} className="text-txt underline-offset-2 hover:underline">{t("welcome.skip")}</Link>
+            <Link href={`/setup${q}`} title={t("welcome.writeDocsHint")} className="text-muted underline-offset-2 hover:text-txt hover:underline">{t("welcome.writeDocs")}</Link>
+          </div>
+          <div className="mt-6 w-full"><ToolkitStep /></div>
         </>
       )}
     </section>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useState } from "react"
+import { Suspense, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Plus, Search, X } from "lucide-react"
 import { useChats, type ChatTab } from "@/context/ChatContext"
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { useChatText } from "@/components/chat/chat-text"
+import { useListKeys } from "@/components/shared/use-list-keys"
 
 export default function ChatPage() {
   // main has no fixed height; the columns need one (viewport minus the h-12 AppHeader)
@@ -68,6 +69,9 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
   const { chats, now } = useChats()
   const [query, setQuery] = useState("")
   const { t } = useT()
+  // j/k (↓/↑ inside) walk the chats, Enter opens one: the same list keys as the board and Inbox
+  const listRef = useRef<HTMLElement>(null)
+  useListKeys(listRef, "[data-list-item]")
   const q = query.trim().toLowerCase()
   const shown = q ? chats.filter((c) => c.title.toLowerCase().includes(q) || c.attach?.id.toLowerCase().includes(q)) : chats
   // T562: the orchestrator is pinned above the groups
@@ -82,7 +86,7 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
   ]
 
   return (
-    <aside className="hidden w-72 shrink-0 flex-col border-r border-border bg-surface md:flex" aria-label={t("chat.allChats")}>
+    <aside ref={listRef} className="hidden w-72 shrink-0 flex-col border-r border-border bg-surface md:flex" aria-label={t("chat.allChats")}>
       <div className="flex items-center gap-2 px-4 pb-3 pt-4">
         <h1 className="flex-1 text-sm font-semibold text-txt">{t("chat.chats")}</h1>
         <button
@@ -136,8 +140,9 @@ function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
         type="button"
         onClick={() => show(chat.id)}
         aria-current={active ? "true" : undefined}
+        data-list-item
         className={cn(
-          "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors duration-(--duration-fast)",
+          "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors duration-(--duration-fast) outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
           active ? "bg-surface2 shadow-[inset_2px_0_0_var(--color-accent-edge)]" : "hover:bg-surface2/60",
         )}
       >

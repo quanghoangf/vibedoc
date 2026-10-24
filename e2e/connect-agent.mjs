@@ -63,6 +63,9 @@ try {
   await page.goto(`${BASE}/settings?tab=connect`)
   const panel = page.getByRole("region", { name: "Connect your agent" })
   await panel.waitFor()
+  // One recommended path (Connect all projects); the per-project command sits behind "Other ways to connect"
+  const otherWays = () => page.getByText("Other ways to connect", { exact: true }).click()
+  await otherWays()
   const step = page.getByRole("group", { name: "MCP server" })
   await step.getByText(`claude mcp add --transport http vibedoc '${mcpOf(fx)}'`).waitFor()
   await step.getByText("Waiting for the first call").waitFor()
@@ -93,7 +96,8 @@ try {
   await page.getByRole("group", { name: "MCP server" }).getByText(/Connected · Claude Code/).waitFor()
   console.log("✓ reload keeps ✓; a second call within 60s doesn't rewrite the evidence")
 
-  // 4. one-click connect, confirm first
+  // 4. one-click connect, confirm first (connected now: the button says "Reconnect Claude Code…", quiet)
+  await otherWays()
   const step2 = page.getByRole("group", { name: "MCP server" })
   await step2.getByRole("button", { name: "Connect Claude Code" }).click()
   const dialog = page.getByRole("dialog", { name: "Add VibeDoc to Claude Code?" })

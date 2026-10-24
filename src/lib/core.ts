@@ -58,7 +58,8 @@ import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } f
 import { forAgent } from './audience'
 import { similarPaths } from './similar-paths'
 import type { LlmsInput } from './llms-txt'
-import { buildDocGraph, docNode, extractLinks, type DocGraph, type DocItem } from './doc-links'
+import { firstProseSentence } from './describe'
+import { buildDocGraph, docNode, docTitle, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { rankDocs, type SearchResult } from './doc-search'
 import { rankDocsScored } from './doc-search'
 import { mergeResults, rankItems, type CrossGroup, type CrossHit } from './cross-search'
@@ -146,6 +147,8 @@ export interface DocFile {
   name: string
   /** `priority:` in the doc's frontmatter, null when unset */
   priority?: Priority | null
+  /** frontmatter `title:`, else the H1; null = show the file name as written */
+  title?: string | null
 }
 
 export interface DescriptionCache {
@@ -1015,12 +1018,10 @@ export function listMarkdownPaths(root: string): Promise<MarkdownPaths> {
 
 function docFiles(root: string, files: string[]): Promise<DocFile[]> {
   // ponytail: reads every doc for its frontmatter; read only the head of each file if lists get slow
-  return Promise.all(files.map(async f => ({
-    path: f,
-    section: inferSection(f),
-    name: path.basename(f, '.md'),
-    priority: docPriority(await fs.readFile(path.join(root, f), 'utf8').catch(() => '')),
-  })))
+  return Promise.all(files.map(async f => {
+    const raw = await fs.readFile(path.join(root, f), 'utf8').catch(() => '')
+    return { path: f, section: inferSection(f), name: path.basename(f, '.md'), priority: docPriority(raw), title: docTitle(raw) }
+  }))
 }
 
 /** The docs VibeDoc reads up front: root-level .md files and docs/, plans/, memory/ (`isEagerPath`). */
@@ -3234,30 +3235,9 @@ async function getAnthropicClient(): Promise<any> {
   return _anthropic
 }
 
+/** The first prose sentence, plain text (pure `firstProseSentence` in describe.ts). */
 export function extractDescription(content: string): string {
-  const lines = content.split('\n')
-  let heading = ''
-
-  for (const line of lines) {
-    const m = line.match(/^#{1,3}\s+(.+)/)
-    if (m && !heading) {
-      heading = m[1].trim().slice(0, 120)
-      continue
-    }
-    const t = line.trim()
-    if (
-      t &&
-      !t.startsWith('#') &&
-      !t.startsWith('```') &&
-      !t.startsWith('|') &&
-      !t.startsWith('-') &&
-      !t.startsWith('*') &&
-      t.length > 20
-    ) {
-      return t.slice(0, 120)
-    }
-  }
-  return heading
+  return firstProseSentence(content)
 }
 
 export async function enrichDescription(filePath: string, root: string): Promise<string> {

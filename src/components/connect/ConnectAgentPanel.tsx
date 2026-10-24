@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Check, Circle, Copy, Loader2 } from "lucide-react"
+import { Check, ChevronRight, Circle, Copy, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
@@ -90,8 +90,6 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
         ))}
       </div>
 
-      {claude && <ConnectAllProjects url={hubMcpUrl(mcpUrl || `${origin}/api/mcp`)} projects={projects} />}
-
       <div className="rounded-lg border border-border p-4 space-y-3" role="group" aria-labelledby="connect-step-mcp">
         <div className="flex items-start gap-3">
           <StepMark done={done} />
@@ -103,11 +101,25 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
 
         {claude ? (
           <>
-            <ClaudeMcpConnect url={url} />
-            <div className="space-y-1">
-              <div className="text-xs text-muted">{t("connect.runInProject")}</div>
-              <CommandBlock command={claudeMcpAddCommand(url)} />
-            </div>
+            {/* One recommended path (R104: user scope, every project); the per-project command is a fallback */}
+            <ConnectAllProjects url={hubMcpUrl(mcpUrl || `${origin}/api/mcp`)} projects={projects} connected={done} />
+            <details className="group/other border-t border-border pt-2">
+              <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md py-1 text-sm text-muted hover:text-txt focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
+                <ChevronRight aria-hidden className="size-3.5 transition-transform group-open/other:rotate-90" />
+                {t("connect.otherWays")}
+              </summary>
+              <div className="space-y-3 pt-2">
+                <div className="space-y-2">
+                  <div className="text-xs text-muted">{t("connect.runInProject")}</div>
+                  <CommandBlock command={claudeMcpAddCommand(url)} />
+                  <ClaudeMcpConnect url={url} connected={done} />
+                </div>
+                <div className="space-y-1">
+                  <div className="text-xs text-muted">{t("connect.removeHint")}</div>
+                  <CommandBlock command="claude mcp remove vibedoc -s user" />
+                </div>
+              </div>
+            </details>
           </>
         ) : (
           <div className="space-y-1">
@@ -122,7 +134,7 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
           </div>
         )}
 
-        <p className={cn("text-sm", done ? "text-green-400" : "text-muted")} role="status">
+        <p className={cn("text-sm", done ? "text-teal" : "text-muted")} role="status">
           {failed
             ? t("connect.loadFailed")
             : done && mcp?.lastCall
@@ -141,7 +153,7 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
         </div>
         {skillsDone ? (
           <div className="space-y-1" role="status">
-            <p className="text-sm text-green-400">{t("connect.skillsInstalled")}</p>
+            <p className="text-sm text-teal">{t("connect.skillsInstalled")}</p>
             <div className="text-xs text-muted">{t("connect.tryNext")}</div>
             <CommandBlock command="/vibedoc:roadmap" />
           </div>
@@ -168,7 +180,7 @@ function hubMcpUrl(url: string): string {
  * R104 (ADR-006): one user-scope `claude mcp add` with an `X-VibeDoc-Root: ${PWD}` header, so a session in any hub
  * project, added now or later, reaches its own project. Each project's row is ✓ only from its own tool call.
  */
-function ConnectAllProjects({ url, projects }: { url: string; projects: ProjectConnection[] }) {
+function ConnectAllProjects({ url, projects, connected }: { url: string; projects: ProjectConnection[]; connected: boolean }) {
   const { rootParam } = useApp()
   const { t } = useT()
   const { timeAgo } = useFormat()
@@ -185,12 +197,13 @@ function ConnectAllProjects({ url, projects }: { url: string; projects: ProjectC
   }
 
   return (
-    <div className="rounded-lg border border-border p-4 space-y-3" role="group" aria-labelledby="connect-all-title">
+    <div className="space-y-3" role="group" aria-labelledby="connect-all-title">
       <div className="min-w-0">
         <h3 id="connect-all-title" className="text-sm font-medium text-txt">{t("connect.allTitle")}</h3>
         <p className="text-xs text-muted">{t("connect.allHint")}</p>
       </div>
-      <RunButton running={running} onClick={() => setConfirm("add")} label={t("connect.connectAll")} />
+      {/* Connected: say so, and Reconnect stays a quiet button (same confirm; "exists" offers Replace) */}
+      <RunButton running={running} onClick={() => setConfirm("add")} quiet={connected} label={connected ? t("connect.reconnectAll") : t("connect.connectAll")} />
       {result && (
         <RunResult result={result} existsText={t("connect.allExists")}>
           {result.exists && (
@@ -213,7 +226,7 @@ function ConnectAllProjects({ url, projects }: { url: string; projects: ProjectC
                 <div className="text-sm text-txt" data-user-content>{p.name}</div>
                 <div className="break-all font-mono text-xs text-muted" data-user-content>{p.root}</div>
               </div>
-              <div className={cn("shrink-0 text-xs", p.connected ? "text-green-400" : "text-muted")}>
+              <div className={cn("shrink-0 text-xs", p.connected ? "text-teal" : "text-muted")}>
                 {p.connected && p.lastCall
                   ? t("connect.projectConnected", { agent: agentLabel(p.agent) ?? t("connect.someAgent"), ago: timeAgo(p.lastCall) })
                   : t("connect.projectWaiting")}
@@ -299,7 +312,7 @@ async function runStep(rootParam: string, body: object): Promise<ConnectResult> 
 }
 
 /** One-click `claude mcp add` (S1): nothing runs until the user confirms the exact command; the result names what changed. */
-function ClaudeMcpConnect({ url }: { url: string }) {
+function ClaudeMcpConnect({ url, connected }: { url: string; connected: boolean }) {
   const { rootParam } = useApp()
   const { t } = useT()
   const [confirm, setConfirm] = useState<"add" | "replace" | null>(null)
@@ -315,7 +328,7 @@ function ClaudeMcpConnect({ url }: { url: string }) {
 
   return (
     <div className="space-y-2">
-      <RunButton running={running} onClick={() => setConfirm("add")} label={t("connect.connectClaude")} />
+      <RunButton running={running} onClick={() => setConfirm("add")} quiet label={connected ? t("connect.reconnectClaude") : t("connect.connectClaude")} />
       {result && (
         <RunResult result={result} existsText={t("connect.alreadyExists")}>
           {result.exists && (
@@ -339,13 +352,17 @@ function ClaudeMcpConnect({ url }: { url: string }) {
   )
 }
 
-function RunButton({ running, onClick, label }: { running: boolean; onClick: () => void; label: string }) {
+/** The panel's one filled button is the recommended step; `quiet` = an outline button (fallbacks, Reconnect). */
+function RunButton({ running, onClick, label, quiet }: { running: boolean; onClick: () => void; label: string; quiet?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={running}
-      className="flex items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-50"
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm disabled:opacity-50",
+        quiet ? "border border-border text-txt hover:bg-surface2" : "bg-accent font-medium text-accent-fg hover:bg-accent/90",
+      )}
     >
       {running && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
       {label}
@@ -359,7 +376,7 @@ function RunResult({ result, existsText, children }: { result: ConnectResult; ex
   const out = "whitespace-pre-wrap break-all rounded bg-surface2 p-2 font-mono text-xs text-txt"
   if (result.ok) {
     return (
-      <div className="space-y-1 text-sm text-green-400" role="status">
+      <div className="space-y-1 text-sm text-teal" role="status">
         <div>{t("connect.changed")}</div>
         {result.output && <pre className={out}>{result.output}</pre>}
       </div>
@@ -404,7 +421,7 @@ function ConfirmDialog({ title, body, note, commands, confirmLabel, onConfirm, o
 function StepMark({ done }: { done: boolean }) {
   const { t } = useT()
   return done
-    ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-400" aria-label={t("connect.done")} />
+    ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-teal" aria-label={t("connect.done")} />
     : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted" aria-label={t("connect.notDone")} />
 }
 
@@ -428,7 +445,7 @@ export function CommandBlock({ command }: { command: string }) {
         onClick={copy}
         className={cn(
           "flex shrink-0 items-center gap-1 rounded px-2 py-1 text-xs transition-colors",
-          copied ? "bg-green-500/20 text-green-400" : "text-muted hover:text-txt",
+          copied ? "bg-teal/10 text-teal" : "text-muted hover:text-txt",
         )}
       >
         {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}

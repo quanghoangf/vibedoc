@@ -11,7 +11,16 @@ cd your-project
 npx vibedoc
 ```
 
-VibeDoc prints the app URL, the MCP URL and the command to connect Claude Code in the terminal, then opens your browser on the screen that fits the project. A new project gets a welcome (`/start`) with one first move: with docs, **Generate roadmap from your docs**; with nothing yet, **Plan the first epics with the agent**. A project that already has tasks or a roadmap opens the board, or the page you used last. The template wizard that drafts starter docs such as `CLAUDE.md` is optional: **Write project docs** on the welcome opens it (`/setup`). A project keeps its port between runs (first free from 3333, saved in `.vibedoc/port`), so the MCP URL doesn't change. Choose it with `npx vibedoc --port 4000`. The browser opens once the app answers; `--no-open` (or `VIBEDOC_NO_OPEN=1`) starts it without opening a tab. If the app can't start, VibeDoc prints why and exits with a non-zero code.
+What happens next:
+
+1. The terminal prints the app URL, the MCP URL and the command that connects Claude Code.
+2. Your browser opens once the app answers. `--no-open` (or `VIBEDOC_NO_OPEN=1`) skips that.
+3. The first screen fits the project:
+   - A new project gets a welcome (`/start`) with one first move, which runs with your agent. With docs it is **Generate roadmap from your docs with the agent**; with nothing yet, **Plan the first epics with the agent**. If no agent is connected, the line under it links to **Settings → Connect agent**.
+   - A project that already has tasks or a roadmap opens the board, or the page you used last.
+4. Optional: **Write project docs** on the welcome opens a template wizard (`/setup`) that drafts starter docs such as `CLAUDE.md`.
+
+One VibeDoc serves every project at one address. Its port is the first free one from 3333, saved in `~/.vibedoc/port`, so the MCP URL stays the same between runs. Choose it with `npx vibedoc --port 4000`. If the app can't start, VibeDoc prints why and exits with a non-zero code.
 
 Want to look around first? `npx vibedoc --demo` opens a sample project with every part of VibeDoc filled in, in a throwaway copy that is deleted when you stop it. It runs no agents and never touches your files.
 
@@ -107,12 +116,20 @@ Add a hello line to README.md.
 
 The MCP server is at `http://localhost:<port>/api/mcp` (HTTP JSON-RPC). Use the port from the terminal.
 
-Easiest: open **Settings → Connect agent** (`/settings?tab=connect`) in VibeDoc. For Claude Code it adds the MCP server and installs the `/vibedoc:*` skills after you confirm each command; for Cursor or another agent it shows the config to paste. Each step turns ✓ only from evidence: the agent's first VibeDoc tool call, or the plugin found in `claude plugin list`. The commands below do the same by hand.
+Easiest: open **Settings → Connect agent** (`/settings?tab=connect`) in VibeDoc. The header's **Connect agent** button opens the same command and links there; once an agent has called in, it turns into a quiet **Agent connected** chip. For Claude Code the page recommends one step, **Connect all projects**, and installs the `/vibedoc:*` skills after you confirm each command; for Cursor or another agent it shows the config to paste. Each step turns ✓ only from evidence: the agent's first VibeDoc tool call, or the plugin found in `claude plugin list`. The commands below do the same by hand.
 
 ### Claude Code
 
+Run this once, in any folder. Claude Code then reaches every VibeDoc project, including ones you add later:
+
 ```bash
-claude mcp add --transport http vibedoc http://localhost:<port>/api/mcp
+claude mcp add --scope user --transport http vibedoc http://localhost:<port>/api/mcp --header 'X-VibeDoc-Root: ${PWD}'
+```
+
+To connect only one project instead (under **Other ways to connect** in Settings), run this in that project's folder:
+
+```bash
+claude mcp add --transport http vibedoc 'http://localhost:<port>/api/mcp?root=<project folder>'
 ```
 
 Or add it to `.mcp.json` in the project root:
@@ -141,7 +158,7 @@ Check the connection: ask the agent to "list the VibeDoc tasks". It calls `vibed
 
 ### Pick your toolkit
 
-The welcome screen (the first page VibeDoc opens on a new project) also offers popular Claude Code plugins under **Pick your toolkit**. The ones that fit the project come first, each with one line on why: a web frontend puts the design and browser-testing plugins on top, a `tsconfig.json` adds the TypeScript language server. Tick what you want and click **Install selected**. One dialog lists every plugin and the exact commands; nothing runs until you click **Install**. Then each plugin turns ✓ once `claude plugin list` shows it, or shows the real error and the commands to run yourself. Plugins you already have show as installed.
+The welcome screen (the first page VibeDoc opens on a new project) also offers popular Claude Code plugins, folded under **Optional: add plugins (N)**. Open it to see **Pick your toolkit**. The ones that fit the project come first, each with one line on why: a web frontend puts the design and browser-testing plugins on top, a `tsconfig.json` adds the TypeScript language server. Nothing comes ticked: tick what you want and click **Install**. One dialog lists every plugin and the exact commands; nothing runs until you click **Install**. Then each plugin turns ✓ once `claude plugin list` shows it, or shows the real error and the commands to run yourself. Plugins you already have show as installed.
 
 In an agent chat, ask "set up my toolkit": the agent shows the same list as a card (`vibedoc_propose_toolkit`), you confirm the same dialog, and VibeDoc runs the installs, never the agent.
 
@@ -185,7 +202,7 @@ The sidebar shows a **First week** checklist until you finish it or dismiss it. 
 | First test run with evidence | a task has a recorded test run |
 | First memory entry | `memory/entries/` has an entry |
 
-The first open step shows where to go, or the exact command to copy (`claude mcp add …`, `/vibedoc:roadmap`, `/vibedoc:breakdown R002`, `/vibedoc:work R002`). Dismiss it with ✕: it stays hidden for this project (`.vibedoc/first-week.json`; add that file to your `.gitignore` if teammates should still see their own checklist).
+The first open step shows where to go (**Agent connected** links to Settings → Connect agent), or the exact command to copy (`/vibedoc:roadmap`, `/vibedoc:breakdown R002`, `/vibedoc:work R002`). Dismiss it with ✕: it stays hidden for this project (`.vibedoc/first-week.json`; add that file to your `.gitignore` if teammates should still see their own checklist).
 
 ## 5. Frontend app
 

@@ -23,7 +23,7 @@ import { EmptyState } from "@/components/shared/EmptyState"
 import { AgentDot } from "@/components/chat/AgentMark"
 import type { StatusDef } from "@/lib/statuses"
 import { GRAPH_KEYS } from "@/lib/shortcuts"
-import { forceLayout, graphChanges, hiddenLabels, neighbourhoodIds, SPRING, springStep, stepFocus, type ArrowKey, type LabelBox, type SpringWorld } from "./force-layout"
+import { forceLayout, graphChanges, hiddenLabels, kindsForLinks, neighbourhoodIds, SPRING, springStep, stepFocus, type ArrowKey, type LabelBox, type SpringWorld } from "./force-layout"
 
 // delay: the selection ripple (depth-2 lights after depth-1); quick: no selection, so state changes run on fast.
 // enter / exit: a node that appears / disappears during a relayout tween. unfold: the entrance offset (dot starts
@@ -45,6 +45,7 @@ const KINDS: { kind: DocNodeKind; label: MessageKey }[] = [
   { kind: "entry", label: "roadmap.kindEntries" },
 ]
 const DEFAULT_KINDS: DocNodeKind[] = [...GRAPH_DEFAULT_KINDS]
+const ALL_KINDS: DocNodeKind[] = KINDS.map((k) => k.kind)
 // React Flow chrome in the app's tokens: Controls read as ghost icon buttons
 const FLOW_STYLE = {
   "--xy-background-color": "var(--color-bg)",
@@ -368,6 +369,26 @@ export function DocGraph() {
   }, [graph])
 
   const selected = state.node && byPath.has(state.node) && state.kinds.includes(byPath.get(state.node)!.kind) ? state.node : null
+  /** `kinds` plus the kinds a file and its direct links need to be on screen. */
+  const kindsFor = useCallback(
+    (p: string, kinds: DocNodeKind[]) => kindsForLinks(graph?.edges ?? [], (x) => byPath.get(x)?.kind, p, kinds, ALL_KINDS),
+    [graph, byPath],
+  )
+  // Show in graph (?node= on arrival): turn on the kinds the file and its links need, once per arriving file, so it
+  // never lands on an empty map; a click on the map marks its file as landed, so selecting never changes the filters
+  const landed = useRef<string | null>(null)
+  useEffect(() => {
+    if (!graph || !state.node || landed.current === state.node) return
+    landed.current = state.node
+    const need = kindsFor(state.node, state.kinds)
+    if (need.length !== state.kinds.length) update({ kinds: need })
+  }, [graph, state.node, state.kinds, kindsFor, update])
+  // files with a link somewhere (any kind): off the map only because of the filters, so never "Unlinked"
+  const linkedAnywhere = useMemo(() => {
+    const s = new Set<string>()
+    for (const e of graph?.edges ?? []) if (e.from !== e.to) { s.add(e.from); s.add(e.to) }
+    return s
+  }, [graph])
   const focusRoot = selected && state.focus ? selected : null
 
   // What's on screen: the kinds that are on, cut to the focus neighbourhood. Doesn't depend on plain selection.
@@ -418,7 +439,8 @@ export function DocGraph() {
   // only linked files get a position; the rest (no visible link) sit on the Unlinked shelf, so they never stretch the fit
   const pos = useMemo(() => forceLayout(layoutInput.nodes, layoutInput.edges), [layoutInput])
   const flowOrder = useMemo(() => order.filter((p) => pos[p]), [order, pos])
-  const unlinked = useMemo(() => order.filter((p) => !pos[p]), [order, pos])
+  const unlinked = useMemo(() => order.filter((p) => !pos[p] && !linkedAnywhere.has(p)), [order, pos, linkedAnywhere])
+  const linkedOnlyHidden = useMemo(() => order.filter((p) => !pos[p] && linkedAnywhere.has(p)), [order, pos, linkedAnywhere])
 
   // Entrance on mount and on Fit (never on a live refresh). Every node and edge always carries its unfold offset and
   // delay (inert CSS); a run is only data-unfold on the wrapper, set and cleared through the DOM. Toggling the classes
@@ -771,7 +793,10 @@ export function DocGraph() {
     return () => window.removeEventListener("keydown", onKey, true)
   }, [state.q, selected, update])
 
-  const select = (p: string | null) => update({ node: p })
+  const select = (p: string | null) => {
+    landed.current = p
+    update({ node: p })
+  }
   const shelfItem = (p: string) => rootRef.current?.querySelector<HTMLElement>(`[data-shelf] [data-path="${CSS.escape(p)}"]`)
   /** Keyboard focus to a node; one that's off screen (not rendered when virtualized) is centred first; an unlinked one is on the shelf. */
   const focusNode = (p: string) => {
@@ -909,7 +934,7 @@ export function DocGraph() {
               )}
             >
               <Shape kind={kind} size={kind === "task" ? 7 : 9} className="text-muted" />
-              <span className="sr-only md:not-sr-only">{t(label)}</span>
+              <span>{t(label)}</span>
               {/* a failed load has no counts: "–", not a 0 that claims the project is empty */}
               <span className="font-mono tabular-nums text-muted">{error ? "–" : count}</span>
             </button>
@@ -938,13 +963,13 @@ export function DocGraph() {
           type="button"
           aria-expanded={legendOpen}
           aria-controls="graph-legend"
-          aria-label={t("roadmap.legend")}
           onClick={() => setLegendOpen((o) => !o)}
-          className="inline-flex size-7 items-center justify-center rounded-md text-muted outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent aria-expanded:bg-surface2 aria-expanded:text-txt xl:hidden"
+          className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted outline-none transition-colors duration-(--duration-fast) hover:bg-surface2 hover:text-txt focus-visible:ring-2 focus-visible:ring-accent aria-expanded:bg-surface2 aria-expanded:text-txt"
         >
           <Info className="size-3.5" aria-hidden />
+          {t("roadmap.legend")}
         </button>
-        <p id="graph-legend" className={cn("order-last basis-full flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-muted xl:order-none xl:ml-2 xl:flex xl:basis-auto", legendOpen ? "flex" : "hidden")}>
+        <p id="graph-legend" className={cn("order-last basis-full flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-muted", legendOpen ? "flex" : "hidden")}>
           {KINDS.map(({ kind }) => (
             <span key={kind} className="inline-flex items-center gap-1"><Shape kind={kind} size={kind === "task" ? 6 : 8} />{t(KIND_NAME[kind]).toLowerCase()}</span>
           ))}
@@ -1060,7 +1085,7 @@ export function DocGraph() {
 
         {/* Unlinked shelf: files with no visible link, off the map so they never stretch the fit; after the map in tab order.
             right-16 clears the Help button in the corner */}
-        {!error && state.kinds.length > 0 && unlinked.length > 0 && (
+        {!error && state.kinds.length > 0 && (unlinked.length > 0 || linkedOnlyHidden.length > 0) && (
           <div
             data-shelf
             role="group"
@@ -1068,7 +1093,7 @@ export function DocGraph() {
             className="absolute right-16 bottom-3 left-14 z-10 flex items-center gap-1 overflow-x-auto rounded-md border border-border bg-surface p-1 md:left-auto md:max-w-[min(44rem,calc(100%-8.5rem))] md:flex-wrap md:overflow-x-visible md:max-h-17 md:overflow-y-auto"
           >
             <span id="graph-unlinked" className="sticky left-0 shrink-0 bg-surface px-1.5 font-mono text-[10px] font-medium tracking-[0.06em] text-muted uppercase">
-              {t("roadmap.unlinked")} <span className="tabular-nums">{unlinked.length}</span>
+              {unlinked.length > 0 ? <>{t("roadmap.unlinked")} <span className="tabular-nums">{unlinked.length}</span></> : t("roadmap.hiddenLinks")}
             </span>
             {unlinked.map((p) => {
               const n = byPath.get(p)!
@@ -1101,6 +1126,18 @@ export function DocGraph() {
                 </button>
               )
             })}
+            {linkedOnlyHidden.length > 0 && (
+              <span data-linked-only-hidden className="inline-flex h-6 shrink-0 items-center gap-1.5 px-1.5 text-[11px] text-muted">
+                {tn("roadmap.linkedOnlyHidden", linkedOnlyHidden.length)} ·
+                <button
+                  type="button"
+                  onClick={() => update({ kinds: linkedOnlyHidden.reduce((ks, p) => kindsFor(p, ks), state.kinds) })}
+                  className="rounded-sm text-txt underline underline-offset-2 outline-none hover:text-accent focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  {t("roadmap.showThem")}
+                </button>
+              </span>
+            )}
           </div>
         )}
 
@@ -1111,7 +1148,7 @@ export function DocGraph() {
               <span className="text-txt">{hidden.label}</span> {t("roadmap.hiddenByFilters")} ·{" "}
               <button
                 type="button"
-                onClick={() => update({ kinds: [...state.kinds, hidden.kind] })}
+                onClick={() => update({ kinds: kindsFor(hidden.path, state.kinds) })}
                 className="rounded-sm text-accent underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-accent"
               >
                 {t("board.show")}
@@ -1127,7 +1164,7 @@ export function DocGraph() {
                 // phones: a bottom sheet beside the zoom controls (left-14) and above the Unlinked shelf, so the map's
                 // top stays clear
                 "max-sm:top-auto max-sm:left-14 max-sm:w-auto max-sm:max-w-none",
-                unlinked.length > 0 ? "max-sm:bottom-14" : "max-sm:bottom-3",
+                unlinked.length > 0 || linkedOnlyHidden.length > 0 ? "max-sm:bottom-14" : "max-sm:bottom-3",
                 // enters with a fade and a 4px slide (from the right; from below on phones), leaves faster; it stays
                 // mounted for the exit
                 "transition-[opacity,translate,visibility] ease-out-soft",
@@ -1156,7 +1193,19 @@ export function DocGraph() {
               </div>
               <p className="mt-2 text-xs text-muted">
                 {t("roadmap.linksTo")} <span className="font-mono tabular-nums text-txt">{shown.to}</span> · {t("roadmap.linkedFrom")} <span className="font-mono tabular-nums text-txt">{shown.from}</span>
-                {hiddenLinks > 0 && <span className="text-muted"> · <span className="font-mono tabular-nums">+{hiddenLinks}</span> {t("roadmap.hiddenLinks")}</span>}
+                {hiddenLinks > 0 && (
+                  <span className="text-muted">
+                    {" "}· <span className="font-mono tabular-nums">+{hiddenLinks}</span> {t("roadmap.hiddenLinks")} ·{" "}
+                    <button
+                      type="button"
+                      data-show-hidden-links
+                      onClick={() => update({ kinds: kindsFor(card.path, state.kinds) })}
+                      className="rounded-sm text-txt underline underline-offset-2 outline-none hover:text-accent focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      {t("roadmap.showThem")}
+                    </button>
+                  </span>
+                )}
               </p>
               <div className="mt-3 flex items-center gap-2">
                 <Button size="sm" onClick={() => open(card)}>{t("board.open")}</Button>

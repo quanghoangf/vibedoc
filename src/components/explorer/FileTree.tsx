@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { FileText, Folder, FolderOpen, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { plainInline } from "@/lib/describe"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import type { ExplorerFile } from "@/types"
@@ -36,8 +37,8 @@ function buildTree(files: ExplorerFile[]): TreeNode[] {
 
 function getHeatmapClass(mtime: string): string {
   const daysDiff = (Date.now() - new Date(mtime).getTime()) / (1000 * 60 * 60 * 24)
-  if (daysDiff <= 7) return "text-green-400"
-  if (daysDiff <= 28) return "text-yellow-400/70"
+  if (daysDiff <= 7) return "text-teal"
+  if (daysDiff <= 28) return "text-amber"
   return "text-muted"
 }
 
@@ -72,7 +73,7 @@ function TreeNodeRow({ node, depth, selectedPath, onSelect, heatmap, defaultOpen
         </div>
         {node.file.description && (
           <p className="text-[10px] text-muted leading-tight truncate" style={{ paddingLeft: 20 }}>
-            {node.file.description}
+            {plainInline(node.file.description)}
           </p>
         )}
       </button>

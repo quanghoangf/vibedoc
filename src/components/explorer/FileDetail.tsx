@@ -9,6 +9,20 @@ import type { ExplorerFile } from "@/types"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
+import { inlineParts } from "@/lib/describe"
+
+/** A description's inline markdown as React nodes (`code`, **strong**, *em*, links); never injected HTML. */
+function InlineMarkdown({ text }: { text: string }) {
+  return inlineParts(text).map((p, i) =>
+    p.kind === "code" ? <code key={i} className="rounded-sm bg-surface2 px-1 font-mono text-[0.9em]">{p.text}</code>
+      : p.kind === "strong" ? <strong key={i} className="font-semibold">{p.text}</strong>
+      : p.kind === "em" ? <em key={i}>{p.text}</em>
+      : p.kind === "link" ? (/^https?:\/\//.test(p.href)
+        ? <a key={i} href={p.href} target="_blank" rel="noreferrer" className="text-accent-edge underline underline-offset-2">{p.text}</a>
+        : <span key={i}>{p.text}</span>)
+      : <span key={i}>{p.text}</span>,
+  )
+}
 
 const SOURCE_LABEL: Record<ExplorerFile['source'], MessageKey> = { ai: 'docs.sourceAi', extracted: 'docs.sourceAuto' }
 const SOURCE_VARIANT: Record<ExplorerFile['source'], 'default' | 'secondary'> = { ai: 'default', extracted: 'secondary' }
@@ -67,8 +81,8 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
   }
 
   return (
-    <div className="flex-1 p-6 flex flex-col gap-4 overflow-auto">
-      <div data-user-content className="flex items-center gap-1.5 text-xs text-muted flex-wrap">
+    <div className="flex-1 p-4 md:p-6 flex flex-col gap-4 overflow-auto">
+      <div data-user-content className="flex items-center gap-1.5 font-mono text-[11px] text-muted flex-wrap">
         <FileText className="w-3.5 h-3.5 shrink-0" />
         {parts.map((part, i) => (
           <span key={i} className="flex items-center gap-1.5">
@@ -80,8 +94,8 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
         ))}
       </div>
 
-      <p className={cn("text-sm leading-relaxed transition-colors duration-500", flashGreen ? "text-green-400" : "text-txt")}>
-        {file.description || (
+      <p className={cn("text-sm leading-relaxed transition-colors duration-500", flashGreen ? "text-teal" : "text-txt")}>
+        {file.description ? <InlineMarkdown text={file.description} /> : (
           <span className="text-muted italic">
             {t("docs.noDescriptionYet")}
           </span>
@@ -89,7 +103,7 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
       </p>
 
       {error && (
-        <p className="text-xs text-red-400">{error}</p>
+        <p className="text-xs text-danger">{error}</p>
       )}
 
       <div className="flex items-center gap-2 text-xs text-muted">

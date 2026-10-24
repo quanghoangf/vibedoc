@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Bot, ChevronRight, FileText, Scale, User } from "lucide-react"
 import type { ActivityEvent, Session } from "@/types"
 import { cn } from "@/lib/utils"
@@ -10,6 +10,10 @@ import type { EventTarget } from "@/lib/activity"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { useStatusLabel } from "@/components/shared/StatusIcon"
 import { useSessionHeadline } from "./session-text"
+import { useApp } from "@/context/AppContext"
+
+// past this many task chips the rest fold behind "+N more"
+const TASK_CHIPS_SHOWN = 8
 
 const chip =
   "inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-sm border border-border px-2 py-1 font-mono text-[11px] text-txt transition-colors duration-(--duration-fast) hover:border-border2 hover:bg-surface2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
@@ -44,6 +48,9 @@ function Chevron({ open }: { open: boolean }) {
 
 export function SessionCard({ session, events, onOpenTask, onOpenDoc, onOpen, focused = false, live = false }: SessionCardProps) {
   const [open, setOpen] = useState(focused)
+  const [allTasks, setAllTasks] = useState(false)
+  const { board } = useApp()
+  const titles = useMemo(() => new Map(board ? Object.values(board).flat().map(x => [x.id, x.title] as const) : []), [board])
   const ref = useRef<HTMLDivElement>(null)
   const { t, tn } = useT()
   const f = useFormat()
@@ -83,7 +90,7 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, onOpen, fo
       ref={ref}
       className={cn(
         "min-w-0 rounded-lg border bg-surface transition-colors duration-(--duration-base) hover:border-border2",
-        live ? "border-accent/40" : "border-border",
+        live ? "border-amber/40" : "border-border",
         focused && "border-accent/60 animate-flash",
       )}
     >
@@ -92,8 +99,8 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, onOpen, fo
           <Actor className="size-3.5 shrink-0 text-muted" aria-hidden />
           <span className="text-xs text-muted">{isAgent ? t("memory.agent") : t("memory.human")}</span>
           {live && (
-            <span className="flex items-center gap-1 font-mono text-[10px] text-accent">
-              <span className="size-1.5 rounded-full bg-accent animate-pulse-dot" />
+            <span className="flex items-center gap-1 font-mono text-[10px] text-amber">
+              <span className="size-1.5 rounded-full bg-amber animate-pulse-dot" />
               {t("memory.working")}
             </span>
           )}
@@ -113,12 +120,22 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, onOpen, fo
         )}
 
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {session.tasks.map(t => (
-            <button key={t.id} onClick={() => onOpenTask(t.id)} className={chip} title={`${t.id} → ${statusLabel(t.lastStatus)}`}>
-              <StatusIcon status={t.lastStatus} className="size-3" />
-              {t.id}
+          {(allTasks ? session.tasks : session.tasks.slice(0, TASK_CHIPS_SHOWN)).map(task => {
+            // the chip shows the id; hover / focus and screen readers get the task's title and status
+            const name = titles.get(task.id)
+            const label = [task.id, name, statusLabel(task.lastStatus)].filter(Boolean).join(" · ")
+            return (
+              <button key={task.id} onClick={() => onOpenTask(task.id)} className={chip} title={label} aria-label={label}>
+                <StatusIcon status={task.lastStatus} className="size-3" />
+                {task.id}
+              </button>
+            )
+          })}
+          {!allTasks && session.tasks.length > TASK_CHIPS_SHOWN && (
+            <button type="button" onClick={() => setAllTasks(true)} className={cn(chip, "font-sans text-xs text-muted")}>
+              {t("memory.moreChips", { n: session.tasks.length - TASK_CHIPS_SHOWN })}
             </button>
-          ))}
+          )}
           {session.docs.map(d => (
             <button key={d} onClick={() => onOpenDoc(d)} className={chip} title={d}>
               <FileText className="size-3 shrink-0 text-muted" aria-hidden />

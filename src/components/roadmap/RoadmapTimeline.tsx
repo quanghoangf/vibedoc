@@ -72,9 +72,9 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
               <div key={m.x} className="absolute inset-y-0 border-l border-border" style={{ left: m.x }} />
             ))}
             <div className="absolute inset-y-0 left-0 bg-surface/50" style={{ width: tl.todayX }} />
-            <div className="absolute inset-y-0 w-px bg-accent shadow-[0_0_12px_rgb(var(--rgb-accent)/0.8)]" style={{ left: tl.todayX }}>
+            <div className="absolute inset-y-0 w-px bg-muted" style={{ left: tl.todayX }}>
               <span
-                className="absolute -translate-x-1/2 rounded-full bg-accent px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-accent-fg"
+                className="absolute -translate-x-1/2 rounded-full bg-txt px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-bg"
                 style={{ top: HEADER_H + 6 }}
               >
                 {t("roadmap.todayMarker")}
@@ -132,8 +132,8 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
                     {mk.horizon ? (
                       <span
                         className={cn(
-                          "h-4 w-4 rotate-45 border-2 border-accent",
-                          mk.item.status === "done" ? "bg-accent" : "bg-bg",
+                          "h-4 w-4 rotate-45 border-2",
+                          mk.item.status === "done" ? "border-teal bg-teal" : mk.item.status === "in-progress" ? "border-amber bg-bg" : "border-border2 bg-bg",
                           mk.state === "overdue" && "border-danger",
                         )}
                       />
@@ -145,7 +145,7 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
                     <span
                       className={cn(
                         "flex max-w-[150px] flex-col rounded-md border px-2 py-0.5 text-left transition-colors",
-                        mk.derived ? "border-dashed border-border2 bg-bg" : mk.item.status === "in-progress" ? "border-accent/50 bg-surface shadow-[0_6px_18px_-10px_rgb(var(--rgb-accent)/0.7)]"
+                        mk.derived ? "border-dashed border-border2 bg-bg" : mk.item.status === "in-progress" ? "border-amber/50 bg-surface"
                           : mk.item.status === "done" ? "border-border bg-surface/60" : "border-dashed border-border2 bg-bg",
                         "group-hover:border-accent",
                       )}
@@ -228,7 +228,7 @@ function LaneLabel({ item, chapter, progress, onSelect, onContextMenu }: {
       <span
         className={cn(
           "font-mono text-lg font-semibold tabular-nums",
-          item.status === "in-progress" ? "text-accent" : item.status === "done" ? "text-teal" : "text-muted",
+          item.status === "in-progress" ? "text-amber" : item.status === "done" ? "text-teal" : "text-muted",
         )}
       >
         {chapter ? String(chapter).padStart(2, "0") : "··"}

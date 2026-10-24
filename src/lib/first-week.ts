@@ -27,20 +27,17 @@ export interface StepAction {
 }
 
 export interface StepContext {
-  /** This server's origin, e.g. http://localhost:3084 (the MCP URL is `${origin}/api/mcp`) */
-  origin: string
   epicToBreakDown: string | null
   epicToWork: string | null
 }
 
 /**
- * The one action for each step. `agent` points at Settings and the `claude mcp add` line (the header's Connect menu);
- * seam: R081 (Connect panel) and R080 (stable address) replace both when they land.
+ * The one action for each step. `agent` is a link to Settings → Connect agent (R081), the one connect path: the
+ * sidebar never shows the long `claude mcp add` line.
  */
 export function stepAction(id: FirstWeekStepId, ctx: StepContext): StepAction {
   switch (id) {
-    // R104 (ADR-006): one user-scope connection for every project; single quotes keep ${PWD} for Claude Code to fill in
-    case "agent": return { href: "/settings", command: `claude mcp add --scope user --transport http vibedoc ${ctx.origin}/api/mcp --header 'X-VibeDoc-Root: \${PWD}'` }
+    case "agent": return { href: "/settings?tab=connect" }
     case "roadmap": return { href: "/roadmap", command: "/vibedoc:roadmap" }
     case "breakdown": return { command: ctx.epicToBreakDown ? `/vibedoc:breakdown ${ctx.epicToBreakDown}` : "/vibedoc:breakdown" }
     case "taskDone": return { command: ctx.epicToWork ? `/vibedoc:work ${ctx.epicToWork}` : "/vibedoc:work" }

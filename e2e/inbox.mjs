@@ -90,6 +90,9 @@ try {
   // Evidence in the row: these hand-written reviews have no checklist and no run, so Approve is the primary button
   assert.match(await row(pa, "T001").locator("[data-inbox-evidence]").innerText(), /no checks · no run/)
   assert.match(await row(pa, "T001").getByRole("button", { name: "Approve" }).getAttribute("class"), /bg-accent/)
+  // The buttons' accessible names carry the task, so a screen reader's button list tells the rows apart
+  assert.equal(await row(pa, "T001").getByRole("button", { name: /^Approve: T001 / }).count(), 1)
+  assert.equal(await row(pa, "T001").getByRole("button", { name: /^Send back: T001 / }).count(), 1)
   console.log("ok  rows show their evidence (no checks · no run); Approve is primary when nothing is left unproven")
 
   // 390px: the buttons drop under the title instead of squeezing it to two words

@@ -90,6 +90,12 @@ export const TEST_REVIEW_KEYS = {
   play: { key: "Space", label: "help.trPlay" },
 } as const
 
+/** Lists (board cards and rows, chats, inbox): `useListKeys` in components/shared/use-list-keys.ts. */
+export const LIST_KEYS = {
+  move: { key: "j k", label: "help.listMove" },
+  open: { key: "↵", label: "help.listOpen" },
+} as const
+
 /** /inbox: the triage keys. `a` approves at once (the toast has Undo); `a` and `s` shadow Activity / Settings there only. */
 export const INBOX_KEYS = {
   move: { key: "j k", label: "help.inMove" },
@@ -103,6 +109,8 @@ export const OTHER_SHORTCUTS: readonly { key: string; label: MessageKey; section
   { key: "⌘K", label: "help.commandPalette", section: "Open" },
   { key: "⌘P", label: "help.goToFile", section: "Open" },
   { key: CHAT_KEY, label: "help.openNextChat", section: "Open" },
+  { key: LIST_KEYS.move.key, label: LIST_KEYS.move.label, section: "Board" },
+  { key: LIST_KEYS.open.key, label: LIST_KEYS.open.label, section: "Board" },
   { key: "n", label: "board.newTask", section: "Board" },
   { key: "v", label: "help.nextView", section: "Board" },
   { key: "1–4", label: "help.boardViews", section: "Board" },
@@ -159,7 +167,7 @@ const board = (k: string) => OTHER_SHORTCUTS.find((s) => s.section === "Board" &
 export const PAGE_HELP: Readonly<Record<string, PageHelp>> = {
   "/board": {
     title: "shell.board",
-    keys: [board("n"), board("v"), board("1–4"), board("f"), { key: "/", label: "help.focusSearch" }, board("⇧-click"), ...boardItemKeys],
+    keys: [LIST_KEYS.move, LIST_KEYS.open, board("n"), board("v"), board("1–4"), board("f"), { key: "/", label: "help.focusSearch" }, board("⇧-click"), ...boardItemKeys],
     tips: [
       "help.tipBoardDrag",
       "help.tipBoardView",
@@ -246,7 +254,7 @@ export const PAGE_HELP: Readonly<Record<string, PageHelp>> = {
   },
   "/chat": {
     title: "shell.chats",
-    keys: [{ key: CHAT_KEY, label: "help.openNextChat" }],
+    keys: [LIST_KEYS.move, LIST_KEYS.open, { key: CHAT_KEY, label: "help.openNextChat" }],
     tips: [
       "help.tipChatSessions",
       "help.tipChatAttach",

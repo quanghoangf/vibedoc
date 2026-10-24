@@ -41,6 +41,8 @@ import { readCookie } from "@/lib/player-prefs"
 import { clampPanelWidth, panelWidthCookie, parsePanelWidth, PANEL_DEFAULT_WIDTH, PANEL_KEYBOARD_STEP, PANEL_MIN_WIDTH, PANEL_WIDTH_COOKIE } from "@/lib/panel-width"
 import { useStatusLabel } from "@/components/shared/StatusIcon"
 import type { MessageKey } from "@/i18n"
+import { approveRisk, taskEvidence, type ApproveRisk } from "@/lib/inbox"
+import { useApproveLabel } from "@/components/shared/approve-label"
 
 const NEXT_STATUS: Record<string, string[]> = {
   todo: ["in-progress", "paused"],
@@ -140,6 +142,8 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
   title?: (text: string) => ReactNode
 }) {
   const nextStatuses = NEXT_STATUS[task.status] || []
+  // in review the decision (ReviewActions: Approve / Send back) is the panel's one primary
+  const inReview = task.status === "review"
   const { chats, showAbout } = useChats()
   const { rootParam, demo, playground, openDoc } = useApp()
   const chat = chatFor(chats, { kind: "task", id: task.id })
@@ -236,7 +240,8 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
           <button
             key={s}
             onClick={() => { onMove(task.id, s); onClose() }}
-            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors"
+            // ghost: these repeat the Status property; the one primary is the decision (Approve in review, else Work with agent)
+            className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-sm text-muted hover:text-txt hover:bg-surface2 transition-colors focus-visible:outline-2 focus-visible:outline-accent"
           >
             <StatusIcon status={s as Task["status"]} className="size-3" /> {STATUS_LABELS[s] ? t(STATUS_LABELS[s]) : s}
           </button>
@@ -250,13 +255,13 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
             <ScanSearch className="size-3.5" /> {t("board.verify")}
           </button>
         )}
-        {/* one primary: the worker on this task, else starting one, else the task's chat */}
+        {/* one primary: Approve below while in review; else the worker on this task, else starting one, else the task's chat */}
         <span className={cn("flex flex-wrap items-center gap-2", task.status !== "review" && task.status !== "done" && "ml-auto")}>
           <button
             onClick={chatAbout}
             className={cn(
               "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm",
-              worker || canRun ? "bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors" : "bg-accent text-accent-fg transition-[filter] hover:brightness-110",
+              worker || canRun || inReview ? "bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors" : "bg-accent text-accent-fg transition-[filter] hover:brightness-110",
             )}
           >
             <MessageSquare className="size-3.5" /> {chat ? t("board.openChat") : t("board.chatAboutTask")}
@@ -267,7 +272,10 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
               title={`${worker ? t("workers.openWorker") : t("workers.runCardLead")} (${itemKeyLabel("run")})`}
               aria-keyshortcuts="Shift+W"
               data-work-with-agent
-              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-accent text-accent-fg transition-[filter] hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className={cn(
+                "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                inReview ? "bg-surface2 border border-border text-muted hover:text-txt hover:border-border2 transition-colors" : "bg-accent text-accent-fg transition-[filter] hover:brightness-110",
+              )}
             >
               <Bot className="size-3.5" aria-hidden />
               {worker ? t("workers.workerOnTask", { phase: workerPhase ?? "" }) : t("workers.workWithAgent")}
@@ -281,6 +289,7 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
           key={`review-${task.id}`}
           taskId={task.id}
           onDone={onClose}
+          risk={approveRisk(taskEvidence(task))}
           prompt={latestReview(task.raw ?? "")?.outcome === "auto fix limit reached" ? (
             <p className="text-xs text-danger">
               <span className="font-medium">{t("board.needsHumanLead")}</span> {t("board.needsHumanBody", { n: latestReview(task.raw ?? "")?.attempts ?? "" })}
@@ -544,8 +553,10 @@ export type ReviewAction = "approve" | "send-back"
  * failed run on a done task: `canApprove={false}`, the note prefilled from the failed step, its own `prompt`
  * line, and `children` (Open task) at the end of the button row. A toast confirms the outcome.
  */
-export function ReviewActions({ taskId, onDone, canApprove = true, initialNote = "", prompt, className, children, runId, marks, marksList, confirmApprove }: {
+export function ReviewActions({ taskId, onDone, canApprove = true, initialNote = "", prompt, className, children, runId, marks, marksList, confirmApprove, risk = null }: {
   taskId: string
+  /** What Approve would skip (`approveRisk`): then Approve is the outline button saying so, Send back stands level with it */
+  risk?: ApproveRisk | null
   onDone: (action: ReviewAction) => void
   canApprove?: boolean
   initialNote?: string
@@ -569,6 +580,7 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const flagged = marks?.length ?? 0
+  const approveLabel = useApproveLabel()(risk)
 
   async function act(action: ReviewAction) {
     setBusy(true)
@@ -633,9 +645,12 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
               data-review="approve"
               onClick={() => (confirmApprove ? setConfirming(true) : act("approve"))}
               disabled={busy}
-              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-teal/15 border border-teal/40 text-teal transition-colors hover:bg-teal/25 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              className={cn(
+                "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm border transition-colors disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+                risk ? "border-border2 bg-transparent text-txt hover:bg-surface2" : "bg-teal/15 border-teal/40 text-teal hover:bg-teal/25",
+              )}
             >
-              <Check className="size-3.5" aria-hidden /> {t("board.approve")}
+              <Check className="size-3.5" aria-hidden /> {approveLabel}
             </button>
           )}
           <button
@@ -644,7 +659,9 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
             disabled={busy}
             className={cn(
               "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm border transition-colors",
-              canApprove ? "bg-surface2 border-border text-muted hover:text-txt hover:border-border2" : "bg-amber/15 border-amber/40 text-amber hover:bg-amber/25",
+              !canApprove ? "bg-amber/15 border-amber/40 text-amber hover:bg-amber/25"
+                : risk ? "bg-transparent border-border2 text-txt hover:bg-surface2"
+                : "bg-surface2 border-border text-muted hover:text-txt hover:border-border2",
             )}
           >
             <CornerUpLeft className="size-3.5" aria-hidden /> {canApprove ? t("board.sendBackEllipsis") : t("board.sendBackToAgent")}

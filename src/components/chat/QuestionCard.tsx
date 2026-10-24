@@ -59,7 +59,7 @@ export function QuestionCard({ set, disabled, onSubmit }: {
     <div className="my-2 rounded-md border border-border overflow-hidden" data-question-card>
       <div className="flex items-center gap-2 px-2 py-1.5 bg-surface2 border-b border-border">
         <span className="text-[10px] font-mono uppercase tracking-widest text-muted">{t("chat.questions")}</span>
-        {done && <span className="ml-auto text-[10px] font-mono text-accent">{t("chat.answered")}</span>}
+        {done && <span className="ml-auto text-[10px] font-mono text-teal">{t("chat.answered")}</span>}
       </div>
       <div className="p-2 space-y-3">
         {set.questions.map((q, qi) => (

@@ -60,6 +60,7 @@ interface TreeNode {
   children: TreeNode[]
   docPath?: string
   priority?: Priority | null
+  title?: string | null
 }
 
 type DocOrder = "tree" | "priority"
@@ -91,7 +92,7 @@ function buildTree(docs: DocFile[]): TreeNode[] {
       }
       node = child
     }
-    node.children.push({ name: doc.name, docPath: doc.path, priority: doc.priority, children: [] })
+    node.children.push({ name: doc.name, docPath: doc.path, priority: doc.priority, title: doc.title, children: [] })
   }
   return root.children
 }
@@ -110,13 +111,11 @@ function ancestorFolders(docPath: string): string[] {
   return parts.map((_, i) => parts.slice(0, i + 1).join("/"))
 }
 
-/** "api-reference" → "Api Reference", "DOMAIN_MAP" → "Domain Map"; a short all-caps word in a mixed name (HLD, MCP) stays. */
-function formatName(raw: string): string {
-  const words = raw.replace(/^\d+-/, "").split(/[-_ ]+/)
-  const shouty = words.length > 1 && words.every(w => w === w.toUpperCase())
-  return words
-    .map(w => !shouty && /^[A-Z0-9]{2,4}$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ")
+/** A doc's name in a list: its title (frontmatter `title:`, else the H1), else the file name as written, in mono. */
+function DocName({ title, name, className }: { title?: string | null; name: string; className?: string }) {
+  return title
+    ? <span data-user-content className={cn("truncate", className)}>{title}</span>
+    : <span data-user-content className={cn("truncate font-mono text-[11px]", className)}>{name}</span>
 }
 
 // ─── Tree node row ────────────────────────────────────────────────────────────
@@ -167,7 +166,7 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
           ) : (
             <FileText className="h-3.5 w-3.5 shrink-0 opacity-50" />
           )}
-          <span data-user-content className="truncate">{formatName(node.name)}</span>
+          <DocName title={node.title} name={node.name} />
           {isSpecPath(node.docPath!) && (
             <span className="ml-auto inline-flex h-4 shrink-0 items-center rounded-sm border border-border px-1 text-[10px] leading-none text-muted">{t("docs.capabilitySpec")}</span>
           )}
@@ -197,7 +196,7 @@ function TreeNodeRow({ node, depth, selectedPath, onDocClick, folderPath }: Tree
           <ChevronRight className="h-3 w-3 shrink-0 transition-transform duration-200 group-data-[state=open]/trigger:rotate-90" />
           <Folder className="h-3.5 w-3.5 shrink-0 text-accent/70 group-data-[state=open]/trigger:hidden" />
           <FolderOpen className="h-3.5 w-3.5 shrink-0 text-accent/70 hidden group-data-[state=open]/trigger:block" />
-          <span data-user-content className="truncate">{formatName(node.name)}</span>
+          <span data-user-content className="truncate font-mono text-[11px]">{node.name}</span>
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
@@ -255,7 +254,7 @@ function LazyFolderRows({ folders, onOpen }: { folders: LazyFolder[]; onOpen: (n
         >
           <ChevronRight className="h-3 w-3 shrink-0" />
           <Folder className="h-3.5 w-3.5 shrink-0 text-muted" />
-          <span data-user-content className="truncate">{formatName(f.name)}</span>
+          <span data-user-content className="truncate font-mono text-[11px]">{f.name}</span>
           <span className="ml-auto shrink-0 font-mono text-[10px] font-normal tabular-nums">
             {loading === f.name ? t("docs.folderLoading") : f.count}
           </span>
@@ -542,7 +541,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                     )}>
                       {isChecked && <Check className="h-2.5 w-2.5 text-accent" />}
                     </span>
-                    <span data-user-content className="truncate flex-1 text-left">{formatName(doc.name)}</span>
+                    <DocName title={doc.title} name={doc.name} className="flex-1 text-left" />
                     <span className="max-w-[45%] shrink-0 truncate font-mono text-[10px] text-muted">
                       {normalizePath(doc.path).split("/").slice(0, -1).join("/") || t("docs.root")}
                     </span>
@@ -591,7 +590,7 @@ export function DocList({ docs, selectedDocPath, searchValue, onSearchChange, on
                             : "text-muted hover:text-txt hover:bg-surface2",
                         )}
                       >
-                        <span data-user-content className="font-medium truncate w-full">{formatName(doc.name)}</span>
+                        <DocName title={doc.title} name={doc.name} className="font-medium w-full" />
                         <span className="w-full truncate font-mono text-[10px] text-muted">
                           {normalizePath(doc.path).split("/").slice(0, -1).join("/")}
                         </span>

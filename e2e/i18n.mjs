@@ -20,7 +20,7 @@
 import assert from "node:assert/strict"
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import path from "node:path"
-import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
+import { launchChrome, makeFixture, pageSettled, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const fx = makeFixture()
@@ -105,11 +105,13 @@ const PAGES = [
     await page.getByText("Nội dung (markdown)").waitFor()
   } },
   { path: "/roadmap", name: "roadmap: break down dialog", open: async (page) => {
-    await page.getByRole("button", { name: /Chia nhỏ các epic/ }).click()
+    await page.getByRole("button", { name: "Thêm thao tác lộ trình" }).click()
+    await page.getByRole("menuitem", { name: /Chia nhỏ các epic/ }).click()
     await page.getByRole("dialog", { name: "Chia nhỏ các epic" }).waitFor()
   } },
   { path: "/roadmap", name: "roadmap: plan from spec dialog", open: async (page) => {
-    await page.getByRole("button", { name: /Lập kế hoạch từ spec/ }).click()
+    await page.getByRole("button", { name: "Thêm thao tác lộ trình" }).click()
+    await page.getByRole("menuitem", { name: /Lập kế hoạch từ spec/ }).click()
     await page.getByRole("dialog", { name: "Lập kế hoạch từ spec" }).waitFor()
   } },
   { path: "/roadmap?view=timeline", name: "roadmap: timeline" },
@@ -221,7 +223,7 @@ const PAGES = [
     await page.getByRole("dialog").getByText("Kế hoạch", { exact: true }).waitFor()
   } },
   { path: "/setup", name: "setup: welcome", open: async (page) => {
-    await page.getByRole("heading", { name: "Chào mừng đến với VibeDoc" }).waitFor()
+    await page.getByRole("heading", { name: "Bắt đầu từ một mẫu" }).waitFor() // round 2: the wizard is "Write project docs", step 1 "Start from a template"
   } },
   { path: "/setup", name: "setup: basic info", open: async (page) => {
     await page.getByRole("button", { name: /^Tối giản/ }).click()
@@ -253,13 +255,13 @@ const PAGES = [
     ["Giao diện"], ["Trình soạn thảo"], ["Dự án"],
     ["Trạng thái", async (page) => { await page.getByRole("textbox").last().fill("Đang thử") }],
     ["Ứng dụng frontend", async (page) => { await page.getByText("Không tìm thấy frontend web").waitFor() }],
-    ["Kết nối agent", async (page) => { await page.getByRole("button", { name: "Kiểm tra" }).click(); await page.waitForLoadState("networkidle") }],
+    ["Kết nối agent", async (page) => { await page.getByRole("button", { name: "Kiểm tra" }).click(); await page.getByText(/^(Kết nối thành công|Kết nối thất bại)$/).first().waitFor() }],
     ["Kỹ năng", async (page) => { await page.getByRole("button", { name: /Thêm kỹ năng/ }).click() }],
     ["Agent", async (page) => { await page.getByRole("button", { name: /Thêm agent/ }).click() }],
     ["Quyền riêng tư", async (page) => { await page.getByRole("switch", { name: "Phản hồi lần chạy đầu" }).waitFor() }],
   ].map(([section, then]) => ({ path: "/settings", name: `settings: ${section}`, open: async (page) => {
     await page.getByRole("button", { name: section, exact: true }).click()
-    await page.waitForLoadState("networkidle")
+    await pageSettled(page)
     if (then) await then(page)
   } })),
   // T223: the pinned Help panel on two pages, ⌘K with a query, Quick open, an Undo toast (Arrange only rewrites layout.json)
@@ -282,7 +284,8 @@ const PAGES = [
     await page.getByText("Không có tệp nào khớp").waitFor()
   } },
   { path: "/roadmap", name: "Undo toast", open: async (page) => {
-    await page.getByRole("button", { name: "Sắp xếp", exact: true }).first().click()
+    await page.getByRole("button", { name: "Thêm thao tác lộ trình" }).click()
+    await page.getByRole("menuitem", { name: "Sắp xếp", exact: true }).click()
     await page.getByRole("button", { name: "Hoàn tác" }).waitFor()
   } },
   { path: "/getting-started", name: "getting started", open: async (page) => {
@@ -387,7 +390,7 @@ try {
     await page.goto(`${BASE}${p.path}`)
     // the sidebar is in the DOM (a modal sheet hides it from role queries, so not getByRole)
     await page.locator('[data-sidebar="sidebar"] a[href="/board"]').first().waitFor({ state: "attached" })
-    await page.waitForLoadState("networkidle")
+    await pageSettled(page)
     if (p.open) await p.open(page)
     await assertVietnamese(page, p.name, p.scope)
     await assertNoSideScroll(page, p.name)
@@ -398,7 +401,7 @@ try {
 
   // Empty project: every route's empty state, also at phone width
   const empty = makeFixture()
-  rmSync(path.join(empty, ".vibedoc/feedback.json")) // a first run: the R086 feedback card shows on every page
+  rmSync(path.join(empty, ".vibedoc/feedback.json")) // a first run: never asked yet
   try {
     for (const width of [1400, 390]) {
       const ctx = await browser.newContext({ viewport: { width, height: 900 } })
@@ -410,12 +413,23 @@ try {
         await ep.goto(`${BASE}${r}`)
         // at phone width the sidebar is a closed sheet, so wait for the app's main instead
         await ep.locator("main#main").waitFor()
-        await ep.waitForLoadState("networkidle")
-        await ep.getByRole("region", { name: "Phản hồi lần chạy đầu" }).waitFor()
+        await pageSettled(ep)
         await assertVietnamese(ep, `empty project ${r} @${width}`)
         await assertNoSideScroll(ep, `empty project ${r} @${width}`)
         if (process.env.SHOTS) await ep.screenshot({ path: path.join(process.env.SHOTS, `empty${r.replace(/\//g, "-")}-${width}.png`) })
       }
+      // R086: the feedback card waits until an agent has connected (so the empty states above keep their "connect your
+      // agent" lines); connect one, then the card is Vietnamese too. VIBEDOC_FEEDBACK=0 on the server: never shown.
+      const fb = await (await fetch(`${BASE}/api/feedback?root=${encodeURIComponent(empty)}`)).json()
+      if (fb.available) {
+        await ep.request.post(`${BASE}/api/mcp?root=${encodeURIComponent(empty)}`, {
+          data: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_read_memory", arguments: {} } },
+        })
+        await ep.goto(`${BASE}/board`)
+        await ep.getByRole("region", { name: "Phản hồi lần chạy đầu" }).waitFor()
+        await assertVietnamese(ep, `empty project feedback card @${width}`)
+        await assertNoSideScroll(ep, `empty project feedback card @${width}`)
+      } else if (width === 1400) console.log("skip  feedback card: the server runs with VIBEDOC_FEEDBACK=0")
       await ctx.close()
     }
     console.log(`ok  empty project: ${ROUTES.length} routes in Vietnamese at 1400px and 390px, no sideways scroll`)

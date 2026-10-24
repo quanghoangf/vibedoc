@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, ArrowLeftRight, ArrowRight, FileQuestion, Unlink, Waypoints } from "lucide-react"
+import { ArrowLeft, ArrowLeftRight, ArrowRight, ChevronRight, FileQuestion, Unlink, Waypoints } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { cn } from "@/lib/utils"
 import { StatusIcon } from "@/components/shared/StatusIcon"
@@ -222,6 +222,8 @@ function LinkMap({ path, rows, broken, onOpenRow, onMore }: {
   onMore: () => void
 }) {
   const { t } = useT()
+  // folded by default: the rail is 18rem, so the map is opt-in and then drawn fit to the box
+  const [open, setOpen] = useState(false)
   const self = path.split("/").pop()?.replace(/\.md$/i, "") ?? path
   const { source, targets } = useMemo(
     () => docLinkMermaid(self, rows.map((r) => ({ path: r.path, label: r.label, id: idOf(r), direction: r.direction })), broken.map((b) => b.path)),
@@ -237,7 +239,18 @@ function LinkMap({ path, rows, broken, onOpenRow, onMore }: {
   if (rows.length === 0 && broken.length === 0) return null
   return (
     <div data-link-map>
-      <DerivedDiagram source={source} label={t("docs.linkMap")} onOpen={onOpen} isLink={isLink} />
+      <button
+        type="button"
+        data-link-map-toggle
+        aria-expanded={open}
+        title={t("docs.linkMap")}
+        onClick={() => setOpen((o) => !o)}
+        className={cn("flex w-full items-center gap-2 text-muted hover:text-txt", ROW)}
+      >
+        <ChevronRight className={cn("size-3.5 shrink-0 transition-transform duration-(--duration-fast)", open && "rotate-90")} aria-hidden />
+        {t("docs.linkMapToggle")}
+      </button>
+      {open && <DerivedDiagram source={source} label={t("docs.linkMap")} onOpen={onOpen} isLink={isLink} fit />}
     </div>
   )
 }

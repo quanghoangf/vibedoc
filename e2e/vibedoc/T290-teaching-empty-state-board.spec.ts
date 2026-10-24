@@ -26,7 +26,7 @@ test('T290 Teaching empty state on the board', async ({ page, step, context }) =
     await step('S2 — WHEN no agent has called VibeDoc yet → THEN the empty state links to Connect', async () => {
       await expect(page.getByText(/Your agent isn't connected yet/)).toBeVisible()
       await page.getByRole('link', { name: /Connect your agent/ }).click()
-      await expect(page).toHaveURL(/\/getting-started#3-connect-your-agent$/)
+      await expect(page).toHaveURL(/\/settings\?tab=connect$/)
       await expect(page.getByRole('heading', { name: /Connect your agent/ }).first()).toBeVisible()
     })
 

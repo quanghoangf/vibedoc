@@ -23,18 +23,37 @@ import type { AppSettings, Skill, Agent } from "@/lib/settings"
 import { DEFAULT_SETTINGS, DEFAULT_SKILLS, DEFAULT_AGENTS } from "@/lib/settings"
 import { applyTheme, applyAccent, applyFontSize, applyFonts } from "@/lib/applySettings"
 
-const TABS: { id: string; label: MessageKey; icon: typeof Palette }[] = [
-  { id: "connect", label: "connect.tab", icon: Plug },
-  { id: "appearance", label: "settings.tabAppearance", icon: Palette },
-  { id: "editor", label: "settings.tabEditor", icon: Type },
-  { id: "project", label: "settings.tabProject", icon: FolderCog },
-  { id: "statuses", label: "settings.tabStatuses", icon: Columns3 },
-  { id: "frontend", label: "settings.tabFrontend", icon: AppWindow },
-  { id: "skills", label: "settings.tabSkills", icon: Zap },
-  { id: "agents", label: "settings.tabAgents", icon: Bot },
-  { id: "workers", label: "workers.settingsTab", icon: GitBranch },
-  { id: "privacy", label: "settings.tabPrivacy", icon: ShieldCheck },
+type Tab = { id: string; label: MessageKey; icon: typeof Palette }
+
+/** Three small groups (ids stay the ?tab= values): what the agent gets, what the project is, what is yours. */
+const GROUPS: { label: MessageKey; tabs: Tab[] }[] = [
+  {
+    label: "settings.groupAgent",
+    tabs: [
+      { id: "connect", label: "connect.tab", icon: Plug },
+      { id: "workers", label: "workers.settingsTab", icon: GitBranch },
+      { id: "skills", label: "settings.tabSkills", icon: Zap },
+      { id: "agents", label: "settings.tabAgents", icon: Bot },
+    ],
+  },
+  {
+    label: "settings.groupProject",
+    tabs: [
+      { id: "project", label: "settings.tabProject", icon: FolderCog },
+      { id: "statuses", label: "settings.tabStatuses", icon: Columns3 },
+      { id: "frontend", label: "settings.tabFrontend", icon: AppWindow },
+    ],
+  },
+  {
+    label: "settings.groupYou",
+    tabs: [
+      { id: "appearance", label: "settings.tabAppearance", icon: Palette },
+      { id: "editor", label: "settings.tabEditor", icon: Type },
+      { id: "privacy", label: "settings.tabPrivacy", icon: ShieldCheck },
+    ],
+  },
 ]
+const TABS = GROUPS.flatMap((g) => g.tabs)
 
 export default function SettingsPage() {
   return (
@@ -51,6 +70,12 @@ function SettingsSections() {
   // ?tab=connect is the deep link to a section (R081: empty states and the welcome screen link to Connect)
   const tabParam = useSearchParams().get("tab")
   const [activeTab, setActiveTab] = useState(TABS.some(x => x.id === tabParam) ? tabParam as string : "appearance")
+  // A link to another ?tab= while Settings is open (e.g. the header's "Settings → Connect agent") switches the section
+  const [seenParam, setSeenParam] = useState(tabParam)
+  if (tabParam !== seenParam) {
+    setSeenParam(tabParam)
+    if (TABS.some(x => x.id === tabParam)) setActiveTab(tabParam as string)
+  }
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [skills, setSkills] = useState<Skill[]>(DEFAULT_SKILLS)
   const [agents, setAgents] = useState<Agent[]>(DEFAULT_AGENTS)
@@ -128,22 +153,30 @@ function SettingsSections() {
 
   return (
     <div className="flex h-full flex-col sm:flex-row">
-      {/* Phone: the sections as a scrolling tab strip instead of the sidebar */}
-      <nav aria-label={t("settings.sections")} className="flex shrink-0 gap-1 overflow-x-auto border-b border-border px-3 py-2 sm:hidden [scrollbar-width:none]">
-        {TABS.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            aria-current={activeTab === tab.id ? "page" : undefined}
-            className={cn(
-              "shrink-0 rounded-md px-2.5 py-1.5 text-sm transition-colors",
-              activeTab === tab.id ? "bg-accent/10 font-medium text-accent" : "text-muted hover:bg-surface2 hover:text-txt",
-            )}
-          >
-            {tabLabel(tab.label)}
-          </button>
-        ))}
-      </nav>
+      {/* Phone: the sections as a scrolling tab strip instead of the sidebar; the right-edge fade says it scrolls */}
+      <div className="relative shrink-0 border-b border-border sm:hidden">
+        <nav aria-label={t("settings.sections")} className="flex gap-1 overflow-x-auto px-3 py-2 pr-10 [scrollbar-width:none]">
+          {GROUPS.map((group, gi) => (
+            <div key={group.label} className="flex shrink-0 items-center gap-1">
+              {gi > 0 && <span aria-hidden className="mx-1 h-4 w-px bg-border" />}
+              {group.tabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  aria-current={activeTab === tab.id ? "page" : undefined}
+                  className={cn(
+                    "shrink-0 rounded-md px-2.5 py-1.5 text-sm transition-colors",
+                    activeTab === tab.id ? "bg-accent/10 font-medium text-accent" : "text-muted hover:bg-surface2 hover:text-txt",
+                  )}
+                >
+                  {tabLabel(tab.label)}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-bg to-transparent" />
+      </div>
 
       {/* Sidebar */}
       <aside className="hidden w-56 shrink-0 border-r border-border bg-sidebar sm:block">
@@ -153,25 +186,31 @@ function SettingsSections() {
             <h1 className="font-semibold text-txt">{t("settings.settings")}</h1>
           </div>
         </div>
-        <nav className="p-2">
-          {TABS.map(tab => {
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
-                  activeTab === tab.id
-                    ? "bg-accent/10 text-accent font-medium"
-                    : "text-muted hover:text-txt hover:bg-surface2"
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                {tabLabel(tab.label)}
-              </button>
-            )
-          })}
+        <nav aria-label={t("settings.sections")} className="space-y-3 p-2">
+          {GROUPS.map(group => (
+            <div key={group.label} role="group" aria-labelledby={`settings-group-${group.label}`}>
+              <div id={`settings-group-${group.label}`} className="flex h-8 items-center px-3 text-xs font-medium text-muted">{t(group.label)}</div>
+              {group.tabs.map(tab => {
+                const Icon = tab.icon
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    aria-current={activeTab === tab.id ? "page" : undefined}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors",
+                      activeTab === tab.id
+                        ? "bg-accent/10 text-accent font-medium"
+                        : "text-muted hover:text-txt hover:bg-surface2"
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {tabLabel(tab.label)}
+                  </button>
+                )
+              })}
+            </div>
+          ))}
         </nav>
       </aside>
 

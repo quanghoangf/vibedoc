@@ -105,6 +105,25 @@ function plainText(md: string): string {
 }
 
 /**
+ * A doc's title for lists: frontmatter `title:`, else its first H1 (outside code fences, as plain text), else null
+ * (the caller shows the file name as written, never a title-cased slug).
+ */
+export function docTitle(raw: string): string | null {
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(raw)
+  const fmTitle = fm && /^title:[ \t]*(.+?)[ \t]*$/m.exec(fm[1])?.[1].replace(/^(["'])(.*)\1$/, '$2').trim()
+  if (fmTitle) return fmTitle
+  let fence: string | null = null
+  for (const line of (fm ? raw.slice(fm[0].length) : raw).split(/\r?\n/)) {
+    const f = /^\s{0,3}(`{3,}|~{3,})/.exec(line)?.[1]
+    if (f && (!fence || (f[0] === fence[0] && f.length >= fence.length))) { fence = fence ? null : f; continue }
+    if (fence) continue
+    const h = /^#\s+(.+?)\s*#*\s*$/.exec(line)
+    if (h) return plainText(h[1]) || null
+  }
+  return null
+}
+
+/**
  * Classify a markdown file by path. Label = its H1 without the "ID: " prefix, else the file name. An H1 that reads as
  * a sentence (ends in . or !, like AGENTS.md's "See CLAUDE.md — this file mirrors it…") is prose, not a title.
  */

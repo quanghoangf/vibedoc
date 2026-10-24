@@ -1,6 +1,6 @@
 // node src/components/graph/force-layout.check.mts
 import assert from 'node:assert/strict'
-import { forceLayout, graphChanges, hiddenLabels, neighbourhoodIds, SPRING, springStep, stepFocus, type SpringWorld } from './force-layout.ts'
+import { forceLayout, graphChanges, hiddenLabels, kindsForLinks, neighbourhoodIds, SPRING, springStep, stepFocus, type SpringWorld } from './force-layout.ts'
 
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
 const nodesOf = (ids: string[]) => ids.map(id => ({ id }))
@@ -128,5 +128,14 @@ assert.deepEqual([...hiddenLabels([box('a', 0, 0)], new Set(['a']), [dot('b', 20
   w.bodies.set('b', { x: 200, y: 0, vx: 0, vy: 0 })
   springStep(w, 5)
   assert.ok(Math.abs(w.bodies.get('b')!.x - 100) < 100, 'no fly-off')
+}
+// kindsForLinks: a doc whose only links are tasks / epics turns those kinds on (Show in graph never lands empty)
+{
+  const kind: Record<string, string> = { 'd.md': 'doc', 't.md': 'task', 'e.md': 'epic', 'x.md': 'adr' }
+  const es = [{ from: 'd.md', to: 't.md' }, { from: 'e.md', to: 'd.md' }, { from: 't.md', to: 'x.md' }]
+  const order = ['doc', 'adr', 'epic', 'task', 'entry']
+  assert.deepEqual(kindsForLinks(es, (p) => kind[p], 'd.md', ['doc'], order), ['doc', 'epic', 'task'], 'direct links only, in order')
+  assert.deepEqual(kindsForLinks(es, (p) => kind[p], 'x.md', [], order), ['adr', 'task'], 'its own kind too')
+  assert.deepEqual(kindsForLinks(es, (p) => kind[p], 'gone.md', ['doc'], order), ['doc'], 'unknown file: unchanged')
 }
 console.log('force-layout ok')

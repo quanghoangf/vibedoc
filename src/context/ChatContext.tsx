@@ -111,6 +111,11 @@ export function useChats(): ChatApi {
   return ctx
 }
 
+/** useChats() where a ChatProvider may be missing (shared chips): null outside one. */
+export function useChatsOptional(): ChatApi | null {
+  return useContext(ChatContext)
+}
+
 /** The chat working on an epic/task, if any (roadmap nodes, sheets, board cards). */
 export function useItemAgent(a: Attach): ItemAgent | undefined {
   return useContext(ItemAgentsContext)[attachKey(a)]
@@ -133,6 +138,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   // Chats changed since their last save; saved by the effect below once they aren't busy
   const dirtyRef = useRef(new Set<string>())
   const notifiedRef = useRef<Record<string, ChatStatus>>({})
+  // ids the last project load brought in: on the next load they belong to the old project, never carried over
+  const loadedIdsRef = useRef(new Set<string>())
   // Re-read each minute so a day-old error drops out of the alarm counts without a reload
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -179,7 +186,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           : c.worker ? { ...c, busy: workerBusy(c.worker) }
           : c))
         notifiedRef.current = Object.fromEntries(shown.map((c) => [c.id, chatStatus(c)]))
-        setChats(shown)
+        // The shell renders before the project loads, so a New chat can be clicked first: keep a chat made here and
+        // still empty and unattached (it has no project yet, so it carries over a switch too). Chats an earlier load
+        // brought in, or with messages, belong to the old project.
+        const ids = new Set(shown.map((c) => c.id))
+        const old = loadedIdsRef.current
+        loadedIdsRef.current = ids
+        setChats((cs) => [...shown, ...cs.filter((c) => !ids.has(c.id) && !old.has(c.id) && c.id !== ORCHESTRATOR_ID && c.messages.length === 0 && !c.attach && !c.worker)])
         setModalId(null)
         setCurrentId(null)
         setLoaded(true)

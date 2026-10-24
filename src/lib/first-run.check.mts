@@ -23,11 +23,11 @@ assert.deepEqual(pendingSteps(EMPTY_FEEDBACK, all), [])
 assert.deepEqual(pendingSteps({ consent: false, sent: [] }, all), [])
 assert.deepEqual(pendingSteps({ consent: true, sent: ["started"] }, ["first-task-done", "started", "agent-connected"]), ["agent-connected", "first-task-done"])
 
-// consent: opting in on a set-up project sends only `started`
+// consent: the first yes on a set-up project sends `started` and `agent-connected` (the card asks once the agent connects)
 const now = "2026-10-07T00:00:00.000Z"
 const on = applyConsent(EMPTY_FEEDBACK, true, all, now)
-assert.deepEqual(on, { consent: true, answeredAt: now, sent: ["agent-connected", "first-roadmap", "first-task-done"] })
-assert.deepEqual(pendingSteps(on, all), ["started"])
+assert.deepEqual(on, { consent: true, answeredAt: now, sent: ["first-roadmap", "first-task-done"] })
+assert.deepEqual(pendingSteps(on, all), ["started", "agent-connected"])
 // fresh project: everything later is sent as it happens
 const fresh = applyConsent(EMPTY_FEEDBACK, true, ["started"], now)
 assert.deepEqual(pendingSteps(fresh, ["started", "agent-connected"]), ["started", "agent-connected"])

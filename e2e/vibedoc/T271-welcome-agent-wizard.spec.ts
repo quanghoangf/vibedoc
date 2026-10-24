@@ -41,7 +41,7 @@ test('T271 Welcome agent status, Connect slot, Write project docs', async ({ pag
   await step('Click "Write project docs" → the template wizard opens', async () => {
     await page.getByRole('link', { name: 'Write project docs' }).click()
     await expect(page).toHaveURL(/\/setup\b/)
-    await expect(page.getByRole('heading', { name: 'Setup Wizard' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Write project docs' })).toBeVisible()
   })
 
   await step('Open the welcome on a project an agent has called → it says "Agent connected"', async () => {

@@ -147,7 +147,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
   return (
     <div className="flex min-h-full flex-col">
       <ItemPanelHeader
-        className={cn("px-6", item.status === "in-progress" && "bg-[linear-gradient(180deg,rgb(var(--rgb-accent)/0.08),transparent)]")}
+        className="px-6"
         kicker={
           <PanelDescription className="flex min-w-0 items-center gap-1">
               {parent && (

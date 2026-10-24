@@ -15,7 +15,7 @@ import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { launchChrome, registerProject } from "./stub-chat.mjs"
+import { launchChrome, pageSettled, registerProject } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 
@@ -81,7 +81,7 @@ async function emptyState(page, p) {
   await page.goto(`${BASE}${p.path}`)
   const state = page.locator("[data-empty-state]")
   await state.first().waitFor()
-  await page.waitForLoadState("networkidle")
+  await pageSettled(page)
   assert.equal(await state.count(), 1, `${p.name}: one empty state`)
   const actions = state.locator("[data-empty-action]")
   // the action may arrive after a fetch (the board asks the roadmap which command fits)

@@ -54,17 +54,17 @@ export function useRoadmapStatusLabel(): (status: RoadmapStatus) => string {
   return (status) => t(STATUS_KEY[status])
 }
 
-/** Roadmap status as a dot: live = accent with a pulse, done = teal, planned = hollow. */
+/** Roadmap status as a dot, in the task status hues (One Status Language): live = amber with a pulse, done = teal, planned = hollow. */
 export function StatusDot({ status, className }: { status: RoadmapStatus; className?: string }) {
   const label = useRoadmapStatusLabel()(status)
   return (
     <span title={label} aria-label={label} className={cn("relative inline-flex h-2 w-2 shrink-0", className)}>
-      {status === "in-progress" && <span className="absolute inset-0 animate-ping rounded-full bg-accent/60" />}
+      {status === "in-progress" && <span className="absolute inset-0 animate-ping rounded-full bg-amber/60" />}
       <span
         className={cn(
           "relative h-full w-full rounded-full",
           status === "done" && "bg-teal",
-          status === "in-progress" && "bg-accent",
+          status === "in-progress" && "bg-amber",
           status === "planned" && "border border-muted",
           status === "paused" && "bg-muted",
         )}
@@ -80,7 +80,7 @@ export function StatusPill({ status }: { status: RoadmapStatus }) {
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider",
         status === "done" && "border-teal/40 text-teal",
-        status === "in-progress" && "border-accent/50 text-accent",
+        status === "in-progress" && "border-amber/40 text-amber",
         status === "planned" && "border-dashed border-border2 text-muted",
         status === "paused" && "border-border2 text-muted",
       )}
@@ -188,7 +188,7 @@ export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
       style={{ width: HORIZON_W }}
       className={cn(
         "relative flex items-center gap-3 rounded-xl border bg-surface px-3.5 py-3 transition-shadow duration-(--duration-base)",
-        status === "in-progress" && "border-accent/60 shadow-[0_0_0_1px_rgb(var(--rgb-accent)/0.25),0_10px_30px_-12px_rgb(var(--rgb-accent)/0.6)]",
+        status === "in-progress" && "border-amber/50",
         status === "done" && "border-teal/40",
         status === "planned" && "border-dashed border-border2",
         status === "paused" && "border-border2 opacity-75",
@@ -199,7 +199,7 @@ export function HorizonNode({ data, selected }: NodeProps<RoadmapNode>) {
       <span
         className={cn(
           "font-mono text-2xl font-semibold leading-none tabular-nums",
-          status === "in-progress" ? "text-accent" : status === "done" ? "text-teal" : "text-muted",
+          status === "in-progress" ? "text-amber" : status === "done" ? "text-teal" : "text-muted",
         )}
       >
         {chapter ? String(chapter).padStart(2, "0") : "··"}
@@ -238,7 +238,6 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
   const { item, taskStatuses, nextTaskId } = data
   const agent = useItemAgent({ kind: "epic", id: item.id })
   const { t, tn } = useT()
-  const drifting = !!data.drift?.length
   const ring = selected && "ring-2 ring-accent/60 ring-offset-2 ring-offset-bg"
 
   if (item.status === "done") {
@@ -264,20 +263,19 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
       className={cn(
         "relative flex flex-col gap-1.5 rounded-lg border px-3 py-2.5 transition-shadow duration-(--duration-base)",
         live
-          ? "border-accent/50 bg-surface shadow-[0_8px_24px_-10px_rgb(var(--rgb-accent)/0.55)]"
+          ? "border-amber/50 bg-surface"
           : "border-dashed border-border2 bg-bg hover:border-muted",
         item.status === "paused" && "opacity-70",
         ring,
       )}
     >
       <Handles />
-      {live && <span className={cn("absolute -inset-y-px -left-px w-[3px] rounded-l-lg", drifting ? "bg-amber" : "bg-accent")} />}
       <div className="flex items-center justify-between font-mono text-[10px]">
         <span className="text-muted">{item.id}</span>
         {agent ? (
           <AgentMark attach={{ kind: "epic", id: item.id }} />
         ) : live ? (
-          <span className="flex items-center gap-1.5 uppercase tracking-wider text-accent"><StatusDot status="in-progress" className="h-1.5 w-1.5" />{t("roadmap.live")}</span>
+          <span className="flex items-center gap-1.5 uppercase tracking-wider text-amber"><StatusDot status="in-progress" className="h-1.5 w-1.5" />{t("roadmap.live")}</span>
         ) : (
           <span className="uppercase tracking-wider text-muted">{item.tasks.length ? tn("roadmap.taskCount", item.tasks.length) : t("roadmap.noTasksYet")}</span>
         )}

@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useRef, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { Inbox } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
@@ -12,7 +12,7 @@ import { InboxRow, KIND_LABEL } from "@/components/inbox/InboxRow"
 import { useInbox } from "@/components/inbox/use-inbox"
 import type { InboxItem, InboxKind } from "@/lib/inbox"
 import type { ProjectGroup } from "@/lib/groups"
-import { shouldHandleShortcut } from "@/lib/shortcuts"
+import { useListKeys } from "@/components/shared/use-list-keys"
 
 // `project` and `group` already mean the open project / group view in the app's URL (AppContext), so the filters use their own keys
 const FILTER_KEYS = { repo: "repo", group: "repo_group", kind: "kind" } as const
@@ -59,7 +59,6 @@ function InboxView() {
   const shown = (items ?? []).filter((i) => !filters.kind || i.kind === filters.kind)
   const filtered = !!(filters.repo || filters.group || filters.kind)
 
-  const router = useRouter()
   const list = useRef<HTMLUListElement>(null)
   const [focus, setFocus] = useState(-1)
   const [noteFor, setNoteFor] = useState<string | null>(null)
@@ -99,31 +98,11 @@ function InboxView() {
   const at = Math.min(focus, shown.length - 1)
   const canDecide = (i: InboxItem | undefined): i is InboxItem => !!i && i.kind === "review" && !demo
 
-  // j/k move the row, a approves, s opens the send-back note, Enter (native, on the focused link) opens it.
-  // Capture phase so a / s win over the layout's Activity / Settings jumps; never while typing or in a dialog.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (!shouldHandleShortcut(e) || document.querySelector("[role=dialog]")) return
-      const row = shown[at]
-      switch (e.key) {
-        case "j": case "k": {
-          if (!shown.length) return
-          const next = Math.min(shown.length - 1, Math.max(0, at < 0 ? 0 : at + (e.key === "j" ? 1 : -1)))
-          setFocus(next)
-          list.current?.querySelectorAll<HTMLAnchorElement>("[data-inbox-row] > div > a")[next]?.focus()
-          break
-        }
-        // a / s belong to this page even with nothing to decide, so they never jump away by surprise
-        case "a": if (canDecide(row)) void decide(row, "approve"); break
-        case "s": if (canDecide(row)) setNoteFor(keyOf(row)); break
-        // on the row's link Enter is native; from nowhere (body) it opens the focused row; on any other control it stays that control's
-        case "Enter": if (row && (!document.activeElement || document.activeElement === document.body)) router.push(row.href); else return; break
-        default: return
-      }
-      e.preventDefault()
-    }
-    window.addEventListener("keydown", onKey, true)
-    return () => window.removeEventListener("keydown", onKey, true)
+  // j/k (↓/↑ in the list) move the row and Enter opens it (useListKeys, like the board and chats); a approves, s opens the
+  // send-back note. a / s belong to this page even with nothing to decide, so they never jump away by surprise.
+  useListKeys(list, "[data-inbox-row] > div > a", {
+    a: () => { const row = shown[at]; if (canDecide(row)) void decide(row, "approve") },
+    s: () => { const row = shown[at]; if (canDecide(row)) setNoteFor(keyOf(row)) },
   })
 
   return (

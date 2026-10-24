@@ -132,8 +132,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKey)
   }, [router, pathname, showDefault, demo])
 
-  if (loading) return <LoadingScreen />
-
   return (
     <SidebarProvider>
       {/* The sidebar precedes the header in the DOM (shadcn's peer selectors need it), so the agent strip gets its own skip link */}
@@ -151,7 +149,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           onOpenSearch={() => setCmdOpen(true)}
         />
         <main id="main" tabIndex={-1} className="flex-1 min-h-0 overflow-y-auto outline-none">
-          {demo && DEMO_BLOCKED.some((p) => pathname.startsWith(p)) ? (
+          {loading ? (
+            <LoadingScreen />
+          ) : demo && DEMO_BLOCKED.some((p) => pathname.startsWith(p)) ? (
             <p className="p-8 text-sm text-muted">{t("shell.demoBlockedLead")} <code className="font-mono text-txt">npx vibedoc</code> {t("shell.demoBlockedEnd")}</p>
           ) : activeGroup && !GROUP_PAGES.some((p) => pathname.startsWith(p)) ? (
             <div className="p-8">
@@ -174,7 +174,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           ) : children}
         </main>
         {!demo && <ChatModal />}
-        {!demo && <FirstRunFeedback />}
+        {!demo && !loading && <FirstRunFeedback />}
         <DesktopUpdateBanner />
         <Toaster />
         <ItemCommandKeys />

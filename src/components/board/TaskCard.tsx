@@ -64,6 +64,7 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
       draggable={!demo}
       role="button"
       tabIndex={0}
+      data-list-item
       aria-label={`${task.id} ${task.title}`}
       aria-pressed={onSelect ? selected : undefined}
       onClick={(e) => { if (onSelect && (e.shiftKey || e.metaKey || e.ctrlKey)) onSelect(); else onOpen() }}

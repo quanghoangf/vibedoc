@@ -36,6 +36,17 @@ export async function stubChat(page, events, { root } = {}) {
   return calls
 }
 
+/**
+ * The page's first data is in: the shell's body skeleton is gone and nothing is aria-busy (page fetches with their own
+ * loading line), then two frames so what that data renders is painted. Instead of networkidle, which never comes:
+ * the SSE stream (/api/events) keeps a request open for good.
+ */
+export async function pageSettled(page) {
+  await page.locator("main#main").waitFor({ state: "attached" })
+  await page.waitForFunction(() => !document.querySelector('[data-page-skeleton], [aria-busy="true"]'))
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+}
+
 /** A stream-json turn where the agent calls `tool` with `input`. */
 export function toolTurn(id, tool, input, text = "") {
   return [

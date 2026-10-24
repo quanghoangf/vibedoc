@@ -251,7 +251,8 @@ try {
     const page = await ctx.newPage()
     const board = await ctx.newPage()
     for (const p of [page, board]) {
-      p.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
+      // the app has no favicon (the other e2e skip it too); any other error names its URL
+      p.on("console", (m) => { if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(`${m.text()} (${m.location().url})`) })
       p.on("pageerror", (e) => errors.push(e.message))
     }
     await board.goto(`${BASE}/board`)
@@ -345,6 +346,7 @@ try {
     assert.ok(await page.getByRole("radio", { name: "Auto", exact: true }).isChecked(), "R113 T588: Auto is the default mode")
     assert.ok(await page.getByRole("radio", { name: "My Claude Code setup" }).isChecked(), "R113 T589: the user's setup is the default")
     assert.equal(await page.getByRole("checkbox", { name: "Also my MCP servers" }).isChecked(), false, "the user's MCP servers stay off by default")
+    await page.getByText("Advanced: allowed tools and environment").click() // folded by default
     assert.match(await page.getByLabel("Allowed tools").inputValue(), /^mcp__vibedoc__\*$/m)
     await page.getByText("Bash(git push*)").waitFor()
     await page.getByLabel("Environment variables").fill("GITHUB_TOKEN")

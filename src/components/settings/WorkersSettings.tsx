@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ShieldAlert } from "lucide-react"
+import { ChevronRight, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { AppSettings } from "@/lib/settings"
 import { WORKER_BASE_ENV, WORKER_MODES, WORKER_SETUPS, type WorkerMode, type WorkerSetup } from "@/lib/worker-args"
@@ -103,22 +103,6 @@ export function WorkersSettings({ settings, onSave, rootParam }: {
             )}
           </fieldset>
           <label className="block space-y-2">
-            <span className="block text-sm font-medium text-txt">{t("workers.allowedTools")}</span>
-            <span className="block text-xs text-muted">{t("workers.allowedToolsHint")}</span>
-            <textarea value={allowed} onChange={(e) => setAllowed(e.target.value)} rows={10} spellCheck={false} className={field} />
-          </label>
-          <div className="space-y-2">
-            <span className="block text-sm font-medium text-txt">{t("workers.alwaysDenied")}</span>
-            <div className="flex flex-wrap gap-1">
-              {loaded.denied.map((d) => <code key={d} className="rounded-sm border border-danger/30 px-1 font-mono text-[11px] text-danger">{d}</code>)}
-            </div>
-          </div>
-          <label className="block space-y-2">
-            <span className="block text-sm font-medium text-txt">{t("workers.envNames")}</span>
-            <span className="block text-xs text-muted">{t("workers.envNamesHint", { base: WORKER_BASE_ENV.join(" ") })}</span>
-            <textarea value={env} onChange={(e) => setEnv(e.target.value)} rows={3} spellCheck={false} className={field} />
-          </label>
-          <label className="block space-y-2">
             <span className="block text-sm font-medium text-txt">{t("workers.maxRunning")}</span>
             <input type="number" min={1} value={max} onChange={(e) => setMax(Number(e.target.value))} className={`${field} max-w-24`} />
           </label>
@@ -136,6 +120,31 @@ export function WorkersSettings({ settings, onSave, rootParam }: {
               </label>
             </div>
           </div>
+          {/* The allowlist, the deny rules and the env names are rarely changed: behind a disclosure */}
+          <details className="group/adv rounded-lg border border-border">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-txt hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
+              <ChevronRight aria-hidden className="size-3.5 text-muted transition-transform group-open/adv:rotate-90" />
+              {t("workers.advanced")}
+            </summary>
+            <div className="space-y-6 border-t border-border p-3">
+              <label className="block space-y-2">
+                <span className="block text-sm font-medium text-txt">{t("workers.allowedTools")}</span>
+                <span className="block text-xs text-muted">{t("workers.allowedToolsHint")}</span>
+                <textarea value={allowed} onChange={(e) => setAllowed(e.target.value)} rows={10} spellCheck={false} className={field} />
+              </label>
+              <div className="space-y-2">
+                <span className="block text-sm font-medium text-txt">{t("workers.alwaysDenied")}</span>
+                <div className="flex flex-wrap gap-1">
+                  {loaded.denied.map((d) => <code key={d} className="rounded-sm border border-danger/30 px-1 font-mono text-[11px] text-danger">{d}</code>)}
+                </div>
+              </div>
+              <label className="block space-y-2">
+                <span className="block text-sm font-medium text-txt">{t("workers.envNames")}</span>
+                <span className="block text-xs text-muted">{t("workers.envNamesHint", { base: WORKER_BASE_ENV.join(" ") })}</span>
+                <textarea value={env} onChange={(e) => setEnv(e.target.value)} rows={3} spellCheck={false} className={field} />
+              </label>
+            </div>
+          </details>
           <div className="flex items-center gap-3">
             <Button type="submit" size="sm" className="bg-accent text-accent-fg hover:bg-accent/90">{t("workers.save")}</Button>
             {saved && <span role="status" className="text-xs text-muted">{t("workers.saved")}</span>}

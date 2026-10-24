@@ -105,15 +105,16 @@ export const en = {
 
   // Connect menu
   connectTitle: "Connect an AI agent (MCP)",
-  connect: "Connect",
+  connect: "Connect agent",
+  agentConnected: "Agent connected",
+  agentConnectedTitle: "Agent connected · last call {when}",
   connectHeading: "Connect your AI agent",
-  connectBody: "Add this MCP endpoint to Claude Code, Cursor or Windsurf. The board updates live as the agent works.",
-  copyEndpoint: "Copy endpoint",
+  connectBody: "Run this once in a terminal: Claude Code then reaches every VibeDoc project. The board updates live as the agent works.",
   copyCommand: "Copy claude mcp add command",
   lastAgentCall: "Last agent call: {when}",
   noneYet: "none yet",
-  connectSettings: "Agent configs and connection test in",
-  connectSettingsLink: "Settings → MCP",
+  connectSettings: "Cursor, other agents and the skills in",
+  connectSettingsLink: "Settings → Connect agent",
 
   // Empty states (R083): the connect line, the copy-command button
   agentNotConnected: "Your agent isn't connected yet.",
@@ -258,15 +259,16 @@ export const vi: Messages<typeof en> = {
   openChats: "mở Trò chuyện",
 
   connectTitle: "Kết nối AI agent (MCP)",
-  connect: "Kết nối",
+  connect: "Kết nối agent",
+  agentConnected: "Agent đã kết nối",
+  agentConnectedTitle: "Agent đã kết nối · lần gọi gần nhất {when}",
   connectHeading: "Kết nối AI agent của bạn",
-  connectBody: "Thêm MCP endpoint này vào Claude Code, Cursor hoặc Windsurf. Bảng cập nhật trực tiếp khi agent làm việc.",
-  copyEndpoint: "Sao chép endpoint",
+  connectBody: "Chạy lệnh này một lần trong terminal: Claude Code sẽ tới được mọi dự án VibeDoc. Bảng cập nhật trực tiếp khi agent làm việc.",
   copyCommand: "Sao chép lệnh claude mcp add",
   lastAgentCall: "Lần gọi gần nhất: {when}",
   noneYet: "chưa có",
-  connectSettings: "Cấu hình agent và kiểm tra kết nối ở",
-  connectSettingsLink: "Cài đặt → MCP",
+  connectSettings: "Cursor, agent khác và các kỹ năng ở",
+  connectSettingsLink: "Cài đặt → Kết nối agent",
 
   agentNotConnected: "Agent của bạn chưa được kết nối.",
   connectYourAgent: "Kết nối agent →",

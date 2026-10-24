@@ -1,6 +1,6 @@
 // Self-check for cross-project search. Run: node src/lib/cross-search.check.mts
 import assert from 'node:assert/strict'
-import { formatCrossSearch, hitHref, mergeResults, rankItems, type CrossHit } from './cross-search.ts'
+import { formatCrossSearch, highlightParts, hitHref, mergeResults, rankItems, snippetText, type CrossHit } from './cross-search.ts'
 import { tokenize } from './recall.ts'
 
 const web = { id: 'web', name: 'Web' }
@@ -49,5 +49,13 @@ assert.equal(hitHref({ kind: 'doc', id: null, path: 'docs/a b.md' }), '/docs?doc
 assert.equal(hitHref({ kind: 'task', id: 'T001', path: 'x' }), '/board?task=T001')
 assert.equal(hitHref({ kind: 'epic', id: 'R002', path: 'x' }), '/roadmap?item=R002')
 assert.equal(hitHref({ kind: 'entry', id: 'E001', path: 'x' }), '/memory?entry=E001')
+
+// snippets lose the line prefix and the markdown markers; matches split out case-insensitively
+assert.equal(snippetText('L1: # Project memory'), 'Project memory')
+assert.equal(snippetText('L40: - [x] See [the guide](docs/g.md) and `core.ts`'), 'See the guide and core.ts')
+assert.equal(snippetText('L3: | Tasks | plans/tasks |'), 'Tasks · plans/tasks')
+assert.deepEqual(highlightParts('Project memory', 'memory proj'), [{ text: 'Proj', hit: true }, { text: 'ect ', hit: false }, { text: 'memory', hit: true }])
+assert.deepEqual(highlightParts('a.b', 'a'), [{ text: 'a.b', hit: false }], 'one-letter words are not marked')
+assert.deepEqual(highlightParts('x (y)', '(y'), [{ text: 'x (y)', hit: false }], 'punctuation is not a word')
 
 console.log('cross-search: ok')

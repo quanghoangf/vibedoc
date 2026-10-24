@@ -12,7 +12,8 @@ import { ProjectSwitcher } from "./ProjectSwitcher"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useOrigin } from "@/hooks/use-origin"
-import { projectMcpUrl, userScopeMcpAddCommand } from "@/lib/agent-connect"
+import { userScopeMcpAddCommand } from "@/lib/agent-connect"
+import { CONNECT_HREF } from "@/components/shared/agent-connection"
 import { cn } from "@/lib/utils"
 import { groupSessions, isLive } from "@/lib/sessions"
 import { waitingTitle } from "@/lib/chats"
@@ -32,6 +33,8 @@ const PAGE_TITLES: Record<string, MessageKey> = {
   "/chat": "shell.chats",
   "/getting-started": "shell.gettingStarted",
   "/inbox": "inbox.title",
+  "/graph": "shell.graph",
+  "/search": "shell.search",
 }
 
 /** The system focus ring (ui/button.tsx) for the hand-rolled header buttons. */
@@ -224,17 +227,17 @@ function InboxBadge() {
   )
 }
 
-/** The MCP endpoint an agent connects to, the `claude mcp add` line, and when an agent last called in. */
+/**
+ * The one connect command (R104: user scope, every project) and when an agent last called in. Not connected: a
+ * prominent "Connect agent" button; connected: a quiet "Agent connected" chip. Both open the same menu.
+ */
 function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number }) {
   const { t } = useT()
   const f = useFormat()
-  const { activeProject } = useApp()
-  // R104: the command is the one connection for every project; the bare URL names this project (?root=)
-  const hub = `${useOrigin()}/api/mcp`
-  const endpoint = projectMcpUrl(hub, activeProject)
-  const command = userScopeMcpAddCommand(hub)
+  const command = userScopeMcpAddCommand(`${useOrigin()}/api/mcp`)
   const [copied, setCopied] = useState<string | null>(null)
   const lastCall = activity.filter((e) => e.actor === "ai").reduce<string | null>((t, e) => (!t || e.timestamp > t ? e.timestamp : t), null)
+  const connected = lastCall !== null
 
   async function copy(text: string) {
     try {
@@ -263,24 +266,33 @@ function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          title={t("shell.connectTitle")}
-          className={cn("flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs text-muted transition-colors hover:border-border2 hover:text-txt md:px-2.5", focusRing)}
-        >
-          <Plug aria-hidden className="size-3.5" /><span className="max-md:sr-only">{t("shell.connect")}</span>
-        </button>
+        {connected ? (
+          <button
+            type="button"
+            title={t("shell.agentConnectedTitle", { when: f.timeAgo(lastCall, now) })}
+            className={cn("flex h-8 items-center gap-1.5 rounded-md px-2 text-xs text-muted transition-colors hover:bg-surface2 hover:text-txt", focusRing)}
+          >
+            <Plug aria-hidden className="size-3.5" /><span className="max-md:sr-only">{t("shell.agentConnected")}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            title={t("shell.connectTitle")}
+            className={cn("flex h-8 items-center gap-1.5 rounded-md bg-accent px-2 text-xs font-medium text-accent-fg transition-colors hover:bg-accent/90 md:px-2.5", focusRing)}
+          >
+            <Plug aria-hidden className="size-3.5" /><span className="max-md:sr-only">{t("shell.connect")}</span>
+          </button>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80 max-w-[calc(100vw-1.5rem)] border-border2 bg-surface p-3 text-txt">
         <p className="text-sm font-medium">{t("shell.connectHeading")}</p>
         <p className="mt-1 text-xs text-muted">{t("shell.connectBody")}</p>
-        {row(endpoint, t("shell.copyEndpoint"))}
         {row(command, t("shell.copyCommand"))}
         <p className="mt-3 font-mono text-[11px] text-muted">
           {t("shell.lastAgentCall", { when: lastCall ? f.timeAgo(lastCall, now) : t("shell.noneYet") })}
         </p>
         <DropdownMenuItem asChild className="mt-1 -mx-2 text-xs text-muted focus:text-txt">
-          <Link href="/settings">{t("shell.connectSettings")} <span className="text-accent">{t("shell.connectSettingsLink")}</span></Link>
+          <Link href={CONNECT_HREF}>{t("shell.connectSettings")} <span className="text-accent">{t("shell.connectSettingsLink")}</span></Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

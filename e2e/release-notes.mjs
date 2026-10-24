@@ -46,7 +46,8 @@ try {
   await page.goto(`${BASE}/roadmap`)
 
   const open = async () => {
-    await page.getByRole("button", { name: "Draft release notes" }).click()
+    await page.getByRole("button", { name: "More roadmap actions" }).click() // the ⋯ menu holds the rarer tools
+    await page.getByRole("menuitem", { name: "Draft release notes" }).click()
     const dialog = page.getByRole("dialog", { name: "Draft release notes" })
     await dialog.waitFor()
     return dialog

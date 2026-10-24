@@ -10,7 +10,7 @@ import { PriorityField } from "@/components/shared/PriorityBadge"
 import { useStatusDefs } from "@/components/shared/status-defs"
 import { displayStatus } from "@/lib/statuses"
 import { sizeOf, taskKey } from "@/lib/board-views"
-import { ownerLabel } from "@/lib/owner"
+import { useOwnerLabel } from "@/components/shared/owner-label"
 import type { Task } from "@/types"
 import { useT } from "@/context/LanguageContext"
 
@@ -37,6 +37,7 @@ export function TaskStatusField({ task, chip = false }: { task: Task; chip?: boo
 export function TaskOwnerField({ task, children }: { task: Task; children?: ReactNode }) {
   const { updateTaskFields, board } = useApp()
   const { t } = useT()
+  const ownerLabel = useOwnerLabel()
   // Human, every agent that owns something here (claude always offered), and no owner
   const agents = [...new Set(["ai:claude", ...Object.values(board ?? {}).flat().map((t) => t.owner).filter((o): o is string => !!o?.startsWith("ai:"))])].sort()
   const options: InlineOption[] = [

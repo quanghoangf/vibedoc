@@ -12,7 +12,7 @@ import assert from "node:assert/strict"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { launchChrome, stubChat } from "./stub-chat.mjs"
+import { launchChrome, pageSettled, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3000"
 const made = []
@@ -71,14 +71,15 @@ try {
     await page.getByText("No agent has connected yet.").waitFor()
     await page.getByRole("link", { name: "Write project docs" }).click()
     await page.waitForURL(/\/setup\b/)
-    await page.getByRole("heading", { name: "Setup Wizard" }).waitFor()
+    await page.getByRole("heading", { name: "Write project docs" }).waitFor()
     console.log("ok  S4 Write project docs → template wizard; agent row says not connected")
     await ctx.close()
   }
   {
     const { ctx, page } = await open(connected)
     await page.waitForURL(/\/start\b/)
-    await page.getByText("Agent connected", { exact: true }).waitFor()
+    // the welcome's own line (main); the header chip and the First week row say it too
+    await page.locator("main#main").getByText("Agent connected", { exact: true }).waitFor()
     console.log("ok  agent row says connected after an ai event")
     await ctx.close()
   }
@@ -93,7 +94,7 @@ try {
     assert.equal(await page.getByText(/no roadmap yet/i).count(), 0)
     console.log("ok  /start on a set-up project → board")
     await page.goto(`${BASE}/roadmap?root=${encodeURIComponent(setUp)}`)
-    await page.locator("main#main").waitFor()
+    await pageSettled(page) // the shell (main) paints before the project loads; the last-page cookie needs the project
     await page.goto(`${BASE}/?root=${encodeURIComponent(setUp)}`)
     await page.waitForURL(/\/roadmap\b/)
     console.log("ok  S3 set-up project reopens the last page used (/roadmap)")

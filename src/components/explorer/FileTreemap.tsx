@@ -1,7 +1,7 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useMemo } from "react"
+import { useMemo, useSyncExternalStore } from "react"
 import type { ExplorerFile } from "@/types"
 import { useT } from "@/context/LanguageContext"
 
@@ -21,15 +21,36 @@ interface FileTreemapProps {
   onSelect: (path: string) => void
 }
 
-function freshnessColor(mtime: string): string {
-  const age = Date.now() - new Date(mtime).getTime()
-  const days = age / (1000 * 60 * 60 * 24)
-  if (days <= 7) return "#059669"   // emerald-600 — recent (readable on dark)
-  if (days <= 28) return "#b45309"  // amber-700 — mid
-  return "#334155"                  // slate-700 — old
+// The canvas can't read CSS vars, so the design tokens are read off the root as computed now (follows .dark and the
+// accent setting) and re-read when either changes
+const TOKENS = ["bg", "surface", "surface2", "border", "border2", "txt", "muted", "accent", "teal", "amber"] as const
+type Token = (typeof TOKENS)[number]
+type Paint = (k: Token, alpha?: number) => string
+
+function subscribeTheme(cb: () => void) {
+  const mo = new MutationObserver(cb)
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-accent", "style"] })
+  return () => mo.disconnect()
+}
+const readTokens = () => {
+  const css = getComputedStyle(document.documentElement)
+  return TOKENS.map((k) => css.getPropertyValue(`--rgb-${k}`).trim()).join("|")
 }
 
-function buildTreemapData(files: ExplorerFile[]): TreemapNode[] {
+function painter(snapshot: string): Paint {
+  const rgb = new Map(TOKENS.map((k, i) => [k, (snapshot.split("|")[i] || "128 128 128").split(/\s+/).join(", ")]))
+  return (k, alpha = 1) => `rgba(${rgb.get(k)}, ${alpha})`
+}
+
+/** Freshness on the status inks: teal this week, amber this month, a plain surface after that. */
+function freshnessColor(mtime: string, paint: Paint): string {
+  const days = (Date.now() - new Date(mtime).getTime()) / (1000 * 60 * 60 * 24)
+  if (days <= 7) return paint("teal", 0.45)
+  if (days <= 28) return paint("amber", 0.4)
+  return paint("surface2")
+}
+
+function buildTreemapData(files: ExplorerFile[], paint: Paint): TreemapNode[] {
   const root: TreemapNode[] = []
   const folderMap = new Map<string, TreemapNode>()
 
@@ -48,7 +69,7 @@ function buildTreemapData(files: ExplorerFile[]): TreemapNode[] {
       name: fileName,
       value: 1,
       path: file.path,
-      itemStyle: { color: freshnessColor(file.mtime) },
+      itemStyle: { color: freshnessColor(file.mtime, paint) },
     }
 
     if (parts.length === 1) {
@@ -97,22 +118,25 @@ function buildTreemapData(files: ExplorerFile[]): TreemapNode[] {
 
 export function FileTreemap({ files, onSelect }: FileTreemapProps) {
   const { t } = useT()
-  const treeData = useMemo(() => buildTreemapData(files), [files])
+  const theme = useSyncExternalStore(subscribeTheme, readTokens, () => "")
+  const paint = useMemo(() => painter(theme), [theme])
+  const treeData = useMemo(() => buildTreemapData(files, paint), [files, paint])
 
   const option = useMemo(
     () => ({
       backgroundColor: "transparent",
       tooltip: {
-        backgroundColor: "#1e293b",
-        borderColor: "#334155",
+        backgroundColor: paint("surface"),
+        borderColor: paint("border2"),
         borderWidth: 1,
         padding: [6, 10],
-        textStyle: { color: "#f1f5f9", fontSize: 12 },
+        textStyle: { color: paint("txt"), fontSize: 12 },
         formatter: (info: { name: string; data: TreemapNode }) => {
           const { name, data } = info
+          const esc = (x: string) => x.replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`)
           return data.path
-            ? `<span style="color:#94a3b8;font-size:11px">${data.path}</span>`
-            : `<span style="font-weight:600">${name}/</span>`
+            ? `<span style="color:${paint("muted")};font-size:11px;font-family:var(--font-mono)">${esc(data.path)}</span>`
+            : `<span style="font-weight:600">${esc(name)}/</span>`
         },
       },
       series: [
@@ -134,23 +158,21 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
             height: 26,
             gap: 6,
             itemStyle: {
-              color: "#1e293b",
-              borderColor: "#334155",
+              color: paint("surface"),
+              borderColor: paint("border"),
               borderWidth: 1,
               shadowBlur: 0,
-              textStyle: { color: "#94a3b8", fontSize: 11, fontFamily: "inherit" },
+              textStyle: { color: paint("muted"), fontSize: 11, fontFamily: "inherit" },
             },
             emptyItemWidth: 20,
           },
-          // labels on leaf nodes
+          // labels on leaf nodes: text colour on a tinted tile, no glow
           label: {
             show: true,
             formatter: "{b}",
             fontSize: 12,
             fontWeight: 500,
-            color: "#f1f5f9",
-            textShadowBlur: 3,
-            textShadowColor: "rgba(0,0,0,0.8)",
+            color: paint("txt"),
             overflow: "truncate",
             padding: [4, 6],
           },
@@ -159,29 +181,29 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
             show: true,
             height: 24,
             fontSize: 12,
-            fontWeight: 700,
-            color: "#f8fafc",
-            backgroundColor: "rgba(15,23,42,0.85)",
+            fontWeight: 600,
+            color: paint("txt"),
+            backgroundColor: paint("surface"),
             borderRadius: [4, 4, 0, 0],
             padding: [4, 8],
             textShadowBlur: 0,
           },
           itemStyle: {
-            borderColor: "#0f172a",
+            borderColor: paint("bg"),
             borderWidth: 1,
             gapWidth: 1,
           },
           emphasis: {
-            label: { color: "#ffffff", fontWeight: 700 },
-            upperLabel: { color: "#ffffff", backgroundColor: "rgba(99,102,241,0.9)" },
-            itemStyle: { borderColor: "#6366f1", borderWidth: 2 },
+            label: { color: paint("txt"), fontWeight: 600 },
+            upperLabel: { color: paint("txt"), backgroundColor: paint("surface2") },
+            itemStyle: { borderColor: paint("accent"), borderWidth: 2 },
           },
           levels: [
             {
-              // top-level folders — large colored blocks
-              color: ["#1e3a5f", "#1a3a2e", "#3b2a1a", "#2d1b4e", "#1a2e3b", "#3b1a1a"],
+              // top-level folders: flat surfaces; colour belongs to the files' freshness
+              color: [paint("surface")],
               itemStyle: {
-                borderColor: "#0f172a",
+                borderColor: paint("bg"),
                 borderWidth: 3,
                 gapWidth: 4,
               },
@@ -189,15 +211,15 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
                 show: true,
                 height: 28,
                 fontSize: 13,
-                fontWeight: 700,
-                color: "#f8fafc",
-                backgroundColor: "rgba(15,23,42,0.9)",
+                fontWeight: 600,
+                color: paint("txt"),
+                backgroundColor: paint("surface"),
               },
             },
             {
               // sub-folders
               itemStyle: {
-                borderColor: "#0f172a",
+                borderColor: paint("border"),
                 borderWidth: 2,
                 gapWidth: 2,
               },
@@ -206,7 +228,7 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
             {
               // leaf files — color comes from itemStyle.color set per-node (freshness)
               itemStyle: {
-                borderColor: "rgba(15,23,42,0.6)",
+                borderColor: paint("bg"),
                 borderWidth: 1,
                 gapWidth: 1,
               },
@@ -215,7 +237,7 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
         },
       ],
     }),
-    [treeData]
+    [treeData, paint]
   )
 
   function handleClick(params: { data?: TreemapNode }) {

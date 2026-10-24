@@ -19,9 +19,9 @@ const all = firstWeek(Object.fromEntries(FIRST_WEEK_STEPS.map((id) => [id, true]
 assert.equal(all.done, 6)
 assert.equal(all.next, null)
 
-// stepAction: real ids and this server's MCP URL
-const ctx = { origin: "http://localhost:3084", epicToBreakDown: "R002", epicToWork: "R005" }
-assert.deepEqual(stepAction("agent", ctx), { href: "/settings", command: "claude mcp add --scope user --transport http vibedoc http://localhost:3084/api/mcp --header 'X-VibeDoc-Root: ${PWD}'" })
+// stepAction: real ids; the agent step is one link to Settings → Connect agent, never the CLI line
+const ctx = { epicToBreakDown: "R002", epicToWork: "R005" }
+assert.deepEqual(stepAction("agent", ctx), { href: "/settings?tab=connect" })
 assert.equal(stepAction("breakdown", ctx).command, "/vibedoc:breakdown R002")
 assert.equal(stepAction("taskDone", ctx).command, "/vibedoc:work R005")
 assert.equal(stepAction("breakdown", { ...ctx, epicToBreakDown: null }).command, "/vibedoc:breakdown")

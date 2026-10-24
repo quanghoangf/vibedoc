@@ -234,6 +234,7 @@ function EpicSection({
               <button
                 type="button"
                 onClick={() => onOpenTask(task)}
+                data-list-item
                 style={{ paddingLeft: 16 + depth * 26 }}
                 className={cn(
                   "relative flex h-[38px] min-w-0 flex-1 items-center gap-2.5 rounded-md pr-3 text-left transition-colors duration-(--duration-fast) ease-out-soft hover:bg-surface2",

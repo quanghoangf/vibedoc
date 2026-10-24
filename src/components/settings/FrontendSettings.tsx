@@ -185,7 +185,7 @@ function OverrideForm({ app, override, onSave }: {
       </label>
       {dirChanged && <p className="text-xs text-muted">{t("settings.switchHint")}</p>}
       <div className="flex items-center gap-2">
-        <button type="submit" disabled={!changed || busy} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">{t("settings.save")}</button>
+        <button type="submit" disabled={!changed || busy} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">{t("settings.save")}</button>
         {override && (
           <button type="button" disabled={busy} onClick={() => run(null)} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">{t("settings.resetDetected")}</button>
         )}
@@ -207,7 +207,7 @@ function PlaywrightRow({ app, status, rootParam }: { app: FrontendApp; status: P
   const pill = status.installed
     ? status.browsersInstalled === false
       ? { label: t("settings.chromiumMissing", { label: installed }), cls: "border-amber/40 bg-amber/10 text-amber" }
-      : { label: installed, cls: "border-green-400/40 bg-green-400/10 text-green-400" }
+      : { label: installed, cls: "border-teal/30 bg-teal/5 text-teal" }
     : { label: t("settings.notInstalled"), cls: "border-border bg-surface2 text-muted" }
 
   useEffect(() => { logRef.current?.scrollTo(0, logRef.current.scrollHeight) }, [install?.output])
@@ -275,7 +275,7 @@ function PlaywrightRow({ app, status, rootParam }: { app: FrontendApp; status: P
       )}
       {install && install.output && (
         <div className="space-y-1">
-          {install.failed && <p className="text-xs text-red-400" role="alert">{t("settings.installFailed")}</p>}
+          {install.failed && <p className="text-xs text-danger" role="alert">{t("settings.installFailed")}</p>}
           <pre ref={logRef} data-user-content className="max-h-48 overflow-auto rounded-md border border-border bg-bg p-2 font-mono text-[11px] leading-snug text-muted" data-testid="playwright-install-log">{install.output}</pre>
         </div>
       )}
@@ -286,7 +286,7 @@ function PlaywrightRow({ app, status, rootParam }: { app: FrontendApp; status: P
 type ServerStatus = { state: "stopped" | "starting" | "running"; startedByUs: boolean; reused?: boolean; error?: string; output?: string }
 
 const SERVER_PILL: Record<ServerStatus["state"], { label: "settings.running" | "settings.starting" | "settings.stopped"; cls: string }> = {
-  running: { label: "settings.running", cls: "border-green-400/40 bg-green-400/10 text-green-400" },
+  running: { label: "settings.running", cls: "border-teal/30 bg-teal/5 text-teal" },
   starting: { label: "settings.starting", cls: "border-amber/40 bg-amber/10 text-amber" },
   stopped: { label: "settings.stopped", cls: "border-border bg-surface2 text-muted" },
 }
@@ -351,7 +351,7 @@ function ServerRow({ url, rootParam }: { url: string; rootParam: string }) {
       {note && <p className="text-xs text-muted">{note} <code className="font-mono" data-user-content>{url}</code></p>}
       {status?.error && (
         <div className="space-y-1">
-          <p className="text-xs text-red-400" role="alert" data-user-content>{status.error}</p>
+          <p className="text-xs text-danger" role="alert" data-user-content>{status.error}</p>
           {status.output && <pre data-user-content className="max-h-48 overflow-auto rounded-md border border-border bg-bg p-2 font-mono text-[11px] leading-snug text-muted" data-testid="server-output">{status.output}</pre>}
         </div>
       )}
@@ -398,7 +398,7 @@ function LoginRow({ data, rootParam, onChange }: { data: FrontendData; rootParam
           {auth.saved && (
             <button type="button" onClick={() => call("DELETE")} disabled={busy !== null || login.running} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">{t("settings.clearSession")}</button>
           )}
-          <button type="button" onClick={() => call("POST")} disabled={!!blocked || busy !== null || login.running} title={blocked ?? undefined} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">
+          <button type="button" onClick={() => call("POST")} disabled={!!blocked || busy !== null || login.running} title={blocked ?? undefined} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">
             {busy === "open" ? t("settings.opening") : t("settings.logIn")}
           </button>
         </div>
@@ -446,11 +446,11 @@ function SmokeRow({ playwright, rootParam }: { playwright: PlaywrightStatus | nu
         <span className="text-sm text-muted">{t("settings.smokeTest")}</span>
         <div className="flex items-center gap-2">
           {result && !running && (
-            <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${result.ok ? "border-green-400/40 bg-green-400/10 text-green-400" : "border-red-400/40 bg-red-400/10 text-red-400"}`} data-testid="smoke-pill">
+            <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${result.ok ? "border-teal/30 bg-teal/5 text-teal" : "border-danger/30 bg-danger/5 text-danger"}`} data-testid="smoke-pill">
               {result.ok ? t("settings.passed") : t("settings.failed")}
             </span>
           )}
-          <button type="button" onClick={run} disabled={!!blocked || running} title={blocked ?? undefined} className="inline-flex h-8 items-center rounded-md bg-accent px-3 text-xs font-medium text-accent-fg hover:bg-accent/90 disabled:opacity-40">
+          <button type="button" onClick={run} disabled={!!blocked || running} title={blocked ?? undefined} className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs text-txt hover:bg-surface2 disabled:opacity-40">
             {running ? t("settings.runningEllipsis") : t("settings.runSmoke")}
           </button>
         </div>
@@ -461,7 +461,7 @@ function SmokeRow({ playwright, rootParam }: { playwright: PlaywrightStatus | nu
       {blocked && <p className="text-xs text-muted">{blocked}</p>}
       {result && !running && (
         <div className="space-y-2" data-testid="smoke-result">
-          {result.error && <p className="whitespace-pre-wrap text-xs text-red-400" role="alert" data-user-content>{result.error}</p>}
+          {result.error && <p className="whitespace-pre-wrap text-xs text-danger" role="alert" data-user-content>{result.error}</p>}
           {result.finalUrl && (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
               <dt className="text-muted">{t("settings.finalUrl")}</dt>

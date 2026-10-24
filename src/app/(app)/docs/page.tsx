@@ -44,6 +44,9 @@ export default function DocsPage() {
   const [pathDialog, setPathDialog] = useState<{ mode: "rename" | "move"; path: string } | null>(null)
 
   useEffect(() => { openedRef.current = [] }, [rootParam])
+  // titles from the last full list, so search results show the same names as the tree
+  const titlesRef = useRef(new Map<string, string>())
+  useEffect(() => { for (const d of docs) if (d.title) titlesRef.current.set(d.path, d.title) }, [docs])
 
   const fetchDocs = useCallback(() => {
     if (!activeProject) return
@@ -125,6 +128,7 @@ export default function DocsPage() {
         path: r.file,
         section: "search",
         name: r.file.split("/").pop()?.replace(/\.md$/, "") ?? r.file,
+        title: titlesRef.current.get(r.file) ?? null,
       })) || [],
     )
   }, [rootParam, fetchDocs])

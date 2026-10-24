@@ -92,45 +92,55 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header row 1 */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
+      {/* Header row 1: wraps on phones, so the search keeps its width */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 border-b border-border shrink-0">
         <span className="font-display font-semibold text-txt text-sm shrink-0">{t("shell.explorer")}</span>
         <Input
           id="explorer-search"
+          type="search"
           placeholder={t("docs.searchFiles")}
+          aria-label={t("docs.searchFiles")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 h-7 text-xs"
+          className="h-7 min-w-48 flex-1 basis-48 text-xs"
         />
-        <div className="flex items-center gap-1 shrink-0">
-          {VIEWS.map(({ id, Icon, label }) => (
-            <Button
-              key={id}
-              variant={view === id ? "secondary" : "ghost"}
-              size="sm"
-              className="h-7 px-2 text-xs gap-1"
-              onClick={() => setView(id)}
-            >
-              <Icon className="w-3 h-3" />
-              {t(label)}
-            </Button>
-          ))}
+        <div className="flex flex-wrap items-center gap-1 max-md:w-full">
+          <div role="group" aria-label={t("docs.view")} className="flex items-center rounded-md border border-border p-0.5">
+            {VIEWS.map(({ id, Icon, label }) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={view === id}
+                onClick={() => setView(id)}
+                className={cn(
+                  "inline-flex h-6 items-center gap-1 rounded-sm px-2 text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-accent",
+                  view === id ? "bg-surface2 text-txt" : "text-muted hover:text-txt",
+                )}
+              >
+                <Icon className="size-3" aria-hidden />
+                {t(label)}
+              </button>
+            ))}
+          </div>
           <select
+            aria-label={t("docs.sortBy")}
             value={sort}
             onChange={e => setSort(e.target.value as SortMode)}
-            className="h-7 px-2 text-xs bg-surface2 border border-border rounded-sm text-txt focus:outline-hidden focus:border-accent ml-1"
+            className="h-7 min-w-0 rounded-md border border-border bg-bg px-2 text-xs text-txt hover:border-border2 focus-visible:outline-2 focus-visible:outline-accent"
           >
             <option value="name">{t("docs.sortName")}</option>
             <option value="mtime">{t("docs.sortModified")}</option>
             <option value="updated">{t("docs.sortDescribed")}</option>
           </select>
           <button
+            type="button"
+            aria-pressed={missingOnly}
             onClick={() => setMissingOnly(v => !v)}
             className={cn(
-              "h-7 px-2 rounded-sm text-xs transition-colors border ml-1",
+              "h-7 px-2 rounded-md text-xs transition-colors border outline-none focus-visible:ring-2 focus-visible:ring-accent",
               missingOnly
-                ? "bg-amber/20 text-amber border-amber/40"
-                : "bg-surface2 text-muted border-border hover:text-txt"
+                ? "border-border2 bg-surface2 text-txt"
+                : "border-border text-muted hover:border-border2 hover:text-txt"
             )}
           >
             {t("docs.noDesc")}
@@ -174,12 +184,13 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
           />
         </div>
       ) : view === "treemap" ? (
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 overflow-hidden">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-hidden">
             <FileTreemap files={filteredFiles} onSelect={setSelectedPath} />
           </div>
           {selectedPath && selectedFile && (
-            <div className="w-80 border-l border-border shrink-0">
+            // phones: a section stacked under the map; md+: a side panel
+            <div className="flex shrink-0 overflow-auto border-border max-md:max-h-[45svh] max-md:border-t md:w-80 md:border-l">
               <FileDetail
                 file={selectedFile}
                 root={root}
@@ -190,8 +201,9 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
           )}
         </div>
       ) : (
-        <div className="flex-1 flex overflow-hidden">
-          <div className="w-72 border-r border-border flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          {/* phones: one column, the list over the selected file */}
+          <div className={cn("flex flex-col overflow-hidden border-border md:w-72 md:border-r", selectedFile ? "max-md:max-h-[45svh] max-md:border-b" : "max-md:flex-1")}>
             {filteredFiles.length === 0 ? (
               <div className="flex-1 flex items-center justify-center text-muted text-sm">
                 {t("docs.noFilesMatch")}
@@ -205,12 +217,14 @@ export function ExplorerTab({ files, loading, view, root, onEnriched, onOpenDoc 
               />
             )}
           </div>
-          <FileDetail
-            file={selectedFile}
-            root={root}
-            onEnriched={onEnriched}
-            onOpenDoc={onOpenDoc}
-          />
+          <div className={cn("flex min-h-0 flex-1 overflow-auto", !selectedFile && "max-md:hidden")}>
+            <FileDetail
+              file={selectedFile}
+              root={root}
+              onEnriched={onEnriched}
+              onOpenDoc={onOpenDoc}
+            />
+          </div>
         </div>
       )}
     </div>

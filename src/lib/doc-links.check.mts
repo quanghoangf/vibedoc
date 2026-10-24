@@ -1,6 +1,6 @@
 // Self-check for doc-links. Run: node src/lib/doc-links.check.mts
 import assert from 'node:assert/strict'
-import { buildDocGraph, docLinks, docNode, extractLinks, graphHref, formatRelatedFiles, isExampleTarget, mergeLinkRows, resolveLink, touchedPaths, type DocItem } from './doc-links.ts'
+import { buildDocGraph, docLinks, docNode, docTitle, extractLinks, graphHref, formatRelatedFiles, isExampleTarget, mergeLinkRows, resolveLink, touchedPaths, type DocItem } from './doc-links.ts'
 
 // extractLinks: every kind, line numbers, link text
 const raw = [
@@ -263,4 +263,9 @@ assert.equal(graphHref('plans/tasks/T001-x.md'), '/graph?node=plans%2Ftasks%2FT0
   assert.deepEqual(mergeLinkRows([], []), [])
 }
 
+// docTitle: frontmatter title, else the first H1 outside fences (plain text), else null; never a title-cased slug
+assert.equal(docTitle('---\ntitle: "API reference"\npriority: P1\n---\n# Something else\n'), 'API reference')
+assert.equal(docTitle('---\npriority: P1\n# not a heading\n---\n\n# MCP server\n'), 'MCP server', 'a # line inside frontmatter is not the H1')
+assert.equal(docTitle('```md\n# In a fence\n```\n\n# R010: 21 [MCP](x.md) `tools`\n'), 'R010: 21 MCP tools')
+assert.equal(docTitle('No heading here.\n## Only H2\n'), null)
 console.log('doc-links: ok')

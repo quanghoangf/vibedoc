@@ -3,11 +3,12 @@
 import { useState } from "react"
 import Link from "next/link"
 import { Ban, Eye, ListChecks, MessagesSquare, XCircle, type LucideIcon } from "lucide-react"
-import type { InboxItem, InboxKind } from "@/lib/inbox"
+import { approveRisk, type InboxItem, type InboxKind } from "@/lib/inbox"
 import type { MessageKey } from "@/i18n"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useApproveLabel } from "@/components/shared/approve-label"
 
 export const KIND_LABEL: Record<InboxKind, MessageKey> = {
   review: "inbox.kindReview",
@@ -51,12 +52,6 @@ function useEvidenceText(item: InboxItem): string | null {
   ].filter(Boolean).join(" · ")
 }
 
-/** Unproven checks or a failed run left: Approve is then the quiet button, not the primary one. */
-export function approveIsRisky(item: InboxItem): boolean {
-  const e = item.evidence
-  return !!e && (e.run === "failed" || (!!e.checks && e.checks.proven < e.checks.total))
-}
-
 /** One waiting item: kind, title, evidence, project chip and age; the row opens it in its project, review rows decide inline. */
 export function InboxRow({ item, focused = false, onFocus, onApprove, onSendBack, noteOpen = false, onNoteOpen }: InboxRowProps) {
   const { t } = useT()
@@ -68,6 +63,10 @@ export function InboxRow({ item, focused = false, onFocus, onApprove, onSendBack
   const evidence = useEvidenceText(item)
   const e = item.evidence
   const close = () => { setNote(""); onNoteOpen?.(false) }
+  // One Approve rule (approveRisk, shared with Test review and the task panel): unproven → outline, and the label says what's missing
+  const risk = approveRisk(e)
+  const approveLabel = useApproveLabel()(risk)
+  const named = (action: string) => t("inbox.actionOnTask", { action, id: item.id, title: item.title })
 
   return (
     <li data-inbox-row={`${item.project.id}/${item.id}`} data-focused={focused || undefined} onFocus={onFocus} className={cn("-mx-2 rounded-md px-2 py-2.5", focused && "bg-surface2/60")}>
@@ -95,8 +94,8 @@ export function InboxRow({ item, focused = false, onFocus, onApprove, onSendBack
         </Link>
         {review && !noteOpen && (
           <div className="flex shrink-0 gap-2 pl-7 sm:pl-0">
-            <Button size="sm" variant={approveIsRisky(item) ? "outline" : "default"} onClick={onApprove} data-inbox-action="approve" aria-keyshortcuts={focused ? "a" : undefined}>{t("inbox.approve")}</Button>
-            <Button size="sm" variant="outline" onClick={() => onNoteOpen?.(true)} data-inbox-action="send-back" aria-keyshortcuts={focused ? "s" : undefined}>{t("inbox.sendBack")}</Button>
+            <Button size="sm" variant={risk ? "outline" : "default"} onClick={onApprove} data-inbox-action="approve" aria-label={named(approveLabel)} aria-keyshortcuts={focused ? "a" : undefined}>{approveLabel}</Button>
+            <Button size="sm" variant="outline" onClick={() => onNoteOpen?.(true)} data-inbox-action="send-back" aria-label={named(t("inbox.sendBack"))} aria-keyshortcuts={focused ? "s" : undefined}>{t("inbox.sendBack")}</Button>
           </div>
         )}
       </div>

@@ -17,6 +17,7 @@ import { isRunning } from "@/lib/test-run-events"
 import type { ManualTestItem, ManualTests } from "@/lib/manual-tests"
 import { sendBackNote, stepParts, type ReviewRow } from "@/lib/test-review"
 import { REVIEWABLE } from "@/lib/review"
+import { approveRisk, taskEvidence } from "@/lib/inbox"
 import { TEST_REVIEW_KEYS } from "@/lib/shortcuts"
 import type { Task } from "@/types"
 import { useT } from "@/context/LanguageContext"
@@ -198,7 +199,7 @@ export function TestDetail({ task, tests, row, checkedOf, onToggle, onBack, onDe
             run={run}
             onRun={onRun}
             onReplay={() => onView("review")}
-            review={reviewHere ? { initialNote: failedNote, onDecided } : undefined}
+            review={reviewHere ? { initialNote: failedNote, onDecided, risk: approveRisk(taskEvidence(task)) } : undefined}
           />
         </section>
       ) : <>
@@ -293,6 +294,7 @@ function Decision({ task, row, onDecided }: { task: Task; row: ReviewRow; onDeci
       taskId={task.id}
       onDone={onDecided}
       canApprove={task.status === "review"}
+      risk={approveRisk(taskEvidence(task))}
       initialNote={step ? sendBackNote(step) : ""}
       prompt={prompt}
       className={bar}

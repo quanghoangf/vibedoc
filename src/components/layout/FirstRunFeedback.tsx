@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { usePathname } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
@@ -75,11 +76,12 @@ export function StuckLink({ info, className }: { info?: Pick<FeedbackStatus, "ve
 /**
  * First-run feedback (R086): asks once per project (a non-modal card, never a dialog, so page keys keep working),
  * then, only when the answer is yes, sends each reached step once from this browser. The server says which steps
- * are pending; nothing here decides consent. R082's welcome screen can host this same component later.
+ * are pending; nothing here decides consent. The card waits for the agent to connect and never shows on /start.
  */
 export function FirstRunFeedback() {
   const { t } = useT()
   const { rootParam } = useApp()
+  const pathname = usePathname()
   const [status, setStatus] = useState<FeedbackStatus | null>(null)
   const sending = useRef(false)
   // A stale GET can still list a step this tab just sent: never send one twice from here
@@ -120,16 +122,17 @@ export function FirstRunFeedback() {
     load()
   }, [load])
 
-  // Only an opted-in project can have a step to send: the others listen for a changed answer alone
-  const optedIn = status?.consent === true
+  // An opted-in project can have a step to send; an unasked one waits for its first step to show the card.
+  // A declined project listens for a changed answer alone.
+  const listen = status?.consent === true || status?.consent === null
   useEffect(() => {
     const onSse = (e: Event) => {
       const type = (e as CustomEvent<{ type?: string }>).detail?.type
-      if (type === "feedback_updated" || (optedIn && type && STEP_EVENTS.includes(type))) load()
+      if (type === "feedback_updated" || (listen && type && STEP_EVENTS.includes(type))) load()
     }
     window.addEventListener("vibedoc:sse", onSse)
     return () => window.removeEventListener("vibedoc:sse", onSse)
-  }, [load, optedIn])
+  }, [load, listen])
 
   const answer = async (consent: boolean) => {
     setStatus((s) => (s ? { ...s, consent } : s))
@@ -145,7 +148,9 @@ export function FirstRunFeedback() {
     }
   }
 
-  if (!status?.available || status.consent !== null) return null
+  // Deferred, not removed: never on the first-run welcome (it has one job), and only once the agent has connected
+  // (the first step after `started`), so the very first screen asks one thing.
+  if (!status?.available || status.consent !== null || status.lastStep === "started" || pathname.startsWith("/start")) return null
   return (
     <section
       role="region"
@@ -164,7 +169,7 @@ export function FirstRunFeedback() {
         <button type="button" onClick={() => answer(false)} className="rounded-md border border-border px-3 py-1.5 text-xs text-txt hover:bg-surface">
           {t("feedback.no")}
         </button>
-        <button type="button" onClick={() => answer(true)} className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
+        <button type="button" onClick={() => answer(true)} className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90">
           {t("feedback.yes")}
         </button>
       </div>

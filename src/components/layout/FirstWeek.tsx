@@ -16,7 +16,6 @@ import { cn } from "@/lib/utils"
 import { stepAction, type FirstWeekStepId } from "@/lib/first-week"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
-import { useOrigin } from "@/hooks/use-origin"
 import { toast, undoToast } from "@/components/ui/toast"
 
 const focusRing = "outline-none focus-visible:ring-2 focus-visible:ring-accent"
@@ -29,7 +28,6 @@ export function FirstWeek() {
   const [hidden, setHidden] = useState(false)
   // Finished while on screen → "All done" until closed; a checklist that loads finished never shows
   const [sawOpen, setSawOpen] = useState(false)
-  const origin = useOrigin()
   // The open step: the one the user clicked ("none" = they closed it), else the next unticked one (S2).
   // A pick lasts until the next step changes, so a new tick always opens the step after it.
   const [pick, setPick] = useState<{ id: FirstWeekStepId | "none"; next: FirstWeekStepId | null } | null>(null)
@@ -74,7 +72,8 @@ export function FirstWeek() {
 
   return (
     <SidebarGroup role="group" aria-label={t("firstWeek.title")} data-testid="first-week">
-      <SidebarGroupLabel>
+      {/* pr-7 keeps the count clear of the dismiss ✕ (SidebarGroupAction is absolute at the right edge) */}
+      <SidebarGroupLabel className="pr-7">
         {t("firstWeek.title")}
         <span aria-hidden className="ml-auto font-mono tabular-nums">{count}</span>
         <span className="sr-only">{countLabel}</span>
@@ -104,7 +103,7 @@ export function FirstWeek() {
           )}
           {fw.steps.map((s) => {
             const expanded = !s.done && open === s.id
-            const action = stepAction(s.id, { origin, epicToBreakDown: fw.epicToBreakDown, epicToWork: fw.epicToWork })
+            const action = stepAction(s.id, { epicToBreakDown: fw.epicToBreakDown, epicToWork: fw.epicToWork })
             return (
               <SidebarMenuItem key={s.id} className="group-data-[collapsible=icon]:hidden" data-step={s.id} data-done={s.done || undefined}>
                 <button
@@ -139,7 +138,7 @@ export function FirstWeek() {
                     )}
                     {action.href && (
                       <Link href={action.href} className={cn("inline-block rounded-sm text-accent hover:underline", focusRing)}>
-                        {t("firstWeek.open")} <span className="font-mono">{action.href}</span>
+                        {s.id === "agent" ? t("firstWeek.agentLink") : <>{t("firstWeek.open")} <span className="font-mono">{action.href}</span></>}
                       </Link>
                     )}
                   </div>

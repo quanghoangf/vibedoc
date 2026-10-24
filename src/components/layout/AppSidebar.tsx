@@ -74,7 +74,8 @@ function PageRowWithChildren({ page, kids, label, children }: { page: SidebarPag
     <>
       <span aria-hidden className="absolute right-1 top-1 hidden size-1.5 rounded-full bg-amber group-data-[collapsible=icon]:block" data-needs-action-dot />
       {!open && <span aria-hidden className="ml-auto size-1.5 shrink-0 rounded-full bg-amber group-data-[collapsible=icon]:hidden" data-needs-action-mark />}
-      <span className="sr-only">{t("shell.pageNeedsAction")}</span>
+      {/* ", " keeps the link's name "Board, needs your action", not "Boardneeds your action" */}
+      <span className="sr-only">, {t("shell.pageNeedsAction")}</span>
     </>
   )
   return (
@@ -99,7 +100,7 @@ function InboxRow({ active }: { active: boolean }) {
           <Inbox />
           <span>{t("inbox.title")}</span>
           {n > 0 && (
-            <span data-sidebar-inbox-count className="ml-auto font-mono text-[11px] tabular-nums text-txt">{n}<span className="sr-only"> {tn("inbox.badge", n)}</span></span>
+            <span data-sidebar-inbox-count className="ml-auto font-mono text-[11px] tabular-nums text-txt"><span aria-hidden>{n}</span><span className="sr-only">, {tn("inbox.badge", n)}</span></span>
           )}
           {n > 0 && <span aria-hidden className="absolute right-1 top-1 hidden size-1.5 rounded-full bg-amber group-data-[collapsible=icon]:block" />}
           <kbd aria-hidden className={cn(kbdClass, n === 0 && "ml-auto", "hidden group-hover/menu-item:inline group-focus-within/menu-item:inline")}>{inboxKey}</kbd>
@@ -145,8 +146,6 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         {!demo && <SidebarChats />}
-        {/* Keyed by project: its hide / seen-open state belongs to one project */}
-        <FirstWeek key={activeProject ?? ""} />
         <nav aria-label={t("shell.mainNav")}>
         {NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.label}>
@@ -180,6 +179,9 @@ export function AppSidebar() {
           </SidebarGroup>
         ))}
         </nav>
+        {/* After the nav, so on an empty project the page rows never get pushed under the fold; it scrolls with the fade below.
+            Keyed by project: its hide / seen-open state belongs to one project */}
+        <FirstWeek key={activeProject ?? ""} />
         {/* Below-the-fold cue: a fade on the bottom edge while rows are hidden under it */}
         <div ref={end} aria-hidden className="h-px shrink-0" />
         <div aria-hidden data-sidebar-fade={more || undefined} className={cn("pointer-events-none sticky bottom-0 -mt-8 h-8 shrink-0 bg-gradient-to-t from-sidebar to-transparent transition-opacity duration-150 group-data-[collapsible=icon]:hidden", more ? "opacity-100" : "opacity-0")} />

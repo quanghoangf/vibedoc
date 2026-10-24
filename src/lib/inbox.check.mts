@@ -1,6 +1,6 @@
 // Self-check for the cross-project inbox. Run: node src/lib/inbox.check.mts
 import assert from 'node:assert/strict'
-import { buildInbox, needsYouCount, sortInbox, taskKind, type InboxChatInput, type InboxTaskInput } from './inbox.ts'
+import { approveRisk, buildInbox, needsYouCount, taskEvidence, sortInbox, taskKind, type InboxChatInput, type InboxTaskInput } from './inbox.ts'
 
 const T = (min: number) => new Date(Date.UTC(2026, 9, 16, 9, min)).toISOString()
 const task = (id: string, o: Partial<InboxTaskInput> = {}): InboxTaskInput =>
@@ -88,5 +88,15 @@ const workers = buildInbox([{ project: a, tasks: [], chats: [
 ] }])
 assert.deepEqual(workers.map((i) => i.title), ['Worker · vibedoc/R109', 'Worker · vibedoc/R108 · T558'])
 assert.equal(workers[1].href, '/chat?id=c-w1&project=alpha')
+
+// One Approve rule: unproven checks or a failed run make it risky, and the label can say which
+assert.equal(approveRisk(null), null)
+assert.equal(approveRisk({ checks: { proven: 8, total: 8 }, run: 'passed' }), null)
+assert.equal(approveRisk({ checks: null, run: 'none' }), null)
+assert.deepEqual(approveRisk({ checks: { proven: 0, total: 8 }, run: 'none' }), { unchecked: 8, failedRun: false })
+assert.deepEqual(approveRisk({ checks: null, run: 'failed' }), { unchecked: 0, failedRun: true })
+const taskEv = taskEvidence({ manualTests: { total: 5, untested: 2, autoRun: { result: 'passed' } }, lastRun: { status: 'failed' } })
+assert.deepEqual(taskEv, { checks: { proven: 3, total: 5 }, run: 'failed' })
+assert.deepEqual(taskEvidence({ manualTests: { total: 0, untested: 0, autoRun: null }, lastRun: null }), { checks: null, run: 'none' })
 
 console.log('inbox: ok')

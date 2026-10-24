@@ -8,7 +8,6 @@ import { useSetupText } from "./setup-text";
 import {
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   Check,
   Loader2,
 } from "lucide-react";
@@ -183,10 +182,7 @@ export function SetupWizard() {
           {step === 0 && (
             <div className="space-y-6">
               <div className="text-center space-y-4">
-                <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mx-auto">
-                  <Sparkles className="w-8 h-8 text-accent" />
-                </div>
-                <h2 className="text-2xl font-bold text-txt">
+                <h2 className="text-xl font-semibold text-txt">
                   {t("chat.welcome")}
                 </h2>
                 <p className="text-muted max-w-md mx-auto">
@@ -304,8 +300,8 @@ export function SetupWizard() {
           {/* Step 6: Complete */}
           {step === 6 && (
             <div className="text-center space-y-6">
-              <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
-                <Check className="w-8 h-8 text-green-500" />
+              <div className="w-16 h-16 rounded-full bg-teal/10 flex items-center justify-center mx-auto">
+                <Check className="w-8 h-8 text-teal" />
               </div>
               <h2 className="text-2xl font-bold text-txt">{t("chat.setupComplete")}</h2>
               <p className="text-muted max-w-md mx-auto">

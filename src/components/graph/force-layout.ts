@@ -155,6 +155,22 @@ export function neighbourhoodIds(edges: { from: string; to: string }[], id: stri
   return seen
 }
 
+/**
+ * The kinds to turn on so `id` and its direct links are on screen: `kinds` plus the kind of `id` and of every file
+ * it links to or from, in `order`. Show in graph (`?node=`) and the card's "Show them" use it, so a file never lands
+ * on an empty map because its tasks or epics are filtered out.
+ */
+export function kindsForLinks<K extends string>(
+  edges: { from: string; to: string }[], kindOf: (id: string) => K | undefined, id: string, kinds: K[], order: K[],
+): K[] {
+  const want = new Set(kinds)
+  for (const p of neighbourhoodIds(edges, id, 1)) {
+    const k = kindOf(p)
+    if (k) want.add(k)
+  }
+  return order.filter((k) => want.has(k))
+}
+
 export type ArrowKey = "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight"
 
 /**

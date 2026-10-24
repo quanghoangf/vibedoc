@@ -6,10 +6,17 @@ import { Search } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { KIND_ICON, KIND_LABEL, fetchSearch, useOpenResult } from "@/components/search/search-results"
-import type { CrossGroup } from "@/lib/cross-search"
+import { highlightParts, snippetText, type CrossGroup } from "@/lib/cross-search"
 import { NoMatch } from "@/components/search/NoMatch"
 
 type Result = { key: string; status: "done"; groups: CrossGroup[] } | { key: string; status: "error"; error: string }
+
+/** `text` with the query's words in <mark> (a neutral tint, never accent). */
+function Marked({ text, query }: { text: string; query: string }) {
+  return highlightParts(text, query).map((p, i) => p.hit
+    ? <mark key={i} className="rounded-sm bg-txt/12 px-px font-medium text-txt">{p.text}</mark>
+    : p.text)
+}
 
 /** /search?q=&scope= (R107 T551): docs, tasks, epics and entries across projects, grouped by project. */
 export default function SearchPage() {
@@ -118,7 +125,11 @@ function SearchView() {
         {current?.status === "done" && count > 0 && <p className="mb-3 text-xs text-muted">{tn("search.results", count)}</p>}
       </div>
 
-      {current?.status === "done" && current.groups.map((g) => (
+      {current?.status === "done" && current.groups.map((g) => {
+        // two results with one title (README, index…) need their paths to tell them apart
+        const titles = new Map<string, number>()
+        for (const r of g.results) titles.set(r.title, (titles.get(r.title) ?? 0) + 1)
+        return (
         <section key={g.project.id} data-search-project={g.project.id} aria-labelledby={`search-p-${g.project.id}`} className="mb-6">
           <h2 id={`search-p-${g.project.id}`} className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-txt">
             <span data-user-content>{g.project.name}</span>
@@ -138,12 +149,12 @@ function SearchView() {
                     <span className="min-w-0 flex-1">
                       <span className="flex items-baseline gap-2">
                         {r.id && <span className="shrink-0 font-mono text-[11px] text-muted">{r.id}</span>}
-                        <span data-user-content className="truncate text-[13px] text-txt">{r.title}</span>
+                        <span data-user-content className="truncate text-[13px] text-txt"><Marked text={r.title} query={q} /></span>
                       </span>
-                      {r.kind === "doc"
-                        ? <span data-user-content className="block truncate text-[11px] text-muted">{r.path}</span>
+                      {r.kind === "doc" || (titles.get(r.title) ?? 0) > 1
+                        ? <span data-user-content className="block truncate font-mono text-[11px] text-muted">{r.path}</span>
                         : <span className="block truncate text-[11px] text-muted">{t(KIND_LABEL[r.kind])}</span>}
-                      {r.kind === "doc" && r.snippet && <span data-user-content className="block truncate text-[11px] text-muted">{r.snippet}</span>}
+                      {r.kind === "doc" && r.snippet && <span data-user-content data-snippet className="block truncate text-xs text-muted"><Marked text={snippetText(r.snippet)} query={q} /></span>}
                     </span>
                   </button>
                 </li>
@@ -151,7 +162,8 @@ function SearchView() {
             })}
           </ul>
         </section>
-      ))}
+        )
+      })}
     </div>
   )
 }

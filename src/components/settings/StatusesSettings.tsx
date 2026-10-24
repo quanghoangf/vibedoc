@@ -14,9 +14,9 @@ import type { AppSettings } from "@/lib/settings"
 import type { TaskStatus } from "@/types"
 
 const FIELD = "h-8 rounded-md border border-border bg-bg px-2 text-sm text-txt focus:outline-hidden focus:ring-1 focus:ring-accent disabled:opacity-50"
-/** One row = icon · label · id · color · category · actions, in columns from sm up; wraps on a phone */
-/** One row = icon · label · id · color · category · actions. On a phone the id / color / category line wraps under the label. */
-const ROW = "grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[16px_minmax(0,9rem)_minmax(0,6rem)_6rem_minmax(0,1fr)_5.25rem]"
+/** One row = icon · label · id · color · category · actions. On a phone the id / color / category line wraps under the label.
+ *  The color column is as wide as its select (8rem) so it never runs into "Works like"; gap-3 between columns. */
+const ROW = "grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-2 sm:gap-3 sm:grid-cols-[16px_minmax(0,9rem)_minmax(0,6rem)_8rem_minmax(0,1fr)_5.25rem]"
 const ICON_BTN = "grid size-7 place-items-center rounded-md text-muted hover:bg-surface2 hover:text-txt disabled:opacity-30 disabled:hover:bg-transparent"
 const CATEGORY_HELP: Record<TaskStatus, MessageKey> = {
   todo: "settings.helpTodo", "in-progress": "settings.helpInProgress", review: "settings.helpReview", blocked: "settings.helpBlocked",
@@ -107,7 +107,7 @@ export function StatusesSettings({ settings, onSave }: { settings: AppSettings; 
                 />
                 <div className="order-last col-span-3 flex min-w-0 items-center gap-2 pl-6 sm:order-none sm:contents">
                 <span className="w-20 shrink-0 truncate font-mono text-[11px] text-muted sm:w-auto" title={d.id} data-user-content>{d.id}</span>
-                <select aria-label={t("settings.colorFor", { id: d.id })} value={d.color} onChange={(e) => patch(d.id, { color: e.target.value as StatusColor })} className={cn(FIELD, "min-w-28")}>
+                <select aria-label={t("settings.colorFor", { id: d.id })} value={d.color} onChange={(e) => patch(d.id, { color: e.target.value as StatusColor })} className={cn(FIELD, "w-28 sm:w-full")}>
                   {/* The accent never encodes a status: offered only to a status that already has it */}
                   {STATUS_COLORS.filter((c) => c !== "accent" || d.color === "accent").map((c) => <option key={c} value={c}>{t(COLOR_KEY[c])}</option>)}
                 </select>

@@ -2,9 +2,9 @@
 
 import { useApp } from "@/context/AppContext"
 
-/** Where an empty state sends a user whose agent isn't connected: the guide's "Connect your agent" section.
- *  Seam for R081 (Connect your agent): point this at its Connect panel. */
-export const CONNECT_HREF = "/getting-started#3-connect-your-agent"
+/** The one place every "connect your agent" link goes (empty states, /start, First week, the header menu):
+ *  Settings → Connect agent (R081). */
+export const CONNECT_HREF = "/settings?tab=connect"
 
 /** True once any agent has called VibeDoc (an `ai` event in the activity log, like the header Connect menu's
  *  "Last agent call"). Seam for R081: swap for its live connection status.

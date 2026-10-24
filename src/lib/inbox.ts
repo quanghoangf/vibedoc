@@ -71,6 +71,33 @@ export interface InboxItem {
 }
 
 /** One item per task, the most pressing kind first: failed-run > blocked > review > needs-test. */
+/** What an Approve would skip: unproven checks and / or a failed last run; null = nothing, Approve is the primary. */
+export interface ApproveRisk { unchecked: number; failedRun: boolean }
+
+/**
+ * THE "is Approve risky" rule, shared by the Inbox row, Test review's decision bar and the task panel: then Approve
+ * is the outline button and its label says what's missing; Send back is not demoted.
+ */
+export function approveRisk(e: Pick<InboxEvidence, "checks" | "run"> | null | undefined): ApproveRisk | null {
+  if (!e) return null
+  const unchecked = e.checks ? Math.max(0, e.checks.total - e.checks.proven) : 0
+  const failedRun = e.run === "failed"
+  return unchecked > 0 || failedRun ? { unchecked, failedRun } : null
+}
+
+/** A task's evidence as the inbox reads it (core's inboxInputFor does the same), for client views that hold a Task. */
+export function taskEvidence(t: {
+  manualTests: { total: number; untested: number; autoRun: { result: string } | null } | null
+  lastRun: { status: string } | null
+}): Pick<InboxEvidence, "checks" | "run"> {
+  const mt = t.manualTests
+  const run = t.lastRun?.status ?? mt?.autoRun?.result ?? "none"
+  return {
+    checks: mt && mt.total > 0 ? { proven: mt.total - mt.untested, total: mt.total } : null,
+    run: run === "failed" ? "failed" : run === "passed" ? "passed" : "none",
+  }
+}
+
 export function taskKind(t: InboxTaskInput): InboxKind | null {
   if (t.failedRun) return "failed-run"
   if (t.status === "blocked") return "blocked"

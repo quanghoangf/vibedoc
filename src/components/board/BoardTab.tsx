@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { ListTodo, Plus } from "lucide-react"
 import type { ActivityEvent, Task } from "@/types"
@@ -17,6 +17,7 @@ import { TableView } from "./views/TableView"
 import { EpicView } from "./views/EpicView"
 import TimelineView from "./views/TimelineView"
 import { BulkBar } from "./BulkBar"
+import { useListKeys } from "@/components/shared/use-list-keys"
 import { useT } from "@/context/LanguageContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { CopyCommand } from "@/components/shared/CopyCommand"
@@ -62,6 +63,9 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
   const [events, setEvents] = useState<ActivityEvent[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  // j/k (↓/↑ inside) walk the cards / rows in reading order, Enter opens: the same list keys as Inbox and Chats
+  const viewRef = useRef<HTMLDivElement>(null)
+  useListKeys(viewRef, "[data-list-item]")
 
   // ── Saved views (.vibedoc/views.json) ───────────────────────────────────────
   const loadViews = useCallback(() => {
@@ -295,7 +299,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
         )}
       </div>
 
-      <div data-board-view={state.kind} className="[view-transition-name:board-view-body]">
+      <div ref={viewRef} data-board-view={state.kind} className="[view-transition-name:board-view-body]">
       {tasks.length === 0 ? (
         <div className="px-4 pt-[18px] pb-8 sm:px-8"><BoardEmpty /></div>
       ) : state.kind === "epic" ? (

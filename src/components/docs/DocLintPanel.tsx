@@ -92,7 +92,7 @@ export function DocLintPanel({ onOpen }: { onOpen?: () => void }) {
         <ul id="doc-lint-issues" aria-label={t("docs.lintTitle")} className="max-h-72 overflow-y-auto px-1.5 pb-1.5">
           {byFile.map(([path, issues]) => (
             <li key={path} className="mt-1">
-              <div data-user-content className="truncate px-1.5 font-mono text-[10px] text-muted" title={path}>{path}</div>
+              <MiddlePath path={path} className="px-1.5 text-muted" />
               <ul>
                 {issues.map((i) => (
                   <li key={`${i.line}:${i.rule}:${i.target ?? ""}:${i.message}`}>
@@ -108,7 +108,7 @@ export function DocLintPanel({ onOpen }: { onOpen?: () => void }) {
                         : <TriangleAlert className="size-3.5 shrink-0 text-amber" aria-hidden />}
                       <span className="shrink-0 font-mono text-[10px]" aria-label={t("docs.lintLine", { n: i.line })}>L{i.line}</span>
                       <span className="shrink-0">{t(RULE_LABEL[i.rule])}</span>
-                      {i.target && <span data-user-content className="min-w-0 truncate font-mono text-[10px]">{i.target}</span>}
+                      {i.target && <MiddlePath path={i.target} />}
                     </button>
                   </li>
                 ))}
@@ -118,5 +118,16 @@ export function DocLintPanel({ onOpen }: { onOpen?: () => void }) {
         </ul>
       )}
     </div>
+  )
+}
+
+/** A path truncated in the middle: the folders give way first, so the file name stays readable. */
+function MiddlePath({ path, className }: { path: string; className?: string }) {
+  const cut = path.lastIndexOf("/") + 1
+  return (
+    <span data-user-content title={path} className={cn("flex min-w-0 font-mono text-[10px]", className)}>
+      {cut > 0 && <span className="min-w-0 truncate">{path.slice(0, cut)}</span>}
+      <span className="max-w-full shrink-0 truncate">{path.slice(cut)}</span>
+    </span>
   )
 }

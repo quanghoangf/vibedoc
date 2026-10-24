@@ -1,7 +1,7 @@
 // Self-check for activity event reading. Run: node src/lib/activity.check.mts
 import assert from 'node:assert/strict'
 import type { ActivityEvent } from './core'
-import { eventAction, eventCategory, eventTarget, filterEvents } from './activity.ts'
+import { displayTitle, eventAction, eventCategory, eventTarget, filterEvents } from './activity.ts'
 
 let n = 0
 const ev = (type: ActivityEvent['type'], title: string, extra: Partial<ActivityEvent> = {}): ActivityEvent =>
@@ -45,5 +45,12 @@ assert.equal(filterEvents(all, { category: null, actor: null }).length, all.leng
 assert.equal(filterEvents(all, { category: 'doc', actor: null }).length, 5)
 assert.equal(filterEvents(all, { category: 'task', actor: 'human' }).length, 1)
 assert.equal(filterEvents(all, { category: 'task', actor: 'ai' }).length, 4)
+
+// displayTitle: a move names the status by its label; other titles and the stored title are untouched
+const label = (s: string) => ({ 'in-progress': 'In progress', review: 'Review' } as Record<string, string>)[s] ?? s
+assert.equal(displayTitle({ type: 'task_updated', title: 'T055 moved to in-progress', taskStatus: 'in-progress' }, label), 'T055 moved to In progress')
+assert.equal(displayTitle({ type: 'task_updated', title: 'T055 moved to review' }, label), 'T055 moved to Review')
+assert.equal(displayTitle({ type: 'task_updated', title: 'T055 edited' }, label), 'T055 edited')
+assert.equal(displayTitle({ type: 'doc_updated', title: 'moved to in-progress' }, label), 'moved to in-progress')
 
 console.log(`activity: ${cases.length} cases ok`)

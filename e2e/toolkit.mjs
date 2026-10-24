@@ -61,7 +61,11 @@ try {
   await stubChat(page, [], { root: fx })
   await page.goto(`${BASE}/start?root=${encodeURIComponent(fx)}`)
 
-  // S1
+  // S1: folded behind "Optional: add plugins (N)", closed by default
+  const summary = page.getByText(/^Optional: add plugins \(\d+\)$/)
+  await summary.waitFor()
+  assert.equal(await page.getByRole("region", { name: "Pick your toolkit" }).isVisible(), false, "closed by default")
+  await summary.click()
   const step = page.getByRole("region", { name: "Pick your toolkit" })
   await step.getByRole("checkbox", { name: /Frontend design/ }).waitFor()
   const order = await step.locator("[data-toolkit-item]").evaluateAll((els) => els.map((e) => e.getAttribute("data-toolkit-item")))
@@ -70,10 +74,9 @@ try {
   const fd = step.locator('[data-toolkit-item="frontend-design"]')
   await fd.getByText('UI work that avoids the generic "AI look"').waitFor()
   await fd.getByText("fits · web frontend").waitFor()
-  // the plugins that fit and aren't installed come ticked
-  const ticked = await step.getByRole("checkbox", { checked: true }).evaluateAll((els) => els.map((e) => e.closest("[data-toolkit-item]").getAttribute("data-toolkit-item")))
-  assert.deepEqual(ticked, ["frontend-design", "example-skills", "code-review", "commit-commands", "typescript-lsp"])
-  console.log("ok  S1 frontend plugins first, each with its reason and fit; the fitting ones come ticked")
+  // nothing comes ticked: the welcome asks one thing, plugins are opt-in
+  assert.equal(await step.getByRole("checkbox", { checked: true }).count(), 0, "nothing pre-ticked")
+  console.log("ok  S1 folded by default; frontend plugins first, each with its reason and fit; nothing ticked")
 
   // S3
   await step.locator("[data-toolkit-had]").getByText("Already installed: Superpowers").waitFor()
@@ -183,7 +186,8 @@ try {
       method: "POST", headers: { "content-type": "application/json", "user-agent": "claude-code/2.1.296 (cli)" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_read_memory", arguments: {} } }),
     })
-    await p3.getByText("Agent connected").waitFor({ timeout: 15_000 })
+    await p3.locator("main#main").getByText("Agent connected").waitFor({ timeout: 15_000 }) // the welcome's line, not the header chip
+    await p3.getByText(/^Optional: add plugins/).click()
     const step3 = p3.getByRole("region", { name: "Pick your toolkit" })
     await pickOnly(step3, [/Frontend design/, /Anthropic example skills/, /Code review/])
     await step3.getByRole("button", { name: "Install 3 plugins" }).click()

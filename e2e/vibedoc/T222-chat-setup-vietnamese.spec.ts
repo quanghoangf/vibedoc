@@ -21,11 +21,11 @@ test('T222 Chat, setup and getting started in Vietnamese', async ({ page, step, 
     await expect(page.getByPlaceholder('Hỏi agent… (Enter để gửi)')).toBeVisible()
   })
 
-  await step('Open /setup → "Trình thiết lập", "Bước 1/7" and "Chào mừng đến với VibeDoc"', async () => {
+  await step('Open /setup → "Viết tài liệu dự án", "Bước 1/7" and "Bắt đầu từ một mẫu"', async () => {
     await page.goto('/setup')
-    await expect(page.getByRole('heading', { name: 'Trình thiết lập' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Viết tài liệu dự án' })).toBeVisible()
     await expect(page.getByText('Bước 1/7')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Chào mừng đến với VibeDoc' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Bắt đầu từ một mẫu' })).toBeVisible()
   })
 
   await step('Click the "Tối giản" preset → step "Thông tin cơ bản" asks for "Tên dự án"', async () => {

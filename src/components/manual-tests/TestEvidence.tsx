@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { ReviewActions } from "@/components/board/TaskDetailPanel"
 import { AlertTriangle, Check, CircleCheck, CircleX, HelpCircle, X } from "lucide-react"
 import type { ReviewMark } from "@/lib/review"
+import type { ApproveRisk } from "@/lib/inbox"
 
 type Row = { item: number; text: string; auto: boolean; result: "passed" | "failed" | "missing" | "manual"; screenshot: string | null; error: string | null; unverified: string[]; flaky?: { attempts: number; error: string | null; screenshot: string | null } | null }
 
@@ -104,7 +105,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
   /** The newest run's video plays in the Review view */
   onReplay: () => void
   /** R062: the task waits in review → Approve / Send back on top of the proof (prefilled note, extra controls) */
-  review?: { initialNote: string; onDecided: () => void; children?: ReactNode }
+  review?: { initialNote: string; onDecided: () => void; children?: ReactNode; risk?: ApproveRisk | null }
 }) {
   const { rootParam } = useApp()
   const f = useFormat()
@@ -164,6 +165,7 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
           rows={evidence?.rows.filter((r) => r.auto) ?? []}
           initialNote={review.initialNote}
           onDecided={review.onDecided}
+          risk={review.risk ?? null}
           onZoom={setZoom}
           head={
             <p className="text-xs text-muted">
@@ -314,8 +316,9 @@ export function TestEvidence({ taskId, latest, run, onRun, onReplay, review }: {
  * Doubt toggle (+ one-line comment) on the ones that passed; failed steps are always flagged. The marks live here
  * only until Approve / Send back (keyed on task:run, so another run or task starts clean).
  */
-function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head, older, children }: {
+function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head, older, children, risk }: {
   taskId: string
+  risk: ApproveRisk | null
   runId: string | null
   rows: Row[]
   initialNote: string
@@ -342,7 +345,9 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
   const count = [doubted.length && t("tests.flaggedCount", { n: doubted.length }), failed.length && t("board.failedCount", { n: failed.length }), unverified.length && t("tests.unverifiedCount", { n: unverified.length })].filter(Boolean).join(" · ")
 
   return (
-    <div className="-mx-5 -mt-5 flex flex-col border-b border-border sm:-mx-7">
+    // contents: the steps and the bar sit in TestEvidence's column, so the bar (order-last) comes after the whole proof
+    // and stays pinned at the bottom while it scrolls, like the failed-run bar in the Review view
+    <div className="contents">
       <ReviewActions
         taskId={taskId}
         onDone={onDecided}
@@ -350,7 +355,8 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
         marks={marks}
         initialNote={failed.length ? "" : initialNote}
         confirmApprove={doubted.length ? tn("tests.approveWithDoubts", doubted.length) : null}
-        className="rounded-none border-b-0 px-5 py-3 sm:px-7"
+        risk={risk}
+        className="sticky bottom-0 z-10 order-last -mx-5 -mb-5 rounded-none border-t border-b-0 border-border bg-surface px-5 py-3 shadow-[0_-8px_16px_-14px_rgb(0_0_0/0.6)] sm:-mx-7 sm:px-7"
         marksList={marks.length > 0 && (
           <ul aria-label={t("tests.flaggedSteps")} className="flex flex-col gap-1.5 rounded-md border border-border bg-bg p-2">
             {marks.map((m) => (
@@ -380,7 +386,7 @@ function ReviewDesk({ taskId, runId, rows, initialNote, onDecided, onZoom, head,
       </ReviewActions>
 
       {runId && rows.length > 0 && (
-        <ol aria-label={t("tests.stepsToReview")} className="flex flex-col px-5 pb-3 sm:px-7">
+        <ol aria-label={t("tests.stepsToReview")} className="flex flex-col border-b border-border pb-3">
           {rows.map((r) => {
             const doubt = r.item in doubts
             const weak = r.result === "passed" && r.unverified.length > 0

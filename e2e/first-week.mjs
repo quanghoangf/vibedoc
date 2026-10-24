@@ -2,7 +2,7 @@
 //   1. The sidebar shows "First week" 0/6, every row unticked
 //   2. A human moves a task to done → "First task done" stays unticked
 //   3. An agent claims and finishes a task over /api/mcp → "First task done" ticks without a reload (S1)
-//   4. The first unticked step is open with its page or exact command; Copy copies it; commands carry real ids (S2)
+//   4. The first unticked step is open with its page or exact command (the agent step: a link to Settings → Connect agent); Copy copies it; commands carry real ids (S2)
 //   5. Done-when: the agent breaks down the epic, runs a spec, finishes the task with evidence and saves an entry →
 //      every row ticks live, none by hand, and the checklist says All done
 //   6. Dismiss → gone, after a reload too; Undo brings it back; Close on All done; another project still shows it (S3)
@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process"
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { launchChrome, makeFixture, stubChat } from "./stub-chat.mjs"
+import { launchChrome, makeFixture, pageSettled, stubChat } from "./stub-chat.mjs"
 
 const BASE = process.env.BASE ?? "http://localhost:3084"
 const fx = makeFixture()
@@ -60,16 +60,13 @@ try {
   }
   console.log("ok  empty project: First week 0/6, every row unticked")
 
-  // S2: the next step is open with the exact command, one click to copy
+  // S2: the next step is open with one link to Settings → Connect agent (never the long CLI line in the sidebar)
   const action = fw.getByTestId("first-week-action")
-  const mcpAdd = `claude mcp add --scope user --transport http vibedoc ${BASE}/api/mcp --header 'X-VibeDoc-Root: \${PWD}'`
-  await action.getByText(mcpAdd, { exact: true }).waitFor()
   assert.equal(await action.count(), 1, "only one step open")
   assert.equal(await row("agent").getByRole("button", { expanded: true }).count(), 1)
-  await action.getByRole("button", { name: `Copy command: ${mcpAdd}` }).click()
-  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), mcpAdd)
-  assert.equal(await action.getByRole("link", { name: "Open /settings" }).getAttribute("href"), "/settings")
-  console.log("ok  S2: the first unticked step shows the claude mcp add command for this server; Copy copies it")
+  assert.equal(await action.getByRole("link", { name: "Open Settings → Connect agent" }).getAttribute("href"), "/settings?tab=connect")
+  assert.equal(await action.locator("code").count(), 0, "no inline command on the agent step")
+  console.log("ok  S2: the first unticked step links to Settings → Connect agent")
 
   // A human's done is not the agent's
   const res = await fetch(`${BASE}/api/tasks${q}`, {
@@ -139,13 +136,12 @@ try {
   await fw.getByTestId("first-week-finished").getByRole("button", { name: "Close" }).click()
   await fw.waitFor({ state: "detached" })
   await page.reload()
-  await page.getByRole("group", { name: "Chats" }).waitFor()
-  await page.waitForLoadState("networkidle")
+  await pageSettled(page) // the checklist comes with /api/summary, the same load that ends the skeleton
   assert.equal(await fw.count(), 0, "still dismissed after a reload")
   // A checklist that loads already finished doesn't show either
   rmSync(path.join(fx, ".vibedoc/first-week.json"))
   await page.reload()
-  await page.waitForLoadState("networkidle")
+  await pageSettled(page)
   assert.equal(await fw.count(), 0, "a finished checklist doesn't come back")
   const page2 = await context.newPage()
   await stubChat(page2, [], { root: other })

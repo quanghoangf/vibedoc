@@ -16,12 +16,13 @@ import "@xyflow/react/dist/style.css"
 
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
-import { AlertTriangle, Bot, ChevronLeft, X, FileText, LayoutGrid, ListTree, Plus, ScrollText, Sparkles } from "lucide-react"
+import { AlertTriangle, Bot, ChevronLeft, X, FileText, LayoutGrid, ListTree, MoreHorizontal, Plus, ScrollText, Sparkles } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { CopyCommand } from "@/components/shared/CopyCommand"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type { RoadmapItem, RoadmapLayout, RoadmapSource, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 import { pickNextTask } from "@/lib/work-queue"
 import { dueState, localToday, roadmapHealth, taskDueSummary, type RoadmapDrift, type TaskInfo } from "@/lib/roadmap-health"
@@ -42,6 +43,7 @@ import { useChats } from "@/context/ChatContext"
 import { undoToast } from "@/components/ui/toast"
 import { tNow, useT } from "@/context/LanguageContext"
 import { useFlowAriaLabels } from "@/components/shared/flow-labels"
+import { LoadingScreen } from "@/components/shared/LoadingScreen"
 import type { MessageKey } from "@/i18n"
 
 type ApiResult<T> = { data?: T; error?: string }
@@ -124,15 +126,15 @@ function sides(a: RoadmapNode, b: RoadmapNode, horizontal: boolean): [Position, 
   return dy > 0 ? [Position.Bottom, Position.Top] : [Position.Top, Position.Bottom]
 }
 
-/** Spine: solid up to the current horizon, dashed after. Branch: follows the epic (live = animated accent). */
+/** Spine: solid (neutral) up to the current horizon, dashed after. Branch: follows the epic (live = animated amber, the in-progress hue). */
 function edgeStyle(a: RoadmapNode, b: RoadmapNode, spine: boolean): Pick<Edge, "style" | "animated"> {
   if (spine) {
     return a.data.item.status === "done"
-      ? { style: { stroke: "var(--color-accent)", strokeWidth: 3 } }
+      ? { style: { stroke: "var(--color-muted)", strokeWidth: 3 } }
       : { style: { stroke: "var(--color-border2)", strokeWidth: 3, strokeDasharray: "6 6" } }
   }
   const status = b.data.item.status
-  if (status === "in-progress") return { animated: true, style: { stroke: "var(--color-accent)", strokeWidth: 2 } }
+  if (status === "in-progress") return { animated: true, style: { stroke: "var(--color-amber)", strokeWidth: 2 } }
   if (status === "done") return { style: { stroke: "var(--color-border2)", strokeWidth: 1.5 } }
   return { style: { stroke: "var(--color-border2)", strokeWidth: 1.5, strokeDasharray: "2 5", strokeLinecap: "round" } }
 }
@@ -557,7 +559,7 @@ export function RoadmapTab() {
   )
 
   if (loading) {
-    return <div className="flex-1 flex items-center justify-center text-sm text-muted">{t("roadmap.loading")}</div>
+    return <LoadingScreen />
   }
 
   if (items.length === 0) {
@@ -602,7 +604,8 @@ export function RoadmapTab() {
 
   return (
     <div className="relative flex flex-1 min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-3 py-2">
+      {/* One row at every width: views · stats (md+) · attention · ⋯ (the rarer tools) · + Horizon */}
+      <div className="flex shrink-0 items-center gap-x-2 border-b border-border px-3 py-2 sm:gap-x-4">
         <div className="flex rounded-md border border-border p-0.5 text-xs">
           {(["map", "timeline"] as const).map((v) => (
             <button
@@ -619,7 +622,7 @@ export function RoadmapTab() {
           ))}
         </div>
         <RoadmapStats items={items} tasksById={tasksById} />
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-2">
           {error && <p className="text-xs text-danger">{error}</p>}
           {health.drift.length > 0 && (
             <AttentionMenu
@@ -629,23 +632,32 @@ export function RoadmapTab() {
             />
           )}
           {!demo && <>
-          {view === "map" && (
-            <Button size="sm" variant="outline" onClick={arrange} disabled={arranging} title={t("roadmap.arrangeTitle")}>
-              <LayoutGrid /> {t("roadmap.arrange")}
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={() => setSpecOpen(true)}>
-            <FileText /> {t("roadmap.planFromSpec")}
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setNotesOpen(true)}>
-            <ScrollText /> {t("roadmap.releaseNotes")}
-          </Button>
-          {items.some((i) => i.parent !== null && i.status !== "done") && (
-            <Button size="sm" variant="outline" onClick={() => setBreakdownOpen(true)}>
-              <ListTree /> {t("roadmap.breakDownEpicsEllipsis")}
-            </Button>
-          )}
-          <Button size="sm" onClick={() => setCreateParent("")} className="bg-accent text-accent-fg hover:bg-accent/90">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" aria-label={t("roadmap.moreActions")} title={t("roadmap.moreActions")} className="px-2">
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {view === "map" && (
+                <DropdownMenuItem onSelect={arrange} disabled={arranging} title={t("roadmap.arrangeTitle")}>
+                  <LayoutGrid /> {t("roadmap.arrange")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => setSpecOpen(true)}>
+                <FileText /> {t("roadmap.planFromSpec")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setNotesOpen(true)}>
+                <ScrollText /> {t("roadmap.releaseNotes")}
+              </DropdownMenuItem>
+              {items.some((i) => i.parent !== null && i.status !== "done") && (
+                <DropdownMenuItem onSelect={() => setBreakdownOpen(true)}>
+                  <ListTree /> {t("roadmap.breakDownEpicsEllipsis")}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size="sm" onClick={() => setCreateParent("")} className="shrink-0 bg-accent text-accent-fg hover:bg-accent/90">
             <Plus /> {t("roadmap.horizon")}
           </Button>
           </>}
@@ -759,7 +771,7 @@ function RoadmapStats({ items, tasksById }: { items: RoadmapItem[]; tasksById: R
       {(["in-progress", "paused", "done", "planned"] as const).filter((st) => st !== "paused" || count(st) > 0).map((st) => (
         <span key={st} className="flex items-center gap-1.5">
           <StatusDot status={st} />
-          <span className={cn("tabular-nums", st === "in-progress" && count(st) > 0 ? "text-accent" : "text-txt")}>{count(st)}</span>
+          <span className={cn("tabular-nums", st === "in-progress" && count(st) > 0 ? "text-amber" : "text-txt")}>{count(st)}</span>
           {statusLabel(st).toLowerCase()}
         </span>
       ))}
@@ -784,22 +796,42 @@ function AttentionMenu({ drift, onSelect, onApply }: {
 }) {
   const { t } = useT()
   const statusLabel = useRoadmapStatusLabel()
+  const ref = useRef<HTMLDetailsElement>(null)
+  const close = (refocus: boolean) => {
+    if (!ref.current) return
+    ref.current.open = false
+    if (refocus) ref.current.querySelector("summary")?.focus()
+  }
+  const label = t("roadmap.needAttention", { n: drift.length })
   return (
-    <details className="group relative">
-      <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-amber/40 bg-amber/10 px-2.5 text-xs font-medium text-txt hover:bg-amber/15 [&::-webkit-details-marker]:hidden">
-        <AlertTriangle className="h-3.5 w-3.5 text-amber" /> {t("roadmap.needAttention", { n: drift.length })}
+    <details ref={ref} className="group relative shrink-0" onKeyDown={(e) => { if (e.key === "Escape" && ref.current?.open) { e.stopPropagation(); close(true) } }}>
+      <summary aria-label={label} className="flex h-8 cursor-pointer list-none items-center gap-1.5 whitespace-nowrap rounded-md border border-amber/40 bg-amber/10 px-2.5 text-xs font-medium text-txt hover:bg-amber/15 [&::-webkit-details-marker]:hidden">
+        <AlertTriangle aria-hidden className="h-3.5 w-3.5 text-amber" />
+        {/* Phone: the count alone keeps the toolbar one row */}
+        <span aria-hidden className="tabular-nums sm:hidden">{drift.length}</span>
+        <span aria-hidden className="max-sm:hidden">{label}</span>
       </summary>
-      <ul className="absolute right-0 top-full z-30 mt-1.5 max-h-72 w-80 overflow-y-auto rounded-lg border border-border bg-surface text-xs shadow-xl">
+      <ul className="absolute right-0 top-full z-30 mt-1.5 max-h-72 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-lg border border-border bg-surface text-xs shadow-xl">
         {drift.map((d) => (
           <li key={`${d.id}-${d.kind}`} className="flex items-start gap-2 border-b border-border px-3 py-2.5 last:border-0">
             <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber" />
-            <button type="button" onClick={() => onSelect(d.id)} className="flex-1 text-left leading-relaxed text-muted hover:text-txt">
+            <button type="button" onClick={() => { close(false); onSelect(d.id) }} className="flex-1 text-left leading-relaxed text-muted hover:text-txt">
               {driftText(d, t, statusLabel)}
             </button>
+            {/* The epic sheet hosts "Merge into capability spec" */}
+            {d.kind === "spec-unmerged" && onApply && (
+              <button
+                type="button"
+                onClick={() => { close(false); onSelect(d.id) }}
+                className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-[11px] text-txt hover:border-border2 hover:bg-surface2"
+              >
+                {t("roadmap.mergeSpec")}
+              </button>
+            )}
             {d.suggestedStatus && onApply && (
               <button
                 type="button"
-                onClick={() => onApply(d)}
+                onClick={() => { close(false); onApply(d) }}
                 className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 font-mono text-[10px] text-txt hover:border-accent hover:text-accent"
                 title={t("roadmap.setStatusTo", { status: statusLabel(d.suggestedStatus).toLowerCase() })}
               >

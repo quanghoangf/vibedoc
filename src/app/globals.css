@@ -110,10 +110,10 @@
 
 :root {
 
-  /* Accent color — RGB components (blue default) */
+  /* Accent color — RGB components (violet default). Light mode darkens it per accent (see below). */
   --rgb-accent: 124 106 247;
-  /* Ink on accent fills. White misses 4.5:1 on every accent (violet 3.99, purple 3.96,
-     green 2.28, orange 2.80); this ink clears all four (4.95 / 4.99 / 8.67 / 7.05). */
+  /* Ink on accent fills in dark: white misses 4.5:1 on every dark accent (violet 3.99, purple 3.96, lime 1.98,
+     orange 2.80); this ink clears all four (4.95 / 4.99 / 10.00 / 7.05). Light mode flips it to white. */
   --rgb-accent-fg: 10 10 15;
 
   /* Light theme core colors */
@@ -163,17 +163,24 @@
   --rgb-st-orange: 251 146 60;
 }
 
-/* Accent color overrides */
+/* Accent color overrides (dark). Green is a lime: the old 34 197 94 sat ΔE2000 15 from Done teal (79 216 180) and
+   6.8 from the st-green status; lime is 24.0 / 14.5. On Ink Black / Graphite: lime 10.00 / 9.10, orange 7.05 / 6.41. */
 html[data-accent="purple"] { --rgb-accent: 168 85 247; }
-html[data-accent="green"]  { --rgb-accent: 34 197 94; }
+html[data-accent="green"]  { --rgb-accent: 132 204 22; }
 html[data-accent="orange"] { --rgb-accent: 249 115 22; }
 
-/* Selected edge (a 2px accent bar, e.g. a focused menu item) on the Graphite fill: the accent itself, except where
-   it misses 3:1 in light (green 2.01, orange 2.47 on surface2) and takes a darker ink (4.42 / 4.57).
-   Violet 3.52 / 4.50 and purple 3.49 / 4.54 in light / dark; dark green 7.89, orange 6.41. */
+/* Light mode: each accent is a deeper ink that clears 4.5:1 as text on paper / paper-tint-deep, and so does white
+   text on it as a fill: violet 5.50 / 4.85, purple 6.98 / 6.16, green 7.08 / 6.24 (ΔE2000 19 from the light teal
+   15 118 96), orange 5.18 / 4.57. Rings, borders and the selected edge clear 3:1 with it too. Order matters:
+   these come after the dark overrides (html[data-accent] and html:not(.dark) tie on specificity). */
+html:not(.dark) { --rgb-accent: 99 80 230; --rgb-accent-fg: 255 255 255; }
+html[data-accent="purple"]:not(.dark) { --rgb-accent: 126 34 206; }
+html[data-accent="green"]:not(.dark)  { --rgb-accent: 63 98 18; }
+html[data-accent="orange"]:not(.dark) { --rgb-accent: 194 65 12; }
+
+/* Selected edge (a 2px accent bar, e.g. a focused menu item) on the Graphite fill: now the accent itself in every
+   accent × theme (light 4.85 / 6.16 / 6.24 / 4.57 on paper-tint-deep, dark 4.50 / 4.54 / 9.10 / 6.41 on Graphite). */
 html { --rgb-accent-edge: var(--rgb-accent); }
-html[data-accent="green"]:not(.dark)  { --rgb-accent-edge: 21 128 61; }
-html[data-accent="orange"]:not(.dark) { --rgb-accent-edge: 194 65 12; }
 
 /* Font family — set by Settings → Appearance (data-font-* on <html>); vars come from next/font in app/layout.tsx */
 html[data-font-sans="geist"]          { --app-font-sans: var(--font-geist); }
@@ -228,11 +235,11 @@ body {
 .prose-dark.prose-compact p { margin-bottom: 0.5rem; }
 /* Evidence report (R060, /manual-tests Evidence): result glyphs are the markers, so rows sit flush with no bullets;
    headings in text colour (accent/green would read as "passed"); inline code (commits, specs, commands) muted, wrapping
-   as whole chips. Links take the accent-edge ink (green / orange clear 4.5:1 on the light page). Specificity beats .prose-dark. */
+   as whole chips. Links are neutral underlined text: an evidence link is a reference, not a state or the primary action. Specificity beats .prose-dark. */
 .prose-dark.prose-evidence ul { list-style: none; padding-left: 0; }
 .prose-dark.prose-evidence h2, .prose-dark.prose-evidence h3 { color: var(--color-txt); }
 .prose-dark.prose-evidence :not(pre) > code { color: var(--color-muted); overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-.prose-dark.prose-evidence a { color: var(--color-accent-edge); }
+.prose-dark.prose-evidence a { color: var(--color-txt); text-decoration: underline; text-decoration-color: rgb(var(--rgb-muted) / 0.6); text-underline-offset: 2px; }
 /* A long log clamps to 6 lines (TestEvidence's Show full log), fading out so the cut reads as "more below" */
 .prose-dark.prose-evidence pre[data-clamped] > code { display: block; max-height: 6lh; overflow-y: clip; mask-image: linear-gradient(to bottom, black 60%, transparent); }
 .prose-dark li { font-size: 0.9375rem; color: color-mix(in srgb, var(--color-txt) 86%, var(--color-muted)); line-height: 1.75; margin-bottom: 0.35rem; }
@@ -459,6 +466,9 @@ body {
 .diagram-frame { position: relative; margin: 1.5rem 0; }
 .diagram-frame > .mermaid { margin: 0; }
 .derived-diagram .diagram-frame { margin: 0; }
+/* a derived map in a narrow rail scales to the box: no floor, so no scroll, fade or Fit chip */
+.derived-diagram-fit .mermaid > svg { min-width: 0 !important; }
+.derived-diagram-fit :is(.diagram-fade, .diagram-fit) { display: none !important; }
 .doc-preview > .diagram-frame[data-wide] { grid-column: 1 / -1; justify-self: center; width: 100%; }
 .diagram-frame[data-fit] > .mermaid > svg { min-width: 0 !important; }
 .diagram-frame > .mermaid:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }

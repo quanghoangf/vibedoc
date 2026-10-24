@@ -111,10 +111,10 @@ try {
   assert.deepEqual(await others.locator("[data-lazy-folder]").evaluateAll((els) => els.map((e) => e.dataset.lazyFolder)), ["crates", "notes", "packages"])
   // the docs list (the Linked docs panel is an aside too)
   const tree = page.locator("aside", { has: page.locator("[data-lazy-folders]") })
-  assert.equal(await tree.getByRole("button", { name: "Design", exact: true }).count(), 0, "crates is not read before the click")
+  assert.equal(await tree.getByRole("button", { name: "Net design", exact: true }).count(), 0, "crates is not read before the click")
   await others.getByRole("button", { name: "Open crates: 2 Markdown files" }).click()
   await others.locator('[data-lazy-folder="crates"]').waitFor({ state: "detached" })
-  await tree.getByRole("button", { name: "Design", exact: true }).click()
+  await tree.getByRole("button", { name: "Net design", exact: true }).click()
   await page.locator("h1", { hasText: "Net design" }).first().waitFor()
   // an opened lazy doc has links: README (eager) links to it
   const panel = page.locator('aside[aria-label="Linked docs"]')
@@ -128,7 +128,7 @@ try {
     body: JSON.stringify({ path: "docs/a.md", properties: { priority: "P1" } }),
   })
   await tree.getByText("P1").first().waitFor()
-  assert.equal(await tree.getByRole("button", { name: "Design", exact: true }).count(), 1, "crates stays open after a refetch")
+  assert.equal(await tree.getByRole("button", { name: "Net design", exact: true }).count(), 1, "crates stays open after a refetch")
   assert.equal(await others.locator('[data-lazy-folder="crates"]').count(), 0)
   console.log("ok  a live doc update keeps the opened folder's docs in the tree")
 

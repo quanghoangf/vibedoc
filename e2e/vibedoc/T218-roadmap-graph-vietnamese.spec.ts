@@ -6,11 +6,13 @@ test.use({ baseURL: 'http://localhost:3000', vibedocTask: 'T218' })
 test('T218 Roadmap and doc graph in Vietnamese', async ({ page, step, context }) => {
   await context.addCookies([{ name: 'vibedoc-lang', value: 'vi', url: 'http://localhost:3000' }])
 
-  await step('With Vietnamese on, open /roadmap → the view toggle reads "Bản đồ" / "Dòng thời gian" and the buttons "Lập kế hoạch từ spec" and "Chặng"', async () => {
+  await step('With Vietnamese on, open /roadmap → the view toggle reads "Bản đồ" / "Dòng thời gian", the ⋯ menu holds "Lập kế hoạch từ spec" and the button "Chặng"', async () => {
     await page.goto('/roadmap')
     await expect(page.getByRole('button', { name: 'Bản đồ', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Dòng thời gian', exact: true })).toBeVisible()
-    await expect(page.getByRole('button', { name: /Lập kế hoạch từ spec/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Thêm thao tác lộ trình' }).click()
+    await expect(page.getByRole('menuitem', { name: /Lập kế hoạch từ spec/ })).toBeVisible()
+    await page.keyboard.press('Escape')
     await expect(page.getByRole('button', { name: /^Chặng$/ })).toBeVisible()
   })
 

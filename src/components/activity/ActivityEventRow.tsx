@@ -1,7 +1,7 @@
 import { Bot, User, FilePen, FilePlus, FileSearch, FileText, FileX, ListChecks, Map as MapIcon, Plug, RefreshCw, Scale, Brain, type LucideIcon } from "lucide-react"
 import type { ActivityEvent } from "@/types"
-import { StatusIcon, useStatusMeta } from "@/components/shared/StatusIcon"
-import { eventAction, eventTarget, type EventAction, type EventTarget } from "@/lib/activity"
+import { StatusIcon, useStatusLabel } from "@/components/shared/StatusIcon"
+import { displayTitle, eventAction, eventTarget, type EventAction, type EventTarget } from "@/lib/activity"
 import { cn } from "@/lib/utils"
 import { useFormat, useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
@@ -35,17 +35,12 @@ const ACTION_KEY: Record<EventAction, MessageKey> = {
 
 const badge = "inline-flex shrink-0 items-center rounded-sm border px-1.5 py-0.5 text-[10px] leading-none font-medium"
 
-/** The verb of an event; a task move shows the status it landed in. */
+/** The verb of an event; none for a task move, whose status icon and sentence already say where it landed. */
 function ActionBadge({ event }: { event: ActivityEvent }) {
   const action = eventAction(event)
   const { t } = useT()
-  if (action === "moved" && event.taskStatus) return <MovedBadge status={event.taskStatus} />
+  if (action === "moved" && event.taskStatus) return null
   return <span className={cn(badge, ACTION_TONE[action] ?? "border-border2 text-muted")}>{ACTION_KEY[action] ? t(ACTION_KEY[action]) : action}</span>
-}
-
-function MovedBadge({ status }: { status: string }) {
-  const meta = useStatusMeta(status)
-  return <span className={cn(badge, meta.chip)}>→ {meta.label}</span>
 }
 
 /** One line per event: clock · kind icon · verb badge · what happened (clickable when it points at something that still exists). */
@@ -56,6 +51,8 @@ export function ActivityEventRow({ event, showActor = false, onOpen }: {
 }) {
   const f = useFormat()
   const { t } = useT()
+  const statusLabel = useStatusLabel()
+  const title = displayTitle(event, statusLabel)
   const Icon = TYPE_ICON[event.type] ?? FileText
   const target = onOpen ? eventTarget(event) : null
   const titleClass = "min-w-0 text-left text-sm leading-5 text-txt sm:shrink-0 sm:max-w-[60%] sm:truncate"
@@ -79,10 +76,10 @@ export function ActivityEventRow({ event, showActor = false, onOpen }: {
               data-user-content
               className={cn(titleClass, "rounded-sm underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60")}
             >
-              {event.title}
+              {title}
             </button>
           ) : (
-            <span data-user-content className={titleClass}>{event.title}</span>
+            <span data-user-content className={titleClass}>{title}</span>
           )}
         </span>
         {event.detail && <span data-user-content className="min-w-0 truncate text-xs leading-5 text-muted">{event.detail}</span>}

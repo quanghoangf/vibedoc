@@ -196,6 +196,8 @@ export const en = {
   emptyFile: "Empty file",
 
   // Explorer
+  view: "View",
+  sortBy: "Sort files",
   viewTree: "Tree",
   viewTreemap: "Treemap",
   viewHeatmap: "Heatmap",
@@ -203,7 +205,7 @@ export const en = {
   sortName: "Name",
   sortModified: "Modified",
   sortDescribed: "Described",
-  noDesc: "No desc",
+  noDesc: "Only files without a description",
   all: "All",
   noFilesMatch: "No files match your search",
   noDescription: "No description",
@@ -275,6 +277,7 @@ export const en = {
   blockCopiedPlain: "Copied the markdown (this browser can't copy the formatted version)",
   // Link map (R097, T522)
   linkMap: "Map of links to and from this doc",
+  linkMapToggle: "Map",
   // Editor: Insert visual (T518)
   insertVisual: "Insert diagram or visual block",
   visualDiagram: "Diagram",
@@ -471,6 +474,8 @@ export const vi: Messages<typeof en> = {
   loading: "Đang tải…",
   emptyFile: "Tệp trống",
 
+  view: "Chế độ xem",
+  sortBy: "Sắp xếp tệp",
   viewTree: "Cây",
   viewTreemap: "Treemap",
   viewHeatmap: "Bản đồ nhiệt",
@@ -478,7 +483,7 @@ export const vi: Messages<typeof en> = {
   sortName: "Tên",
   sortModified: "Ngày sửa",
   sortDescribed: "Ngày mô tả",
-  noDesc: "Chưa mô tả",
+  noDesc: "Chỉ tệp chưa có mô tả",
   all: "Tất cả",
   noFilesMatch: "Không có tệp nào khớp",
   noDescription: "Chưa có mô tả",
@@ -548,6 +553,7 @@ export const vi: Messages<typeof en> = {
   blockCopiedPlain: "Đã sao chép markdown (trình duyệt này không sao chép được bản định dạng)",
   // Link map (R097, T522)
   linkMap: "Sơ đồ liên kết đến và đi từ tài liệu này",
+  linkMapToggle: "Sơ đồ",
   // Editor: Insert visual (T518)
   insertVisual: "Chèn sơ đồ hoặc khối trực quan",
   visualDiagram: "Sơ đồ",

@@ -22,7 +22,7 @@ declare global {
 }
 
 const btn = "rounded-md border border-border px-2.5 py-1 text-xs text-txt hover:bg-surface"
-const primary = "rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-white hover:opacity-90"
+const primary = "rounded-md bg-accent px-2.5 py-1 text-xs font-medium text-accent-fg hover:opacity-90"
 
 /**
  * R112 T582/T583: inside the desktop app only, a small non-modal card when a newer VibeDoc is out (states in
@@ -114,7 +114,7 @@ export function DesktopUpdateBanner() {
             <button type="button" onClick={later} className="rounded-md border border-border px-3 py-1.5 text-xs text-txt hover:bg-surface">
               {t("desktop.later")}
             </button>
-            <button type="button" onClick={() => { setNotesOpen(false); download() }} className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
+            <button type="button" onClick={() => { setNotesOpen(false); download() }} className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90">
               {t("desktop.update")}
             </button>
           </div>

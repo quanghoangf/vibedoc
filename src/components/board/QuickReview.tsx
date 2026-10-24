@@ -13,6 +13,7 @@ import { taskKey } from "@/lib/board-views"
 import { ReviewActions } from "./TaskDetailPanel"
 import { StepText, Tick } from "@/components/manual-tests/TestDetail"
 import type { Task } from "@/types"
+import { approveRisk, taskEvidence } from "@/lib/inbox"
 
 const WIDTH = 384
 const GAP = 6
@@ -52,11 +53,11 @@ export function QuickReviewButton({ task, className }: { task: Task; className?:
           aria-label={t("board.quickReviewOf", { id: task.id })}
           title={t("board.quickReviewTitle")}
           className={cn(
-            "inline-flex h-5 shrink-0 items-center gap-1 rounded-sm border border-accent/50 bg-accent/10 px-1.5 text-[11px] text-txt transition-colors hover:bg-accent/20 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent",
+            "inline-flex h-5 shrink-0 items-center gap-1 rounded-sm border border-review/40 bg-review/5 px-1.5 text-[11px] text-review transition-colors hover:bg-review/15 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent",
             className,
           )}
         >
-          <ClipboardCheck className="size-3 text-accent" aria-hidden />
+          <ClipboardCheck className="size-3" aria-hidden />
           {t("board.quickReview")}
         </button>
       </DialogPrimitive.Trigger>
@@ -162,6 +163,7 @@ function QuickReview({ task, onDecided }: { task: Task; onDecided: () => void })
 
       <ReviewActions
         taskId={task.id}
+        risk={approveRisk(taskEvidence(task))}
         onDone={() => { onDecided(); void refresh() }}
         prompt={<></>}
         className="border-t border-b-0 px-4"

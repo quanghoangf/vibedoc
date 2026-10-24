@@ -15,7 +15,7 @@ interface ThemeSettingsProps {
 const ACCENT_COLORS = [
   { id: "blue", label: "settings.blue", class: "bg-blue-500" },
   { id: "purple", label: "settings.purple", class: "bg-purple-500" },
-  { id: "green", label: "settings.green", class: "bg-green-500" },
+  { id: "green", label: "settings.green", class: "bg-lime-500" }, // a lime, kept apart from Done teal (DESIGN.md)
   { id: "orange", label: "settings.orange", class: "bg-orange-500" },
 ] as const
 
@@ -125,15 +125,18 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
             return (
               <button
                 key={color.id}
+                type="button"
                 onClick={() => onSave({ ...settings, accentColor: color.id as AppSettings["accentColor"] })}
                 className={cn(
                   "w-10 h-10 rounded-full flex items-center justify-center transition-transform",
                   color.class,
-                  isActive ? "ring-2 ring-offset-2 ring-offset-bg ring-white scale-110" : "hover:scale-105"
+                  isActive ? "ring-2 ring-offset-2 ring-offset-bg ring-txt scale-110" : "hover:scale-105"
                 )}
+                aria-label={t(color.label)}
+                aria-pressed={isActive}
                 title={t(color.label)}
               >
-                {isActive && <Check className="w-5 h-5 text-white" />}
+                {isActive && <Check className="w-5 h-5 text-black" aria-hidden />}
               </button>
             )
           })}

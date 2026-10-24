@@ -21,7 +21,14 @@ const isItemId = (id: string) => ITEM_ID_RE.test(id)
  * A rendered Mermaid flowchart whose clickable nodes (default: task / scenario ids `T\d+`, `S\d+`; `isLink` decides)
  * open by click or Enter / Space.
  */
-export function DerivedDiagram({ source, label, onOpen, isLink = isItemId }: { source: string; label: string; onOpen: (id: string) => void; isLink?: (id: string) => boolean }) {
+export function DerivedDiagram({ source, label, onOpen, isLink = isItemId, fit = false }: {
+  source: string
+  label: string
+  onOpen: (id: string) => void
+  isLink?: (id: string) => boolean
+  /** Scale to the box (a narrow rail) instead of the 75% floor + scroll; Fullscreen still shows it large */
+  fit?: boolean
+}) {
   const ref = useRef<HTMLElement>(null)
   const { t } = useT()
   useEffect(() => {
@@ -68,7 +75,7 @@ export function DerivedDiagram({ source, label, onOpen, isLink = isItemId }: { s
   }, [onOpen, t, isLink])
   return (
     <section ref={ref} aria-label={label} data-derived-diagram>
-      <MarkdownRenderer content={"```mermaid\n" + source + "\n```\n"} className="derived-diagram" />
+      <MarkdownRenderer content={"```mermaid\n" + source + "\n```\n"} className={fit ? "derived-diagram derived-diagram-fit" : "derived-diagram"} />
     </section>
   )
 }

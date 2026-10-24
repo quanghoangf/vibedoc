@@ -111,3 +111,13 @@ export function filterEvents(
 ): ActivityEvent[] {
   return events.filter(e => (!category || eventCategory(e) === category) && (!actor || e.actor === actor))
 }
+
+/**
+ * A title as people read it: "T055 moved to in-progress" names the status by its label ("In progress"). Display only:
+ * the log keeps the raw title, which touchedPaths, sessions and episodes parse.
+ */
+export function displayTitle(e: Pick<ActivityEvent, 'type' | 'title' | 'taskStatus'>, statusLabel: (status: string) => string): string {
+  if (e.type !== 'task_updated') return e.title
+  const m = /^(.*\bmoved to )(\S+)$/.exec(e.title)
+  return m ? `${m[1]}${statusLabel(e.taskStatus ?? m[2])}` : e.title
+}
