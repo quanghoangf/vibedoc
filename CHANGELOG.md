@@ -1,3 +1,17 @@
+# [1.27.0](https://github.com/quanghoangf/vibedoc/compare/v1.26.0...v1.27.0) (2026-10-24)
+
+
+### Bug Fixes
+
+* **ui:** polish review decisions, loading and settings after the critique rounds ([7649aed](https://github.com/quanghoangf/vibedoc/commit/7649aed330fbc66d091d40d5cc909bdfc7d79b69))
+
+
+### Features
+
+* **ui:** accent never encodes status, one keyboard model, calmer first run (critique round 2) ([4cbb9e6](https://github.com/quanghoangf/vibedoc/commit/4cbb9e64d5294d86d197ee5fd3fc76d80a3f1ac2))
+* **ui:** honest status and one needs-you queue (critique round 1) ([0c805e7](https://github.com/quanghoangf/vibedoc/commit/0c805e7766f54256f30496eb03aa23b63f34e23d))
+* **ui:** roadmap frames live work, diagrams fit, one primary per screen (critique round 3) ([92e7d08](https://github.com/quanghoangf/vibedoc/commit/92e7d080d186ee04003038fc7d80776d6cd6b00b))
+
 # [1.26.0](https://github.com/quanghoangf/vibedoc/compare/v1.25.1...v1.26.0) (2026-10-21)
 
 
