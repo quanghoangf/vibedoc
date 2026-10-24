@@ -12,11 +12,14 @@ interface ThemeSettingsProps {
   onSave: (settings: AppSettings) => void
 }
 
+// Each swatch is the accent it applies: the --rgb-accent values in globals.css (light, then .dark). The default's id
+// stays "blue" for saved settings, but it is Lab Violet, so it is labelled Violet. Green is a lime, kept apart from
+// Done teal (DESIGN.md).
 const ACCENT_COLORS = [
-  { id: "blue", label: "settings.blue", class: "bg-blue-500" },
-  { id: "purple", label: "settings.purple", class: "bg-purple-500" },
-  { id: "green", label: "settings.green", class: "bg-lime-500" }, // a lime, kept apart from Done teal (DESIGN.md)
-  { id: "orange", label: "settings.orange", class: "bg-orange-500" },
+  { id: "blue", label: "settings.blue", class: "bg-[rgb(99_80_230)] dark:bg-[rgb(124_106_247)]" },
+  { id: "purple", label: "settings.purple", class: "bg-[rgb(126_34_206)] dark:bg-[rgb(168_85_247)]" },
+  { id: "green", label: "settings.green", class: "bg-[rgb(63_98_18)] dark:bg-[rgb(132_204_22)]" },
+  { id: "orange", label: "settings.orange", class: "bg-[rgb(194_65_12)] dark:bg-[rgb(249_115_22)]" },
 ] as const
 
 const FONT_SIZES = [
@@ -136,7 +139,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
                 aria-pressed={isActive}
                 title={t(color.label)}
               >
-                {isActive && <Check className="w-5 h-5 text-black" aria-hidden />}
+                {isActive && <Check className="w-5 h-5 text-white dark:text-black" aria-hidden />}
               </button>
             )
           })}

@@ -68,7 +68,6 @@ export const en = {
   collapseEpics: "Collapse",
   showEpicsLabel: "Show the epics of {title}",
   collapseEpicsLabel: "Collapse the epics of {title}",
-  live: "Live",
   taskCount_one: "{n} task",
   taskCount_other: "{n} tasks",
   noTasksYet: "No tasks yet",
@@ -95,7 +94,8 @@ export const en = {
   breakDownEpicsEllipsis: "Break down epics…",
   horizon: "Horizon",
   tasksWord: "tasks",
-  needAttention: "{n} need attention",
+  needAttention: "{n} drift",
+  otherWaysToStart: "Other ways to start",
   moreActions: "More roadmap actions",
   mergeSpec: "Merge spec",
   setStatusTo: "Set status to {status}",
@@ -237,7 +237,7 @@ export const en = {
   todayMarker: "Today",
   // Epic map (R097, T521)
   diagram: "Map of tasks and scenarios",
-  showDiagram: "Show the map ({n} tasks)",
+  mapSection: "Map",
   // Group roadmap (R102, T540)
   repoEpics_one: "{n} epic",
   repoEpics_other: "{n} epics",
@@ -308,7 +308,6 @@ export const vi: Messages<typeof en> = {
   collapseEpics: "Thu gọn",
   showEpicsLabel: "Hiện các epic của {title}",
   collapseEpicsLabel: "Thu gọn các epic của {title}",
-  live: "Đang làm",
   taskCount_one: "{n} việc",
   taskCount_other: "{n} việc",
   noTasksYet: "Chưa có việc",
@@ -334,7 +333,8 @@ export const vi: Messages<typeof en> = {
   breakDownEpicsEllipsis: "Chia nhỏ các epic…",
   horizon: "Chặng",
   tasksWord: "việc",
-  needAttention: "{n} mục cần chú ý",
+  needAttention: "{n} lệch",
+  otherWaysToStart: "Cách khác để bắt đầu",
   moreActions: "Thêm thao tác lộ trình",
   mergeSpec: "Gộp spec",
   setStatusTo: "Đặt trạng thái thành {status}",
@@ -472,7 +472,7 @@ export const vi: Messages<typeof en> = {
   todayMarker: "Hôm nay",
   // Epic map (R097, T521)
   diagram: "Sơ đồ task và kịch bản",
-  showDiagram: "Hiện sơ đồ ({n} task)",
+  mapSection: "Sơ đồ",
   // Group roadmap (R102, T540)
   repoEpics_one: "{n} epic",
   repoEpics_other: "{n} epic",

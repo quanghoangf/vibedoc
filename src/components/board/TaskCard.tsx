@@ -186,7 +186,8 @@ export function TaskCard({ task, onOpen, properties = ALL_PROPERTIES, selected =
             </Link>
           )}
           {tests?.spec && !demo && !playground && !task.project && <CardRun taskId={task.id} />}
-          <QuickReviewButton task={task} />
+          {/* the card already sits in the Review column: the quick review shows on hover / focus only */}
+          <QuickReviewButton task={task} className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" />
         </div>
       )}
     </div>

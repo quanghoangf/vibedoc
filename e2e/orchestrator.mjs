@@ -66,7 +66,7 @@ try {
     const ctx = await browser.newContext({ viewport: { width: 1400, height: 900 } })
     await ctx.route("**/api/projects", (route) => route.fulfill({ json: [{ id: projectId, name: "fixture", root: fx, hasVibedoc: true }] }))
     const page = await ctx.newPage()
-    page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()) })
+    page.on("console", (m) => { if (m.type() === "error" && !m.location().url.endsWith("/favicon.ico")) errors.push(`${m.text()} ${m.location().url}`) })
     page.on("pageerror", (e) => errors.push(e.message))
 
     // 2. ask it from the sidebar: the reply comes from vibedoc_list_workers, propose_run draws the run card

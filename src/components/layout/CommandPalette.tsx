@@ -79,6 +79,12 @@ interface CommandPaletteProps {
 
 const icon = (Icon: LucideIcon) => <Icon className="size-3.5 shrink-0 text-muted" aria-hidden />
 
+/** "⌘P" → "Meta+P", "⇧E" → "Shift+E" for aria-keyshortcuts; a key sequence ("g b") has no ARIA form. */
+const ariaKeys = (label?: string) =>
+  label && !label.includes(" ")
+    ? label.replace(/⌘/g, "Meta+").replace(/⇧/g, "Shift+").replace(/⌥/g, "Alt+").replace(/⌃/g, "Control+")
+    : undefined
+
 /** ⌘K — chats first (task/epic ids first when the query is one), then pages, tasks & epics by id or title, docs by content, and actions. */
 export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen, onShowHelp, rootParam }: CommandPaletteProps) {
   const router = useRouter()
@@ -279,7 +285,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden bg-surface border-border gap-0 top-[20%] translate-y-0">
+      <DialogContent aria-modal="true" aria-label={t("help.commandPalette")} className="max-w-lg p-0 overflow-hidden bg-surface border-border gap-0 top-[20%] translate-y-0">
         <DialogTitle className="sr-only">{t("help.commandPalette")}</DialogTitle>
         <div className="flex items-center gap-3 px-4 h-11 border-b border-border">
           <Search className="size-4 text-muted shrink-0" aria-hidden />
@@ -310,6 +316,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
                 data-index={i}
                 role="option"
                 aria-selected={i === active}
+                aria-keyshortcuts={ariaKeys(row.kbd)}
                 onClick={row.run}
                 onMouseMove={() => setActiveIndex(i)}
                 className={cn(
@@ -322,7 +329,7 @@ export function CommandPalette({ open, onClose, onOpenDoc, onNewDoc, onQuickOpen
                 <span data-user-content={row.match ? undefined : true} className="truncate text-txt">{row.label}</span>
                 {row.detail && <span data-user-content className="truncate text-[11px] text-muted">{row.detail}</span>}
                 {row.kbd && (
-                  <kbd className="ml-auto shrink-0 rounded-sm border border-border px-1 font-mono text-[10px] text-muted">{row.kbd}</kbd>
+                  <kbd aria-hidden className="ml-auto shrink-0 rounded-sm border border-border px-1 font-mono text-[10px] text-muted">{row.kbd}</kbd>
                 )}
               </div>
               ) })}

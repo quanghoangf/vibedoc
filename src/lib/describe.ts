@@ -31,6 +31,15 @@ function firstSentence(text: string): string {
  * its text. Falls back to the first heading, else ''.
  */
 export function firstProseSentence(content: string): string {
+  return firstProse(content, firstSentence)
+}
+
+/** The whole first prose paragraph (same skipping as firstProseSentence), capped at `max` characters; '' when none. */
+export function firstProseParagraph(content: string, max = 600): string {
+  return firstProse(content, (s) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s), false)
+}
+
+function firstProse(content: string, pick: (paragraph: string) => string, headingFallback = true): string {
   const text = content
     .replace(/^﻿/, '')
     .replace(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '')
@@ -41,7 +50,7 @@ export function firstProseSentence(content: string): string {
   const done = () => {
     const p = plainInline(para.join(' '))
     para = []
-    return p.length >= 20 && /[a-z]/i.test(p) ? firstSentence(p) : ''
+    return p.length >= 20 && /[a-z]/i.test(p) ? pick(p) : ''
   }
   for (const raw of text.split(/\r?\n/)) {
     const f = /^\s{0,3}(`{3,}|~{3,})/.exec(raw)?.[1]
@@ -64,7 +73,7 @@ export function firstProseSentence(content: string): string {
     // a blockquote's text counts; a code comment's prefix goes
     para.push(line.replace(/^(>\s*)+/, '').replace(/^(\/\/+|\/\*+|\*\/|\*(?=\s)|#!?(?=\s))\s*/, '').replace(/\s*\*\/$/, ''))
   }
-  return done() || heading
+  return done() || (headingFallback ? heading : '')
 }
 
 export type InlinePart =

@@ -222,6 +222,10 @@ body {
 .prose-dark h1 { font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; letter-spacing: -0.02em; color: var(--color-txt); margin-bottom: 1.25rem; text-wrap: balance; }
 .prose-dark h2 { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.35; color: var(--color-txt); margin: 2.25rem 0 0.75rem; text-wrap: balance; }
 .prose-dark h3 { font-size: 1.05rem; font-weight: 600; line-height: 1.4; color: var(--color-txt); margin: 1.75rem 0 0.5rem; }
+/* The Memory page's handoff pane: one type step below the page title (text-xl), so MEMORY.md's H1 never outranks it */
+.prose-dark.handoff-prose h1 { font-size: 1.125rem; letter-spacing: -0.01em; margin-bottom: 0.75rem; }
+.prose-dark.handoff-prose h2 { font-size: 1rem; margin: 1.75rem 0 0.5rem; }
+.prose-dark.handoff-prose h3 { font-size: 0.9375rem; margin: 1.25rem 0 0.4rem; }
 .prose-dark p { font-size: 0.9375rem; color: color-mix(in srgb, var(--color-txt) 86%, var(--color-muted)); line-height: 1.75; margin-bottom: 1rem; }
 .prose-dark ul, .prose-dark ol { padding-left: 1.4rem; margin-bottom: 1rem; }
 /* Tailwind's preflight strips list markers; prose needs them back */
@@ -269,6 +273,15 @@ body {
 .prose-dark details > :last-child:not(summary) { margin-bottom: 0.9rem; }
 /* tables: one rounded frame, a tinted header row, hairlines between rows */
 .prose-dark table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; margin-bottom: 1.25rem; font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+/* A table's frame (MarkdownRenderer wraps each one): cells keep a readable width (never a word per line); a table wider
+   than the reading measure breaks out up to the doc pane, and when still too wide scrolls inside the frame, with an
+   edge shade on the side that has more (background-attachment: local covers it at the end) */
+.prose-dark .table-frame { overflow-x: auto; margin-bottom: 1.25rem; border-radius: 12px;
+  background: linear-gradient(to right, var(--color-bg), var(--color-bg)) left / 2rem 100% no-repeat local, linear-gradient(to left, var(--color-bg), var(--color-bg)) right / 2rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, color-mix(in srgb, var(--color-txt) 16%, transparent), transparent) left / 0.75rem 100% no-repeat scroll, radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--color-txt) 16%, transparent), transparent) right / 0.75rem 100% no-repeat scroll; }
+.prose-dark .table-frame > table { margin-bottom: 0; }
+.prose-dark .table-frame :is(th, td) { min-width: 10ch; max-width: 48ch; }
+.doc-preview > .table-frame { grid-column: 1 / -1; justify-self: center; width: max-content; min-width: min(72ch, 100%); max-width: 100%; }
 .prose-dark th { text-align: left; padding: 0.6rem 0.9rem; background: var(--color-surface); border-bottom: 1px solid var(--color-border); color: var(--color-txt); font-weight: 600; font-size: 0.8125rem; }
 .prose-dark td { padding: 0.6rem 0.9rem; border-top: 1px solid var(--color-border); color: color-mix(in srgb, var(--color-txt) 86%, var(--color-muted)); vertical-align: top; }
 .prose-dark tr:first-child > td { border-top: 0; }
@@ -462,22 +475,24 @@ body {
 .diagram-tools button:hover { color: var(--color-txt); background: var(--color-surface2); }
 .diagram-tools button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 /* A wide diagram (frameDiagram in diagram-viewer.tsx): it breaks out of the prose column up to the pane, and when it
-   still can't fit it scrolls with a right-edge fade and a Fit / Scroll → chip (Fit scales it to the width) */
+   still can't fit it is drawn scaled to the width (viewBox, nothing clipped) with an always-on control row under it:
+   the scale, Actual size (keeps its own width and scrolls, with a right-edge fade) and Fullscreen */
 .diagram-frame { position: relative; margin: 1.5rem 0; }
 .diagram-frame > .mermaid { margin: 0; }
 .derived-diagram .diagram-frame { margin: 0; }
-/* a derived map in a narrow rail scales to the box: no floor, so no scroll, fade or Fit chip */
-.derived-diagram-fit .mermaid > svg { min-width: 0 !important; }
+/* a derived map in a narrow rail always scales to its box: no Actual size there, Fullscreen shows it large */
 .derived-diagram-fit :is(.diagram-fade, .diagram-fit) { display: none !important; }
 .doc-preview > .diagram-frame[data-wide] { grid-column: 1 / -1; justify-self: center; width: 100%; }
-.diagram-frame[data-fit] > .mermaid > svg { min-width: 0 !important; }
 .diagram-frame > .mermaid:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.diagram-fade { position: absolute; top: 1px; right: 1px; bottom: 1px; width: 3rem; border-radius: 0 11px 11px 0; background: linear-gradient(to right, transparent, var(--color-bg)); pointer-events: none; opacity: 0; transition: opacity 120ms; }
-.diagram-frame[data-overflow]:not([data-fit], [data-at-end]) > .diagram-fade { opacity: 1; }
-.diagram-fit { display: none; position: absolute; right: 0.5rem; bottom: 0.5rem; padding: 0.15rem 0.5rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-muted); font-family: var(--font-mono); font-size: 11px; line-height: 1.4; }
-.diagram-frame:is([data-overflow], [data-fit]) > .diagram-fit { display: block; }
-.diagram-fit:hover { color: var(--color-txt); border-color: var(--color-border2); }
-.diagram-fit:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.diagram-fade { position: absolute; top: 1px; right: 1px; bottom: 2.25rem; width: 3rem; border-radius: 0 11px 0 0; background: linear-gradient(to right, transparent, var(--color-bg)); pointer-events: none; opacity: 0; transition: opacity 120ms; }
+.diagram-frame[data-actual]:not([data-at-end]) > .diagram-fade { opacity: 1; }
+.diagram-controls { display: none; align-items: center; justify-content: flex-end; gap: 0.375rem; margin-top: 0.375rem; font-family: var(--font-mono); font-size: 11px; line-height: 1.4; color: var(--color-muted); }
+.diagram-frame:is([data-scaled], [data-actual]) > .diagram-controls { display: flex; }
+.diagram-pct { margin-right: 0.25rem; font-variant-numeric: tabular-nums; }
+.diagram-controls button { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 24px; padding: 0.15rem 0.55rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--color-txt); font: inherit; }
+.diagram-controls button:hover { border-color: var(--color-border2); background: var(--color-surface2); }
+.diagram-controls button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.diagram-controls button svg { width: 12px; height: 12px; }
 .diagram-stage svg { width: 100%; height: 100%; max-width: none !important; }
 /* themeVariables.dropShadow covers most diagrams; sequence actors point at the svg's own shadow filter regardless */
 :is(.mermaid, .diagram-stage) svg * { filter: none !important; }
@@ -500,7 +515,6 @@ body {
 :is(.mermaid, .diagram-stage) .node.sc-uncovered :is(rect, polygon, path) { stroke: rgb(var(--rgb-danger)) !important; stroke-dasharray: 4 3; }
 .derived-diagram .mermaid { margin: 0.25rem 0; text-align: left; overflow-x: auto; }
 .prose-dark.derived-diagram .mermaid:has(> svg) { border: 0; border-radius: 0; padding: 0; }
-/* derived diagrams shrink to fit only down to 75% (DerivedDiagram sets min-width), then scroll sideways */
 .derived-diagram g.node[role="link"]:focus-visible { outline: none; }
 .derived-diagram g.node[role="link"]:focus-visible :is(rect, polygon, path) { stroke: rgb(var(--rgb-accent)) !important; stroke-width: 2px !important; }
 .derived-diagram g.node[role="link"]:hover :is(rect, polygon, path) { fill: rgb(var(--rgb-surface2)) !important; }

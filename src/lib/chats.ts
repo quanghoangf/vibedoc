@@ -239,6 +239,31 @@ export function chatFor<C extends Chat>(chats: C[], a: Attach): C | undefined {
   return chats.filter((c) => !c.worker && sameAttach(c.attach, a)).sort((x, y) => y.updatedAt.localeCompare(x.updatedAt))[0]
 }
 
+/** The task a Verify chat checks (R067's `verifyTask` prompt, or its title cut by chatTitle); null otherwise. */
+export function verifyTaskOf(title: string): string | null {
+  return /^Verify (?:task )?(T\d+)\b/i.exec(title.trim())?.[1].toUpperCase() ?? null
+}
+
+/** What a chat is about, for the list only: its attach, else the task a Verify chat checks. Never used to route. */
+export function chatSubject(c: Pick<Chat, "attach" | "title">): Attach | null {
+  if (c.attach) return c.attach
+  const id = verifyTaskOf(c.title)
+  return id ? { kind: "task", id } : null
+}
+
+/** `chats` folded by subject (order kept, the first one heads its group); chats about nothing stay alone. Display only. */
+export function groupBySubject<C extends Pick<Chat, "id" | "attach" | "title">>(chats: C[]): { key: string; chats: C[] }[] {
+  const groups = new Map<string, { key: string; chats: C[] }>()
+  for (const c of chats) {
+    const s = chatSubject(c)
+    const key = s ? attachKey(s) : `chat:${c.id}`
+    const g = groups.get(key)
+    if (g) g.chats.push(c)
+    else groups.set(key, { key, chats: [c] })
+  }
+  return [...groups.values()]
+}
+
 /** What the roadmap/board show on an item while a chat works on it. Idle and errored chats show nothing. */
 export interface ItemAgent { status: "running" | "needs-answer" | "review"; chatId: string }
 

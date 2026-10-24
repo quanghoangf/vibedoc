@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type MouseEvent } from "react"
+import { useState, type CSSProperties, type MouseEvent } from "react"
 import { ArrowDown, ArrowUp, Bot, Check, ChevronRight, FlaskConical, Minus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useTaskGroups } from "./useTaskGroups"
@@ -29,9 +29,13 @@ const ORDER: PropertyKey[] = ["status", "epic", "owner", "size", "due", "deps", 
 const LABEL: Record<PropertyKey, MessageKey> = {
   status: "board.status", epic: "board.epic", size: "board.size", due: "board.due", deps: "board.dependsOn", tests: "board.tests", agent: "board.agent", owner: "board.owner",
 }
-const WIDTH: Record<PropertyKey, string> = {
-  status: "w-[120px]", epic: "w-[170px]", size: "w-[56px]", due: "w-[92px]", deps: "w-[140px]", tests: "w-[128px]", agent: "w-[88px]", owner: "w-[104px]",
+const WIDTH_PX: Record<PropertyKey, number> = {
+  status: 120, epic: 170, size: 56, due: 92, deps: 140, tests: 128, agent: 88, owner: 104,
 }
+/** The title column takes what's left (table-fixed), never less than this: the table scrolls sideways first. */
+const TITLE_MIN_PX = 320
+const SELECT_PX = 34
+const ID_PX = 72
 /** Hidden below md: the phone table keeps ID · Title · Status · Due · Agent. */
 const WIDE_ONLY = new Set<PropertyKey>(["epic", "size", "deps", "tests", "owner"])
 const SORTABLE = new Set<string>(["id", "title", "status", "epic", "size", "due"])
@@ -53,7 +57,8 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
   const groupTasks = useTaskGroups()
   const { t } = useT()
   const progressLabel = useProgressLabel()
-  const props = ORDER.filter((p) => state.properties.includes(p))
+  // grouped by epic, each group's header already names the epic
+  const props = ORDER.filter((p) => state.properties.includes(p) && !(p === "epic" && state.group === "epic"))
   const groups: TaskGroup[] =
     state.group === "none" ? [{ key: "all", label: t("board.allTasks"), epicId: null, tasks }] : groupTasks(tasks, state.group)
   // Groups whose tasks are all done start collapsed; the user's toggles override.
@@ -136,6 +141,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
       case "size":
         return <td key={p} className={cn(cls, cellMono)}><TaskSizeField task={task} /></td>
       case "owner":
+        // icon + short label; the full name is the chip's title
         return <td key={p} className={cls}><TaskOwnerField task={task} /></td>
       case "due": {
         const overdue = !!task.due && task.status !== "done" && task.status !== "cancelled" && task.due < today
@@ -214,12 +220,15 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full min-w-[580px] table-fixed border-collapse md:min-w-[760px]">
+      <table
+        className="w-full min-w-[580px] table-fixed border-collapse md:min-w-(--table-min)"
+        style={{ "--table-min": `${SELECT_PX + ID_PX + TITLE_MIN_PX + props.reduce((sum, p) => sum + WIDTH_PX[p], 0)}px` } as CSSProperties}
+      >
         <colgroup>
-          <col className="w-[34px]" />
-          <col className="w-[72px]" />
+          <col style={{ width: SELECT_PX }} />
+          <col style={{ width: ID_PX }} />
           <col className="w-[200px] md:w-auto" />
-          {props.map((p) => <col key={p} className={cn(WIDTH[p], WIDE_ONLY.has(p) && "hidden md:table-column")} />)}
+          {props.map((p) => <col key={p} style={{ width: WIDTH_PX[p] }} className={cn(WIDE_ONLY.has(p) && "hidden md:table-column")} />)}
         </colgroup>
         <thead>
           <tr className="h-[34px] border-b border-border2 bg-bg text-[11px] text-muted">

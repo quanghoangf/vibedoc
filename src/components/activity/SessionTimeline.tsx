@@ -93,8 +93,8 @@ export function SessionTimeline({ sessions, events, onOpenTask, onOpenDoc, onOpe
                     <span
                       className={cn(
                         "relative z-[1] rounded-full ring-4 ring-bg",
-                        quiet ? "size-1.5 bg-border2" : "size-2.5",
-                        !quiet && (s.actor === "ai" ? "bg-accent" : "bg-muted"),
+                        // neutral for both actors: the card's Bot / User icon says who, the accent means selected
+                        quiet ? "size-1.5 bg-border2" : "size-2.5 bg-muted",
                         live && "animate-pulse-dot",
                       )}
                     />

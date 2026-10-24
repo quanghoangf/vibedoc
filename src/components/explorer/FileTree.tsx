@@ -4,9 +4,9 @@ import { useMemo, useState } from "react"
 import { FileText, Folder, FolderOpen, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { plainInline } from "@/lib/describe"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import type { ExplorerFile } from "@/types"
+import { FRESH_TEXT, FreshnessLegend, freshness } from "./Freshness"
 
 interface TreeNode {
   name: string
@@ -35,12 +35,6 @@ function buildTree(files: ExplorerFile[]): TreeNode[] {
   return root.children
 }
 
-function getHeatmapClass(mtime: string): string {
-  const daysDiff = (Date.now() - new Date(mtime).getTime()) / (1000 * 60 * 60 * 24)
-  if (daysDiff <= 7) return "text-teal"
-  if (daysDiff <= 28) return "text-amber"
-  return "text-muted"
-}
 
 interface TreeNodeRowProps {
   node: TreeNode
@@ -57,22 +51,22 @@ function TreeNodeRow({ node, depth, selectedPath, onSelect, heatmap, defaultOpen
 
   if (node.file) {
     const isSelected = node.file.path === selectedPath
-    const colorClass = heatmap ? getHeatmapClass(node.file.mtime) : "text-muted"
+    const colorClass = heatmap ? FRESH_TEXT[freshness(node.file.mtime)] : "text-muted"
     return (
       <button
         onClick={() => onSelect(node.file!.path)}
         className={cn(
-          "w-full flex flex-col gap-0.5 px-2 py-1.5 text-left hover:bg-surface2 transition-colors rounded-sm",
+          "w-full min-w-0 flex flex-col gap-0.5 px-2 py-1.5 text-left hover:bg-surface2 transition-colors rounded-sm",
           isSelected && "bg-surface2 ring-1 ring-inset ring-accent/30"
         )}
         style={{ paddingLeft: indent + 8 }}
       >
-        <div className="flex items-center gap-1.5">
+        <div className="flex w-full min-w-0 items-center gap-1.5">
           <FileText className={cn("w-3.5 h-3.5 shrink-0", colorClass)} />
           <span data-user-content className="text-xs text-txt truncate">{node.name}</span>
         </div>
         {node.file.description && (
-          <p className="text-[10px] text-muted leading-tight truncate" style={{ paddingLeft: 20 }}>
+          <p className="w-full min-w-0 text-[10px] text-muted leading-tight truncate" style={{ paddingLeft: 20 }}>
             {plainInline(node.file.description)}
           </p>
         )}
@@ -91,10 +85,10 @@ function TreeNodeRow({ node, depth, selectedPath, onSelect, heatmap, defaultOpen
             className={cn("w-3 h-3 text-muted shrink-0 transition-transform duration-200", open && "rotate-90")}
           />
           {open
-            ? <FolderOpen className="w-3.5 h-3.5 text-accent shrink-0" />
+            ? <FolderOpen className="w-3.5 h-3.5 text-muted shrink-0" />
             : <Folder className="w-3.5 h-3.5 text-muted shrink-0" />
           }
-          <span data-user-content className="text-xs text-txt font-medium">{node.name}</span>
+          <span data-user-content className="min-w-0 truncate text-xs text-txt font-medium">{node.name}</span>
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
@@ -124,7 +118,9 @@ export function FileTree({ files, selectedPath, onSelect, heatmap }: FileTreePro
   const tree = useMemo(() => buildTree(files), [files])
 
   return (
-    <ScrollArea className="flex-1">
+    // a plain scroller: Radix ScrollArea's display:table viewport defeats `truncate` on the description lines
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      {heatmap && <FreshnessLegend className="sticky top-0 z-10 border-b border-border bg-bg px-4 py-2" />}
       <div className="p-2">
         {tree.map((node) => (
           <TreeNodeRow
@@ -138,6 +134,6 @@ export function FileTree({ files, selectedPath, onSelect, heatmap }: FileTreePro
           />
         ))}
       </div>
-    </ScrollArea>
+    </div>
   )
 }

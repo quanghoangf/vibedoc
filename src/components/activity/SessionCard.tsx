@@ -95,22 +95,24 @@ export function SessionCard({ session, events, onOpenTask, onOpenDoc, onOpen, fo
       )}
     >
       <div className="px-4 pt-3.5 pb-4">
-        <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="group flex w-full min-w-0 items-center gap-2 text-left focus-visible:outline-none">
-          <Actor className="size-3.5 shrink-0 text-muted" aria-hidden />
-          <span className="text-xs text-muted">{isAgent ? t("memory.agent") : t("memory.human")}</span>
-          {live && (
-            <span className="flex items-center gap-1 font-mono text-[10px] text-amber">
-              <span className="size-1.5 rounded-full bg-amber animate-pulse-dot" />
-              {t("memory.working")}
+        {/* the whole header, headline included, is the one expand toggle */}
+        <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="group flex w-full min-w-0 flex-col gap-1.5 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60">
+          <span className="flex w-full min-w-0 items-center gap-2">
+            <Actor className="size-3.5 shrink-0 text-muted" aria-hidden />
+            <span className="text-xs text-muted">{isAgent ? t("memory.agent") : t("memory.human")}</span>
+            {live && (
+              <span className="flex items-center gap-1 font-mono text-[10px] text-amber">
+                <span className="size-1.5 rounded-full bg-amber animate-pulse-dot" />
+                {t("memory.working")}
+              </span>
+            )}
+            <span className="ml-auto shrink-0 font-mono text-[11px] text-muted">{f.duration(minutes)} · {count}</span>
+            <span className="flex items-center gap-1 text-[11px] text-muted group-hover:text-txt group-focus-visible:text-txt">
+              <Chevron open={open} />
             </span>
-          )}
-          <span className="ml-auto shrink-0 font-mono text-[11px] text-muted">{f.duration(minutes)} · {count}</span>
-          <span className="flex items-center gap-1 text-[11px] text-muted group-hover:text-txt group-focus-visible:text-txt">
-            <Chevron open={open} />
           </span>
+          <span className="block text-[15px] leading-snug font-semibold text-txt">{headline}</span>
         </button>
-
-        <p className="mt-1.5 text-[15px] leading-snug font-semibold text-txt">{headline}</p>
 
         {session.tasks.length > 0 && (
           <div className="mt-3 flex items-center gap-3">

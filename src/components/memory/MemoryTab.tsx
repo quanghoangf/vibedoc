@@ -12,7 +12,7 @@ import type { MergeInput } from "./MergeDialog"
 import type { CleanupFlag, MemoryVersion } from "@/lib/core"
 import { cn } from "@/lib/utils"
 import { useState } from "react"
-import { AlertTriangle, Check, Copy } from "lucide-react"
+import { AlertTriangle, Brain, Check, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
@@ -65,6 +65,14 @@ When you learn a fact that should still hold next week:
 At session end:
 - Call vibedoc_update_memory with full handoff`
 
+/** Days since MEMORY.md's `**Last updated:** YYYY-MM-DD` (a local calendar date: compared as dates, never as instants). */
+function handoffAge(content: string): { stamp: string; days: number } | null {
+  const stamp = /^\*\*Last updated:\*\*\s*(\d{4}-\d{2}-\d{2})/m.exec(content)?.[1]
+  if (!stamp) return null
+  const today = new Date().toLocaleDateString("en-CA")
+  return { stamp, days: Math.max(0, Math.round((Date.parse(today) - Date.parse(stamp)) / 86_400_000)) }
+}
+
 /** The empty handoff's one action: copy the CLAUDE.md lines that make the agent write it (R083). */
 function CopySnippet() {
   const { t } = useT()
@@ -91,15 +99,13 @@ export function MemoryTab({ memory, entries, grouped = false, rootParam, selecte
   // the graph, related links, history and cleanup read this repo only (R103)
   const own: Entry[] | null = entries?.filter((e) => !e.project) ?? null
   const open = flags?.filter((f) => !f.dismissed) ?? []
-  const warn = open.some((f) => f.severity === "warn")
   // Cleanup only dismisses, merges and deletes: none of it in the read-only demo (R042)
   const { demo } = useApp()
-  const { t } = useT()
+  const { t, tn } = useT()
+  const age = handoffAge(memory?.exists ? memory.content : "")
   return (
-    <div className={cn(
-      "grid items-start gap-6 p-6",
-      view === "graph" ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,30rem)]" : "lg:grid-cols-[minmax(280px,380px)_minmax(0,42rem)]",
-    )}>
+    // one column template for List and Graph, so switching never moves or resizes the handoff pane
+    <div className="grid items-start gap-6 p-6 lg:grid-cols-[minmax(280px,1fr)_minmax(0,40rem)]">
       <div className="flex items-center justify-between gap-4 lg:col-span-2">
         <h1 className="font-display text-xl font-semibold tracking-tight">{t("shell.memory")}</h1>
         <div className="flex items-center gap-2">
@@ -113,7 +119,6 @@ export function MemoryTab({ memory, entries, grouped = false, rootParam, selecte
               cleanup && "border-border2 bg-surface2 text-txt",
             )}
           >
-            {warn && <AlertTriangle className="size-3.5 text-amber" aria-hidden />}
             {t("memory.cleanup")} <span className="font-mono text-[11px]">({open.length})</span>
           </button>}
           <div role="group" aria-label={t("memory.entriesView")} className="flex rounded-md border border-border p-0.5">
@@ -138,7 +143,7 @@ export function MemoryTab({ memory, entries, grouped = false, rootParam, selecte
       {entries && view === "graph" ? (
         <MemoryGraph entries={own ?? []} selectedId={selectedId} onOpenEntry={onOpen} />
       ) : entries ? (
-        <EntryList entries={entries} selectedId={selectedId} onOpen={onOpen} onNew={onNew} grouped={grouped} />
+        <EntryList entries={entries} selectedId={selectedId} onOpen={onOpen} onNew={onNew} grouped={grouped} teach={!!memory?.exists} />
       ) : (
         <p className="text-sm text-muted">{t("memory.loadingEntries")}</p>
       )}
@@ -167,7 +172,10 @@ export function MemoryTab({ memory, entries, grouped = false, rootParam, selecte
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
             <h2 className="font-display text-base font-semibold tracking-tight">{t("memory.sessionHandoff")}</h2>
             <div className="flex items-center gap-3">
-              <span className="text-xs font-mono text-muted">memory/MEMORY.md</span>
+              <span className="text-xs font-mono text-muted">
+                memory/MEMORY.md
+                {age !== null && <span data-handoff-age title={age.stamp}> · {age.days === 0 ? t("memory.handoffUpdatedToday") : tn("memory.handoffUpdated", age.days)}</span>}
+              </span>
               <button
                 type="button"
                 aria-pressed={history}
@@ -194,12 +202,13 @@ export function MemoryTab({ memory, entries, grouped = false, rootParam, selecte
               onRestore={onRestore}
             />
           ) : memory?.exists ? (
+            // .handoff-prose: headings one step below the page title, so the handoff's H1 never outranks "Memory"
             <div className="bg-surface border border-border rounded-xl p-5">
-              <MarkdownRenderer content={memory.content} />
+              <MarkdownRenderer content={memory.content} className="handoff-prose" />
             </div>
           ) : (
             <EmptyState
-              icon="🧠"
+              icon={<Brain className="size-6" />}
               message={t("memory.noMemory")}
               lead={t("memory.noMemoryLead")}
               action={<CopySnippet />}
@@ -212,7 +221,7 @@ export function MemoryTab({ memory, entries, grouped = false, rootParam, selecte
             <p className="text-xs font-mono text-muted mb-2">
               {t("memory.addToClaude")}
             </p>
-            <pre data-user-content className="text-xs font-mono text-accent/80 whitespace-pre-wrap leading-relaxed">{CLAUDE_SNIPPET}</pre>
+            <pre data-user-content className="text-xs font-mono text-txt whitespace-pre-wrap leading-relaxed">{CLAUDE_SNIPPET}</pre>
           </div>
         </div>
       )}

@@ -51,7 +51,7 @@ import { stopFrontend } from './frontend-server'
 import { buildInbox, needsYouCount, type InboxItem, type InboxProjectInput } from './inbox'
 import { roadmapHealth } from './roadmap-health'
 import { groupRollup, projectStats, type PortfolioRow, type ProjectStats } from './portfolio'
-import { formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
+import { blockingCount, formatVerifyContext, isOutdated, parseVerification, setVerification, type Finding, type Verification } from './verification'
 import { applyDelta, isSpecPath, parseSpecChanges, formatRelatedSpecs, formatSpecContext, parseSpec, parseSpecSlugs, taskSection, type RelatedSpecGroup, type Spec, type SpecContextEpic } from './specs'
 import { buildEpisode, hasWork, isHandoffWritten, lastEventTitle, mergeSources, parseEpisode, sessionsNeedingEpisode, type Episode } from './episodes'
 import { buildGraph, extractRefs, fileNode, type GraphItem, type MemoryGraph } from './memory-graph'
@@ -608,6 +608,7 @@ async function inboxInputFor(p: Project): Promise<InboxProjectInput> {
         run, failedStep: failedRun ? t.lastRun?.failed?.index ?? null : null,
         autoFixLimit: !!t.raw && latestReview(t.raw)?.outcome === 'auto fix limit reached',
         epicId: /^(R\d+)/.exec(t.phase ?? '')?.[1] ?? null,
+        findings: blockingCount(t.verification),
       }
     }),
     chats: chats.map(raw => fromSaved<StatusMessage>(raw)).filter(c => c !== null).map(c => ({

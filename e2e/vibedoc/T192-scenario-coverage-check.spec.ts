@@ -26,7 +26,7 @@ test('T192 Scenario coverage check', async ({ page, step, request }) => {
   try {
     await step('Open /roadmap with an epic whose task covers none of its scenarios → need attention lists "S1, S2 not covered by any task" for it', async () => {
       await page.goto('/roadmap')
-      await page.getByText(/need attention$/).click()
+      await page.getByText(/\d+ drift$/).click()
       await expect(page.getByRole('button', { name: `${epic}: S1, S2 not covered by any task` })).toBeVisible()
     })
 

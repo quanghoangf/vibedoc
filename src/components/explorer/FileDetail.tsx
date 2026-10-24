@@ -9,7 +9,33 @@ import type { ExplorerFile } from "@/types"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
-import { inlineParts } from "@/lib/describe"
+import { firstProseParagraph, inlineParts, plainInline } from "@/lib/describe"
+import { LinkedDocs } from "@/components/docs/LinkedDocs"
+import { useDocLinks } from "@/components/docs/useDocLinks"
+
+const LABEL_CAPS = "font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted"
+// ISO-like day for English (2026-10-23), the language's own short date otherwise
+const DAY: Intl.DateTimeFormatOptions = { year: "numeric", month: "2-digit", day: "2-digit" }
+
+/** The file's first prose paragraph, read through GET /api/docs?read= (null while loading, '' when it has none). */
+function useFirstParagraph(path: string | undefined): string | null {
+  const { rootParam } = useApp()
+  const [data, setData] = useState<{ path: string; text: string } | null>(null)
+  useEffect(() => {
+    if (!path) return
+    const ctrl = new AbortController()
+    fetch(`/api/docs${rootParam}&read=${encodeURIComponent(path)}`, { signal: ctrl.signal })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { content?: string } | null) => setData({ path, text: firstProseParagraph(d?.content ?? "") }))
+      .catch((e: Error) => {
+        if (e.name === "AbortError") return
+        console.warn("Reading the file for its first paragraph failed", e)
+        setData({ path, text: "" })
+      })
+    return () => ctrl.abort()
+  }, [path, rootParam])
+  return path && data?.path === path ? data.text : null
+}
 
 /** A description's inline markdown as React nodes (`code`, **strong**, *em*, links); never injected HTML. */
 function InlineMarkdown({ text }: { text: string }) {
@@ -41,6 +67,8 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
   const [enriching, setEnriching] = useState(false)
   const [flashGreen, setFlashGreen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const paragraph = useFirstParagraph(file?.path)
+  const links = useDocLinks(file?.path)
 
   useEffect(() => {
     setEnriching(false)
@@ -94,7 +122,7 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
         ))}
       </div>
 
-      <p className={cn("text-sm leading-relaxed transition-colors duration-500", flashGreen ? "text-teal" : "text-txt")}>
+      <p className={cn("max-w-prose text-sm leading-relaxed transition-colors duration-500", flashGreen ? "text-teal" : "text-txt")}>
         {file.description ? <InlineMarkdown text={file.description} /> : (
           <span className="text-muted italic">
             {t("docs.noDescriptionYet")}
@@ -106,24 +134,37 @@ export function FileDetail({ file, root, onEnriched, onOpenDoc }: FileDetailProp
         <p className="text-xs text-danger">{error}</p>
       )}
 
-      <div className="flex items-center gap-2 text-xs text-muted">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
         <Badge variant={SOURCE_VARIANT[file.source]} className="text-[10px]">
           {t(SOURCE_LABEL[file.source])}
         </Badge>
-        <span>{t("docs.updatedOn", { date: f.date(file.updatedAt, { dateStyle: "short" }) })}</span>
-        <span className="ml-auto">{t("docs.modifiedOn", { date: f.date(file.mtime, { dateStyle: "short" }) })}</span>
+        <span>{t("docs.updatedOn", { date: f.date(file.updatedAt, DAY, "en-CA") })}</span>
+        <span>{t("docs.modifiedOn", { date: f.date(file.mtime, DAY, "en-CA") })}</span>
       </div>
 
-      <div className="flex gap-2 pt-2">
-        {!demo && <Button variant="outline" size="sm" onClick={handleEnrich} disabled={enriching}>
-          <RefreshCw className={`w-3 h-3 mr-1.5 ${enriching ? "animate-spin" : ""}`} />
-          {t("docs.reEnrich")}
-        </Button>}
+      <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={() => onOpenDoc(file.path)}>
           <ExternalLink className="w-3 h-3 mr-1.5" />
           {t("docs.openInDocs")}
         </Button>
+        {!demo && <Button variant="ghost" size="sm" onClick={handleEnrich} disabled={enriching}>
+          <RefreshCw className={`w-3 h-3 mr-1.5 ${enriching ? "animate-spin" : ""}`} />
+          {t("docs.reEnrich")}
+        </Button>}
       </div>
+
+      {/* what the file says, not just its one-line description; skipped when it is the description */}
+      {paragraph && paragraph !== plainInline(file.description) && (
+        <section className="flex max-w-prose flex-col gap-1.5 border-t border-border pt-4">
+          <h3 className={LABEL_CAPS}>{t("docs.fromTheFile")}</h3>
+          <p data-user-content data-first-paragraph className="text-sm leading-relaxed text-txt/90">{paragraph}</p>
+        </section>
+      )}
+
+      <section className="flex max-w-prose flex-col gap-2 border-t border-border pt-4">
+        <h3 className={LABEL_CAPS}>{t("docs.linkedDocs")}</h3>
+        <LinkedDocs links={links} path={file.path} />
+      </section>
     </div>
   )
 }

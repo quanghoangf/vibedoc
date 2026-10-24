@@ -3,7 +3,7 @@ import type { Messages } from "../lib/i18n"
 
 export const en = {
   title: "Search",
-  lead: "Docs, tasks, epics and memory entries in every project. A result opens in its own project.",
+  lead: "Searches the full text of docs, tasks, epics and memory entries in every project. ⌘K jumps to a page or item by name.",
   inputLabel: "Search every project",
   placeholder: "Search docs, tasks, epics, entries…",
   scopeLabel: "Where to search",
@@ -32,7 +32,7 @@ export const en = {
 
 export const vi: Messages<typeof en> = {
   title: "Tìm kiếm",
-  lead: "Tài liệu, việc, epic và mục ghi nhớ trong mọi dự án. Một kết quả mở trong chính dự án của nó.",
+  lead: "Tìm toàn văn trong tài liệu, việc, epic và mục ghi nhớ của mọi dự án. ⌘K nhảy tới một trang hay mục theo tên.",
   inputLabel: "Tìm trong mọi dự án",
   placeholder: "Tìm tài liệu, việc, epic, mục ghi nhớ…",
   scopeLabel: "Tìm ở đâu",

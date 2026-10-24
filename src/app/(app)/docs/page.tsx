@@ -87,7 +87,8 @@ export default function DocsPage() {
       .then((d: ApiSpecList) => {
         if (!live) return
         setApiSpec(d)
-        if (d.path) setApiOpen((cur) => cur ?? new URLSearchParams(window.location.search).get("api"))
+        // with no spec, `?api=` still opens: the viewer says none was found instead of silently showing the landing
+        setApiOpen((cur) => cur ?? new URLSearchParams(window.location.search).get("api"))
       })
       .catch(() => {})
     return () => { live = false }

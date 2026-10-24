@@ -9,7 +9,7 @@ import { tNow, useT } from "@/context/LanguageContext"
 import { FIT, panBy, zoomAt, type ZoomPan } from "@/lib/zoom-pan"
 import { PASTE_PALETTE, visualBlockToHtml, type RichItem } from "@/lib/rich-copy"
 
-// Diagram tools (T514): each rendered mermaid diagram gets a small toolbar (Fullscreen · Copy image · Copy source),
+// Diagram tools (T514): each rendered mermaid diagram gets a small hover toolbar (Fullscreen · Copy image · Copy source),
 // each visual block one with Copy (T517), visible on hover / focus-within. The doc markup is innerHTML (sanitize() strips on* attributes), so the buttons are plain
 // markup added after Mermaid renders and one delegated click listener per renderer handles them.
 
@@ -43,8 +43,9 @@ export function decorateDiagram(node: HTMLElement) {
 }
 
 /**
- * A wide diagram isn't clipped silently: Mermaid's node gets a frame (once; a theme re-render keeps it) holding a
- * right-edge fade and a "Fit" / "Scroll →" chip, outside the scrolling node so neither scrolls away with the SVG.
+ * A wide diagram is never clipped: Mermaid's node gets a frame (once; a theme re-render keeps it) and, when the diagram
+ * is wider than the frame, it is drawn scaled to the width (the SVG keeps its viewBox, so the whole picture shrinks).
+ * An always-visible control row under it says the scale and offers "Actual size" (scroll sideways) and Fullscreen.
  * measureDiagramFrame decides the frame's state.
  */
 export function frameDiagram(node: HTMLElement) {
@@ -57,53 +58,63 @@ export function frameDiagram(node: HTMLElement) {
     const fade = document.createElement("div")
     fade.className = "diagram-fade"
     fade.setAttribute("aria-hidden", "true")
-    const chip = button("fit", tNow("docs.diagramFitLabel"), "")
+    const controls = document.createElement("div")
+    controls.className = "diagram-controls"
+    const pct = document.createElement("span")
+    pct.className = "diagram-pct"
+    const chip = button("fit", tNow("docs.diagramActualLabel"), "")
     chip.className = "diagram-fit"
-    chip.textContent = tNow("docs.diagramFitWidth")
-    frame.append(node, fade, chip)
+    chip.textContent = tNow("docs.diagramActualSize")
+    chip.setAttribute("aria-pressed", "false")
+    const full = button("fullscreen", tNow("docs.diagramFullscreenShort"), ICON_FULLSCREEN)
+    full.className = "diagram-full"
+    full.removeAttribute("aria-label")
+    full.append(tNow("docs.diagramFullscreenShort"))
+    controls.append(pct, chip, full)
+    frame.append(node, fade, controls)
   }
   measureDiagramFrame(frame)
-  // Mermaid drew into a pane that may still be settling (the frame just broke out of the prose column, the Linked
-  // docs rail or the outline mounting beside it): measure again once layout has caught up, so a diagram that
-  // overflows shows its fade and Fit chip at rest, not only after a resize
+  // Mermaid drew into a pane that may still be settling (the frame just broke out of the prose column, a rail
+  // mounting beside it): measure again once layout has caught up
   requestAnimationFrame(() => requestAnimationFrame(() => { if (frame.isConnected) measureDiagramFrame(frame) }))
 }
 
+/** The diagram's own width: Mermaid's inline max-width, else its viewBox. */
+const naturalWidth = (svg: SVGSVGElement) => parseFloat(svg.style.maxWidth) || svg.viewBox.baseVal?.width || 0
+
 /**
  * data-wide: the SVG is wider than the prose column, so the frame breaks out of it up to the pane (.doc-preview grid);
- * data-overflow: even there it can't shrink to its 75% floor, so it scrolls (fade + chip, the node takes focus for arrow keys);
- * data-fit: the reader chose Fit, so the SVG scales to the width; data-at-end: scrolled to the right edge (no fade).
+ * data-scaled: even there it is wider than the frame, so it is drawn scaled to the width and the controls show;
+ * data-actual: the reader chose Actual size, so it keeps its own width and scrolls (fade, the node takes focus for
+ * arrow keys); data-at-end: scrolled to the right edge (no fade).
  */
 export function measureDiagramFrame(frame: HTMLElement) {
   const node = frame.querySelector<HTMLElement>(":scope > .mermaid")
   const svg = node?.querySelector<SVGSVGElement>(":scope > svg")
   if (!node || !svg) return
-  // a derived map in a narrow rail always scales to its box: nothing to scroll
-  if (frame.closest(".derived-diagram-fit")) {
-    frame.removeAttribute("data-overflow")
-    node.removeAttribute("tabindex")
-    return
-  }
-  const natural = parseFloat(svg.style.maxWidth) || 0
-  const floor = parseFloat(svg.style.minWidth) || natural
+  const natural = naturalWidth(svg)
   const css = getComputedStyle(node)
   const padX = parseFloat(css.paddingLeft) + parseFloat(css.paddingRight)
   const borderX = node.offsetWidth - node.clientWidth
   const inner = () => node.clientWidth - padX
+  // a hidden pane (Edit mode, a closed sheet) has no width yet: the ResizeObserver measures again when it shows
+  if (node.clientWidth === 0) return
   delete frame.dataset.wide
   frame.style.maxWidth = ""
-  if (natural > inner()) {
+  if (natural > inner() && !frame.closest(".derived-diagram-fit")) {
     frame.dataset.wide = ""
     frame.style.maxWidth = `${Math.ceil(natural + padX + borderX)}px`
   }
-  const overflow = floor > inner() + 1
-  frame.toggleAttribute("data-overflow", overflow)
-  if (overflow) node.tabIndex = 0
-  else {
-    node.removeAttribute("tabindex")
-    const chip = frame.querySelector<HTMLElement>(":scope > .diagram-fit")
-    if (frame.hasAttribute("data-fit") && chip) toggleFit(chip)
-  }
+  const scaled = natural > inner() + 1
+  frame.toggleAttribute("data-scaled", scaled)
+  if (!scaled) frame.removeAttribute("data-actual")
+  const actual = frame.hasAttribute("data-actual")
+  // a theme re-render replaced the SVG: re-apply the reader's choice
+  svg.style.minWidth = actual ? `${natural}px` : ""
+  if (actual) node.tabIndex = 0
+  else node.removeAttribute("tabindex")
+  const pct = frame.querySelector<HTMLElement>(":scope > .diagram-controls > .diagram-pct")
+  if (pct) pct.textContent = scaled && !actual ? `${Math.round((inner() / natural) * 100)}%` : "100%"
   markScrollEnd(node)
 }
 
@@ -114,14 +125,13 @@ function markScrollEnd(node: HTMLElement) {
 function toggleFit(chip: HTMLElement) {
   const frame = chip.closest<HTMLElement>("[data-diagram-frame]")
   if (!frame) return
-  const fit = !frame.hasAttribute("data-fit")
-  frame.toggleAttribute("data-fit", fit)
-  chip.textContent = tNow(fit ? "docs.diagramScrollWide" : "docs.diagramFitWidth")
-  chip.setAttribute("aria-label", tNow(fit ? "docs.diagramScrollLabel" : "docs.diagramFitLabel"))
+  const actual = !frame.hasAttribute("data-actual")
+  frame.toggleAttribute("data-actual", actual)
+  chip.textContent = tNow(actual ? "docs.diagramFitWidth" : "docs.diagramActualSize")
+  chip.setAttribute("aria-label", tNow(actual ? "docs.diagramFitLabel" : "docs.diagramActualLabel"))
   chip.title = chip.getAttribute("aria-label") ?? ""
-  chip.setAttribute("aria-pressed", String(fit))
-  const node = frame.querySelector<HTMLElement>(":scope > .mermaid")
-  if (node) markScrollEnd(node)
+  chip.setAttribute("aria-pressed", String(actual))
+  measureDiagramFrame(frame)
 }
 
 /** A visual block's toolbar (T517): Copy, keeping the look. Static markup, so added once per render of the doc. */
@@ -284,7 +294,8 @@ export function useDiagramTools(containerRef: RefObject<HTMLElement | null>, htm
         if (block) { e.preventDefault(); copyBlock(block).catch(failed) }
         return
       }
-      const node = btn.closest<HTMLElement>(".mermaid")
+      // the always-on controls sit beside the node in its frame, the hover toolbar inside it
+      const node = btn.closest<HTMLElement>(".mermaid") ?? btn.closest("[data-diagram-frame]")?.querySelector<HTMLElement>(":scope > .mermaid")
       if (!node) return
       e.preventDefault()
       if (btn.dataset.diagramAction === "copy-image") {

@@ -42,9 +42,11 @@ interface Props {
   aside?: ReactNode
   /** Passed to the preview's MarkdownRenderer (T507) */
   headingAction?: { id: string; node: ReactNode }
+  /** Told each time the view mode changes (Split hides the docs list and the rail) */
+  onModeChange?: (mode: ViewMode) => void
 }
 
-export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, barStart, barEnd, titleBlock, aside, headingAction }: Props) {
+export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange, onContentChange, wordWrap = true, lineNumbers = true, barStart, barEnd, titleBlock, aside, headingAction, onModeChange }: Props) {
   const editorRef = useRef<ReactCodeMirrorRef>(null)
   // state, not editorRef.current.view at render: the toolbar must re-render once the view exists, or its buttons do nothing
   const [editorView, setEditorView] = useState<EditorView | null>(null)
@@ -62,6 +64,9 @@ export function MarkdownEditor({ docPath, initialContent, onSave, onDirtyChange,
   const [aiEditAt, setAiEditAt] = useState(0)
   const viewModeRef = useRef(viewMode)
   useEffect(() => { viewModeRef.current = viewMode }, [viewMode])
+  const onModeChangeRef = useRef(onModeChange)
+  useEffect(() => { onModeChangeRef.current = onModeChange }, [onModeChange])
+  useEffect(() => { onModeChangeRef.current?.(viewMode) }, [viewMode])
   const onContentChangeRef = useRef(onContentChange)
   useEffect(() => { onContentChangeRef.current = onContentChange }, [onContentChange])
 

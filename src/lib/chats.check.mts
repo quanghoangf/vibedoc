@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   ERROR_ALARM_MS, MAX_RUNNING_CHATS, TOO_MANY_CHATS, addChat, ago, attentionQueue, attachContext, chatFor, chatStatus, chatTitle, defaultChat, epicOf,
   appendNote, fromSaved, groupChats, mergeNotes, isActionableError, itemAgents, newChatId, newlyWaiting, nextInQueue, patchChat, pendingReviews, routeAsk, shellStatus, suggestions,
-  toSaved, waitingTitle, ORCHESTRATOR_ID, splitPinned, type Attach, type Chat, type StatusMessage, type Worker,
+  toSaved, waitingTitle, ORCHESTRATOR_ID, chatSubject, groupBySubject, verifyTaskOf, splitPinned, type Attach, type Chat, type StatusMessage, type Worker,
 } from './chats.ts'
 
 const T = (min: number) => new Date(Date.UTC(2026, 8, 29, 9, min)).toISOString()
@@ -218,6 +218,20 @@ assert.deepEqual(mergeNotes({ ...n2, noteSeq: 9 }, { ...n1, notes: [] }).notes, 
 let many = empty
 for (let i = 0; i < 25; i++) many = appendNote(many, `n${i}`)
 assert.deepEqual([many.notes.length, many.notes[0], many.noteSeq], [20, 'n5', 25])
+
+// list-only subjects: attach first, else the task a Verify chat checks (full prompt or chatTitle's cut)
+assert.equal(verifyTaskOf('Verify task T196: call vibedoc_verify_context, then vibedoc_report_findings.'), 'T196')
+assert.equal(verifyTaskOf('Verify task T196: call vibedoc_verify_c…'), 'T196')
+assert.equal(verifyTaskOf('Verify T12'), 'T12')
+assert.equal(verifyTaskOf('Verifying the T1 thing'), null)
+assert.deepEqual(chatSubject(chat('v', [], { title: 'Verify task T7: x' })), task('T7'))
+assert.deepEqual(chatSubject(chat('a', [], { title: 'Verify task T7: x', attach: epic('R1') })), epic('R1'))
+assert.equal(chatSubject(chat('n', [], { title: 'New chat' })), null)
+const folded = groupBySubject([
+  chat('v1', [], { title: 'Verify task T7: x' }), chat('x', [], { title: 'Hello' }), chat('t', [], { attach: task('T7') }),
+  chat('y', [], { title: 'Hello' }), chat('v2', [], { title: 'Verify task T7: y' }),
+])
+assert.deepEqual(folded.map((g) => [g.key, g.chats.map((c) => c.id)]), [['task:T7', ['v1', 't', 'v2']], ['chat:x', ['x']], ['chat:y', ['y']]])
 
 console.log('chats: ok')
 // …and is never the item's conversation (chatFor), though it still marks the epic (itemAgents)

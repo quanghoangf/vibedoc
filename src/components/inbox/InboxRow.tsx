@@ -63,7 +63,8 @@ export function InboxRow({ item, focused = false, onFocus, onApprove, onSendBack
   const evidence = useEvidenceText(item)
   const e = item.evidence
   const close = () => { setNote(""); onNoteOpen?.(false) }
-  // One Approve rule (approveRisk, shared with Test review and the task panel): unproven → outline, and the label says what's missing
+  // One Approve rule (approveRisk, shared with Test review and the task panel): unproven → Approve outline with the label
+  // saying what's missing, Send back the filled primary
   const risk = approveRisk(e)
   const approveLabel = useApproveLabel()(risk)
   const named = (action: string) => t("inbox.actionOnTask", { action, id: item.id, title: item.title })
@@ -95,7 +96,7 @@ export function InboxRow({ item, focused = false, onFocus, onApprove, onSendBack
         {review && !noteOpen && (
           <div className="flex shrink-0 gap-2 pl-7 sm:pl-0">
             <Button size="sm" variant={risk ? "outline" : "default"} onClick={onApprove} data-inbox-action="approve" aria-label={named(approveLabel)} aria-keyshortcuts={focused ? "a" : undefined}>{approveLabel}</Button>
-            <Button size="sm" variant="outline" onClick={() => onNoteOpen?.(true)} data-inbox-action="send-back" aria-label={named(t("inbox.sendBack"))} aria-keyshortcuts={focused ? "s" : undefined}>{t("inbox.sendBack")}</Button>
+            <Button size="sm" variant={risk ? "default" : "outline"} onClick={() => onNoteOpen?.(true)} data-inbox-action="send-back" aria-label={named(t("inbox.sendBack"))} aria-keyshortcuts={focused ? "s" : undefined}>{t("inbox.sendBack")}</Button>
           </div>
         )}
       </div>

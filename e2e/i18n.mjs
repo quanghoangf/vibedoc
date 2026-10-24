@@ -93,7 +93,7 @@ const PAGES = [
   } },
   // T218: the roadmap (map, needs attention, epic sheet + menu, dialogs, timeline) and the doc graph
   { path: "/roadmap", name: "roadmap: map + needs attention", open: async (page) => {
-    await page.getByText(/mục cần chú ý$/).click()
+    await page.getByText(/^\d+ lệch$/).click()
     await page.getByText(/liên kết tới việc không tồn tại/).first().waitFor()
   } },
   { path: "/roadmap?item=R002", name: "roadmap: epic sheet + menu", open: async (page) => {

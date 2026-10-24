@@ -28,6 +28,8 @@ export interface InboxTaskInput {
   autoFixLimit?: boolean
   /** The epic id from its Phase ("R109 — …"), for the "R109 now 3/4 done" line after an approve */
   epicId?: string | null
+  /** R067: critical + major verification findings (`## Verification`); minor ones never hold an Approve */
+  findings?: number
 }
 
 export type InboxRun = "none" | "passed" | "failed"
@@ -38,6 +40,8 @@ export interface InboxEvidence {
   run: InboxRun
   failedStep: number | null
   autoFixLimit: boolean
+  /** Critical + major verification findings; left out when none */
+  findings?: number
 }
 
 export interface InboxChatInput {
@@ -71,30 +75,35 @@ export interface InboxItem {
 }
 
 /** One item per task, the most pressing kind first: failed-run > blocked > review > needs-test. */
-/** What an Approve would skip: unproven checks and / or a failed last run; null = nothing, Approve is the primary. */
-export interface ApproveRisk { unchecked: number; failedRun: boolean }
+/** What an Approve would skip: unproven checks, a failed last run, critical/major findings; null = nothing, Approve is the primary. */
+export interface ApproveRisk { unchecked: number; failedRun: boolean; findings: number }
 
 /**
  * THE "is Approve risky" rule, shared by the Inbox row, Test review's decision bar and the task panel: then Approve
  * is the outline button and its label says what's missing; Send back is not demoted.
  */
-export function approveRisk(e: Pick<InboxEvidence, "checks" | "run"> | null | undefined): ApproveRisk | null {
+export function approveRisk(e: Pick<InboxEvidence, "checks" | "run" | "findings"> | null | undefined): ApproveRisk | null {
   if (!e) return null
   const unchecked = e.checks ? Math.max(0, e.checks.total - e.checks.proven) : 0
   const failedRun = e.run === "failed"
-  return unchecked > 0 || failedRun ? { unchecked, failedRun } : null
+  const findings = e.findings ?? 0
+  return unchecked > 0 || failedRun || findings > 0 ? { unchecked, failedRun, findings } : null
 }
 
 /** A task's evidence as the inbox reads it (core's inboxInputFor does the same), for client views that hold a Task. */
 export function taskEvidence(t: {
   manualTests: { total: number; untested: number; autoRun: { result: string } | null } | null
   lastRun: { status: string } | null
-}): Pick<InboxEvidence, "checks" | "run"> {
+  verification?: { findings: { severity: string }[] } | null
+}): Pick<InboxEvidence, "checks" | "run" | "findings"> {
   const mt = t.manualTests
   const run = t.lastRun?.status ?? mt?.autoRun?.result ?? "none"
+  // the same count as verification.ts's blockingCount (no value imports between pure libs)
+  const findings = t.verification?.findings.filter((f) => f.severity !== "minor").length ?? 0
   return {
     checks: mt && mt.total > 0 ? { proven: mt.total - mt.untested, total: mt.total } : null,
     run: run === "failed" ? "failed" : run === "passed" ? "passed" : "none",
+    ...(findings > 0 && { findings }),
   }
 }
 
@@ -155,7 +164,7 @@ export function buildInbox(inputs: InboxProjectInput[], opts: { project?: string
       const epic = t.epicId ? epics.get(t.epicId) : undefined
       items.push({
         kind, project: p, id: t.id, title: t.title, since: t.since, href: href(kind, t.id, p.id),
-        evidence: { checks: t.checks ?? null, run: t.run ?? (t.failedRun ? "failed" : "none"), failedStep: t.failedStep ?? null, autoFixLimit: !!t.autoFixLimit },
+        evidence: { checks: t.checks ?? null, run: t.run ?? (t.failedRun ? "failed" : "none"), failedStep: t.failedStep ?? null, autoFixLimit: !!t.autoFixLimit, ...(t.findings ? { findings: t.findings } : {}) },
         ...(epic && t.epicId ? { epic: { id: t.epicId, ...epic } } : {}),
       })
     }

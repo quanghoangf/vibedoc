@@ -96,14 +96,64 @@ export function doneHorizons(items: RoadmapItem[]): Set<string> {
   return out
 }
 
+/** The epics that count as live work: in-progress or planned, with an open task (`isOpen`; unknown ids count as open). */
+function isLive(i: RoadmapItem, isOpen: (taskId: string) => boolean): boolean {
+  return (i.status === "in-progress" || i.status === "planned") && i.tasks.some(isOpen)
+}
+
 /**
  * The horizon the map opens on: the first (by order) with an in-progress or planned epic that has an open task.
  * `isOpen(taskId)` says whether a task still needs work (unknown ids should count as open). null = no such horizon.
  */
 export function focusHorizon(items: RoadmapItem[], isOpen: (taskId: string) => boolean): string | null {
   for (const h of items.filter((i) => i.parent === null).sort((a, b) => a.order - b.order)) {
-    const live = items.some((i) => i.parent === h.id && (i.status === "in-progress" || i.status === "planned") && i.tasks.some(isOpen))
-    if (live) return h.id
+    if (items.some((i) => i.parent === h.id && isLive(i, isOpen))) return h.id
   }
   return null
+}
+
+/** The live epics of a horizon (see focusHorizon), in order: what the first viewport frames. */
+export function liveEpics(items: RoadmapItem[], horizonId: string, isOpen: (taskId: string) => boolean): string[] {
+  return childrenOf(items, horizonId).filter((i) => isLive(i, isOpen)).map((i) => i.id)
+}
+
+/**
+ * The vertical span to frame when not every box fits a viewport `viewH` tall: the window holding the most boxes
+ * (whole), ties to the lower one (epics are ordered oldest first, so lower = newer work). Returns the chosen boxes'
+ * extent, or null for no boxes. A real map (this repo) has 2 old live epics high up among 40 done ones and 5 new
+ * ones at the bottom: framing the top of the block, or the middle of all 7, shows only done work.
+ */
+/**
+ * Where to centre the camera across when the map is wider than the viewport (`viewW`, flow units): the framed boxes'
+ * span if it fits, else the column holding most of them (ties: the one with the topmost box). null = no boxes framed.
+ * A phone shows one column of the two-sided map; centring the whole map there cut every live epic in half.
+ */
+export function focusX(
+  boxes: { x: number; y: number; w: number; h: number }[],
+  frame: { top: number; bottom: number },
+  viewW: number,
+): number | null {
+  const inside = boxes.filter((b) => b.y >= frame.top && b.y + b.h <= frame.bottom)
+  if (!inside.length) return null
+  const left = Math.min(...inside.map((b) => b.x))
+  const right = Math.max(...inside.map((b) => b.x + b.w))
+  if (right - left <= viewW) return (left + right) / 2
+  const cols = new Map<number, typeof inside>()
+  for (const b of [...inside].sort((a, c) => a.y - c.y)) cols.set(Math.round(b.x), [...(cols.get(Math.round(b.x)) ?? []), b])
+  let best = [...cols.values()][0]
+  for (const c of cols.values()) if (c.length > best.length) best = c
+  return best[0].x + best[0].w / 2
+}
+
+export function densestWindow(boxes: { y: number; h: number }[], viewH: number): { top: number; bottom: number } | null {
+  if (!boxes.length) return null
+  const sorted = [...boxes].sort((a, b) => a.y - b.y)
+  let best: { top: number; bottom: number; n: number } | null = null
+  for (const start of sorted) {
+    const inside = sorted.filter((b) => b.y >= start.y && b.y + b.h <= start.y + viewH)
+    const n = Math.max(1, inside.length)
+    const bottom = inside.length ? Math.max(...inside.map((b) => b.y + b.h)) : start.y + start.h
+    if (!best || n >= best.n) best = { top: start.y, bottom, n }
+  }
+  return best && { top: best.top, bottom: best.bottom }
 }

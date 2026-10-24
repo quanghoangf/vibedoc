@@ -3,10 +3,14 @@
 
 const PART_MIN = 3
 
-/** True when two tokens are the same word give or take a typo: equal, one contains the other, or a shared 4+ prefix. */
+/**
+ * True when two tokens are the same word give or take a typo: equal, one contains the other (the shorter at least
+ * 60% of the longer, so "zzqxnotfound" doesn't match "not"), or a shared 4+ prefix.
+ */
 function near(a: string, b: string): boolean {
   if (a === b) return true
-  if (a.length >= PART_MIN && b.length >= PART_MIN && (a.includes(b) || b.includes(a))) return true
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a]
+  if (short.length >= PART_MIN && short.length >= long.length * 0.6 && long.includes(short)) return true
   let i = 0
   while (i < a.length && i < b.length && a[i] === b[i]) i++
   return i >= 4

@@ -290,17 +290,20 @@ export function TaskDetailBody({ task, onClose, onMove, active = true, title }: 
           taskId={task.id}
           onDone={onClose}
           risk={approveRisk(taskEvidence(task))}
-          prompt={latestReview(task.raw ?? "")?.outcome === "auto fix limit reached" ? (
-            <p className="text-xs text-danger">
-              <span className="font-medium">{t("board.needsHumanLead")}</span> {t("board.needsHumanBody", { n: latestReview(task.raw ?? "")?.attempts ?? "" })}
-            </p>
-          ) : undefined}
+          prompt={<>
+            {latestReview(task.raw ?? "")?.outcome === "auto fix limit reached" && (
+              <p className="text-xs text-danger">
+                <span className="font-medium">{t("board.needsHumanLead")}</span> {t("board.needsHumanBody", { n: latestReview(task.raw ?? "")?.attempts ?? "" })}
+              </p>
+            )}
+            <ReviewVerdict task={task} />
+          </>}
         >
-          {/* R062: decide from the proof */}
+          {/* R062: the proof behind the decision, a quiet link: the decision is the primary */}
           <Link
             href={testReviewHref(task.id, "evidence")}
             onClick={onClose}
-            className="inline-flex items-center gap-1.5 rounded-sm border border-accent/50 bg-accent/15 px-2.5 py-1 text-xs text-txt transition-colors hover:bg-accent/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="ml-1 rounded-xs text-xs text-muted underline-offset-2 transition-colors hover:text-txt hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {t("board.openEvidence")}
           </Link>
@@ -546,6 +549,31 @@ function DatesGlance({ started, finished }: { started: string; finished: string 
 
 const verificationId = (taskId: string) => `verification-${taskId}`
 
+/** One line above the review decision with everything Approve would skip: "2 findings (1 major) · no run · 1/8 checks". */
+function ReviewVerdict({ task }: { task: Task }) {
+  const { t, tn } = useT()
+  const v = task.verification ?? null
+  const sev = (s: keyof typeof SEVERITY_KEY) => v?.findings.filter((f) => f.severity === s).length ?? 0
+  const blocking = sev("critical") + sev("major")
+  // minor findings alone don't block Approve, but "no findings" over a report that has some reads as a contradiction
+  const shown = blocking ? (["critical", "major"] as const) : (["minor"] as const)
+  const count = blocking || sev("minor")
+  const detail = shown.filter((s) => sev(s) > 0).map((s) => t("board.verdictSeverity", { n: sev(s), severity: t(SEVERITY_KEY[s]) })).join(", ")
+  const run = taskEvidence(task).run
+  const mt = task.manualTests
+  const parts = [
+    !v ? t("board.verdictNotVerified") : count ? `${tn("board.findings", count)} (${detail})` : t("board.verdictNoFindings"),
+    run === "passed" ? t("board.verdictRunPassed") : run === "failed" ? t("board.verdictRunFailed") : t("board.verdictNoRun"),
+    ...(mt && mt.total > 0 ? [t("board.verdictChecks", { proven: mt.total - mt.untested, total: mt.total })] : []),
+  ]
+  const line = parts.join(" · ")
+  return (
+    <p data-review-verdict className={cn("text-xs", blocking || run === "failed" ? "text-txt" : "text-muted")}>
+      {line.charAt(0).toUpperCase() + line.slice(1)}
+    </p>
+  )
+}
+
 export type ReviewAction = "approve" | "send-back"
 
 /**
@@ -555,7 +583,7 @@ export type ReviewAction = "approve" | "send-back"
  */
 export function ReviewActions({ taskId, onDone, canApprove = true, initialNote = "", prompt, className, children, runId, marks, marksList, confirmApprove, risk = null }: {
   taskId: string
-  /** What Approve would skip (`approveRisk`): then Approve is the outline button saying so, Send back stands level with it */
+  /** What Approve would skip (`approveRisk`): then Approve is the outline button saying so and Send back is the filled primary; else Approve is */
   risk?: ApproveRisk | null
   onDone: (action: ReviewAction) => void
   canApprove?: boolean
@@ -636,7 +664,7 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
           {canApprove && confirming && (
             <span role="alert" className="flex flex-wrap items-center gap-2 text-xs text-amber">
               {confirmApprove}
-              <button onClick={() => act("approve")} disabled={busy} className="rounded-sm border border-teal/40 bg-teal/15 px-2 py-0.5 text-teal hover:bg-teal/25">{t("board.approveAnyway")}</button>
+              <button onClick={() => act("approve")} disabled={busy} className="rounded-sm border border-border2 px-2 py-0.5 text-txt hover:bg-surface2">{t("board.approveAnyway")}</button>
               <button onClick={() => setConfirming(false)} className="text-muted hover:text-txt">{t("board.cancel")}</button>
             </span>
           )}
@@ -647,7 +675,7 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
               disabled={busy}
               className={cn(
                 "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm border transition-colors disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                risk ? "border-border2 bg-transparent text-txt hover:bg-surface2" : "bg-teal/15 border-teal/40 text-teal hover:bg-teal/25",
+                risk ? "border-border2 bg-transparent text-txt hover:bg-surface2" : "border-accent bg-accent text-accent-fg hover:brightness-110",
               )}
             >
               <Check className="size-3.5" aria-hidden /> {approveLabel}
@@ -660,7 +688,8 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
             className={cn(
               "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm border transition-colors",
               !canApprove ? "bg-amber/15 border-amber/40 text-amber hover:bg-amber/25"
-                : risk ? "bg-transparent border-border2 text-txt hover:bg-surface2"
+                // something is missing: sending it back is the decision we lead with, Approve stays one click away
+                : risk ? "border-accent bg-accent text-accent-fg hover:brightness-110"
                 : "bg-surface2 border-border text-muted hover:text-txt hover:border-border2",
             )}
           >
@@ -753,7 +782,7 @@ function VerificationBlock({ taskId, verification: v, canSendBack, onSent }: { t
             disabled={busy || !picked.size}
             className="inline-flex items-center gap-1.5 rounded-sm border border-amber/40 bg-amber/5 px-2.5 py-1 text-xs text-amber transition-colors hover:bg-amber/10 disabled:opacity-50"
           >
-            <CornerUpLeft className="size-3.5" aria-hidden /> {tn("board.sendBackFindings", picked.size)}
+            <CornerUpLeft className="size-3.5" aria-hidden /> {picked.size ? tn("board.sendBackFindings", picked.size) : t("board.sendBackPickFindings")}
           </button>
           {error && <p role="alert" className="text-xs text-danger">{error}</p>}
         </div>

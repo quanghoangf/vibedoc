@@ -26,5 +26,7 @@ assert.equal(similarPaths("architecture", paths, tokenize, 2).length, 2)
 // nothing in common
 assert.deepEqual(similarPaths("zzz-qqq", paths, tokenize), [])
 assert.deepEqual(similarPaths("", paths, tokenize), [])
+// a nonsense word that merely contains a short path token ("not") is not similar
+assert.deepEqual(similarPaths("zzqxnotfound", [...paths, "plans/tasks/T121-recall-log-not-recalled-lately.md"], tokenize), [])
 
 console.log("similar-paths.check: ok")

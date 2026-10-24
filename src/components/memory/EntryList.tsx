@@ -1,7 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import { Plus, Search } from "lucide-react"
+import { Lightbulb, Plus, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { OwnerChip } from "@/components/shared/OwnerChip"
@@ -10,6 +10,11 @@ import { filterEntries, tokenize } from "@/lib/recall"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { useEntryTypeLabel } from "./entry-type"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { CopyCommand } from "@/components/shared/CopyCommand"
+
+/** What the empty list hands the user to paste to their agent: imports Claude Code's own memory as entries (R052). */
+const IMPORT_PROMPT = 'vibedoc_import_memory { source: "claude-code" }'
 
 /**
  * An entry on the Memory tab. Another repo's group entry (R103) carries its `project` and the id `<project id>:E003`;
@@ -23,12 +28,14 @@ type Scope = "project" | "shared"
  * Knowledge entries (R046) with search (ranked like vibedoc_recall) and a type filter; a project in a group (R103)
  * also gets a scope filter.
  */
-export function EntryList({ entries, selectedId, onOpen, onNew, grouped = false }: {
+export function EntryList({ entries, selectedId, onOpen, onNew, grouped = false, teach = false }: {
   entries: ListedEntry[]
   selectedId?: string | null
   onOpen: (id: string) => void
   onNew: () => void
   grouped?: boolean
+  /** No entries: show the teaching empty state (the page has no other one) instead of a one-line note */
+  teach?: boolean
 }) {
   const { demo } = useApp()
   const { t } = useT()
@@ -64,7 +71,7 @@ export function EntryList({ entries, selectedId, onOpen, onNew, grouped = false 
   const scopeChip = (value: Scope | null, label: string, count: number) => chipButton(scope === value, () => setScope(value), label, count)
 
   return (
-    <section aria-label={t("memory.knowledgeEntries")} className="flex min-w-0 flex-col gap-3">
+    <section aria-label={t("memory.knowledgeEntries")} className="flex min-w-0 flex-col gap-3 lg:max-w-[26rem]">
       <div className="flex items-baseline justify-between">
         <h2 className="font-display text-base font-semibold tracking-tight">{t("memory.knowledgeEntries")}</h2>
         {!demo && <button
@@ -76,6 +83,7 @@ export function EntryList({ entries, selectedId, onOpen, onNew, grouped = false 
         </button>}
       </div>
 
+      {entries.length > 0 && <>
       <div className="relative">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted" aria-hidden />
         <Input
@@ -101,8 +109,19 @@ export function EntryList({ entries, selectedId, onOpen, onNew, grouped = false 
           {scopeChip("shared", t("memory.scopeShared"), sharedCount)}
         </div>
       )}
+      </>}
 
-      {entries.length === 0 ? (
+      {entries.length === 0 && teach ? (
+        // the page's one empty state while the handoff has text (an empty handoff teaches instead, R083)
+        <EmptyState
+          icon={<Lightbulb className="size-6" />}
+          message={t("memory.noEntries")}
+          lead={t("memory.noEntriesTeach")}
+          action={<CopyCommand command={IMPORT_PROMPT} prompt={false} />}
+          needsAgent
+          bordered
+        />
+      ) : entries.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
           {t("memory.noEntriesLead")} <code className="font-mono text-xs">vibedoc_save_entry</code>.
         </p>

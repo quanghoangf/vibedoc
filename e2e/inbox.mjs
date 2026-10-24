@@ -70,9 +70,9 @@ try {
   const total = (await inbox()).length
   await page.waitForFunction((n) => document.querySelector("[data-inbox-count]")?.textContent === String(n), total)
   assert.match(await page.title(), new RegExp(`^\\(${total}\\) `))
-  // one definition: the sidebar's Inbox row says the same number
-  await page.waitForFunction((n) => document.querySelector("[data-sidebar-inbox-count]")?.firstChild?.textContent === String(n), total)
-  console.log(`ok  S1: B's waiting chat shows on A with B's name; header badge, sidebar Inbox and title count the whole inbox (${total})`)
+  // one place: the sidebar's Inbox row carries no second count
+  assert.equal(await page.locator("[data-sidebar-inbox-count]").count(), 0)
+  console.log(`ok  S1: B's waiting chat shows on A with B's name; header badge and title count the whole inbox (${total}), the sidebar doesn't repeat it`)
 
   // Filters live in the URL (their own keys: ?project= is the open project)
   await page.getByRole("combobox", { name: "Kind" }).selectOption("chat-waiting")

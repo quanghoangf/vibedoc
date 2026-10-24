@@ -40,6 +40,7 @@ export function taskNeighbourhood(id: string, tasks: DiagramTask[], cap = DEP_CA
   return { nodes, edges, more: seen.length - kept.length }
 }
 
+/** Agent text only (formatTaskDeps / formatEpicMap); the UI diagrams carry no status glyph. */
 const GLYPH: Record<string, string> = { todo: "○", "in-progress": "◐", review: "◑", blocked: "⊘", paused: "⏸", done: "✓", cancelled: "✕" }
 const MAX_TITLE = 32
 
@@ -50,13 +51,14 @@ function label(s: string, max = MAX_TITLE): string {
 }
 
 /**
- * `flowchart LR` source: one node per task (`T001["✓ T001 · title"]`, the glyph so status isn't colour only),
- * class `st-<status>` (styled in globals.css), the focus task `accent`, a missing dependency `st-missing`.
+ * `flowchart LR` source: one node per task (`T001["T001 · title"]`), class `st-<status>` (styled in globals.css; the
+ * UI names the status in each node's accessible name, so it isn't colour only, and no glyph adds a second status look),
+ * the focus task `accent`, a missing dependency `st-missing`.
  */
 export function depGraphMermaid(g: DepGraph, focusId: string): string {
   const lines = ["flowchart LR"]
   for (const n of g.nodes) {
-    const text = n.status === null ? `${n.id} · ?` : `${GLYPH[n.status] ?? "○"} ${n.id} · ${label(n.title)}`
+    const text = n.status === null ? `${n.id} · ?` : `${n.id} · ${label(n.title)}`
     lines.push(`  ${n.id}["${text}"]`)
   }
   for (const [a, b] of g.edges) lines.push(`  ${a} --> ${b}`)
@@ -99,7 +101,7 @@ const SC_GLYPH: Record<ScenarioState, string> = { passed: '✓', failed: '✕', 
  */
 export function epicGraphMermaid(g: EpicGraph): string {
   const lines = ['flowchart TB']
-  for (const n of g.tasks) lines.push(`  ${n.id}["${GLYPH[n.status ?? ''] ?? '○'} ${n.id} · ${label(n.title)}"]`)
+  for (const n of g.tasks) lines.push(`  ${n.id}["${n.id} · ${label(n.title)}"]`)
   for (const s of g.scenarios) lines.push(`  ${s.id}(["${SC_GLYPH[s.status]} ${s.id} · ${label(s.name)}"])`)
   for (const [a, b] of g.deps) lines.push(`  ${a} --> ${b}`)
   for (const [t, s] of g.covers) lines.push(`  ${t} -.-> ${s}`)

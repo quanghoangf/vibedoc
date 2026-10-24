@@ -77,7 +77,8 @@ try {
   console.log("ok  approve → done in the table and on the board")
 
   // 3. Board card: the same button → Send back with a note
-  const card = page.locator("[draggable=true]", { hasText: "Third" })
+  const card = page.locator("[draggable=true]:visible", { hasText: "Third" }) // the phone column copy is display:none
+  await card.hover() // the card is in the Review column: its quick review shows on hover only
   await card.getByRole("button", { name: "Quick review of T003" }).click()
   const pop3 = page.getByRole("dialog", { name: /T003/ })
   assert.match(await pop3.locator("[data-auto-run]").textContent(), /Auto run passed · 2026-10-02/)

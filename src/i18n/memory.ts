@@ -41,6 +41,11 @@ export const en = {
   filterByType: "Filter by type",
   all: "All",
   noEntriesLead: "No knowledge entries yet. Agents save them with",
+  noEntries: "No knowledge entries yet",
+  noEntriesTeach: "Your agent saves facts that should still hold next week (conventions, gotchas, decisions) here with vibedoc_save_entry. Already keep Claude Code memory? Paste this to your agent to bring it in.",
+  handoffUpdatedToday: "updated today",
+  handoffUpdated_one: "updated {n} day ago",
+  handoffUpdated_other: "updated {n} days ago",
   noMatchQuery: "No entries match “{query}”.",
   noMatchFilter: "No entries match this filter.",
 
@@ -253,6 +258,11 @@ export const vi: Messages<typeof en> = {
   filterByType: "Lọc theo loại",
   all: "Tất cả",
   noEntriesLead: "Chưa có mục ghi nhớ nào. Agent lưu chúng bằng",
+  noEntries: "Chưa có mục ghi nhớ nào",
+  noEntriesTeach: "Agent lưu ở đây những điều vẫn đúng vào tuần sau (quy ước, bẫy, quyết định) bằng vibedoc_save_entry. Đã có bộ nhớ Claude Code? Dán dòng này cho agent để nhập vào.",
+  handoffUpdatedToday: "cập nhật hôm nay",
+  handoffUpdated_one: "cập nhật {n} ngày trước",
+  handoffUpdated_other: "cập nhật {n} ngày trước",
   noMatchQuery: "Không có mục nào khớp “{query}”.",
   noMatchFilter: "Không có mục nào khớp bộ lọc này.",
 

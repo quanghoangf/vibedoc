@@ -1,6 +1,6 @@
 // Browser + MCP check for R069 (Spec changes on epics), end to end on a fixture project. The epic's Done-when:
 // finishing an epic that modifies one requirement produces a one-click diff, and accepting it updates the capability spec.
-//   1. docs/specs/memory.md + a done epic R002 whose ## Spec changes MODIFY "Session budget" → /roadmap "need attention"
+//   1. docs/specs/memory.md + a done epic R002 whose ## Spec changes MODIFY "Session budget" → /roadmap "N drift"
 //      shows the spec-unmerged row, and vibedoc_get_roadmap says the same.
 //   2. Sheet → Merge into capability spec → the diff shows only that requirement → Accept.
 //   3. The spec file has the new text (everything else byte-for-byte), R002 has **Spec merged:**, the drift row is gone.
@@ -58,10 +58,10 @@ try {
 
   // 1. Unmerged spec changes are flagged
   await page.goto(`${BASE}/roadmap`)
-  await page.getByText(/need attention$/).click()
+  await page.getByText(/\d+ drift$/).click()
   await page.getByRole("button", { name: unmergedUi }).waitFor()
   assert.ok((await mcp("vibedoc_get_roadmap", {})).includes(`- ${unmerged}`))
-  console.log("ok  done epic with unmerged spec changes → need attention + vibedoc_get_roadmap")
+  console.log("ok  done epic with unmerged spec changes → drift + vibedoc_get_roadmap")
 
   // 2. One-click diff: only the modified requirement changes
   await page.getByRole("button", { name: unmergedUi }).click()

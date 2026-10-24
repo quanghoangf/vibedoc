@@ -245,6 +245,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
           <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">{t("shell.board")}</h1>
           <p className="mt-2 text-[1.1rem] leading-snug font-semibold text-txt">
             <span className="font-mono tabular-nums">{count("todo", "in-progress", "review", "blocked")}</span> {t("board.openSuffix")} ·{" "}
+            <span className="font-mono tabular-nums">{count("review")}</span> {t("board.inReviewSuffix")} ·{" "}
             <span className="font-mono tabular-nums">{count("in-progress")}</span> {t("board.inProgressSuffix")}{" "}
             <span className="font-normal text-muted">
               · <span className="font-mono tabular-nums">{count("done")}</span> {t("board.doneSuffix")}

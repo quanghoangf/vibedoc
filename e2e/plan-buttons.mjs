@@ -19,6 +19,7 @@ try {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
     const calls = await stubChat(page, turn, { root: mkdtempSync(path.join(tmpdir(), "vibedoc-e2e-")) })
     await page.goto(`${BASE}/roadmap`)
+    await page.getByText("Other ways to start", { exact: true }).click() // the empty state's one primary is the copy pill
     await page.getByRole("button", { name: "Plan with agent" }).click()
     await page.getByText("Reply 0.").waitFor()
     assert.equal(calls.length, 1)
@@ -82,7 +83,9 @@ try {
     await page.getByRole("dialog", { name: "idle ask" }).waitFor()
     for (let i = 0; i < 50 && calls.length < 4; i++) await page.waitForTimeout(100)
     await page.waitForFunction(() => !document.querySelector('[aria-label="Chats"] [title="Running"]'))
-    assert.deepEqual(await agents.locator("li button[title]").evaluateAll((bs) => bs.map((b) => b.title).sort()), ["Break down R002", "again", "idle ask"])
+    // three chats; idle ones beyond the two most recent fold into "All chats · N" (RECENT_IN_SIDEBAR)
+    assert.deepEqual(await agents.locator("li button[title]").evaluateAll((bs) => bs.map((b) => b.title).sort()), ["Break down R002", "idle ask"])
+    await agents.locator("a[href=\"/chat\"]", { hasText: "All chats · 3" }).waitFor() // CSS: the open modal aria-hides the sidebar
     assert.equal(calls[3].message, "idle ask")
     assert.equal(calls[3].sessionId ?? null, null, "a fresh session, not R002's")
     // … and the next untargeted ask reuses that idle, unattached chat
@@ -90,15 +93,15 @@ try {
     for (let i = 0; i < 50 && calls.length < 5; i++) await page.waitForTimeout(100)
     assert.equal(calls[4].message, "idle ask 2")
     assert.equal(calls[4].sessionId, "sA", "resumes the idle ask chat's session")
-    assert.equal(await agents.locator("li button[title]").count(), 3)
+    await agents.locator("a[href=\"/chat\"]", { hasText: "All chats · 3" }).waitFor() // CSS: the open modal aria-hides the sidebar
     console.log("ok  an untargeted ask skips the epic's chat; an idle unattached chat is reused")
 
     // The epic now has a chat: its sheet offers "Open chat" instead of another breakdown
     await page.keyboard.press("Escape")
     await page.locator(".react-flow__node-feature", { hasText: "Epic" }).click()
-    await page.getByRole("button", { name: "Open chat" }).waitFor()
+    await page.getByRole("button", { name: "Open chat", exact: true }).waitFor()
     assert.equal(await page.getByRole("button", { name: "Break down with agent" }).count(), 0)
-    await page.getByRole("button", { name: "Open chat" }).click()
+    await page.getByRole("button", { name: "Open chat", exact: true }).click()
     await page.getByRole("dialog", { name: "Break down R002" }).waitFor()
     await page.keyboard.press("Escape")
     console.log("ok  epic sheet: Open chat resumes the epic's chat")
@@ -125,7 +128,7 @@ try {
     assert.equal(calls[0].message, "[This chat is about task T001. Read it with vibedoc_get_task before answering.]\n\nWhat blocks this task?")
     await page.keyboard.press("Escape")
     await page.goto(`${BASE}/board?task=T001`)
-    await page.getByRole("button", { name: "Open chat" }).click()
+    await page.getByRole("button", { name: "Open chat", exact: true }).click()
     await page.getByText("Reply 0.").waitFor()
     assert.equal(await page.locator('[aria-label="Chats"] li button[title]').count(), 1, "no second chat for the same task")
     console.log("ok  board task chat: first turn names the task; reopening resumes the same chat")

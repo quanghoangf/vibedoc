@@ -44,8 +44,11 @@ try {
   assert.equal(await node("R002").count(), 0, "a done horizon's epics are hidden")
   await node("R001").getByText("1 epic · all done").waitFor()
   const top = (await page.locator(".react-flow").boundingBox()).y
-  const r3 = await node("R003").boundingBox()
-  assert.ok(r3.y - top < 300, `the camera opens on the live horizon (R003 at ${r3.y - top}px)`)
+  // the camera frames once the tasks are in (they decide which epics are live): poll, don't read once
+  const offset = async (id) => (await node(id).boundingBox()).y - top
+  for (let i = 0; i < 50 && !((await offset("R004")) >= 0 && (await offset("R004")) < 120); i++) await page.waitForTimeout(100)
+  assert.ok((await offset("R004")) >= 0 && (await offset("R004")) < 120, `the live epic starts at the top edge (R004 at ${await offset("R004")}px)`)
+  assert.ok((await offset("R003")) < 300, `the camera opens on the live horizon (R003 at ${await offset("R003")}px)`)
   // the shipped horizon sits above the framed one: pan the map down to reach it, as a user would
   const flow = await page.locator(".react-flow").boundingBox()
   await page.mouse.move(flow.x + 20, flow.y + 100)

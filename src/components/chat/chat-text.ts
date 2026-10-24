@@ -3,7 +3,7 @@
 import { useMemo } from "react"
 import { useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
-import { INTERRUPTED, ORCHESTRATOR_TITLE, TOO_MANY_CHATS, type ChatStatus } from "@/lib/chats"
+import { INTERRUPTED, ORCHESTRATOR_TITLE, TOO_MANY_CHATS, verifyTaskOf, type ChatStatus } from "@/lib/chats"
 
 const STATUS_KEY: Record<ChatStatus, MessageKey> = {
   running: "chat.statusRunning",
@@ -44,10 +44,15 @@ export function useChatText() {
       if (epic) return t("chat.sugBreakDown", { id: epic[1] })
       return SUGGESTION_KEY[s] ? t(SUGGESTION_KEY[s]) : s
     },
-    /** A chat's title: the ones VibeDoc names (new chat, attachTitle, chatTitle's "Break down R…") translated, typed ones as written. */
+    /**
+     * A chat's title: the ones VibeDoc names (new chat, attachTitle, chatTitle's "Break down R…", a Verify chat's raw
+     * prompt → "Verify T196") translated, typed ones as written. Display only: the saved title is never rewritten.
+     */
     title: (s: string) => {
       if (s === "New chat") return t("chat.newChat")
       if (s === ORCHESTRATOR_TITLE) return t("workers.orchestrator")
+      const verify = verifyTaskOf(s)
+      if (verify) return t("chat.titleVerify", { id: verify })
       const m = /^(Epic|Task|Break down) ([RT]\d+)$/.exec(s)
       if (!m) return s
       return t(m[1] === "Epic" ? "chat.titleEpic" : m[1] === "Task" ? "chat.titleTask" : "chat.titleBreakDown", { id: m[2] })

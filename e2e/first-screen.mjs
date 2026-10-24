@@ -68,7 +68,7 @@ try {
   {
     const { ctx, page } = await open(empty)
     await page.waitForURL(/\/start\b/)
-    await page.getByText("No agent has connected yet.").waitFor()
+    await page.getByText("Claude Code or Cursor in your terminal can connect too.").waitFor()
     await page.getByRole("link", { name: "Write project docs" }).click()
     await page.waitForURL(/\/setup\b/)
     await page.getByRole("heading", { name: "Write project docs" }).waitFor()

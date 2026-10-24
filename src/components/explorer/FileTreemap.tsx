@@ -1,19 +1,24 @@
 "use client"
 
 import dynamic from "next/dynamic"
-import { useMemo, useSyncExternalStore } from "react"
+import { useMemo, useState, useSyncExternalStore } from "react"
+import { ChevronRight } from "lucide-react"
 import type { ExplorerFile } from "@/types"
 import { useT } from "@/context/LanguageContext"
+import { freshness, FreshnessLegend } from "./Freshness"
 
 // ECharts uses browser APIs — must be dynamically imported with ssr: false
 const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false })
 
 interface TreemapNode {
   name: string
-  value?: number
+  value: number
+  /** a file tile: its path; a folder tile: undefined */
   path?: string
+  /** a folder tile: its path and how many files it holds */
+  folder?: string
+  count?: number
   itemStyle?: { color: string }
-  children?: TreemapNode[]
 }
 
 interface FileTreemapProps {
@@ -23,7 +28,7 @@ interface FileTreemapProps {
 
 // The canvas can't read CSS vars, so the design tokens are read off the root as computed now (follows .dark and the
 // accent setting) and re-read when either changes
-const TOKENS = ["bg", "surface", "surface2", "border", "border2", "txt", "muted", "accent", "teal", "amber"] as const
+const TOKENS = ["bg", "surface", "surface2", "border", "border2", "txt", "muted", "accent"] as const
 type Token = (typeof TOKENS)[number]
 type Paint = (k: Token, alpha?: number) => string
 
@@ -42,85 +47,62 @@ function painter(snapshot: string): Paint {
   return (k, alpha = 1) => `rgba(${rgb.get(k)}, ${alpha})`
 }
 
-/** Freshness on the status inks: teal this week, amber this month, a plain surface after that. */
+/** Freshness as neutral ink over the surface (the legend's steps); never a status hue, never the accent. */
 function freshnessColor(mtime: string, paint: Paint): string {
-  const days = (Date.now() - new Date(mtime).getTime()) / (1000 * 60 * 60 * 24)
-  if (days <= 7) return paint("teal", 0.45)
-  if (days <= 28) return paint("amber", 0.4)
-  return paint("surface2")
+  const f = freshness(mtime)
+  return f === 0 ? paint("txt", 0.3) : f === 1 ? paint("txt", 0.14) : paint("surface2")
 }
 
-function buildTreemapData(files: ExplorerFile[], paint: Paint): TreemapNode[] {
-  const root: TreemapNode[] = []
-  const folderMap = new Map<string, TreemapNode>()
+const norm = (p: string) => p.replace(/\\/g, "/")
 
-  // Normalize to forward slashes (paths may have backslashes on Windows/WSL)
-  // and skip root-level files (no folder) — they'd appear as orphan tiles.
-  const sorted = [...files]
-    .map((f) => ({ ...f, path: f.path.replace(/\\/g, "/") }))
-    .filter((f) => f.path.includes("/"))
-    .sort((a, b) => a.path.localeCompare(b.path))
-
-  for (const file of sorted) {
-    const parts = file.path.split("/")
-    const fileName = parts[parts.length - 1].replace(/\.md$/i, "")
-
-    const leaf: TreemapNode = {
-      name: fileName,
-      value: 1,
-      path: file.path,
-      itemStyle: { color: freshnessColor(file.mtime, paint) },
+/**
+ * One level of the map: the direct children of `folder` ("" = the project root). A sub-folder is one tile sized by
+ * √(its file count) and shaded by its newest file, so a 519-file folder doesn't swallow its siblings; click to open.
+ */
+function buildLevel(files: ExplorerFile[], folder: string, paint: Paint): TreemapNode[] {
+  const prefix = folder ? `${folder}/` : ""
+  const folders = new Map<string, { count: number; newest: string }>()
+  const leaves: TreemapNode[] = []
+  for (const file of files) {
+    const path = norm(file.path)
+    if (!path.startsWith(prefix)) continue
+    const rest = path.slice(prefix.length)
+    const slash = rest.indexOf("/")
+    if (slash < 0) {
+      leaves.push({ name: rest.replace(/\.md$/i, ""), value: 1, path: file.path, itemStyle: { color: freshnessColor(file.mtime, paint) } })
+      continue
     }
-
-    if (parts.length === 1) {
-      // Top-level file
-      root.push(leaf)
-    } else {
-      // Ensure each ancestor folder exists
-      for (let depth = 1; depth < parts.length; depth++) {
-        const folderPath = parts.slice(0, depth).join("/")
-        if (!folderMap.has(folderPath)) {
-          const folderNode: TreemapNode = {
-            name: parts[depth - 1],
-            // value will be summed up after tree is built
-            children: [],
-          }
-          folderMap.set(folderPath, folderNode)
-
-          if (depth === 1) {
-            root.push(folderNode)
-          } else {
-            const parentPath = parts.slice(0, depth - 1).join("/")
-            const parent = folderMap.get(parentPath)
-            if (parent) parent.children!.push(folderNode)
-          }
-        }
-      }
-
-      // Attach leaf to its immediate parent folder
-      const parentPath = parts.slice(0, parts.length - 1).join("/")
-      const parent = folderMap.get(parentPath)
-      if (parent) parent.children!.push(leaf)
-    }
+    const name = rest.slice(0, slash)
+    const cur = folders.get(name)
+    folders.set(name, { count: (cur?.count ?? 0) + 1, newest: cur && cur.newest > file.mtime ? cur.newest : file.mtime })
   }
+  const folderNodes = [...folders].map(([name, { count, newest }]): TreemapNode => ({
+    name, value: Math.sqrt(count), folder: prefix + name, count, itemStyle: { color: freshnessColor(newest, paint) },
+  }))
+  return [...folderNodes, ...leaves].sort((a, b) => b.value - a.value || a.name.localeCompare(b.name))
+}
 
-  // Give each folder a value = number of descendant files so ECharts sizes it correctly
-  function sumValues(node: TreemapNode): number {
-    if (!node.children || node.children.length === 0) return node.value ?? 1
-    const total = node.children.reduce((acc, child) => acc + sumValues(child), 0)
-    node.value = total
-    return total
+/** `folder`, or the nearest level that still has files; one lone sub-folder and nothing else is opened for you. */
+function effectiveFolder(files: ExplorerFile[], folder: string): string {
+  let f = folder
+  while (f && !files.some((x) => norm(x.path).startsWith(`${f}/`))) f = f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : ""
+  for (;;) {
+    const prefix = f ? `${f}/` : ""
+    const under = files.map((x) => norm(x.path)).filter((p) => p.startsWith(prefix)).map((p) => p.slice(prefix.length))
+    const tops = new Set(under.map((p) => (p.includes("/") ? p.slice(0, p.indexOf("/")) : "")))
+    if (tops.size !== 1 || tops.has("")) return f
+    f = prefix + [...tops][0]
   }
-  root.forEach(sumValues)
-
-  return root
 }
 
 export function FileTreemap({ files, onSelect }: FileTreemapProps) {
   const { t } = useT()
   const theme = useSyncExternalStore(subscribeTheme, readTokens, () => "")
   const paint = useMemo(() => painter(theme), [theme])
-  const treeData = useMemo(() => buildTreemapData(files, paint), [files, paint])
+  const [picked, setPicked] = useState("")
+  const folder = useMemo(() => effectiveFolder(files, picked), [files, picked])
+  const level = useMemo(() => buildLevel(files, folder, paint), [files, folder, paint])
+  const crumbs = folder ? folder.split("/") : []
 
   const option = useMemo(
     () => ({
@@ -136,113 +118,52 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
           const esc = (x: string) => x.replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`)
           return data.path
             ? `<span style="color:${paint("muted")};font-size:11px;font-family:var(--font-mono)">${esc(data.path)}</span>`
-            : `<span style="font-weight:600">${esc(name)}/</span>`
+            : `<span style="font-weight:600">${esc(name)}/</span> <span style="color:${paint("muted")}">${data.count ?? 0}</span>`
         },
       },
       series: [
         {
           type: "treemap",
-          data: treeData,
+          data: level,
           roam: false,
-          leafDepth: 1,
+          // one level only: a folder click opens it here (React state), never ECharts' own zoom
+          nodeClick: false,
+          breadcrumb: { show: false },
           width: "100%",
           height: "100%",
           top: 4,
-          bottom: 36,
+          bottom: 4,
           left: 4,
           right: 4,
           squareRatio: 0.7,
-          breadcrumb: {
-            show: true,
-            bottom: 4,
-            height: 26,
-            gap: 6,
-            itemStyle: {
-              color: paint("surface"),
-              borderColor: paint("border"),
-              borderWidth: 1,
-              shadowBlur: 0,
-              textStyle: { color: paint("muted"), fontSize: 11, fontFamily: "inherit" },
-            },
-            emptyItemWidth: 20,
-          },
-          // labels on leaf nodes: text colour on a tinted tile, no glow
           label: {
             show: true,
-            formatter: "{b}",
+            formatter: (p: { name: string; data: TreemapNode }) => (p.data.folder ? `{f|${p.name}/}\n{n|${p.data.count}}` : p.name),
             fontSize: 12,
             fontWeight: 500,
             color: paint("txt"),
             overflow: "truncate",
             padding: [4, 6],
+            rich: {
+              f: { fontSize: 13, fontWeight: 600, color: paint("txt"), lineHeight: 18 },
+              n: { fontSize: 11, color: paint("muted"), fontFamily: "monospace", lineHeight: 16 },
+            },
           },
-          // labels on folder header bar
-          upperLabel: {
-            show: true,
-            height: 24,
-            fontSize: 12,
-            fontWeight: 600,
-            color: paint("txt"),
-            backgroundColor: paint("surface"),
-            borderRadius: [4, 4, 0, 0],
-            padding: [4, 8],
-            textShadowBlur: 0,
-          },
-          itemStyle: {
-            borderColor: paint("bg"),
-            borderWidth: 1,
-            gapWidth: 1,
-          },
+          itemStyle: { borderColor: paint("bg"), borderWidth: 2, gapWidth: 2 },
           emphasis: {
-            label: { color: paint("txt"), fontWeight: 600 },
-            upperLabel: { color: paint("txt"), backgroundColor: paint("surface2") },
-            itemStyle: { borderColor: paint("accent"), borderWidth: 2 },
+            label: { color: paint("txt") },
+            itemStyle: { borderColor: paint("border2"), borderWidth: 2 },
           },
-          levels: [
-            {
-              // top-level folders: flat surfaces; colour belongs to the files' freshness
-              color: [paint("surface")],
-              itemStyle: {
-                borderColor: paint("bg"),
-                borderWidth: 3,
-                gapWidth: 4,
-              },
-              upperLabel: {
-                show: true,
-                height: 28,
-                fontSize: 13,
-                fontWeight: 600,
-                color: paint("txt"),
-                backgroundColor: paint("surface"),
-              },
-            },
-            {
-              // sub-folders
-              itemStyle: {
-                borderColor: paint("border"),
-                borderWidth: 2,
-                gapWidth: 2,
-              },
-              upperLabel: { show: true },
-            },
-            {
-              // leaf files — color comes from itemStyle.color set per-node (freshness)
-              itemStyle: {
-                borderColor: paint("bg"),
-                borderWidth: 1,
-                gapWidth: 1,
-              },
-            },
-          ],
         },
       ],
     }),
-    [treeData, paint]
+    [level, paint]
   )
 
   function handleClick(params: { data?: TreemapNode }) {
-    if (!params?.data?.path) return
-    onSelect(params.data.path)
+    const d = params?.data
+    if (d?.folder) setPicked(d.folder)
+    else if (d?.path) onSelect(d.path)
   }
 
   if (files.length === 0) {
@@ -254,12 +175,39 @@ export function FileTreemap({ files, onSelect }: FileTreemapProps) {
   }
 
   return (
-    <ReactECharts
-      option={option}
-      onEvents={{ click: handleClick }}
-      style={{ height: "100%", width: "100%" }}
-      opts={{ renderer: "canvas" }}
-      notMerge
-    />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border px-4 py-2">
+        <nav aria-label={t("docs.treemapAll")} className="flex min-w-0 flex-wrap items-center gap-1 font-mono text-[11px]">
+          {["", ...crumbs].map((name, i) => {
+            const path = crumbs.slice(0, i).join("/")
+            const current = path === folder
+            return (
+              <span key={path || "/"} className="flex items-center gap-1">
+                {i > 0 && <ChevronRight className="size-3 text-muted" aria-hidden />}
+                <button
+                  type="button"
+                  disabled={current}
+                  aria-current={current ? "page" : undefined}
+                  onClick={() => setPicked(path)}
+                  className="rounded-sm px-1 py-0.5 text-muted outline-none hover:text-txt focus-visible:ring-2 focus-visible:ring-accent disabled:text-txt"
+                >
+                  {i === 0 ? t("docs.treemapAll") : <span data-user-content>{name}</span>}
+                </button>
+              </span>
+            )
+          })}
+        </nav>
+        <FreshnessLegend tiles />
+      </div>
+      <div className="min-h-0 flex-1">
+        <ReactECharts
+          option={option}
+          onEvents={{ click: handleClick }}
+          style={{ height: "100%", width: "100%" }}
+          opts={{ renderer: "canvas" }}
+          notMerge
+        />
+      </div>
+    </div>
   )
 }

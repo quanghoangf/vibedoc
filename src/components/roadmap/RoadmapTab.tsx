@@ -16,7 +16,7 @@ import "@xyflow/react/dist/style.css"
 
 const MIN_INITIAL_ZOOM = 0.75
 const VIEWPORT_PAD = 40
-import { AlertTriangle, Bot, ChevronLeft, X, FileText, LayoutGrid, ListTree, MoreHorizontal, Plus, ScrollText, Sparkles } from "lucide-react"
+import { AlertTriangle, Bot, ChevronLeft, ChevronRight, Map as MapIcon, X, FileText, LayoutGrid, ListTree, MoreHorizontal, Plus, ScrollText, Sparkles } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useApp } from "@/context/AppContext"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -29,7 +29,7 @@ import { dueState, localToday, roadmapHealth, taskDueSummary, type RoadmapDrift,
 import { cn } from "@/lib/utils"
 import { askAgent } from "@/lib/ask-agent"
 import { RoadmapTimeline } from "./RoadmapTimeline"
-import { FEATURE_W, HORIZON_W, arrangePositions, doneHorizons, focusHorizon, resolvePositions } from "./layout"
+import { FEATURE_W, HORIZON_W, arrangePositions, densestWindow, doneHorizons, focusHorizon, focusX, liveEpics, resolvePositions } from "./layout"
 import { StatusDot, nodeTypes, useRoadmapStatusLabel, type RoadmapNode } from "./RoadmapNodes"
 import { RoadmapItemPane, RoadmapItemSheet } from "./RoadmapItemSheet"
 import { TaskDetailBody } from "@/components/board/TaskDetailPanel"
@@ -214,8 +214,10 @@ export function RoadmapTab() {
   // Like roadmap.sh: open at readable zoom, centered horizontally, from the top of the map.
   // fitView on a large roadmap shrinks text to unreadable sizes.
   const rfRef = useRef<ReactFlowInstance<RoadmapNode> | null>(null)
-  // false until the map was framed once: it starts hidden when the URL opens a task (no width to frame against)
-  const framedRef = useRef(false)
+  // "no" until the map was framed: it starts hidden when the URL opens a task (no width to frame against).
+  // "provisional" = framed before the tasks loaded (every epic with a task looks live): framed again once they do,
+  // unless the user moved the map first. "final" = never reframed on its own again.
+  const framedRef = useRef<"no" | "provisional" | "final">("no")
   // a roadmap_updated that arrived mid-drag; reloaded once the drag's layout POST lands
   const pendingReloadRef = useRef(false)
   // only the latest load() may apply its response (guards project switches / overlapping SSE reloads)
@@ -304,24 +306,39 @@ export function RoadmapTab() {
   )
   const health = useMemo(() => roadmapHealth(items, tasksById, today), [items, tasksById, today])
 
-  // open on what's happening now: the first horizon with live work, else the top of the map
-  const focusId = useMemo(() => focusHorizon(items, (id) => {
-    const s = tasksById[id]?.status
-    return s !== "done" && s !== "cancelled"
-  }), [items, tasksById])
+  // open on what's happening now: the live epics of the first horizon with live work, else the top of the map.
+  // A paused task isn't live work (never claimed), so an epic held only by one doesn't pull the camera.
+  const focus = useMemo(() => {
+    const isOpen = (id: string) => {
+      const s = tasksById[id]?.status
+      return s !== "done" && s !== "cancelled" && s !== "paused"
+    }
+    const horizon = focusHorizon(items, isOpen)
+    return { horizon, live: horizon ? liveEpics(items, horizon, isOpen) : [] }
+  }, [items, tasksById])
 
   const showTop = useCallback((rf: ReactFlowInstance<RoadmapNode>, duration = 0) => {
     rfRef.current = rf
     const width = containerRef.current?.clientWidth ?? 0
-    const bounds = rf.getNodesBounds(rf.getNodes())
+    const height = containerRef.current?.clientHeight ?? 0
+    const all = rf.getNodes()
+    const bounds = rf.getNodesBounds(all)
     if (!width || !bounds.width) return
-    framedRef.current = true
+    framedRef.current = board ? "final" : "provisional"
     const zoom = Math.min(1, Math.max(MIN_INITIAL_ZOOM, (width - VIEWPORT_PAD * 2) / bounds.width))
-    // the focused horizon's block (it + its epics) starts at the top edge
-    const block = focusId ? rf.getNodes().filter((n) => n.id === focusId || n.data.item.parent === focusId) : []
-    const top = block.length ? Math.min(...block.map((n) => n.position.y)) : bounds.y
-    rf.setViewport({ x: width / 2 - (bounds.x + bounds.width / 2) * zoom, y: VIEWPORT_PAD - top * zoom, zoom }, { duration })
-  }, [focusId])
+    // the live epics (the densest run of them when they don't all fit) start at the top edge, not the top of their
+    // horizon's block: a long horizon's block starts with its oldest, done epics
+    const live = new Set(focus.live)
+    const boxes = all.filter((n) => live.has(n.id)).map((n) => ({
+      x: n.position.x, y: n.position.y, w: n.measured?.width ?? FEATURE_W, h: n.measured?.height ?? 80,
+    }))
+    const frame = densestWindow(boxes, Math.max(1, (height - VIEWPORT_PAD * 2) / zoom))
+    const viewW = (width - VIEWPORT_PAD * 2) / zoom
+    const cx = frame && bounds.width > viewW ? focusX(boxes, frame, viewW) : null
+    const x = width / 2 - (cx ?? bounds.x + bounds.width / 2) * zoom
+    const y = VIEWPORT_PAD - (frame ? frame.top : bounds.y) * zoom
+    rf.setViewport({ x, y, zoom }, { duration })
+  }, [focus, board])
 
   const shownNodes = useMemo(() => {
     const allTasks = Object.values(tasksById)
@@ -342,6 +359,8 @@ export function RoadmapTab() {
             ...taskDueFields(item.tasks, tasksById, today),
             taskStatuses: item.tasks.map((id) => tasksById[id]?.status).filter((s): s is TaskStatus => !!s && s !== "cancelled"),
             nextTaskId: next?.kind === "ready" ? next.taskId : null,
+            // done epics among live ones step back, so the eye lands on the work (an all-done horizon collapses instead)
+            receded: item.status === "done" && !!item.parent && !allDone.has(item.parent),
           }),
           ...(n.type === "horizon" && {
             chapter: chapters.get(item.id),
@@ -502,12 +521,14 @@ export function RoadmapTab() {
 
   // the map was hidden behind a task on load: frame it once it shows
   const mapShown = !openTask
+  // (also: the map mounted before the items or tasks loaded, so onInit had nothing to frame)
+  const nodeCount = nodes.length
   useEffect(() => {
-    if (mapShown && !framedRef.current && rfRef.current) {
+    if (mapShown && framedRef.current !== "final" && rfRef.current && nodeCount) {
       const rf = rfRef.current
       requestAnimationFrame(() => showTop(rf))
     }
-  }, [mapShown, showTop])
+  }, [mapShown, showTop, nodeCount])
 
   const report = (err: string | null) => { if (err) setError(err) }
   const actions: ItemActions = {
@@ -568,7 +589,7 @@ export function RoadmapTab() {
         {error && <p className="mb-4 text-sm text-danger">{error}</p>}
         <EmptyState
           bordered
-          icon="🗺️"
+          icon={<MapIcon className="size-6" />}
           message={t("roadmap.noRoadmap")}
           lead={t("roadmap.noRoadmapLead")}
           action={demo ? undefined : fromFiles ? (
@@ -580,7 +601,13 @@ export function RoadmapTab() {
         />
         {!demo && <div className="mt-4 flex flex-col items-center gap-2">
           {fromFiles && <p className="text-xs text-muted">{t("roadmap.generateHint", { source: sourceLabel })}</p>}
-          <div className="flex flex-wrap justify-center gap-2">
+          {/* One primary above (copy pill or Generate); the other starts wait behind a disclosure */}
+          <details className="group/other flex flex-col items-center">
+          <summary className="mx-auto flex w-fit cursor-pointer list-none items-center gap-1 rounded-sm text-xs text-muted hover:text-txt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
+            <ChevronRight aria-hidden className="size-3.5 transition-transform group-open/other:rotate-90" />
+            {t("roadmap.otherWaysToStart")}
+          </summary>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
             {!fromFiles && (
               <Button size="sm" variant="outline" onClick={generate} disabled={generating} title={t("roadmap.generateHint", { source: sourceLabel })}>
                 <Sparkles /> {generating ? t("roadmap.generating") : t("roadmap.generateStarter")}
@@ -596,6 +623,7 @@ export function RoadmapTab() {
               <Plus /> {t("roadmap.createFirstHorizon")}
             </Button>
           </div>
+          </details>
         </div>}
         {dialog}
       </div>
@@ -710,6 +738,7 @@ export function RoadmapTab() {
               deleteKeyCode={null}
               colorMode={isDark ? "dark" : "light"}
               onInit={showTop}
+              onMoveStart={(e) => { if (e) framedRef.current = "final" /* the user moved the map: leave it there */ }}
               minZoom={0.2}
               ariaLabelConfig={flowLabels}
               style={FLOW_STYLE}
@@ -787,7 +816,7 @@ function RoadmapStats({ items, tasksById }: { items: RoadmapItem[]; tasksById: R
   )
 }
 
-/** Amber pill with the drift count; opens the list (closed by default so it never covers the map). */
+/** Neutral pill with the drift count (not the user's queue, so never amber); opens the list (closed by default so it never covers the map). */
 function AttentionMenu({ drift, onSelect, onApply }: {
   drift: RoadmapDrift[]
   onSelect: (id: string) => void
@@ -805,8 +834,8 @@ function AttentionMenu({ drift, onSelect, onApply }: {
   const label = t("roadmap.needAttention", { n: drift.length })
   return (
     <details ref={ref} className="group relative shrink-0" onKeyDown={(e) => { if (e.key === "Escape" && ref.current?.open) { e.stopPropagation(); close(true) } }}>
-      <summary aria-label={label} className="flex h-8 cursor-pointer list-none items-center gap-1.5 whitespace-nowrap rounded-md border border-amber/40 bg-amber/10 px-2.5 text-xs font-medium text-txt hover:bg-amber/15 [&::-webkit-details-marker]:hidden">
-        <AlertTriangle aria-hidden className="h-3.5 w-3.5 text-amber" />
+      <summary aria-label={label} className="flex h-8 cursor-pointer list-none items-center gap-1.5 whitespace-nowrap rounded-md border border-border px-2.5 text-xs font-medium text-muted hover:border-border2 hover:bg-surface2 hover:text-txt [&::-webkit-details-marker]:hidden">
+        <AlertTriangle aria-hidden className="h-3.5 w-3.5" />
         {/* Phone: the count alone keeps the toolbar one row */}
         <span aria-hidden className="tabular-nums sm:hidden">{drift.length}</span>
         <span aria-hidden className="max-sm:hidden">{label}</span>
@@ -814,7 +843,7 @@ function AttentionMenu({ drift, onSelect, onApply }: {
       <ul className="absolute right-0 top-full z-30 mt-1.5 max-h-72 w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-lg border border-border bg-surface text-xs shadow-xl">
         {drift.map((d) => (
           <li key={`${d.id}-${d.kind}`} className="flex items-start gap-2 border-b border-border px-3 py-2.5 last:border-0">
-            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber" />
+            <span aria-hidden className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-muted" />
             <button type="button" onClick={() => { close(false); onSelect(d.id) }} className="flex-1 text-left leading-relaxed text-muted hover:text-txt">
               {driftText(d, t, statusLabel)}
             </button>

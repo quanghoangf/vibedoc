@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { Search } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
-import { KIND_ICON, KIND_LABEL, fetchSearch, useOpenResult } from "@/components/search/search-results"
+import { KIND_LABEL, fetchSearch, useOpenResult } from "@/components/search/search-results"
 import { highlightParts, snippetText, type CrossGroup } from "@/lib/cross-search"
 import { NoMatch } from "@/components/search/NoMatch"
 
@@ -136,30 +136,23 @@ function SearchView() {
             {g.project.id === activeProjectId && <span className="rounded-sm bg-surface2 px-1.5 py-px text-[10px] font-normal text-muted">{t("search.current")}</span>}
           </h2>
           <ul className="divide-y divide-border rounded-lg border border-border">
-            {g.results.map((r) => {
-              const Icon = KIND_ICON[r.kind]
-              return (
-                <li key={`${r.kind}:${r.path}:${r.id ?? ""}`}>
-                  <button
-                    type="button"
-                    onClick={() => open(r)}
-                    className="flex w-full items-start gap-2.5 px-3 py-2 text-left hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent"
-                  >
-                    <Icon className="mt-0.5 size-3.5 shrink-0 text-muted" aria-label={t(KIND_LABEL[r.kind])} />
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-baseline gap-2">
-                        {r.id && <span className="shrink-0 font-mono text-[11px] text-muted">{r.id}</span>}
-                        <span data-user-content className="truncate text-[13px] text-txt"><Marked text={r.title} query={q} /></span>
-                      </span>
-                      {r.kind === "doc" || (titles.get(r.title) ?? 0) > 1
-                        ? <span data-user-content className="block truncate font-mono text-[11px] text-muted">{r.path}</span>
-                        : <span className="block truncate text-[11px] text-muted">{t(KIND_LABEL[r.kind])}</span>}
-                      {r.kind === "doc" && r.snippet && <span data-user-content data-snippet className="block truncate text-xs text-muted"><Marked text={snippetText(r.snippet)} query={q} /></span>}
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
+            {g.results.map((r) => (
+              <li key={`${r.kind}:${r.path}:${r.id ?? ""}`}>
+                <button
+                  type="button"
+                  onClick={() => open(r)}
+                  className="flex w-full min-w-0 flex-col px-3 py-2 text-left hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  <span className="flex min-w-0 items-baseline gap-2">
+                    <span data-kind className="w-24 shrink-0 truncate font-mono text-[10px] font-medium uppercase tracking-[0.06em] text-muted">{t(KIND_LABEL[r.kind])}</span>
+                    {r.id && <span className="shrink-0 font-mono text-[11px] text-muted">{r.id}</span>}
+                    <span data-user-content className="min-w-0 truncate text-[13px] text-txt"><Marked text={r.title} query={q} /></span>
+                  </span>
+                  {(r.kind === "doc" || (titles.get(r.title) ?? 0) > 1) && <span data-user-content className="block truncate pl-[6.5rem] font-mono text-[11px] text-muted">{r.path}</span>}
+                  {r.kind === "doc" && r.snippet && <span data-user-content data-snippet className="block truncate pl-[6.5rem] text-xs text-muted"><Marked text={snippetText(r.snippet)} query={q} /></span>}
+                </button>
+              </li>
+            ))}
           </ul>
         </section>
         )

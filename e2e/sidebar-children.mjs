@@ -6,7 +6,7 @@
 //   3. Clicking a child lands on that exact item (task panel, epic sheet)
 //   4. Collapse Board → children hidden, still after a reload; ←/→ on the focused row toggle it, Enter opens the page
 //   5. Approving the task elsewhere removes it from needs-action live (SSE)
-//   6. Icon-only sidebar: children hidden, a dot on pages with needs-action items; light + dark; Vietnamese; 390px drawer
+//   6. Icon-only sidebar: children hidden, a dot on Roadmap / Docs needs-action items (Board / Manual tests are the Inbox); light + dark; Vietnamese; 390px drawer
 //   7. 1440×900: every page link is visible without scrolling; on /chat the Chats group folds to "All chats"
 // Fails on any browser console error. The fixture is removed in `finally`. SHOTS=<dir> keeps screenshots.
 //
@@ -54,11 +54,11 @@ try {
   const toggle = (slug) => page.locator(`[aria-controls="sidebar-items-${slug}"]`)
   const mark = (href) => page.locator(`[data-sidebar="menu-button"][href="${href}"] [data-needs-action-mark]`)
 
-  // 1. collapsed by default with a dot; opening a row lists its needs-action items
+  // 1. collapsed by default; only Roadmap carries a dot (Board / Manual tests items are the Inbox's count, never a second "needs you")
   await page.goto(`${BASE}/activity`)
-  await mark("/board").waitFor()
   await mark("/roadmap").waitFor()
-  assert.ok(await mark("/manual-tests").isVisible(), "Manual tests carries a needs-you dot")
+  assert.equal(await mark("/board").count(), 0, "Board carries no needs-you dot: its items are in the Inbox")
+  assert.equal(await mark("/manual-tests").count(), 0, "Manual tests carries no needs-you dot: its items are in the Inbox")
   assert.equal(await page.locator("[data-sidebar-child]").count(), 0, "children collapsed by default")
   assert.equal(await toggle("board").getAttribute("aria-expanded"), "false")
   for (const slug of ["board", "manual-tests", "roadmap"]) await toggle(slug).click()
@@ -68,8 +68,8 @@ try {
   assert.deepEqual(await refs("roadmap", "needs-action"), ["R002"])
   assert.match(await kids(page, "roadmap").first().innerText(), /Overdue/)
   assert.match(await kids(page, "board").first().innerText(), /T001[\s\S]*Alpha review[\s\S]*Review/)
-  assert.equal(await mark("/board").count(), 0, "an open row drops its dot")
-  console.log("ok  1: dots on Board / Manual tests / Roadmap, children collapsed; opened, they list T001 and R002")
+  assert.equal(await mark("/roadmap").count(), 0, "an open row drops its dot")
+  console.log("ok  1: a dot on Roadmap only, children collapsed; opened, they list T001 and R002")
   await shot("1-needs-action-dark")
 
   // 2. no "Viewed" history; the pages are a nav landmark
@@ -165,13 +165,13 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto(`${BASE}/activity`)
   await page.locator('[data-sidebar="menu-button"][href="/graph"]').waitFor()
-  await page.getByRole("group", { name: "Chats" }).getByText("One chat").waitFor()
+  await page.getByRole("navigation", { name: "Chats" }).getByText("One chat").waitFor()
   for (const href of ["/board", "/roadmap", "/manual-tests", "/inbox", "/activity", "/docs", "/memory", "/explorer", "/graph", "/chat"]) {
     const b = await page.locator(`[data-sidebar="menu-button"][href="${href}"]:visible`).boundingBox()
     assert.ok(b && b.y >= 0 && b.y + b.height <= 900, `${href} visible without scrolling: ${JSON.stringify(b)}`)
   }
   await page.goto(`${BASE}/chat`)
-  const chats = page.getByRole("group", { name: "Chats" })
+  const chats = page.getByRole("navigation", { name: "Chats" })
   await chats.getByRole("link", { name: /All chats/ }).waitFor()
   assert.equal(await chats.locator('[data-sidebar="menu-button"]:not(a)').count(), 0, "no chat rows on /chat")
   console.log("ok  7: every page link fits at 1440×900; /chat folds the sidebar's Chats group")

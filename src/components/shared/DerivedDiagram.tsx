@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { MarkdownRenderer } from "@/components/docs/MarkdownRenderer"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { depGraphMermaid, epicGraph, epicGraphMermaid, taskNeighbourhood, type EpicScenario } from "@/lib/item-diagrams"
+import { useStatusLabel } from "@/components/shared/StatusIcon"
 import type { Task } from "@/types"
 
 // Diagrams derived from project data (R097). The source is generated Mermaid, rendered by MarkdownRenderer, so the
@@ -26,11 +27,12 @@ export function DerivedDiagram({ source, label, onOpen, isLink = isItemId, fit =
   label: string
   onOpen: (id: string) => void
   isLink?: (id: string) => boolean
-  /** Scale to the box (a narrow rail) instead of the 75% floor + scroll; Fullscreen still shows it large */
+  /** Always scale to the box (a narrow rail): no Actual size control; Fullscreen still shows it large */
   fit?: boolean
 }) {
   const ref = useRef<HTMLElement>(null)
   const { t } = useT()
+  const statusLabel = useStatusLabel()
   useEffect(() => {
     const root = ref.current
     if (!root) return
@@ -40,7 +42,6 @@ export function DerivedDiagram({ source, label, onOpen, isLink = isItemId, fit =
       return id && isLink(id) ? id : null
     }
     // Mermaid draws after a debounce and again on a theme switch: make every task node a focusable link as it appears
-    // (MarkdownRenderer floors its width, as for any diagram)
     const mark = () => {
       // a map wider than the pane opens on the item it is about (the accent node), not on its left edge
       for (const svg of root.querySelectorAll<SVGSVGElement>(".mermaid > svg:not([data-centred])")) {
@@ -56,7 +57,10 @@ export function DerivedDiagram({ source, label, onOpen, isLink = isItemId, fit =
         if (!id) continue
         node.setAttribute("tabindex", "0")
         node.setAttribute("role", "link")
-        node.setAttribute("aria-label", t("board.depDiagramOpen", { title: node.textContent?.trim() || id }))
+        // the status lives in the node's class (its stroke): name it too, so it isn't colour only
+        const st = /\bst-([a-z-]+)/.exec(node.getAttribute("class") ?? "")?.[1]
+        const named = st && st !== "missing" ? ` · ${statusLabel(st)}` : ""
+        node.setAttribute("aria-label", t("board.depDiagramOpen", { title: (node.textContent?.trim() || id) + named }))
         node.style.cursor = "pointer"
       }
     }
@@ -72,7 +76,7 @@ export function DerivedDiagram({ source, label, onOpen, isLink = isItemId, fit =
     root.addEventListener("click", onClick)
     root.addEventListener("keydown", onKey)
     return () => { mo.disconnect(); root.removeEventListener("click", onClick); root.removeEventListener("keydown", onKey) }
-  }, [onOpen, t, isLink])
+  }, [onOpen, t, isLink, statusLabel])
   return (
     <section ref={ref} aria-label={label} data-derived-diagram>
       <MarkdownRenderer content={"```mermaid\n" + source + "\n```\n"} className={fit ? "derived-diagram derived-diagram-fit" : "derived-diagram"} />
@@ -104,10 +108,8 @@ export function TaskDepsDiagram({ task, onNavigate, className = "px-5 pt-3" }: {
   )
 }
 
-// ponytail: past this many tasks the map is too dense to read in a sheet; it opens on request (fullscreen helps)
-const EPIC_DIAGRAM_OPEN_MAX = 20
-
-/** An epic's tasks with dependency order and the scenarios each covers (T521); nothing for an epic without tasks. */
+/** An epic's tasks with dependency order and the scenarios each covers (T521); nothing for an epic without tasks.
+ *  The epic sheet mounts it only inside its open "Map" disclosure, so it never draws unasked. */
 export function EpicDiagram({ taskIds, tasks, scenarios, onOpenTask, onOpenScenario }: {
   taskIds: string[]
   tasks: Task[]
@@ -116,18 +118,10 @@ export function EpicDiagram({ taskIds, tasks, scenarios, onOpenTask, onOpenScena
   onOpenScenario: (id: string) => void
 }) {
   const { t } = useT()
-  const [show, setShow] = useState(false)
   const graph = useMemo(() => epicGraph(taskIds, tasks.map((x) => ({ ...x, covers: x.covers ?? [] })), scenarios), [taskIds, tasks, scenarios])
   const source = useMemo(() => epicGraphMermaid(graph), [graph])
   const open = useCallback((id: string) => (id.startsWith("S") ? onOpenScenario(id) : onOpenTask(id)), [onOpenScenario, onOpenTask])
   if (graph.tasks.length === 0) return null
-  if (graph.tasks.length > EPIC_DIAGRAM_OPEN_MAX && !show) {
-    return (
-      <button type="button" onClick={() => setShow(true)} className="self-start rounded-sm border border-border px-2.5 py-1 text-xs text-muted hover:border-border2 hover:text-txt" data-epic-diagram-show>
-        {t("roadmap.showDiagram", { n: graph.tasks.length })}
-      </button>
-    )
-  }
   return (
     <div data-epic-diagram>
       <DerivedDiagram source={source} label={t("roadmap.diagram")} onOpen={open} />

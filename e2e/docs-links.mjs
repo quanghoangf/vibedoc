@@ -79,8 +79,19 @@ try {
   const doc = page.locator(".doc-preview")
   const panel = page.locator('aside[aria-label="Linked docs"]')
 
-  // 1. Click through a → b; b's panel lists a once, both ways
+  // 0. The rail is closed by default (the prose gets the width); the link-count button opens it and the URL keeps it
   await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/a.md")}`)
+  await doc.getByRole("link", { name: "b", exact: true }).waitFor()
+  // the closed rail is a 0-wide, inert grid track (the aside keeps its width inside it, so isVisible can't tell)
+  assert.ok(await panel.evaluate((el) => el.closest("[inert]") !== null), "Linked docs is closed by default")
+  const railBtn = page.getByRole("button", { name: /^Linked docs/ }).locator("visible=true").first()
+  assert.equal(await railBtn.getAttribute("aria-pressed"), "false")
+  await railBtn.click()
+  await page.waitForURL(/[?&]links=1/)
+  console.log("ok  Linked docs is closed by default; its button opens it and puts links=1 in the URL")
+
+  // 1. Click through a → b; b's panel lists a once, both ways
+  await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/a.md")}&links=1`)
   await panel.locator("[data-preview-path]").getByText("Charlie").waitFor() // links data loaded
   await doc.getByRole("link", { name: "b", exact: true }).click()
   await page.locator("h1", { hasText: "Bravo" }).first().waitFor()
@@ -372,7 +383,7 @@ try {
   console.log("ok  back on /graph after /board: the new d → b link and T001's done colour show without a reload")
 
   // 8. T111: Show in graph from a doc → /graph selected on it with Focus 1 (d is 2 hops away, so it's cut)
-  await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/a.md")}`)
+  await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/a.md")}&links=1`)
   await panel.locator("[data-preview-path]").getByText("Charlie").waitFor()
   assert.equal(await panel.getByRole("link", { name: "Show in graph" }).getAttribute("href"), "/graph?node=docs%2Fa.md&focus=1")
   await page.getByRole("link", { name: "Show in graph" }).first().click()

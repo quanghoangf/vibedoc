@@ -9,6 +9,7 @@ import { REVIEW_SORTS, REVIEW_TABS, filterRows, sortRows, toRow, type ReviewRow,
 import { parsePriority } from "@/lib/doc-priority"
 import { PriorityBadge } from "@/components/shared/PriorityBadge"
 import { OwnerChip } from "@/components/shared/OwnerChip"
+import { StatusChip } from "@/components/shared/StatusIcon"
 import { shouldHandleShortcut } from "@/lib/shortcuts"
 import { useFormat, useT } from "@/context/LanguageContext"
 import type { MessageKey } from "@/i18n"
@@ -540,7 +541,7 @@ function Row({ row: r, selected, picked, picking, tabStop, onSelect }: {
       </span>
       <span className="col-start-2 row-start-2 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] leading-4 text-muted">
         {priority && <PriorityBadge priority={priority} />}
-        {r.status === "review" && <span className="shrink-0 rounded-sm bg-review/15 px-1 font-mono text-review">{t("tests.reviewChip")}</span>}
+        {r.status === "review" && <StatusChip status="review" className="shrink-0" />}
         {r.auto.total > 0 && (
           <span className={cn("inline-flex shrink-0 items-center gap-1 font-mono", r.auto.result === "passed" ? "text-teal" : r.auto.result === "failed" ? "text-danger" : "")} title={t("tests.automatedItems")}>
             <Bot className="size-3" aria-hidden />{r.auto.total}

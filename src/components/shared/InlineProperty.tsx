@@ -10,7 +10,7 @@ import { useApp } from "@/context/AppContext"
 // doesn't open or drag. Keyboard: the menu takes arrows + Enter, Esc cancels; the date takes Enter / Esc.
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation()
-const trigger = "inline-flex min-w-0 items-center gap-1 rounded-sm px-1 -mx-1 text-left outline-hidden hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent/60"
+const trigger = "inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm px-1 -mx-1 text-left outline-hidden hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-accent/60"
 
 export interface InlineOption { value: string; label: string; node?: ReactNode }
 

@@ -65,13 +65,13 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
       <SidebarTrigger className="-ml-1 text-muted hover:text-txt" />
       <span className="mx-1 h-4 w-px bg-border" aria-hidden />
 
-      {/* Below sm the project name truncates so the page name stays */}
-      <nav aria-label={t("shell.location")} className="flex min-w-0 items-center gap-1.5 text-sm [&_button]:min-w-0 max-sm:[&_button>span]:max-w-20">
+      {/* Below sm the page crumb goes (each page has its own h1), so the project switcher keeps a readable name */}
+      <nav aria-label={t("shell.location")} className="flex min-w-0 items-center gap-1.5 text-sm [&_button]:min-w-0">
         <ProjectSwitcher projects={projects} activeProject={activeProject} currentName={projects.find((p) => p.root === activeProject)?.name || summary?.name || ""} onSelect={onProjectChange} />
         {title && (
           <>
-            <span className="text-muted" aria-hidden>/</span>
-            <span className="shrink-0 font-medium text-txt">{title}</span>
+            <span className="text-muted max-sm:hidden" aria-hidden>/</span>
+            <span className="shrink-0 font-medium text-txt max-sm:hidden">{title}</span>
           </>
         )}
       </nav>
@@ -93,11 +93,12 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
       <button
         type="button"
         onClick={onOpenSearch}
+        aria-keyshortcuts="Meta+K"
         className={cn("flex h-8 items-center gap-2 rounded-md border border-border bg-bg/60 px-2 text-xs text-muted transition-colors hover:border-border2 hover:text-txt sm:w-48 sm:px-2.5", focusRing)}
       >
         <Search className="size-3.5" />
         <span className="hidden flex-1 text-left sm:inline">{t("shell.searchPlaceholder")}</span>
-        <kbd className="hidden rounded-sm border border-border px-1 font-mono text-[10px] sm:inline">⌘K</kbd>
+        <kbd aria-hidden className="hidden rounded-sm border border-border px-1 font-mono text-[10px] sm:inline">⌘K</kbd>
         <span className="sr-only sm:hidden">{t("shell.search")}</span>
       </button>
 
@@ -228,8 +229,9 @@ function InboxBadge() {
 }
 
 /**
- * The one connect command (R104: user scope, every project) and when an agent last called in. Not connected: a
- * prominent "Connect agent" button; connected: a quiet "Agent connected" chip. Both open the same menu.
+ * The one connect command (R104: user scope, every project) and when an agent last called in. Not connected: an
+ * outline "Connect agent" button (never filled: the page's own primary stays the one primary); connected: a quiet
+ * "Agent connected" chip. Both open the same menu.
  */
 function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number }) {
   const { t } = useT()
@@ -278,7 +280,7 @@ function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number
           <button
             type="button"
             title={t("shell.connectTitle")}
-            className={cn("flex h-8 items-center gap-1.5 rounded-md bg-accent px-2 text-xs font-medium text-accent-fg transition-colors hover:bg-accent/90 md:px-2.5", focusRing)}
+            className={cn("flex h-8 items-center gap-1.5 rounded-md border border-accent/60 px-2 text-xs font-medium text-accent transition-colors hover:border-accent hover:bg-accent/10 md:px-2.5", focusRing)}
           >
             <Plug aria-hidden className="size-3.5" /><span className="max-md:sr-only">{t("shell.connect")}</span>
           </button>

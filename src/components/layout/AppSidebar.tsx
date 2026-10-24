@@ -22,7 +22,6 @@ import { VIBEDOC_VERSION } from "@/lib/version"
 import { SidebarChats } from "./SidebarChats"
 import { FirstWeek } from "./FirstWeek"
 import { isChildPage, PageChildren, PageDisclosureButton, usePageChildren, usePageDisclosure } from "./SidebarPageChildren"
-import { useInbox } from "@/components/inbox/use-inbox"
 import type { SidebarChild, SidebarPage } from "@/lib/sidebar-items"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
@@ -66,11 +65,32 @@ function PageRow({ href, kids, label, children }: { href: string; kids: SidebarC
   return <PageRowWithChildren page={href} kids={kids} label={label}>{children}</PageRowWithChildren>
 }
 
+/**
+ * Which pages mark a closed row. Board and Test review hold exactly what the Inbox counts (review, blocked, checks,
+ * failed runs), so they carry no second "needs you"; Memory's cleanup flags are low-stakes, a muted count. Roadmap
+ * drift and doc lint errors are not in the Inbox: those rows keep the amber dot.
+ */
+const ROW_MARK: Record<SidebarPage, "dot" | "count" | "none"> = {
+  "/board": "none",
+  "/manual-tests": "none",
+  "/memory": "count",
+  "/roadmap": "dot",
+  "/docs": "dot",
+}
+
 function PageRowWithChildren({ page, kids, label, children }: { page: SidebarPage; kids: SidebarChild[]; label: string; children: (p: RowProps) => React.ReactNode }) {
-  const { t } = useT()
+  const { t, tn } = useT()
   const { open, needsAction, onKeyDown } = usePageDisclosure(page, kids)
-  // Children are collapsed by default: a closed row (and the icon rail, which never shows them) carries a dot instead
-  const dot = needsAction && (
+  const mark = needsAction ? ROW_MARK[page] : "none"
+  const n = kids[0]?.n ?? 0
+  // Children are collapsed by default: a closed row (and the icon rail, which never shows them) carries a mark instead
+  const dot = mark === "count" ? (
+    !open && n > 0 && (
+      <span data-needs-action-count className="ml-auto font-mono text-[11px] tabular-nums text-muted group-data-[collapsible=icon]:hidden">
+        <span aria-hidden>{n}</span><span className="sr-only">, {tn("shell.hintCleanup", n)}</span>
+      </span>
+    )
+  ) : mark === "dot" && (
     <>
       <span aria-hidden className="absolute right-1 top-1 hidden size-1.5 rounded-full bg-amber group-data-[collapsible=icon]:block" data-needs-action-dot />
       {!open && <span aria-hidden className="ml-auto size-1.5 shrink-0 rounded-full bg-amber group-data-[collapsible=icon]:hidden" data-needs-action-mark />}
@@ -80,7 +100,7 @@ function PageRowWithChildren({ page, kids, label, children }: { page: SidebarPag
   )
   return (
     <SidebarMenuItem>
-      {children({ onKeyDown, className: "relative pr-8", dot, marked: needsAction && !open })}
+      {children({ onKeyDown, className: "relative pr-8", dot, marked: mark !== "none" && !open })}
       <PageDisclosureButton page={page} label={label} open={open} />
       {open && <PageChildren page={page} label={label} kids={kids} />}
     </SidebarMenuItem>
@@ -89,21 +109,16 @@ function PageRowWithChildren({ page, kids, label, children }: { page: SidebarPag
 
 const inboxKey = shortcutFor("/inbox")
 
-/** The Inbox row with the one "needs you" count (src/lib/inbox.ts): the header's Inbox and the tab title say the same number. */
+/** The Inbox link. Its count lives in the header's Inbox pill and the tab title only (src/lib/inbox.ts), not here too. */
 function InboxRow({ active }: { active: boolean }) {
-  const { t, tn } = useT()
-  const n = useInbox().items?.length ?? 0
+  const { t } = useT()
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={active} tooltip={{ children: <span className="flex items-center gap-2">{t("inbox.title")}<kbd className={kbdClass}>{inboxKey}</kbd></span> }}>
+      <SidebarMenuButton asChild isActive={active} tooltip={{ children: <span className="flex items-center gap-2">{t("inbox.title")}<kbd aria-hidden className={kbdClass}>{inboxKey}</kbd></span> }}>
         <Link href="/inbox" aria-keyshortcuts={inboxKey} className="relative">
           <Inbox />
           <span>{t("inbox.title")}</span>
-          {n > 0 && (
-            <span data-sidebar-inbox-count className="ml-auto font-mono text-[11px] tabular-nums text-txt"><span aria-hidden>{n}</span><span className="sr-only">, {tn("inbox.badge", n)}</span></span>
-          )}
-          {n > 0 && <span aria-hidden className="absolute right-1 top-1 hidden size-1.5 rounded-full bg-amber group-data-[collapsible=icon]:block" />}
-          <kbd aria-hidden className={cn(kbdClass, n === 0 && "ml-auto", "hidden group-hover/menu-item:inline group-focus-within/menu-item:inline")}>{inboxKey}</kbd>
+          <kbd aria-hidden className={cn(kbdClass, "ml-auto hidden group-hover/menu-item:inline group-focus-within/menu-item:inline")}>{inboxKey}</kbd>
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -145,7 +160,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        {!demo && <SidebarChats />}
+        {!demo && <nav aria-label={t("shell.chats")}><SidebarChats /></nav>}
         <nav aria-label={t("shell.mainNav")}>
         {NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.label}>
@@ -161,7 +176,7 @@ export function AppSidebar() {
                         <SidebarMenuButton
                           asChild
                           isActive={pathname.startsWith(href)}
-                          tooltip={{ children: <span className="flex items-center gap-2">{label}{key && <kbd className={kbdClass}>{key}</kbd>}</span> }}
+                          tooltip={{ children: <span className="flex items-center gap-2">{label}{key && <kbd aria-hidden className={kbdClass}>{key}</kbd>}</span> }}
                         >
                           <Link href={href} aria-keyshortcuts={key} onKeyDown={rowProps.onKeyDown} className={rowProps.className}>
                             <Icon />
@@ -187,10 +202,11 @@ export function AppSidebar() {
         <div aria-hidden data-sidebar-fade={more || undefined} className={cn("pointer-events-none sticky bottom-0 -mt-8 h-8 shrink-0 bg-gradient-to-t from-sidebar to-transparent transition-opacity duration-150 group-data-[collapsible=icon]:hidden", more ? "opacity-100" : "opacity-0")} />
       </SidebarContent>
       <SidebarFooter>
+        <nav aria-label={t("shell.footerNav")}>
         <SidebarMenu>
           {!demo && <InboxRow active={pathname.startsWith("/inbox")} />}
           {!demo && <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname.startsWith("/projects")} tooltip={{ children: <span className="flex items-center gap-2">{t("shell.allProjects")}<kbd className={kbdClass}>{projectsKey}</kbd></span> }}>
+            <SidebarMenuButton asChild isActive={pathname.startsWith("/projects")} tooltip={{ children: <span className="flex items-center gap-2">{t("shell.allProjects")}<kbd aria-hidden className={kbdClass}>{projectsKey}</kbd></span> }}>
               <Link href="/projects" aria-keyshortcuts={projectsKey}>
                 <Folders />
                 <span>{t("shell.allProjects")}</span>
@@ -206,7 +222,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           {!demo && <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={pathname.startsWith("/settings")} tooltip={{ children: <span className="flex items-center gap-2">{t("shell.settings")}<kbd className={kbdClass}>{settingsKey}</kbd></span> }}>
+            <SidebarMenuButton asChild isActive={pathname.startsWith("/settings")} tooltip={{ children: <span className="flex items-center gap-2">{t("shell.settings")}<kbd aria-hidden className={kbdClass}>{settingsKey}</kbd></span> }}>
               <Link href="/settings" aria-keyshortcuts={settingsKey}>
                 <Settings />
                 <span>{t("shell.settings")}</span>
@@ -215,6 +231,7 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>}
         </SidebarMenu>
+        </nav>
       </SidebarFooter>
     </Sidebar>
   )

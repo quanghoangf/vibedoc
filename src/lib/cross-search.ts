@@ -73,12 +73,31 @@ export function hitHref(r: Pick<CrossHit, 'kind' | 'id' | 'path'>): string {
   return `/docs?doc=${encodeURIComponent(r.path)}`
 }
 
-/** A doc hit's snippet for people: no `L12:` prefix, no block markers (`# `, `> `, `- `, `| `), links keep their text. */
+// Status emoji in task/roadmap tables (statuses.ts STATUS_ICONS + common extras) read as words: the UI never shows
+// status emoji (DESIGN.md One Status Language). Duplicated here because pure libs never value-import each other.
+const STATUS_WORDS: Record<string, string> = {
+  '✅': 'Done', '❌': 'Cancelled', '🔨': 'In progress', '🔄': 'In progress', '⏳': 'To do', '📋': 'To do',
+  '👀': 'Review', '🚫': 'Blocked', '⏸': 'Paused',
+}
+const STATUS_EMOJI = new RegExp(`(${Object.keys(STATUS_WORDS).join('|')})\uFE0F?\\s*`, 'gu')
+
+/**
+ * A doc hit's snippet for people: no `L12:` prefix, no block markers (`# `, `> `, `- `, `| `), links keep their text
+ * (also a `([sha](url))` wrapper and a link the excerpt cut off), status emoji become words.
+ */
 export function snippetText(snippet: string): string {
   return snippet
     .replace(/^L\d+:\s*/, '')
     .replace(/^(?:#{1,6}\s+|>\s*|[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+|\|\s*)+/, '')
+    .replace(/\(\s*!?\[([^\]]*)\]\([^)]*\)\s*\)/g, '$1')
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/!?\[([^\]]*)\]\([^)]*$/, '$1')
+    .replace(STATUS_EMOJI, (_m, e: string, at: number, all: string) => {
+      const word = STATUS_WORDS[e]
+      const rest = all.slice(at + _m.length)
+      // "✅ Done" keeps one "Done"
+      return rest.toLowerCase().startsWith(word.toLowerCase()) ? '' : rest ? `${word} ` : word
+    })
     .replace(/(\*\*|__|~~|`)(\S(?:.*?\S)?)\1/g, '$2')
     .replace(/\s*\|\s*$/, '')
     .replace(/\s*\|\s*/g, ' · ')

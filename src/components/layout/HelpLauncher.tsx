@@ -72,7 +72,7 @@ export function HelpLauncher({ pinned, onPinnedChange }: { pinned: boolean; onPi
           role="region"
           aria-label={t("shell.help")}
           tabIndex={-1}
-          className="animate-slide-in flex max-h-[min(70vh,34rem)] w-80 max-w-[calc(100vw-1.5rem)] flex-col overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface p-4 text-xs shadow-2xl outline-none"
+          className="animate-slide-in flex max-h-[calc(100svh-7rem)] min-h-0 w-80 max-w-[calc(100vw-1.5rem)] flex-col overflow-y-auto overscroll-contain [&>*]:shrink-0 rounded-xl border border-border bg-surface p-4 text-xs shadow-2xl outline-none"
         >
           {/* Keyed by page: closing or navigating unmounts it, so it reopens on this page's help */}
           <PanelBody key={pathname} pathname={pathname} />

@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useApp } from "@/context/AppContext"
 import { cn } from "@/lib/utils"
 import type { SelectedDoc } from "@/types"
-import { MarkdownEditor } from "./MarkdownEditor"
+import { MarkdownEditor, type ViewMode } from "./MarkdownEditor"
 import { LinkedDocs } from "./LinkedDocs"
 import { useDocLinks } from "./useDocLinks"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
@@ -14,7 +14,7 @@ import { useItemCommands } from "@/components/shared/item-commands"
 import { DocOutline } from "./DocOutline"
 import { docStats, extractHeadings } from "@/lib/headings"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Bot, Link2, PanelLeftClose, PanelLeftOpen, Plus, Unlink, User, Waypoints } from "lucide-react"
+import { ArrowLeft, BookOpen, Bot, Link2, PanelLeftClose, PanelLeftOpen, Plus, Unlink, User, Waypoints } from "lucide-react"
 import { DOCS_LIST_KEY } from "@/lib/shortcuts"
 import { stripFrontmatter } from "@/lib/doc-priority"
 import { parseMetaBlock, stripMetaBlock } from "@/lib/meta-block"
@@ -23,6 +23,7 @@ import { TaskDepsDiagram } from "@/components/shared/DerivedDiagram"
 import { graphHref } from "@/lib/doc-links"
 import { useT } from "@/context/LanguageContext"
 import { DocUsage } from "./DocUsage"
+import { EmptyState } from "@/components/shared/EmptyState"
 import { DocUpkeep } from "./DocUpkeep"
 import { TestChip, useDocTask, useDocTestsKey } from "./DocTests"
 import { testReviewHref } from "@/lib/test-review"
@@ -44,14 +45,29 @@ interface DocViewerProps {
   onToggleList?: () => void
   /** opens a doc from the usage lists on the landing (R093) */
   onDocClick?: (path: string) => void
+  /** Split mode on / off: the page hides the docs list while it is on */
+  onSplitChange?: (split: boolean) => void
 }
 
-export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, content, docCount, onNewDocClick, listCollapsed = false, onToggleList, onDocClick }: DocViewerProps) {
+export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, content, docCount, onNewDocClick, listCollapsed = false, onToggleList, onDocClick, onSplitChange }: DocViewerProps) {
   const { rootParam, setSelectedDoc, editorSettings } = useApp()
   const path = doc?.path ?? ""
   const links = useDocLinks(doc?.path)
-  // ≥xl: the linked docs column beside the preview (toggled here); below xl: the same lists in a sheet
-  const [linksColumn, setLinksColumn] = useState(true)
+  // ≥xl: the linked docs column beside the preview, closed by default so the prose gets the width, open with
+  // `&links=1` in the URL (the link-count button toggles it); below xl: the same lists in a sheet
+  const [linksColumn, setLinksColumn] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("links") === "1")
+  const [mode, setMode] = useState<ViewMode>("preview")
+  // Split gives the editor and the preview the whole width: no rail while it is on (restored after)
+  const railOpen = linksColumn && mode !== "split"
+  // keep `links=1` in the URL while the rail is open: opening another doc (a new path) rewrites the URL without it
+  useEffect(() => {
+    if (!path) return
+    const u = new URL(window.location.href)
+    if ((u.searchParams.get("links") === "1") === linksColumn) return
+    if (linksColumn) u.searchParams.set("links", "1")
+    else u.searchParams.delete("links")
+    window.history.replaceState(window.history.state, "", u)
+  }, [linksColumn, path])
   const [linksSheet, setLinksSheet] = useState(false)
   const { t, tn } = useT()
   const router = useRouter()
@@ -70,25 +86,40 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
     ...(testsTask ? [{ id: "test-review", label: t("board.openInTestReview"), run: () => router.push(testReviewHref(testsTask.id)) }] : []),
   ] : [])
 
+  // an empty project's page is the shared teaching empty state (R083): what fills it, and New doc as its one action
+  if (!doc && docCount?.files === 0) {
+    return (
+      <div className="p-6 pt-[12vh]">
+        <EmptyState
+          icon={<BookOpen className="size-6" />}
+          message={t("docs.noDocs")}
+          lead={t("docs.noDocsHint")}
+          action={onNewDocClick && (
+            <Button size="sm" onClick={onNewDocClick}>
+              <Plus className="size-4" aria-hidden /> {t("docs.newDoc")}
+            </Button>
+          )}
+        />
+      </div>
+    )
+  }
+
   if (!doc) {
     return (
-      // an empty project's page is a teaching empty state (R083): what fills it, and New doc as its one action
-      <div data-empty-state={docCount?.files === 0 ? "" : undefined} className="mx-auto flex max-w-xl flex-col gap-4 px-6 pt-[18vh] pb-12">
+      <div className="mx-auto flex max-w-xl flex-col gap-4 px-6 pt-[18vh] pb-12">
         <h2 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-balance text-txt">
-          {docCount === undefined ? t("docs.pickDoc") : docCount.files === 0 ? t("docs.noDocs") : docCount.files === docCount.docs
+          {docCount === undefined ? t("docs.pickDoc") : docCount.files === docCount.docs
             ? tn("docs.docsInProject", docCount.files)
             : t("docs.filesAndDocs", { files: docCount.files, docs: docCount.docs })}
         </h2>
         <p className="text-sm leading-relaxed text-muted">
-          {docCount?.files === 0 ? t("docs.noDocsHint") : t("docs.pickDocHint")}
+          {t("docs.pickDocHint")}
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-3">
           {onNewDocClick && (
-            <span data-empty-action={docCount?.files === 0 ? "" : undefined}>
-              <Button size="sm" onClick={onNewDocClick}>
-                <Plus className="size-4" aria-hidden /> {t("docs.newDoc")}
-              </Button>
-            </span>
+            <Button size="sm" onClick={onNewDocClick}>
+              <Plus className="size-4" aria-hidden /> {t("docs.newDoc")}
+            </Button>
           )}
           <span className="flex items-center gap-1.5 text-xs text-muted">
             <kbd className={kbdClass}>⌘P</kbd> {t("docs.jumpToDoc")}
@@ -194,18 +225,19 @@ export function DocViewer({ doc, onDirtyChange, onContentChange, docActions, con
             </Button>
             {testsTask && <TestChip task={testsTask} className="mx-0.5" />}
             {linksButton(() => setLinksSheet(true), "xl:hidden")}
-            {linksButton(() => setLinksColumn((v) => !v), "max-xl:hidden", linksColumn)}
+            {mode !== "split" && linksButton(() => setLinksColumn((v) => !v), "max-xl:hidden", linksColumn)}
             {docActions && <DocActionsMenu path={doc.path} actions={docActions} />}
           </>
         )}
+        onModeChange={(m) => { setMode(m); onSplitChange?.(m === "split") }}
         headingAction={testsTask ? { id: "manual-tests" /* the `## Manual tests` heading's slug */, node: <TestChip task={testsTask} label={t("board.openInTestReview")} /> } : undefined}
         aside={
           // the column opens and closes (0 ↔ 18rem) so the prose reflow reads as one movement
           <div
-            inert={!linksColumn}
+            inert={!railOpen}
             className={cn(
               "grid shrink-0 grid-rows-[minmax(0,1fr)] overflow-hidden transition-[grid-template-columns] duration-(--duration-base) ease-out-soft max-xl:hidden",
-              linksColumn ? "grid-cols-[18rem]" : "grid-cols-[0rem]",
+              railOpen ? "grid-cols-[18rem]" : "grid-cols-[0rem]",
             )}
           >
             <aside aria-label={t("docs.linkedDocs")} className="min-h-0 w-72 overflow-y-auto border-l border-border px-4 py-6">

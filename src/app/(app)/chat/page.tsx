@@ -2,12 +2,12 @@
 
 import { Suspense, useRef, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Plus, Search, X } from "lucide-react"
+import { ChevronRight, Plus, Search, X } from "lucide-react"
 import { useChats, type ChatTab } from "@/context/ChatContext"
 import { ChatView } from "@/components/chat/ChatView"
 import { ChatContextRail } from "@/components/chat/ChatContextRail"
 import { AttachLabel, StatusMarker } from "@/components/chat/StatusMarker"
-import { defaultChat, groupChats, isOrchestrator, shellStatus, splitPinned, suggestions } from "@/lib/chats"
+import { chatSubject, defaultChat, groupBySubject, groupChats, isOrchestrator, shellStatus, splitPinned, suggestions } from "@/lib/chats"
 import { useMinute } from "@/hooks/use-minute"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -116,7 +116,10 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
               {s.label} · {s.items.length}
             </p>
             <ul className="flex flex-col gap-px">
-              {s.items.map((c) => <ChatRow key={c.id} chat={c} active={c.id === selectedId} />)}
+              {/* chats about one item (a task's Verify runs, its own chat) fold under the newest */}
+              {groupBySubject(s.items).map((grp) => grp.chats.length === 1
+                ? <ChatRow key={grp.key} chat={grp.chats[0]} active={grp.chats[0].id === selectedId} />
+                : <ChatGroupRows key={grp.key} chats={grp.chats} selectedId={selectedId} />)}
             </ul>
           </div>
         ))}
@@ -126,7 +129,39 @@ function ChatList({ selectedId, onNew }: { selectedId: string | null; onNew: () 
   )
 }
 
-function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
+/** One subject's chats: the newest as a row, the rest behind "N more chats about T196" (open while it holds the selection). */
+function ChatGroupRows({ chats, selectedId }: { chats: ChatTab[]; selectedId: string | null }) {
+  const [head, ...rest] = chats
+  const holds = rest.some((c) => c.id === selectedId)
+  const [shown, setOpen] = useState(holds)
+  // selecting a folded chat (from elsewhere) opens its group; the toggle still closes it afterwards
+  const [seen, setSeen] = useState(selectedId)
+  if (seen !== selectedId) {
+    setSeen(selectedId)
+    if (holds) setOpen(true)
+  }
+  const { tn } = useT()
+  const subject = chatSubject(head)
+  return (
+    <>
+      <ChatRow chat={head} active={head.id === selectedId} />
+      <li>
+        <button
+          type="button"
+          aria-expanded={shown}
+          onClick={() => setOpen((o) => !o)}
+          className="flex w-full min-w-0 items-center gap-1 rounded-md py-1 pl-7 pr-2 text-left text-[11px] text-muted outline-hidden hover:text-txt focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ChevronRight aria-hidden className={cn("size-3 shrink-0 transition-transform duration-(--duration-fast)", shown && "rotate-90")} />
+          <span className="min-w-0 truncate">{tn("chat.moreAbout", rest.length, { id: subject?.id ?? "" })}</span>
+        </button>
+      </li>
+      {shown && rest.map((c) => <ChatRow key={c.id} chat={c} active={c.id === selectedId} nested />)}
+    </>
+  )
+}
+
+function ChatRow({ chat, active, nested = false }: { chat: ChatTab; active: boolean; nested?: boolean }) {
   const { show, remove, now: clock } = useChats()
   const now = useMinute()
   const f = useFormat()
@@ -135,24 +170,24 @@ function ChatRow({ chat, active }: { chat: ChatTab; active: boolean }) {
   const status = shellStatus(chat, clock)
   const lastText = [...chat.messages].reverse().find((m) => m.text)?.text.replace(/\s+/g, " ").trim()
   return (
-    <li className="group relative animate-slide-in">
+    <li className={cn("group relative animate-slide-in", nested && "pl-4")}>
       <button
         type="button"
         onClick={() => show(chat.id)}
         aria-current={active ? "true" : undefined}
         data-list-item
         className={cn(
-          "flex w-full flex-col gap-1 rounded-lg px-2.5 py-2 text-left transition-colors duration-(--duration-fast) outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
+          "flex w-full min-w-0 flex-col gap-1 overflow-hidden rounded-lg px-2.5 py-2 text-left transition-colors duration-(--duration-fast) outline-hidden focus-visible:ring-2 focus-visible:ring-ring",
           active ? "bg-surface2 shadow-[inset_2px_0_0_var(--color-accent-edge)]" : "hover:bg-surface2/60",
         )}
       >
-        <span className="flex items-center gap-2 pr-5">
+        <span className="flex w-full min-w-0 items-center gap-2 pr-5">
           <StatusMarker status={status} showIdle />
           <span data-user-content className={cn("min-w-0 flex-1 truncate text-[13px]", status === "idle" && !active ? "text-txt/80" : "text-txt")}>{text.title(chat.title)}</span>
           {now > 0 && <span className="shrink-0 font-mono text-[10px] text-muted group-hover:opacity-0">{f.agoShort(chat.updatedAt, now)}</span>}
         </span>
         {(chat.attach || lastText) && (
-          <span className="flex items-center gap-2 pl-5 text-[11px] text-muted">
+          <span className="flex w-full min-w-0 items-center gap-2 pl-5 text-[11px] text-muted">
             {chat.attach && <AttachLabel attach={chat.attach} className="shrink-0" />}
             {lastText && <span data-user-content className="min-w-0 truncate">{lastText}</span>}
           </span>

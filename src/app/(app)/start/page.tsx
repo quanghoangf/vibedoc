@@ -14,8 +14,8 @@ import { welcomeTarget } from "@/lib/first-screen"
 
 /**
  * First run on a project with no tasks and no roadmap (R082): one start that fits what the project has. `/` sends new
- * projects here. First paint = the headline, the one start (it runs with the agent) and the agent status under it as
- * the first step; the board, the docs wizard and the optional plugins are quiet links below.
+ * projects here. First paint = the headline and the one start (the in-app chat: `claude -p` on the local login, no MCP
+ * needed); the board, the docs wizard, the terminal-agent connection and the optional plugins are quiet rows below.
  */
 export default function WelcomePage() {
   const { rootParam, activeProject, demo: readOnlyDemo } = useApp()
@@ -51,26 +51,24 @@ export default function WelcomePage() {
   const docs = kind === "docs"
 
   return (
-    <section className="mx-auto flex max-w-xl flex-col items-center gap-4 px-4 py-16 text-center">
-      <h1 className="text-xl font-semibold text-txt">{t("welcome.title")}</h1>
+    <section className="mx-auto flex min-h-full max-w-xl flex-col items-center justify-center gap-4 px-4 py-12 text-center">
+      <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-balance text-txt">{t("welcome.title")}</h1>
       {kind === null ? (
         <p className="text-sm text-muted" aria-busy="true">{t("welcome.loading")}</p>
       ) : (
         <>
           <p className="text-sm text-muted">{t(docs ? "welcome.docsLead" : "welcome.emptyLead")}</p>
-          <div className="flex flex-col items-center gap-2">
-            <Button
-              onClick={() => askAgent(docs ? "Plan a roadmap for this project from its docs." : "Plan the first epics for this project.")}
-              className="bg-accent text-accent-fg hover:bg-accent/90"
-            >
-              {docs ? <Sparkles /> : <Bot />} {t(docs ? "welcome.docsStart" : "welcome.emptyStart")}
-            </Button>
-            <ConnectSlot />
-          </div>
+          <Button
+            onClick={() => askAgent(docs ? "Plan a roadmap for this project from its docs." : "Plan the first epics for this project.")}
+            className="bg-accent text-accent-fg hover:bg-accent/90"
+          >
+            {docs ? <Sparkles aria-hidden /> : <Bot aria-hidden />} {t(docs ? "welcome.docsStart" : "welcome.emptyStart")}
+          </Button>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm">
             <Link href={board} className="text-txt underline-offset-2 hover:underline">{t("welcome.skip")}</Link>
             <Link href={`/setup${q}`} title={t("welcome.writeDocsHint")} className="text-muted underline-offset-2 hover:text-txt hover:underline">{t("welcome.writeDocs")}</Link>
           </div>
+          <ConnectSlot />
           <div className="mt-6 w-full"><ToolkitStep /></div>
         </>
       )}

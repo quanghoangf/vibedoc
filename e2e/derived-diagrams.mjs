@@ -56,7 +56,8 @@ try {
   assert.match(await cls("T002"), /\baccent\b/, "the open task is the accent")
   assert.match(await cls("T001"), /\bst-todo\b/)
   assert.match(await cls("T099"), /\bst-missing\b/)
-  assert.match(await node("T001").textContent(), /○ T001 · First task/, "glyph + id + title")
+  assert.match(await node("T001").textContent(), /^\s*T001 · First task/, "id + title, no status glyph")
+  assert.match(await node("T001").getAttribute("aria-label"), /First task.*· Todo/, "the status is named, not colour only")
   assert.equal(await diagram.locator('g.node[role="link"]').count(), 4, "task nodes are links")
   // dependencies are drawn left of the task, dependents right of it
   const x = async (id) => (await node(id).boundingBox()).x
@@ -68,7 +69,7 @@ try {
   const res = await fetch(`${BASE}/api/tasks?root=${encodeURIComponent(fx)}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId: "T001", status: "done" }) })
   assert.equal(res.status, 200)
   await page.waitForFunction(() => /\bst-done\b/.test(document.querySelector('[data-task-deps=T002] g.node[id*="flowchart-T001-"]')?.getAttribute("class") ?? ""), null, { timeout: 15000 })
-  assert.match(await node("T001").textContent(), /✓ T001/)
+  assert.match(await node("T001").getAttribute("aria-label"), /· Done/)
   assert.equal(await page.evaluate(() => window.__noReload), true, "no reload")
   console.log("ok  S4: a status change recolours the node live")
 
@@ -98,6 +99,10 @@ try {
 
   // S2: the epic map — tasks in dependency order, scenarios with their proof, coverage edges
   await page.goto(`${BASE}/roadmap?item=R002`)
+  // the task list comes first; the map is folded under "Map" and drawn only once opened
+  assert.equal(await page.locator("[data-epic-diagram]").count(), 0, "the map is folded by default")
+  assert.ok((await page.locator("[data-task-row]").first().boundingBox()).y < (await page.locator("[data-epic-map]").boundingBox()).y, "tasks above the map")
+  await page.locator("[data-epic-map] summary").click()
   const map = page.locator("[data-epic-diagram]")
   const mnode = (id) => map.locator(`g.node[id*="flowchart-${id}-"]`)
   await mnode("S3").waitFor()
@@ -107,8 +112,7 @@ try {
   assert.match(await mnode("S2").getAttribute("class"), /\bsc-unproven\b/)
   assert.match(await mnode("S3").getAttribute("class"), /\bsc-uncovered\b/, "no task covers S3")
   assert.match(await mnode("S1").textContent(), /✓ S1 · Log in/)
-  const fontPx = await mnode("T001").evaluate((n) => n.getBoundingClientRect().height / n.getBBox().height)
-  assert.ok(fontPx >= 0.74, `shrunk at most to 75% (${fontPx})`)
+  assert.ok(await map.locator(".mermaid").first().evaluate((n) => n.scrollWidth <= n.clientWidth + 1), "the map fits its box: nothing clipped")
   assert.ok((await mnode("T001").boundingBox()).y < (await mnode("T002").boundingBox()).y, "dependency order top to bottom")
   assert.ok((await mnode("S1").boundingBox()).y > (await mnode("T001").boundingBox()).y, "scenarios below the tasks that cover them")
   console.log("ok  S2: the epic map shows 3 tasks and 3 scenarios, passed / unproven / uncovered")

@@ -54,6 +54,13 @@ assert.equal(hitHref({ kind: 'entry', id: 'E001', path: 'x' }), '/memory?entry=E
 assert.equal(snippetText('L1: # Project memory'), 'Project memory')
 assert.equal(snippetText('L40: - [x] See [the guide](docs/g.md) and `core.ts`'), 'See the guide and core.ts')
 assert.equal(snippetText('L3: | Tasks | plans/tasks |'), 'Tasks · plans/tasks')
+// a commit link in parentheses, and a link the excerpt cut before its `)`, keep only their text
+assert.equal(snippetText('L9: - Fix the board ([afc397f](https://github.com/x/y/commit/afc397f))'), 'Fix the board afc397f')
+assert.equal(snippetText('L9: see [the guide](https://example.com/very/lo'), 'see the guide')
+// status emoji read as words; "✅ Done" keeps one Done
+assert.equal(snippetText('L4: | T001 | ✅ | Login |'), 'T001 · Done · Login')
+assert.equal(snippetText('L4: ✅ Done: T001, ⏳ T002, 🔨 T003'), 'Done: T001, To do T002, In progress T003')
+assert.equal(snippetText('L4: ⏸️ paused for now'), 'paused for now')
 assert.deepEqual(highlightParts('Project memory', 'memory proj'), [{ text: 'Proj', hit: true }, { text: 'ect ', hit: false }, { text: 'memory', hit: true }])
 assert.deepEqual(highlightParts('a.b', 'a'), [{ text: 'a.b', hit: false }], 'one-letter words are not marked')
 assert.deepEqual(highlightParts('x (y)', '(y'), [{ text: 'x (y)', hit: false }], 'punctuation is not a word')

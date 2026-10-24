@@ -10,7 +10,7 @@ import { FEATURE_W, HORIZON_W } from "./layout"
 import { AgentMark } from "@/components/chat/AgentMark"
 import { useItemAgent } from "@/context/ChatContext"
 import type { MessageKey } from "@/i18n"
-import { ProgressMarks } from "@/components/shared/StatusIcon"
+import { ProgressMarks, STATUS_META } from "@/components/shared/StatusIcon"
 
 export type RoadmapNodeData = {
   item: RoadmapItem
@@ -21,6 +21,7 @@ export type RoadmapNodeData = {
   taskDueSoon?: boolean
   taskStatuses?: TaskStatus[]                  // feature: linked tasks in order, cancelled/missing left out
   nextTaskId?: string | null                   // feature: what vibedoc_next_task would hand out
+  receded?: boolean                            // feature, done, in a horizon with live epics: drawn faded
   chapter?: number                             // horizon: 1-based position on the spine
   epics?: { done: number; total: number }      // horizon: child epics
   collapsed?: boolean                          // horizon, all epics done: drawn as one compact node
@@ -73,19 +74,14 @@ export function StatusDot({ status, className }: { status: RoadmapStatus; classN
   )
 }
 
+/** A roadmap status in the task status chip's look (One Status Language): planned reads as todo's hollow circle. */
 export function StatusPill({ status }: { status: RoadmapStatus }) {
   const label = useRoadmapStatusLabel()(status)
+  const meta = STATUS_META[status === "planned" ? "todo" : status]
+  const Icon = meta.icon
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider",
-        status === "done" && "border-teal/40 text-teal",
-        status === "in-progress" && "border-amber/40 text-amber",
-        status === "planned" && "border-dashed border-border2 text-muted",
-        status === "paused" && "border-border2 text-muted",
-      )}
-    >
-      <StatusDot status={status} className="h-1.5 w-1.5" />
+    <span className={cn("inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[11px] leading-none", meta.chip)}>
+      <Icon className="size-3" aria-hidden />
       {label}
     </span>
   )
@@ -244,7 +240,11 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
     return (
       <div
         style={{ width: FEATURE_W }}
-        className={cn("group relative flex items-center gap-2 rounded-lg border border-border bg-surface/60 px-3 py-2 hover:border-teal/40", ring)}
+        className={cn(
+          "group relative flex items-center gap-2 rounded-lg border border-border bg-surface/60 px-3 py-2 transition-opacity duration-(--duration-fast) hover:border-teal/40",
+          data.receded && !selected && "opacity-60 hover:opacity-100",
+          ring,
+        )}
       >
         <Handles />
         <Check className="h-3.5 w-3.5 shrink-0 text-teal" strokeWidth={3} />
@@ -275,9 +275,9 @@ export function FeatureNode({ data, selected }: NodeProps<RoadmapNode>) {
         {agent ? (
           <AgentMark attach={{ kind: "epic", id: item.id }} />
         ) : live ? (
-          <span className="flex items-center gap-1.5 uppercase tracking-wider text-amber"><StatusDot status="in-progress" className="h-1.5 w-1.5" />{t("roadmap.live")}</span>
+          <span className="flex items-center gap-1.5 font-sans text-[11px] text-amber"><StatusDot status="in-progress" className="h-1.5 w-1.5" />{t("roadmap.statusActive")}</span>
         ) : (
-          <span className="uppercase tracking-wider text-muted">{item.tasks.length ? tn("roadmap.taskCount", item.tasks.length) : t("roadmap.noTasksYet")}</span>
+          <span className="font-sans text-[11px] text-muted">{item.tasks.length ? tn("roadmap.taskCount", item.tasks.length) : t("roadmap.noTasksYet")}</span>
         )}
       </div>
       <p className={cn("line-clamp-2 text-[13px] leading-snug", live ? "font-medium text-txt" : "text-txt/80")} title={item.title}>

@@ -40,14 +40,14 @@ assert.equal(m.nodes.length, 12)
 assert.equal(m.more, 9)
 assert.equal(m.edges.length, 11)
 
-// mermaid: glyph + id + title, focus = accent, statuses as classes, missing dashed, titles escaped and cut
+// mermaid: id + title (no status glyph: the class carries it), focus = accent, statuses as classes, missing dashed, titles escaped and cut
 const src = depGraphMermaid(taskNeighbourhood('T2', [T('T1', '', 'done', 'Say "hi" <b>'), T('T2', 'T1, T99', 'review'), T('T3', 'T2', 'todo', 'x'.repeat(40))])!, 'T2')
 assert.equal(src, [
   'flowchart LR',
-  '  T2["◑ T2 · Task T2"]',
-  '  T1["✓ T1 · Say #quot;hi#quot; #lt;b#gt;"]',
+  '  T2["T2 · Task T2"]',
+  '  T1["T1 · Say #quot;hi#quot; #lt;b#gt;"]',
   '  T99["T99 · ?"]',
-  `  T3["○ T3 · ${'x'.repeat(31)}…"]`,
+  `  T3["T3 · ${'x'.repeat(31)}…"]`,
   '  T1 --> T2',
   '  T99 --> T2',
   '  T2 --> T3',
@@ -70,9 +70,9 @@ assert.deepEqual(eg.scenarios.map((s) => s.covered), [true, true, false], 'S3 on
 const esrc = epicGraphMermaid(eg)
 assert.equal(esrc, [
   'flowchart TB',
-  '  T1["✓ T1 · Task T1"]',
-  '  T2["◐ T2 · Task T2"]',
-  '  T4["○ T4 · Task T4"]',
+  '  T1["T1 · Task T1"]',
+  '  T2["T2 · Task T2"]',
+  '  T4["T4 · Task T4"]',
   '  S1(["✓ S1 · Login"])',
   '  S2(["? S2 · Logout"])',
   '  S3(["✕ S3 · Reset"])',

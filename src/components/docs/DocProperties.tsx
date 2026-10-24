@@ -13,6 +13,9 @@ import { useApp } from "@/context/AppContext"
 import { PRIORITIES, PROPERTY_KEY, docProperties, parsePriority } from "@/lib/doc-priority"
 import { TaskDueField, TaskOwnerField, TaskPriorityField, TaskSizeField, TaskStatusField } from "@/components/board/TaskFields"
 import { OwnerChip } from "@/components/shared/OwnerChip"
+import { StatusChip } from "@/components/shared/StatusIcon"
+import { useStatusDefs } from "@/components/shared/status-defs"
+import { displayStatus, resolveStatus } from "@/lib/statuses"
 import { TestsRowValue, useDocTask } from "./DocTests"
 import type { MetaBlock } from "@/lib/meta-block"
 import type { Task } from "@/types"
@@ -91,9 +94,11 @@ export function DocProperties({ path, content, meta = [], lastEdit, words, minut
   }
   for (const p of props.values()) {
     if (p.key.toLowerCase() === "priority") continue
+    // a date value: the calendar icon and mono digits (the Grep rule), still edited as text
+    const date = YMD.test(p.value.trim())
     rows.push({
-      id: p.key, icon: Type, label: nameMenu(p.key, labelOf(p.key)),
-      value: <InlineText key={p.value} label={t("docs.propertyOf", { name: labelOf(p.key), path })} value={p.value} onChange={(v) => save(p.key, v)} className="w-full py-1"><span className="truncate">{p.value}</span></InlineText>,
+      id: p.key, icon: date ? CalendarClock : Type, label: nameMenu(p.key, labelOf(p.key)),
+      value: <InlineText key={p.value} label={t("docs.propertyOf", { name: labelOf(p.key), path })} value={p.value} onChange={(v) => save(p.key, v)} className="w-full py-1"><span className={date ? "truncate font-mono text-xs" : "truncate"}>{p.value}</span></InlineText>,
     })
   }
   if (fresh && !props.has(fresh.toLowerCase())) {
@@ -178,6 +183,7 @@ function useMetaRows(path: string, meta: MetaBlock["entries"]): ItemProperty[] {
   const { t } = useT()
   const f = useFormat()
   const task = useDocTask(path)
+  const statusDefs = useStatusDefs()
   if (meta.length === 0 && !task) return []
 
   const known: Record<string, { label: string; icon: typeof Type }> = {
@@ -207,17 +213,24 @@ function useMetaRows(path: string, meta: MetaBlock["entries"]): ItemProperty[] {
 
   const rows: ItemProperty[] = []
   const seen = new Set<string>()
-  const row = (key: string, value: ReactNode, label = key) => {
+  // a key VibeDoc doesn't know ("Last updated") gets the calendar icon when its value is a date, else the text one
+  const row = (key: string, value: ReactNode, label = key, date = false) => {
     const k = known[key]
     seen.add(key)
-    rows.push({ id: `meta:${key}`, icon: k?.icon ?? Type, label: k?.label ?? label, value })
+    rows.push({ id: `meta:${key}`, icon: k?.icon ?? (date ? CalendarClock : Type), label: k?.label ?? label, value })
   }
   for (const { key, value } of meta) {
     const k = key.toLowerCase()
     if (seen.has(k)) continue
     if (task && editable[k]) row(k, editable[k](task))
     else if (k === "phase" || k === "parent" || k === "depends on" || k === "tasks") row(k, <IdChips value={value} />)
-    else if ((k === "started" || k === "done" || k === "spec merged") && YMD.test(value)) row(k, <span className="font-mono text-xs" title={value}>{f.day(value)}</span>)
+    // dates in mono (the Grep rule), in the reader's format
+    else if (YMD.test(value.trim())) row(k, <span className="font-mono text-xs" title={value}>{f.day(value.trim())}</span>, key, true)
+    else if (k === "status" && value.trim()) {
+      // an epic's (or a task the board doesn't list) status: the same chip as everywhere; a word VibeDoc doesn't know stays text
+      const r = resolveStatus(value, statusDefs)
+      row(k, r.unknown ? <span data-user-content className="truncate">{value}</span> : <StatusChip status={displayStatus(r)} />)
+    }
     else if (k === "owner" && value) row(k, <OwnerChip owner={value} className="text-xs" />)
     else row(k, <span data-user-content className="truncate">{value || "—"}</span>, key)
   }

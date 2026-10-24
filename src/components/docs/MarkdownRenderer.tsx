@@ -79,15 +79,6 @@ function readTokens(): MermaidTokens {
   return tokens
 }
 
-// a wide diagram shrinks to fit only down to 75% (labels stay ~10px), then its frame scrolls sideways; Fullscreen
-// shows it whole. Mermaid sets max-width to the natural width.
-const MIN_DIAGRAM_SCALE = 0.75
-function floorDiagramWidth(node: HTMLElement) {
-  const svg = node.querySelector<SVGSVGElement>(":scope > svg")
-  const natural = svg ? parseFloat(svg.style.maxWidth) : 0
-  if (svg && natural) svg.style.minWidth = `${Math.round(natural * MIN_DIAGRAM_SCALE)}px`
-}
-
 const ERROR_PROBLEM = {
   arrow: "docs.diagramErrorArrow", end: "docs.diagramErrorEnd", text: "docs.diagramErrorText",
   type: "docs.diagramErrorType", other: "docs.diagramErrorOther",
@@ -191,7 +182,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
   const imageBase = basePath ?? docPath
   // Frontmatter is metadata (e.g. a doc's priority), never body text
   const html = useMemo(() => {
-    const out = sanitize(marked.parse(stripFrontmatter(content)) as string)
+    // tables sit in a frame: a wide one breaks out of the reading measure and scrolls there, never wraps word by word
+    const out = sanitize((marked.parse(stripFrontmatter(content)) as string).replace(/<table>/g, '<div class="table-frame"><table>').replace(/<\/table>/g, "</table></div>"))
     return imageBase ? withProjectImages(out, imageBase, rootParam) : out
   }, [content, imageBase, rootParam])
   const containerRef = useRef<HTMLDivElement>(null)
@@ -251,7 +243,6 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
           if (cancelled || mine !== pass) return
           node.innerHTML = svg
           bindFunctions?.(node)
-          floorDiagramWidth(node)
           decorateDiagram(node)
           frameDiagram(node)
         } catch (e) {

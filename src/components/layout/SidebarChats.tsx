@@ -50,7 +50,7 @@ function SidebarChatsInner() {
   const isOpen = (id: string) => modalId === id || (pathname === "/chat" && pageId === id)
 
   return (
-    <SidebarGroup role="group" aria-label={t("shell.chats")}>
+    <SidebarGroup>
       <SidebarGroupLabel>{t("shell.chats")}</SidebarGroupLabel>
       <SidebarGroupAction title={t("workers.askOrchestrator")} onClick={showOrchestrator} className="right-9">
         <Network />
@@ -64,7 +64,7 @@ function SidebarChatsInner() {
         <SidebarMenu>
           {/* Collapsed sidebar: one entry; spins while chats run, flags chats that wait on you (amber) or recently failed (red) */}
           <SidebarMenuItem className="hidden group-data-[collapsible=icon]:block">
-            <SidebarMenuButton asChild tooltip={{ children: <span className="flex items-center gap-2">{railLabel}{PAGE_KEY && <kbd className={kbdClass}>{PAGE_KEY}</kbd>}</span> }} isActive={pathname === "/chat"}>
+            <SidebarMenuButton asChild tooltip={{ children: <span className="flex items-center gap-2">{railLabel}{PAGE_KEY && <kbd aria-hidden className={kbdClass}>{PAGE_KEY}</kbd>}</span> }} isActive={pathname === "/chat"}>
               <Link href="/chat" aria-keyshortcuts={PAGE_KEY} className="relative">
                 {runningCount > 0 ? <Loader2 className="animate-spin text-accent" /> : <MessagesSquare />}
                 <span>{railLabel}</span>

@@ -1,6 +1,6 @@
 // node src/lib/describe.check.mts
 import assert from 'node:assert/strict'
-import { firstProseSentence, inlineParts, plainInline } from './describe.ts'
+import { firstProseParagraph, firstProseSentence, inlineParts, plainInline } from './describe.ts'
 
 // frontmatter, comments, headings, badges and HTML are skipped; link syntax keeps its text; first sentence only
 assert.equal(
@@ -30,4 +30,8 @@ assert.deepEqual(inlineParts('Use `vibedoc check` in **CI**, see [docs](https://
   { kind: 'text', text: '.' },
 ])
 assert.deepEqual(inlineParts('snake_case_name stays'), [{ kind: 'text', text: 'snake_case_name stays' }])
+// the whole first paragraph, not just its first sentence; no heading fallback; capped
+assert.equal(firstProseParagraph('# Title\n\nFirst sentence here. Second [one](x.md) too.\n\nNext paragraph.'), 'First sentence here. Second one too.')
+assert.equal(firstProseParagraph('# Only a heading\n'), '')
+assert.ok(firstProseParagraph(`${'word '.repeat(60)}end.`, 50).endsWith('…'))
 console.log('describe ok')

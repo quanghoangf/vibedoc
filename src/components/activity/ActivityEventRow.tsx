@@ -21,11 +21,6 @@ const TYPE_ICON: Record<ActivityEvent["type"], LucideIcon> = {
 }
 
 
-const ACTION_TONE: Partial<Record<EventAction, string>> = {
-  created: "border-teal/30 bg-teal/5 text-teal",
-  restored: "border-teal/30 bg-teal/5 text-teal",
-  deleted: "border-danger/30 bg-danger/5 text-danger",
-}
 const ACTION_KEY: Record<EventAction, MessageKey> = {
   created: "memory.actCreated", edited: "memory.actEdited", moved: "memory.actMoved", deleted: "memory.actDeleted",
   restored: "memory.actRestored", renamed: "memory.actRenamed", saved: "memory.actSaved", merged: "memory.actMerged",
@@ -33,14 +28,15 @@ const ACTION_KEY: Record<EventAction, MessageKey> = {
   rebuilt: "memory.actRebuilt", read: "memory.actRead", updated: "memory.actUpdated",
 }
 
-const badge = "inline-flex shrink-0 items-center rounded-sm border px-1.5 py-0.5 text-[10px] leading-none font-medium"
+// verbs are neutral: a hue on screen means a state (DESIGN.md Highlighter Rule), and "created" is not Done
+const badge = "inline-flex shrink-0 items-center rounded-sm border border-border2 px-1.5 py-0.5 text-[10px] leading-none font-medium text-muted"
 
 /** The verb of an event; none for a task move, whose status icon and sentence already say where it landed. */
 function ActionBadge({ event }: { event: ActivityEvent }) {
   const action = eventAction(event)
   const { t } = useT()
   if (action === "moved" && event.taskStatus) return null
-  return <span className={cn(badge, ACTION_TONE[action] ?? "border-border2 text-muted")}>{ACTION_KEY[action] ? t(ACTION_KEY[action]) : action}</span>
+  return <span className={badge}>{ACTION_KEY[action] ? t(ACTION_KEY[action]) : action}</span>
 }
 
 /** One line per event: clock · kind icon · verb badge · what happened (clickable when it points at something that still exists). */

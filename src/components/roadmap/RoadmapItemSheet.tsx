@@ -30,9 +30,9 @@ import { flashElement } from "@/components/docs/MarkdownRenderer"
 import { InlineDate, InlineSelect } from "@/components/shared/InlineProperty"
 import { PriorityField } from "@/components/shared/PriorityBadge"
 import { toast } from "@/components/ui/toast"
-import { DueChip, SegmentedProgress, StatusDot, StatusPill, TASK_STATUS_BG, useRoadmapStatusLabel } from "./RoadmapNodes"
+import { DueChip, SegmentedProgress, StatusDot, StatusPill, useRoadmapStatusLabel } from "./RoadmapNodes"
 import { useT } from "@/context/LanguageContext"
-import { useStatusLabel } from "@/components/shared/StatusIcon"
+import { StatusIcon, useStatusLabel } from "@/components/shared/StatusIcon"
 import type { Waiting } from "@/lib/work-queue"
 import type { RoadmapItem, RoadmapStatus, Task, TaskStatus, UpdateRoadmapItemPatch } from "@/types"
 
@@ -128,6 +128,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
   const specChanges = isHorizon ? [] : parseSpecChanges(item.body)
   const canMerge = item.status === "done" && specChanges.length > 0 && !item.specMerged
   const [merging, setMerging] = useState(false)
+  const [mapOpen, setMapOpen] = useState(false)
   const chat = isHorizon ? undefined : chatFor(chats, { kind: "epic", id: item.id })
   const offerBreakdown = !isHorizon && item.tasks.length === 0 && !chat
   const reviewCount = isHorizon ? 0 : item.tasks.filter((id) => tasksById[id]?.status === "review").length
@@ -232,19 +233,32 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
       </ItemPanelHeader>
 
       <div className="flex flex-1 flex-col gap-6 px-6 py-5">
-        {!isHorizon && item.tasks.length > 0 && <EpicDiagram
-          taskIds={item.tasks}
-          tasks={Object.values(tasksById)}
-          scenarios={epicScenarios}
-          onOpenTask={onOpenTask}
-          onOpenScenario={(id) => {
-            const row = document.getElementById(scenarioRowId(id))
-            if (!row) return
-            row.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })
-            flashElement(row)
-          }}
-        />}
         {!isHorizon && item.tasks.length > 0 && <LinkedTasks item={item} tasksById={tasksById} onOpen={onOpenTask} selectedId={selectedTaskId ?? null} />}
+        {/* the derived map is a second look at the same tasks: folded, drawn only once opened */}
+        {!isHorizon && item.tasks.length > 0 && (
+          <details data-epic-map className="group" onToggle={(e) => setMapOpen(e.currentTarget.open)}>
+            <summary className={cn(SECTION, "flex w-fit cursor-pointer list-none items-center gap-1 rounded-xs hover:text-txt focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent [&::-webkit-details-marker]:hidden")}>
+              <ChevronRight className="size-3 transition-transform duration-(--duration-fast) group-open:rotate-90" aria-hidden />
+              {t("roadmap.mapSection")}
+            </summary>
+            {mapOpen && (
+              <div className="mt-2">
+                <EpicDiagram
+                  taskIds={item.tasks}
+                  tasks={Object.values(tasksById)}
+                  scenarios={epicScenarios}
+                  onOpenTask={onOpenTask}
+                  onOpenScenario={(id) => {
+                    const row = document.getElementById(scenarioRowId(id))
+                    if (!row) return
+                    row.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" })
+                    flashElement(row)
+                  }}
+                />
+              </div>
+            )}
+          </details>
+        )}
         {!isHorizon && item.scenarios.length > 0 && <Scenarios item={item} tasksById={tasksById} onOpen={onOpenTask} />}
 
         {item.specMerged && specChanges.length > 0 && (
@@ -291,34 +305,37 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
       <footer className="sticky bottom-0 flex flex-wrap items-center gap-2 border-t border-border bg-surface px-6 py-3">
         {/* Read-only demo (R042): only "Open file" */}
         {!demo && <>
+        {/* exactly one filled primary, by state: merge a done epic's spec changes › break down an empty epic › work on it */}
+        {canMerge && (
+          <Button size="sm" onClick={() => setMerging(true)} className="bg-accent text-accent-fg hover:bg-accent/90">
+            <GitMerge /> {t("roadmap.mergeIntoSpec")}
+          </Button>
+        )}
         {offerBreakdown && (
-          <Button size="sm" onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} className="bg-accent text-accent-fg hover:bg-accent/90">
+          <Button size="sm" variant={canMerge ? "outline" : "default"} onClick={() => { onClose(); askAgent(`Break down epic ${item.id} into tasks.`) }} className={cn(!canMerge && "bg-accent text-accent-fg hover:bg-accent/90")}>
             <Bot /> {t("roadmap.breakDownWithAgent")}
           </Button>
         )}
-        {!isHorizon && (
+        {!isHorizon && !playground && item.status !== "done" && (
           <Button
             size="sm"
             variant={offerBreakdown ? "outline" : "default"}
-            onClick={() => { onClose(); showAbout({ kind: "epic", id: item.id }) }}
+            onClick={run.open}
+            title={`${t("workers.runCardLead")} (${itemKeyLabel("run")})`}
+            aria-keyshortcuts="Shift+W"
             className={cn(!offerBreakdown && "bg-accent text-accent-fg hover:bg-accent/90")}
           >
-            <MessageSquare /> {chat ? t("board.openChat") : t("roadmap.chat")}
+            <Bot /> {t("workers.workWithAgent")}
           </Button>
         )}
-        {!isHorizon && !playground && (
-          <Button size="sm" variant="outline" onClick={run.open} title={`${t("workers.runCardLead")} (${itemKeyLabel("run")})`} aria-keyshortcuts="Shift+W">
-            <Bot /> {t("workers.workWithAgent")}
+        {!isHorizon && (
+          <Button size="sm" variant="outline" onClick={() => { onClose(); showAbout({ kind: "epic", id: item.id }) }}>
+            <MessageSquare /> {chat ? t("board.openChat") : t("roadmap.chat")}
           </Button>
         )}
         {isHorizon && (
           <Button size="sm" onClick={() => onAddFeature(item.id)} className="bg-accent text-accent-fg hover:bg-accent/90">
             <Plus /> {t("roadmap.addEpic")}
-          </Button>
-        )}
-        {canMerge && (
-          <Button size="sm" onClick={() => setMerging(true)} className="bg-accent text-accent-fg hover:bg-accent/90">
-            <GitMerge /> {t("roadmap.mergeIntoSpec")}
           </Button>
         )}
         <Button size="sm" variant="outline" onClick={onEdit}>
@@ -330,7 +347,7 @@ function ItemView({ item, items, onClose, onAddFeature, onEditRaw, onSelect, onO
         </Button>
       </footer>
       {canMerge && <SpecMergeDialog epicId={item.id} open={merging} onOpenChange={setMerging} />}
-      {!isHorizon && !playground && run.dialog}
+      {!isHorizon && !playground && item.status !== "done" && run.dialog}
     </div>
   )
 }
@@ -601,7 +618,7 @@ function LinkedTasks({ item, tasksById, onOpen, selectedId }: {
                 onClick={() => onOpen(t.id)}
                 className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 text-left"
               >
-                <span title={taskStatus(t.status)} className={cn("h-2 w-2 shrink-0 rounded-full", TASK_STATUS_BG[t.status])} />
+                <span title={taskStatus(t.customStatus ?? t.status)} className="grid shrink-0 place-items-center"><StatusIcon status={t.customStatus ?? t.status} /></span>
                 <span className="shrink-0 font-mono text-[11px] text-muted">{t.id}</span>
                 <span className={cn("min-w-0 flex-1 truncate text-sm", t.status === "cancelled" ? "text-muted line-through" : t.status === "done" ? "text-muted" : "text-txt")}>
                   {t.title}

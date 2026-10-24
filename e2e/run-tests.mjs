@@ -83,7 +83,8 @@ try {
   assert.ok(existsSync(path.join(fx, "e2e/vibedoc/kit/VERSION")), "the Run wrote the test kit")
   await page.getByRole("group", { name: "View" }).getByRole("button", { name: "evidence" }).click()
   const evidence = page.getByRole("region", { name: "Evidence" })
-  await evidence.getByText(/✅ Passed/).first().waitFor()
+  // the doc's ✅ is for EVIDENCE.md; the UI draws the verdict as an icon beside the head
+  await evidence.getByText(/^Passed · 2\/3 checks proven/).first().waitFor()
   await evidence.locator("[data-zoom] img").first().waitFor()
   await page.getByRole("group", { name: "View" }).getByRole("button", { name: "review" }).click()
   console.log("ok  passed → Auto: passed + both 🤖 items [x] in the file; Evidence shows the new run")
