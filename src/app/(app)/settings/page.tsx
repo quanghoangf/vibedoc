@@ -22,6 +22,7 @@ import { statusDefs } from "@/lib/statuses"
 import type { AppSettings, Skill, Agent } from "@/lib/settings"
 import { DEFAULT_SETTINGS, DEFAULT_SKILLS, DEFAULT_AGENTS } from "@/lib/settings"
 import { applyTheme, applyAccent, applyFontSize, applyFonts } from "@/lib/applySettings"
+import { toast } from "@/components/ui/toast"
 
 type Tab = { id: string; label: MessageKey; icon: typeof Palette }
 
@@ -81,6 +82,8 @@ function SettingsSections() {
   const [agents, setAgents] = useState<Agent[]>(DEFAULT_AGENTS)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // when the last autosave landed: the autosave tabs show "Saved" under their title
+  const [savedAt, setSavedAt] = useState<number | null>(null)
 
   const fetchAll = useCallback(async () => {
     try {
@@ -97,51 +100,49 @@ function SettingsSections() {
     fetchAll()
   }, [fetchAll])
 
-  const saveSettings = async (newSettings: AppSettings) => {
-    setSaving(true)
-    setSettings(newSettings)
-    try {
-      await fetch(`/api/settings${rootParam}&type=settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newSettings),
-      })
-      applyTheme(newSettings.theme)
-      applyAccent(newSettings.accentColor)
-      applyFontSize(newSettings.fontSize)
-      applyFonts(newSettings)
-      setEditorSettings(newSettings.editor)
-      setAutoRefreshSeconds(newSettings.project?.autoRefresh ?? 0)
-      setStatusDefs(statusDefs(newSettings.statuses))
-    } catch {}
-    setSaving(false)
+  /** PUT one settings file; a non-2xx throws (fetch alone only throws on a network error). */
+  const put = async (type: "settings" | "skills" | "agents", body: unknown) => {
+    const res = await fetch(`/api/settings${rootParam}&type=${type}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
   }
 
-  const saveSkills = async (newSkills: Skill[]) => {
+  /**
+   * Optimistic save: show `next` now; on failure put `prev` back and offer "Couldn't save · Retry".
+   * Resolves true once it is on disk.
+   */
+  const save = async <T,>(type: "settings" | "skills" | "agents", prev: T, next: T, set: (v: T) => void, retry: () => void, after?: () => void) => {
     setSaving(true)
-    setSkills(newSkills)
+    set(next)
     try {
-      await fetch(`/api/settings${rootParam}&type=skills`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newSkills),
-      })
-    } catch {}
-    setSaving(false)
+      await put(type, next)
+      after?.()
+      setSavedAt(Date.now())
+      return true
+    } catch (e) {
+      console.warn(`[vibedoc] ${type} not saved:`, e)
+      set(prev)
+      toast(t("settings.saveFailed"), { action: { label: t("settings.retry"), onClick: retry } })
+      return false
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const saveAgents = async (newAgents: Agent[]) => {
-    setSaving(true)
-    setAgents(newAgents)
-    try {
-      await fetch(`/api/settings${rootParam}&type=agents`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newAgents),
-      })
-    } catch {}
-    setSaving(false)
-  }
+  const saveSettings = (next: AppSettings): Promise<boolean> => save("settings", settings, next, setSettings, () => { void saveSettings(next) }, () => {
+    applyTheme(next.theme)
+    applyAccent(next.accentColor)
+    applyFontSize(next.fontSize)
+    applyFonts(next)
+    setEditorSettings(next.editor)
+    setAutoRefreshSeconds(next.project?.autoRefresh ?? 0)
+    setStatusDefs(statusDefs(next.statuses))
+  })
+  const saveSkills = (next: Skill[]): Promise<boolean> => save("skills", skills, next, setSkills, () => { void saveSkills(next) })
+  const saveAgents = (next: Agent[]): Promise<boolean> => save("agents", agents, next, setAgents, () => { void saveAgents(next) })
 
   if (loading) {
     return (
@@ -224,20 +225,20 @@ function SettingsSections() {
           )}
 
           {activeTab === "appearance" && (
-            <ThemeSettings settings={settings} onSave={saveSettings} />
+            <ThemeSettings settings={settings} onSave={saveSettings} savedAt={savedAt} />
           )}
           {activeTab === "editor" && (
-            <EditorSettings settings={settings} onSave={saveSettings} />
+            <EditorSettings settings={settings} onSave={saveSettings} savedAt={savedAt} />
           )}
           {activeTab === "project" && (
-            <ProjectSettings settings={settings} onSave={saveSettings} />
+            <ProjectSettings settings={settings} onSave={saveSettings} savedAt={savedAt} />
           )}
           {activeTab === "statuses" && (
-            <StatusesSettings settings={settings} onSave={saveSettings} />
+            <StatusesSettings settings={settings} onSave={saveSettings} savedAt={savedAt} />
           )}
           {activeTab === "frontend" && <FrontendSettings rootParam={rootParam} />}
           {activeTab === "connect" && (
-            <MCPSettings settings={settings} onSave={saveSettings} />
+            <MCPSettings settings={settings} onSave={saveSettings} savedAt={savedAt} />
           )}
           {activeTab === "skills" && (
             <SkillsSettings skills={skills} onSave={saveSkills} />

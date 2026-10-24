@@ -2,11 +2,14 @@
 
 import { cn } from "@/lib/utils"
 import type { AppSettings } from "@/lib/settings"
+import { Switch } from "@/components/shared/Switch"
 import { useT } from "@/context/LanguageContext"
+import { SavedNote } from "@/components/settings/SavedNote"
 
 interface ProjectSettingsProps {
   settings: AppSettings
   onSave: (settings: AppSettings) => void
+  savedAt?: number | null
 }
 
 const REFRESH_OPTIONS = [
@@ -16,7 +19,7 @@ const REFRESH_OPTIONS = [
   { value: 30 },
 ]
 
-export function ProjectSettings({ settings, onSave }: ProjectSettingsProps) {
+export function ProjectSettings({ settings, onSave, savedAt = null }: ProjectSettingsProps) {
   const { t } = useT()
   const updateProject = (key: keyof AppSettings["project"], value: unknown) => {
     onSave({
@@ -30,6 +33,7 @@ export function ProjectSettings({ settings, onSave }: ProjectSettingsProps) {
       <div>
         <h2 className="text-xl font-semibold text-txt mb-1">{t("settings.tabProject")}</h2>
         <p className="text-sm text-muted">{t("settings.projectHint")}</p>
+        <SavedNote at={savedAt} />
       </div>
 
       {/* Auto-refresh */}
@@ -58,25 +62,12 @@ export function ProjectSettings({ settings, onSave }: ProjectSettingsProps) {
       </div>
 
       {/* Show Hidden Files */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start gap-3">
+        <Switch checked={!!settings.project.showHidden} onChange={(v) => updateProject("showHidden", v)} labelledBy="setting-show-hidden" className="mt-0.5" />
         <div>
-          <div className="text-sm font-medium text-txt">{t("settings.showHidden")}</div>
+          <div id="setting-show-hidden" className="text-sm font-medium text-txt">{t("settings.showHidden")}</div>
           <div className="text-xs text-muted">{t("settings.showHiddenHint")}</div>
         </div>
-        <button
-          onClick={() => updateProject("showHidden", !settings.project.showHidden)}
-          className={cn(
-            "w-11 h-6 rounded-full transition-colors relative",
-            settings.project.showHidden ? "bg-accent" : "bg-border"
-          )}
-        >
-          <span
-            className={cn(
-              "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-              settings.project.showHidden ? "left-6" : "left-1"
-            )}
-          />
-        </button>
       </div>
     </div>
   )

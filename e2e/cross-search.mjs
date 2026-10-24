@@ -44,6 +44,8 @@ const api = project("Api", {
   "memory/entries/E001-limits.md": "# E001: Limits live in the gateway\n**Type:** decision\n**Updated:** 2026-10-01\n\nThe rate limit is set in the gateway config.\n",
 }, true)
 const other = project("Other", { "docs/rate.md": "# Rate limit notes\n\nOutside the group.\n" })
+// 12 docs that all say "worktree": more than the 10 a project shows before "Show all"
+const many = project("Many", Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`docs/wt-${String(i).padStart(2, "0")}.md`, `# Note ${i}\n\nA worktree note.\n`])))
 const browser = await launchChrome()
 const errors = []
 try {
@@ -76,6 +78,12 @@ try {
   assert.equal((await json(`/api/search?q=x&scope=bogus`)).status, 400)
   assert.deepEqual((await json(`/api/search?q=&scope=all`)).data, [])
   console.log("ok  scope project:<id>, unknown group 404, bad scope 400, empty query []")
+
+  const capped = await json(`/api/search?q=worktree&scope=project:${many.id}`)
+  assert.deepEqual([capped.data[0].results.length, capped.data[0].total], [10, 12], "a cut list says how many there were")
+  const every = await json(`/api/search?q=worktree&scope=project:${many.id}&limit=all`)
+  assert.deepEqual([every.data[0].results.length, every.data[0].total], [12, 12])
+  console.log("ok  10 of 12 per project with total; limit=all returns every hit")
 
   // a miss is a question: /search and the docs list offer doc names that look like the query
   const root = `root=${encodeURIComponent(web.root)}`
@@ -126,9 +134,30 @@ try {
   await page.getByRole("button", { name: /Throttle login attempts/ }).click()
   await page.waitForURL((u) => u.pathname === "/board" && u.searchParams.get("task") === "T001" && u.searchParams.get("project") === api.id)
   console.log("ok  a task result opens the board's task panel in its project")
+
+  // "Top 10 of 12 in Many · Show all", then ↓ from the box walks the results and Enter opens one
+  await page.goto(`${BASE}/search?q=worktree&project=${web.id}`)
+  const manySection = page.locator(`[data-search-project="${many.id}"]`)
+  await manySection.locator("[data-search-more]").getByText(`Top 10 of 12 in ${many.name}`).waitFor()
+  assert.equal(await manySection.locator("[data-result]").count(), 10)
+  await manySection.getByRole("button", { name: "Show all" }).click()
+  await manySection.locator("[data-result]").nth(11).waitFor()
+  assert.equal(await manySection.locator("[data-search-more]").count(), 0, "nothing hidden after Show all")
+  await page.getByRole("searchbox", { name: "Search every project" }).focus()
+  await page.keyboard.press("ArrowDown")
+  await page.keyboard.press("j")
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll("[data-result]")].indexOf(document.activeElement)), 1)
+  await page.keyboard.press("k")
+  await page.keyboard.press("ArrowUp")
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute("type")), "search", "↑ from the first result goes back to the box")
+  await page.keyboard.press("ArrowDown")
+  // the first result overall (the server's own project comes first), so Enter opens that doc
+  await page.keyboard.press("Enter")
+  await page.waitForURL((u) => u.pathname === "/docs" && !!u.searchParams.get("doc"))
+  console.log("ok  /search: Top 10 of 12 · Show all; ↑/↓ j/k walk the results, Enter opens")
   assert.deepEqual(errors, [])
 } finally {
   await browser.close()
-  for (const p of [web, api, other]) rmSync(p.root, { recursive: true, force: true })
+  for (const p of [web, api, other, many]) rmSync(p.root, { recursive: true, force: true })
 }
 console.log("cross-search: ok")

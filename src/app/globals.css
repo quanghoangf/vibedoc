@@ -462,6 +462,11 @@ body {
 
 /* Mermaid diagrams */
 .mermaid { margin: 1.5rem 0; text-align: center; }
+/* until Mermaid has drawn it (aria-busy, the source waits in data-source): a quiet fixed-height frame naming the
+   diagram, never the raw source as centred prose; a parse error replaces it with .mermaid-error */
+.mermaid[aria-busy] { display: grid; place-items: center; height: 10rem; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
+.derived-diagram .mermaid[aria-busy] { height: 6rem; }
+.mermaid-pending { font-family: var(--font-sans); font-size: 12px; line-height: 1.4; color: var(--color-muted); }
 .prose-dark .mermaid:has(> svg) { border: 1px solid var(--color-border); border-radius: 12px; padding: 1.5rem 1rem; overflow-x: auto; }
 /* Diagrams in the notebook's own ink (R096, theme from src/lib/mermaid-theme.ts): flat, ruled, on the page itself */
 .mermaid svg { max-width: 100%; height: auto; background: transparent !important; }
@@ -475,8 +480,9 @@ body {
 .diagram-tools button:hover { color: var(--color-txt); background: var(--color-surface2); }
 .diagram-tools button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 /* A wide diagram (frameDiagram in diagram-viewer.tsx): it breaks out of the prose column up to the pane, and when it
-   still can't fit it is drawn scaled to the width (viewBox, nothing clipped) with an always-on control row under it:
-   the scale, Actual size (keeps its own width and scrolls, with a right-edge fade) and Fullscreen */
+   still can't fit it is drawn scaled to the width while that keeps 60% of its size (data-scaled), else at actual size
+   scrolling sideways with a right-edge fade (data-actual); either way an always-on control row sits under it: the
+   scale, Fit to width / Actual size (the reader's pick, kept across re-renders) and Fullscreen. Phones too. */
 .diagram-frame { position: relative; margin: 1.5rem 0; }
 .diagram-frame > .mermaid { margin: 0; }
 .derived-diagram .diagram-frame { margin: 0; }

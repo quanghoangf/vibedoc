@@ -10,9 +10,9 @@ import type { MessageKey } from "@/i18n"
 export const KIND_ICON: Record<CrossKind, LucideIcon> = { doc: FileText, task: ListTodo, epic: Map, entry: Brain }
 export const KIND_LABEL: Record<CrossKind, MessageKey> = { doc: "search.kindDoc", task: "search.kindTask", epic: "search.kindEpic", entry: "search.kindEntry" }
 
-/** GET /api/search (R107): results grouped by project. Throws on a non-2xx with the server's error. */
-export async function fetchSearch(q: string, scope: string, signal?: AbortSignal): Promise<CrossGroup[]> {
-  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&scope=${encodeURIComponent(scope)}`, { signal })
+/** GET /api/search (R107): results grouped by project. `all` = every hit, not the top 10 per project. Throws on a non-2xx with the server's error. */
+export async function fetchSearch(q: string, scope: string, signal?: AbortSignal, all = false): Promise<CrossGroup[]> {
+  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&scope=${encodeURIComponent(scope)}${all ? "&limit=all" : ""}`, { signal })
   const data = await res.json().catch(() => null)
   if (!res.ok || !Array.isArray(data)) throw new Error(data?.error ?? `HTTP ${res.status}`)
   return data

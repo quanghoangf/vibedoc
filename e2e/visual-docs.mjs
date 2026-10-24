@@ -17,7 +17,9 @@
 //   Done-when (T519). one doc with a diagram and all four visual blocks renders in light and dark at 390px without page
 //       overflow, and vibedoc_read_doc returns it as the plain lists and the mermaid fence
 //   Wide diagrams. a flowchart wider than the prose column breaks out of it up to the pane (data-wide); when it still
-//       can't fit it is scaled to the width (data-scaled) with always-on controls: Actual size scrolls with a fade
+//       can't fit it is scaled to the width only down to 60% (data-scaled), below that it opens at actual size and
+//       scrolls with a fade (data-actual); always-on controls: Fit to width / Actual size toggles, the pick survives
+//       a theme re-render; a 1.3×-too-wide diagram still fits by default
 // Fails on any browser console error. The fixture is a fresh mktemp project. Later R096 tasks add sections.
 //
 //   PORT=3189 pnpm dev   # then:
@@ -60,6 +62,8 @@ write("docs/all.md", ALL)
 write("docs/blank.md", "# Blank\n")
 write("docs/live.md", "# Live\n\n```mermaid\nflowchart LR\n  A --> B\n```\n")
 // 16 boxes in a row with long labels: far wider than any pane at 1280px
+write("docs/medium.md", ["# Medium", "", "Some prose above.", "", "```mermaid", "flowchart LR",
+  ...Array.from({ length: 5 }, (_, i) => `  M${i}[Step number ${i} of the chain] --> M${i + 1}[Step number ${i + 1} of the chain]`), "```", ""].join("\n"))
 write("docs/wide.md", ["# Wide", "", "Some prose above.", "", "```mermaid", "flowchart LR",
   ...Array.from({ length: 15 }, (_, i) => `  N${i}[Step number ${i} of the long chain] --> N${i + 1}[Step number ${i + 1} of the long chain]`), "```", ""].join("\n"))
 
@@ -435,13 +439,19 @@ try {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no horizontal page scroll at 390px")
   console.log("ok  S3: compare is 2 columns (stacked at 390px, >3 items → cards); timeline has 4 dots, the accent only on Now")
 
-  // Wide diagrams: break out of the prose column, then fit to the width (nothing clipped) with always-on controls
+  // Wide diagrams: break out of the prose column; fit to the width only down to 60%, below that actual size + scroll
   {
     await page.setViewportSize({ width: 1600, height: 900 })
     await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/wide.md")}`)
+    // before Mermaid draws: a quiet placeholder naming the diagram, never its raw source as prose
+    await preview.locator(".mermaid").first().waitFor({ state: "attached" })
+    assert.ok(!(await preview.locator(".mermaid").first().evaluate((n) => n.textContent.includes("-->"))), "the raw Mermaid source never shows")
+    const pending = await preview.locator(".mermaid[aria-busy] .mermaid-pending").allTextContents()
+    assert.ok(pending.every((x) => x === "Diagram · flowchart"), `the placeholder names the type (${pending})`)
     const frame = preview.locator("[data-diagram-frame]")
     await frame.locator(".mermaid > svg").waitFor()
-    await page.waitForFunction(() => document.querySelector("[data-diagram-frame]")?.hasAttribute("data-scaled"))
+    assert.equal(await preview.locator(".mermaid[aria-busy]").count(), 0, "drawn: no longer busy")
+    await page.waitForFunction(() => document.querySelector("[data-diagram-frame]")?.hasAttribute("data-actual"))
     const widths = await page.evaluate(() => ({
       frame: document.querySelector("[data-diagram-frame]").getBoundingClientRect().width,
       prose: document.querySelector(".doc-preview > p").getBoundingClientRect().width,
@@ -450,7 +460,6 @@ try {
     assert.ok(await frame.evaluate((el) => el.hasAttribute("data-wide")), "the frame is marked wide")
     assert.ok(widths.frame >= widths.pane - 2 && widths.frame >= widths.prose, `the frame spans the pane, not the prose column (${JSON.stringify(widths)})`)
     const fits = () => frame.evaluate((el) => { const n = el.querySelector(".mermaid"); return n.scrollWidth <= n.clientWidth + 1 })
-    assert.ok(await fits(), "by default the diagram is scaled to the width: nothing clipped, no sideways scroll")
     // the fade eases its opacity over 120ms: wait for it to settle, up to 2s
     const fade = async (want) => {
       const el = frame.locator(".diagram-fade")
@@ -458,24 +467,44 @@ try {
       for (let i = 0; i < 20 && (v = await el.evaluate((n) => getComputedStyle(n).opacity)) !== want; i++) await page.waitForTimeout(100)
       return v
     }
-    assert.equal(await fade("0"), "0", "no fade while it fits")
-    // the controls are visible at rest (no hover): the scale, Actual size and Fullscreen
+    // fitting this one would draw it under 60%: it opens at actual size, scrolling sideways, with the fade
+    assert.ok(!(await fits()), "below the 60% floor the diagram keeps its size and scrolls")
+    assert.equal(await fade("1"), "1", "a right-edge fade says there is more")
+    // the controls are visible at rest (no hover): the scale, Fit to width and Fullscreen
     const controls = frame.locator(".diagram-controls")
     assert.ok(await controls.isVisible(), "controls show without hover")
-    assert.match(await controls.locator(".diagram-pct").textContent(), /^\d+%$/)
+    assert.equal(await controls.locator(".diagram-pct").textContent(), "100%")
     await frame.getByRole("button", { name: "Fullscreen", exact: true }).waitFor()
-    const chip = frame.getByRole("button", { name: "Show the diagram at actual size and scroll sideways" })
-    assert.equal(await chip.textContent(), "Actual size")
+    const chip = frame.getByRole("button", { name: "Fit the diagram to the width" })
+    assert.equal(await chip.textContent(), "Fit to width")
     await chip.focus()
     await page.keyboard.press("Enter")
-    await frame.getByRole("button", { name: "Fit the diagram to the width" }).waitFor()
-    assert.equal(await frame.locator(".diagram-fit").textContent(), "Fit to width")
-    assert.ok(!(await fits()), "Actual size scrolls sideways")
-    assert.equal(await fade("1"), "1", "a right-edge fade says there is more")
-    await frame.locator(".diagram-fit").click()
+    await frame.getByRole("button", { name: "Show the diagram at actual size and scroll sideways" }).waitFor()
     assert.equal(await frame.locator(".diagram-fit").textContent(), "Actual size")
-    assert.ok(await fits(), "Fit to width goes back to the scaled diagram")
-    console.log("ok  a wide diagram breaks out of the prose column, fits the width by default, Actual size / Fit to width toggle")
+    assert.ok(await fits(), "Fit to width scales it to the frame on request: nothing clipped")
+    assert.equal(await fade("0"), "0", "no fade while it fits")
+    assert.ok(Number((await controls.locator(".diagram-pct").textContent()).replace("%", "")) < 60, "the scale says how small it is")
+    // the pick survives a re-render (a light/dark switch re-draws every diagram)
+    await page.evaluate(() => document.documentElement.classList.toggle("dark"))
+    await page.waitForTimeout(600)
+    assert.ok(await fits(), "still fitted after the theme re-render")
+    await page.evaluate(() => document.documentElement.classList.toggle("dark"))
+    await frame.locator(".diagram-fit").click()
+    assert.equal(await frame.locator(".diagram-fit").textContent(), "Fit to width")
+    assert.ok(!(await fits()), "Actual size scrolls sideways again")
+
+    // a diagram only a little too wide (fitting keeps >= 60%) still fits the width by default
+    await page.goto(`${BASE}/docs?doc=${encodeURIComponent("docs/medium.md")}`)
+    await frame.locator(".mermaid > svg").waitFor()
+    const medium = await page.evaluate(() => {
+      const f = document.querySelector("[data-diagram-frame]")
+      return { scaled: f.hasAttribute("data-scaled"), actual: f.hasAttribute("data-actual") }
+    })
+    if (medium.scaled) {
+      assert.ok(await fits(), "a diagram that fits at >= 60% is scaled to the width")
+      assert.ok(Number((await frame.locator(".diagram-pct").textContent()).replace("%", "")) >= 60)
+    } else assert.ok(!medium.actual, `the medium diagram fits as drawn or scaled, never actual size (${JSON.stringify(medium)})`)
+    console.log("ok  a wide diagram breaks out of the prose column; under the 60% floor it opens at actual size, Fit to width / Actual size toggle and survive a re-render")
   }
 
   // Done-when: everything on one page, light and dark, phone width; agents read the plain text

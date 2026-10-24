@@ -7,7 +7,8 @@ export type CrossProject = { id: string; name: string }
 /** `id` = task / epic / entry id (null for a doc); `path` = the file, relative to the project root. */
 export type CrossHit = { kind: CrossKind; id: string | null; path: string; title: string; snippet: string; score: number }
 export type CrossResult = CrossHit & { project: CrossProject }
-export type CrossGroup = { project: CrossProject; results: CrossResult[] }
+/** `total` = every hit in that project; `results` may be fewer (the per-project and overall caps). */
+export type CrossGroup = { project: CrossProject; results: CrossResult[]; total: number }
 
 export const PER_PROJECT = 10
 export const TOTAL = 50
@@ -34,15 +35,17 @@ const byScore = (a: CrossHit, b: CrossHit) => b.score - a.score || KIND_ORDER[a.
 
 /**
  * Top `perProject` per project, then the best `total` overall, grouped by project; the project with the best hit
- * comes first (a tie keeps the order given). Projects with no hit are left out.
+ * comes first (a tie keeps the order given). Projects with no hit are left out. Each group says how many hits its
+ * project had (`total`), so a cut list can say "Top 10 of 23". `Infinity` = no cap.
  */
 export function mergeResults(perProject: readonly { project: CrossProject; hits: readonly CrossHit[] }[], opts: { perProject?: number; total?: number } = {}): CrossGroup[] {
   const each = opts.perProject ?? PER_PROJECT
+  const totals = new Map(perProject.map(({ project, hits }) => [project.id, hits.length]))
   const all = perProject.flatMap(({ project, hits }) => [...hits].sort(byScore).slice(0, each).map(h => ({ ...h, project })))
   const kept = all.sort(byScore).slice(0, opts.total ?? TOTAL) // Array#sort is stable: equal hits keep project order
   const groups = new Map<string, CrossGroup>()
   for (const r of kept) {
-    const g = groups.get(r.project.id) ?? { project: r.project, results: [] }
+    const g = groups.get(r.project.id) ?? { project: r.project, results: [], total: totals.get(r.project.id) ?? 0 }
     g.results.push(r)
     groups.set(r.project.id, g)
   }
@@ -55,6 +58,7 @@ export function formatCrossSearch(query: string, groups: readonly CrossGroup[]):
   if (!n) return `No results for "${query}" in this project's groups`
   const lines = [`🔍 "${query}" — ${n} result(s) in ${groups.length} project(s)\n`]
   for (const g of groups) {
+    if (g.total > g.results.length) lines.push(`[${g.project.id}] top ${g.results.length} of ${g.total}`)
     for (const r of g.results) {
       lines.push(`[${g.project.id}] ${r.kind} ${r.id ? `${r.id} · ` : ''}**${r.title}** — ${r.path}`)
       if (r.snippet) lines.push(`[${g.project.id}]   ${r.snippet}`)
@@ -62,6 +66,23 @@ export function formatCrossSearch(query: string, groups: readonly CrossGroup[]):
     lines.push('')
   }
   return lines.join('\n')
+}
+
+/** The search's result rows in order, flattened, so ↑/↓ (j/k) can walk them: the next index, clamped to the ends. */
+export function stepIndex(current: number, count: number, key: string): number | null {
+  if (!count) return null
+  if (key === 'ArrowDown' || key === 'j') return current < 0 ? 0 : Math.min(current + 1, count - 1)
+  if (key === 'ArrowUp' || key === 'k') return current < 0 ? 0 : Math.max(current - 1, 0)
+  if (key === 'Home') return 0
+  if (key === 'End') return count - 1
+  return null
+}
+
+/** `/api/search`'s `limit` param: a positive integer caps hits per project, `all` (or 0) = every hit; else the default. */
+export function parseLimit(raw: string | null): number {
+  if (raw === 'all' || raw === '0') return Infinity
+  const n = Number(raw)
+  return Number.isInteger(n) && n > 0 ? n : PER_PROJECT
 }
 
 /** The page a result opens in its own project (T551); the caller adds `?project=`. */

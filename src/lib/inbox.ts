@@ -70,6 +70,8 @@ export interface InboxItem {
   href: string
   /** Task rows only */
   evidence?: InboxEvidence
+  /** Task rows only: its status, so a failed-run row knows whether Send back applies (review.ts `REVIEWABLE`) */
+  status?: string
   /** Task rows in an epic: that epic's tasks in this project (cancelled left out), done counted now */
   epic?: { id: string; done: number; total: number }
 }
@@ -163,7 +165,7 @@ export function buildInbox(inputs: InboxProjectInput[], opts: { project?: string
       if (!kind) continue
       const epic = t.epicId ? epics.get(t.epicId) : undefined
       items.push({
-        kind, project: p, id: t.id, title: t.title, since: t.since, href: href(kind, t.id, p.id),
+        kind, project: p, id: t.id, title: t.title, since: t.since, href: href(kind, t.id, p.id), status: t.status,
         evidence: { checks: t.checks ?? null, run: t.run ?? (t.failedRun ? "failed" : "none"), failedStep: t.failedStep ?? null, autoFixLimit: !!t.autoFixLimit, ...(t.findings ? { findings: t.findings } : {}) },
         ...(epic && t.epicId ? { epic: { id: t.epicId, ...epic } } : {}),
       })

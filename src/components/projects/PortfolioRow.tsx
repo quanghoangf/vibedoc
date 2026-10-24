@@ -144,7 +144,7 @@ function EpicChip({ epic, kind, onOpen }: { epic: EpicRef; kind: "at-risk" | "ov
         aria-label={t(kind === "at-risk" ? "projects.portfolioAtRiskChip" : "projects.portfolioOverdueChip", { id: epic.id, title: epic.title })}
         className={cn(
           "flex max-w-full items-center gap-1 rounded-sm px-1.5 py-0.5 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent",
-          kind === "at-risk" ? "bg-amber/15 text-amber hover:bg-amber/25" : "bg-danger/15 text-danger hover:bg-danger/25",
+          "bg-amber/15 text-amber hover:bg-amber/25", // overdue is at risk too: amber, told apart by its clock icon
         )}
       >
         <Icon aria-hidden className="size-3 shrink-0" />

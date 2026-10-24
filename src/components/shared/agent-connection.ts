@@ -6,10 +6,21 @@ import { useApp } from "@/context/AppContext"
  *  Settings → Connect agent (R081). */
 export const CONNECT_HREF = "/settings?tab=connect"
 
-/** True once any agent has called VibeDoc (an `ai` event in the activity log, like the header Connect menu's
- *  "Last agent call"). Seam for R081: swap for its live connection status.
- *  ponytail: AppContext keeps the 30 newest events, so a busy human-only stretch can hide an old agent call;
- *  empty states only show on a fresh project, where that can't happen. */
-export function useAgentConnected(): boolean {
-  return useApp().activity.some((e) => e.actor === "ai")
+/**
+ * The one "is an agent connected?" for the header, the Connect panel, First week and empty states: R081's evidence
+ * file (`/api/summary` → `agentConnection`, the newest MCP tool call from the user's agent). `undefined` = not known
+ * yet (the summary is loading): show neither "Connect" nor "connected". The read-only demo counts as connected, so
+ * it never asks to connect.
+ */
+export function useAgentConnection(): { agent: string; lastCall: string } | null | undefined {
+  const { summary, demo } = useApp()
+  if (!summary) return undefined
+  if (demo) return summary.agentConnection ?? { agent: "agent", lastCall: "" }
+  return summary.agentConnection ?? null
+}
+
+/** true / false once known, null while the summary loads (render no connect hint then). */
+export function useAgentConnected(): boolean | null {
+  const c = useAgentConnection()
+  return c === undefined ? null : c !== null
 }

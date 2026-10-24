@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { useApp } from "@/context/AppContext"
 import { useFormat, useT } from "@/context/LanguageContext"
 import { useOrigin } from "@/hooks/use-origin"
+import { useAgentConnection } from "@/components/shared/agent-connection"
 import { agentLabel, claudeMcpAddCommand, claudeMcpRemoveCommand, CONNECT_AGENTS, mcpServersConfig, pluginInstallCommands, projectMcpUrl, userScopeMcpAddCommand, type ConnectAgent } from "@/lib/agent-connect"
 
 interface McpStatus { connected: boolean; agent: string | null; lastCall: string | null }
@@ -27,7 +28,6 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
   const origin = useOrigin()
   // R100: one VibeDoc serves every project, so the agent connects to this project's URL (?root=)
   const url = projectMcpUrl(mcpUrl || `${origin}/api/mcp`, activeProject)
-  const [mcp, setMcp] = useState<McpStatus | null>(null)
   const [skills, setSkills] = useState<SkillsStatus | null>(null)
   const [projects, setProjects] = useState<ProjectConnection[]>([])
   const [agent, setAgent] = useState<ConnectAgent>("claude-code")
@@ -37,7 +37,7 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
   const load = useCallback((signal?: { cancelled: boolean }) => {
     fetch(`/api/agent-connect${rootParam}`)
       .then(res => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-      .then(d => { if (!signal?.cancelled) { setMcp(d?.mcp ?? null); setSkills(d?.skills ?? null); setProjects(Array.isArray(d?.projects) ? d.projects : []); setFailed(false) } })
+      .then(d => { if (!signal?.cancelled) { setSkills(d?.skills ?? null); setProjects(Array.isArray(d?.projects) ? d.projects : []); setFailed(false) } })
       .catch(e => {
         console.warn("[vibedoc] could not load the agent connection:", e)
         if (!signal?.cancelled) setFailed(true)
@@ -67,7 +67,11 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
     return () => { signal.cancelled = true; clearInterval(timer); window.removeEventListener("focus", check) }
   }, [load, skillsDone, claude])
 
-  const done = mcp?.connected === true
+  // MCP ✓ = the shared evidence (/api/summary, like the header and First week), known as soon as the shell is; this
+  // panel's own GET waits on `claude plugin list` (~1 s) and only feeds the skills step and the project rows
+  const connection = useAgentConnection()
+  const known = connection !== undefined
+  const done = connection != null
   return (
     <section className="space-y-4" aria-labelledby="connect-agent-title">
       <div>
@@ -99,7 +103,7 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
           </div>
         </div>
 
-        {claude ? (
+        {!known ? null : claude ? (
           <>
             {/* One recommended path (R104: user scope, every project); the per-project command is a fallback */}
             <ConnectAllProjects url={hubMcpUrl(mcpUrl || `${origin}/api/mcp`)} projects={projects} connected={done} />
@@ -135,10 +139,10 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
         )}
 
         <p className={cn("text-sm", done ? "text-teal" : "text-muted")} role="status">
-          {failed
-            ? t("connect.loadFailed")
-            : done && mcp?.lastCall
-              ? t("connect.connected", { agent: agentLabel(mcp.agent) ?? t("connect.someAgent"), ago: timeAgo(mcp.lastCall) })
+          {!known
+            ? t("connect.checking")
+            : done && connection.lastCall
+              ? t("connect.connected", { agent: agentLabel(connection.agent) ?? t("connect.someAgent"), ago: timeAgo(connection.lastCall) })
               : t("connect.waiting", { agent: claude ? "Claude Code" : agent === "cursor" ? "Cursor" : t("connect.yourAgent") })}
         </p>
       </div>
@@ -157,6 +161,9 @@ export function ConnectAgentPanel({ mcpUrl }: { mcpUrl?: string }) {
             <div className="text-xs text-muted">{t("connect.tryNext")}</div>
             <CommandBlock command="/vibedoc:roadmap" />
           </div>
+        ) : skills === null ? (
+          // No answer yet: no install button for skills that may already be there
+          <p className="text-sm text-muted" role="status">{failed ? t("connect.loadFailed") : t("connect.checking")}</p>
         ) : (
           <SkillsInstall status={skills} onDone={() => load()} />
         )}

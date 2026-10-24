@@ -19,6 +19,8 @@ export interface Summary {
   activity: ActivityEvent[]
   /** The first-week checklist (R084), derived on the server; optional so an older payload still types */
   firstWeek?: FirstWeek & { epicToBreakDown: string | null; epicToWork: string | null; dismissed: boolean }
+  /** R081: the newest MCP tool call from the user's agent (`.vibedoc/agent-connection.json`), null = never */
+  agentConnection?: { agent: string; lastCall: string } | null
   /** VIBEDOC_DEMO=1 on the server: read-only demo, the UI hides every write control (R042) */
   demo?: boolean
   /** VIBEDOC_PLAYGROUND=1: `vibedoc --demo`, a writable throwaway copy of the sample project (R085) */

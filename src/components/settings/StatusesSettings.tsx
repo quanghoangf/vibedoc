@@ -8,6 +8,7 @@ import { useApp } from "@/context/AppContext"
 import { toast } from "@/components/ui/toast"
 import { STATUS_COLOR_CLASS, STATUS_META, defLabel, useCategoryLabel } from "@/components/shared/StatusIcon"
 import { useT } from "@/context/LanguageContext"
+import { SavedNote } from "@/components/settings/SavedNote"
 import type { MessageKey } from "@/i18n"
 import { BUILTIN_STATUSES, STATUS_COLORS, invalidStatusId, statusDefs, type StatusColor, type StatusDef } from "@/lib/statuses"
 import type { AppSettings } from "@/lib/settings"
@@ -29,7 +30,7 @@ const COLOR_KEY: Record<StatusColor, MessageKey> = {
 const slug = (label: string) => label.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)
 
 /** The project's statuses: rename, recolor, reorder, add (mapped onto a built-in category) and delete custom ones. */
-export function StatusesSettings({ settings, onSave }: { settings: AppSettings; onSave: (s: AppSettings) => Promise<void> | void }) {
+export function StatusesSettings({ settings, onSave, savedAt = null }: { settings: AppSettings; onSave: (s: AppSettings) => Promise<unknown> | void; savedAt?: number | null }) {
   const { board, rootParam, refresh } = useApp()
   const { t, tn } = useT()
   const categoryLabel = useCategoryLabel()
@@ -77,6 +78,7 @@ export function StatusesSettings({ settings, onSave }: { settings: AppSettings; 
       <div>
         <h2 className="mb-1 text-xl font-semibold text-txt">{t("settings.tabStatuses")}</h2>
         <p className="text-sm text-muted">{t("settings.statusesHint")}</p>
+        <SavedNote at={savedAt} />
       </div>
 
       <div aria-hidden className={cn(ROW, "hidden px-2.5 font-mono text-[10px] uppercase tracking-[0.06em] text-muted sm:grid")}>

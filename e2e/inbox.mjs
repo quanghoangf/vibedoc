@@ -87,13 +87,15 @@ try {
   await page.getByRole("combobox", { name: "Project" }).selectOption("")
   console.log("ok  kind and project filters narrow the list and survive a reload")
 
-  // Evidence in the row: these hand-written reviews have no checklist and no run, so Approve is the primary button
+  // Evidence in the row: these hand-written reviews have no checklist and no run. In a list both decisions stay quiet
+  // outline buttons (never a column of filled buttons): the evidence line and Approve's label carry the message
   assert.match(await row(pa, "T001").locator("[data-inbox-evidence]").innerText(), /no checks · no run/)
-  assert.match(await row(pa, "T001").getByRole("button", { name: "Approve" }).getAttribute("class"), /bg-accent/)
+  assert.doesNotMatch(await row(pa, "T001").getByRole("button", { name: "Approve" }).getAttribute("class"), /\bbg-accent\b/)
+  assert.doesNotMatch(await row(pa, "T001").locator("[data-inbox-action=send-back]").getAttribute("class"), /\bbg-accent\b/)
   // The buttons' accessible names carry the task, so a screen reader's button list tells the rows apart
   assert.equal(await row(pa, "T001").getByRole("button", { name: /^Approve: T001 / }).count(), 1)
-  assert.equal(await row(pa, "T001").getByRole("button", { name: /^Send back: T001 / }).count(), 1)
-  console.log("ok  rows show their evidence (no checks · no run); Approve is primary when nothing is left unproven")
+  assert.equal(await row(pa, "T001").getByRole("button", { name: /^Send back…: T001 / }).count(), 1)
+  console.log("ok  rows show their evidence (no checks · no run); Approve and Send back… are quiet outline buttons")
 
   // 390px: the buttons drop under the title instead of squeezing it to two words
   await page.setViewportSize({ width: 390, height: 800 })
@@ -132,7 +134,7 @@ try {
   await row(pb, "T002").locator("a").first().focus()
   await page.keyboard.press("s")
   await row(pb, "T002").getByRole("textbox").fill("Rename the button")
-  await row(pb, "T002").getByRole("button", { name: "Send back" }).click()
+  await row(pb, "T002").getByRole("button", { name: "Send back", exact: true }).click()
   await row(pb, "T002").waitFor({ state: "detached" })
   await until(() => /todo/i.test(status(b, "T002-bravo.md")))
   assert.match(status(a, "T001-review.md"), /done/i)

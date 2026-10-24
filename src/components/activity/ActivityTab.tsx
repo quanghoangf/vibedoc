@@ -160,7 +160,7 @@ export function ActivityTab({ activity, rootParam, onOpenTask, onOpenDoc, focusS
           message={t("memory.noActivity")}
           lead={t("memory.noActivityHint")}
           // no agent yet: connecting it is what fills this page
-          action={connected
+          action={connected === null ? undefined : connected
             ? <Button asChild size="sm"><Link href="/board">{t("memory.openBoard")}</Link></Button>
             : <Button asChild size="sm"><Link href={CONNECT_HREF}><Plug className="size-4" aria-hidden /> {t("shell.connectYourAgent")}</Link></Button>}
         />

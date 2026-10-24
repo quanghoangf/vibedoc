@@ -1,12 +1,12 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense, useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { useSearchParams } from "next/navigation"
 import { Search } from "lucide-react"
 import { useApp } from "@/context/AppContext"
 import { useT } from "@/context/LanguageContext"
 import { KIND_LABEL, fetchSearch, useOpenResult } from "@/components/search/search-results"
-import { highlightParts, snippetText, type CrossGroup } from "@/lib/cross-search"
+import { highlightParts, snippetText, stepIndex, type CrossGroup } from "@/lib/cross-search"
 import { NoMatch } from "@/components/search/NoMatch"
 
 type Result = { key: string; status: "done"; groups: CrossGroup[] } | { key: string; status: "error"; error: string }
@@ -62,8 +62,41 @@ function SearchView() {
     return () => { clearTimeout(timer); ctrl.abort() }
   }, [q, effectiveScope, key])
 
+  // "Show all" for one project: every hit, swapped into its group (only for the search it was asked on)
+  const [full, setFull] = useState<{ key: string; id: string; status: "loading" | "error" | "done"; group?: CrossGroup; error?: string }[]>([])
+  const fullFor = (id: string) => full.find((f) => f.key === key && f.id === id)
+  const showAll = (id: string) => {
+    const k = key
+    setFull((xs) => [...xs.filter((f) => f.key === k && f.id !== id), { key: k, id, status: "loading" }])
+    fetchSearch(q, `project:${id}`, undefined, true).then(
+      (gs) => setFull((xs) => xs.map((f) => f.key === k && f.id === id ? { ...f, status: "done", group: gs[0] } : f)),
+      (e: Error) => setFull((xs) => xs.map((f) => f.key === k && f.id === id ? { ...f, status: "error", error: e.message } : f)),
+    )
+  }
+
   const current = result?.key === key ? result : null
-  const count = current?.status === "done" ? current.groups.reduce((n, g) => n + g.results.length, 0) : 0
+  const shown = current?.status === "done"
+    ? current.groups.map((g) => { const f = fullFor(g.project.id); return f?.status === "done" && f.group ? f.group : g })
+    : []
+  const count = shown.reduce((n, g) => n + g.results.length, 0)
+  const total = shown.reduce((n, g) => n + g.total, 0)
+
+  // ↑/↓ (j/k on a result) walk the results, Home/End jump; Enter is the focused button's own click
+  const inputRef = useRef<HTMLInputElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
+  const onResultsKey = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return
+    const rows = [...(listRef.current?.querySelectorAll<HTMLButtonElement>("[data-result]") ?? [])]
+    const inInput = e.target === inputRef.current
+    if (inInput && e.key !== "ArrowDown") return
+    const at = inInput ? -1 : rows.indexOf(e.target as HTMLButtonElement)
+    if (!inInput && at < 0) return
+    if (at === 0 && (e.key === "ArrowUp" || e.key === "k")) { e.preventDefault(); inputRef.current?.focus(); return }
+    const next = stepIndex(at, rows.length, e.key)
+    if (next === null) return
+    e.preventDefault()
+    rows[next].focus()
+  }
 
   // nothing anywhere: doc names in this project that look like the query (a miss is a question, R087)
   const [suggested, setSuggested] = useState<{ q: string; paths: string[] } | null>(null)
@@ -89,6 +122,8 @@ function SearchView() {
         <label className="relative flex min-w-0 flex-1 items-center">
           <Search className="pointer-events-none absolute left-2.5 size-4 text-muted" aria-hidden />
           <input
+            ref={inputRef}
+            onKeyDown={onResultsKey}
             autoFocus
             type="search"
             aria-label={t("search.inputLabel")}
@@ -122,10 +157,13 @@ function SearchView() {
             action={scope !== "all" ? { label: t("search.tryAllProjects"), onClick: () => setScope("all") } : undefined}
           />
         )}
-        {current?.status === "done" && count > 0 && <p className="mb-3 text-xs text-muted">{tn("search.results", count)}</p>}
+        {current?.status === "done" && count > 0 && <p className="mb-3 text-xs text-muted">{tn("search.results", total)} <span className="hidden sm:inline">· {t("search.keysHint")}</span></p>}
       </div>
 
-      {current?.status === "done" && current.groups.map((g) => {
+      <div ref={listRef} onKeyDown={onResultsKey}>
+      {shown.map((g) => {
+        const f = fullFor(g.project.id)
+        const hidden = g.total > g.results.length
         // two results with one title (README, index…) need their paths to tell them apart
         const titles = new Map<string, number>()
         for (const r of g.results) titles.set(r.title, (titles.get(r.title) ?? 0) + 1)
@@ -140,6 +178,7 @@ function SearchView() {
               <li key={`${r.kind}:${r.path}:${r.id ?? ""}`}>
                 <button
                   type="button"
+                  data-result
                   onClick={() => open(r)}
                   className="flex w-full min-w-0 flex-col px-3 py-2 text-left hover:bg-surface2 focus-visible:outline-2 focus-visible:outline-accent"
                 >
@@ -154,9 +193,24 @@ function SearchView() {
               </li>
             ))}
           </ul>
+          {hidden && (
+            <p data-search-more className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted">
+              <span>{t("search.topOf", { shown: g.results.length, total: g.total, project: g.project.name })}</span>
+              <span aria-hidden>·</span>
+              {f?.status === "loading"
+                ? <span>{t("search.loadingAll")}</span>
+                : (
+                  <button type="button" onClick={() => showAll(g.project.id)} className="rounded-sm font-medium text-txt underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-accent">
+                    {t("search.showAll")}
+                  </button>
+                )}
+              {f?.status === "error" && <span role="alert" className="text-danger">{t("search.showAllFailed", { error: f.error ?? "" })}</span>}
+            </p>
+          )}
         </section>
         )
       })}
+      </div>
     </div>
   )
 }

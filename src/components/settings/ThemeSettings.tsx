@@ -6,10 +6,12 @@ import { SANS_FONTS, MONO_FONTS, type AppSettings } from "@/lib/settings"
 import { useLang, useT } from "@/context/LanguageContext"
 import type { Lang } from "@/lib/i18n"
 import type { MessageKey } from "@/i18n"
+import { SavedNote } from "@/components/settings/SavedNote"
 
 interface ThemeSettingsProps {
   settings: AppSettings
   onSave: (settings: AppSettings) => void
+  savedAt?: number | null
 }
 
 // Each swatch is the accent it applies: the --rgb-accent values in globals.css (light, then .dark). The default's id
@@ -49,7 +51,7 @@ const LANGUAGES: { id: Lang; label: string }[] = [
   { id: "vi", label: "Tiếng Việt" },
 ]
 
-export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
+export function ThemeSettings({ settings, onSave, savedAt = null }: ThemeSettingsProps) {
   const { lang, setLang } = useLang()
   const { t } = useT()
   return (
@@ -57,6 +59,7 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
       <div>
         <h2 className="text-xl font-semibold text-txt mb-1">{t("settings.tabAppearance")}</h2>
         <p className="text-sm text-muted">{t("settings.appearanceHint")}</p>
+        <SavedNote at={savedAt} />
       </div>
 
       {/* Theme */}
@@ -133,13 +136,14 @@ export function ThemeSettings({ settings, onSave }: ThemeSettingsProps) {
                 className={cn(
                   "w-10 h-10 rounded-full flex items-center justify-center transition-transform",
                   color.class,
-                  isActive ? "ring-2 ring-offset-2 ring-offset-bg ring-txt scale-110" : "hover:scale-105"
+                  // selection = the accent ring across a bg gap (DESIGN.md); the selected swatch is the accent, so the ring matches it in both themes
+                  isActive ? "ring-2 ring-accent ring-offset-2 ring-offset-bg" : "hover:scale-105"
                 )}
                 aria-label={t(color.label)}
                 aria-pressed={isActive}
                 title={t(color.label)}
               >
-                {isActive && <Check className="w-5 h-5 text-white dark:text-black" aria-hidden />}
+                {isActive && <Check className="w-5 h-5 text-accent-fg" aria-hidden />}
               </button>
             )
           })}

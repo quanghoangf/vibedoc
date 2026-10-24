@@ -232,19 +232,19 @@ const PAGES = [
   { path: "/setup", name: "setup: templates", open: async (page) => {
     await page.getByRole("button", { name: /^Tối giản/ }).click()
     await page.getByPlaceholder("Dự án tuyệt vời của tôi").fill("Demo")
-    await page.getByRole("button", { name: /^Tiếp/ }).click()
+    await page.getByRole("button", { name: "Tiếp", exact: true }).click()
     await page.getByRole("button", { name: "Tài liệu quy trình" }).click()
     await page.getByRole("button", { name: /Chọn hết|Bỏ chọn hết/ }).waitFor()
   } },
   { path: "/setup", name: "setup: tech stack, team, preview", open: async (page) => {
     await page.getByRole("button", { name: /^Tối giản/ }).click()
     await page.getByPlaceholder("Dự án tuyệt vời của tôi").fill("Demo")
-    await page.getByRole("button", { name: /^Tiếp/ }).click()
-    await page.getByRole("button", { name: /^Tiếp/ }).click()
+    await page.getByRole("button", { name: "Tiếp", exact: true }).click()
+    await page.getByRole("button", { name: "Tiếp", exact: true }).click()
     await page.getByPlaceholder("Tìm công nghệ...").fill("Zigzag")
     await page.getByText(/để thêm/).waitFor()
     await assertVietnamese(page, "setup: tech stack")
-    await page.getByRole("button", { name: /^Tiếp/ }).click()
+    await page.getByRole("button", { name: "Tiếp", exact: true }).click()
     await page.getByText("Quy mô nhóm").waitFor()
     await assertVietnamese(page, "setup: team")
     await page.getByRole("button", { name: /^Tạo/ }).click()

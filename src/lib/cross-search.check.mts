@@ -1,6 +1,6 @@
 // Self-check for cross-project search. Run: node src/lib/cross-search.check.mts
 import assert from 'node:assert/strict'
-import { formatCrossSearch, highlightParts, hitHref, mergeResults, rankItems, snippetText, type CrossHit } from './cross-search.ts'
+import { formatCrossSearch, highlightParts, hitHref, mergeResults, parseLimit, rankItems, snippetText, stepIndex, type CrossHit } from './cross-search.ts'
 import { tokenize } from './recall.ts'
 
 const web = { id: 'web', name: 'Web' }
@@ -28,6 +28,10 @@ assert.equal(groups[0].results[0].project.id, 'api')
 
 const many = (n: number) => Array.from({ length: n }, (_, i) => hit(`f${String(i).padStart(2, '0')}.md`, 1))
 assert.equal(mergeResults([{ project: web, hits: many(15) }])[0].results.length, 10)
+// a cut list knows how many there were (never a silent "10 results"), and Infinity shows every one
+assert.equal(mergeResults([{ project: web, hits: many(23) }])[0].total, 23)
+assert.equal(mergeResults([{ project: web, hits: many(23) }], { perProject: Infinity, total: Infinity })[0].results.length, 23)
+assert.equal(groups[0].total, 2)
 const capped = mergeResults(Array.from({ length: 7 }, (_, i) => ({ project: { id: `p${i}`, name: `P${i}` }, hits: many(10) })))
 assert.equal(capped.reduce((s, g) => s + g.results.length, 0), 50)
 assert.deepEqual(mergeResults([{ project: web, hits: [hit('a.md', 2)] }, { project: api, hits: [hit('a.md', 2)] }]).map(g => g.project.id), ['web', 'api']) // a tie keeps project order
@@ -38,11 +42,33 @@ const tied = mergeResults([{ project: web, hits: [hit('t.md', 3, 'task'), hit('d
 assert.deepEqual(tied[0].results.map(r => r.kind), ['doc', 'entry', 'task'])
 
 // agent text: every result line is prefixed with the project id
-const text = formatCrossSearch('rate limit', [{ project: api, results: [{ ...hit('docs/decisions/rate-limit.md', 6), title: 'Rate limit', snippet: 'L3: we rate limit', project: api }] }])
+const text = formatCrossSearch('rate limit', [{ project: api, total: 1, results: [{ ...hit('docs/decisions/rate-limit.md', 6), title: 'Rate limit', snippet: 'L3: we rate limit', project: api }] }])
 assert.match(text, /^🔍 "rate limit" — 1 result\(s\) in 1 project\(s\)/)
 assert.match(text, /^\[api\] doc \*\*Rate limit\*\* — docs\/decisions\/rate-limit\.md$/m)
 assert.match(text, /^\[api\] {3}L3: we rate limit$/m)
 assert.equal(formatCrossSearch('x', []), 'No results for "x" in this project\'s groups')
+assert.doesNotMatch(text, /top \d+ of/)
+const cut = mergeResults([{ project: api, hits: many(12) }])
+assert.match(formatCrossSearch('f', cut), /^\[api\] top 10 of 12$/m)
+
+// /api/search ?limit=
+assert.equal(parseLimit(null), 10)
+assert.equal(parseLimit('all'), Infinity)
+assert.equal(parseLimit('0'), Infinity)
+assert.equal(parseLimit('25'), 25)
+assert.equal(parseLimit('-3'), 10)
+assert.equal(parseLimit('x'), 10)
+
+// ↑/↓ and j/k walk the rows, clamped at the ends; from nowhere they land on the first
+assert.equal(stepIndex(-1, 3, 'ArrowDown'), 0)
+assert.equal(stepIndex(0, 3, 'j'), 1)
+assert.equal(stepIndex(2, 3, 'ArrowDown'), 2)
+assert.equal(stepIndex(1, 3, 'k'), 0)
+assert.equal(stepIndex(0, 3, 'ArrowUp'), 0)
+assert.equal(stepIndex(1, 3, 'End'), 2)
+assert.equal(stepIndex(2, 3, 'Home'), 0)
+assert.equal(stepIndex(0, 0, 'ArrowDown'), null)
+assert.equal(stepIndex(0, 3, 'Enter'), null)
 
 // deep links per kind
 assert.equal(hitHref({ kind: 'doc', id: null, path: 'docs/a b.md' }), '/docs?doc=docs%2Fa%20b.md')

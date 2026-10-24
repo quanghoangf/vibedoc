@@ -28,9 +28,8 @@ function project(files) {
 
 const withDocs = project({ "README.md": "# Shop\n\nA small web shop.\n", "docs/prd.md": "# PRD\n\nCheckout and catalog.\n" })
 const empty = project({ "LICENSE.md": "MIT\n" })
-const connected = project({ "docs/a.md": "# A\n", ".vibedoc-activity.json": JSON.stringify([
-  { id: "e1", timestamp: new Date().toISOString(), type: "session_start", actor: "ai", title: "Session started", detail: "Agent connected" },
-]) })
+// "Connected" = R081's evidence file (the one source for the header, Connect panel, First week and this row)
+const connected = project({ "docs/a.md": "# A\n", ".vibedoc/agent-connection.json": JSON.stringify({ agent: "claude", lastCall: new Date().toISOString() }) })
 const setUp = project({ "README.md": "# App\n", "plans/tasks/T001-x.md": "# T001: First\n**Status:** 📋 Todo\n\n## Goal\nX.\n" })
 
 const browser = await launchChrome()
@@ -68,11 +67,15 @@ try {
   {
     const { ctx, page } = await open(empty)
     await page.waitForURL(/\/start\b/)
+    // First week (sidebar) already asks to connect: the welcome doesn't repeat it; dismissed → the row comes back
+    await page.getByRole("group", { name: "First week" }).getByTestId("first-week-next").getByText("Next: connect your agent").waitFor()
+    assert.equal(await page.getByText("Claude Code or Cursor in your terminal can connect too.").count(), 0)
+    await page.getByRole("button", { name: "Dismiss checklist" }).click()
     await page.getByText("Claude Code or Cursor in your terminal can connect too.").waitFor()
     await page.getByRole("link", { name: "Write project docs" }).click()
     await page.waitForURL(/\/setup\b/)
     await page.getByRole("heading", { name: "Write project docs" }).waitFor()
-    console.log("ok  S4 Write project docs → template wizard; agent row says not connected")
+    console.log("ok  S4 Write project docs → template wizard; agent row says not connected only once First week is dismissed")
     await ctx.close()
   }
   {
@@ -80,7 +83,7 @@ try {
     await page.waitForURL(/\/start\b/)
     // the welcome's own line (main); the header chip and the First week row say it too
     await page.locator("main#main").getByText("Agent connected", { exact: true }).waitFor()
-    console.log("ok  agent row says connected after an ai event")
+    console.log("ok  agent row says connected from the evidence file")
     await ctx.close()
   }
   {

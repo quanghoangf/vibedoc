@@ -62,7 +62,7 @@ import { firstProseSentence } from './describe'
 import { buildDocGraph, docNode, docTitle, extractLinks, type DocGraph, type DocItem } from './doc-links'
 import { rankDocs, type SearchResult } from './doc-search'
 import { rankDocsScored } from './doc-search'
-import { mergeResults, rankItems, type CrossGroup, type CrossHit } from './cross-search'
+import { PER_PROJECT, mergeResults, rankItems, type CrossGroup, type CrossHit } from './cross-search'
 import type { DocLint } from './doc-lint'
 import { lintProject } from './doc-lint-project'
 import { NAME_STATUS_LOG_ARGS, outdatedRefs, parseNameStatusLog, type LogCommit, type OutdatedRef } from './doc-upkeep'
@@ -871,7 +871,7 @@ export async function listGroupRoadmap(slug: string): Promise<{ items: RoadmapIt
   return { items: lists.flat() }
 }
 
-/** One project's search hits (R107): docs (not task/epic/entry files, those come as items), entries, tasks, epics. */
+/** One project's search hits (R107): docs (not task/epic/entry files, those come as items), entries, tasks, epics. All of them: `mergeResults` caps and counts. */
 async function searchProject(query: string, root: string): Promise<CrossHit[]> {
   const [files, entries, tasks, items] = await Promise.all([
     readMarkdownFiles(root).catch(() => []),
@@ -881,10 +881,10 @@ async function searchProject(query: string, root: string): Promise<CrossHit[]> {
   ])
   const docFiles = files.filter(f => !['task', 'epic', 'entry'].includes(f.item.node.kind))
   const label = new Map(docFiles.map(f => [f.path, f.item.node.label]))
-  const docs: CrossHit[] = rankDocsScored(docFiles.map(f => ({ path: f.path, raw: f.raw })), query, tokenize, 10)
+  const docs: CrossHit[] = rankDocsScored(docFiles.map(f => ({ path: f.path, raw: f.raw })), query, tokenize, Infinity)
     .map(r => ({ kind: 'doc', id: null, path: r.file, title: label.get(r.file) ?? r.file, snippet: r.hits[0] ? `L${r.hits[0].line}: ${r.hits[0].text}` : '', score: r.score }))
   const fileOf = new Map(entries.map(e => [e.id, e.file]))
-  const hits: CrossHit[] = rankEntries(entries, query, { limit: 10 })
+  const hits: CrossHit[] = rankEntries(entries, query, { limit: Infinity })
     .map(h => ({ kind: 'entry', id: h.id, path: fileOf.get(h.id) ?? '', title: h.summary, snippet: h.type, score: h.score }))
   const work = rankItems([
     ...tasks.map(t => ({ kind: 'task' as const, id: t.id, path: t.file, title: t.title, snippet: t.status })),
@@ -898,7 +898,7 @@ async function searchProject(query: string, root: string): Promise<CrossHit[]> {
  * members, `project:<hub id>` = one. Grouped by project, best first (cross-search.ts). Unknown group / project → HubError 404.
  * ponytail: a stopword-only query finds nothing here (rankDocs' substring fallback isn't merged); add it if users miss it
  */
-export async function searchAll(query: string, scope: string): Promise<CrossGroup[]> {
+export async function searchAll(query: string, scope: string, perProject = PER_PROJECT): Promise<CrossGroup[]> {
   let projects: { id: string; name: string; root: string }[]
   if (scope === 'all') projects = (await discoverProjects()).filter(p => !p.archived && !p.missing)
   else if (scope.startsWith('group:')) projects = (await findGroup(scope.slice(6))).members
@@ -907,14 +907,14 @@ export async function searchAll(query: string, scope: string): Promise<CrossGrou
     if (!p) throw new HubError(`no project "${scope.slice(8)}"`, 404)
     projects = [p]
   } else throw new HubError('scope must be all, group:<slug> or project:<id>')
-  return searchIn(query, projects)
+  return searchIn(query, projects, perProject)
 }
 
-/** `searchAll` over the given projects. */
-export async function searchIn(query: string, projects: readonly { id: string; name: string; root: string }[]): Promise<CrossGroup[]> {
+/** `searchAll` over the given projects. An uncapped `perProject` (Show all) lifts the overall cap too. */
+export async function searchIn(query: string, projects: readonly { id: string; name: string; root: string }[], perProject = PER_PROJECT): Promise<CrossGroup[]> {
   if (!query.trim()) return []
   const per = await Promise.all(projects.map(async p => ({ project: { id: p.id, name: p.name }, hits: await searchProject(query, p.root) })))
-  return mergeResults(per)
+  return mergeResults(per, perProject === Infinity ? { perProject, total: Infinity } : { perProject })
 }
 
 /** The members of every group `root` is in (deduped, `root`'s own project first); [] when it is in none. */
@@ -969,13 +969,7 @@ export async function getPortfolio(now = new Date()): Promise<PortfolioRow[]> {
  * demo copy inside a repo), so the caller globs instead.
  */
 async function gitMarkdownPaths(root: string): Promise<string[] | null> {
-  try {
-    if ((await git(['rev-parse', '--is-inside-work-tree'], root)).trim() !== 'true') return null
-  } catch {
-    return null
-  }
-  // exit 0 = root is ignored; exit 1 (not ignored) throws, so carry on
-  if (await git(['check-ignore', '-q', '.'], root).then(() => true, () => false)) return null
+  if (!(await usesGitListing(root))) return null
   try {
     const [listed, deleted] = await Promise.all([
       git(['ls-files', '-z', '-co', '--exclude-standard', '--', '*.md'], root),
@@ -985,6 +979,31 @@ async function gitMarkdownPaths(root: string): Promise<string[] | null> {
   } catch {
     return null
   }
+}
+
+// ponytail: per root for the process, two serial git spawns saved on every listing; a `git init` after start keeps globbing until restart
+const gitListingRoots: Map<string, Promise<boolean>> = (() => {
+  const g = globalThis as { __vibedocGitListingRoots?: Map<string, Promise<boolean>> }
+  return (g.__vibedocGitListingRoots ??= new Map())
+})()
+
+/** True when root is in a git work tree that doesn't ignore it. */
+function usesGitListing(root: string): Promise<boolean> {
+  const key = path.resolve(root)
+  let hit = gitListingRoots.get(key)
+  if (!hit) {
+    hit = (async () => {
+      try {
+        if ((await git(['rev-parse', '--is-inside-work-tree'], root)).trim() !== 'true') return false
+      } catch {
+        return false
+      }
+      // exit 0 = root is ignored; exit 1 (not ignored) throws, so carry on
+      return !(await git(['check-ignore', '-q', '.'], root).then(() => true, () => false))
+    })()
+    gitListingRoots.set(key, hit)
+  }
+  return hit
 }
 
 async function scanMarkdownPaths(root: string): Promise<MarkdownPaths> {
@@ -1234,15 +1253,13 @@ export async function listTasks(root: string): Promise<{ tasks: Task[]; board: T
   let files = await glob('plans/tasks/T*.md', { cwd: root, nodir: true })
   if (files.length === 0) files = await glob('plans/T*.md', { cwd: root, nodir: true })
 
-  const tasks: Task[] = []
-  for (const f of files.sort()) {
-    try {
-      const content = await fs.readFile(path.join(root, f), 'utf8')
-      tasks.push(parseTaskFile(f, content, statuses))
-    } catch {}
-  }
-
-  const [lastRuns, updated] = await Promise.all([lastRunsByTask(root), taskUpdatedAt(root)])
+  // Parallel reads, sorted by path: one await per file made /api/summary + /api/tasks wait on ~600 serial reads
+  const [read, lastRuns, updated] = await Promise.all([
+    Promise.all(files.sort().map(f => fs.readFile(path.join(root, f), 'utf8').then(c => parseTaskFile(f, c, statuses)).catch(() => null))),
+    lastRunsByTask(root),
+    taskUpdatedAt(root),
+  ])
+  const tasks = read.filter((t): t is Task => t !== null)
   for (const t of tasks) t.updatedAt = updated.get(t.id) ?? null
   await markOutdatedVerifications(tasks, root)
   const board: TaskBoard = { todo: [], 'in-progress': [], review: [], blocked: [], paused: [], done: [], cancelled: [] }
@@ -1279,6 +1296,10 @@ async function taskUpdatedAt(root: string): Promise<Map<string, string>> {
 }
 
 const OUTDATED_LOG_MAX = 2000
+const verifyLogCache: Map<string, { head: string; log: { sha: string; subject: string }[] }> = (() => {
+  const g = globalThis as { __vibedocVerifyLog?: Map<string, { head: string; log: { sha: string; subject: string }[] }> }
+  return (g.__vibedocVerifyLog ??= new Map())
+})()
 
 /**
  * R067: a verification report is outdated once a commit naming its task lands after the report's sha. One git log
@@ -1289,9 +1310,16 @@ async function markOutdatedVerifications(tasks: Task[], root: string): Promise<v
   if (!withSha.length) return
   let log: { sha: string; subject: string }[]
   try {
-    // ponytail: the newest 2000 commits; a report older than that never shows as outdated
-    log = (await git(['log', '-n', String(OUTDATED_LOG_MAX), '--format=%H%x1f%s'], root))
-      .split('\n').filter(Boolean).map(l => { const [sha, subject] = l.split('\x1f'); return { sha, subject } })
+    // Keyed by HEAD like upkeepLogCache: every listTasks (summary, board, MCP) re-ran this ~50 ms log
+    const head = (await git(['rev-parse', 'HEAD'], root)).trim()
+    const hit = verifyLogCache.get(root)
+    if (hit?.head === head) log = hit.log
+    else {
+      // ponytail: the newest 2000 commits; a report older than that never shows as outdated
+      log = (await git(['log', '-n', String(OUTDATED_LOG_MAX), '--format=%H%x1f%s'], root))
+        .split('\n').filter(Boolean).map(l => { const [sha, subject] = l.split('\x1f'); return { sha, subject } })
+      verifyLogCache.set(root, { head, log })
+    }
   } catch (e) {
     console.warn('verification: git log unavailable', e instanceof Error ? e.message : e)
     return
@@ -3766,14 +3794,6 @@ export async function getDocGraph(root: string, scope: DocScope = 'eager', also:
 
 // ─── Status summary ───────────────────────────────────────────────────────────
 
-/**
- * R084: has an agent ever called in? Any `ai` event in the activity log (the header's "last agent call" rule).
- * Seam for R081 (Connect your agent): swap in its own first-call signal here when it lands.
- */
-function agentConnected(events: ActivityEvent[]): boolean {
-  return events.some(e => e.actor === 'ai')
-}
-
 // Per install, not shared through git (the repo's .gitignore lists it): a teammate who clones gets their own first week
 const FIRST_WEEK_FILE = path.join('.vibedoc', 'first-week.json')
 
@@ -3795,13 +3815,14 @@ export async function setFirstWeekDismissed(root: string, dismissed: boolean): P
 
 /** The first-week checklist (R084), derived from the project's files on every read; `tasks` = listTasks(root).tasks. */
 export async function getFirstWeek(root: string, tasks: Task[]): Promise<FirstWeek & { epicToBreakDown: string | null; epicToWork: string | null; dismissed: boolean }> {
-  const [events, { items }, entries, dismissed] = await Promise.all([readActivity(root, ACTIVITY_CAP), listRoadmap(root), listEntries(root), firstWeekDismissed(root)])
+  const [events, { items }, entries, dismissed, connection] = await Promise.all([readActivity(root, ACTIVITY_CAP), listRoadmap(root), listEntries(root), firstWeekDismissed(root), getAgentConnection(root)])
   const epics = items.filter(i => i.parent)
   // An agent owns a task it started; a direct todo → done by an agent leaves no owner, so its done event counts too
   const aiDone = new Set(events.filter(e => e.actor === 'ai' && e.taskStatus === 'done' && e.taskId).map(e => e.taskId))
   return {
     ...firstWeek({
-      agent: agentConnected(events),
+      // R081's evidence (an MCP tool call from the user's agent): the one "connected" the header and Connect panel show
+      agent: connection !== null,
       roadmap: items.length > 0,
       breakdown: epics.some(e => e.tasks.length > 0),
       taskDone: tasks.some(t => t.status === 'done' && (ownerKind(t.owner) === 'ai' || aiDone.has(t.id))),
@@ -3815,11 +3836,12 @@ export async function getFirstWeek(root: string, tasks: Task[]): Promise<FirstWe
 }
 
 export async function getProjectSummary(root: string) {
-  const [{ tasks, board }, docs, memory, activity] = await Promise.all([
+  const [{ tasks, board }, markdown, memory, activity, agentConnection] = await Promise.all([
     listTasks(root),
-    listDocs(root),
+    listMarkdownPaths(root), // a count only: listDocs would read every doc for its frontmatter
     readMemory(root),
     readActivity(root, 10),
+    getAgentConnection(root),
   ])
   const firstWeekState = await getFirstWeek(root, tasks)
 
@@ -3832,10 +3854,12 @@ export async function getProjectSummary(root: string) {
       active: board['in-progress'],
       blocked: board.blocked,
     },
-    docs: { total: docs.length },
+    docs: { total: markdown.docs.filter(isEagerPath).length },
     memory,
     activity,
     firstWeek: firstWeekState,
+    /** R081's evidence file: the one "agent connected" for the header, Connect panel, First week and empty states */
+    agentConnection,
   }
 }
 

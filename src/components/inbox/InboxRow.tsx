@@ -9,6 +9,11 @@ import { useFormat, useT } from "@/context/LanguageContext"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useApproveLabel } from "@/components/shared/approve-label"
+import { DECISION_BUTTON, SendBackButton } from "@/components/shared/SendBackButton"
+import { REVIEWABLE } from "@/lib/review"
+
+/** A failed-run row can be sent back when its task is in review or done (`REVIEWABLE`); one the agent holds can't. */
+export const canSendBackFailed = (item: InboxItem) => item.kind === "failed-run" && !!item.status && REVIEWABLE["changes requested"].includes(item.status)
 
 export const KIND_LABEL: Record<InboxKind, MessageKey> = {
   review: "inbox.kindReview",
@@ -31,7 +36,7 @@ interface InboxRowProps {
   /** The keyboard row (j/k): a ring, and a/s act on it */
   focused?: boolean
   onFocus?: () => void
-  /** Review rows only: approve, or send back with a note. Absent = no inline actions (demo). */
+  /** Review rows approve or send back with a note, failed-run rows on a reviewable task send back. Absent = no inline decisions (demo). */
   onApprove?: () => void
   onSendBack?: (note: string) => void
   /** The send-back note is open; the page owns it so `s` can open it */
@@ -59,12 +64,14 @@ export function InboxRow({ item, focused = false, onFocus, onApprove, onSendBack
   const [note, setNote] = useState("")
   const { icon: Icon, tone } = KIND_ICON[item.kind]
   const kind = t(KIND_LABEL[item.kind])
-  const review = item.kind === "review" && onApprove && onSendBack
+  const review = item.kind === "review" && !!onApprove && !!onSendBack
+  // a failed run: Send back when the task is in review or done (a failed run reopens finished work), else only Open run
+  const failedRun = item.kind === "failed-run"
+  const canSendBack = !!onSendBack && (review || (failedRun && canSendBackFailed(item)))
   const evidence = useEvidenceText(item)
   const e = item.evidence
   const close = () => { setNote(""); onNoteOpen?.(false) }
-  // One Approve rule (approveRisk, shared with Test review and the task panel): unproven → Approve outline with the label
-  // saying what's missing, Send back the filled primary
+  // One Approve rule (approveRisk, shared with Test review and the task panel): the label says what's missing
   const risk = approveRisk(e)
   const approveLabel = useApproveLabel()(risk)
   const named = (action: string) => t("inbox.actionOnTask", { action, id: item.id, title: item.title })
@@ -93,17 +100,27 @@ export function InboxRow({ item, focused = false, onFocus, onApprove, onSendBack
             </span>
           </span>
         </Link>
-        {review && !noteOpen && (
+        {/* Quiet buttons in a list: the evidence line and Approve's label carry the risk, so no row shouts */}
+        {(review || failedRun) && !noteOpen && (
           <div className="flex shrink-0 gap-2 pl-7 sm:pl-0">
-            <Button size="sm" variant={risk ? "outline" : "default"} onClick={onApprove} data-inbox-action="approve" aria-label={named(approveLabel)} aria-keyshortcuts={focused ? "a" : undefined}>{approveLabel}</Button>
-            <Button size="sm" variant={risk ? "default" : "outline"} onClick={() => onNoteOpen?.(true)} data-inbox-action="send-back" aria-label={named(t("inbox.sendBack"))} aria-keyshortcuts={focused ? "s" : undefined}>{t("inbox.sendBack")}</Button>
+            {review && (
+              <Button size="sm" variant="outline" className={DECISION_BUTTON} onClick={onApprove} data-inbox-action="approve" aria-label={named(approveLabel)} aria-keyshortcuts={focused ? "a" : undefined}>{approveLabel}</Button>
+            )}
+            {canSendBack && (
+              <SendBackButton onClick={() => onNoteOpen?.(true)} data-inbox-action="send-back" aria-label={named(t("board.sendBackEllipsis"))} aria-keyshortcuts={focused ? "s" : undefined} />
+            )}
+            {failedRun && (
+              <Button asChild size="sm" variant="outline" className={DECISION_BUTTON}>
+                <Link href={item.href} data-inbox-action="open-run" aria-label={named(t("inbox.openRun"))}>{t("inbox.openRun")}</Link>
+              </Button>
+            )}
           </div>
         )}
       </div>
-      {review && noteOpen && (
+      {canSendBack && noteOpen && (
         <form
           className="mt-2 flex flex-wrap gap-2 pl-7"
-          onSubmit={(ev) => { ev.preventDefault(); if (note.trim()) { onSendBack(note.trim()); setNote("") } }}
+          onSubmit={(ev) => { ev.preventDefault(); if (note.trim()) { onSendBack?.(note.trim()); setNote("") } }}
         >
           <input
             autoFocus
@@ -114,8 +131,8 @@ export function InboxRow({ item, focused = false, onFocus, onApprove, onSendBack
             placeholder={t("inbox.sendBackNote")}
             className="h-8 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 text-sm text-txt placeholder:text-muted focus-visible:outline-2 focus-visible:outline-accent"
           />
-          <Button size="sm" type="submit" disabled={!note.trim()}>{t("inbox.sendBackSubmit")}</Button>
-          <Button size="sm" type="button" variant="ghost" onClick={close}>{t("inbox.cancel")}</Button>
+          <Button size="sm" type="submit" className={DECISION_BUTTON} disabled={!note.trim()}>{t("inbox.sendBackSubmit")}</Button>
+          <Button size="sm" type="button" variant="ghost" className={DECISION_BUTTON} onClick={close}>{t("inbox.cancel")}</Button>
         </form>
       )}
     </li>

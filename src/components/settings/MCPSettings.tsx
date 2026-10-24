@@ -7,14 +7,16 @@ import { Input } from "@/components/ui/input"
 import { resolveMcpEndpoint, type AppSettings } from "@/lib/settings"
 import { useOrigin } from "@/hooks/use-origin"
 import { useT } from "@/context/LanguageContext"
+import { SavedNote } from "@/components/settings/SavedNote"
 import { ConnectAgentPanel } from "@/components/connect/ConnectAgentPanel"
 
 interface MCPSettingsProps {
   settings: AppSettings
   onSave: (settings: AppSettings) => void
+  savedAt?: number | null
 }
 
-export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
+export function MCPSettings({ settings, onSave, savedAt = null }: MCPSettingsProps) {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<"success" | "error" | null>(null)
   const { t } = useT()
@@ -58,6 +60,7 @@ export function MCPSettings({ settings, onSave }: MCPSettingsProps) {
       <div>
         <h3 className="text-sm font-semibold text-txt mb-1">{t("connect.advanced")}</h3>
         <p className="text-sm text-muted">{t("settings.mcpHint")}</p>
+        <SavedNote at={savedAt} />
       </div>
 
       {/* Endpoint */}

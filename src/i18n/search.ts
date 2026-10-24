@@ -28,6 +28,11 @@ export const en = {
   similarNames: "Docs with a similar name",
   broaden: "Try fewer or shorter words, or another spelling.",
   tryAllProjects: "Search all projects instead",
+  topOf: "Top {shown} of {total} in {project}",
+  showAll: "Show all",
+  loadingAll: "Loading all…",
+  showAllFailed: "Couldn't load the rest: {error}",
+  keysHint: "↑ ↓ to move through results, Enter to open",
 } as const
 
 export const vi: Messages<typeof en> = {
@@ -57,4 +62,9 @@ export const vi: Messages<typeof en> = {
   similarNames: "Tài liệu có tên gần giống",
   broaden: "Thử ít từ hơn, từ ngắn hơn, hoặc cách viết khác.",
   tryAllProjects: "Tìm trong mọi dự án",
+  topOf: "{shown} kết quả đầu trong {total} ở {project}",
+  showAll: "Xem tất cả",
+  loadingAll: "Đang tải tất cả…",
+  showAllFailed: "Không tải được phần còn lại: {error}",
+  keysHint: "↑ ↓ để đi qua kết quả, Enter để mở",
 }

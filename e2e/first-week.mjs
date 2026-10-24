@@ -55,6 +55,10 @@ try {
   const fw = page.getByRole("group", { name: "First week" })
   const row = (id) => fw.locator(`[data-step="${id}"]`)
   await fw.getByText("0 of 6 steps done").waitFor()
+  // Folded to one line on load (the page's own primary leads a first run); the header expands it
+  await fw.getByTestId("first-week-next").getByText("Next: connect your agent").waitFor()
+  assert.equal(await fw.locator("[data-step]").count(), 0, "steps folded on load")
+  await fw.getByTestId("first-week-toggle").click()
   for (const id of ["agent", "roadmap", "breakdown", "taskDone", "testRun", "memory"]) {
     assert.equal(await row(id).getAttribute("data-done"), null, `${id} unticked on an empty project`)
   }
@@ -76,6 +80,7 @@ try {
   assert.equal(res.status, 200)
   await page.reload()
   await fw.getByText("0 of 6 steps done").waitFor()
+  await fw.getByTestId("first-week-toggle").click() // folded again after a reload
   assert.equal(await row("taskDone").getAttribute("data-done"), null)
   console.log("ok  a task a human moves to done doesn't tick \"First task done\"")
 

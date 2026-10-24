@@ -12,7 +12,7 @@
 //
 //   BASE=http://localhost:3083 PW_DIR=<dir with node_modules/playwright> node e2e/empty-states.mjs
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { launchChrome, pageSettled, registerProject } from "./stub-chat.mjs"
@@ -136,6 +136,8 @@ try {
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "vibedoc_read_memory", arguments: {} } }),
   })
   assert.ok(mcp.ok, "MCP call")
+  // "Connected" = R081's evidence file, written just after the reply
+  for (let i = 0; i < 50 && !existsSync(path.join(empty, ".vibedoc/agent-connection.json")); i++) await new Promise((r) => setTimeout(r, 100))
   {
     const { ctx, page } = await open(empty, "en")
     for (const p of PAGES.filter((p) => p.agent)) {

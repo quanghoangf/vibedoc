@@ -243,14 +243,15 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
       <header className="flex items-end gap-6 px-4 pt-8 sm:px-8">
         <div className="min-w-0 grow">
           <h1 className="text-[1.6rem] leading-tight font-semibold tracking-[-0.02em] text-txt">{t("shell.board")}</h1>
-          <p className="mt-2 text-[1.1rem] leading-snug font-semibold text-txt">
+          {/* No tasks at all: no row of zeros and no view toolbar over nothing; the empty state is the page */}
+          {tasks.length > 0 && <p className="mt-2 text-[1.1rem] leading-snug font-semibold text-txt">
             <span className="font-mono tabular-nums">{count("todo", "in-progress", "review", "blocked")}</span> {t("board.openSuffix")} ·{" "}
             <span className="font-mono tabular-nums">{count("review")}</span> {t("board.inReviewSuffix")} ·{" "}
             <span className="font-mono tabular-nums">{count("in-progress")}</span> {t("board.inProgressSuffix")}{" "}
             <span className="font-normal text-muted">
               · <span className="font-mono tabular-nums">{count("done")}</span> {t("board.doneSuffix")}
             </span>
-          </p>
+          </p>}
         </div>
         {!demo && !inGroup && <button
           type="button"
@@ -263,6 +264,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
         </button>}
       </header>
 
+      {tasks.length > 0 && <>
       <div className="mt-[18px] px-4 sm:px-8">
         <ViewBar views={views} activeId={activeId} onSelect={select} onNew={() => saveAs(t("board.newViewName"))} onRename={rename} onDelete={remove}
           customizedIds={views.filter(customized).map((v) => v.id)} onRestore={restore} />
@@ -299,6 +301,7 @@ export function BoardTab({ tasks, onMoveTask, onOpenTask, onNewTask }: BoardTabP
           </div>
         )}
       </div>
+      </>}
 
       <div ref={viewRef} data-board-view={state.kind} className="[view-transition-name:board-view-body]">
       {tasks.length === 0 ? (

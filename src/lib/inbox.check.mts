@@ -59,6 +59,9 @@ const ev = buildInbox([{ project: a, tasks: [
 assert.deepEqual(ev.find((i) => i.id === 'T1')?.evidence, { checks: { proven: 1, total: 7 }, run: 'none', failedStep: null, autoFixLimit: false })
 assert.deepEqual(ev.find((i) => i.id === 'T2')?.evidence, { checks: null, run: 'failed', failedStep: 2, autoFixLimit: false })
 assert.equal(ev.find((i) => i.id === 'c1')?.evidence, undefined)
+// task rows carry the status (a failed-run row offers Send back only when the task is in review or done)
+assert.equal(ev.find((i) => i.id === 'T1')?.status, 'review')
+assert.equal(ev.find((i) => i.id === 'c1')?.status, undefined)
 
 // epic tally over the project's tasks (cancelled left out), for the closure line after an approve
 const ep = buildInbox([{ project: a, tasks: [

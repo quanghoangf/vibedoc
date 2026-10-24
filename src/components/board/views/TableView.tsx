@@ -146,7 +146,7 @@ export function TableView({ tasks, state, agentTasks, onOpenTask, onSort, select
       case "due": {
         const overdue = !!task.due && task.status !== "done" && task.status !== "cancelled" && task.due < today
         return (
-          <td key={p} className={cn(cls, cellMono)}>
+          <td key={p} className={cn(cls, cellMono, "whitespace-nowrap")}>
             <TaskDueField task={task}><span className={cn("font-mono text-[11px]", overdue ? "text-amber" : task.due ? "text-muted" : "text-muted/70")}>{task.due ?? "—"}</span></TaskDueField>
           </td>
         )

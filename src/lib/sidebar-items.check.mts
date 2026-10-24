@@ -21,7 +21,7 @@ const base = (over: Partial<SidebarInput> = {}): SidebarInput => ({
   assert.deepEqual(out['/board'].map((c) => [c.id, c.reason, c.hint, c.href]), [['T1', 'needs-action', 'review', '/board?task=T1']])
   assert.deepEqual(out['/manual-tests'].map((c) => [c.id, c.hint, c.href]), [['T1', 'review', '/manual-tests?task=T1']])
   // one row per epic, its worst drift
-  assert.deepEqual(out['/roadmap'].map((c) => [c.id, c.hint, c.tone, c.href]), [['R9', 'overdue', 'danger', '/roadmap?item=R9']])
+  assert.deepEqual(out['/roadmap'].map((c) => [c.id, c.hint, c.tone, c.href]), [['R9', 'overdue', 'warn', '/roadmap?item=R9']])
 }
 
 // needs-action only: no "Viewed" history, nothing for a page with nothing to do

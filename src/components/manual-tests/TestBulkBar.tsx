@@ -120,7 +120,7 @@ export function TestBulkBar({ rows, onClear }: { rows: ReviewRow[]; onClear: () 
             <Check className="size-3.5 text-teal" aria-hidden /> {t("board.approve")}{inReview.length ? ` ${inReview.length}` : ""}
           </button>
           <button type="button" className={BTN} disabled={demo || busy || !sendable.length} onClick={() => setNote("")} title={t("tests.sendBackTitle")}>
-            <CornerUpLeft className="size-3.5 text-amber" aria-hidden /> {t("board.sendBack")}{sendable.length ? ` ${sendable.length}` : ""}…
+            <CornerUpLeft className="size-3.5 text-muted" aria-hidden /> {t("board.sendBack")}{sendable.length ? ` ${sendable.length}` : ""}…
           </button>
           <button type="button" onClick={onClear} aria-label={t("board.clearSelection")} title={t("tests.clearSelectionEsc")} className={`${BTN} ml-auto px-2 text-muted`}>
             <X className="size-3.5" aria-hidden />

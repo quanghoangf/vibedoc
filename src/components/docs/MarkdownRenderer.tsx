@@ -37,18 +37,21 @@ marked.use({
   hooks: { processAllTokens: (tokens) => groupVisualBlocks(groupFences(tokens)) },
 })
 
+/** "flowchart", "sequence", "er"…: the first word of the first line that isn't front matter or a %% comment. */
+function diagramType(src: string): string {
+  const lines = src.replace(/^---\n[\s\S]*?\n---\n/, "").split("\n").map((l) => l.trim())
+  const word = lines.find((l) => l && !l.startsWith("%%"))?.split(/[\s;]/)[0] ?? ""
+  return (word === "graph" ? "flowchart" : word.replace(/Diagram(-v2)?$/, "").replace(/-beta$/, "")).toLowerCase() || "mermaid"
+}
+
 // Intercept mermaid code blocks — emit a div instead of <pre><code>
 marked.use({
   renderer: {
     code({ text: code, lang }) {
       if (lang === "mermaid") {
-        // HTML-escape so the raw source sits safely as text in the div.
-        // The browser decodes entities back when mermaid reads textContent.
-        const escaped = code
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-        return `<div class="mermaid not-prose">${escaped}</div>`
+        // The source waits in data-source (the browser decodes the entities back), never as text: until Mermaid has drawn
+        // it the reader sees a quiet placeholder naming the diagram, not seconds of raw source as centred prose.
+        return `<div class="mermaid not-prose" data-source="${escapeHtml(code)}" aria-busy="true"><span class="mermaid-pending">${escapeHtml(tNow("docs.diagramPending", { type: diagramType(code) }))}</span></div>`
       }
       return false // default renderer handles all other code blocks
     },
@@ -242,11 +245,13 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, classN
           const { svg, bindFunctions } = await m.default.render(`mermaid-${mine}-${Math.random().toString(36).slice(2)}`, src)
           if (cancelled || mine !== pass) return
           node.innerHTML = svg
+          node.removeAttribute("aria-busy")
           bindFunctions?.(node)
           decorateDiagram(node)
           frameDiagram(node)
         } catch (e) {
           if (cancelled || mine !== pass) return
+          node.removeAttribute("aria-busy")
           showMermaidError(node, src, e)
         }
       }

@@ -43,6 +43,8 @@ import { useStatusLabel } from "@/components/shared/StatusIcon"
 import type { MessageKey } from "@/i18n"
 import { approveRisk, taskEvidence, type ApproveRisk } from "@/lib/inbox"
 import { useApproveLabel } from "@/components/shared/approve-label"
+import { DECISION_BUTTON, SendBackButton } from "@/components/shared/SendBackButton"
+import { Button } from "@/components/ui/button"
 
 const NEXT_STATUS: Record<string, string[]> = {
   todo: ["in-progress", "paused"],
@@ -583,7 +585,8 @@ export type ReviewAction = "approve" | "send-back"
  */
 export function ReviewActions({ taskId, onDone, canApprove = true, initialNote = "", prompt, className, children, runId, marks, marksList, confirmApprove, risk = null }: {
   taskId: string
-  /** What Approve would skip (`approveRisk`): then Approve is the outline button saying so and Send back is the filled primary; else Approve is */
+  /** What Approve would skip (`approveRisk`): then Approve is an outline button saying so beside the outline Send back
+   *  (no filled primary: the prompt's verdict carries the message); else Approve is the one filled primary */
   risk?: ApproveRisk | null
   onDone: (action: ReviewAction) => void
   canApprove?: boolean
@@ -648,13 +651,10 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
             className="w-full resize-y rounded-md border border-border bg-bg px-2.5 py-2 text-sm text-txt placeholder:text-muted focus:border-accent/60 focus:outline-hidden"
           />
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => act("send-back")}
-              disabled={busy || (!note.trim() && !flagged)}
-              className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm bg-amber/15 border border-amber/40 text-amber transition-colors hover:bg-amber/25 disabled:opacity-40"
-            >
-              <CornerUpLeft className="size-3.5" aria-hidden /> {busy ? t("board.sendingBack") : t("board.sendBack")}
-            </button>
+            {/* the one primary of the open note: what was asked for */}
+            <Button size="sm" className={DECISION_BUTTON} onClick={() => act("send-back")} disabled={busy || (!note.trim() && !flagged)}>
+              <CornerUpLeft aria-hidden /> {busy ? t("board.sendingBack") : t("board.sendBack")}
+            </Button>
             <button onClick={() => { setSendingBack(false); setNote(initialNote) }} disabled={busy} className="text-xs text-muted hover:text-txt">{t("board.cancel")}</button>
             <span className="text-[11px] text-muted">{t("board.sendBackHint")}</span>
           </div>
@@ -669,32 +669,19 @@ export function ReviewActions({ taskId, onDone, canApprove = true, initialNote =
             </span>
           )}
           {canApprove && !confirming && (
-            <button
+            // nothing unproven: Approve is the one filled primary; something is: outline, its label says what it skips
+            <Button
+              size="sm"
+              variant={risk ? "outline" : "default"}
+              className={DECISION_BUTTON}
               data-review="approve"
               onClick={() => (confirmApprove ? setConfirming(true) : act("approve"))}
               disabled={busy}
-              className={cn(
-                "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm border transition-colors disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-                risk ? "border-border2 bg-transparent text-txt hover:bg-surface2" : "border-accent bg-accent text-accent-fg hover:brightness-110",
-              )}
             >
-              <Check className="size-3.5" aria-hidden /> {approveLabel}
-            </button>
+              <Check aria-hidden /> {approveLabel}
+            </Button>
           )}
-          <button
-            data-review="send-back"
-            onClick={() => setSendingBack(true)}
-            disabled={busy}
-            className={cn(
-              "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-sm border transition-colors",
-              !canApprove ? "bg-amber/15 border-amber/40 text-amber hover:bg-amber/25"
-                // something is missing: sending it back is the decision we lead with, Approve stays one click away
-                : risk ? "border-accent bg-accent text-accent-fg hover:brightness-110"
-                : "bg-surface2 border-border text-muted hover:text-txt hover:border-border2",
-            )}
-          >
-            <CornerUpLeft className="size-3.5" aria-hidden /> {canApprove ? t("board.sendBackEllipsis") : t("board.sendBackToAgent")}
-          </button>
+          <SendBackButton data-review="send-back" onClick={() => setSendingBack(true)} disabled={busy} />
           {children}
         </div>
       )}
@@ -776,14 +763,9 @@ function VerificationBlock({ taskId, verification: v, canSendBack, onSent }: { t
       </div>
       {pickable && (
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={sendBack}
-            disabled={busy || !picked.size}
-            className="inline-flex items-center gap-1.5 rounded-sm border border-amber/40 bg-amber/5 px-2.5 py-1 text-xs text-amber transition-colors hover:bg-amber/10 disabled:opacity-50"
-          >
-            <CornerUpLeft className="size-3.5" aria-hidden /> {picked.size ? tn("board.sendBackFindings", picked.size) : t("board.sendBackPickFindings")}
-          </button>
+          <SendBackButton onClick={sendBack} disabled={busy || !picked.size}>
+            {picked.size ? tn("board.sendBackFindings", picked.size) : t("board.sendBackPickFindings")}
+          </SendBackButton>
           {error && <p role="alert" className="text-xs text-danger">{error}</p>}
         </div>
       )}

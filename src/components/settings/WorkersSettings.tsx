@@ -15,7 +15,7 @@ const lines = (text: string) => text.split("\n").map((l) => l.trim()).filter(Boo
 /** Settings → Workers (R108 T557): `workers` in .vibedoc/settings.json. */
 export function WorkersSettings({ settings, onSave, rootParam }: {
   settings: AppSettings
-  onSave: (settings: AppSettings) => Promise<void>
+  onSave: (settings: AppSettings) => Promise<boolean>
   rootParam: string
 }) {
   const { t } = useT()
@@ -51,8 +51,7 @@ export function WorkersSettings({ settings, onSave, rootParam }: {
   const save = async () => {
     const tools = lines(allowed)
     const count = (n: number) => Math.max(1, Math.floor(n) || 1)
-    await onSave({ ...settings, workers: { ...(settings.workers?.verify === false && { verify: false }), ...(tools.length && { allowedTools: tools }), maxRunning: count(max), env: lines(env), maxTurnsPerTask: count(turns), taskTimeoutMin: count(timeoutMin), mode, setup, userMcp: setup === "mine" && userMcp } })
-    setSaved(true)
+    if (await onSave({ ...settings, workers: { ...(settings.workers?.verify === false && { verify: false }), ...(tools.length && { allowedTools: tools }), maxRunning: count(max), env: lines(env), maxTurnsPerTask: count(turns), taskTimeoutMin: count(timeoutMin), mode, setup, userMcp: setup === "mine" && userMcp } })) setSaved(true)
   }
   const field = "w-full rounded-lg border border-border bg-surface2 px-3 py-2 font-mono text-xs text-txt focus:border-accent/60 focus:outline-hidden"
 

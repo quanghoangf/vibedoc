@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { cn } from "@/lib/utils"
+import { Switch } from "@/components/shared/Switch"
 import { useT } from "@/context/LanguageContext"
 import { FeedbackDetails } from "@/components/layout/FirstRunFeedback"
 
@@ -47,22 +47,12 @@ export function PrivacySettings({ rootParam }: { rootParam: string }) {
         <p className="text-sm text-muted">{t("feedback.privacyHint")}</p>
       </div>
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <Switch checked={on} onChange={toggle} labelledBy="feedback-toggle-label" disabled={!state?.available} className="mt-0.5" />
           <div>
             <div id="feedback-toggle-label" className="text-sm font-medium text-txt">{t("feedback.toggle")}</div>
             <div className="text-xs text-muted">{state && !state.available ? t("feedback.unavailable") : t("feedback.toggleHint")}</div>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            aria-labelledby="feedback-toggle-label"
-            disabled={!state?.available}
-            onClick={toggle}
-            className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50", on ? "bg-accent" : "bg-border")}
-          >
-            <span className={cn("absolute top-1 h-4 w-4 rounded-full bg-white transition-transform", on ? "left-6" : "left-1")} />
-          </button>
         </div>
         <FeedbackDetails />
       </div>

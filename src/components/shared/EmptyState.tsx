@@ -37,7 +37,7 @@ export function EmptyState({ icon, message, subMessage, lead, action, needsAgent
       {subMessage && <p className="text-xs mt-1">{subMessage}</p>}
       {lead && <p className="mt-2 max-w-md text-balance leading-relaxed">{lead}</p>}
       {action && <div data-empty-action className="mt-5 flex max-w-full justify-center">{action}</div>}
-      {needsAgent && !connected && (
+      {needsAgent && connected === false && (
         <p data-connect-hint className="mt-4 text-xs">
           {t("shell.agentNotConnected")}{" "}
           <Link href={CONNECT_HREF} className="text-accent underline-offset-2 hover:underline">{t("shell.connectYourAgent")}</Link>

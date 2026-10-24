@@ -2,11 +2,14 @@
 
 import { cn } from "@/lib/utils"
 import type { AppSettings } from "@/lib/settings"
+import { Switch } from "@/components/shared/Switch"
 import { useT } from "@/context/LanguageContext"
+import { SavedNote } from "@/components/settings/SavedNote"
 
 interface EditorSettingsProps {
   settings: AppSettings
   onSave: (settings: AppSettings) => void
+  savedAt?: number | null
 }
 
 const AUTO_SAVE_OPTIONS = [
@@ -22,7 +25,7 @@ const PREVIEW_MODES = [
   { id: "preview", label: "settings.previewOnly" },
 ] as const
 
-export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
+export function EditorSettings({ settings, onSave, savedAt = null }: EditorSettingsProps) {
   const { t } = useT()
   const updateEditor = (key: keyof AppSettings["editor"], value: unknown) => {
     onSave({
@@ -36,6 +39,7 @@ export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
       <div>
         <h2 className="text-xl font-semibold text-txt mb-1">{t("settings.tabEditor")}</h2>
         <p className="text-sm text-muted">{t("settings.editorHint")}</p>
+        <SavedNote at={savedAt} />
       </div>
 
       {/* Auto-save */}
@@ -88,46 +92,20 @@ export function EditorSettings({ settings, onSave }: EditorSettingsProps) {
 
       {/* Toggles */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-start gap-3">
+          <Switch checked={!!settings.editor.wordWrap} onChange={(v) => updateEditor("wordWrap", v)} labelledBy="setting-wordWrap" className="mt-0.5" />
           <div>
-            <div className="text-sm font-medium text-txt">{t("settings.wordWrap")}</div>
+            <div id="setting-wordWrap" className="text-sm font-medium text-txt">{t("settings.wordWrap")}</div>
             <div className="text-xs text-muted">{t("settings.wordWrapHint")}</div>
           </div>
-          <button
-            onClick={() => updateEditor("wordWrap", !settings.editor.wordWrap)}
-            className={cn(
-              "w-11 h-6 rounded-full transition-colors relative",
-              settings.editor.wordWrap ? "bg-accent" : "bg-border"
-            )}
-          >
-            <span
-              className={cn(
-                "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-                settings.editor.wordWrap ? "left-6" : "left-1"
-              )}
-            />
-          </button>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-start gap-3">
+          <Switch checked={!!settings.editor.lineNumbers} onChange={(v) => updateEditor("lineNumbers", v)} labelledBy="setting-lineNumbers" className="mt-0.5" />
           <div>
-            <div className="text-sm font-medium text-txt">{t("settings.lineNumbers")}</div>
+            <div id="setting-lineNumbers" className="text-sm font-medium text-txt">{t("settings.lineNumbers")}</div>
             <div className="text-xs text-muted">{t("settings.lineNumbersHint")}</div>
           </div>
-          <button
-            onClick={() => updateEditor("lineNumbers", !settings.editor.lineNumbers)}
-            className={cn(
-              "w-11 h-6 rounded-full transition-colors relative",
-              settings.editor.lineNumbers ? "bg-accent" : "bg-border"
-            )}
-          >
-            <span
-              className={cn(
-                "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-                settings.editor.lineNumbers ? "left-6" : "left-1"
-              )}
-            />
-          </button>
         </div>
       </div>
     </div>

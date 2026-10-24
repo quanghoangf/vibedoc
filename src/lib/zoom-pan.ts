@@ -17,3 +17,21 @@ export function zoomAt(s: ZoomPan, factor: number, point: { x: number; y: number
 export function panBy(s: ZoomPan, dx: number, dy: number): ZoomPan {
   return { ...s, x: s.x + dx, y: s.y + dy }
 }
+
+/** Below this share of its own width a diagram fitted to its frame stops being readable (labels under ~8px). */
+export const DIAGRAM_FIT_FLOOR = 0.6
+
+/** The reader's pick on the control row ("Fit to width" / "Actual size"); null = not picked, the rule decides. */
+export type DiagramChoice = "fit" | "actual" | null
+
+/**
+ * How a diagram sits in its frame (the inline doc view; Fullscreen has its own zoom). It fits: as drawn. Wider than
+ * the frame: scaled to the width while that keeps at least DIAGRAM_FIT_FLOOR, else at actual size, scrolling
+ * sideways. A reader's pick wins either way. `scale` is what the control row shows.
+ */
+export function diagramView(natural: number, inner: number, choice: DiagramChoice): { overflow: boolean; actual: boolean; scale: number } {
+  if (!(natural > inner + 1) || inner <= 0) return { overflow: false, actual: false, scale: 1 }
+  const fit = inner / natural
+  const actual = choice ? choice === "actual" : fit < DIAGRAM_FIT_FLOOR
+  return { overflow: true, actual, scale: actual ? 1 : fit }
+}

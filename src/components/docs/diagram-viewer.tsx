@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/toast"
 import { tNow, useT } from "@/context/LanguageContext"
-import { FIT, panBy, zoomAt, type ZoomPan } from "@/lib/zoom-pan"
+import { FIT, diagramView, panBy, zoomAt, type DiagramChoice, type ZoomPan } from "@/lib/zoom-pan"
 import { PASTE_PALETTE, visualBlockToHtml, type RichItem } from "@/lib/rich-copy"
 
 // Diagram tools (T514): each rendered mermaid diagram gets a small hover toolbar (Fullscreen · Copy image · Copy source),
@@ -43,9 +43,10 @@ export function decorateDiagram(node: HTMLElement) {
 }
 
 /**
- * A wide diagram is never clipped: Mermaid's node gets a frame (once; a theme re-render keeps it) and, when the diagram
- * is wider than the frame, it is drawn scaled to the width (the SVG keeps its viewBox, so the whole picture shrinks).
- * An always-visible control row under it says the scale and offers "Actual size" (scroll sideways) and Fullscreen.
+ * A wide diagram is never clipped nor shrunk past reading: Mermaid's node gets a frame (once; a theme re-render keeps
+ * it) and, when the diagram is wider than the frame, it is drawn scaled to the width while that keeps 60% of its size
+ * (the SVG keeps its viewBox), else at actual size, scrolling sideways with an edge fade (`diagramView`). An
+ * always-visible control row under it says the scale and offers "Fit to width" / "Actual size" and Fullscreen.
  * measureDiagramFrame decides the frame's state.
  */
 export function frameDiagram(node: HTMLElement) {
@@ -84,9 +85,10 @@ const naturalWidth = (svg: SVGSVGElement) => parseFloat(svg.style.maxWidth) || s
 
 /**
  * data-wide: the SVG is wider than the prose column, so the frame breaks out of it up to the pane (.doc-preview grid);
- * data-scaled: even there it is wider than the frame, so it is drawn scaled to the width and the controls show;
- * data-actual: the reader chose Actual size, so it keeps its own width and scrolls (fade, the node takes focus for
- * arrow keys); data-at-end: scrolled to the right edge (no fade).
+ * data-scaled: even there it is wider than the frame and is drawn scaled to the width (it keeps >= 60%, or the reader
+ * picked Fit to width); data-actual: wider still, or the reader picked Actual size: it keeps its own width and scrolls
+ * (fade, the node takes focus for arrow keys); data-at-end: scrolled to the right edge (no fade). Either shows the
+ * control row. The pick lives in data-view, so a re-render (theme switch, resize) keeps it.
  */
 export function measureDiagramFrame(frame: HTMLElement) {
   const node = frame.querySelector<HTMLElement>(":scope > .mermaid")
@@ -101,20 +103,28 @@ export function measureDiagramFrame(frame: HTMLElement) {
   if (node.clientWidth === 0) return
   delete frame.dataset.wide
   frame.style.maxWidth = ""
-  if (natural > inner() && !frame.closest(".derived-diagram-fit")) {
+  // a derived map in a narrow rail always fits its box (no Actual size control there; Fullscreen shows it large)
+  const rail = !!frame.closest(".derived-diagram-fit")
+  if (natural > inner() && !rail) {
     frame.dataset.wide = ""
     frame.style.maxWidth = `${Math.ceil(natural + padX + borderX)}px`
   }
-  const scaled = natural > inner() + 1
-  frame.toggleAttribute("data-scaled", scaled)
-  if (!scaled) frame.removeAttribute("data-actual")
-  const actual = frame.hasAttribute("data-actual")
-  // a theme re-render replaced the SVG: re-apply the reader's choice
-  svg.style.minWidth = actual ? `${natural}px` : ""
-  if (actual) node.tabIndex = 0
+  const view = diagramView(natural, inner(), rail ? "fit" : ((frame.dataset.view as DiagramChoice | undefined) ?? null))
+  frame.toggleAttribute("data-scaled", view.overflow && !view.actual)
+  frame.toggleAttribute("data-actual", view.actual)
+  // a theme re-render replaced the SVG: re-apply the state
+  svg.style.minWidth = view.actual ? `${natural}px` : ""
+  if (view.actual) node.tabIndex = 0
   else node.removeAttribute("tabindex")
   const pct = frame.querySelector<HTMLElement>(":scope > .diagram-controls > .diagram-pct")
-  if (pct) pct.textContent = scaled && !actual ? `${Math.round((inner() / natural) * 100)}%` : "100%"
+  if (pct) pct.textContent = `${Math.round(view.scale * 100)}%`
+  const chip = frame.querySelector<HTMLElement>(":scope > .diagram-controls > .diagram-fit")
+  if (chip) {
+    chip.textContent = tNow(view.actual ? "docs.diagramFitWidth" : "docs.diagramActualSize")
+    chip.setAttribute("aria-label", tNow(view.actual ? "docs.diagramFitLabel" : "docs.diagramActualLabel"))
+    chip.title = chip.getAttribute("aria-label") ?? ""
+    chip.setAttribute("aria-pressed", String(view.actual))
+  }
   markScrollEnd(node)
 }
 
@@ -125,12 +135,7 @@ function markScrollEnd(node: HTMLElement) {
 function toggleFit(chip: HTMLElement) {
   const frame = chip.closest<HTMLElement>("[data-diagram-frame]")
   if (!frame) return
-  const actual = !frame.hasAttribute("data-actual")
-  frame.toggleAttribute("data-actual", actual)
-  chip.textContent = tNow(actual ? "docs.diagramFitWidth" : "docs.diagramActualSize")
-  chip.setAttribute("aria-label", tNow(actual ? "docs.diagramFitLabel" : "docs.diagramActualLabel"))
-  chip.title = chip.getAttribute("aria-label") ?? ""
-  chip.setAttribute("aria-pressed", String(actual))
+  frame.dataset.view = frame.hasAttribute("data-actual") ? "fit" : "actual"
   measureDiagramFrame(frame)
 }
 

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Plus, Pencil, Trash2, Check, Bot } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/shared/Switch"
 import type { Agent, Skill } from "@/lib/settings"
 import { useT } from "@/context/LanguageContext"
 
@@ -140,21 +141,8 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setEditForm({ ...form, active: !form.active })}
-            className={cn(
-              "w-11 h-6 rounded-full transition-colors relative",
-              form.active ? "bg-accent" : "bg-border"
-            )}
-          >
-            <span
-              className={cn(
-                "absolute top-1 w-4 h-4 rounded-full bg-white transition-transform",
-                form.active ? "left-6" : "left-1"
-              )}
-            />
-          </button>
-          <span className="text-sm text-muted">{form.active ? t("settings.active") : t("settings.inactive")}</span>
+          <Switch checked={form.active} onChange={(v) => setEditForm({ ...form, active: v })} labelledBy="agent-form-active" />
+          <span id="agent-form-active" className="text-sm text-muted">{t("settings.active")}</span>
         </div>
         <div className="flex gap-2">
           <button
@@ -229,21 +217,7 @@ export function AgentsSettings({ agents, skills, onSave }: AgentsSettingsProps) 
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => toggleActive(agent.id)}
-                    aria-label={t("settings.toggleActive", { name: agent.name })}
-                    className={cn(
-                      "w-9 h-5 rounded-full transition-colors relative",
-                      agent.active ? "bg-accent" : "bg-border"
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform",
-                        agent.active ? "left-4" : "left-0.5"
-                      )}
-                    />
-                  </button>
+                  <Switch checked={agent.active} onChange={() => toggleActive(agent.id)} label={t("settings.toggleActive", { name: agent.name })} />
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => startEdit(agent)}

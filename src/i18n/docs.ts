@@ -278,6 +278,8 @@ export const en = {
   diagramErrorOther: "Mermaid couldn't read this line.",
   diagramErrorUnknown: "Mermaid couldn't read this diagram.",
   diagramErrorDetails: "Details",
+  // Until Mermaid has drawn it: a quiet frame naming the diagram, never the raw source
+  diagramPending: "Diagram · {type}",
   // Copy that keeps the look (T517)
   diagramCopyImage: "Copy diagram as image",
   diagramImageCopied: "Copied the diagram as an image (and its source as text)",
@@ -563,6 +565,7 @@ export const vi: Messages<typeof en> = {
   diagramErrorOther: "Mermaid không đọc được dòng này.",
   diagramErrorUnknown: "Mermaid không đọc được sơ đồ này.",
   diagramErrorDetails: "Chi tiết",
+  diagramPending: "Sơ đồ · {type}",
   // Copy that keeps the look (T517)
   diagramCopyImage: "Sao chép sơ đồ dạng ảnh",
   diagramImageCopied: "Đã sao chép sơ đồ dạng ảnh (kèm mã nguồn dạng văn bản)",

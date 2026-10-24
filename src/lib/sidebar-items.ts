@@ -90,7 +90,7 @@ export function sidebarChildren(input: SidebarInput): Record<SidebarPage, Sideba
   }
   const roadmapNeeds = [...worst].flatMap(([id, hint]): SidebarChild[] => {
     const e = epics?.get(id)
-    return e ? [{ key: `n:${id}`, kind: 'epic', id, label: e.title, reason: 'needs-action', hint, tone: hint === 'overdue' ? 'danger' : 'warn', href: `/roadmap?item=${id}` }] : []
+    return e ? [{ key: `n:${id}`, kind: 'epic', id, label: e.title, reason: 'needs-action', hint, tone: 'warn', href: `/roadmap?item=${id}` }] : []
   }).sort((a, b) => rank(a.hint) - rank(b.hint))
 
   // Docs: lint errors, then docs that may be outdated

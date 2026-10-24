@@ -134,11 +134,11 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
                         className={cn(
                           "h-4 w-4 rotate-45 border-2",
                           mk.item.status === "done" ? "border-teal bg-teal" : mk.item.status === "in-progress" ? "border-amber bg-bg" : "border-border2 bg-bg",
-                          mk.state === "overdue" && "border-danger",
+                          mk.state === "overdue" && "border-amber",
                         )}
                       />
                     ) : (
-                      <span className={cn("rounded-full", mk.state === "overdue" && "ring-2 ring-danger ring-offset-1 ring-offset-bg")}>
+                      <span className={cn("rounded-full", mk.state === "overdue" && "ring-2 ring-amber ring-offset-1 ring-offset-bg")}>
                         <StatusDot status={mk.item.status} />
                       </span>
                     )}
@@ -161,7 +161,7 @@ export function RoadmapTimeline({ items, today, onSelect, onItemContextMenu, pro
                       <span
                         className={cn(
                           "font-mono text-[10px]",
-                          mk.state === "overdue" ? "text-danger" : mk.state === "soon" ? "text-amber" : "text-muted",
+                          mk.state === "overdue" ? "font-medium text-amber" : mk.state === "soon" ? "text-amber" : "text-muted",
                         )}
                       >
                         {mk.derived ? t("roadmap.spanDates", { start: f.day(mk.start as string), end: f.day(mk.end as string) }) : f.day(mk.item.due as string)}

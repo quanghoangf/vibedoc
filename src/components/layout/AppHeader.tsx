@@ -13,7 +13,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useOrigin } from "@/hooks/use-origin"
 import { userScopeMcpAddCommand } from "@/lib/agent-connect"
-import { CONNECT_HREF } from "@/components/shared/agent-connection"
+import { CONNECT_HREF, useAgentConnection } from "@/components/shared/agent-connection"
 import { cn } from "@/lib/utils"
 import { groupSessions, isLive } from "@/lib/sessions"
 import { waitingTitle } from "@/lib/chats"
@@ -104,7 +104,7 @@ export function AppHeader({ summary, projects, activeProject, liveIndicator, onP
 
       {!demo && <InboxBadge />}
 
-      <ConnectMenu activity={activity} now={now} />
+      {!demo && <ConnectMenu now={now} />}
 
       {!demo && <button
         type="button"
@@ -229,16 +229,18 @@ function InboxBadge() {
 }
 
 /**
- * The one connect command (R104: user scope, every project) and when an agent last called in. Not connected: an
+ * The one connect command (R104: user scope, every project) and when an agent last called in (R081's evidence, the
+ * same source as the Connect panel and First week). Unknown while the summary loads: a blank box. Not connected: an
  * outline "Connect agent" button (never filled: the page's own primary stays the one primary); connected: a quiet
  * "Agent connected" chip. Both open the same menu.
  */
-function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number }) {
+function ConnectMenu({ now }: { now: number }) {
   const { t } = useT()
   const f = useFormat()
   const command = userScopeMcpAddCommand(`${useOrigin()}/api/mcp`)
   const [copied, setCopied] = useState<string | null>(null)
-  const lastCall = activity.filter((e) => e.actor === "ai").reduce<string | null>((t, e) => (!t || e.timestamp > t ? e.timestamp : t), null)
+  const connection = useAgentConnection()
+  const lastCall = connection?.lastCall ?? null
   const connected = lastCall !== null
 
   async function copy(text: string) {
@@ -264,6 +266,15 @@ function ConnectMenu({ activity, now }: { activity: ActivityEvent[]; now: number
       </span>
     </DropdownMenuItem>
   )
+
+  // Not known yet (summary loading): a quiet box the width of "Connect agent", so neither state flashes
+  if (connection === undefined) {
+    return (
+      <span aria-hidden data-connect-pending className="flex h-8 items-center gap-1.5 rounded-md border border-transparent px-2 text-xs md:px-2.5">
+        <Plug className="size-3.5 text-border2" /><span className="invisible max-md:hidden">{t("shell.connect")}</span>
+      </span>
+    )
+  }
 
   return (
     <DropdownMenu>

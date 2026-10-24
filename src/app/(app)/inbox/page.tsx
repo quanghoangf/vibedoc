@@ -8,7 +8,7 @@ import { useT } from "@/context/LanguageContext"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Button } from "@/components/ui/button"
 import { toast, undoToast } from "@/components/ui/toast"
-import { InboxRow, KIND_LABEL } from "@/components/inbox/InboxRow"
+import { InboxRow, KIND_LABEL, canSendBackFailed } from "@/components/inbox/InboxRow"
 import { useInbox } from "@/components/inbox/use-inbox"
 import type { InboxItem, InboxKind } from "@/lib/inbox"
 import type { ProjectGroup } from "@/lib/groups"
@@ -97,12 +97,14 @@ function InboxView() {
   const live = projects.filter((p) => !p.archived && !p.missing)
   const at = Math.min(focus, shown.length - 1)
   const canDecide = (i: InboxItem | undefined): i is InboxItem => !!i && i.kind === "review" && !demo
+  // s also sends back a failed run on a task in review or done; a never approves one
+  const canSendBack = (i: InboxItem | undefined): i is InboxItem => !!i && !demo && (i.kind === "review" || canSendBackFailed(i))
 
-  // j/k (↓/↑ in the list) move the row and Enter opens it (useListKeys, like the board and chats); a approves, s opens the
-  // send-back note. a / s belong to this page even with nothing to decide, so they never jump away by surprise.
+  // j/k (↓/↑ in the list) move the row and Enter opens it (useListKeys, like the board and chats); a approves a review, s opens
+  // the send-back note (a review, or a failed run on a task in review or done). a / s belong to this page even with nothing to decide, so they never jump away by surprise.
   useListKeys(list, "[data-inbox-row] > div > a", {
     a: () => { const row = shown[at]; if (canDecide(row)) void decide(row, "approve") },
-    s: () => { const row = shown[at]; if (canDecide(row)) setNoteFor(keyOf(row)) },
+    s: () => { const row = shown[at]; if (canSendBack(row)) setNoteFor(keyOf(row)) },
   })
 
   return (

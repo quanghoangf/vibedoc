@@ -143,7 +143,8 @@ export function DueChip({ due, state }: { due: string | null; state?: DueState |
     <span
       className={cn(
         "font-mono text-[10px]",
-        state === "overdue" ? "text-danger" : state === "soon" ? "text-amber" : "text-muted",
+        // overdue and due soon are at risk (amber); red is only blocked / failed / destructive
+        state === "overdue" ? "font-medium text-amber" : state === "soon" ? "text-amber" : "text-muted",
       )}
     >
       {t("board.dueOn", { date: f.day(due) })}
@@ -157,7 +158,7 @@ function DueNote({ data }: { data: RoadmapNodeData }) {
   const { t, tn } = useT()
   const s = data.taskDue
   if (s && s.overdue > 0) {
-    return <span className="font-mono text-[10px] text-danger">{tn("roadmap.tasksOverdue", s.overdue)}</span>
+    return <span className="font-mono text-[10px] font-medium text-amber">{tn("roadmap.tasksOverdue", s.overdue)}</span>
   }
   if (data.item.due) return <DueChip due={data.item.due} state={data.dueState} />
   if (s?.next) return <span className={cn("font-mono text-[10px]", data.taskDueSoon ? "text-amber" : "text-muted")}>{t("roadmap.nextDue", { date: f.day(s.next) })}</span>
